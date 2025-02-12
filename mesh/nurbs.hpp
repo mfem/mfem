@@ -29,7 +29,6 @@ namespace mfem
 
 class GridFunction;
 
-
 /** @brief A vector of knots in one dimension, with B-spline basis functions of
     a prescribed order.
 
@@ -349,6 +348,7 @@ public:
                      for each dimension. */
    void UniformRefinement(int rf = 2);
    void UniformRefinement(Array<int> const& rf, int multiplicity = 1);
+   void UniformRefinement(std::vector<Array<int>> const& rf, int multiplicity = 1);
 
    /** @brief Coarsen with optional coarsening factor @a cf which divides the
        number of elements in each dimension. Nonuniform spacing functions may be
@@ -369,6 +369,8 @@ public:
    void SetKnotVectorsCoarse(bool c);
 
    void FullyCoarsen(const Array2D<double> & cp, int ncp1D);
+
+   void UpdateSpacingPartitions(const Array<KnotVector*> &pkv);
 
    Array<int> origNE;
 
@@ -619,9 +621,12 @@ protected:
    inline int KnotSign(int edge) const;
 
    std::set<int> masterEdges, masterFaces;
+   Array<int> masterEdgeIndex, slaveEdgesUnique, slaveFacesUnique;
+   std::map<int,int> slaveEdgesToUnique, slaveFacesToUnique;
    std::vector<int> slaveEdges, slaveFaces, slaveFaceNE1, slaveFaceNE2,
        slaveFaceI, slaveFaceJ, slaveFaceOri;
    std::map<int,int> masterEdgeToId, masterFaceToId;
+   std::vector<std::vector<int>> slaveToMasterEdges, slaveToMasterFaces;
    std::vector<std::vector<int>> masterEdgeSlaves, masterFaceSlaves,
        masterFaceSlaveCorners;
    std::vector<std::vector<int>> masterEdgeVerts, masterFaceVerts;
@@ -631,6 +636,8 @@ protected:
 
    bool nonconforming = false;
    std::map<int,int> e2nce;
+
+   std::map<std::pair<int,int>, std::pair<int,int>> parentToKV;
 
    void RefineKnotIndices(Array<int> const& rf);
 
@@ -739,6 +746,11 @@ protected:
    void Get2DPatchNets(const Vector &coords, int vdim);
    void Get3DPatchNets(const Vector &coords, int vdim);
 
+   void LoadFactorsForKV(const std::string &filename);
+   void PropagateFactorsForKV(int rf_default);
+   int SetPatchFactors(int p);
+   void GetMasterEdgePieceOffsets(int mid, Array<int> &os);
+
    // Patch --> FE translation functions
 
    /** @brief Return in @a coords the coordinates from each patch. Side effects:
@@ -794,6 +806,9 @@ private:
                               std::vector<FacePairInfo> & facePairs,
                               std::vector<int> & parentFaces,
                               std::vector<int> & parentVerts);
+
+   void GetAuxFaceToElementTable(Array2D<int> & auxface2elem);
+   void GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem);
 
 public:
    /// Copy constructor: deep copy
@@ -994,12 +1009,16 @@ public:
    spacing functions may be used.
    */
    void UniformRefinement(int rf = 2);
-   void UniformRefinement(Array<int> const& rf);
+   void UniformRefinement(Array<int> const& rf,
+                          const std::string &kvf_filename="");
    void Coarsen(int cf = 2, real_t tol = 1.0e-12);
    void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
 
+   void UpdateKVF();
+   void UpdateCoarseKVF();
+
    /** @brief Insert knots from @a kv into all KnotVectors in all patches. The
-        size of @a kv should be the same as @a knotVectors. */
+         size of @a kv should be the same as @a knotVectors. */
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
@@ -1054,10 +1073,23 @@ public:
 
    void ReadPatchCP(std::istream &input);
 
+   void PrintCoarsePatches(std::ostream &os);
+
    int npatch;
    Array3D<double> patchCP;
 
    void FullyCoarsen();
+
+   void SetKVP(Array<bool> &kvp);
+
+   bool validV2K = true;
+
+   static constexpr int unsetFactor = 0;
+
+   std::vector<Array<int>> kvf, kvf_coarse;
+
+   // TODO: an auxiliary edge could have multiple factors. Store factors per subedge.
+   Array<int> auxef;
 };
 
 

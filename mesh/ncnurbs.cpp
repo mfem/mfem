@@ -1880,6 +1880,37 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
          parentOffset.push_back(i);
          parentFaces.push_back(parentFace);
 
+         // Find the knotvectors for the first two edges this face.
+         {
+            Array<int> edges, ori, verts;
+            patchTopo->GetFaceEdges(parentFace, edges, ori);
+            patchTopo->GetFaceVertices(parentFace, verts);
+            MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
+
+            std::array<int,2> kv = {-1, -1};
+            for (int e=0; e<2; ++e)
+            {
+               // Find the edge with vertices pv[e] and pv[e+1].
+               for (auto edge : edges)
+               {
+                  Array<int> evert;
+                  patchTopo->GetEdgeVertices(edge, evert);
+                  const bool matching = (evert[0] == pv[e] && evert[1] == pv[e+1]) ||
+                                        (evert[1] == pv[e] && evert[0] == pv[e+1]);
+
+                  if (matching)
+                  {
+                     kv[e] = KnotInd(edge);
+                  }
+               }
+
+               MFEM_VERIFY(kv[e] >= 0, "");
+            }
+
+            // TODO: just make parentToKV map to std::array<int,2>?
+            parentToKV[parentPair] = std::pair<int, int>(kv[0], kv[1]);
+         }
+
          if (i > 0)
          {
             // TODO: change the comments. The usage of "knot" is wrong.
@@ -2046,7 +2077,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
       MFEM_VERIFY(n1set * n2set >= parentOffset[parent + 1] - parentOffset[parent],
                   "");
 
-      std::array<int, 2> rf;
+      std::array<int, 2> rf;  // TODO: remove?
       if (ref_factors.Size() == 3)
       {
          rf[0] = ref_factors[0];  // TODO: map the 3D entries of ref_factors to the 2 dimensions of this face
@@ -2060,18 +2091,85 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
          }
       }
 
+      std::array<int,2> kvi;
+
+      if (kvf.size() > 0)
+      {
+         // Find kv.
+
+         // TODO: this is repeated. Either make a function for this look-up,
+         // or store the KV for each parent with more convenient access (map from parentFace index?).
+
+         std::vector<int> pv(4);
+         for (int j=0; j<4; ++j)
+         {
+            pv[j] = v2k(parentOffset[parent], 3 + j);
+         }
+
+         // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
+         const auto pvmin = std::min_element(pv.begin(), pv.end());
+         const int idmin = std::distance(pv.begin(), pvmin);
+         const int c0 = pv[idmin];  // First corner
+         const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
+
+         const std::pair<int, int> parentPair(c0, c1);
+         std::pair<int, int> kv = parentToKV.at(parentPair);
+
+         kvi[0] = kv.first;
+         kvi[1] = kv.second;
+      }
+
+      // TODO: does it make sense to use rf here?
+      int n1orig = kvf_coarse.size() > 0 ? kvf_coarse[kvi[0]].Size() : n1 / rf[0];
+      int n2orig = kvf_coarse.size() > 0 ? kvf_coarse[kvi[1]].Size() : n2 / rf[1];
+      if (kvf.size() > 0 && kvf_coarse.size() == 0)
+      {
+         n1orig = kvf[kvi[0]].Size();
+         n2orig = kvf[kvi[1]].Size();
+      }
+
+      if (kvf.size() > 0)
+      {
+         MFEM_VERIFY(kvf[kvi[0]].Sum() == n1 && kvf[kvi[1]].Sum() == n2, "");
+      }
+
+      std::vector<Array<int>> cgrid(2);
+      std::array<int,2> n_orig = {n1orig, n2orig};
+      for (int dir=0; dir<2; ++dir)
+      {
+         cgrid[dir].SetSize(n_orig[dir] + 1);
+         cgrid[dir][0] = 0;
+         for (int ii = 0; ii < n_orig[dir]; ++ii)
+         {
+            const int iir = parentEdgeRev[dir] ? n_orig[dir] - 1 - ii : ii;
+
+            int d = rf[0]; // TODO: default factor
+
+            if (kvf_coarse.size() > 0)
+            {
+               d = kvf_coarse[kvi[dir]][iir];
+            }
+            else if (kvf.size() > 0)
+            {
+               d = kvf[kvi[dir]][iir];
+            }
+
+            cgrid[dir][ii + 1] = cgrid[dir][ii] + d;
+         }
+      }
+
+      MFEM_VERIFY(cgrid[0][n_orig[0]] == n1 && cgrid[1][n_orig[1]] == n2, "");
+
       bool allset = true;
       bool hasSlaveFaces = false;
       bool hasAuxFace = false;
-      for (int i=0; i<=n1; ++i)
-         for (int j=0; j<=n2; ++j)
-         {
-            const bool origGrid = (i % rf[0] == 0) && (j % rf[1] == 0);
-            if (!origGrid)
-            {
-               continue;
-            }
 
+      for (int ii=0; ii<=n_orig[0]; ++ii)
+      {
+         const int i = cgrid[0][ii];
+         for (int jj=0; jj<=n_orig[1]; ++jj)
+         {
+            const int j = cgrid[1][jj];
             if (gridVertex(i,j) < 0)
             {
                allset = false;
@@ -2081,28 +2179,28 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                hasSlaveFaces = true;
             }
          }
-
-      const int d0 = rf[0];
-      const int d1 = rf[1];
+      }
 
       // Loop over child faces and set facePairs, as well as auxiliary faces as needed.
       // TODO: just loop over (r1min, r1max) and (r2min, r2max)?
-      const int n1orig = n1 / d0;
-      const int n2orig = n2 / d1;
 
-      MFEM_VERIFY(d0 * n1orig == n1 && d1 * n2orig == n2, "");
+      for (int ii=0; ii<n_orig[0]; ++ii)
+      {
+         const int i = cgrid[0][ii];
+         const int i1 = cgrid[0][ii + 1];
+         const int d0 = i1 - i;
 
-      for (int ii=0; ii<n1orig; ++ii)
-         for (int jj=0; jj<n2orig; ++jj)
+         for (int jj=0; jj<n_orig[1]; ++jj)
          {
-            const int i = ii * d0;
-            const int j = jj * d1;
+            const int j = cgrid[1][jj];
+            const int j1 = cgrid[1][jj + 1];
+            const int d1 = j1 - j;
 
             std::vector<int> cv(4);
             cv[0] = gridVertex(i, j);
-            cv[1] = gridVertex(i + d0, j);
-            cv[2] = gridVertex(i + d0, j + d1);
-            cv[3] = gridVertex(i, j + d1);
+            cv[1] = gridVertex(i1, j);
+            cv[2] = gridVertex(i1, j1);
+            cv[3] = gridVertex(i, j1);
 
             const auto cvmin = std::min_element(cv.begin(), cv.end());
             const int idmin = std::distance(cv.begin(), cvmin);
@@ -2166,6 +2264,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                }
             }
          }
+      }
 
       // Loop over child boundary edges and set edgePairs.
       for (int dir=1; dir<=2; ++dir)
@@ -2192,13 +2291,24 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
             int firstEdge = -1;
 
-            const int de = d0;  // TODO: set this correctly for the direction of the edge.
-            const int ne_orig = ne / de;
-            MFEM_VERIFY(de * ne_orig == ne, "");
+            int os_e = 0;
 
-            for (int e_orig=0; e_orig<ne_orig; ++e_orig)  // edges in direction `dir`
+            for (int e_orig = 0; e_orig < n_orig[dir-1];
+                 ++e_orig)  // edges in direction `dir`
             {
-               const int e_i = de * e_orig;
+               const int e_i = os_e;
+               const int e_orig_rev = reverse ? n_orig[dir-1] - 1 - e_orig : e_orig;
+               int de = rf[dir - 1];
+               if (kvf_coarse.size() > 0)
+               {
+                  de = kvf_coarse[kvi[dir - 1]][e_orig_rev];
+               }
+               else if (kvf.size() > 0)
+               {
+                  de = kvf[kvi[dir - 1]][e_orig_rev];
+               }
+
+               os_e += de;
 
                // For both directions, side s=0 has increasing indices and
                // s=1 has decreasing indices.
@@ -2428,8 +2538,6 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
       // Auxiliary edges in first and second directions
       for (int d=0; d<2; ++d)
       {
-         const int de = d0;  // TODO: set this correctly for the direction of the edge.
-
          // TODO: interchange i- and s- loops?
          for (int i=0; i<3; ++i)
          {
@@ -2548,6 +2656,17 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                         {knotIndex0, knotIndex1}});
                   }
 
+                  const bool start = (i == 0 && !reverse) || (i != 0 && reverse);
+                  // TODO: should rf be used here?
+                  int end_idx = kvf_coarse.size() > 0 ? (start ? 0 : kvf_coarse[kvi[d]].Size() -
+                                                         1) : 0;
+                  int de = kvf_coarse.size() > 0 ? kvf_coarse[kvi[d]][end_idx] : rf[d];
+                  if (kvf.size() > 0 && kvf_coarse.size() == 0)
+                  {
+                     end_idx = start ? 0 : kvf[kvi[d]].Size() - 1;
+                     de = kvf[kvi[d]][end_idx];
+                  }
+
                   // TODO: ne is identical to n_d.
                   const int ne = d == 0 ? n1 : n2;
                   const int e_idx_i = i == 0 ? 0 : ne - de;
@@ -2585,6 +2704,17 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                   // TODO: ne is identical to n_d.
                   const int ne = d == 0 ? n1 : n2;
 
+                  const bool start = (i == 0 && !reverse) || (i != 0 && reverse);
+                  // TODO: should rf be used here?
+                  int end_idx = kvf_coarse.size() > 0 ? (start ? 0 : kvf_coarse[kvi[d]].Size() -
+                                                         1) : 0;
+                  int de = kvf_coarse.size() > 0 ? kvf_coarse[kvi[d]][end_idx] : rf[d];
+                  if (kvf.size() > 0 && kvf_coarse.size() == 0)
+                  {
+                     end_idx = start ? 0 : kvf[kvi[d]].Size() - 1;
+                     de = kvf[kvi[d]][end_idx];
+                  }
+
                   const int e_idx_i = i == 0 ? 0 : ne - de;
                   const int e_idx = reverse ? ne - de - e_idx_i : e_idx_i;
 
@@ -2608,6 +2738,110 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
          masterFaces.insert(parentFace);
       }
    } // loop over parents
+
+   MFEM_VERIFY(consistent, "");
+}
+
+// Use "Patch" instead of "Element"?
+void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> & auxface2elem)
+{
+   auxface2elem.SetSize(auxFaces.size(), 2);
+
+   if (auxFaces.size() == 0) { return; }
+
+   auxface2elem = -1;
+
+   const int dim = Dimension();
+
+   bool consistent = true;
+
+   for (int p=0; p<npatch; ++p)
+   {
+      Array<int> faces, orient;
+      if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
+      else { patchTopo->GetElementFaces(p, faces, orient); }
+
+      for (auto face : faces)
+      {
+         if (masterFaceToId.count(face) > 0)  // If a master face
+         {
+            const int mid = masterFaceToId.at(face);
+            for (auto slave : masterFaceSlaves[mid])
+            {
+               if (slave < 0)
+               {
+                  // Auxiliary face.
+                  const int aux = -1 - slave;
+                  if (auxface2elem(aux, 0) >= 0)
+                  {
+                     if (auxface2elem(aux, 1) != -1)
+                     {
+                        consistent = false;
+                     }
+
+                     auxface2elem(aux, 1) = p;
+                  }
+                  else
+                  {
+                     auxface2elem(aux, 0) = p;
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   MFEM_VERIFY(consistent, "");
+}
+
+// Use "Patch" instead of "Element"?
+void NURBSExtension::GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem)
+{
+   sface2elem.SetSize(slaveFacesUnique.Size(), 2);
+
+   if (slaveFacesUnique.Size() == 0) { return; }
+
+   sface2elem = -1;
+
+   const int dim = Dimension();
+
+   bool consistent = true;
+
+   for (int p=0; p<npatch; ++p)
+   {
+      Array<int> faces, orient;
+      if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
+      else { patchTopo->GetElementFaces(p, faces, orient); }
+
+      for (auto face : faces)
+      {
+         if (masterFaceToId.count(face) > 0)  // If a master face
+         {
+            const int mid = masterFaceToId.at(face);
+            for (auto slave : masterFaceSlaves[mid])
+            {
+               if (slave >= 0)
+               {
+                  const int s = slaveFaces[slave];
+                  const int u = slaveFacesToUnique[s];
+                  if (sface2elem(u, 0) >= 0)
+                  {
+                     if (sface2elem(u, 1) != -1)
+                     {
+                        consistent = false;
+                     }
+
+                     sface2elem(u, 1) = p;
+                  }
+                  else
+                  {
+                     sface2elem(u, 0) = p;
+                  }
+               }
+            }
+         }
+      }
+   }
 
    MFEM_VERIFY(consistent, "");
 }

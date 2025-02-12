@@ -5808,7 +5808,7 @@ void Mesh::NURBSUniformRefinement(int rf, real_t tol)
    NURBSUniformRefinement(rf_array, tol);
 }
 
-void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
+void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol, const std::string &kvf)
 {
    MFEM_VERIFY(rf.Size() == Dim,
                "Refinement factors must be defined for each dimension");
@@ -5816,6 +5816,8 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
    MFEM_VERIFY(NURBSext, "NURBSUniformRefinement is only for NURBS meshes");
 
    NURBSext->ConvertToPatches(*Nodes);
+
+   const bool varyingFactors = true;  // TODO: input this?
 
    Array<int> cf;
    NURBSext->GetCoarseningFactors(cf);
@@ -5834,7 +5836,7 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
    {
      NURBSext->FullyCoarsen();
      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-     NURBSext->UniformRefinement(rf);
+     NURBSext->UniformRefinement(rf, kvf);
    }
    else
    {
@@ -11500,6 +11502,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       NURBSext->Print(os, comments);
       os << '\n';
       Nodes->Save(os);
+
+      NURBSext->PrintCoarsePatches(os);
 
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);

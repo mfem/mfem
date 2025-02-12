@@ -4575,7 +4575,8 @@ void ParMesh::NURBSUniformRefinement(int rf, real_t tol)
    }
 }
 
-void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol,
+                                     const std::string &kvf)
 {
    if (MyRank == 0)
    {
