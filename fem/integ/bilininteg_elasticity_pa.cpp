@@ -153,18 +153,22 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    mfem::out << "AddMultPatchPA() " << patch << std::endl;
 
    const Array<int>& Q1D = pQ1D[patch];
-
-   // for reduced rules
    const Array<int>& D1D = pD1D[patch];
    const std::vector<Array2D<real_t>>& B = pB[patch];
    const std::vector<Array2D<real_t>>& G = pG[patch];
+   // for reduced rules
    const IntArrayVar2D& minD = pminD[patch];
    const IntArrayVar2D& maxD = pmaxD[patch];
    const IntArrayVar2D& minQ = pminQ[patch];
    const IntArrayVar2D& maxQ = pmaxQ[patch];
 
-   auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
-   auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
+   // auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
+   // vdim
+   mfem::out << "AddMultPatchPA(): Size of x = " << x.Size() << std::endl;
+   const int dim = vdim;
+   auto X = Reshape(x.Read(), vdim, D1D[0], D1D[1], D1D[2]);
+   auto Y = Reshape(y.Read(), vdim, D1D[0], D1D[1], D1D[2]);
+   // auto Y = Reshape(y.HostReadWrite(), dim, D1D[0], D1D[1], D1D[2]);
 
    const auto qd = Reshape(pa_data.HostRead(), Q1D[0]*Q1D[1]*Q1D[2], 10);
 
@@ -174,46 +178,24 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    Array3D<real_t> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1], D1D[1]));
    Array2D<real_t> gradX(3, std::max(Q1D[0], D1D[0]));
 
-   // 1) initialize grad u
-   for (int d=0; d<vdim; ++d)
-   {
-      grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
+   // // 1) initialize grad u
+   // for (int d=0; d<vdim; ++d)
+   // {
+   //    grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
+   //    grad[d] = 0.0;
+   // }
+   // mfem::out << "AddMultPatchPA() " << patch << " - finished 1) init grad u" << std::endl;
+   // mfem::out << "grad[0](1,1,1) = " << grad[0](1,1,1) << std::endl;
 
-      grad[d] = 0.0;
-      // for (int qz = 0; qz < Q1D[2]; ++qz)
-      // {
-      //    for (int qy = 0; qy < Q1D[1]; ++qy)
-      //    {
-      //       for (int qx = 0; qx < Q1D[0]; ++qx)
-      //       {
-      //          grad[d](qx,qy,qz) = 0.0;
-      //       }
-      //    }
-      // }
-   }
-
-   mfem::out << "AddMultPatchPA() " << patch << " - finished 1) init grad u" << std::endl;
-
-   // // 2) compute grad u
+   // // 2) compute grad(u) interpolated at quadrature points
+   // // B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
+   // // Because shape functions are tensor prodcuts they are decomposed
    // for (int dz = 0; dz < D1D[2]; ++dz)
    // {
-   //    for (int qy = 0; qy < Q1D[1]; ++qy)
-   //    {
-   //       for (int qx = 0; qx < Q1D[0]; ++qx)
-   //       {
-   //          for (int d=0; d<vdim; ++d)
-   //          {
-   //             gradXY(d,qx,qy) = 0.0;
-   //          }
-   //       }
-   //    }
+   //    gradXY = 0.0;
    //    for (int dy = 0; dy < D1D[1]; ++dy)
    //    {
-   //       for (int qx = 0; qx < Q1D[0]; ++qx)
-   //       {
-   //          gradX(0,qx) = 0.0;
-   //          gradX(1,qx) = 0.0;
-   //       }
+   //       gradX = 0.0;
    //       for (int dx = 0; dx < D1D[0]; ++dx)
    //       {
    //          const real_t s = X(dx,dy,dz);
@@ -254,8 +236,11 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    //    }
    // }
 
-   // // 3) Apply the "D" matrix at each quadrature point
-   // // D * grad(u)
+   // mfem::out << "AddMultPatchPA() " << patch << " - finished 2) compute grad u" << std::endl;
+   // mfem::out << "grad[0](1,2,1) = " << grad[0](1,2,1) << std::endl;
+
+   // // 3) Apply the "D" operator at each quadrature point
+   // // D ( grad(u) )
    // for (int qz = 0; qz < Q1D[2]; ++qz)
    // {
    //    for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -263,26 +248,34 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    //       for (int qx = 0; qx < Q1D[0]; ++qx)
    //       {
    //          const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-   //          const real_t O00 = qd(q,0);
-   //          const real_t O01 = qd(q,1);
-   //          const real_t O02 = qd(q,2);
-   //          const real_t O10 = symmetric ? O01 : qd(q,3);
-   //          const real_t O11 = symmetric ? qd(q,3) : qd(q,4);
-   //          const real_t O12 = symmetric ? qd(q,4) : qd(q,5);
-   //          const real_t O20 = symmetric ? O02 : qd(q,6);
-   //          const real_t O21 = symmetric ? O12 : qd(q,7);
-   //          const real_t O22 = symmetric ? qd(q,5) : qd(q,8);
+   //          const real_t Jinvt00 = qd(q,0);
+   //          const real_t Jinvt01 = qd(q,1);
+   //          const real_t Jinvt02 = qd(q,2);
+   //          const real_t Jinvt10 = qd(q,3);
+   //          const real_t Jinvt11 = qd(q,4);
+   //          const real_t Jinvt12 = qd(q,5);
+   //          const real_t Jinvt20 = qd(q,6);
+   //          const real_t Jinvt21 = qd(q,7);
+   //          const real_t Jinvt22 = qd(q,8);
+   //          const real_t wdetj   = qd(q,9);
+   //          // J^{-T} * grad()
+   //          // lambda*div(u)*div(v)
+
+   //          // mu*strain(u):strain(v)
 
    //          const real_t grad0 = grad[0](qx,qy,qz);
    //          const real_t grad1 = grad[1](qx,qy,qz);
    //          const real_t grad2 = grad[2](qx,qy,qz);
 
-   //          grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
-   //          grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
-   //          grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
+   //          // grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
+   //          // grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
+   //          // grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
    //       } // qx
    //    } // qy
    // } // qz
+
+   // mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
+   // mfem::out << "grad[0](1,1,1) = " << grad[0](1,1,1) << std::endl;
 
    // // 4) Add the contributions
    // for (int qz = 0; qz < Q1D[2]; ++qz)
@@ -360,7 +353,11 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
       Array<int> vdofs;
       fespace->GetPatchVDofs(p, vdofs);
 
+      mfem::out << "AddMultNURBSPA(): vdofs (subvector) size = " << vdofs.Size() << std::endl;
+      mfem::out << "AddMultNURBSPA(): size of x = " << x.Size() << std::endl;
+
       x.GetSubVector(vdofs, xp);
+      mfem::out << "AddMultNURBSPA(): size of xp = " << xp.Size() << std::endl;
       yp.SetSize(vdofs.Size());
       yp = 0.0;
 

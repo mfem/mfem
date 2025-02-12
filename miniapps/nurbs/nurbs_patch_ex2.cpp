@@ -137,6 +137,17 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() << endl;
    }
 
+   // Print out some info on the size of spaces
+   // const Operator *G;
+   // G = fespace->GetElementRestriction()
+   // cout << "G : " << G->Height() << " x " << G->Width() << endl;
+
+   cout << "GetNE() = " << fespace->GetNE() << std::endl;
+   cout << "GetVSize() = " << fespace->GetVSize() << std::endl; // Vsize = VDIM * ND
+   cout << "GetNDofs() = " << fespace->GetNDofs() << std::endl;
+   cout << "GetNP() = " << mesh.NURBSext->GetNP() << std::endl;
+
+
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;

@@ -189,6 +189,9 @@ void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
          maxDD[d][i] = maxQ[d][qmax];
       }
    }
+   // print info
+   mfem::out << "patch " << patch<< ": D1D = "; D1D.Print(mfem::out);
+   mfem::out << "patch " << patch<< ": Q1D = "; Q1D.Print(mfem::out);
 
    // Push patch data to global data structures
    pB.push_back(B);
@@ -283,10 +286,10 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    // numPatches = mesh->NURBSext->GetNP();
 
-   // for reduced rules
    // const Array<int>& D1D = pD1D[patch];
    // const std::vector<Array2D<real_t>>& B = pB[patch];
    // const std::vector<Array2D<real_t>>& G = pG[patch];
+   // for reduced rules
    // const IntArrayVar2D& minD = pminD[patch];
    // const IntArrayVar2D& maxD = pmaxD[patch];
    // const IntArrayVar2D& minQ = pminQ[patch];
