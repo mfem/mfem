@@ -583,10 +583,52 @@ BatchInverseElementTransformation::FindClosestRefPoint::Kernel() {
   return ClosestRefNodeImpl<Geom, SDim, use_dev>;
 }
 
+template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
+          bool use_dev>
+static void
+NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter, int npts,
+                int nelems, int ndof1d, const real_t *mptr, const real_t *pptr,
+                const int *eptr, const real_t *nptr, int *tptr, real_t *xptr) {
+  constexpr int max_team_x = use_dev ? 64 : 1;
+  InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
+  // constexpr int max_dof1d = 32;
+  MFEM_ASSERT(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
+  func.ref_tol = ref_tol;
+  func.phys_rtol = phys_rtol;
+  func.max_iter = max_iter;
+  func.basis1d.z = nptr;
+  func.basis1d.pN = ndof1d;
+  func.mptr = mptr;
+  func.pptr = pptr;
+  func.eptr = eptr;
+  func.xptr = xptr;
+  func.npts = npts;
+  func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
+  if (use_dev) {
+    int team_x = std::min<int>(max_team_x, npts);
+    forall(npts, func, team_x);
+  } else {
+    forall_switch(use_dev, npts, func);
+  }
+}
+
+template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
+          bool use_dev>
+BatchInverseElementTransformation::NewtonKernelType
+BatchInverseElementTransformation::NewtonSolve::Kernel() {
+  return NewtonSolveImpl<Geom, SDim, SType, use_dev>;
+}
+
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Fallback(int, int,
                                                                  bool) {
   MFEM_ABORT("Invalid Geom/SDim combination");
+}
+
+BatchInverseElementTransformation::NewtonKernelType
+BatchInverseElementTransformation::NewtonSolve::Fallback(
+    int, int, InverseElementTransformation::SolverType, bool) {
+  MFEM_ABORT("Invalid Geom/SDim/SolverType combination");
 }
 
 void BatchInverseElementTransformation::Transform(const Vector &pts,
@@ -668,6 +710,9 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
     return;
   }
   // general case: for each point, use guess inside refs
+  NewtonSolve::Run(geom, vdim, solver_type, use_dev, ref_tol, phys_rtol,
+                   max_iter, npts, NE, ndof1d, mptr, pptr, eptr, nptr, tptr,
+                   xptr);
 }
 
 BatchInverseElementTransformation::Kernels::Kernels() {
@@ -700,5 +745,12 @@ BatchInverseElementTransformation::Kernels::Kernels() {
 
   BatchInverseElementTransformation::AddFindClosestSpecialization<
       Geometry::CUBE, 3, false>();
+
+  // NewtonSolve
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 1, InverseElementTransformation::Newton, true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 1, InverseElementTransformation::NewtonElementProject,
+      true>();
 }
 } // namespace mfem

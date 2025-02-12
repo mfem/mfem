@@ -482,6 +482,16 @@ public:
    MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
                          (int, int, bool));
 
+   using NewtonKernelType = void (*)(real_t, real_t, int, int, int, int,
+                                     const real_t *, const real_t *,
+                                     const int *, const real_t *, int *,
+                                     real_t *);
+
+   // specialization params: Geom, SDim, SolverType, use_dev
+   MFEM_REGISTER_KERNELS(NewtonSolve, NewtonKernelType,
+                         (int, int, InverseElementTransformation::SolverType,
+                          bool));
+
    struct Kernels { Kernels(); };
 
    template <int Dim, int SDim, bool use_dev>
@@ -489,6 +499,12 @@ public:
    {
       FindClosestPhysPoint::Specialization<Dim, SDim, use_dev>::Add();
       FindClosestRefPoint::Specialization<Dim, SDim, use_dev>::Add();
+   }
+
+   template <int Dim, int SDim, InverseElementTransformation::SolverType SType,
+             bool use_dev>
+   static void AddNewtonSolveSpecialization() {
+     NewtonSolve::Specialization<Dim, SDim, SType, use_dev>::Add();
    }
 };
 
