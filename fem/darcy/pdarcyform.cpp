@@ -317,8 +317,6 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
                                       BlockVector &x)
 {
-   x.Update(offsets);
-
    if (reduction)
    {
       // Primal unknowns recovery
