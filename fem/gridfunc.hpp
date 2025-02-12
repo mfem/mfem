@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -123,7 +123,10 @@ public:
 
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
    int VectorDim() const;
+
+   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.

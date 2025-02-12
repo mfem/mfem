@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -706,6 +706,78 @@ void FiniteElementSpace::GetBoundaryTrueDofs(Array<int> &boundary_dofs,
    }
 }
 
+void FiniteElementSpace::GetExteriorVDofs(Array<int> &ext_vdofs,
+                                          int component) const
+{
+   Array<int> dofs;
+   ext_vdofs.SetSize(GetVSize());
+   ext_vdofs = 0;
+
+   Array<int> ext_face_marker;
+   mesh->GetExteriorFaceMarker(ext_face_marker);
+   for (int i = 0; i < ext_face_marker.Size(); i++)
+   {
+      if (ext_face_marker[i])
+      {
+         if (component < 0)
+         {
+            // Mark all components.
+            GetFaceDofs(i, dofs);
+            DofsToVDofs(dofs);
+         }
+         else
+         {
+            GetFaceDofs(i, dofs);
+            for (auto &d : dofs) { d = DofToVDof(d, component); }
+         }
+         MarkDofs(dofs, ext_vdofs);
+      }
+   }
+}
+
+void FiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+                                             int component) const
+{
+   Array<int> ext_vdofs, ext_tdofs;
+   GetExteriorVDofs(ext_vdofs, component);
+   const SparseMatrix *R = GetConformingRestriction();
+   if (!R)
+   {
+      ext_tdofs.MakeRef(ext_vdofs);
+   }
+   else
+   {
+      R->BooleanMult(ext_vdofs, ext_tdofs);
+#ifdef MFEM_DEBUG
+      // Verify that in boolean arithmetic: P^T ext_dofs = R ext_dofs
+      Array<int> ext_tdofs2(ext_tdofs.Size());
+      GetConformingProlongation()->BooleanMultTranspose(ext_vdofs, ext_tdofs2);
+
+      int counter = 0;
+      std::string error_msg = "failed dof: ";
+      auto ext_tdofs_ = ext_tdofs.HostRead();
+      auto ext_tdofs2_ = ext_tdofs2.HostRead();
+      for (int i = 0; i < ext_tdofs2.Size(); ++i)
+      {
+         if (bool(ext_tdofs_[i]) != bool(ext_tdofs2_[i]))
+         {
+            error_msg += std::to_string(i) += "(R ";
+            error_msg += std::to_string(bool(ext_tdofs_[i])) += " P^T ";
+            error_msg += std::to_string(bool(ext_tdofs2_[i])) += ") ";
+            counter++;
+         }
+      }
+
+      MFEM_ASSERT(R->Height() == GetConformingProlongation()->Width(), "!");
+      MFEM_ASSERT(R->Width() == GetConformingProlongation()->Height(), "!");
+      MFEM_ASSERT(R->Width() == ext_vdofs.Size(), "!");
+      MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+                  << ' ' << error_msg);
+#endif
+   }
+   MarkerToList(ext_tdofs, ext_tdof_list);
+}
+
 // static method
 void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
@@ -1393,6 +1465,26 @@ int FiniteElementSpace::GetNConformingDofs() const
 {
    const SparseMatrix* P = GetConformingProlongation();
    return P ? (P->Width() / vdim) : ndofs;
+}
+
+int FiniteElementSpace::GetVectorDim() const
+{
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return GetVDim();
+   }
+   return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
+}
+
+int FiniteElementSpace::GetCurlDim() const
+{
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * GetMesh()->SpaceDimension() - 3;
+   }
+   return GetVDim()*fe->GetCurlDim();
 }
 
 const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
@@ -2694,7 +2786,7 @@ void FiniteElementSpace::Construct()
       else
       {
          // the simple case: all faces are of the same geometry and order
-         uni_fdof = fec->GetNumDof(mesh->GetFaceGeometry(0), order);
+         uni_fdof = fec->GetNumDof(mesh->GetTypicalFaceGeometry(), order);
          nfdofs = mesh->GetNFaces() * uni_fdof;
          var_face_dofs.Clear(); // ensure any old var_face_dof table is dumped.
       }
@@ -3374,7 +3466,7 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    }
    else
    {
-      auto geom = mesh->GetFaceGeometry(0);
+      auto geom = mesh->GetTypicalFaceGeometry();
       nf = fec->GetNumDof(geom, fec->GetOrder());
       base = i*nf;
    }
@@ -3439,6 +3531,16 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    }
 
    return FE;
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalFE() const
+{
+   if (mesh->GetNE() > 0) { return GetFE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalElementGeometry();
+   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(fe != nullptr, "Could not determine a typical FE!");
+   return fe;
 }
 
 const FiniteElement *FiniteElementSpace::GetBE(int i) const
@@ -3516,7 +3618,12 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
 const FiniteElement *FiniteElementSpace::GetTraceElement(
    int i, Geometry::Type geom_type) const
 {
-   return fec->TraceFiniteElementForGeometry(geom_type);
+   return fec->GetTraceFE(geom_type, GetElementOrder(i));
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalTraceElement() const
+{
+   return fec->TraceFiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 FiniteElementSpace::~FiniteElementSpace()
@@ -3832,6 +3939,47 @@ void FiniteElementSpace::Update(bool want_transform)
 void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 {
    mesh = new_mesh;
+}
+
+void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
+                                          Vector &fes_node_pos,
+                                          int fes_nodes_ordering) const
+{
+   Mesh *m = GetMesh();
+   const int NE = m->GetNE();
+
+   if (NE == 0) { fes_node_pos.SetSize(0); return; }
+
+   const int dim = m->Dimension();
+   Array<int> dofs;
+   Vector e_xyz;
+   fes_node_pos.SetSize(GetNDofs() * dim);
+   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
+   FiniteElementSpace vector_fes(m, FEColl(), dim, fes_nodes_ordering);
+
+   for (int e = 0; e < NE; e++)
+   {
+      mesh_fes->GetElementVDofs(e, dofs);
+      const int mdof_cnt = dofs.Size() / dim;
+      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
+
+      auto ir = GetFE(e)->GetNodes();
+      const int fdof_cnt = ir.GetNPoints();
+      Vector mesh_shape(mdof_cnt), gf_xyz(fdof_cnt * dim);
+      for (int q = 0; q < fdof_cnt; q++)
+      {
+         mesh_fes->GetFE(e)->CalcShape(ir.IntPoint(q), mesh_shape);
+         for (int d = 0; d < dim; d++)
+         {
+            Vector x(e_xyz.GetData() + d*mdof_cnt, mdof_cnt);
+            gf_xyz(d*fdof_cnt + q) = x * mesh_shape; // order by nodes
+         }
+      }
+
+      // reuse/resize dofs.
+      vector_fes.GetElementVDofs(e, dofs);
+      fes_node_pos.SetSubVector(dofs, gf_xyz);
+   }
 }
 
 void FiniteElementSpace::Save(std::ostream &os) const
