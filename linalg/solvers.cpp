@@ -188,14 +188,20 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
-void IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
+bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
                               const Vector& x, bool final) const
 {
    if (monitor != nullptr)
    {
+      if (it == 0 && !final)
+      {
+         monitor->Reset();
+      }
       monitor->MonitorResidual(it, norm, r, final);
       monitor->MonitorSolution(it, norm, x, final);
+      return monitor->HasConverged();
    }
+   return false;
 }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
@@ -750,7 +756,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (print_options.first_and_last ? " ...\n" : "\n");
    }
-   Monitor(0, nom, r, x);
 
    if (nom < 0.0)
    {
@@ -763,14 +768,18 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       final_iter = 0;
       initial_norm = nom;
       final_norm = nom;
+
+      Monitor(0, nom, r, x, true);
       return;
    }
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
-   if (nom <= r0)
+   if (Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
+
+      Monitor(0, nom, r, x, true);
       return;
    }
 
@@ -789,6 +798,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          converged = false;
          final_iter = 0;
          final_norm = sqrt(nom);
+
+         Monitor(0, nom, r, x, true);
          return;
       }
    }
@@ -830,9 +841,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                    << betanom << std::endl;
       }
 
-      Monitor(i, betanom, r, x);
-
-      if (betanom <= r0)
+      if (Monitor(i, betanom, r, x) || betanom <= r0)
       {
          converged = true;
          final_iter = i;
@@ -1029,7 +1038,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
-   if (beta <= final_norm)
+   if (Monitor(0, beta, r, x) || beta <= final_norm)
    {
       final_norm = beta;
       final_iter = 0;
@@ -1045,8 +1054,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  ||B r|| = " << beta
                 << (print_options.first_and_last ? " ...\n" : "\n");
    }
-
-   Monitor(0, beta, r, x);
 
    v.SetSize(m+1, NULL);
 
@@ -1091,7 +1098,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          const real_t resid = fabs(s(i+1));
          MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
-         if (resid <= final_norm)
+         if (Monitor(j, resid, r, x) || resid <= final_norm)
          {
             Update(x, i, H, s, v);
             final_norm = resid;
@@ -1106,8 +1113,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
          }
-
-         Monitor(j, resid, r, x);
       }
 
       if (print_options.iterations && j <= max_iter)
@@ -1189,13 +1194,13 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
-   converged = false;
-
-   if (beta <= final_norm)
+   if (Monitor(0, beta, r, x) || beta <= final_norm)
    {
+      converged = false;
       final_norm = beta;
       final_iter = 0;
-      converged = true;
+
+      Monitor(0, beta, r, x, true);
       return;
    }
 
@@ -1206,8 +1211,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  || r || = " << beta
                 << (print_options.first_and_last ? " ...\n" : "\n");
    }
-
-   Monitor(0, beta, r, x);
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -1270,9 +1273,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
-         Monitor(j, resid, r, x, resid <= final_norm);
 
-         if (resid <= final_norm)
+         if (Monitor(j, resid, r, x, resid <= final_norm) || resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;
@@ -1289,6 +1291,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                if (v[i]) { delete v[i]; }
                if (z[i]) { delete z[i]; }
             }
+
+            Monitor(j, resid, r, x, true);
             return;
          }
       }
@@ -1337,6 +1341,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "FGMRES: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 
@@ -1407,15 +1413,15 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
                 << "   ||r|| = " << resid << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
-   Monitor(0, resid, r, x);
-
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
-   if (resid <= tol_goal)
+   if (Monitor(0, resid, r, x) || resid <= tol_goal)
    {
       final_norm = resid;
       final_iter = 0;
       converged = true;
+
+      Monitor(0, resid, r, x, true);
       return;
    }
 
@@ -1430,8 +1436,6 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
                       << "   ||r|| = " << resid << '\n';
          }
 
-         Monitor(i, resid, r, x);
-
          final_norm = resid;
          final_iter = i;
          converged = false;
@@ -1443,6 +1447,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: No convergence!\n";
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (i == 1)
@@ -1468,7 +1474,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       add(r, -alpha, v, s); //  s = r - alpha * v
       resid = Norm(s);
       MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
-      if (resid < tol_goal)
+      if (Monitor(i, resid, r, x) || resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
          if (print_options.iterations || print_options.first_and_last)
@@ -1483,6 +1489,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (print_options.iterations)
@@ -1490,7 +1498,6 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
       }
-      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
@@ -1512,8 +1519,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
-      Monitor(i, resid, r, x);
-      if (resid < tol_goal)
+      if (Monitor(i, resid, r, x) || resid < tol_goal)
       {
          final_norm = resid;
          final_iter = i;
@@ -1527,6 +1533,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (omega == 0)
@@ -1547,6 +1555,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: No convergence!\n";
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
    }
@@ -1568,6 +1578,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "BiCGStab: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
@@ -1653,7 +1665,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
 
    norm_goal = std::max(rel_tol*eta, abs_tol);
 
-   if (eta <= norm_goal)
+   if (Monitor(0, eta, *z, x) || eta <= norm_goal)
    {
       it = 0;
       goto loop_end;
@@ -1664,7 +1676,6 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << (print_options.first_and_last ? " ..." : "") << '\n';
    }
-   Monitor(0, eta, *z, x);
 
    for (it = 1; it <= max_iter; it++)
    {
@@ -1732,7 +1743,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
       }
-      Monitor(it, fabs(eta), *z, x);
+      if (Monitor(it, fabs(eta), *z, x)) { goto loop_end; }
 
       if (prec)
       {
@@ -1759,7 +1770,7 @@ loop_end:
       mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n';
    }
 
-   Monitor(final_iter, final_norm, *z, x, true);
+   converged = Monitor(final_iter, final_norm, *z, x, true) || converged;
 
    // if (print_options.iteration_details || (!converged && print_options.errors))
    // {
@@ -1865,9 +1876,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
-      Monitor(it, norm, r, x);
 
-      if (norm <= norm_goal)
+      if (Monitor(it, norm, r, x) || norm <= norm_goal)
       {
          converged = true;
          break;
@@ -1926,6 +1936,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "Newton: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
