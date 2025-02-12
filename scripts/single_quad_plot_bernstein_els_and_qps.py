@@ -3,6 +3,9 @@
 from paraview.simple import *
 
 path = '/Users/mittal3/LLNL/mfem-detJ/mfem/examples/ParaView/single_quad_bernstein/single_quad_bernstein.pvd'
+outpathpre = f'/Users/mittal3/LLNL/mfem-detJ/mfem/scripts/results/single_quad/pts.pvd'
+
+densesolpath = '/Users/mittal3/LLNL/mfem-detJ/mfem/scripts/sol.vtu'
 solution = PVDReader(FileName=path)
 solution2 = PVDReader(FileName=path)
 
@@ -19,6 +22,7 @@ Show(solution2, renderView1)
 solutionDisplay2.NonlinearSubdivisionLevel=3
 # ColorBy(solutionDisplay2, None)
 solutionDisplay2.SetRepresentationType('Wireframe')
+solutionDisplay2.LineWidth = 6.0
 
 renderView1.OrientationAxesVisibility = 0
 renderView1.UseColorPaletteForBackground = 0
@@ -50,19 +54,12 @@ LUTColorBar.RangeLabelFormat = '%g'
 LUTColorBar.Title = 'min det(J)'
 # LUT.RescaleTransferFunction(-0.0002, 2.1)
 solutionDisplay.SetScalarBarVisibility(renderView1, False)
-outpath = path.replace('.pvd', f'_detj.jpg')
+outpath = outpathpre.replace('.pvd', f'_detj.jpg')
 
 renderView1.CameraPosition = [0.4693038985133171, 0.47868532687425613, 3.5841201523072455]
 renderView1.CameraFocalPoint = [0.4693038985133171, 0.47868532687425613, 0.0]
+renderView1.CameraViewUp = [0,1,0]
 renderView1.CameraParallelScale = 0.75
-
-# contour1 = Contour(Input=solution)
-# contour1.Isosurfaces = [-7.60548e-05, 0.08307875068, 0.16623355616, 0.24938836164, 0.33254316712,
-#                         0.41569797259999997, 0.49885277808, 0.58200758356, 0.66516238904, 0.74831719452, 0.831472]
-# contour1Display = Show(contour1, renderView1, 'GeometryRepresentation')
-# ColorBy(contour1Display, None)
-# contour1Display.LineWidth = 2.0
-
 
 SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])
 
@@ -75,15 +72,15 @@ tableToPoints.ZColumn = ""
 tableToPoints.a2DPoints = 1
 pointDisplay = Show(tableToPoints, renderView1)
 pointDisplay.SetRepresentationType("Points")
-pointDisplay.PointSize = 10
+pointDisplay.PointSize = 20
 pointDisplay.RenderPointsAsSpheres = 1
 ColorBy(pointDisplay, ("POINTS", "color"))
-outpath = path.replace('.pvd', f'_nodes.jpg')
+outpath = outpathpre.replace('.pvd', f'_nodes.jpg')
 SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])
 Hide(tableToPoints, renderView1)
 
 
-for qo in range(2,20):
+for qo in range(2,26):
     txt_path = f'/Users/mittal3/LLNL/mfem-detJ/mfem/examples/single_quad_qps_{qo}.txt'
     csv_file2 = CSVReader(FileName=[txt_path])
     tableToPoints2 = TableToPoints(Input=csv_file2)
@@ -93,17 +90,19 @@ for qo in range(2,20):
     tableToPoints2.a2DPoints = 1
     pointDisplay2 = Show(tableToPoints2, renderView1)
     pointDisplay2.SetRepresentationType("Points")
-    pointDisplay2.PointSize = 10
+    pointDisplay2.PointSize = 20
     pointDisplay2.RenderPointsAsSpheres = 1
     ColorBy(pointDisplay2, ("POINTS", "color"))
-    outpath = path.replace('.pvd', f'_qp_{qo}.jpg')
+    outpath = outpathpre.replace('.pvd', f'_qp_{qo}.jpg')
     SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])
     Hide(tableToPoints2, renderView1)
 
+
+Hide(contour1, renderView1)
 
 animationScene1 = GetAnimationScene()
 for t in range(1,4):
     animationScene1.GoToNext()
     LUT.RescaleTransferFunctionToDataRange()
-    outpath = path.replace('.pvd', f'_detj_time_{t}.jpg')
+    outpath = outpathpre.replace('.pvd', f'_detj_time_{t}.jpg')
     SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])

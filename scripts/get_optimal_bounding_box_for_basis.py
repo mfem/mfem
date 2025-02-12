@@ -126,6 +126,7 @@ def optimize_and_write(xs, xb, sname, bname, nsamp=1000, plot=False):
 
 
 	filename = f"bnddata_spts_{sname}_{N}_bpts_{bname}_{M}.txt"
+	print(filename,N,M)
 	np.savetxt(filename, [N], fmt="%d", newline="\n")
 	with open(filename, "a") as f:
 		np.savetxt(f, xs, fmt="%.15f", newline="\n")

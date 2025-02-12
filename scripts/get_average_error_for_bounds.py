@@ -143,6 +143,12 @@ for i, N in enumerate(Ns):
 	# plt.ylabel('L2 err')
 	# plt.title(f'N = {N}')
 
+	xe = []
+	ye = []
+	dxmin = np.zeros(len(Ms))
+	dxmax = np.zeros(len(Ms))
+	dxavg = np.zeros(len(Ms))
+	dxc   = np.zeros(len(Ms))
 	for j, M in enumerate(Ms):
 		try:
 			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
@@ -154,7 +160,15 @@ for i, N in enumerate(Ns):
 			l1errs[j] = np.nan
 			l2errs[j] = np.nan
 			linferrs[j] = np.nan
+
 	plt.semilogy(Ms, l2errs, 'ko-',linewidth=1)
+
+	dx = np.diff(xb)
+	dxmin[j] = np.min(dx)
+	dxmax[j] = np.max(dx)
+	dxavg[j] = np.mean(dx)
+	dxc[j] = dxavg[j]
+
 	writeerrs[5,:] = l2errs
 
 	plt.xlabel('M')

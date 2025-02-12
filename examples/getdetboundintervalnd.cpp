@@ -1,17 +1,19 @@
 // Sample runs:
 // 1D
 //////// First run this file to generate data
-//   make getdetboundintervalnd -j && ./getdetboundintervalnd -o 2 -mr 6 -m ../data/inline-segment.mesh
+//   make getdetboundintervalnd -j && ./getdetboundintervalnd -o 5 -mr 6 -m ../data/inline-segment.mesh
 //////// Plot in Python
 // Then run python3 plot1Dbndsrecursive.py --N 5 --M 6
+/// Also use plot_gslib_bnd_comparison.py to plot bounds on bases
 
 // 2D
 ///// Run this file to get data for determinant of a single element mesh that is inverted somewhere between the mesh nodes.
 // make getdetboundintervalnd -j && ./getdetboundintervalnd -o 2 -mr 6 -m semi-invert.mesh
-// Now plot it in Python. run python export_vtu.py in ../scripts
-// Then use plotit.py in Paraview.
+// Now plot it in Python. run python single_quad_export_vtu.py in ../scripts
+// Then use ../scripts/results/single_quad/plotit.py in Paraview.
 // also go to ../scripts/results/single_quad/ to run
 // python plot_single_quad_bernstein_and_qps.py to get Bernstein recursion and quadrature points set.
+// Python py_comp_recursion_estimate.py for comparison of bernstein and our approach
 
 
 #include "mfem.hpp"
@@ -79,6 +81,7 @@ GridFunction *GetDetJacobian(Mesh *mesh)
 double GenerateRandomized1D(int n1D, Poly_1D::Basis &basis1d,
                             Vector &solcoeff, int seed = 0, int nbrute = 1000)
 {
+   int nmaxiters = 100000;
    solcoeff.SetSize(n1D);
    solcoeff.Randomize(seed);
 
@@ -103,7 +106,8 @@ double GenerateRandomized1D(int n1D, Poly_1D::Basis &basis1d,
       maxval = std::max(maxval, val);
    }
 
-   while (minval > 0)
+   int iters = 0;
+   while (minval > 0 && iters < nmaxiters)
    {
       solcoeff -= (solcoeff.Min()-0.001*rand_real());
 
@@ -119,6 +123,7 @@ double GenerateRandomized1D(int n1D, Poly_1D::Basis &basis1d,
       }
       minval = std::min(minval, solcoeff.Min());
       maxval = std::max(maxval, solcoeff.Max());
+      iters++;
    }
 
    if (minval < 0)
@@ -139,11 +144,23 @@ double GenerateRandomized1D(int n1D, Poly_1D::Basis &basis1d,
       maxval = std::max(maxval, solcoeff.Max());
    }
 
-   MFEM_VERIFY(minval < 0 &&
-               solcoeff.Min() > 0,
-               "The minimum value of the function is not negative or the coefficient has become negative");
+   if (iters < nmaxiters)
+   {
+      MFEM_VERIFY(minval < 0 &&
+                  solcoeff.Min() > 0,
+                  "The minimum value of the function is not negative or the coefficient has become negative");
+   }
+   else {
+      std::cout << "Failed to create a desired function\n";
+   }
    return minval;
 }
+
+inline bool exists_test(const std::string& name) {
+    ifstream f(name.c_str());
+    return f.good();
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -209,7 +226,7 @@ int main(int argc, char *argv[])
    if (dim == 1)
    {
       // Read custom bounds
-      std::string filename = "../scripts/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_opt_" + std::to_string(mr) + ".txt";
+      std::string filename = "../scripts/bounds/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_opt_" + std::to_string(mr) + ".txt";
 
       DenseMatrix lboundT, uboundT;
       Vector gllT, intT;
@@ -281,15 +298,90 @@ int main(int argc, char *argv[])
          myfile.close();
       }
 
+      // Write bases bounds to file
+      // GSLIB
+      {
+         std::ostringstream filename;
+         filename << "recursive_bnd_bases_" << "GLL_" << std::to_string(n1D) << "_Cheb_" << std::to_string(mr) << ".txt";
+         ofstream myfile;
+         myfile.open(filename.str());
+         myfile << n1D << std::endl;
+         myfile << mr << std::endl;
+         for (int i = 0; i < gllX.Size(); i++)
+         {
+            myfile << gllX(i) << std::endl;
+         }
+         for (int i = 0; i < chebX.Size(); i++)
+         {
+            myfile << chebX(i) << std::endl;
+         }
+         DenseMatrix lboundTr;
+         lboundTr.Transpose(lbound);
+         DenseMatrix uboundTr;
+         uboundTr.Transpose(ubound);
+         double *ld = lboundTr.GetData();
+         for (int i = 0; i < lboundTr.Height()*lboundTr.Width(); i++)
+         {
+            myfile << ld[i] << std::endl;
+         }
+         double *ud = uboundTr.GetData();
+         for (int i = 0; i < lboundTr.Height()*lboundTr.Width(); i++)
+         {
+            myfile << ud[i] << std::endl;
+         }
+         myfile.close();
+      }
+
+      // Custom
+      {
+         std::ostringstream filename;
+         filename << "recursive_bnd_bases_" << "GLL_" << std::to_string(n1D) << "_Opt_" << std::to_string(mr) << ".txt";
+         ofstream myfile;
+         myfile.open(filename.str());
+         myfile << n1D << std::endl;
+         myfile << mr << std::endl;
+         for (int i = 0; i < gllT.Size(); i++)
+         {
+            myfile << gllT(i) << std::endl;
+         }
+         for (int i = 0; i < intT.Size(); i++)
+         {
+            myfile << intT(i) << std::endl;
+         }
+         DenseMatrix lboundTr;
+         lboundTr.Transpose(lboundT);
+         DenseMatrix uboundTr;
+         uboundTr.Transpose(uboundT);
+         double *ld = lboundTr.GetData();
+         for (int i = 0; i < lboundTr.Height()*lboundTr.Width(); i++)
+         {
+            myfile << ld[i] << std::endl;
+         }
+         double *ud = uboundTr.GetData();
+         for (int i = 0; i < lboundTr.Height()*lboundTr.Width(); i++)
+         {
+            myfile << ud[i] << std::endl;
+         }
+         myfile.close();
+      }
+
+
       std::cout << "The minimum value determined from recursion is at-least: " <<
                 intmaxO.Min() << std::endl;
    }
    else if (dim == 2)
    {
-
-      std::string filename = "../scripts/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_opt_" + std::to_string(mr) + ".txt";
+      // Bounds that Tarik added recently
+      std::string filename = "../scripts/bounds/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_opt_" + std::to_string(mr) + ".txt";
+      if (!exists_test(filename))
+      {
+         std::cout << "FILE NOT FOUND: " << filename << std::endl;
+         filename = "../scripts/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_optip_" + std::to_string(mr) + ".txt";
+      }
+      // Bounds from pyomo
+      // std::string filename = "../scripts/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_optip_" + std::to_string(mr) + ".txt";
       // std::string filename = "bnddata_" + std::to_string(n1D) + "_" + std::to_string(mr) + "_opt.txt";
-
+      std::cout << filename << std::endl;
 
       L2_FECollection fec(det_order, dim, BasisType::GaussLobatto);
       FiniteElementSpace fespace(&mesh, &fec);
@@ -383,9 +475,7 @@ int main(int argc, char *argv[])
          std::cout << "Element " << e <<
                    ": the min and max determinant using brute force is: " << brute_el_min << " " << brute_el_max << std::endl;
 
-
-         // Recursion
-         int maxdepth = 5;
+         int maxdepth = 10;
          if (qpminCus.Min() < 0 && qpmaxCus.Min() > 0)
          {
             GetRecursiveExtrema2D(1, maxdepth, e, detgf, gllX, intT, gllW,
@@ -435,7 +525,7 @@ int main(int argc, char *argv[])
 
          // now test out some integration rules
          IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-         for (int qo = order; qo < 20; qo++)
+         for (int qo = order; qo < 40; qo++)
          {
             IntegrationRule ir3 = IntRulesLo.Get(Geometry::SQUARE, qo);
             Array<double> xlocst, ylocst;

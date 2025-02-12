@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
    int order = 3;
-   int mr = 8;
+   int mr = 5;
    int nbrute = 1000;
    int seed = 5;
    int outsuffix = 0;

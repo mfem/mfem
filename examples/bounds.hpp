@@ -306,19 +306,9 @@ void GetRecursiveExtrema1D(int currentdepth,
       {
          intdepth.Append(-currentdepth); //negative depth to indicate recursion
          intdepth.Append(-currentdepth);
-         double lx = rxstart;
-         double rx = rxend;
-         double xc = rxstart - leftmin*(rxend-rxstart)/(rightmin-leftmin);
-         if (leftmin <= 0 && leftmax >= 0)
-         {
-            rx = xc;
-         }
-         else
-         {
-            lx = xc;
-         }
          GetRecursiveExtrema1D(currentdepth+1, maxdepth, solcoeff,
-                               ref_nodes_gll, ref_nodes_wts, int_nodes_scaled_r, lbound, ubound, basis, lx, rx,
+                               ref_nodes_gll, ref_nodes_wts, int_nodes_scaled_r, lbound, ubound, basis,
+                               rxstart, rxend,
                                intpts, intmin, intmax, intdepth);
       }
       else
@@ -415,6 +405,7 @@ void Get2DBounds(const Vector &gllX,
 }
 
 
+static int done2Drecursion = false;
 void GetRecursiveExtrema2D(int currentdepth,
                            const int maxdepth,
                            const int elem,
@@ -437,6 +428,7 @@ void GetRecursiveExtrema2D(int currentdepth,
    const int mr = intX.Size();
    int det_order = detgf.FESpace()->GetElementOrder(elem);
    int nIntervals = mr-1;
+   int parentdepth = currentdepth;
 
    // Get IntegrationRule
    Vector ref_nodes_x = gllX;
@@ -497,6 +489,7 @@ void GetRecursiveExtrema2D(int currentdepth,
             intdepth.Append(currentdepth);
          }
       }
+      done2Drecursion = minmaxval < 0;
       return;
    }
    for (int j = 0; j < nIntervals; j++)
@@ -542,16 +535,16 @@ void GetRecursiveExtrema2D(int currentdepth,
          intmin.Append(p3min);
          intmax.Append(p3max);
 
-         if ((p0min <= 0 && p0max >= 0) ||
+         if (((p0min <= 0 && p0max >= 0) ||
              (p1min <= 0 && p1max >= 0) ||
              (p2min <= 0 && p2max >= 0) ||
-             (p3min <= 0 && p3max >= 0))
+             (p3min <= 0 && p3max >= 0)) && !done2Drecursion)
          {
             intdepth.Append(-currentdepth);
             intdepth.Append(-currentdepth);
             intdepth.Append(-currentdepth);
             intdepth.Append(-currentdepth);
-            GetRecursiveExtrema2D(currentdepth+1, maxdepth, elem, detgf,
+            GetRecursiveExtrema2D(parentdepth+1, maxdepth, elem, detgf,
                                   gllX, intX, gllW, lbound, ubound,
                                   rxstart, rxend, rystart, ryend,
                                   intptsx, intptsy, intmin, intmax, intdepth);

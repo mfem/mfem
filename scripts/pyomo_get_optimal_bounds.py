@@ -225,7 +225,7 @@ if __name__ == '__main__':
     M = args.M
     gll_nodes = lobatto_nodes(N)
 
-    nsamples = 20 #samples per sub-interval
+    nsamples = 30 #samples per sub-interval
 
     x_sol, u_sol, l_sol, model, obj_init, xt, blow, bhigh = build_and_solve_model_L2_bounds(N, M, gll_nodes, nsamples)
 
