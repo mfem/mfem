@@ -764,11 +764,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
       }
-      Monitor(0, nom, r, x);
       converged = false;
       final_iter = 0;
       initial_norm = nom;
       final_norm = nom;
+
+      Monitor(0, nom, r, x, true);
       return;
    }
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
@@ -777,6 +778,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
+
+      Monitor(0, nom, r, x, true);
       return;
    }
 
@@ -795,6 +798,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          converged = false;
          final_iter = 0;
          final_norm = sqrt(nom);
+
+         Monitor(0, nom, r, x, true);
          return;
       }
    }
@@ -1194,6 +1199,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       converged = false;
       final_norm = beta;
       final_iter = 0;
+
+      Monitor(0, beta, r, x, true);
       return;
    }
 
@@ -1284,6 +1291,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                if (v[i]) { delete v[i]; }
                if (z[i]) { delete z[i]; }
             }
+
+            Monitor(j, resid, r, x, true);
             return;
          }
       }
@@ -1411,6 +1420,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       final_norm = resid;
       final_iter = 0;
       converged = true;
+
+      Monitor(0, resid, r, x, true);
       return;
    }
 
@@ -1425,8 +1436,6 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
                       << "   ||r|| = " << resid << '\n';
          }
 
-         Monitor(i, resid, r, x);
-
          final_norm = resid;
          final_iter = i;
          converged = false;
@@ -1438,6 +1447,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: No convergence!\n";
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (i == 1)
@@ -1478,6 +1489,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (print_options.iterations)
@@ -1520,6 +1533,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (omega == 0)
@@ -1540,6 +1555,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: No convergence!\n";
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
    }
@@ -2144,6 +2161,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "LBFGS: No convergence!\n";
    }
+
+   Monitor(it, norm, r, x, true);
 }
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
