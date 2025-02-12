@@ -2389,7 +2389,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing, bool nc)
    }
 
    if (nc && patchTopo->ncmesh &&
-       patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0)
+       patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
    {
       // Set map from patchTopo edges to patchTopo->ncmesh edges
       Array<int> vert;
@@ -3680,9 +3680,9 @@ void NURBSExtension::GenerateOffsets()
       masterFaceToId.clear();
 
       MFEM_VERIFY(nce.masters.Size() > 0 ||
-                  patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0, "");
+                  patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0, "");
       MFEM_VERIFY(!(nce.masters.Size() > 0 &&
-                    patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0), "");
+                    patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0), "");
 
       std::vector<EdgePairInfo> edgePairs;
       std::vector<FacePairInfo> facePairs;
@@ -3692,7 +3692,7 @@ void NURBSExtension::GenerateOffsets()
 
       std::map<std::pair<int, int>, int> v2f;
 
-      if (patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0 && validV2K)
+      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
       {
          // Intersections of master edges may not be edges in patchTopo->ncmesh,
          // so we represent them in auxEdges, to account for their vertices and
@@ -3721,7 +3721,7 @@ void NURBSExtension::GenerateOffsets()
             }
          }
 
-         Array2D<int> const& v2k = patchTopo->ncmesh->GetVertexToKnot();
+         const VertexToKnotSpan &v2k = patchTopo->ncmesh->GetVertexToKnotSpan();
 
          if (is3D)
             ProcessVertexToKnot3D(v2k, v2f, parentN1, parentN2, edgePairs,
@@ -3800,7 +3800,7 @@ void NURBSExtension::GenerateOffsets()
          masterFaceS0[i].resize(2);
       }
 
-      if (patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0 && validV2K)
+      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
       {
          // Note that this is used in 2D and 3D.
          const int npairs = edgePairs.size();
@@ -5186,8 +5186,6 @@ void NURBSExtension::LoadFactorsForKV(const std::string &filename)
       return;
    }
 
-   const bool refined = kvf_coarse.size() > 0;
-
    ifstream f(filename);
    int nkv;
    f >> nkv;
@@ -5334,7 +5332,6 @@ int NURBSExtension::SetPatchFactors(int p)
             {
                const int e = masterEdgeSlaves[mid][piece];
                const int s = slaveEdges[e];
-               const int u = slaveEdgesToUnique[s];
 
                int sf = unsetFactor;
                if (s >= 0) // Not an aux edge
@@ -5422,7 +5419,6 @@ int NURBSExtension::SetPatchFactors(int p)
             {
                const int e = masterEdgeSlaves[mid][piece];
                const int s = slaveEdges[e];
-               const int u = slaveEdgesToUnique[s];
                const int sf = rf_i[os[piece]];
                for (int j = os[piece] + 1; j < os[piece + 1]; ++j)
                {
@@ -5562,8 +5558,6 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       {
          Array<int> row;
          face2elem->GetRow(face, row);
-
-         Mesh::FaceInformation info = patchTopo->GetFaceInformation(face);
 
          if (slaveFacesToUnique.count(face) > 0)
          {
@@ -5982,7 +5976,6 @@ void NURBSExtension::FullyCoarsen()
       patches[p]->SetKnotVectorsCoarse(false);
    }
 
-   //MFEM_VERIFY(mOrder >= 1, "Constant order required for ReadPatchCP");
    const int maxOrder = mOrders.Max();
 
    // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element,
@@ -6539,7 +6532,6 @@ void NURBSExtension::ReadPatchCP(std::istream &input)
 {
    input >> npatch;
 
-   //MFEM_VERIFY(mOrder >= 1, "Constant order required for ReadPatchCP");
    const int maxOrder = mOrders.Max();
 
    // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element, and
@@ -7124,7 +7116,7 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
       SetMasterEdges(true);
 
       if (Ext->nonconforming && Ext->patchTopo->ncmesh
-          && Ext->patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0)
+          && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
       {
          // Use e2nce to map from patchTopo edges to patchTopo->ncmesh edges.
          for (int i = 0; i < edges.Size(); i++)

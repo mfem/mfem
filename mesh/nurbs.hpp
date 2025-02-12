@@ -784,31 +784,31 @@ private:
 
    // Not const, because it modifies auxFaces.
    void FindAdditionalSlaveAndAuxiliaryFaces(
-      std::map<std::pair<int, int>, int> & v2f,
-      std::set<int> & addParentFaces,
-      std::vector<FacePairInfo> & facePairs);
+      std::map<std::pair<int, int>, int> &v2f,
+      std::set<int> &addParentFaces,
+      std::vector<FacePairInfo> &facePairs);
 
    void ProcessFacePairs(int start, int midStart,
-                         const std::vector<int> & parentN1,
-                         const std::vector<int> & parentN2,
-                         std::vector<int> & parentVerts,
-                         const std::vector<FacePairInfo> & facePairs);
+                         const std::vector<int> &parentN1,
+                         const std::vector<int> &parentN2,
+                         std::vector<int> &parentVerts,
+                         const std::vector<FacePairInfo> &facePairs);
 
-   void ProcessVertexToKnot2D(const Array2D<int> & v2k,
-                              std::set<int> & reversedParents,
-                              std::vector<EdgePairInfo> & edgePairs);
+   void ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
+                              std::set<int> &reversedParents,
+                              std::vector<EdgePairInfo> &edgePairs);
 
-   void ProcessVertexToKnot3D(Array2D<int> const& v2k,
-                              const std::map<std::pair<int, int>, int> & v2f,
-                              std::vector<int> & parentN1,
-                              std::vector<int> & parentN2,
-                              std::vector<EdgePairInfo> & edgePairs,
-                              std::vector<FacePairInfo> & facePairs,
-                              std::vector<int> & parentFaces,
-                              std::vector<int> & parentVerts);
+   void ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
+                              const std::map<std::pair<int, int>, int> &v2f,
+                              std::vector<int> &parentN1,
+                              std::vector<int> &parentN2,
+                              std::vector<EdgePairInfo> &edgePairs,
+                              std::vector<FacePairInfo> &facePairs,
+                              std::vector<int> &parentFaces,
+                              std::vector<int> &parentVerts);
 
-   void GetAuxFaceToElementTable(Array2D<int> & auxface2elem);
-   void GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem);
+   void GetAuxFaceToElementTable(Array2D<int> &auxface2elem);
+   void GetPatchSlaveFaceToPatchTable(Array2D<int> &sface2elem);
 
 public:
    /// Copy constructor: deep copy
