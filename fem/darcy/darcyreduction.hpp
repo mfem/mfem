@@ -201,6 +201,13 @@ class DarcyPotentialReduction : public DarcyReduction
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
 
+#ifdef MFEM_USE_MPI
+   void CountBSharedFaces(Array<int> &face_offs) const override { }
+   void CountDSharedFaces(Array<int> &face_offs) const override { }
+   bool Parallel() const { return (pfes_u != NULL); }
+#else
+   bool Parallel() const { return false; }
+#endif
    void ComputeS() override;
 
 public:
@@ -218,8 +225,21 @@ public:
    void AssemblePotFaceMatrix(int face, const DenseMatrix &) override
    { MFEM_ABORT("Cannot eliminate potential with face contributions!"); }
 
+#ifdef MFEM_USE_MPI
+   void AssembleDivSharedFaceMatrix(int sface, const DenseMatrix &) override
+   { MFEM_ABORT("Face contributions are not supported!"); }
+
+   void AssemblePotSharedFaceMatrix(int sface, const DenseMatrix &) override
+   { MFEM_ABORT("Cannot eliminate potential with face contributions!"); }
+#endif
+
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b) override;
+
+#ifdef MFEM_USE_MPI
+   void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
+                                    const BlockVector &x, BlockVector &b) override;
+#endif
 
    void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 

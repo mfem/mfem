@@ -1165,21 +1165,33 @@ void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
    // all other hat_dofs are "free".
    hat_dofs_marker.SetSize(num_hat_dofs);
    Array<int> free_tdof_marker;
+   if (Parallel())
+   {
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes_u);
-   free_tdof_marker.SetSize(pfes ? pfes->TrueVSize() :
-                            fes_u->GetConformingVSize());
-#else
-   free_tdof_marker.SetSize(fes_u->GetConformingVSize());
+      free_tdof_marker.SetSize(pfes_u->TrueVSize());
 #endif
+   }
+   else
+   {
+      free_tdof_marker.SetSize(fes_u->GetConformingVSize());
+   }
+
    free_tdof_marker = 1;
    for (int i = 0; i < ess_flux_tdof_list.Size(); i++)
    {
       free_tdof_marker[ess_flux_tdof_list[i]] = 0;
    }
+
    Array<int> free_vdofs_marker;
+   if (Parallel())
+   {
 #ifdef MFEM_USE_MPI
-   if (!pfes)
+      HypreParMatrix *P = pfes_u->Dof_TrueDof_Matrix();
+      free_vdofs_marker.SetSize(fes_u->GetVSize());
+      P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
+#endif
+   }
+   else
    {
       const SparseMatrix *cP = fes_u->GetConformingProlongation();
       if (!cP)
@@ -1192,24 +1204,7 @@ void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
          cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
       }
    }
-   else
-   {
-      HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
-      free_vdofs_marker.SetSize(fes_u->GetVSize());
-      P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
-   }
-#else
-   const SparseMatrix *cP = fes_u->GetConformingProlongation();
-   if (!cP)
-   {
-      free_vdofs_marker.MakeRef(free_tdof_marker);
-   }
-   else
-   {
-      free_vdofs_marker.SetSize(fes_u->GetVSize());
-      cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
-   }
-#endif
+
    for (int i = 0; i < NE; i++)
    {
       fes_u->GetElementVDofs(i, vdofs);
@@ -1219,23 +1214,8 @@ void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
          hat_dofs_marker[hat_offsets[i]+j] = ! free_vdofs_marker[vdofs[j]];
       }
    }
-#ifndef MFEM_DEBUG
-   // In DEBUG mode this array is used below.
-   free_tdof_marker.DeleteAll();
-#endif
-   free_vdofs_marker.DeleteAll();
-   // Split the "free" (0) hat_dofs into "internal" (0) or "boundary" (-1).
-   // The "internal" hat_dofs are those "free" hat_dofs for which the
-   // corresponding column in C is zero; otherwise the free hat_dof is
-   // "boundary".
-   /*for (int i = 0; i < num_hat_dofs; i++)
-   {
-      // skip "essential" hat_dofs and empty rows in Ct
-      if (hat_dofs_marker[i] == 1) { continue; }
-      //CT row????????
 
-      //hat_dofs_marker[i] = -1; // mark this hat_dof as "boundary"
-   }*/
+   free_vdofs_marker.DeleteAll();
 
    // Define Af_offsets and Af_f_offsets
    Af_offsets.SetSize(NE+1);
@@ -1338,7 +1318,7 @@ void DarcyPotentialReduction::ComputeS()
       int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
 
       DenseMatrix A(Af_data + Af_offsets[el], a_dofs_size, a_dofs_size);
-      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+      const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
       // Decompose D
       LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
@@ -1364,7 +1344,36 @@ void DarcyPotentialReduction::ComputeS()
       }
    }
 
-   S->Finalize();
+   S->Finalize(skip_zeros);
+
+   if (!Parallel())
+   {
+      const SparseMatrix *cP = fes_u->GetConformingProlongation();
+      if (cP)
+      {
+         if (S->Height() != cP->Width())
+         {
+            SparseMatrix *cS = mfem::RAP(*cP, *S, *cP);
+            delete S;
+            S = cS;
+         }
+      }
+   }
+   else // parallel
+   {
+#ifdef MFEM_USE_MPI
+      OperatorHandle dS(pS.Type()), pP(pS.Type());
+      dS.MakeSquareBlockDiag(pfes_u->GetComm(), pfes_u->GlobalVSize(),
+                             pfes_u->GetDofOffsets(), S);
+
+      // TODO - construct Dof_TrueDof_Matrix directly in the pS format
+      pP.ConvertFrom(pfes_u->Dof_TrueDof_Matrix());
+      pS.MakePtAP(dS, pP);
+      dS.Clear();
+      delete S;
+      S = NULL;
+#endif
+   }
 }
 
 void DarcyPotentialReduction::AssembleFluxMassMatrix(int el,
@@ -1453,7 +1462,7 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
       //bu -= A_e u_e
       const int a_size = hat_offsets[el+1] - hat_offsets[el];
-      DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
 
       bu_e.SetSize(a_size);
       Ae.Mult(u_e, bu_e);
@@ -1463,7 +1472,7 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
       //bp -= B_e u_e
       const int d_size = D_f_offsets[el+1] - D_f_offsets[el];
-      DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
 
       bp_e.SetSize(d_size);
       Be.Mult(u_e, bp_e);
@@ -1483,7 +1492,101 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
-void DarcyPotentialReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
+#ifdef MFEM_USE_MPI
+void DarcyPotentialReduction::ParallelEliminateTDofsInRHS(
+   const Array<int> &tdofs_flux, const BlockVector &x, BlockVector &b)
+{
+   const int NE = fes_u->GetNE();
+   Vector u_e, bu_e, bp_e;
+   Array<int> u_vdofs, p_dofs, edofs;
+
+   const Vector &xu_t = x.GetBlock(0);
+   Vector &bu_t = b.GetBlock(0);
+   Vector &bp = b.GetBlock(1);
+
+   Vector xu, bu;
+   if (!Parallel())
+   {
+      const SparseMatrix *tr_cP = fes_u->GetConformingProlongation();
+      if (!tr_cP)
+      {
+         xu.SetDataAndSize(xu_t.GetData(), xu_t.Size());
+         bu.SetDataAndSize(bu.GetData(), bu.Size());
+      }
+      else
+      {
+         xu.SetSize(fes_u->GetVSize());
+         tr_cP->Mult(xu_t, xu);
+         bu.SetSize(fes_u->GetVSize());
+         bu = 0.;
+      }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      xu.SetSize(fes_u->GetVSize());
+      pfes_u->GetProlongationMatrix()->Mult(xu_t, xu);
+      bu.SetSize(fes_u->GetVSize());
+      bu = 0.;
+#endif
+   }
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetEDofs(el, edofs);
+      xu.GetSubVector(edofs, u_e);
+      u_e.Neg();
+
+      //bu -= A_e u_e
+      const int a_size = hat_offsets[el+1] - hat_offsets[el];
+      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+
+      bu_e.SetSize(a_size);
+      Ae.Mult(u_e, bu_e);
+
+      fes_u->GetElementVDofs(el, u_vdofs);
+      bu.AddElementVector(u_vdofs, bu_e);
+
+      //bp -= B_e u_e
+      const int d_size = D_f_offsets[el+1] - D_f_offsets[el];
+      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+
+      bp_e.SetSize(d_size);
+      Be.Mult(u_e, bp_e);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_e.Neg();
+      }
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.AddElementVector(p_dofs, bp_e);
+   }
+
+   if (!Parallel())
+   {
+      const SparseMatrix *tr_cP = fes_u->GetConformingProlongation();
+      if (tr_cP)
+      {
+         tr_cP->AddMultTranspose(bu, bu_t);
+      }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      pfes_u->GetProlongationMatrix()->AddMultTranspose(bu, bu_t);
+#endif
+   }
+
+   for (int tdof : tdofs_flux)
+   {
+      bu_t(tdof) = xu_t(tdof);//<--can be arbitrary as it is ignored
+   }
+}
+#endif
+
+void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
+                                        Vector &b_tr) const
 {
    const int NE = fes_u->GetNE();
    Vector bu_l, bp_l;
@@ -1492,7 +1595,29 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
    const Vector &bu = b.GetBlock(0);
    const Vector &bp = b.GetBlock(1);
 
-   b_r = bu;
+   Vector b_r;
+   const Operator *tr_cP;
+
+   if (!Parallel() && !(tr_cP = fes_u->GetConformingProlongation()))
+   {
+      b_tr.SetSize(fes_u->GetVSize());
+      b_r.SetDataAndSize(b_tr.GetData(), b_tr.Size());
+      b_r = bu;
+   }
+   else
+   {
+      b_r.SetSize(fes_u->GetVSize());
+      if (!Parallel())
+      {
+         tr_cP->Mult(bu, b_r);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         pfes_u->GetProlongationMatrix()->Mult(bu, b_r);
+#endif
+      }
+   }
 
    for (int el = 0; el < NE; el++)
    {
@@ -1508,8 +1633,8 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
       int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
-      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
-      LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
+      const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+      const LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
 
       LU_D.Solve(d_dofs_size, 1, bp_l.GetData());
       bp_l.Neg();
@@ -1517,10 +1642,27 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
       b_r.AddElementVector(u_vdofs, bu_l);
    }
+
+   if (!Parallel())
+   {
+      if (tr_cP)
+      {
+         b_tr.SetSize(tr_cP->Width());
+         tr_cP->MultTranspose(b_r, b_tr);
+      }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      const Operator *tr_P = pfes_u->GetProlongationMatrix();
+      b_tr.SetSize(tr_P->Width());
+      tr_P->MultTranspose(b_r, b_tr);
+#endif
+   }
 }
 
 void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
-                                              const Vector &sol_r,
+                                              const Vector &sol_tr,
                                               BlockVector &sol) const
 {
    const int NE = fes_u->GetNE();
@@ -1532,14 +1674,36 @@ void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
    Vector &u = sol.GetBlock(0);
    Vector &p = sol.GetBlock(1);
 
-   u = sol_r;
+   Vector sol_r;
+   if (!Parallel())
+   {
+      const SparseMatrix *tr_cP = fes_u->GetConformingProlongation();
+      if (!tr_cP)
+      {
+         sol_r.SetDataAndSize(sol_tr.GetData(), sol_tr.Size());
+      }
+      else
+      {
+         sol_r.SetSize(fes_u->GetVSize());
+         tr_cP->Mult(sol_tr, sol_r);
+      }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      sol_r.SetSize(fes_u->GetVSize());
+      pfes_u->GetProlongationMatrix()->Mult(sol_tr, sol_r);
+#endif
+   }
+
+   u = sol_tr;
 
    for (int el = 0; el < NE; el++)
    {
       //Load RHS
 
       GetFDofs(el, u_vdofs);
-      u.GetSubVector(u_vdofs, u_l);
+      sol_r.GetSubVector(u_vdofs, u_l);
 
       fes_p->GetElementDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
@@ -1553,8 +1717,8 @@ void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
 
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
       int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
-      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
-      LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
+      const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+      const LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
 
       B.AddMult(u_l, bp_l, -1.);
 
