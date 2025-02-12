@@ -2161,8 +2161,6 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "LBFGS: No convergence!\n";
    }
-
-   Monitor(it, norm, r, x, true);
 }
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
