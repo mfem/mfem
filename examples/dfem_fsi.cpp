@@ -7,19 +7,19 @@ using mfem::internal::tensor;
 
 constexpr int DIMENSION = 2;
 
-float clamp(float x, float lowerlimit = 0.0f, float upperlimit = 1.0f)
-{
-   if (x < lowerlimit) { return lowerlimit; }
-   if (x > upperlimit) { return upperlimit; }
-   return x;
-}
-
 enum ProblemType
 {
    CFD_EX_TEST = 0,
    DFG_CFD1_TEST = 1,
    DFG_CFD2_TEST = 2,
 };
+
+float clamp(float x, float lowerlimit = 0.0f, float upperlimit = 1.0f)
+{
+   if (x < lowerlimit) { return lowerlimit; }
+   if (x > upperlimit) { return upperlimit; }
+   return x;
+}
 
 struct CFD_TEST_CTX
 {
@@ -375,7 +375,6 @@ public:
 
          velocity_mass =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
-         velocity_mass->DisableTensorProductStructure();
 
          mfem::tuple inputs{Value<Velocity>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Velocity>{}};
@@ -398,8 +397,6 @@ public:
 
          fluid_momentum_convective =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
-
-         fluid_momentum_convective->DisableTensorProductStructure();
 
          mfem::tuple inputs
          {
@@ -464,8 +461,6 @@ public:
          fluid_continuity =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
-         fluid_continuity->DisableTensorProductStructure();
-
          mfem::tuple inputs{Gradient<Velocity>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Pressure>{}};
          auto continuity_qf = NavierStokesContinuityQFunction<DIMENSION> {};
@@ -487,8 +482,6 @@ public:
 
          pressure_mass =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
-
-         pressure_mass->DisableTensorProductStructure();
 
          mfem::tuple inputs{Value<Pressure>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Pressure>{}};

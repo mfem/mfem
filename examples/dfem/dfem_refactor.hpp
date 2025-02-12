@@ -1069,7 +1069,35 @@ void DifferentiableOperator::AddDomainIntegrator(
                                  auto &B = input_dtq_maps[s].B;
                                  auto &G = input_dtq_maps[s].G;
 
-                                 if constexpr (is_gradient_fop<std::decay_t<decltype(input_fop)>>::value)
+                                 if constexpr (is_value_fop<std::decay_t<decltype(input_fop)>>::value)
+                                 {
+                                    for (int qx = 0; qx < q1d; qx++)
+                                    {
+                                       for (int qy = 0; qy < q1d; qy++)
+                                       {
+                                          const int q = qy + qx * q1d;
+                                          for (int m = 0; m < trial_op_dim; m++)
+                                          {
+                                             for (int i = 0; i < test_vdim; i++)
+                                             {
+                                                for (int k = 0; k < test_op_dim; k++)
+                                                {
+                                                   const real_t f = a_qp(i, k, j, m + m_offset, q, e);
+                                                   if (m == 0)
+                                                   {
+                                                      fhat(i, k, q) += f * B(qx, 0, Jx);
+                                                   }
+                                                   else
+                                                   {
+                                                      fhat(i, k, q) += f * B(qy, 0, Jy);
+                                                   }
+                                                }
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }
+                                 else if constexpr (is_gradient_fop<std::decay_t<decltype(input_fop)>>::value)
                                  {
                                     for (int qx = 0; qx < q1d; qx++)
                                     {
@@ -1111,6 +1139,11 @@ void DifferentiableOperator::AddDomainIntegrator(
                            }
                         }
                      }
+                  }
+                  else
+                  {
+                     MFEM_ABORT("sum factorized sparse matrix assemble routine "
+                                "not implemented for 3D");
                   }
                }
                else
