@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   // const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
-   const char *mesh_file = "../../data/beam-hex.mesh";
+   const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
+   // const char *mesh_file = "../../data/beam-hex.mesh";
    bool pa = false;
    bool patchAssembly = false;
    int ref_levels = 0;
@@ -84,13 +84,13 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
 
    // 2. Read the serial mesh from the given mesh file.
-   Mesh serial_mesh(mesh_file, 1, 1);
-   int dim = serial_mesh.Dimension();
-   bool isNURBS = serial_mesh.NURBSext;
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
+   bool isNURBS = mesh.NURBSext;
 
    // Verify mesh is valid for this problem
-   MFEM_VERIFY(!(isNURBS && !serial_mesh.GetNodes()), "NURBS mesh must have nodes");
-   if (serial_mesh.attributes.Max() < 2 || serial_mesh.bdr_attributes.Max() < 2)
+   MFEM_VERIFY(!(isNURBS && !mesh.GetNodes()), "NURBS mesh must have nodes");
+   if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
    {
       cerr << "\nInput mesh should have at least two materials and "
            << "two boundary attributes! (See schematic in ex2.cpp)\n"
@@ -101,17 +101,17 @@ int main(int argc, char *argv[])
    // 3. Optionally, increase the NURBS degree.
    if (isNURBS && nurbs_degree_increase>0)
    {
-      serial_mesh.DegreeElevate(nurbs_degree_increase);
+      mesh.DegreeElevate(nurbs_degree_increase);
    }
 
    // 4. Refine the serial mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
-      serial_mesh.UniformRefinement();
+      mesh.UniformRefinement();
    }
    // 5. Define a parallel mesh by a partitioning of the serial mesh.
-   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   serial_mesh.Clear(); // the serial mesh is no longer needed
+   // ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   // serial_mesh.Clear(); // the serial mesh is no longer needed
 
    // 5. Define a finite element space on the mesh.
    // Node ordering is important
@@ -128,7 +128,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(1, dim);
    }
 
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(&mesh, fec, dim, fes_ordering);
+   // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(&mesh, fec, dim, fes_ordering);
+   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec, dim, fes_ordering);
+   // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
    if (Mpi::Root())
    {
       cout << "Finite Element Collection: " << fec->Name() << endl;
@@ -154,7 +156,7 @@ int main(int argc, char *argv[])
       f.Set(dim-1, new PWConstCoefficient(pull_force));
    }
 
-   ParLinearForm b(fespace);
+   LinearForm b(fespace);
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    if (Mpi::Root())
    {
@@ -169,7 +171,7 @@ int main(int argc, char *argv[])
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   ParGridFunction x(fespace);
+   GridFunction x(fespace);
    x = 0.0;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
@@ -233,7 +235,7 @@ int main(int argc, char *argv[])
    {
       cout << "Assemble a ... " << flush;
    }
-   ParBilinearForm a(fespace);
+   BilinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(ei);
    a.UseExternalIntegrators();
@@ -249,11 +251,12 @@ int main(int argc, char *argv[])
       cout << "Matrix ... " << flush;
    }
    OperatorPtr A;
+   // SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    if (Mpi::Root())
    {
-      cout << "done. " << "(size = " << fespace->GlobalTrueVSize() << ")" << endl;
+      cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
    }
 
    // Solve the linear system A X = B.
@@ -261,55 +264,10 @@ int main(int argc, char *argv[])
    {
       cout << "Solving linear system ... " << endl;
    }
-   if (!pa)
-   {
-      // preconditioner
-      HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
-      amg->SetSystemsOptions(dim, reorder_space);
+   // GSSmoother M(A);
+   GSSmoother M((SparseMatrix&)(*A));
+   PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
 
-      // solver
-      CGSolver solver(MPI_COMM_WORLD);
-      solver.SetRelTol(1e-12);
-      solver.SetAbsTol(1e-12);
-      solver.SetMaxIter(200);
-      solver.SetPrintLevel(1);
-      solver.SetPreconditioner(*amg);
-      solver.SetOperator(*A);
-      solver.Mult(B, X);
-   }
-   else
-   {
-      if (Mpi::Root())
-      {
-         cout << "AssemblePA()... " << flush;
-      }
-      ei->AssemblePA(*fespace);
-      // preconditioner
-      HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
-      amg->SetSystemsOptions(dim, reorder_space);
-
-      // solver
-      CGSolver solver(MPI_COMM_WORLD);
-      solver.SetRelTol(1e-12);
-      solver.SetAbsTol(1e-12);
-      solver.SetMaxIter(200);
-      solver.SetPrintLevel(1);
-      solver.SetPreconditioner(*amg);
-      solver.SetOperator(*A);
-      solver.Mult(B, X);
-      // ei->AssemblePA(fespace);
-      // if (UsesTensorBasis(*fespace))
-      // {
-      //    MFEM_VERIFY(false, "Not implemented yet")
-      //    // OperatorJacobiSmoother M(a, ess_tdof_list);
-      //    // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-      // }
-      // else
-      // {
-      //    MFEM_VERIFY(false, "Not implemented yet")
-      //    // CG(*A, B, X, 1, 400, 1e-20, 0.0);
-      // }
-   }
    if (Mpi::Root())
    {
       cout << "Done solving system." << endl;
