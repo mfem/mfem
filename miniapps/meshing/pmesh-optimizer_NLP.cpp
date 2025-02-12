@@ -57,7 +57,7 @@ using namespace mfem;
 using namespace std;
 
 int ftype = 1;
-double kw = 10.0;
+double kw = 1.0;
 double alphaw = 50;
 
 class OSCoefficient : public TMOPMatrixCoefficient
@@ -191,12 +191,13 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
   }
   else if (ftype == 1) // circular wave centered in domain
   {
-    // double k_w = 5.0;
     double k_w = kw;
+    double k_t = 0.5;
+    double T_ref = 1.0;
+    double g = std::sin( M_PI *x[0])*std::sin(M_PI *x[1])-k_t*T_ref;
 
-    grad[0]= 1.5708 * k_w * std::cos(M_PI * x[0]) / std::pow(std::cosh(k_w*( std::sin(M_PI * x[0]) * std::sin(M_PI * x[1])-0.5)) , 2) * std::sin(M_PI * x[1]);
-    grad[1]= 1.5708 * k_w * std::cos(M_PI * x[1]) / std::pow(std::cosh(k_w*( std::sin(M_PI * x[0]) * std::sin(M_PI * x[1])-0.5)) , 2) * std::sin(M_PI * x[0]);
-
+    grad[0]= 0.5*M_PI * k_w * std::cos(M_PI * x[0])*std::sin(M_PI * x[1]) / std::pow(std::cosh(k_w*g), 2);
+    grad[1]= 0.5*M_PI * k_w * std::cos(M_PI * x[1])*std::sin(M_PI * x[0]) / std::pow(std::cosh(k_w*g), 2);
     // double k_t = 0.5;
     // double T_ref = 1.0;
 
@@ -293,20 +294,35 @@ double loadFunc(const Vector & x)
   }
   else if (ftype == 1)
   {
-    // double k_w =5.0;
+    // // double k_w =5.0;
+    // double k_w = kw;
+    // double k_t = 0.5;
+    // double T_ref = 1.0;
+
+    // double bt = k_w*M_PI*M_PI*std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]);
+    // double bx = k_w*M_PI*std::cos( M_PI *x[0] )*std::sin(M_PI *x[1]);
+    // double by = k_w*M_PI*std::sin( M_PI *x[0] )*std::cos(M_PI *x[1]);
+    // double sh = std::tanh(k_w*((std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]))-k_t*T_ref));
+
+
+    // double val = -1.0*( 0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*bx*bx + sh*sh*bt) +
+    //                     0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*by*by + sh*sh*bt) );
+    // return val;
+
     double k_w = kw;
     double k_t = 0.5;
     double T_ref = 1.0;
 
-    double bt = k_w*M_PI*M_PI*std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]);
-    double bx = k_w*M_PI*std::cos( M_PI *x[0] )*std::sin(M_PI *x[1]);
-    double by = k_w*M_PI*std::sin( M_PI *x[0] )*std::cos(M_PI *x[1]);
-    double sh = std::tanh(k_w*((std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]))-k_t*T_ref));
-
-
-    double val = -1.0*( 0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*bx*bx + sh*sh*bt) +
-                        0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*by*by + sh*sh*bt) );
-    return val;
+    double g = std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]) - k_t * T_ref;
+    double tanh_val = std::tanh(k_w * g);
+    double sech2 = 1.0 / (std::cosh(k_w * g) * std::cosh(k_w * g));
+    double sin_x = std::sin(M_PI * x[0]);
+    double cos_x = std::cos(M_PI * x[0]);
+    double sin_y = std::sin(M_PI * x[1]);
+    double cos_y = std::cos(M_PI * x[1]);
+    double neg_laplacian = 0.5 * k_w * M_PI * M_PI * sin_x * sin_y * sech2
+                          + k_w * k_w * M_PI * M_PI * sech2 * tanh_val * (sin_x * sin_x + sin_y * sin_y);
+    return neg_laplacian;
   }
   else if (ftype == 2)
   {
@@ -434,7 +450,7 @@ int main (int argc, char *argv[])
   bool visualization = true;
   int method = 0;
   int mesh_poly_deg     = 1;
-  int nx                = 20;
+  int nx                = 4;
   const char *mesh_file = "null.mesh";
   bool exactaction      = false;
   double ls_norm_fac    = 1.2;
@@ -520,10 +536,13 @@ int main (int argc, char *argv[])
      int tNumVertices  = des_mesh->GetNV();
      for (int i = 0; i < tNumVertices; ++i) {
         double * Coords = des_mesh->GetVertex(i);
-        if (Coords[ 0 ] != 0.0 && Coords[ 0 ] != 1.0 && Coords[ 1 ] != 0.0 && Coords[ 1 ] != 1.0) {
-           Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
-           Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
-        }
+        //if (Coords[ 0 ] != 0.0 && Coords[ 0 ] != 1.0 && Coords[ 1 ] != 0.0 && Coords[ 1 ] != 1.0) {
+          //  Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
+          //  Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
+
+          Coords[ 0 ] = Coords[ 0 ] +0.5;
+          //Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
+        //}
      }
   }
 
@@ -994,8 +1013,8 @@ if (myid == 0) {
 
       ParLinearForm dQdx(pfespace); dQdx = 0.0;
       ParLinearForm dQdx_physics(pfespace); dQdx_physics = 0.0;
-      dQdx_physics.Add(weight_1, *dQdxExpl);
-      dQdx_physics.Add(weight_1, *dQdxImpl);
+      dQdx_physics.Add(1.0, *dQdxExpl);
+      dQdx_physics.Add(1.0, *dQdxImpl);
       dQdx.Add(weight_1, *dQdxExpl);
       dQdx.Add(weight_1, *dQdxImpl);
       dQdx.Add(weight_tmop, *dMeshQdxExpl);
@@ -1003,8 +1022,8 @@ if (myid == 0) {
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
       HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
 
-    // Construct grid function from hypre vector
-    mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
+      // Construct grid function from hypre vector
+      mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
 
       objgrad = *truedQdx;
@@ -1087,11 +1106,18 @@ if (myid == 0) {
             }
           }
         }
-        // std::cout << nqpts << " " << GLLVec.Size() << " k10c\n";
+        std::cout << nqpts << " " << GLLVec.Size() << " k10c\n";
         // MFEM_ABORT(" ");
 
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
+          if(gridfuncLSBoundIndicator[Ia] == 1.0)
+          {
+            (*dQdxExpl)[Ia] = 0.0;
+
+            continue;
+          }
+
           std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
           gridfuncOptVar[Ia] +=epsilon;
 
@@ -1112,7 +1138,7 @@ if (myid == 0) {
 
           QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
-          QoIEvaluator_FD2.setTrueSolCoeff(  &zerocoeff );
+          //QoIEvaluator_FD2.setTrueSolCoeff(  &zerocoeff );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
@@ -1142,10 +1168,17 @@ if (myid == 0) {
 
       if(dQdxFD_global)
       {
-        double epsilon = 1e-8;
+        double epsilon = 1e-10;
         mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
+          if(gridfuncLSBoundIndicator[Ia] == 1.0)
+          {
+            dQdx_physics[Ia] = 0.0;
+            dQdx_physicsGF[Ia] = 0.0;
+
+            continue;
+          }
           std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
           gridfuncOptVar[Ia] +=epsilon;
 
@@ -1194,6 +1227,19 @@ if (myid == 0) {
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
         std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
+
+        paraview_dc.SetCycle(i);
+        paraview_dc.SetTime(i*1.0);
+        //paraview_dc.RegisterField("ObjGrad",&objGradGF);
+        paraview_dc.RegisterField("Solution",&x_gf);
+        paraview_dc.RegisterField("SolutionD",&discretSol   );
+        paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
+        paraview_dc.RegisterField("SensitivityFD",&tFD_sens);
+        paraview_dc.RegisterField("SensitivityDiff",&tFD_diff);
+        paraview_dc.Save();
+
+        std::cout<<"expl: "<<dQdxExpl->Norml2()<<std::endl;
+        std::cout<<"impl: "<<dQdxImpl->Norml2()<<std::endl;
       }
 
       if( BreakAfterFirstIt )

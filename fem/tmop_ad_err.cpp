@@ -1,4 +1,5 @@
 #include "tmop_ad_err.hpp"
+#include "datacollection.hpp"
 
 namespace mfem {
 
@@ -1307,7 +1308,7 @@ void Diffusion_Solver::FSolve()
   ParLinearForm QForm(temp_fes_);
   kForm.AddDomainIntegrator(new DiffusionIntegrator(kCoef));
 
-  QForm.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
+  QForm.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_, 12,12));
 
   kForm.Assemble();
   QForm.Assemble();
@@ -1327,8 +1328,8 @@ void Diffusion_Solver::FSolve()
   amg.SetPrintLevel(0);
 
   CGSolver cg(temp_fes_->GetParMesh()->GetComm());
-  cg.SetRelTol(1e-10);
-  cg.SetMaxIter(500);
+  cg.SetRelTol(1e-12);
+  cg.SetMaxIter(5000);
   cg.SetPreconditioner(amg);
   cg.SetOperator(A);
   cg.Mult(B, X);
@@ -1342,6 +1343,16 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     this->UpdateMesh(designVar);
 
     Array<int> ess_tdof_list(ess_tdof_list_);
+
+    //copy BC values from the grid function to the solution vector
+    {
+      //adjgf.GetTrueDofs(rhs);
+      for(int ii=0;ii<ess_tdof_list.Size();ii++) {
+          rhs[ess_tdof_list[ii]]=0.0;
+      }
+    }
+
+    //rhs *= -1.0;
 
     // assemble LHS matrix
     ConstantCoefficient kCoef(1.0);
@@ -1358,24 +1369,40 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     Vector X, B;
     kForm.FormLinearSystem(ess_tdof_list, adj_sol, rhs, A, X, B);
 
-    HypreBoomerAMG amg(A);
+    mfem::HypreParMatrix* tTransOp = reinterpret_cast<mfem::HypreParMatrix*>(&A)->Transpose();
+
+    HypreBoomerAMG amg(*tTransOp);
     amg.SetPrintLevel(0);
 
     CGSolver cg(temp_fes_->GetParMesh()->GetComm());
-    cg.SetRelTol(1e-10);
-    cg.SetMaxIter(500);
+    cg.SetRelTol(1e-12);
+    cg.SetMaxIter(5000);
     cg.SetPreconditioner(amg);
-    cg.SetOperator(A);
-    cg.Mult(B, X);
+    cg.SetOperator(*tTransOp);
+    cg.SetPrintLevel(2);
+    cg.Mult(rhs, X);
 
-    kForm.RecoverFEMSolution(X, rhs, adj_sol);
+    adj_sol.SetFromTrueDofs(X);
+     
+    mfem::ParaViewDataCollection paraview_dc("Adjoint", temp_fes_->GetParMesh());
+    paraview_dc.SetLevelsOfDetail(1);
+    paraview_dc.SetDataFormat(VTKFormat::BINARY);
+    paraview_dc.SetHighOrderOutput(true);
+    paraview_dc.SetCycle(0);
+    paraview_dc.SetTime(1.0);
+    paraview_dc.RegisterField("adjoint",&adj_sol);
+    paraview_dc.Save();
+
+    //kForm.RecoverFEMSolution(X, rhs, adj_sol);
+
+    delete tTransOp;
 
     ParLinearForm LHS_sensitivity(coord_fes_);
     LHS_sensitivity.AddDomainIntegrator(new ThermalConductivityShapeSensitivityIntegrator(kCoef, solgf, adj_sol));
     LHS_sensitivity.Assemble();
 
     ParLinearForm RHS_sensitivity(coord_fes_);
-    RHS_sensitivity.AddDomainIntegrator(new ThermalHeatSourceShapeSensitivityIntegrator(*QCoef_, adj_sol));
+    RHS_sensitivity.AddDomainIntegrator(new ThermalHeatSourceShapeSensitivityIntegrator(*QCoef_, adj_sol, 12, 12));
     RHS_sensitivity.Assemble();
 
     *dQdx_ = 0.0;
