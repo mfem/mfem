@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -324,45 +324,12 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
 
 int GridFunction::VectorDim() const
 {
-   const FiniteElement *fe;
-   if (!fes->GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->
-           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = fes->GetFE(0);
-   }
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return fes->GetVDim();
-   }
-   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetRangeDim());
+   return fes->GetVectorDim();
 }
 
 int GridFunction::CurlDim() const
 {
-   const FiniteElement *fe;
-   if (!fes->GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->
-           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = fes->GetFE(0);
-   }
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return 2 * fes->GetMesh()->SpaceDimension() - 3;
-   }
-   return fes->GetVDim()*fe->GetCurlDim();
+   return fes->GetCurlDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const
@@ -1793,8 +1760,8 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
    {
       // Assuming that the projection matrix is the same for all elements
       sameP = true;
-      fes->GetFE(0)->Project(*src.fes->GetFE(0),
-                             *mesh->GetElementTransformation(0), P);
+      fes->GetTypicalFE()->Project(*src.fes->GetTypicalFE(),
+                                   *mesh->GetTypicalElementTransformation(), P);
    }
    const int vdim = fes->GetVDim();
    MFEM_VERIFY(vdim == src.fes->GetVDim(), "incompatible vector dimensions!");
