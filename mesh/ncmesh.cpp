@@ -5102,12 +5102,18 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
    }
 }
 
+void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
+                    int &k);
+
 // TODO: this is for 3D. A 2D version is also needed.
-void NCMesh::RefineVertexToKnot(Array<int> const& rf)
+void NCMesh::RefineVertexToKnot(Array<int> const& rf,
+                                const std::vector<Array<int>> &kvf,
+                                const Array<KnotVector*> &kvext,
+                                std::map<std::pair<int,int>, std::pair<int,int>> &parentToKV)
 {
    // Note that entries 1 and 2 of vertex_to_knot are (k1, k2), which are knot
    // span (element) indices in the two dimensions of a patch face. When refining
-   // with factors rf, we simply scale these indices by the corresponding factors=
+   // with factors rf, we simply scale these indices by the corresponding factors
    // from rf.
 
    // TODO: find the directions for a particular parent face and get the
@@ -5118,15 +5124,40 @@ void NCMesh::RefineVertexToKnot(Array<int> const& rf)
    {
       if (Dim == 3)
       {
-         const int d0 = 0;  // TODO: find the first direction for this parent face
-         const int d1 = 0;  // TODO: find the first direction for this parent face
-         vertex_to_knot(i,1) *= rf[d0];
-         vertex_to_knot(i,2) *= rf[d1];
+         // TODO: make this part of vertex_to_knot? It is computed in more than 1 place.
+         std::vector<int> pv(4);
+         for (int j=0; j<4; ++j)
+         {
+            pv[j] = vertex_to_knot(i, 3 + j);
+         }
+
+         bool edgeReverse[2];
+         for (int j=0; j<2; ++j)
+         {
+            const bool ascending = pv[j+1] > pv[j];
+            edgeReverse[j] = !ascending;
+         }
+
+         // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
+         const auto pvmin = std::min_element(pv.begin(), pv.end());
+         const int idmin = std::distance(pv.begin(), pvmin);
+         const int c0 = pv[idmin];  // First corner
+         const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
+
+         const std::pair<int, int> parentPair(c0, c1);
+
+         const std::pair<int, int> kv = parentToKV.at(parentPair);
+
+         RemapKnotIndex(edgeReverse[0], kvf[kv.first], kvext[kv.first]->spacing.get(),
+                        vertex_to_knot(i,1));
+         RemapKnotIndex(edgeReverse[1], kvf[kv.second], kvext[kv.second]->spacing.get(),
+                        vertex_to_knot(i,2));
       }
       else // 2D
       {
          const int d = 0;  // TODO: find the direction for this parent edge
          vertex_to_knot(i,1) *= rf[d];
+         //RemapKnotIndex(kvf[kv.first], knotVectors[kv.first]->GetNE(), knotVectors[kv.first]->spacing.get(), vertex_to_knot(i,1));
       }
    }
 }

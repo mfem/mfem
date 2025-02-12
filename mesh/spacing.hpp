@@ -31,9 +31,9 @@ class SpacingFunction
 public:
    /** @brief Base class constructor.
    @param[in] n  Size or number of intervals, which defines elements.
-   @param[in] r   Whether to reverse the spacings, false by default.
-   @param[in] s   Whether to scale parameters by the refinement or coarsening
-                  factor, in the function @a SpacingFunction::ScaleParameters.
+   @param[in] r  Whether to reverse the spacings, false by default.
+   @param[in] s  Whether to scale parameters by the refinement or coarsening
+                 factor, in the function @a SpacingFunction::ScaleParameters.
    */
    SpacingFunction(int n, bool r=false, bool s=false) : n(n), reverse(r), scale(s)
    { }
@@ -46,6 +46,8 @@ public:
 
    /// Sets the property that determines whether the spacing is reversed.
    void SetReverse(bool r) { reverse = r; }
+
+   bool GetReverse() { return reverse; }
 
    void Flip() { reverse = !reverse; }
 
@@ -686,6 +688,20 @@ public:
    int NumIntParameters() const override { return 3; }
    int NumDoubleParameters() const override { return np - 1; }
 
+   Array<int> RelativePieceSizes() const { return npartition; }
+
+   void ScalePartition(Array<int> const& f, bool reorient)
+   {
+      MFEM_VERIFY(npartition.Size() == f.Size(), "");
+      n0 = 0;
+      for (int i=0; i<f.Size(); ++i)
+      {
+         const int ir = reorient && reverse ? f.Size() - 1 - i : i;
+         npartition[i] *= f[ir];
+         n0 += npartition[i];
+      }
+   }
+
    void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3 + np);
@@ -707,10 +723,10 @@ public:
 private:
    int np;  ///< Number of pieces
    Vector partition;  ///< Partition of the unit interval
-   Array<int> npartition;  ///< Number of intervals in each partition
+   Array<int> npartition;  ///< Relative number of intervals in each partition
    std::vector<std::unique_ptr<SpacingFunction>> pieces;
 
-   int n0 = 0;  ///< Total number of intervals
+   int n0 = 0;  ///< Sum of npartition
 
    Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 

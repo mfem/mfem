@@ -470,7 +470,16 @@ int main (int argc, char *argv[])
                   cin >> tol;
                }
 
-               mesh->NURBSUniformRefinement(ref_factors, tol);
+               cout << "enter knot vector refinement factor filename? [y/n] ---> " << flush;
+               cin >> input_tol;
+               std::string kvf;
+               if (input_tol == 'y')
+               {
+                  cout << "enter filename ---> " << flush;
+                  cin >> kvf;
+               }
+
+               mesh->NURBSUniformRefinement(ref_factors, tol, kvf);
                break;
             }
             case 'c':

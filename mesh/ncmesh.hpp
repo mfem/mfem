@@ -353,7 +353,11 @@ public:
       return vertex_to_knot;
    }
 
-   void RefineVertexToKnot(Array<int> const& rf);
+   void RefineVertexToKnot(const Array<int> &rf,
+                           const std::vector<Array<int>> &kvf,
+                           const Array<KnotVector*> &kvext,
+                           std::map<std::pair<int,int>,
+                           std::pair<int,int>> &parentToKV);
 
    // coarse/fine transforms
 
