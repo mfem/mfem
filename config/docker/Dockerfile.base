@@ -1,4 +1,4 @@
-FROM ghcr.io/rse-ops/cuda-ubuntu-20.04:cuda-11.0.3
+FROM ghcr.io/llnl/radiuss:ubuntu-22.04-cuda-11-0
 
 # docker build -f Dockerfile.base -t ghcr.io/mfem/mfem-ubuntu-base .
 
