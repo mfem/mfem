@@ -1194,7 +1194,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       converged = false;
       final_norm = beta;
       final_iter = 0;
-      converged = true;
       return;
    }
 
