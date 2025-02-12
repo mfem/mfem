@@ -1,6 +1,7 @@
 FROM ghcr.io/llnl/radiuss:ubuntu-22.04-cuda-11-0
 
 # docker build -f Dockerfile.base -t ghcr.io/mfem/mfem-ubuntu-base .
+USER root
 
 RUN apt-get update && \
     apt-get install -y unzip gfortran && \
@@ -41,7 +42,10 @@ RUN cd /opt/mfem-env && \
 RUN cd /opt/mfem-env && \
     spack env activate --sh -d . >> /etc/profile.d/z10_spack_environment.sh
 
+USER radiuss
+
 # Present the software install when we shell in
 # The view is at /opt/mfem-env/.spack-env/view
 WORKDIR /opt/software
 ENTRYPOINT ["/bin/bash", "--rcfile", "/etc/profile", "-l", "-c"]
+
