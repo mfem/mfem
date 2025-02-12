@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -68,6 +69,36 @@ template <typename... input_ts>
 constexpr auto make_dependency_map(mfem::tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
+}
+
+template <typename... input_ts, size_t... Is>
+constexpr auto make_dependency_map_impl2(
+   mfem::tuple<input_ts...> inputs,
+   std::index_sequence<Is...>)
+{
+   constexpr size_t N = sizeof...(input_ts);
+   auto make_dependency_array = [&](auto i)
+   {
+      return std::array<bool, N>
+      {
+         (mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>(inputs).GetFieldId())...
+      };
+   };
+
+   std::unordered_map<int, std::array<bool, N>> map;
+   for_constexpr<N>([&](auto i)
+   {
+      map[mfem::get<i>(inputs).GetFieldId()] =
+         make_dependency_array(std::integral_constant<size_t, i> {});
+   });
+
+   return map;
+}
+
+template <typename... input_ts>
+auto make_dependency_map2(mfem::tuple<input_ts...> inputs)
+{
+   return make_dependency_map_impl2(inputs, std::index_sequence_for<input_ts...> {});
 }
 
 template<typename... Ts>

@@ -344,17 +344,20 @@ void DifferentiableOperator::AddDomainIntegrator(
    static_assert(num_qf_outputs == num_qf_outputs,
                  "quadrature function outputs and descriptor outputs have to match");
 
-   constexpr auto field_tuple = std::tuple_cat(std::tuple<input_ts...> {},
+   constexpr auto inout_tuple = std::tuple_cat(std::tuple<input_ts...> {},
                                                std::tuple<output_ts...> {});
-   constexpr auto filtered_field_tuple = filter_fields(field_tuple);
-   constexpr size_t num_fields = count_unique_field_ids(filtered_field_tuple);
+   constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
+   constexpr size_t num_fields = count_unique_field_ids(filtered_inout_tuple);
 
    MFEM_ASSERT(num_fields == solutions.size() + parameters.size(),
                "Total number of fields doesn't match sum of solutions and parameters."
                " This indicates that some fields are not used in the integrator,"
                " which is currently not supported.");
 
-   constexpr auto dependency_map = make_dependency_map(mfem::tuple<input_ts...> {});
+   // constexpr auto dependency_map = make_dependency_map(mfem::tuple<input_ts...> {});
+
+   auto dependency_map = make_dependency_map2(mfem::tuple<input_ts...> {});
+
 
    auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, inputs);
@@ -606,7 +609,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       Vector derivative_action_e(output_e_size);
       derivative_action_e = 0.0;
 
-      const auto input_is_dependent = dependency_map[d_field_idx];
+      const auto input_is_dependent = dependency_map[derivative_id];
 
       derivative_action_callbacks[derivative_id].push_back(
          [=, output_restriction_transpose = this->output_restriction_transpose](
@@ -813,7 +816,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       Vector shmem_cache(shmem_info.total_size);
 
-      const auto input_is_dependent = dependency_map[d_field_idx];
+      const auto input_is_dependent = dependency_map[derivative_id];
 
       auto dependent_input_dtq_maps =
          get_marked_entries(input_dtq_maps, input_is_dependent);
@@ -831,7 +834,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       int total_trial_op_dim = 0;
       for_constexpr<num_inputs>([&](auto s)
       {
-         if (!input_is_dependent[s])
+         if (input_is_dependent[s] == false)
          {
             return;
          }
@@ -1000,7 +1003,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                      size_t m_offset = 0;
                      for_constexpr_with_arg([&](auto s, auto&& input_fop)
                      {
-                        if (!input_is_dependent[s])
+                        if (input_is_dependent[s] == false)
                         {
                            return;
                         }
@@ -1056,7 +1059,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                               size_t m_offset = 0;
                               for_constexpr_with_arg([&](auto s, auto&& input_fop)
                               {
-                                 if (!input_is_dependent[s])
+                                 if (input_is_dependent[s] == false)
                                  {
                                     return;
                                  }
@@ -1093,6 +1096,11 @@ void DifferentiableOperator::AddDomainIntegrator(
                                           }
                                        }
                                     }
+                                 }
+                                 else
+                                 {
+                                    MFEM_ABORT("sum factorized sparse matrix assemble routine "
+                                               "not implemented for field operator");
                                  }
                                  m_offset += trial_op_dim;
                               }, inputs);
