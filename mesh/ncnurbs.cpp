@@ -1705,42 +1705,40 @@ int NURBSPatchMap::GetMasterFaceDof(const int f, const int i) const
    return masterDofs[os + i];
 }
 
-void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
-                                           std::set<int> & reversedParents,
-                                           std::vector<EdgePairInfo> & edgePairs)
+void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
+                                           std::set<int> &reversedParents,
+                                           std::vector<EdgePairInfo> &edgePairs)
 {
    auxEdges.clear();
 
    std::map<std::pair<int, int>, int> auxv2e;
 
-   const int nv2k = v2k.NumRows();
-   MFEM_VERIFY(4 == v2k.NumCols(), "");
+   const int nv2k = v2k.Size();
 
    int prevParent = -1;
    int prevV = -1;
    int prevKI = -1;
    for (int i=0; i<nv2k; ++i)
    {
-      const int tv = v2k(i,0);
-      const int knotIndex = v2k(i,1);
-      const int pv0 = v2k(i,2);
-      const int pv1 = v2k(i,3);
+      int tv, ks;
+      std::array<int, 2> pv;
+      v2k.GetVertex2D(i, tv, ks, pv);
 
       // Given that the parent Mesh is not yet constructed, and all we have at
       // this point is patchTopo->ncmesh, we should only define master/slave
       // edges by indices in patchTopo->ncmesh, as done in the case of nonempty
       // nce.masters. Now find the edge in patchTopo->ncmesh with vertices
-      // (pv0, pv1), and define it as a master edge.
+      // (pv[0], pv[1]), and define it as a master edge.
 
-      const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
-                                           pv0 < pv1 ? pv1 : pv0);
+      const std::pair<int, int> parentPair(pv[0] < pv[1] ? pv[0] : pv[1],
+                                           pv[0] < pv[1] ? pv[1] : pv[0]);
 
       MFEM_VERIFY(v2e.count(parentPair) > 0, "Vertex pair not found");
 
       const int parentEdge = v2e[parentPair];
       masterEdges.insert(parentEdge);
 
-      if (pv1 < pv0)
+      if (pv[1] < pv[0])
       {
          reversedParents.insert(parentEdge);
       }
@@ -1749,9 +1747,9 @@ void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
       // mesh file has vertices in order of ascending knotIndex.
 
       const bool newParentEdge = (prevParent != parentEdge);
-      const int v0 = newParentEdge ? pv0 : prevV;
+      const int v0 = newParentEdge ? pv[0] : prevV;
 
-      if (knotIndex == 1)
+      if (ks == 1)
       {
          MFEM_VERIFY(newParentEdge, "");
       }
@@ -1768,31 +1766,41 @@ void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
          {
             // Create a new auxiliary edge
             auxv2e[childPair] = auxEdges.size();
-            auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? parentEdge : -1 - parentEdge,
+            auxEdges.emplace_back(AuxiliaryEdge{pv[0] < pv[1] ? parentEdge : -1 - parentEdge,
                {childPair.first, childPair.second},
-               {newParentEdge ? 0 : prevKI, knotIndex}});
+               {newParentEdge ? 0 : prevKI, ks}});
          }
       }
 
       const int childEdge = childPairTopo ? v2e[childPair] : -1 - auxv2e[childPair];
 
       // Check whether this is the final vertex in this parent edge.
-      // TODO: this logic for comparing (pv0,pv1) to the next parents assumes
-      // the ordering won't change. If the next v2k entry has (pv1,pv0), this
+      // TODO: this logic for comparing (pv[0],pv[1]) to the next parents assumes
+      // the ordering won't change. If the next v2k entry has (pv[1],pv[0]), this
       // would cause a bug. An improvement in the implementation should avoid
       // this issue. Or is it not possible to change the order, since the knot
-      // index is assumed to increase from pv0 to pv1?
-      const bool finalVertex = (i == nv2k-1) || (v2k(i+1,2) != pv0) ||
-                               (v2k(i+1,3) != pv1);
+      // index is assumed to increase from pv[0] to pv[1]?
 
-      edgePairs.emplace_back(tv, knotIndex, childEdge, parentEdge);
+      bool finalVertex = (i == nv2k-1);
+      if (i < nv2k-1)
+      {
+         int tv_next, ks_next;
+         std::array<int, 2> pv_next;
+         v2k.GetVertex2D(i + 1, tv_next, ks_next, pv_next);
+         if (pv_next[0] != pv[0] || pv_next[1] != pv[1])
+         {
+            finalVertex = true;
+         }
+      }
+
+      edgePairs.emplace_back(tv, ks, childEdge, parentEdge);
 
       if (finalVertex)
       {
-         // Also find the edge with vertices (tv, pv1), and define it as a slave
+         // Also find the edge with vertices (tv, pv[1]), and define it as a slave
          // edge.
-         const std::pair<int, int> finalChildPair(tv < pv1 ? tv : pv1,
-                                                  tv < pv1 ? pv1 : tv);
+         const std::pair<int, int> finalChildPair(tv < pv[1] ? tv : pv[1],
+                                                  tv < pv[1] ? pv[1] : tv);
          const bool finalChildPairTopo = v2e.count(finalChildPair) > 0;
          if (!finalChildPairTopo)
          {
@@ -1803,9 +1811,9 @@ void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
                auxv2e[finalChildPair] = auxEdges.size();
 
                // -1 denotes `ne` at endpoint
-               auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? -1 - parentEdge : parentEdge,
+               auxEdges.emplace_back(AuxiliaryEdge{pv[0] < pv[1] ? -1 - parentEdge : parentEdge,
                   {finalChildPair.first, finalChildPair.second},
-                  {knotIndex, -1}});
+                  {ks, -1}});
             }
          }
 
@@ -1815,31 +1823,27 @@ void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
       }
 
       prevV = tv;
-      prevKI = knotIndex;
+      prevKI = ks;
       prevParent = parentEdge;
    }  // loop over vertices in vertex_to_knot
 }
 
 // TODO: better code design.
-void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
-                                           const std::map<std::pair<int, int>, int> & v2f,
-                                           std::vector<int> & parentN1,
-                                           std::vector<int> & parentN2,
-                                           std::vector<EdgePairInfo> & edgePairs,
-                                           std::vector<FacePairInfo> & facePairs,
-                                           std::vector<int> & parentFaces,
-                                           std::vector<int> & parentVerts)
+void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
+                                           const std::map<std::pair<int, int>, int> &v2f,
+                                           std::vector<int> &parentN1,
+                                           std::vector<int> &parentN2,
+                                           std::vector<EdgePairInfo> &edgePairs,
+                                           std::vector<FacePairInfo> &facePairs,
+                                           std::vector<int> &parentFaces,
+                                           std::vector<int> &parentVerts)
 {
    auxEdges.clear();
    auxFaces.clear();
 
    std::map<std::pair<int, int>, int> auxv2e, auxv2f;
 
-   // Each entry of v2k has the following 7 entries: tv, ki1, ki2, p0, p1, p2, p3
-   constexpr int np = 7;  // Number of integers for each entry in v2k.
-
-   const int nv2k = v2k.NumRows();
-   MFEM_VERIFY(np == v2k.NumCols(), "");
+   const int nv2k = v2k.Size();
 
    // Note that the logic here assumes that the "vertex_to_knot" data
    // in the mesh file has vertices in order of ascending (k1,k2), with k2
@@ -1856,16 +1860,12 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
    int n2min = 0;
    for (int i = 0; i < nv2k; ++i)
    {
-      const int ki1 = v2k(i,1);
-      const int ki2 = v2k(i,2);
+      int tv;
+      std::array<int, 2> ks;
+      std::array<int, 4> pv;
+      v2k.GetVertex3D(i, tv, ks, pv);
 
-      std::vector<int> pv(4);
-      for (int j=0; j<4; ++j)
-      {
-         pv[j] = v2k(i, 3 + j);
-      }
-
-      // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
+      // The face with vertices (pv[0], pv[1], pv[2], pv[3]) is defined as a parent face.
       const auto pvmin = std::min_element(pv.begin(), pv.end());
       const int idmin = std::distance(pv.begin(), pvmin);
       const int c0 = pv[idmin];  // First corner
@@ -1958,19 +1958,19 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
             parentN2.push_back(n2);
          }
 
-         n1 = ki1;  // Finding max of ki1
-         n2 = ki2;  // Finding max of ki2
+         n1 = ks[0];  // Finding max of ks[0]
+         n2 = ks[1];  // Finding max of ks[1]
 
          n1min = n1;
          n2min = n2;
       }
       else
       {
-         n1 = std::max(n1, ki1);  // Finding max of ki1
-         n2 = std::max(n2, ki2);  // Finding max of ki2
+         n1 = std::max(n1, ks[0]);  // Finding max of ks[0]
+         n2 = std::max(n2, ks[1]);  // Finding max of ks[1]
 
-         n1min = std::min(n1min, ki1);
-         n2min = std::min(n2min, ki2);
+         n1min = std::min(n1min, ks[0]);
+         n2min = std::min(n2min, ks[1]);
       }
 
       prevParent = parentFace;
@@ -1996,6 +1996,11 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
       int parentEdges[4];
       bool parentEdgeRev[4];
 
+      int tv;
+      std::array<int, 2> ks;
+      std::array<int, 4> pv;
+      v2k.GetVertex3D(parentOffset[parent], tv, ks, pv);
+
       // Set all 4 edges of the parent face as master edges.
       {
          Array<int> ev(2);
@@ -2003,7 +2008,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
          {
             for (int j=0; j<2; ++j)
             {
-               ev[j] = v2k(parentOffset[parent], 3 + ((i + j) % 4));
+               ev[j] = pv[(i + j) % 4];
             }
 
             const bool reverse = (ev[1] < ev[0]);
@@ -2029,14 +2034,15 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
             gridVertex(i,j) = -1;
          }
 
-      gridVertex(0,0) = v2k(parentOffset[parent],3);
-      gridVertex(n1,0) = v2k(parentOffset[parent],4);
-      gridVertex(n1,n2) = v2k(parentOffset[parent],5);
-      gridVertex(0,n2) = v2k(parentOffset[parent],6);
+      gridVertex(0,0) = pv[0];
+      gridVertex(n1,0) = pv[1];
+      gridVertex(n1,n2) = pv[2];
+      gridVertex(0,n2) = pv[3];
 
       for (int i=0; i<4; ++i)
       {
-         parentVerts.push_back(v2k(parentOffset[parent],3 + i));
+         //parentVerts.push_back(v2k(parentOffset[parent],3 + i));
+         parentVerts.push_back(pv[i]);
       }
 
       int r1min = -1;
@@ -2046,28 +2052,26 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
       for (int i = parentOffset[parent]; i < parentOffset[parent + 1]; ++i)
       {
-         const int tv = v2k(i,0);
-         const int ki1 = v2k(i,1);
-         const int ki2 = v2k(i,2);
+         v2k.GetVertex3D(i, tv, ks, pv);
 
-         gridVertex(ki1, ki2) = tv;
+         gridVertex(ks[0], ks[1]) = tv;
 
          if (i == parentOffset[parent])
          {
             // Initialize min/max
-            r1min = ki1;
-            r1max = ki1;
+            r1min = ks[0];
+            r1max = ks[0];
 
-            r2min = ki2;
-            r2max = ki2;
+            r2min = ks[1];
+            r2max = ks[1];
          }
          else
          {
-            r1min = std::min(r1min, ki1);
-            r1max = std::max(r1max, ki1);
+            r1min = std::min(r1min, ks[0]);
+            r1max = std::max(r1max, ks[0]);
 
-            r2min = std::min(r2min, ki2);
-            r2max = std::max(r2max, ki2);
+            r2min = std::min(r2min, ks[1]);
+            r2max = std::max(r2max, ks[1]);
          }
       } // loop over vertices in v2k
 
@@ -2100,13 +2104,12 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
          // TODO: this is repeated. Either make a function for this look-up,
          // or store the KV for each parent with more convenient access (map from parentFace index?).
 
-         std::vector<int> pv(4);
-         for (int j=0; j<4; ++j)
-         {
-            pv[j] = v2k(parentOffset[parent], 3 + j);
-         }
+         int tv;
+         std::array<int, 2> ks;
+         std::array<int, 4> pv;
+         v2k.GetVertex3D(parentOffset[parent], tv, ks, pv);
 
-         // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
+         // The face with vertices (pv[0], pv[1], pv[2], pv[3]) is defined as a parent face.
          const auto pvmin = std::min_element(pv.begin(), pv.end());
          const int idmin = std::distance(pv.begin(), pvmin);
          const int c0 = pv[idmin];  // First corner
@@ -3098,6 +3101,82 @@ void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
          si = n - 1 - j;
          sj = i;
       }
+   }
+}
+
+void VertexToKnotSpan::SetSize(int dim, int numVertices)
+{
+   MFEM_ASSERT((dim == 2 || dim == 3) && numVertices > 0, "Invalid size");
+   data.SetSize(numVertices, dim == 3 ? 7 : 4);
+}
+
+void VertexToKnotSpan::SetVertex2D(int index, int v, int ks,
+                                   const std::array<int, 2> &pv)
+{
+   data(index,0) = v;
+   data(index,1) = ks;
+   data(index,2) = pv[0];
+   data(index,3) = pv[1];
+}
+
+void VertexToKnotSpan::SetVertex3D(int index, int v,
+                                   const std::array<int, 2> &ks,
+                                   const std::array<int, 4> &pv)
+{
+   data(index,0) = v;
+   data(index,1) = ks[0];
+   data(index,2) = ks[1];
+   data(index,3) = pv[0];
+   data(index,4) = pv[1];
+   data(index,5) = pv[2];
+   data(index,6) = pv[3];
+}
+
+void VertexToKnotSpan::SetKnotSpan2D(int index, int ks)
+{
+   data(index,1) = ks;
+}
+
+void VertexToKnotSpan::SetKnotSpans3D(int index, const std::array<int, 2> &ks)
+{
+   data(index,1) = ks[0];
+   data(index,2) = ks[1];
+}
+
+void VertexToKnotSpan::GetVertex2D(int index, int &v, int &ks,
+                                   std::array<int, 2> &pv) const
+{
+   v = data(index,0);
+   ks = data(index,1);
+   pv[0] = data(index,2);
+   pv[1] = data(index,3);
+}
+
+void VertexToKnotSpan::GetVertex3D(int index, int &v, std::array<int, 2> &ks,
+                                   std::array<int, 4> &pv) const
+{
+   v = data(index,0);
+   ks[0] = data(index,1);
+   ks[1] = data(index,2);
+   pv[0] = data(index,3);
+   pv[1] = data(index,4);
+   pv[2] = data(index,5);
+   pv[3] = data(index,6);
+}
+
+void VertexToKnotSpan::Print(std::ostream &os) const
+{
+   const int nv = data.NumRows();
+   const int m = data.NumCols();
+   os << nv << "\n";
+   for (int i = 0; i < nv; i++)
+   {
+      os << data(i,0);
+      for (int j = 1; j < m; j++)
+      {
+         os << " " << data(i,j);
+      }
+      os << "\n";
    }
 }
 

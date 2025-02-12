@@ -5105,31 +5105,23 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
 void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
                     int &k);
 
-// TODO: this is for 3D. A 2D version is also needed.
 void NCMesh::RefineVertexToKnot(Array<int> const& rf,
                                 const std::vector<Array<int>> &kvf,
                                 const Array<KnotVector*> &kvext,
-                                std::map<std::pair<int,int>, std::pair<int,int>> &parentToKV)
+                                std::map<std::pair<int,int>,
+                                std::pair<int,int>> &parentToKV)
 {
    // Note that entries 1 and 2 of vertex_to_knot are (k1, k2), which are knot
-   // span (element) indices in the two dimensions of a patch face. When refining
-   // with factors rf, we simply scale these indices by the corresponding factors
-   // from rf.
+   // span (element) indices in the two dimensions of a patch face.
 
-   // TODO: find the directions for a particular parent face and get the
-   // corresponding factors from rf. For now, rf[0] is used, assuming the same
-   // factor in all directions.
-
-   for (int i=0; i<vertex_to_knot.NumRows(); ++i)
+   for (int i=0; i<vertex_to_knot.Size(); ++i)
    {
       if (Dim == 3)
       {
-         // TODO: make this part of vertex_to_knot? It is computed in more than 1 place.
-         std::vector<int> pv(4);
-         for (int j=0; j<4; ++j)
-         {
-            pv[j] = vertex_to_knot(i, 3 + j);
-         }
+         int tv;
+         std::array<int, 2> ks;
+         std::array<int, 4> pv;
+         vertex_to_knot.GetVertex3D(i, tv, ks, pv);
 
          bool edgeReverse[2];
          for (int j=0; j<2; ++j)
@@ -5148,16 +5140,22 @@ void NCMesh::RefineVertexToKnot(Array<int> const& rf,
 
          const std::pair<int, int> kv = parentToKV.at(parentPair);
 
-         RemapKnotIndex(edgeReverse[0], kvf[kv.first], kvext[kv.first]->spacing.get(),
-                        vertex_to_knot(i,1));
-         RemapKnotIndex(edgeReverse[1], kvf[kv.second], kvext[kv.second]->spacing.get(),
-                        vertex_to_knot(i,2));
+         RemapKnotIndex(edgeReverse[0], kvf[kv.first],
+                        kvext[kv.first]->spacing.get(), ks[0]);
+         RemapKnotIndex(edgeReverse[1], kvf[kv.second],
+                        kvext[kv.second]->spacing.get(), ks[1]);
+
+         vertex_to_knot.SetKnotSpans3D(i, ks);
       }
       else // 2D
       {
          const int d = 0;  // TODO: find the direction for this parent edge
-         vertex_to_knot(i,1) *= rf[d];
-         //RemapKnotIndex(kvf[kv.first], knotVectors[kv.first]->GetNE(), knotVectors[kv.first]->spacing.get(), vertex_to_knot(i,1));
+
+         int tv, ks;
+         std::array<int, 2> pv;
+         vertex_to_knot.GetVertex2D(i, tv, ks, pv);
+         ks *= rf[d];
+         vertex_to_knot.SetKnotSpan2D(i, ks);
       }
    }
 }
@@ -6185,21 +6183,18 @@ void NCMesh::LoadVertexToKnot2D(std::istream &input)
    int nv;
    input >> nv;
    MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
-   vertex_to_knot.SetSize(nv, 4);
+   vertex_to_knot.SetSize(2, nv);
    for (int i=0; i<nv; ++i)
    {
-      int id, p1, p2, k;
-      input >> id >> k >> p1 >> p2;
+      int id, ks;
+      std::array<int, 2> pv;
+      input >> id >> ks >> pv[0] >> pv[1];
 
-      const bool idsExist = nodes.IdExists(id) && nodes.IdExists(p1)
-                            && nodes.IdExists(p2);
+      const bool idsExist = nodes.IdExists(id) && nodes.IdExists(pv[0])
+                            && nodes.IdExists(pv[1]);
 
-      MFEM_VERIFY(idsExist && 0 < k, "Invalid index");
-
-      vertex_to_knot(i,0) = id;
-      vertex_to_knot(i,1) = k;
-      vertex_to_knot(i,2) = p1;
-      vertex_to_knot(i,3) = p2;
+      MFEM_VERIFY(idsExist && 0 < ks, "Invalid index");
+      vertex_to_knot.SetVertex2D(i, id, ks, pv);
    }
 }
 
@@ -6208,30 +6203,25 @@ void NCMesh::LoadVertexToKnot3D(std::istream &input)
    int nv;
    input >> nv;
    MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
-   vertex_to_knot.SetSize(nv, 7);
+   vertex_to_knot.SetSize(3, nv);
    for (int i=0; i<nv; ++i)
    {
-      int id, k1, k2;
-      int p[4];  // Parent vertex indices
-      input >> id >> k1 >> k2 >> p[0] >> p[1] >> p[2] >> p[3];
+      int id;
+      std::array<int, 2> ks;
+      std::array<int, 4> pv;  // Parent vertex indices
+      input >> id >> ks[0] >> ks[1] >> pv[0] >> pv[1] >> pv[2] >> pv[3];
 
       bool idsExist = nodes.IdExists(id);
       for (int j=0; j<4; ++j)
       {
-         idsExist = idsExist && nodes.IdExists(p[j]);
+         idsExist = idsExist && nodes.IdExists(pv[j]);
       }
 
-      const bool validKnotIds = (0 <= k1 || 0 <= k2) && (0 < k1 || 0 < k2);
+      const bool validKnotIds = (0 <= ks[0] || 0 <= ks[1]) && (0 < ks[0] ||
+                                                               0 < ks[1]);
 
       MFEM_VERIFY(idsExist && validKnotIds, "Invalid index");
-
-      vertex_to_knot(i,0) = id;
-      vertex_to_knot(i,1) = k1;
-      vertex_to_knot(i,2) = k2;
-      for (int j=0; j<4; ++j)
-      {
-         vertex_to_knot(i,3 + j) = p[j];
-      }
+      vertex_to_knot.SetVertex3D(i, id, ks, pv);
    }
 }
 
@@ -6327,23 +6317,6 @@ void NCMesh::PrintCoordinates(std::ostream &os) const
       for (int j = 1; j < spaceDim; j++)
       {
          os << " " << coordinates[3*i + j];
-      }
-      os << "\n";
-   }
-}
-
-void NCMesh::PrintVertexToKnot(std::ostream &os) const
-{
-   const int nv = vertex_to_knot.NumRows();
-   const int m = vertex_to_knot.NumCols();
-   os << nv << "\n";
-
-   for (int i = 0; i < nv; i++)
-   {
-      os << vertex_to_knot(i,0);
-      for (int j = 1; j < m; j++)
-      {
-         os << " " << vertex_to_knot(i,j);
       }
       os << "\n";
    }
@@ -6462,10 +6435,10 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       }
    }
 
-   if (nurbs && vertex_to_knot.NumRows())
+   if (nurbs && vertex_to_knot.Size() > 0)
    {
       os << "\nvertex_to_knot\n";
-      PrintVertexToKnot(os);
+      vertex_to_knot.Print(os);
    }
 
    if (coordinates.Size())

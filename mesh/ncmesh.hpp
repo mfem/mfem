@@ -114,6 +114,34 @@ void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
+struct VertexToKnotSpan
+{
+   void SetSize(int dim, int numVertices);
+
+   void SetVertex2D(int index, int v, int ks,
+                    const std::array<int, 2> &pv);
+
+   void SetVertex3D(int index, int v, const std::array<int, 2> &ks,
+                    const std::array<int, 4> &pv);
+
+   void SetKnotSpan2D(int index, int ks);
+
+   void SetKnotSpans3D(int index, const std::array<int, 2> &ks);
+
+   void GetVertex2D(int index, int &v, int &ks,
+                    std::array<int, 2> &pv) const;
+
+   void GetVertex3D(int index, int &v, std::array<int, 2> &ks,
+                    std::array<int, 4> &pv) const;
+
+   void Print(std::ostream &os) const;
+
+   int Size() const { return data.NumRows(); }
+
+private:
+   Array2D<int> data;
+};
+
 /** \brief A class for non-conforming AMR. The class is not used directly by the
  *  user, rather it is an extension of the Mesh class.
  *
@@ -348,11 +376,12 @@ public:
       }
    }
 
-   const Array2D<int>& GetVertexToKnot() const
+   const VertexToKnotSpan& GetVertexToKnotSpan() const
    {
       return vertex_to_knot;
    }
 
+   /// Remap knot-span indices @a vertex_to_knot after refinement.
    void RefineVertexToKnot(const Array<int> &rf,
                            const std::vector<Array<int>> &kvf,
                            const Array<KnotVector*> &kvext,
@@ -1323,8 +1352,6 @@ protected:
    /// Load the "coordinates" section of the mesh file.
    void LoadCoordinates(std::istream &input);
 
-   void PrintVertexToKnot(std::ostream &os) const;
-
    /// Count root elements and initialize root_state.
    void InitRootElements();
    /// Return the index of the last top-level node plus one.
@@ -1356,7 +1383,7 @@ protected:
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   Array2D<int> vertex_to_knot;
+   VertexToKnotSpan vertex_to_knot;
 
 #ifdef MFEM_DEBUG
 public:

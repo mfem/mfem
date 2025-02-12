@@ -5817,8 +5817,6 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol, const std::s
 
    NURBSext->ConvertToPatches(*Nodes);
 
-   const bool varyingFactors = true;  // TODO: input this?
-
    Array<int> cf;
    NURBSext->GetCoarseningFactors(cf);
 
