@@ -328,6 +328,39 @@ void DarcyReduction::Reset()
    }
 }
 
+HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
+                                                   ParFiniteElementSpace *pfes_tr, ParFiniteElementSpace *pfes_te)
+{
+   HYPRE_BigInt num_rows = spmat->Height();
+   const int num_face_dofs = pfes_tr->GetVSize();
+   Array<HYPRE_BigInt> rows;
+   if (pfes_te)
+   {
+      rows.MakeRef(pfes_te->GetDofOffsets(), pfes_te->GetNRanks()+1);
+   }
+   else
+   {
+      Array<HYPRE_BigInt> *offsets[1] = { &rows };
+      const ParMesh *pmesh = pfes_tr->GetParMesh();
+      pmesh->GenerateOffsets(1, &num_rows, offsets);
+   }
+   HYPRE_BigInt ldof_offset = pfes_tr->GetMyDofOffset();
+   const HYPRE_BigInt *face_nbr_glob_ldof = pfes_tr->GetFaceNbrGlobalDofMap();
+   Array<HYPRE_BigInt> hJ(spmat->NumNonZeroElems());
+   int *J = spmat->GetJ();
+   for (int i = 0; i < hJ.Size(); i++)
+   {
+      hJ[i] = J[i] < num_face_dofs ?
+              J[i] + ldof_offset :
+              face_nbr_glob_ldof[J[i] - num_face_dofs];
+   }
+
+   return new HypreParMatrix(pfes_tr->GetComm(), spmat->Height(),
+                             rows.Last(), pfes_tr->GlobalVSize(),
+                             spmat->GetI(), hJ.GetData(), spmat->GetData(),
+                             rows, pfes_tr->GetDofOffsets());
+}
+
 DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u,
                                        FiniteElementSpace *fes_p, bool bsym)
    : DarcyReduction(fes_u, fes_p, bsym)
@@ -772,30 +805,11 @@ void DarcyFluxReduction::ComputeS()
    else // parallel
    {
 #ifdef MFEM_USE_MPI
-      const ParMesh *pmesh = pfes_p->GetParMesh();
       OperatorHandle dS(pS.Type()), pP(pS.Type());
       HypreParMatrix *hS = NULL;
       if (D_face_data)
       {
-         HYPRE_BigInt p_ldof_offset = pfes_p->GetMyDofOffset();
-         const HYPRE_BigInt *p_face_nbr_glob_ldof =
-            pfes_p->GetFaceNbrGlobalDofMap();
-
-         // Convert S to parallel and then transpose it:
-         Array<HYPRE_BigInt> S_J(S->NumNonZeroElems());
-         int *J = S->GetJ();
-         for (int i = 0; i < S_J.Size(); i++)
-         {
-            S_J[i] = J[i] < num_face_dofs ?
-                     J[i] + p_ldof_offset :
-                     p_face_nbr_glob_ldof[J[i] - num_face_dofs];
-         }
-
-         hS = new HypreParMatrix(pmesh->GetComm(), S->Height(),
-                                 pfes_p->GlobalVSize(), pfes_p->GlobalVSize(),
-                                 S->GetI(), S_J.GetData(), S->GetData(),
-                                 pfes_p->GetDofOffsets(), pfes_p->GetDofOffsets());
-
+         hS = ConstructParMatrix(S, pfes_p, pfes_p);
          dS.ConvertFrom(hS);
       }
       else
@@ -806,63 +820,24 @@ void DarcyFluxReduction::ComputeS()
 
       if (Bf_face_data)
       {
-         HYPRE_BigInt p_ldof_offset = pfes_p->GetMyDofOffset();
-         const HYPRE_BigInt *p_face_nbr_glob_ldof =
-            pfes_p->GetFaceNbrGlobalDofMap();
+         // Convert Bt to parallel
+         sBt->Finalize(skip_zeros);
+         HypreParMatrix *hBt = ConstructParMatrix(sBt, pfes_p, pfes_u);
+         delete sBt;
 
-         {
-            // Convert Bt to parallel and then transpose it:
-            sBt->Finalize(skip_zeros);
-            HYPRE_BigInt Bt_num_rows = sBt->Height();
-            Array<HYPRE_BigInt> Bt_rows;
-            Array<HYPRE_BigInt> *Bt_offs[1] = { &Bt_rows };
-            pmesh->GenerateOffsets(1, &Bt_num_rows, Bt_offs);
-            Array<HYPRE_BigInt> Bt_J(sBt->NumNonZeroElems());
-            int *J = sBt->GetJ();
-            for (int i = 0; i < Bt_J.Size(); i++)
-            {
-               Bt_J[i] = J[i] < num_face_dofs ?
-                         J[i] + p_ldof_offset :
-                         p_face_nbr_glob_ldof[J[i] - num_face_dofs];
-            }
+         // B
+         delete hB;
+         hB = hBt->Transpose();
+         delete hBt;
 
-            HypreParMatrix hBt(pmesh->GetComm(), sBt->Height(),
-                               Bt_rows.Last(), pfes_p->GlobalVSize(),
-                               sBt->GetI(), Bt_J.GetData(), sBt->GetData(),
-                               Bt_rows, pfes_p->GetDofOffsets());
-            delete sBt;
-            Bt_J.DeleteAll();
-            delete hB;
-            hB = hBt.Transpose();
-         }
+         // Convert AiBt to parallel
+         sAiBt->Finalize(skip_zeros);
+         HypreParMatrix *hAiBt = ConstructParMatrix(sAiBt, pfes_p, pfes_u);
+         delete sAiBt;
 
-         HypreParMatrix *hBAiBt;
-         {
-            // Convert AiBt to parallel
-            sAiBt->Finalize(skip_zeros);
-            HYPRE_BigInt AiBt_num_rows = sAiBt->Height();
-            Array<HYPRE_BigInt> AiBt_rows;
-            Array<HYPRE_BigInt> *AiBt_offs[1] = { &AiBt_rows };
-            pmesh->GenerateOffsets(1, &AiBt_num_rows, AiBt_offs);
-            Array<HYPRE_BigInt> AiBt_J(sAiBt->NumNonZeroElems());
-            int *J = sAiBt->GetJ();
-            for (int i = 0; i < AiBt_J.Size(); i++)
-            {
-               AiBt_J[i] = J[i] < num_face_dofs ?
-                           J[i] + p_ldof_offset :
-                           p_face_nbr_glob_ldof[J[i] - num_face_dofs];
-            }
-            HypreParMatrix hAiBt(pmesh->GetComm(), sAiBt->Height(),
-                                 AiBt_rows.Last(), pfes_p->GlobalVSize(),
-                                 sAiBt->GetI(), AiBt_J.GetData(), sAiBt->GetData(),
-                                 AiBt_rows, pfes_p->GetDofOffsets());
-
-            delete sAiBt;
-            AiBt_J.DeleteAll();
-
-            // B A^-1 B^T
-            hBAiBt = ParMult(hB, &hAiBt);
-         }
+         // B A^-1 B^T
+         HypreParMatrix *hBAiBt = ParMult(hB, hAiBt);
+         delete hAiBt;
 
          // D + B A^-1 B^T
          if (!hS)

@@ -54,6 +54,9 @@ protected:
 #ifdef MFEM_USE_MPI
    virtual void CountBSharedFaces(Array<int> &face_offs) const = 0;
    virtual void CountDSharedFaces(Array<int> &face_offs) const = 0;
+
+   static HypreParMatrix *ConstructParMatrix(SparseMatrix *spmat,
+                                             ParFiniteElementSpace *pfes_tr, ParFiniteElementSpace *pfes_te = NULL);
 #endif
 
 public:
