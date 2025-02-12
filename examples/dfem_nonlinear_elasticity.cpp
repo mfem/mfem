@@ -61,20 +61,28 @@ public:
                       elasticity_jacobian->elasticity->displacement_ess_tdof);
          delete Ae;
 
-         amg = std::make_shared<HypreBoomerAMG>();
-         amg->SetOperator(*A);
-         amg->SetPrintLevel(0);
-         amg->SetSystemsOptions(
-            elasticity_jacobian->elasticity->mesh_nodes->ParFESpace()->GetMesh()->Dimension(),
-            true);
+         slu = std::make_shared<SuperLUSolver>(MPI_COMM_WORLD);
+         slu->SetPrintStatistics(false);
+         A_SLU = std::make_shared<SuperLURowLocMatrix>(*A);
+         slu->SetOperator(*A_SLU);
+
+         // amg = std::make_shared<HypreBoomerAMG>();
+         // amg->SetOperator(*A);
+         // amg->SetPrintLevel(0);
+         // amg->SetSystemsOptions(
+         //    elasticity_jacobian->elasticity->mesh_nodes->ParFESpace()->GetMesh()->Dimension(),
+         //    true);
       }
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         amg->Mult(x, y);
+         slu->Mult(x, y);
       }
 
       std::shared_ptr<HypreParMatrix> A;
+      std::shared_ptr<SuperLURowLocMatrix> A_SLU;
+
+      std::shared_ptr<SuperLUSolver> slu;
       std::shared_ptr<HypreBoomerAMG> amg;
    };
 
