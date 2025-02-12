@@ -147,11 +147,11 @@ class DarcyFluxReduction : public DarcyReduction
    void InitDNbr();
    void CountBSharedFaces(Array<int> &face_offs) const override;
    void CountDSharedFaces(Array<int> &face_offs) const override;
+   int GetFaceNbrVDofs(int el, Array<int> &vdofs, bool adjust_vdofs = true) const;
    bool Parallel() const { return (pfes_p != NULL); }
 #else
    bool Parallel() const { return false; }
 #endif
-   int GetFaceNbrVDofs(int el, Array<int> &vdofs, bool adjust_vdofs = true) const;
    int GetInteriorFaceNbr(int f, int el, int &ori, Array<int> &vdofs,
                           bool adjust_vdofs = true) const;
    void ComputeS() override;

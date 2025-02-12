@@ -328,6 +328,7 @@ void DarcyReduction::Reset()
    }
 }
 
+#ifdef MFEM_USE_MPI
 HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
                                                    ParFiniteElementSpace *pfes_tr, ParFiniteElementSpace *pfes_te)
 {
@@ -360,6 +361,7 @@ HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
                              spmat->GetI(), hJ.GetData(), spmat->GetData(),
                              rows, pfes_tr->GetDofOffsets());
 }
+#endif
 
 DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u,
                                        FiniteElementSpace *fes_p, bool bsym)
@@ -513,7 +515,6 @@ void DarcyFluxReduction::AssemblePotSharedFaceMatrix(int sface,
    DenseMatrix D_f_12(D_face_data + D_face_offsets[face], ndof1, ndof2);
    D_f_12 += D_12;
 }
-#endif // MFEM_USE_MPI
 
 int DarcyFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
                                         bool adjust_vdofs) const
@@ -538,6 +539,7 @@ int DarcyFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
    }
    return -1 - el + NE;
 }
+#endif // MFEM_USE_MPI
 
 int DarcyFluxReduction::GetInteriorFaceNbr(int f, int el, int &ori,
                                            Array<int> &vdofs, bool adjust_vdofs) const
