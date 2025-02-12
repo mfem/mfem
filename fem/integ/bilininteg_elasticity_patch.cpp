@@ -15,8 +15,73 @@
 
 #include "../../linalg/dtensor.hpp"  // For Reshape
 #include "../../general/forall.hpp"
+#include "fem/bilininteg.hpp"
 namespace mfem
 {
+
+void PatchElasticitySetup3D(const int Q1Dx,
+                            const int Q1Dy,
+                            const int Q1Dz,
+                            const Array<real_t> &w,
+                            const Vector &j,
+                            Vector &d)
+{
+   // computes d=[J^{-T}(xq), W(xq)*det(J(xq))] at quadrature points
+   const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
+   const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
+   // nq * [9 (J^{-T}) + 1 WdetJ]
+   d.SetSize(Q1Dx * Q1Dy * Q1Dz * 10);
+   auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 10);
+   const int NE = 1;  // TODO: MFEM_FORALL_3D without e?
+   MFEM_FORALL_3D(e, NE, Q1Dx, Q1Dy, Q1Dz,
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1Dx)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1Dy)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1Dz)
+            {
+               const real_t J11 = J(qx,qy,qz,0,0);
+               const real_t J21 = J(qx,qy,qz,1,0);
+               const real_t J31 = J(qx,qy,qz,2,0);
+               const real_t J12 = J(qx,qy,qz,0,1);
+               const real_t J22 = J(qx,qy,qz,1,1);
+               const real_t J32 = J(qx,qy,qz,2,1);
+               const real_t J13 = J(qx,qy,qz,0,2);
+               const real_t J23 = J(qx,qy,qz,1,2);
+               const real_t J33 = J(qx,qy,qz,2,2);
+               const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
+               /* */               J21 * (J12 * J33 - J32 * J13) +
+               /* */               J31 * (J12 * J23 - J22 * J13);
+               // adj(J)
+               const real_t A11 = (J22 * J33) - (J23 * J32);
+               const real_t A12 = (J32 * J13) - (J12 * J33);
+               const real_t A13 = (J12 * J23) - (J22 * J13);
+               const real_t A21 = (J31 * J23) - (J21 * J33);
+               const real_t A22 = (J11 * J33) - (J13 * J31);
+               const real_t A23 = (J21 * J13) - (J11 * J23);
+               const real_t A31 = (J21 * J32) - (J31 * J22);
+               const real_t A32 = (J31 * J12) - (J11 * J32);
+               const real_t A33 = (J11 * J22) - (J12 * J21);
+
+               // store J^{-T} = adj(J)^T / detJ
+               D(qx,qy,qz,0) = A11 / detJ;
+               D(qx,qy,qz,1) = A21 / detJ;
+               D(qx,qy,qz,2) = A31 / detJ;
+               D(qx,qy,qz,3) = A12 / detJ;
+               D(qx,qy,qz,4) = A22 / detJ;
+               D(qx,qy,qz,5) = A32 / detJ;
+               D(qx,qy,qz,6) = A13 / detJ;
+               D(qx,qy,qz,7) = A23 / detJ;
+               D(qx,qy,qz,8) = A33 / detJ;
+               // store w_detJ
+               // TODO: Small efficiency to multiply by sqrt(W/detJ)? Might not work for negative weights
+               D(qx,qy,qz,9) = W(qx,qy,qz) / detJ;
+            }
+         }
+      }
+   });
+}
 
 // TODO: maybe move this into a base class?
 void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
@@ -144,41 +209,41 @@ void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    pir1d.push_back(ir1d);
 }
 
+// Computes mu, lambda, J^{-T}, and det(J) at quadrature points
 void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                                         bool unitWeights)
 {
    mfem::out << "SetupPatchPA() " << patch << std::endl;
 
+   // Quadrature points in each dimension for this patch
    const Array<int>& Q1D = pQ1D[patch];
-   const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
-
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
-
-   const IntArrayVar2D& minDD = pminDD[patch];
-   const IntArrayVar2D& maxDD = pmaxDD[patch];
-
-   const Array<const IntegrationRule*>& ir1d = pir1d[patch];
-
    MFEM_VERIFY(Q1D.Size() == vdim, "");
 
+   // Total quadrature points
    int nq = Q1D[0];
-   for (int i=1; i<dim; ++i)
+   for (int i=1; i<vdim; ++i)
    {
       nq *= Q1D[i];
    }
 
-   int coeffDim = 1;
-   Vector coeff;
+   // for reduced rules
+   // const Array<int>& D1D = pD1D[patch];
+   // const std::vector<Array2D<real_t>>& B = pB[patch];
+   // const std::vector<Array2D<real_t>>& G = pG[patch];
+   // const IntArrayVar2D& minD = pminD[patch];
+   // const IntArrayVar2D& maxD = pmaxD[patch];
+   // const IntArrayVar2D& minQ = pminQ[patch];
+   // const IntArrayVar2D& maxQ = pmaxQ[patch];
+   // const IntArrayVar2D& minDD = pminDD[patch];
+   // const IntArrayVar2D& maxDD = pmaxDD[patch];
+   // const Array<const IntegrationRule*>& ir1d = pir1d[patch];
+
    Array<real_t> weights(nq);
    IntegrationPoint ip;
 
-   Vector jac(dim * dim * nq);  // Computed as in GeometricFactors::Compute
+   Vector jac(vdim * vdim * nq);  // Computed as in GeometricFactors::Compute
 
+   // TODO: use QuadratureInterpolator instead of ElementTransformation?
    for (int qz=0; qz<Q1D[2]; ++qz)
    {
       for (int qy=0; qy<Q1D[1]; ++qy)
@@ -195,84 +260,27 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             tr->SetIntPoint(&ip);
 
             const DenseMatrix& Jp = tr->Jacobian();
-            for (int i=0; i<dim; ++i)
-               for (int j=0; j<dim; ++j)
+            for (int i=0; i<vdim; ++i)
+               for (int j=0; j<vdim; ++j)
                {
-                  jac[p + ((i + (j * dim)) * nq)] = Jp(i,j);
+                  jac[p + ((i + (j * vdim)) * nq)] = Jp(i,j);
                }
          }
       }
    }
 
-   if (VQ)
-   {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "");
-      coeffDim = VQ->GetVDim();
-      coeff.SetSize(coeffDim * nq);
-      auto C = Reshape(coeff.HostWrite(), coeffDim, nq);
-      Vector DM(coeffDim);
-      for (int qz=0; qz<Q1D[2]; ++qz)
-      {
-         for (int qy=0; qy<Q1D[1]; ++qy)
-         {
-            for (int qx=0; qx<Q1D[0]; ++qx)
-            {
-               const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
-               ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-
-               VQ->Eval(DM, *tr, ip);
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  C(i, p) = DM[i];
-               }
-            }
-         }
-      }
-   }
-   else if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      MFEM_ABORT("QuadratureFunction not supported yet\n");
-   }
-   else
-   {
-      coeff.SetSize(nq);
-      auto C = Reshape(coeff.HostWrite(), nq);
-      for (int qz=0; qz<Q1D[2]; ++qz)
-      {
-         for (int qy=0; qy<Q1D[1]; ++qy)
-         {
-            for (int qx=0; qx<Q1D[0]; ++qx)
-            {
-               const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
-               ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-
-               C(p) = Q->Eval(*tr, ip);
-            }
-         }
-      }
-   }
+   // TODO: Compute coefficient at quadrature points
+   const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+   SetUpQuadratureSpaceAndCoefficients(*fes);
 
    if (unitWeights)
    {
       weights = 1.0;
    }
+   // Computes "D" matrix
+   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, pa_data);
 
-   // PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights, jac,
-               //  coeff, pa_data);
+   mfem::out << "Finished computing D " << patch << std::endl;
 
 
    if (integrationMode != PATCHWISE_REDUCED)
@@ -283,6 +291,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    {
       MFEM_ABORT("Not implemented yet.");
    }
+
 
    // numPatches = mesh->NURBSext->GetNP();
    // // Solve for reduced 1D quadrature rules
@@ -309,4 +318,5 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    //                   rw(1,d,patch), rid(1,d,patch));
    // }
 }
+
 }
