@@ -48,10 +48,89 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt) {
       (d_mt != MemoryType::DEFAULT) ? d_mt : Device::GetDeviceMemoryType();
   node_pos.SetSize(vdim * ND * NE, my_d_mt);
   elem_restr->Mult(*mesh->GetNodes(), node_pos);
-  points1d = poly1d.GetPointsArray(order ,tfe->GetBasisType());
+  points1d = poly1d.GetPointsArray(order, tfe->GetBasisType());
 }
 
-// helper for finding the batch transform initial guess
+// data for batch inverse transform newton solvers
+struct InvTNewtonSolverBase {
+  real_t ref_tol;
+  real_t phys_rtol;
+  // physical space coordinates of mesh element nodes
+  const real_t *mptr;
+  // physical space point coordinates to find
+  const real_t *pptr;
+  // element indices
+  const int *eptr;
+  // newton solve result code
+  int *tptr;
+  // result ref coords
+  real_t *xptr;
+  eltrans::Lagrange basis1d;
+
+  int max_iter;
+  // ndof * nelems
+  int stride_sdim;
+  // number of points in pptr
+  int npts;
+};
+
+// TODO: also template on clamp type?
+template <int Geom, int SDim, int max_team_x> struct InvTNewtonSolver;
+
+template <int SDim, int max_team_x>
+struct InvTNewtonSolver<Geometry::SEGMENT, SDim, max_team_x>
+    : public InvTNewtonSolverBase {
+  static int compute_stride_sdim(int ndof1d, int nelems) {
+    return ndof1d * nelems;
+  }
+
+  void MFEM_HOST_DEVICE operator()(int idx) const {
+    // parallelize one thread per pt
+    constexpr int Dim = 1;
+    int iter = 0;
+#ifdef MFEM_USE_DOUBLE
+    real_t min_dist = HUGE_VAL;
+#else
+    real_t min_dist = HUGE_VALF;
+#endif
+    MFEM_SHARED real_t ref_coord[Dim * max_team_x];
+    MFEM_SHARED real_t phys_coord[SDim * max_team_x];
+    MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
+    ref_coord[MFEM_THREAD_ID(x)] = xptr[idx];
+    while (true) {
+      // compute phys_coord
+      for (int j0 = 0; j0 < basis1d.pN; ++j0) {
+        real_t b = basis1d.eval(ref_coord[MFEM_THREAD_ID(x)], j0);
+        for (int d = 0; d < SDim; ++d) {
+          phys_coord[d * MFEM_THREAD_ID(x)] =
+              mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
+        }
+      }
+      // compute objective function
+      // f(x) = 1/2 |pt - F(x)|^2
+      real_t dist = 0;
+      for (int d = 0; d < SDim; ++d) {
+        real_t tmp = phys_coord[d * MFEM_THREAD_ID(x)] - pptr[idx + d * npts];
+        dist += tmp * tmp;
+      }
+      // check for phys_tol convergence
+      // check for stagnation on boundary using ref_tol
+
+      // compute dx = (pseudo)-inverse jac * [pt - F(x)]
+      // clamp x + dx
+      // check for ref coord convergence
+
+      ++iter;
+      if (iter >= max_iter) {
+        // terminate on max iterations
+        tptr[idx] = InverseElementTransformation::Unknown;
+        return;
+      }
+    }
+  }
+};
+
+// data for finding the batch transform initial guess
 struct NodeFinderBase {
   // physical space coordinates of mesh element nodes
   const real_t *mptr;
@@ -75,10 +154,10 @@ struct NodeFinderBase {
   int nq;
 };
 
-template <int Geom, int SDim, bool use_dev> struct PhysNodeFinder;
+template <int Geom, int SDim, int max_team_x> struct PhysNodeFinder;
 
-template <int SDim, bool use_dev>
-struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
+template <int SDim, int max_team_x>
+struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x>
     : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d; }
@@ -89,7 +168,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 1;
-    constexpr int max_team_x = use_dev ? 64 : 1;
+    // constexpr int max_team_x = use_dev ? 64 : 1;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
@@ -143,8 +222,9 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
   }
 };
 
-template <int SDim, bool use_dev>
-struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
+template <int SDim, int max_team_x>
+struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
+    : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d * nq1d; }
 
@@ -154,7 +234,7 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 2;
-    constexpr int max_team_x = use_dev ? 64 : 1;
+    // constexpr int max_team_x = use_dev ? 64 : 1;
     constexpr int max_dof1d = 32;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
@@ -182,11 +262,13 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
       for (int j0 = 0; j0 < basis1d.pN; ++j0) {
         real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
         for (int j1 = 0; j1 < basis1d.pN; ++j1) {
-          real_t b = b0 * basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+          real_t b =
+              b0 * basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
           for (int d = 0; d < SDim; ++d) {
-            phys_coord[d] += mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
-                                 d * stride_sdim] *
-                            b;
+            phys_coord[d] +=
+                mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                     d * stride_sdim] *
+                b;
           }
         }
       }
@@ -223,8 +305,9 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
   }
 };
 
-template <int SDim, bool use_dev>
-struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
+template <int SDim, int max_team_x>
+struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x>
+    : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d * nq1d * nq1d; }
 
@@ -234,7 +317,7 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 3;
-    constexpr int max_team_x = use_dev ? 64 : 1;
+    // constexpr int max_team_x = use_dev ? 64 : 1;
     constexpr int max_dof1d = 32;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
@@ -321,8 +404,8 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                 const real_t *mptr, const real_t *pptr,
                                 const int *eptr, const real_t *nptr,
                                 const real_t *qptr, real_t *xptr) {
-  PhysNodeFinder<Geom, SDim, use_dev> func;
   constexpr int max_team_x = use_dev ? 64 : 1;
+  PhysNodeFinder<Geom, SDim, max_team_x> func;
   // constexpr int max_dof1d = 32;
   MFEM_ASSERT(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
   func.basis1d.z = nptr;
@@ -382,6 +465,10 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
                                                   const Array<int> &elems,
                                                   Array<int> &types,
                                                   Vector &refs, bool use_dev) {
+  if (!Device::Allows(Backend::DEVICE_MASK)) {
+    // no devices available
+    use_dev = false;
+  }
   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
   const FiniteElement *fe = fespace->GetTypicalFE();
   const int dim = fe->GetDim();

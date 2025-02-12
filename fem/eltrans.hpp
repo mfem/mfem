@@ -383,39 +383,41 @@ public:
  * @brief Performs batch inverse element transforms. Currently only supports
  * meshes where UsesTensorBasis() == true
  */
-class BatchInverseElementTransformation {
-  Mesh* mesh = nullptr;
-  InverseElementTransformation::InitGuessType init_guess_type =
+class BatchInverseElementTransformation
+{
+   Mesh* mesh = nullptr;
+   InverseElementTransformation::InitGuessType init_guess_type =
       InverseElementTransformation::Center;
-  int rel_qpts_order = -1;
-  InverseElementTransformation::SolverType solver_type =
+   int rel_qpts_order = -1;
+   InverseElementTransformation::SolverType solver_type =
       InverseElementTransformation::NewtonElementProject;
-  int guess_points_type = Quadrature1D::ClosedUniform;
-  int max_iter = 16;
-  Vector node_pos;
+   int guess_points_type = Quadrature1D::ClosedUniform;
+   int max_iter = 16;
+   Vector node_pos;
 #ifdef MFEM_USE_DOUBLE
-  real_t ref_tol = 4e-15;
-  real_t phys_rtol = 4e-15;
+   real_t ref_tol = 4e-15;
+   real_t phys_rtol = 4e-15;
 #else
-  real_t ref_tol = 1e-6;
-  real_t phys_rtol = 1e-6;
+   real_t ref_tol = 1e-6;
+   real_t phys_rtol = 1e-6;
 #endif
-  // not owned, location of tensor product basis nodes in reference space
-  const Array<real_t> *points1d = nullptr;
+   // not owned, location of tensor product basis nodes in reference space
+   const Array<real_t> *points1d = nullptr;
 
 public:
-  ~BatchInverseElementTransformation();
-  
-  /** @brief Choose how the initial guesses for subsequent calls to Transform()
-       will be selected. */
-  void SetInitialGuessType(InverseElementTransformation::InitGuessType itype) {
-    init_guess_type = itype;
-  }
+   ~BatchInverseElementTransformation();
 
-  /// Set the Quadrature1D type used for the `Closest*` initial guess types.
-  void SetInitGuessPointsType(int q_type) { guess_points_type = q_type; }
+   /** @brief Choose how the initial guesses for subsequent calls to Transform()
+        will be selected. */
+   void SetInitialGuessType(InverseElementTransformation::InitGuessType itype)
+   {
+      init_guess_type = itype;
+   }
 
-  /// Set the relative order used for the `Closest*` initial guess types.
+   /// Set the Quadrature1D type used for the `Closest*` initial guess types.
+   void SetInitGuessPointsType(int q_type) { guess_points_type = q_type; }
+
+   /// Set the relative order used for the `Closest*` initial guess types.
    /** The number of points in each spatial direction is given by the formula
        max(trans_order+order,0)+1, where trans_order is the order of the current
        ElementTransformation. */
@@ -423,8 +425,9 @@ public:
 
    /** @brief Specify which algorithm to use for solving the transformation
        equation, i.e. when calling the Transform() method. */
-   void SetSolverType(InverseElementTransformation::SolverType stype) {
-     solver_type = stype;
+   void SetSolverType(InverseElementTransformation::SolverType stype)
+   {
+      solver_type = stype;
    }
 
    /// Set the maximum number of iterations when solving for a reference point.
@@ -436,56 +439,57 @@ public:
    /// Set the relative physical-space convergence tolerance.
    void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
 
-  /**
-    * @brief Performs setup for a batch transformation. This must be called
-    * at least once before calls to Transform. This function must be called after
-    * m.NodesUpdated() is called prior to calling Transform()
-    */
-  void Setup(Mesh &m, MemoryType d_mt = MemoryType::DEFAULT);
+   /**
+     * @brief Performs setup for a batch transformation. This must be called
+     * at least once before calls to Transform. This function must be called after
+     * m.NodesUpdated() is called prior to calling Transform()
+     */
+   void Setup(Mesh &m, MemoryType d_mt = MemoryType::DEFAULT);
 
-  /** @brief Performs a batch request of a set of points belonging to the given
-      elements.
-       @a pts list of physical point coordinates ordered by
-          Ordering::Type::byNODES.
-       @a elems which element index to search for each corresponding point in @a
-          pts
-       @a types output search classification (@see
-     InverseElementTransformation::TransformResult).
-       @a refs result reference point coordinates ordered by
-      Ordering::Type::byNODES. If using InitGuessType::GivenPoint, this should
-      contain the initial guess for each point.
-       @a use_dev hint for if device acceleration should be used.
-      Device acceleration is currently only implemented for meshes containing
-      only a single tensor product basis element type.
-    */
-  void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
-                 Vector &refs, bool use_dev = true);
+   /** @brief Performs a batch request of a set of points belonging to the given
+       elements.
+        @a pts list of physical point coordinates ordered by
+           Ordering::Type::byNODES.
+        @a elems which element index to search for each corresponding point in @a
+           pts
+        @a types output search classification (@see
+      InverseElementTransformation::TransformResult).
+        @a refs result reference point coordinates ordered by
+       Ordering::Type::byNODES. If using InitGuessType::GivenPoint, this should
+       contain the initial guess for each point.
+        @a use_dev hint for if device acceleration should be used.
+       Device acceleration is currently only implemented for meshes containing
+       only a single tensor product basis element type.
+     */
+   void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
+                  Vector &refs, bool use_dev = true);
 
-  using ClosestPhysPointKernelType = void (*)(int, int, int, int,
+   using ClosestPhysPointKernelType = void (*)(int, int, int, int,
+                                               const real_t *, const real_t *,
+                                               const int *, const real_t *,
+                                               const real_t *, real_t *);
+
+   // specialization params: Geom, SDim, use_dev
+   MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
+                         (int, int, bool));
+
+   using ClosestRefPointKernelType = void (*)(int, int, int, int, const real_t *,
+                                              const real_t *, const int *,
                                               const real_t *, const real_t *,
-                                              const int *, const real_t *,
-                                              const real_t *, real_t *);
+                                              real_t *);
 
-  // specialization params: Geom, SDim, use_dev
-  MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
-                        (int, int, bool));
+   // specialization params: Geom, SDim, use_dev
+   MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
+                         (int, int, bool));
 
-  using ClosestRefPointKernelType = void (*)(int, int, int, int, const real_t *,
-                                             const real_t *, const int *,
-                                             const real_t *, const real_t *,
-                                             real_t *);
+   struct Kernels { Kernels(); };
 
-  // specialization params: Geom, SDim, use_dev
-  MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
-                        (int, int, bool));
-
-  struct Kernels { Kernels(); };
-
-  template <int Dim, int SDim, bool use_dev>
-  static void AddFindClosestSpecialization() {
-    FindClosestPhysPoint::Specialization<Dim, SDim, use_dev>::Add();
-    FindClosestRefPoint::Specialization<Dim, SDim, use_dev>::Add();
-  }
+   template <int Dim, int SDim, bool use_dev>
+   static void AddFindClosestSpecialization()
+   {
+      FindClosestPhysPoint::Specialization<Dim, SDim, use_dev>::Add();
+      FindClosestRefPoint::Specialization<Dim, SDim, use_dev>::Add();
+   }
 };
 
 /// A standard isoparametric element transformation
