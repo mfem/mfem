@@ -114,6 +114,34 @@ void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
+struct VertexToKnotSpan
+{
+   void SetSize(int dim, int numVertices);
+
+   void SetVertex2D(int index, int v, int ks,
+                    const std::array<int, 2> &pv);
+
+   void SetVertex3D(int index, int v, const std::array<int, 2> &ks,
+                    const std::array<int, 4> &pv);
+
+   void SetKnotSpan2D(int index, int ks);
+
+   void SetKnotSpans3D(int index, const std::array<int, 2> &ks);
+
+   void GetVertex2D(int index, int &v, int &ks,
+                    std::array<int, 2> &pv) const;
+
+   void GetVertex3D(int index, int &v, std::array<int, 2> &ks,
+                    std::array<int, 4> &pv) const;
+
+   void Print(std::ostream &os) const;
+
+   int Size() const { return data.NumRows(); }
+
+private:
+   Array2D<int> data;
+};
+
 /** \brief A class for non-conforming AMR. The class is not used directly by the
  *  user, rather it is an extension of the Mesh class.
  *
@@ -348,6 +376,17 @@ public:
       }
    }
 
+   const VertexToKnotSpan& GetVertexToKnotSpan() const
+   {
+      return vertex_to_knot;
+   }
+
+   /// Remap knot-span indices @a vertex_to_knot after refinement.
+   void RefineVertexToKnot(const Array<int> &rf,
+                           const std::vector<Array<int>> &kvf,
+                           const Array<KnotVector*> &kvext,
+                           std::map<std::pair<int,int>,
+                           std::pair<int,int>> &parentToKV);
 
    // coarse/fine transforms
 
@@ -467,7 +506,8 @@ public:
    /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
-   void Print(std::ostream &out, const std::string &comments = "") const;
+   void Print(std::ostream &out, const std::string &comments = "",
+              bool nurbs=false) const;
 
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
@@ -1297,6 +1337,10 @@ protected:
    /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
 
+   void LoadVertexToKnot(std::istream &input);
+   void LoadVertexToKnot2D(std::istream &input);
+   void LoadVertexToKnot3D(std::istream &input);
+
    /** Print the "boundary" section of the mesh file. If out == NULL, only
        return the number of boundary elements. */
    int PrintBoundary(std::ostream *out) const;
@@ -1338,6 +1382,8 @@ protected:
    };
 
    static GeomInfo GI[Geometry::NumGeom];
+
+   VertexToKnotSpan vertex_to_knot;
 
 #ifdef MFEM_DEBUG
 public:
