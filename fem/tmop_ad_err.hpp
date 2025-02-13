@@ -75,7 +75,7 @@ private:
 class Error_QoI : public QoIBaseCoefficient
 {
 public:
-  Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution, mfem::VectorCoefficient * trueSolutionGrad)
+  Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
     : solutionField_(solutionField), trueSolution_(trueSolution)
   {};
 
