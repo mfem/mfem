@@ -260,7 +260,7 @@ void LFAvgErrorNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const
   }
 
   // set integration rule
-  const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), integrationOrder);
+  const mfem::IntegrationRule *ir = IntRule;
 
   // identity tensor
   mfem::DenseMatrix I;
@@ -413,6 +413,20 @@ void LFErrorDerivativeIntegrator::AssembleRHSElementVect(const FiniteElement &el
 
     // term 1
     const DenseMatrix & SolGradDeriv = QoI_->explicitSolutionGradientDerivative(T, ip);
+    // double out1 = 0.0;
+    // double out2 = 0.0;
+    // for (int j = 0; j < dof; j++)
+    // {
+    //   double dphij_r = dN(j,0);
+    //   double dphij_s = dN(j,1);
+    //   double drdx = Jinv(0,0);
+    //   double drdy = Jinv(0,1);
+    //   double dsdx = Jinv(1,0);
+    //   double dsdy = Jinv(1,1);
+    //   double val1 = dphij_r*drdx + dphij_s*dsdx;
+    //   double val2 = dphij_r*drdy + dphij_s*dsdy;
+    //   elvect(j) += w * N(j) *(val1*SolGradDeriv(0,0) + val2*SolGradDeriv(0,1));
+    // }
 
     BT.Transpose(B);
 
@@ -570,7 +584,7 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
   }
 
   // set integration rule
-  const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), integrationOrder);
+  const mfem::IntegrationRule *ir = IntRule;
 
   // initialize storage
   mfem::Vector N(dof);
@@ -591,6 +605,20 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
       shapeSum.Add(w*vol, shape);
   }
 
+  /* should be this ->
+  shapeSum = 0.0;
+  double el_vol = 0.0;
+  for (int i = 0; i < ir->GetNPoints(); i++)
+  {
+      const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+      T.SetIntPoint(&ip);
+      el_vol += ip.weight * T.Weight();
+      el.CalcShape(ip, shape);
+      shapeSum.Add(ip.weight * T.Weight(), shape);
+  }
+  shapeSum *= 1.0/el_vol;
+  */
+
   //-----------------------------------------------------------------------------------
 
   // output vector
@@ -598,7 +626,8 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
   elvect = 0.0;
 
   // loop over integration points
-  for (int i = 0; i < ir->GetNPoints(); i++) {
+  for (int i = 0; i < ir->GetNPoints(); i++)
+  {
     // set current integration point
     const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
     T.SetIntPoint(&ip);
@@ -659,7 +688,9 @@ void ThermalConductivityShapeSensitivityIntegrator::AssembleRHSElementVect(const
   elvect = 0.0;
 
   // set integration rule
-  const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2 * T.OrderGrad(&el));
+  // const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2 * T.OrderGrad(&el));
+  IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+  const IntegrationRule *ir = &IntRulesGLL.Get(el.GetGeomType(), 8);
 
   // loop over nodal coordinates (X_k)
   for (int m = 0; m < dim; m++) {
@@ -1044,7 +1075,9 @@ void ElasticityStiffnessShapeSensitivityIntegrator::AssembleRHSElementVect(const
     elvect = 0.0;
 
     // set integration rule
-    const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), 2*T.OrderGrad(&el));
+    // const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), 2*T.OrderGrad(&el));
+  IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+  const IntegrationRule *ir = &IntRulesGLL.Get(el.GetGeomType(), 8);
 
     // loop over nodal coordinates (X_k)
     for (int m=0; m<dim; m++)
@@ -1196,7 +1229,6 @@ double QuantityOfInterest::EvalQoI()
   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
   lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 50));
 
-  // std::cout << IntRulesGLL.Get(Geometry::SQUARE, 8).GetNPoints() << " " <<  IntRules.Get(Geometry::SQUARE, 5).GetNPoints() << " k10check\n";
 
   lfi->SetGLLVec(gllvec_);
   lfi->SetNqptsPerEl(nqptsperel);
@@ -1291,9 +1323,10 @@ void QuantityOfInterest::EvalQoIGrad()
       ParLinearForm T_gradForm(temp_fes_);
       LFErrorDerivativeIntegrator_2 *lfi = new LFErrorDerivativeIntegrator_2(temp_fes_, count);
       lfi->SetQoI(ErrorCoefficient_);
-      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      // lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      lfi->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
@@ -1305,8 +1338,9 @@ void QuantityOfInterest::EvalQoIGrad()
     {
       LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
       lfi->SetQoI(ErrorCoefficient_);
-      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-      lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      // IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      // lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      lfi->SetIntRule(&irules->Get(coord_fes_->GetFE(0)->GetGeomType(), quad_order));
 
       ParLinearForm ud_gradForm(coord_fes_);
       ud_gradForm.AddDomainIntegrator(lfi);
@@ -1321,9 +1355,10 @@ void QuantityOfInterest::EvalQoIGrad()
       ::mfem::ParLinearForm T_gradForm(temp_fes_);
       LFAverageErrorDerivativeIntegrator *lfi = new LFAverageErrorDerivativeIntegrator(temp_fes_, &L2VolField);
       lfi->SetQoI(ErrorCoefficient_);
-      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      // lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       // lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      lfi->SetIntRule(&irules->Get(coord_fes_->GetFE(0)->GetGeomType(), quad_order));
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
@@ -1333,9 +1368,10 @@ void QuantityOfInterest::EvalQoIGrad()
     {
       LFAvgErrorNodeCoordinateSensitivityIntegrator *lfi = new LFAvgErrorNodeCoordinateSensitivityIntegrator(&solgf_, &L2VolField);
       lfi->SetQoI(ErrorCoefficient_);
-      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      // lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       // lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      lfi->SetIntRule(&irules->Get(coord_fes_->GetFE(0)->GetGeomType(), quad_order));
 
       ::mfem::ParLinearForm ud_gradForm(coord_fes_);
       ud_gradForm.AddDomainIntegrator(lfi);
@@ -1351,9 +1387,12 @@ void QuantityOfInterest::EvalQoIGrad()
       ParLinearForm T_gradForm(temp_fes_);
       LFErrorDerivativeIntegrator *lfi = new LFErrorDerivativeIntegrator;
       lfi->SetQoI(ErrorCoefficient_);
+
       IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
       lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 50));
+
       // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      lfi->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), quad_order));
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
@@ -1364,8 +1403,10 @@ void QuantityOfInterest::EvalQoIGrad()
     {
       LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
       lfi->SetQoI(ErrorCoefficient_);
+
       IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
       lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 50));
+
       lfi->SetGLLVec(gllvec_);
       lfi->SetNqptsPerEl(nqptsperel);
 
@@ -1524,6 +1565,7 @@ void Diffusion_Solver::FSolve()
   cg.SetPreconditioner(amg);
   cg.SetOperator(A);
   cg.SetPrintLevel(0);
+
   cg.Mult(B, X);
 
   kForm.RecoverFEMSolution(X, QForm, T);
@@ -1544,17 +1586,18 @@ void Diffusion_Solver::ASolve( Vector & rhs )
       ess_tdof_list=ess_tdof_list_;
     }
 
+
     //copy BC values from the grid function to the solution vector
-    {
-      //adjgf.GetTrueDofs(rhs);
-      for(int ii=0;ii<ess_tdof_list.Size();ii++) {
-          //adj_sol[ess_tdof_list[ii]]=rhs[ess_tdof_list[ii]];
-          if(!weakBC_)
-          {
-            rhs[ess_tdof_list[ii]]=0.0;
-          }
-      }
-    }
+    // {
+    //   //adjgf.GetTrueDofs(rhs);
+    //   for(int ii=0;ii<ess_tdof_list.Size();ii++) {
+    //       //adj_sol[ess_tdof_list[ii]]=rhs[ess_tdof_list[ii]];
+    //       if(!weakBC_)
+    //       {
+    //         rhs[ess_tdof_list[ii]]=0.0;
+    //       }
+    //   }
+    // }
 
     //rhs *= -1.0;
 
@@ -1570,7 +1613,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
       kForm.AddBoundaryIntegrator(new BoundaryMassIntegrator(wCoef));
     } 
     kForm.Assemble();
-    kForm.Finalize();
+    //kForm.Finalize();
 
     // solve adjoint problem
 
@@ -1580,16 +1623,17 @@ void Diffusion_Solver::ASolve( Vector & rhs )
   //   adj_sol.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
   // }
 
-    HypreParMatrix * A = nullptr;
+    HypreParMatrix A;
     //OperatorHandle A;
     Vector X, B;
-    A=kForm.ParallelAssemble();
+      kForm.FormLinearSystem(ess_tdof_list, adj_sol, rhs, A, X, B);
+    //A=kForm.ParallelAssemble();
 
-    mfem::HypreParMatrix* Ae=A->EliminateRowsCols(ess_tdof_list);
-    delete Ae;
+    //mfem::HypreParMatrix* Ae=A->EliminateRowsCols(ess_tdof_list);
+   // delete Ae;
 
 
-    mfem::HypreParMatrix* tTransOp = reinterpret_cast<mfem::HypreParMatrix*>(A)->Transpose();
+    mfem::HypreParMatrix* tTransOp = reinterpret_cast<mfem::HypreParMatrix*>(&A)->Transpose();
 
     HypreBoomerAMG amg(*tTransOp);
     amg.SetPrintLevel(0);
@@ -1599,22 +1643,22 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     cg.SetMaxIter(5000);
     cg.SetPreconditioner(amg);
     cg.SetOperator(*tTransOp);
-    cg.SetPrintLevel(0);
-    cg.Mult(rhs, adj_sol);
 
-    //adj_sol.SetFromTrueDofs(X);
-    dQdu.SetFromTrueDofs(rhs);
-     
-    mfem::ParaViewDataCollection paraview_dc("Adjoint", temp_fes_->GetParMesh());
-    paraview_dc.SetLevelsOfDetail(1);
-    paraview_dc.SetDataFormat(VTKFormat::BINARY);
-    paraview_dc.SetHighOrderOutput(true);
-    paraview_dc.SetCycle(0);
-    paraview_dc.SetTime(1.0);
-    paraview_dc.RegisterField("adjoint",&adj_sol);
-    paraview_dc.RegisterField("dQdu",&dQdu);
-    paraview_dc.RegisterField("solgf",&solgf);
-    paraview_dc.Save();
+    // cg.SetPrintLevel(2);
+    cg.Mult(B, X);
+    // cg.Mult(rhs, X);
+    kForm.RecoverFEMSolution(X, rhs, adj_sol);
+
+    // adj_sol.SetFromTrueDofs(X);
+
+    // mfem::ParaViewDataCollection paraview_dc("Adjoint", temp_fes_->GetParMesh());
+    // paraview_dc.SetLevelsOfDetail(1);
+    // paraview_dc.SetDataFormat(VTKFormat::BINARY);
+    // paraview_dc.SetHighOrderOutput(true);
+    // paraview_dc.SetCycle(0);
+    // paraview_dc.SetTime(1.0);
+    // paraview_dc.RegisterField("adjoint",&adj_sol);
+    // paraview_dc.Save();
 
     //kForm.RecoverFEMSolution(X, rhs, adj_sol);
 
@@ -1643,6 +1687,9 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);
     dQdx_->Add( 1.0, RHS_sensitivity);
+
+    // dQdx_->Add(1.0, LHS_sensitivity);
+    // dQdx_->Add(-1.0, RHS_sensitivity);
 }
 
 void VectorHelmholtz::FSolve( mfem::Vector & rhs )
