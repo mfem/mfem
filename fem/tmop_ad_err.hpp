@@ -75,7 +75,7 @@ private:
 class Error_QoI : public QoIBaseCoefficient
 {
 public:
-  Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
+  Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution, mfem::VectorCoefficient * trueSolutionGrad)
     : solutionField_(solutionField), trueSolution_(trueSolution)
   {};
 
@@ -127,7 +127,6 @@ public:
 
     return dtheta_dX;
   };
-
 private:
 
   mfem::ParGridFunction * solutionField_;

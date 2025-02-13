@@ -174,15 +174,6 @@ double trueSolFunc(const Vector & x)
     return x[0]*x[0]*x[0]*x[0];
   }
   return 0.0;
-  //--------------------------------------------------------------
-    // double k_w = kw;
-    // // double k_t = 0.5;
-    // // double T_ref = 1.0;
-
-    // double starval = 0.5+0.1*std::sin(5.0*std::atan2(x[0],x[1])) - std::sqrt(x[0]*x[0]+x[1]*x[1]);
-
-    // double val = 0.5+0.5*std::tanh(k_w*starval);
-    // return val;
 };
 
 void trueSolGradFunc(const Vector & x,Vector & grad)
@@ -196,14 +187,12 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
   {
     // double k_w = 5.0;
     double k_w = kw;
+    double k_t = 0.5;
+    double T_ref = 1.0;
+    double g = std::sin( M_PI *x[0])*std::sin(M_PI *x[1])-k_t*T_ref;
 
-    grad[0]= 1.5708 * k_w * std::cos(M_PI * x[0]) / std::pow(std::cosh(k_w*( std::sin(M_PI * x[0]) * std::sin(M_PI * x[1])-0.5)) , 2) * std::sin(M_PI * x[1]);
-    grad[1]= 1.5708 * k_w * std::cos(M_PI * x[1]) / std::pow(std::cosh(k_w*( std::sin(M_PI * x[0]) * std::sin(M_PI * x[1])-0.5)) , 2) * std::sin(M_PI * x[0]);
-
-    // double k_t = 0.5;
-    // double T_ref = 1.0;
-
-    // double val = 0.5+0.5*std::tanh(k_w*((std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]))-k_t*T_ref));
+    grad[0]= 0.5*M_PI * k_w * std::cos(M_PI * x[0])*std::sin(M_PI * x[1]) / std::pow(std::cosh(k_w*g), 2);
+    grad[1]= 0.5*M_PI * k_w * std::cos(M_PI * x[1])*std::sin(M_PI * x[0]) / std::pow(std::cosh(k_w*g), 2);
   }
   else if (ftype == 2) // circular shock wave front centered at origin
   {
@@ -306,15 +295,16 @@ double loadFunc(const Vector & x)
     double k_t = 0.5;
     double T_ref = 1.0;
 
-    double bt = k_w*M_PI*M_PI*std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]);
-    double bx = k_w*M_PI*std::cos( M_PI *x[0] )*std::sin(M_PI *x[1]);
-    double by = k_w*M_PI*std::sin( M_PI *x[0] )*std::cos(M_PI *x[1]);
-    double sh = std::tanh(k_w*((std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]))-k_t*T_ref));
-
-
-    double val = -1.0*( 0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*bx*bx + sh*sh*bt) +
-                        0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*by*by + sh*sh*bt) );
-    return val;
+    double g = std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]) - k_t * T_ref;
+    double tanh_val = std::tanh(k_w * g);
+    double sech2 = 1.0 / (std::cosh(k_w * g) * std::cosh(k_w * g));
+    double sin_x = std::sin(M_PI * x[0]);
+    double cos_x = std::cos(M_PI * x[0]);
+    double sin_y = std::sin(M_PI * x[1]);
+    double cos_y = std::cos(M_PI * x[1]);
+    double neg_laplacian = 0.5 * k_w * M_PI * M_PI * sin_x * sin_y * sech2
+                          + k_w * k_w * M_PI * M_PI * sech2 * tanh_val * (sin_x * sin_x + sin_y * sin_y);
+    return neg_laplacian;
   }
   else if (ftype == 2)
   {
@@ -509,10 +499,10 @@ int main (int argc, char *argv[])
    if (myid == 0) { args.PrintOptions(cout); }
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
-  bool dQduFD =true;
-  bool dQdxFD =true;
-  bool dQdxFD_global =true;
-  bool BreakAfterFirstIt = true;
+  bool dQduFD =false;
+  bool dQdxFD =false;
+  bool dQdxFD_global =false;
+  bool BreakAfterFirstIt = false;
 
 
   // Create mesh
@@ -708,6 +698,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          // gridfuncLSBoundIndicator[ vdofs[j+0*nd] ] = 1.0;
         }
       }
       else if (attribute == 1) // zero out in x
@@ -715,6 +706,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          // gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
         }
       }
       else if (dim == 3 && attribute == 3) // zero out in z
@@ -736,7 +728,6 @@ int main (int argc, char *argv[])
   std::vector<std::pair<int, double>> essentialBC(nbattr);
   for (int i = 0; i < nbattr; i++)
   {
-    // std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
   }
 
@@ -988,6 +979,7 @@ if (myid == 0) {
       MeshQualityEvaluator.SetDesign( gridfuncOptVar );
 
       QoIEvaluator.SetDiscreteSol( discretSol );
+      QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
 
       double ObjVal = QoIEvaluator.EvalQoI();
       double meshQualityVal = MeshQualityEvaluator.EvalQoI();
@@ -1043,6 +1035,7 @@ if (myid == 0) {
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol );
           QoIEvaluator_FD1.SetNodes(x0);
+          QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
@@ -1055,6 +1048,7 @@ if (myid == 0) {
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol );
           QoIEvaluator_FD2.SetNodes(x0);
+          QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
@@ -1078,7 +1072,7 @@ if (myid == 0) {
       {
         // nodes are p
         // det(J) is order d*p-1
-        double epsilon = 1e-9;
+        double epsilon = 1e-8;
         mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
         ConstantCoefficient zerocoeff(0.0);
         Array<double> GLLVec;
@@ -1106,7 +1100,8 @@ if (myid == 0) {
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
           std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
-          gridfuncOptVar[Ia] +=epsilon;
+          double fac = 1.0-gridfuncLSBoundIndicator[Ia];
+          gridfuncOptVar[Ia] +=(fac)*epsilon;
 
           QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
@@ -1117,15 +1112,15 @@ if (myid == 0) {
           QoIEvaluator_FD1.SetNodes(x0);
           QoIEvaluator_FD1.SetGLLVec(GLLVec);
           QoIEvaluator_FD1.SetNqptsPerEl(nqpts);
-
+          QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
-          gridfuncOptVar[Ia] -=2.0*epsilon;
+          gridfuncOptVar[Ia] -=(fac)*2.0*epsilon;
 
           QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
-          QoIEvaluator_FD2.setTrueSolCoeff(  &zerocoeff );
+          // QoIEvaluator_FD2.setTrueSolCoeff(  &zerocoeff );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
@@ -1133,10 +1128,11 @@ if (myid == 0) {
           QoIEvaluator_FD2.SetNodes(x0);
           QoIEvaluator_FD2.SetGLLVec(GLLVec);
           QoIEvaluator_FD2.SetNqptsPerEl(nqpts);
+          QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
-          gridfuncOptVar[Ia] +=epsilon;
+          gridfuncOptVar[Ia] +=(fac)*epsilon;
 
           tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
         }
@@ -1151,8 +1147,15 @@ if (myid == 0) {
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
         std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
+        for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
+        {
+          tFD_diff[Ia] *= (1.0-gridfuncLSBoundIndicator[Ia]);
+        }
+        // tFD_diff.Print();
+        std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
       }
 
+      gridfuncOptVar = 0.0;
       if(dQdxFD_global)
       {
         double epsilon = 1e-8;
@@ -1160,7 +1163,8 @@ if (myid == 0) {
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
           std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
-          gridfuncOptVar[Ia] +=epsilon;
+          double fac = 1.0-gridfuncLSBoundIndicator[Ia];
+          gridfuncOptVar[Ia] +=fac*epsilon;
 
           solver_FD1.SetDesign( gridfuncOptVar );
           solver_FD1.FSolve();
@@ -1173,10 +1177,11 @@ if (myid == 0) {
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol_1 );
           QoIEvaluator_FD1.SetNodes(x0);
+          QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
-          gridfuncOptVar[Ia] -=2.0*epsilon;
+          gridfuncOptVar[Ia] -=fac*2.0*epsilon;
 
           solver_FD2.SetDesign( gridfuncOptVar );
           solver_FD2.FSolve();
@@ -1189,10 +1194,11 @@ if (myid == 0) {
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol_2 );
           QoIEvaluator_FD2.SetNodes(x0);
+          QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
-          gridfuncOptVar[Ia] +=epsilon;
+          gridfuncOptVar[Ia] +=fac*epsilon;
 
           tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
         }
@@ -1206,6 +1212,12 @@ if (myid == 0) {
         tFD_diff = dQdx_physics;
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
+        std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
+        for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
+        {
+          tFD_diff[Ia] *= (1.0-gridfuncLSBoundIndicator[Ia]);
+        }
+        // tFD_diff.Print();
         std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
       }
 
