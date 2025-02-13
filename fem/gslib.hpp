@@ -112,8 +112,16 @@ protected:
       mutable Vector loc_hash_min, loc_hash_fac;
    } DEV;
 
+   FiniteElementSpace *cold_hot_ind_fes = nullptr;
+   Vector *cold_hot_node_vals = nullptr;
+
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
+
+   /// Use GSLIB for communication and interpolation
+   virtual void InterpolateH1ColdHot(const GridFunction &field_in, Vector &field_out);
+
+
    /// Uses GSLIB Crystal Router for communication followed by MFEM's
    /// interpolation functions
    virtual void InterpolateGeneral(const GridFunction &field_in,

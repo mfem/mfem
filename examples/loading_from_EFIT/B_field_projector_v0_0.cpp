@@ -1,7 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "B_field_vec_coeffs_v0.hpp"
+#include "B_field_vec_coeffs_v1.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << B_tor_diff << flush;
+               << *new_mesh << B_tor_diff << flush;
    }
 
    return 0;

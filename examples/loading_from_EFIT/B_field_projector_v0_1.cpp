@@ -1,7 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "B_field_vec_coeffs_v0.hpp"
+#include "B_field_vec_coeffs_v1.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(256, 512, Element::QUADRILATERAL));
+   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(10, 120, Element::QUADRILATERAL));
 
    // translate to 1.0 in x direction
    new_mesh->Transform([](const Vector &x, Vector &p)
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
    // make a H1 space with the mesh
    H1_FECollection fec(1, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+   FiniteElementSpace fespace(new_mesh, &fec);
 
    // make a grid function with the H1 space
    GridFunction B_tor(&fespace);
@@ -70,12 +70,12 @@ int main(int argc, char *argv[])
 
    B_tor.SetFromTrueDofs(X);
 
-   ifstream temp_log2("./EFIT_loading/B_phi.gf");
-   GridFunction B_psi(&mesh, temp_log2);
+   // ifstream temp_log2("./EFIT_loading/B_phi.gf");
+   // GridFunction B_psi(&mesh, temp_log2);
 
-   GridFunction B_tor_diff(&fespace);
-   B_tor_diff = B_tor;
-   B_tor_diff -= B_psi;
+   // GridFunction B_tor_diff(&fespace);
+   // B_tor_diff = B_tor;
+   // B_tor_diff -= B_psi;
 
    if (visualization)
    {
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << B_tor_diff << flush;
+               << *new_mesh << B_tor << flush;
    }
    return 0;
 }

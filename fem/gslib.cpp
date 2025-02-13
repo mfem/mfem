@@ -131,6 +131,9 @@ FindPointsGSLIB::~FindPointsGSLIB()
       if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = NULL; }
    }
    if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
+
+   if (cold_hot_ind_fes) { delete cold_hot_ind_fes; cold_hot_ind_fes = nullptr; }
+   if (cold_hot_node_vals) { delete cold_hot_node_vals; cold_hot_node_vals = nullptr; }
 }
 
 #ifdef MFEM_USE_MPI
@@ -1763,7 +1766,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
        field_in.FESpace()->IsVariableOrder() ==
        mesh->GetNodalFESpace()->IsVariableOrder())
    {
-      InterpolateH1(field_in, field_out);
+      InterpolateH1ColdHot(field_in, field_out);
       return;
    }
    else
@@ -1893,6 +1896,89 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
                         gsl_elem.GetData(),    sizeof(unsigned int),
                         gsl_ref.GetData(),     sizeof(double) * dim,
                         points_cnt, node_vals.GetData(),
+                        (gslib::findpts_data_3 *)this->fdataD);
+      }
+   }
+   if (field_in.FESpace()->GetOrdering() == Ordering::byVDIM)
+   {
+      Vector field_out_temp = field_out;
+      for (int i = 0; i < ncomp; i++)
+      {
+         for (int j = 0; j < points_cnt; j++)
+         {
+            field_out(i + j*ncomp) = field_out_temp(j + i*points_cnt);
+         }
+      }
+   }
+}
+
+void FindPointsGSLIB::InterpolateH1ColdHot(const GridFunction &field_in,
+                                           Vector &field_out)
+
+{
+   if (cold_hot_ind_fes == nullptr)
+   {
+      cold_hot_ind_fes = new FiniteElementSpace(mesh, field_in.FESpace()->FEColl());
+   }
+   if (field_in.FESpace()->IsVariableOrder())
+   {
+      for (int e = 0; e < (*cold_hot_ind_fes).GetMesh()->GetNE(); e++)
+      {
+         (*cold_hot_ind_fes).SetElementOrder(e, field_in.FESpace()->GetElementOrder(e));
+      }
+      (*cold_hot_ind_fes).Update(false);
+   }
+   GridFunction field_in_scalar(&(*cold_hot_ind_fes));
+   field_in_scalar.UseDevice(false);
+
+   const int ncomp      = field_in.FESpace()->GetVDim(),
+             points_fld = field_in.Size() / ncomp;
+   MFEM_VERIFY(points_cnt == gsl_code.Size(),
+               "FindPointsGSLIB::InterpolateH1ColdHot: Inconsistent size of gsl_code");
+
+   field_out.SetSize(points_cnt*ncomp);
+   field_out = default_interp_value;
+   field_out.HostReadWrite();
+
+   for (int i = 0; i < ncomp; i++)
+   {
+      const int dataptrin  = i*points_fld,
+                dataptrout = i*points_cnt;
+      if (field_in.FESpace()->GetOrdering() == Ordering::byNODES)
+      {
+         field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
+      }
+      else
+      {
+         for (int j = 0; j < points_fld; j++)
+         {
+            field_in_scalar(j) = field_in(i + j*ncomp);
+         }
+      }
+      if (cold_hot_node_vals == nullptr)
+   	  {
+      	cold_hot_node_vals = new Vector;
+      	GetNodalValues(&field_in_scalar, *cold_hot_node_vals);
+      }
+
+      if (dim==2)
+      {
+         findpts_eval_2(field_out.GetData()+dataptrout, sizeof(double),
+                        gsl_code.GetData(),       sizeof(unsigned int),
+                        gsl_proc.GetData(),    sizeof(unsigned int),
+                        gsl_elem.GetData(),    sizeof(unsigned int),
+                        gsl_ref.GetData(),     sizeof(double) * dim,
+                        points_cnt, (*cold_hot_node_vals).GetData(),
+                        (gslib::findpts_data_2 *)this->fdataD);
+      }
+      else
+      {
+         findpts_eval_3(field_out.GetData()+dataptrout, sizeof(double),
+                        gsl_code.GetData(),       sizeof(unsigned int),
+                        gsl_proc.GetData(),    sizeof(unsigned int),
+                        gsl_elem.GetData(),    sizeof(unsigned int),
+                        gsl_ref.GetData(),     sizeof(double) * dim,
+                        points_cnt, (*cold_hot_node_vals).GetData(),
                         (gslib::findpts_data_3 *)this->fdataD);
       }
    }
