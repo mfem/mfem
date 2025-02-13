@@ -443,7 +443,7 @@ struct RajaHipWrap<1>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      RajaHipWrap1D<BLCK>(N, d_body);
+      RajaHipWrap1D<BLCK>(N, d_body, X);
    }
 };
 
