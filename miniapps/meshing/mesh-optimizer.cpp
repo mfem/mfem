@@ -388,28 +388,31 @@ int main(int argc, char *argv[])
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
-   GridFunction rdm(fespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < fespace->GetNDofs(); i++)
+   if (jitter > 0)
    {
-      for (int d = 0; d < dim; d++)
+      GridFunction rdm(fespace);
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < fespace->GetNDofs(); i++)
       {
-         rdm(fespace->DofToVDof(i,d)) *= h0(i);
+         for (int d = 0; d < dim; d++)
+         {
+            rdm(fespace->DofToVDof(i,d)) *= h0(i);
+         }
       }
+      Array<int> vdofs;
+      for (int i = 0; i < fespace->GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         fespace->GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
+      x -= rdm;
    }
-   Array<int> vdofs;
-   for (int i = 0; i < fespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      fespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
    x.SetTrueVector();
    x.SetFromTrueVector();
 
@@ -421,8 +424,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Store the starting (prior to the optimization) positions.
-   GridFunction x0(fespace);
-   x0 = x;
+   GridFunction x0(x);
 
    // 11. Form the integrator that uses the chosen metric and target.
    real_t min_detJ = -0.1;
@@ -1008,7 +1010,7 @@ int main(int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n);
+      Array<int> vdofs, ess_vdofs(n);
       n = 0;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
