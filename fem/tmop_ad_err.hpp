@@ -69,14 +69,20 @@ public:
     = 0;
 
   virtual const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) = 0;
+
+    virtual const mfem::Vector CustomDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) {
+    Vector vec(T.GetSpaceDim());
+    vec = 0.0;
+    return vec;
+  }
 private:
 };
 
 class Error_QoI : public QoIBaseCoefficient
 {
 public:
-  Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
-    : solutionField_(solutionField), trueSolution_(trueSolution)
+  Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution, mfem::VectorCoefficient * trueSolutionGrad)
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionGrad_(trueSolutionGrad)
   {};
 
   ~Error_QoI() {};
@@ -86,7 +92,7 @@ public:
     double fieldVal = solutionField_->GetValue( T, ip );
     double trueVal = trueSolution_->Eval( T, ip );
 
-    double squaredError = std::pow( fieldVal-trueVal, 2.0);
+    double squaredError = std::pow(fieldVal-trueVal, 2.0);
 
     return squaredError;
   };
@@ -94,8 +100,10 @@ public:
   const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
   {
     dtheta_dU.SetSize(1);
+    double fieldVal = solutionField_->GetValue( T, ip );
+    double trueVal = trueSolution_->Eval( T, ip );
 
-    double val = 2.0* (solutionField_->GetValue( T, ip ) - trueSolution_->Eval( T, ip ));
+    double val = 2.0* (fieldVal-trueVal);
 
     double & matVal = dtheta_dU.Elem(0,0);
     matVal = val;
@@ -128,10 +136,22 @@ public:
     return dtheta_dX;
   };
 
+  virtual const mfem::Vector CustomDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
+  {
+    mfem::Vector grad;
+    mfem::Vector trueGrad;
+    trueSolutionGrad_->Eval (trueGrad, T, ip);
+    solutionField_->GetGradient (T, grad);
+    trueGrad *= -1.0;
+    grad += trueGrad;
+    return trueGrad;
+    // return grad;
+  }
 private:
 
   mfem::ParGridFunction * solutionField_;
   mfem::Coefficient * trueSolution_;
+  mfem::VectorCoefficient * trueSolutionGrad_;
 
   int Dim_ = 2;
 
@@ -591,9 +611,53 @@ private:
   const mfem::ParGridFunction *t_adjoint_;
 };
 
+class ThermalConductivityShapeSensitivityIntegrator_new : public mfem::LinearFormIntegrator {
+public:
+  ThermalConductivityShapeSensitivityIntegrator_new(mfem::Coefficient &conductivity, const mfem::ParGridFunction &t_primal,
+      const mfem::ParGridFunction &t_adjoint);
+  void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+private:
+  mfem::Coefficient *k_;
+  const mfem::ParGridFunction *t_primal_;
+  const mfem::ParGridFunction *t_adjoint_;
+};
+
+class PenaltyMassShapeSensitivityIntegrator : public mfem::LinearFormIntegrator {
+public:
+  PenaltyMassShapeSensitivityIntegrator(mfem::Coefficient &penalty, const mfem::ParGridFunction &t_primal,
+      const mfem::ParGridFunction &t_adjoint);
+  void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+private:
+  mfem::Coefficient *penalty_;
+  const mfem::ParGridFunction *t_primal_;
+  const mfem::ParGridFunction *t_adjoint_;
+};
+
+class PenaltyShapeSensitivityIntegrator : public mfem::LinearFormIntegrator {
+public:
+  PenaltyShapeSensitivityIntegrator(mfem::Coefficient &penalty,
+      const mfem::ParGridFunction &t_adjoint, int oa = 2, int ob = 2);
+  void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+private:
+  mfem::Coefficient *penalty_;
+  const mfem::ParGridFunction *t_adjoint_;
+  int oa_, ob_;
+};
+
 class ThermalHeatSourceShapeSensitivityIntegrator : public mfem::LinearFormIntegrator {
 public:
   ThermalHeatSourceShapeSensitivityIntegrator(mfem::Coefficient &heatSource, const mfem::ParGridFunction &t_adjoint, int oa = 2,
+      int ob = 2);
+  void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+private:
+  mfem::Coefficient *Q_;
+  const mfem::ParGridFunction *t_adjoint_;
+  int oa_, ob_;
+};
+
+class ThermalHeatSourceShapeSensitivityIntegrator_new : public mfem::LinearFormIntegrator {
+public:
+  ThermalHeatSourceShapeSensitivityIntegrator_new(mfem::Coefficient &heatSource, const mfem::ParGridFunction &t_adjoint, int oa = 2,
       int ob = 2);
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
 private:
@@ -690,8 +754,9 @@ private:
 class Diffusion_Solver
 {
 public:
-    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2, Coefficient *truesolfunc = nullptr)
+    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2, Coefficient *truesolfunc = nullptr, bool weakBC = false)
     {
+        weakBC_ = weakBC;
         pmesh=mesh_;
         int dim=pmesh->Dimension();
 
@@ -851,6 +916,8 @@ private:
     mfem::Array<int> ess_tdof_list_;
 
     mfem::Coefficient * QCoef_ = nullptr;
+
+    bool weakBC_ = false;
 };
 
 class Elasticity_Solver
