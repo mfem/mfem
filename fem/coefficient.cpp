@@ -262,6 +262,84 @@ void RestrictedCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+real_t JacobianFunctionCoefficient::Eval(
+   ElementTransformation &T, const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(&T.GetIntPoint() == &ip, "invalid input");
+   const DenseMatrix &JT = T.Jacobian();
+   if (!use_perf_J)
+   {
+      return JFunction(JT);
+   }
+   real_t JP_data[9];
+   DenseMatrix JP(JP_data, JT.Height(), JT.Width());
+   Geometries.JacToPerfJac(T.GetGeometryType(), JT, JP);
+   return JFunction(JP);
+}
+
+real_t MeshFunctionCoefficient::Eval(
+   ElementTransformation &T, const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(&T.GetIntPoint() == &ip, "invalid input");
+   const DenseMatrix &JT = T.Jacobian();
+   real_t x_data[3];
+   Vector x(x_data, JT.Height());
+   T.Transform(ip, x);
+   if (!use_perf_J)
+   {
+      return XJFunction(x, JT);
+   }
+   real_t JP_data[9];
+   DenseMatrix JP(JP_data, JT.Height(), JT.Width());
+   Geometries.JacToPerfJac(T.GetGeometryType(), JT, JP);
+   return XJFunction(x, JP);
+}
+
+real_t JacobianDeterminantCoefficient::Eval(
+   ElementTransformation &T, const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(&T.GetIntPoint() == &ip, "invalid input");
+   const real_t w = T.Weight();
+   if (!use_perf_J) { return w; }
+   const DenseMatrix *Jp = Geometries.GetPerfGeomToGeomJac(T.GetGeometryType());
+   return Jp ? w*Jp->Det() : w;
+}
+
+real_t MeshSizeCoefficient::Eval(
+   ElementTransformation &T, const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(&T.GetIntPoint() == &ip, "invalid input");
+   const DenseMatrix &JT = T.Jacobian();
+   const int dim = JT.Width();
+   real_t JP_data[9];
+   DenseMatrix JP(JP_data, JT.Height(), dim);
+   Geometries.JacToPerfJac(T.GetGeometryType(), JT, JP);
+   if (dim == 1)
+   {
+      return JP.Weight();
+   }
+   if (type == 0)
+   {
+      const real_t w = JP.Weight();
+      return (w >= 0) ? std::pow(w, 1_r/dim) : -std::pow(-w, 1_r/dim);
+   }
+   if (dim == JP.Height())
+   {
+      if (type == 1) { return JP.CalcSingularvalue(dim-1); } // h_min
+      return JP.CalcSingularvalue(0); // h_max
+   }
+   if (dim == 2 && JP.Height() > 2) // suface mesh
+   {
+      real_t JtJ_data[4], e_val[2], e_vec[4];
+      DenseMatrix JtJ(JtJ_data, 2, 2);
+      MultAtB(JP, JP, JtJ);
+      JtJ.CalcEigenvalues(e_val, e_vec); // e_val are in increasing order
+      if (type == 1) { return std::sqrt(e_val[0]); } // h_min
+      return std::sqrt(e_val[1]); // h_max
+   }
+   MFEM_ABORT("unexpected Jacobian size: " << JP.Height() << " x " << dim);
+}
+
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
