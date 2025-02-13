@@ -503,8 +503,9 @@ public:
 
    template <int Dim, int SDim, InverseElementTransformation::SolverType SType,
              bool use_dev>
-   static void AddNewtonSolveSpecialization() {
-     NewtonSolve::Specialization<Dim, SDim, SType, use_dev>::Add();
+   static void AddNewtonSolveSpecialization()
+   {
+      NewtonSolve::Specialization<Dim, SDim, SType, use_dev>::Add();
    }
 };
 

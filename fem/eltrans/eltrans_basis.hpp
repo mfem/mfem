@@ -37,19 +37,23 @@ template <> struct GeometryUtils<Geometry::SEGMENT>
    }
 
    /// @b Bound the reference coordinate @a x to be inside the segment
-   static bool MFEM_HOST_DEVICE project(real_t &x)
+   static bool MFEM_HOST_DEVICE project(real_t &x, real_t &dx)
    {
+      real_t tmp = x;
+      x += dx;
       if (x < 0)
       {
          x = 0;
-         return false;
+         dx = x - tmp;
+         return true;
       }
       if (x > 1)
       {
          x = 1;
-         return false;
+         dx = x - tmp;
+         return true;
       }
-      return true;
+      return false;
    }
 };
 
@@ -62,28 +66,37 @@ template <> struct GeometryUtils<Geometry::SQUARE>
    }
 
    /// @b Bound the reference coordinate @a x and @a y to be inside the square
-   static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y)
+   static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &dx,
+                                        real_t &dy)
    {
-      bool res = true;
+      bool res = false;
+      real_t tmp = x;
+      x += dx;
       if (x < 0)
       {
-         res = false;
+         res = true;
          x = 0;
+         dx = x - tmp;
       }
       else if (x > 1)
       {
-         res = false;
+         res = true;
          x = 1;
+         dx = x - tmp;
       }
+      tmp = y;
+      y += dy;
       if (y < 0)
       {
-         res = false;
+         res = true;
          y = 0;
+         dy = y - tmp;
       }
       else if (y > 1)
       {
-         res = false;
+         res = true;
          y = 1;
+         dy = y - tmp;
       }
       return res;
    }
@@ -98,38 +111,51 @@ template <> struct GeometryUtils<Geometry::CUBE>
    }
    /// @b Bound the reference coordinate @a x, @a y, and @a z to be inside the
    /// square
-   static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &z)
+   static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &z,
+                                        real_t &dx, real_t &dy, real_t &dz)
    {
-      bool res = true;
+      bool res = false;
+      real_t tmp = x;
+      x += dx;
       if (x < 0)
       {
-         res = false;
+         res = true;
          x = 0;
+         dx = x - tmp;
       }
       else if (x > 1)
       {
-         res = false;
+         res = true;
          x = 1;
+         dx = x - tmp;
       }
+      tmp = y;
+      y += dy;
       if (y < 0)
       {
-         res = false;
+         res = true;
          y = 0;
+         dy = tmp - y;
       }
       else if (y > 1)
       {
-         res = false;
+         res = true;
          y = 1;
+         dy = tmp - y;
       }
+      tmp = z;
+      z += dz;
       if (z < 0)
       {
-         res = false;
-         y = 0;
+         res = true;
+         z = 0;
+         dz = z - tmp;
       }
       else if (z > 1)
       {
-         res = false;
-         y = 1;
+         res = true;
+         z = 1;
+         dz = z - tmp;
       }
       return res;
    }
