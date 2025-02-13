@@ -367,7 +367,7 @@ GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
 ifeq ($(MFEM_USE_GINKGO),YES)
-   BASE_FLAGS = -std=c++14
+   BASE_FLAGS = -std=c++17
 endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
 GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
