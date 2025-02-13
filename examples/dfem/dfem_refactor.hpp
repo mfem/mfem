@@ -1083,14 +1083,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                                 for (int k = 0; k < test_op_dim; k++)
                                                 {
                                                    const real_t f = a_qp(i, k, j, m + m_offset, q, e);
-                                                   if (m == 0)
-                                                   {
-                                                      fhat(i, k, q) += f * B(qx, 0, Jx);
-                                                   }
-                                                   else
-                                                   {
-                                                      fhat(i, k, q) += f * B(qy, 0, Jy);
-                                                   }
+                                                   fhat(i, k, q) += f * B(qx, 0, Jx) * B(qy, 0, Jy);
                                                 }
                                              }
                                           }
@@ -1132,6 +1125,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                  }
                                  m_offset += trial_op_dim;
                               }, inputs);
+
                               auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
                               map_quadrature_data_to_fields(
                                  bvtfhat, fhat, output_fop, output_dtq_shmem[0],
@@ -1156,7 +1150,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                         size_t m_offset = 0;
                         for_constexpr_with_arg([&](auto s, auto&& input_fop)
                         {
-                           if (!input_is_dependent[s])
+                           if (input_is_dependent[s] == false)
                            {
                               return;
                            }

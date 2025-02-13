@@ -1,4 +1,5 @@
 #include "dfem/dfem_refactor.hpp"
+#include "general/tic_toc.hpp"
 #include "linalg/hypre.hpp"
 #include "linalg/solvers.hpp"
 
@@ -160,7 +161,7 @@ class ALEFSIOperator : public TimeDependentOperator
             auto dMDp = op.pressure_mass->GetDerivative(Pressure, {&op.p_gf}, {x_gf});
             auto dFcvDv = op.fluid_momentum_convective->GetDerivative(Velocity, {&op.v_gf}, {x_gf});
             auto dFvvDv = op.fluid_momentum_viscous->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, x_gf});
-            auto dCDv = op.fluid_continuity->GetDerivative(Velocity, {&op.p_gf}, {&op.v_gf, x_gf});
+            auto dCDv = op.fluid_continuity->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, x_gf});
 
             dMDv->Assemble(Mv);
             dMDp->Assemble(Mp);
@@ -181,7 +182,7 @@ class ALEFSIOperator : public TimeDependentOperator
 
             Array2D<real_t> blockCoeff(2, 2);
             blockCoeff(0, 0) = 1.0;
-            blockCoeff(0, 1) = -op.theta * res.gamma;
+            blockCoeff(0, 1) = -1.0 * res.gamma;
             blockCoeff(1, 0) = -1.0;
             blockCoeff(1, 1) = 0.0;
 
@@ -299,9 +300,9 @@ class ALEFSIOperator : public TimeDependentOperator
          op.velocity_mass->SetParameters({x_gf});
          op.velocity_mass->AddMult(prevuv, Rv, -1.0);
 
-         v_gf.SetFromTrueDofs(uv);
-         op.fluid_continuity->SetParameters({&v_gf, x_gf});
-         op.fluid_continuity->AddMult(up, Rp, -1.0);
+         p_gf.SetFromTrueDofs(up);
+         op.fluid_continuity->SetParameters({&p_gf, x_gf});
+         op.fluid_continuity->AddMult(uv, Rp, -1.0);
 
          Rv.SetSubVector(op.vel_ess_tdof, 0.0);
          Rp.SetSubVector(op.pres_ess_tdof, 0.0);
@@ -337,7 +338,8 @@ public:
       Array<int> &pres_ess_bdr,
       VectorCoefficient &vel_bdr_coeff,
       Coefficient &pres_bdr_coeff,
-      const IntegrationRule &ir) :
+      const IntegrationRule &ir,
+      bool enable_tps) :
       TimeDependentOperator(offsets.Last()),
       theta(theta),
       kinematic_viscosity(kinematic_viscosity),
@@ -376,6 +378,11 @@ public:
          velocity_mass =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
+         if (!enable_tps)
+         {
+            velocity_mass->DisableTensorProductStructure();
+         }
+
          mfem::tuple inputs{Value<Velocity>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Velocity>{}};
 
@@ -397,6 +404,11 @@ public:
 
          fluid_momentum_convective =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            fluid_momentum_convective->DisableTensorProductStructure();
+         }
 
          mfem::tuple inputs
          {
@@ -429,6 +441,11 @@ public:
          fluid_momentum_viscous =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
+         if (!enable_tps)
+         {
+            fluid_momentum_viscous->DisableTensorProductStructure();
+         }
+
          mfem::tuple inputs
          {
             Gradient<Velocity>{},
@@ -449,17 +466,22 @@ public:
       {
          auto solutions = std::vector
          {
-            FieldDescriptor{Pressure, &H1fes},
+            FieldDescriptor{Velocity, &H1vfes},
          };
 
          auto parameters = std::vector
          {
-            FieldDescriptor{Velocity, &H1vfes},
+            FieldDescriptor{Pressure, &H1fes},
             FieldDescriptor{Position, &mesh_fes}
          };
 
          fluid_continuity =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            fluid_continuity->DisableTensorProductStructure();
+         }
 
          mfem::tuple inputs{Gradient<Velocity>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Pressure>{}};
@@ -483,6 +505,11 @@ public:
          pressure_mass =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
+         if (!enable_tps)
+         {
+            pressure_mass->DisableTensorProductStructure();
+         }
+
          mfem::tuple inputs{Value<Pressure>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Pressure>{}};
          auto pressure_mass_qf = PressureMassQFunction<DIMENSION> {};
@@ -502,11 +529,6 @@ public:
    {
       this->SetTime(t);
       prevS = S;
-
-      // if (t == 0.0)
-      // {
-      //    prevS = 0.0;
-      // }
 
       this->SetTime(t + dt);
       Vector Sv, Sp;
@@ -529,14 +551,14 @@ public:
       krylov.SetRelTol(1e-4);
       krylov.SetMaxIter(1000);
       krylov.SetPreconditioner(prec);
-      krylov.SetPrintLevel(IterativeSolver::PrintLevel().None());
+      krylov.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
 
       NewtonSolver newton(MPI_COMM_WORLD);
       newton.SetOperator(residual);
-      newton.SetSolver(krylov);
+      newton.SetSolver(prec);
       newton.SetRelTol(1e-8);
       newton.SetMaxIter(10);
-      newton.SetPrintLevel(IterativeSolver::PrintLevel().None());
+      newton.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
 
       Vector zero;
       newton.Mult(zero, S);
@@ -586,6 +608,7 @@ int main(int argc, char* argv[])
    real_t kinematic_viscosity = 1.0;
    int vis_steps = 1;
    real_t theta = 0.5;
+   bool enable_tps = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -600,6 +623,8 @@ int main(int argc, char* argv[])
    args.AddOption(&theta, "-theta", "--theta", "");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&enable_tps, "-tps", "--enable-tps", "-no-tps",
+                  "--no-tps", "Enable tensor product structure for quad/hex.");
    args.ParseCheck();
 
    Device device(device_config);
@@ -609,8 +634,6 @@ int main(int argc, char* argv[])
    }
 
    int polynomial_order_pressure = polynomial_order_velocity - 1;
-
-   out << std::setprecision(8);
 
    Mesh mesh_serial;
    if (problem_type == ProblemType::CFD_EX_TEST)
@@ -787,7 +810,8 @@ int main(int argc, char* argv[])
       pres_ess_attr,
       vel_exact,
       pres_exact,
-      integration_rule);
+      integration_rule,
+      enable_tps);
 
    real_t t = 0.0;
    out << "time step: " << dt << "\n";
