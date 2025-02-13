@@ -268,7 +268,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    {
       weights = 1.0;
    }
-   // Computes "D" matrix
+   // Computes "D"
    PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, pa_data);
 
    mfem::out << "Finished computing D " << patch << std::endl;
