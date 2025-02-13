@@ -74,6 +74,51 @@ struct InvTNewtonSolverBase {
   int npts;
 };
 
+// helper for computing dx = (pseudo)-inverse jac * [pt - F(x)]
+template <int Dim, int SDim> struct InvTLinSolve;
+
+template <> struct InvTLinSolve<1, 1> {
+  static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
+                                     real_t *dx) {
+    dx[0] = rhs[0] / jac[0];
+  }
+};
+
+template <> struct InvTLinSolve<1, 2> {
+  static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
+                                     real_t *dx) {
+    real_t den = jac[0] * jac[0] + jac[1] * jac[1];
+    dx[0] = (jac[0] * rhs[0] + jac[1] * rhs[1]) / den;
+  }
+};
+
+template <> struct InvTLinSolve<1, 3> {
+  static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
+                                     real_t *dx) {
+    real_t den = jac[0] * jac[0] + jac[1] * jac[1] + jac[2] * jac[2];
+    dx[0] = (jac[0] * rhs[0] + jac[1] * rhs[1] + jac[2] * rhs[2]) / den;
+  }
+};
+
+template <> struct InvTLinSolve<2, 2> {
+  static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
+                                     real_t *dx) {
+    real_t invJ_den = 1 / (jac[0] * jac[3] - jac[1] * jac[2]);
+    dx[0] = (jac[3] * rhs[0] - jac[2] * rhs[1]) * invJ_den;
+    dx[1] = (jac[0] * rhs[1] - jac[1] * rhs[0]) * invJ_den;
+  }
+};
+
+template <> struct InvTLinSolve<2, 3> {
+  static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
+                                     real_t *dx) {
+    // TODO
+    // real_t invJ_den = 1 / (jac[0] * jac[3] - jac[1] * jac[2]);
+    // dx[0] = (jac[3] * rhs[0] - jac[2] * rhs[1]) * invJ_den;
+    // dx[1] = (jac[0] * rhs[1] - jac[1] * rhs[0]) * invJ_den;
+  }
+};
+
 template <int Geom, int SDim,
           InverseElementTransformation::SolverType SolverType, int max_team_x>
 struct InvTNewtonSolver;
@@ -90,11 +135,6 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
     // parallelize one thread per pt
     constexpr int Dim = 1;
     int iter = 0;
-#ifdef MFEM_USE_DOUBLE
-    real_t min_dist = HUGE_VAL;
-#else
-    real_t min_dist = HUGE_VALF;
-#endif
     real_t ref_coord;
     real_t phys_coord[SDim];
     real_t jac[SDim * Dim];
@@ -110,9 +150,9 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
         real_t b, db;
         basis1d.eval_d1(b, db, ref_coord, j0);
         for (int d = 0; d < SDim; ++d) {
-          phys_coord[d] =
+          phys_coord[d] +=
               mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
-          jac[d] = mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db;
+          jac[d] += mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db;
         }
       }
       // compute objective function
@@ -135,15 +175,8 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
       }
 
       // compute dx = (pseudo)-inverse jac * [pt - F(x)]
-      real_t invJ_den = 0;
-      for (int d = 0; d < SDim; ++d) {
-        invJ_den += jac[d] * jac[d];
-      }
       real_t dx = 0;
-      for (int d = 0; d < SDim; ++d) {
-        dx += jac[d] * phys_coord[d];
-      }
-      dx /= invJ_den;
+      InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, &dx);
       ref_coord += dx;
 
       // check for ref coord convergence or stagnation on boundary
@@ -179,11 +212,6 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
     // parallelize one thread per pt
     constexpr int Dim = 1;
     int iter = 0;
-#ifdef MFEM_USE_DOUBLE
-    real_t min_dist = HUGE_VAL;
-#else
-    real_t min_dist = HUGE_VALF;
-#endif
     real_t ref_coord;
     real_t phys_coord[SDim];
     real_t jac[SDim * Dim];
@@ -199,9 +227,9 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
         real_t b, db;
         basis1d.eval_d1(b, db, ref_coord, j0);
         for (int d = 0; d < SDim; ++d) {
-          phys_coord[d] =
+          phys_coord[d] +=
               mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
-          jac[d] = mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db;
+          jac[d] += mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db;
         }
       }
       // compute objective function
@@ -232,15 +260,9 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
       }
 
       // compute dx = (pseudo)-inverse jac * [pt - F(x)]
-      real_t invJ_den = 0;
-      for (int d = 0; d < SDim; ++d) {
-        invJ_den += jac[d] * jac[d];
-      }
       real_t dx = 0;
-      for (int d = 0; d < SDim; ++d) {
-        dx += jac[d] * phys_coord[d];
-      }
-      dx /= invJ_den;
+      InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, &dx);
+
       ref_coord += dx;
       bool hit_bdr =
           eltrans::GeometryUtils<Geometry::SEGMENT>::project(ref_coord);
@@ -253,6 +275,120 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
         return;
       }
 
+      ++iter;
+    }
+  }
+};
+
+template <int SDim, int max_team_x>
+struct InvTNewtonSolver<Geometry::SQUARE, SDim,
+                        InverseElementTransformation::NewtonElementProject,
+                        max_team_x> : public InvTNewtonSolverBase {
+  static int compute_stride_sdim(int ndof1d, int nelems) {
+    return ndof1d * ndof1d * nelems;
+  }
+
+  void MFEM_HOST_DEVICE operator()(int idx) const {
+    // parallelize one thread per pt
+    constexpr int Dim = 2;
+    constexpr int max_dof1d = 32;
+    int iter = 0;
+    real_t ref_coord[Dim];
+    real_t phys_coord[SDim];
+    MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
+    MFEM_SHARED real_t dbasis1_buf[max_dof1d * max_team_x];
+    // contiguous in SDim
+    real_t jac[SDim * Dim];
+    for (int d = 0; d < Dim; ++d) {
+      ref_coord[d] = xptr[idx + d * npts];
+    }
+    real_t phys_tol = 0;
+    for (int d = 0; d < SDim; ++d) {
+      phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+    }
+    phys_tol = fmax(phys_rtol, phys_tol * phys_rtol);
+    while (true) {
+      // compute phys_coord and jacobian at the same time
+      for (int j1 = 0; j1 < basis1d.pN; ++j1) {
+        basis1d.eval_d1(
+            basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
+            dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
+            ref_coord[1], j1);
+      }
+      for (int j0 = 0; j0 < basis1d.pN; ++j0) {
+        real_t b0, db0;
+        basis1d.eval_d1(b0, db0, ref_coord[0], j0);
+        for (int j1 = 0; j1 < basis1d.pN; ++j1) {
+          real_t b1 =
+              b0 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+          for (int d = 0; d < SDim; ++d) {
+            phys_coord[d] +=
+                mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                     d * stride_sdim] *
+                b1;
+            jac[d] += mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                           d * stride_sdim] *
+                      db0 *
+                      basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+            jac[d + SDim] +=
+                mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                     d * stride_sdim] *
+                b0 * dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+          }
+        }
+      }
+      // compute objective function
+      // f(x) = 1/2 |pt - F(x)|^2
+      real_t dist = 0;
+      for (int d = 0; d < SDim; ++d) {
+        real_t tmp = pptr[idx + d * npts] - phys_coord[d];
+        phys_coord[d] = tmp;
+        dist += tmp * tmp;
+      }
+      // phys_coord now contains pt - F(x)
+      // check for phys_tol convergence
+      if (sqrt(dist) <= phys_tol) {
+        // found solution
+        tptr[idx] = eltrans::GeometryUtils<Geometry::SQUARE>::inside(
+                        ref_coord[0], ref_coord[1])
+                        ? InverseElementTransformation::Inside
+                        : InverseElementTransformation::Outside;
+        for (int d = 0; d < Dim; ++d) {
+          xptr[idx + d * npts] = ref_coord[d];
+        }
+        return;
+      }
+
+      if (iter >= max_iter) {
+        // terminate on max iterations
+        tptr[idx] = InverseElementTransformation::Unknown;
+        // might as well save where we failed at
+        for (int d = 0; d < Dim; ++d) {
+          xptr[idx + d * npts] = ref_coord[d];
+        }
+        return;
+      }
+
+      // compute dx = (pseudo)-inverse jac * [pt - F(x)]
+      // real_t invJ_den = 1 / (jac[0] * jac[3] - jac[1] * jac[2]);
+      real_t dx[Dim];
+      InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, dx);
+
+      for (int d = 0; d < Dim; ++d) {
+        ref_coord[d] += dx[d];
+      }
+      bool hit_bdr = eltrans::GeometryUtils<Geometry::SQUARE>::project(
+          ref_coord[0], ref_coord[1]);
+
+      // check for ref coord convergence or stagnation on boundary
+      if (dx[0] * dx[0] + dx[1] * dx[1] <= ref_tol * ref_tol) {
+        tptr[idx] = hit_bdr ? InverseElementTransformation::Inside
+                            : InverseElementTransformation::Outside;
+        for (int d = 0; d < Dim; ++d) {
+          xptr[idx + d * npts] = ref_coord[d];
+        }
+        return;
+      }
       ++iter;
     }
   }
@@ -297,7 +433,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x>
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 1;
     // constexpr int max_team_x = use_dev ? 64 : 1;
-    int n = (nq < max_team_x) ? nq : max_team_x;
+    // int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
@@ -750,7 +886,69 @@ BatchInverseElementTransformation::Kernels::Kernels() {
   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
       Geometry::SEGMENT, 1, InverseElementTransformation::Newton, true>();
   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 1, InverseElementTransformation::Newton, false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 2, InverseElementTransformation::Newton, true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 2, InverseElementTransformation::Newton, false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 3, InverseElementTransformation::Newton, true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 3, InverseElementTransformation::Newton, false>();
+
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
       Geometry::SEGMENT, 1, InverseElementTransformation::NewtonElementProject,
       true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 1, InverseElementTransformation::NewtonElementProject,
+      false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 2, InverseElementTransformation::NewtonElementProject,
+      true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 2, InverseElementTransformation::NewtonElementProject,
+      false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 3, InverseElementTransformation::NewtonElementProject,
+      true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SEGMENT, 3, InverseElementTransformation::NewtonElementProject,
+      false>();
+
+#if 0
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 2, InverseElementTransformation::Newton, true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 2, InverseElementTransformation::Newton, false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 3, InverseElementTransformation::Newton, true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 3, InverseElementTransformation::Newton, false>();
+#endif
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 2, InverseElementTransformation::NewtonElementProject,
+      true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 2, InverseElementTransformation::NewtonElementProject,
+      false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 3, InverseElementTransformation::NewtonElementProject,
+      true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::SQUARE, 3, InverseElementTransformation::NewtonElementProject,
+      false>();
+
+#if 0
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::CUBE, 3, InverseElementTransformation::Newton, true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::CUBE, 3, InverseElementTransformation::Newton, false>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject,
+      true>();
+  BatchInverseElementTransformation::AddNewtonSolveSpecialization<
+      Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject,
+      false>();
+#endif
 }
 } // namespace mfem
