@@ -19,10 +19,22 @@ def equal(a, b):
 	return abs(a - b) / (abs(a) + abs(b)) < tol
 
 print('Running Regression Testing:')
-path = 'regress_test/'
+parallel = False
+filenames = []
 if len(sys.argv) > 1:
-	filenames = sys.argv[1:]
+	if sys.argv[1] == '-par':
+		parallel = True
+		if len(sys.argv) > 2:
+			filenames = sys.argv[2:]
+	else:
+		filenames = sys.argv[1:]
+
+if parallel:
+	path = 'regress_test_par/'
 else:
+	path = 'regress_test/'
+
+if len(filenames) == 0:
 	filenames = os.listdir(path)
 	filenames = [ path + name for name in filenames ]
 
@@ -78,7 +90,11 @@ for i, filename in enumerate(filenames):
 	ref_solver = ref_out[-4][:ref_solver_idx]
 
 	# Construct the command line
-	command_line = "./ex5-nguyen -no-vis"
+	if parallel:
+		command_line = "mpirun -np 2 ./ex5p-nguyen -no-vis"
+	else:
+		command_line = "./ex5-nguyen -no-vis"
+
 	command_line += f" -nx {nx}"
 	command_line += f" -ny {ny}"
 	command_line += f" -p {problem}"

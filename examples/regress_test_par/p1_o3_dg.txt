@@ -1,0 +1,211 @@
+Options used:
+   --mesh 
+   --ncells-x 8
+   --ncells-y 8
+   --size-x 1
+   --size-y 1
+   --order 3
+   --discontinuous
+   --centered
+   --problem 1
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 8
+***********************************************************
+dim(V) = 1024
+dim(W) = 512
+dim(V+W) = 1536
+***********************************************************
+Assembly took 0.0580393s.
+Preconditioner took 0.0017283s.
+
+
+ Num MPI tasks = 2
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 4
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+
+ No. of levels of aggressive coarsening: 1
+
+ Interpolation on agg. levels= multipass interpolation
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = extended+i interpolation
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    1024    41472  0.040    24   56    40.5  -3.505e+00   9.176e+00
+  1      41      635  0.378     8   23    15.5  -4.149e-01   9.223e+00
+  2      10       96  0.960     8   10     9.6   1.031e+00   1.338e+01
+  3       3        9  1.000     3    3     3.0   9.089e+00   1.715e+01
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  1024 x 41      0    6   1.4  -4.979e-01   1.228e+00  -5.937e-01   1.268e+00
+  1    41 x 10      1    4   3.1   2.888e-02   5.987e-01   4.293e-01   1.011e+00
+  2    10 x 3       1    3   2.9   1.892e-02   3.445e-01   2.617e-01   1.000e+00
+
+
+     Complexity:    grid = 1.052734
+                operator = 1.017843
+                memory = 1.055531
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+   Pass :  1   Iteration :   0  ||B r|| = 12.2428
+   Pass :  1   Iteration :   1  ||B r|| = 12.2428
+   Pass :  1   Iteration :   2  ||B r|| = 11.8578
+   Pass :  1   Iteration :   3  ||B r|| = 11.8552
+   Pass :  1   Iteration :   4  ||B r|| = 11.2097
+   Pass :  1   Iteration :   5  ||B r|| = 10.5853
+   Pass :  1   Iteration :   6  ||B r|| = 10.5765
+   Pass :  1   Iteration :   7  ||B r|| = 6.6311
+   Pass :  1   Iteration :   8  ||B r|| = 6.58811
+   Pass :  1   Iteration :   9  ||B r|| = 4.45665
+   Pass :  1   Iteration :  10  ||B r|| = 4.22626
+   Pass :  1   Iteration :  11  ||B r|| = 4.1619
+   Pass :  1   Iteration :  12  ||B r|| = 3.3542
+   Pass :  1   Iteration :  13  ||B r|| = 3.07452
+   Pass :  1   Iteration :  14  ||B r|| = 2.07767
+   Pass :  1   Iteration :  15  ||B r|| = 1.70854
+   Pass :  1   Iteration :  16  ||B r|| = 1.56087
+   Pass :  1   Iteration :  17  ||B r|| = 1.32725
+   Pass :  1   Iteration :  18  ||B r|| = 1.2379
+   Pass :  1   Iteration :  19  ||B r|| = 1.1254
+   Pass :  1   Iteration :  20  ||B r|| = 0.801319
+   Pass :  1   Iteration :  21  ||B r|| = 0.791264
+   Pass :  1   Iteration :  22  ||B r|| = 0.630376
+   Pass :  1   Iteration :  23  ||B r|| = 0.579881
+   Pass :  1   Iteration :  24  ||B r|| = 0.566994
+   Pass :  1   Iteration :  25  ||B r|| = 0.400132
+   Pass :  1   Iteration :  26  ||B r|| = 0.385037
+   Pass :  1   Iteration :  27  ||B r|| = 0.317017
+   Pass :  1   Iteration :  28  ||B r|| = 0.240512
+   Pass :  1   Iteration :  29  ||B r|| = 0.240453
+   Pass :  1   Iteration :  30  ||B r|| = 0.177622
+   Pass :  1   Iteration :  31  ||B r|| = 0.152894
+   Pass :  1   Iteration :  32  ||B r|| = 0.136413
+   Pass :  1   Iteration :  33  ||B r|| = 0.102282
+   Pass :  1   Iteration :  34  ||B r|| = 0.0979042
+   Pass :  1   Iteration :  35  ||B r|| = 0.0769248
+   Pass :  1   Iteration :  36  ||B r|| = 0.0591376
+   Pass :  1   Iteration :  37  ||B r|| = 0.0585302
+   Pass :  1   Iteration :  38  ||B r|| = 0.0430382
+   Pass :  1   Iteration :  39  ||B r|| = 0.0369296
+   Pass :  1   Iteration :  40  ||B r|| = 0.0356699
+   Pass :  1   Iteration :  41  ||B r|| = 0.024101
+   Pass :  1   Iteration :  42  ||B r|| = 0.0227913
+   Pass :  1   Iteration :  43  ||B r|| = 0.0187104
+   Pass :  1   Iteration :  44  ||B r|| = 0.014704
+   Pass :  1   Iteration :  45  ||B r|| = 0.0146991
+   Pass :  1   Iteration :  46  ||B r|| = 0.0116841
+   Pass :  1   Iteration :  47  ||B r|| = 0.0101135
+   Pass :  1   Iteration :  48  ||B r|| = 0.00941449
+   Pass :  1   Iteration :  49  ||B r|| = 0.0072619
+   Pass :  1   Iteration :  50  ||B r|| = 0.00696573
+Restarting...
+   Pass :  2   Iteration :  51  ||B r|| = 0.00693419
+   Pass :  2   Iteration :  52  ||B r|| = 0.00640771
+   Pass :  2   Iteration :  53  ||B r|| = 0.00601123
+   Pass :  2   Iteration :  54  ||B r|| = 0.0059216
+   Pass :  2   Iteration :  55  ||B r|| = 0.00466989
+   Pass :  2   Iteration :  56  ||B r|| = 0.00459682
+   Pass :  2   Iteration :  57  ||B r|| = 0.00399923
+   Pass :  2   Iteration :  58  ||B r|| = 0.00326879
+   Pass :  2   Iteration :  59  ||B r|| = 0.0032662
+   Pass :  2   Iteration :  60  ||B r|| = 0.00237347
+   Pass :  2   Iteration :  61  ||B r|| = 0.00197702
+   Pass :  2   Iteration :  62  ||B r|| = 0.00181784
+   Pass :  2   Iteration :  63  ||B r|| = 0.001429
+   Pass :  2   Iteration :  64  ||B r|| = 0.00131102
+   Pass :  2   Iteration :  65  ||B r|| = 0.00116446
+   Pass :  2   Iteration :  66  ||B r|| = 0.000812857
+   Pass :  2   Iteration :  67  ||B r|| = 0.000809677
+   Pass :  2   Iteration :  68  ||B r|| = 0.000649722
+   Pass :  2   Iteration :  69  ||B r|| = 0.000559336
+   Pass :  2   Iteration :  70  ||B r|| = 0.000547871
+   Pass :  2   Iteration :  71  ||B r|| = 0.00042282
+   Pass :  2   Iteration :  72  ||B r|| = 0.000392693
+   Pass :  2   Iteration :  73  ||B r|| = 0.000330262
+   Pass :  2   Iteration :  74  ||B r|| = 0.000258656
+   Pass :  2   Iteration :  75  ||B r|| = 0.000258088
+   Pass :  2   Iteration :  76  ||B r|| = 0.000187292
+   Pass :  2   Iteration :  77  ||B r|| = 0.000173425
+   Pass :  2   Iteration :  78  ||B r|| = 0.000154908
+   Pass :  2   Iteration :  79  ||B r|| = 0.000110926
+   Pass :  2   Iteration :  80  ||B r|| = 0.000105293
+   Pass :  2   Iteration :  81  ||B r|| = 9.37592e-05
+   Pass :  2   Iteration :  82  ||B r|| = 6.7929e-05
+   Pass :  2   Iteration :  83  ||B r|| = 6.78453e-05
+   Pass :  2   Iteration :  84  ||B r|| = 4.94111e-05
+   Pass :  2   Iteration :  85  ||B r|| = 4.30536e-05
+   Pass :  2   Iteration :  86  ||B r|| = 3.92501e-05
+   Pass :  2   Iteration :  87  ||B r|| = 2.98717e-05
+   Pass :  2   Iteration :  88  ||B r|| = 2.93168e-05
+   Pass :  2   Iteration :  89  ||B r|| = 2.30125e-05
+   Pass :  2   Iteration :  90  ||B r|| = 1.80548e-05
+   Pass :  2   Iteration :  91  ||B r|| = 1.7929e-05
+   Pass :  2   Iteration :  92  ||B r|| = 1.22903e-05
+   Pass :  2   Iteration :  93  ||B r|| = 1.05953e-05
+GMRES+HypreAMG converged in 93 iterations with a residual norm of 1.05953e-05.
+solver took 0.0613753s.
+|| q_h - q_ex || / || q_ex || = 5.06856e-05
+|| t_h - t_ex || / || t_ex || = 2.61651e-05
