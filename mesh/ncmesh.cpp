@@ -5105,8 +5105,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
 void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
                     int &k);
 
-void NCMesh::RefineVertexToKnot(Array<int> const& rf,
-                                const std::vector<Array<int>> &kvf,
+void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
                                 const Array<KnotVector*> &kvext,
                                 std::map<std::pair<int,int>,
                                 std::pair<int,int>> &parentToKV)
@@ -5149,12 +5148,15 @@ void NCMesh::RefineVertexToKnot(Array<int> const& rf,
       }
       else // 2D
       {
-         const int d = 0;  // TODO: find the direction for this parent edge
-
          int tv, ks;
          std::array<int, 2> pv;
          vertex_to_knot.GetVertex2D(i, tv, ks, pv);
-         ks *= rf[d];
+         const bool rev = pv[1] < pv[0];
+         const std::pair<int, int> parentPair(rev ? pv[1] : pv[0], rev ? pv[0] : pv[1]);
+         const std::pair<int, int> kv = parentToKV.at(parentPair);
+         const int kvId = kv.first;
+         RemapKnotIndex(rev, kvf[kvId],
+                        kvext[kvId]->spacing.get(), ks);
          vertex_to_knot.SetKnotSpan2D(i, ks);
       }
    }

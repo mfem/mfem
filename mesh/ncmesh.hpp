@@ -116,7 +116,7 @@ struct MatrixMap; // for internal use
 
 struct VertexToKnotSpan
 {
-   void SetSize(int dim, int numVertices);
+   void SetSize(int dimension, int numVertices);
 
    void SetVertex2D(int index, int v, int ks,
                     const std::array<int, 2> &pv);
@@ -138,7 +138,10 @@ struct VertexToKnotSpan
 
    int Size() const { return data.NumRows(); }
 
+   std::pair<int, int> GetVertexParentPair(int index) const;
+
 private:
+   int dim;
    Array2D<int> data;
 };
 
@@ -382,8 +385,7 @@ public:
    }
 
    /// Remap knot-span indices @a vertex_to_knot after refinement.
-   void RefineVertexToKnot(const Array<int> &rf,
-                           const std::vector<Array<int>> &kvf,
+   void RefineVertexToKnot(const std::vector<Array<int>> &kvf,
                            const Array<KnotVector*> &kvext,
                            std::map<std::pair<int,int>,
                            std::pair<int,int>> &parentToKV);
