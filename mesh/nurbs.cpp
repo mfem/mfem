@@ -2747,9 +2747,9 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
 
       if (kvf.size() > 0)
       {
-         MFEM_VERIFY(kvf.size() == NumOfKnotVectors, "");
+         MFEM_VERIFY(kvf.size() == (size_t) NumOfKnotVectors, "");
          os << "\nknotvector_refinements\n";
-         for (int i=0; i<kvf.size(); ++i)
+         for (size_t i=0; i<kvf.size(); ++i)
          {
             if (kvf_coarse.size() > 0)
             {
@@ -5178,6 +5178,8 @@ void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
    }
 }
 
+const int NURBSExtension::unsetFactor;
+
 void NURBSExtension::LoadFactorsForKV(const std::string &filename)
 {
    kvf_coarse = kvf;
@@ -5507,7 +5509,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
    slaveToMasterEdges.clear();
    slaveToMasterEdges.resize(slaveEdgesUnique.Size());
-   for (int mid=0; mid<masterEdgeSlaves.size(); ++mid)
+   for (size_t mid=0; mid<masterEdgeSlaves.size(); ++mid)
    {
       for (auto id : masterEdgeSlaves[mid])
       {
@@ -5534,7 +5536,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
    slaveToMasterFaces.clear();
    slaveToMasterFaces.resize(slaveFacesUnique.Size());
-   for (int mid=0; mid<masterFaceSlaves.size(); ++mid)
+   for (size_t mid=0; mid<masterFaceSlaves.size(); ++mid)
    {
       for (auto id : masterFaceSlaves[mid])
       {
@@ -5700,7 +5702,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
             unchanged.insert(p);
          }
 
-         if (unchanged.size() == npatchall)
+         if (unchanged.size() == (size_t) npatchall)
          {
             // Make another pass through all patches to check for changes
             for (int i=0; i<npatchall; ++i)
@@ -5718,7 +5720,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
             }
          }
 
-         if (unchanged.size() == npatchall)
+         if (unchanged.size() == (size_t) npatchall)
          {
             done = true;
             break;
@@ -5727,7 +5729,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
    }
 
    // For any unset entries of kvf, set to default refinement factor rf_default.
-   for (int i=0; i<kvf.size(); ++i)
+   for (size_t i=0; i<kvf.size(); ++i)
    {
       if (kvf[i].Size() == 0)
       {

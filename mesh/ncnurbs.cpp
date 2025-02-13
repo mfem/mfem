@@ -2000,10 +2000,10 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
       int parentEdges[4];
       bool parentEdgeRev[4];
 
-      int tv;
+      int tvi;
       std::array<int, 2> ks;
       std::array<int, 4> pv;
-      v2k.GetVertex3D(parentOffset[parent], tv, ks, pv);
+      v2k.GetVertex3D(parentOffset[parent], tvi, ks, pv);
 
       // Set all 4 edges of the parent face as master edges.
       {
@@ -2056,9 +2056,9 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
       for (int i = parentOffset[parent]; i < parentOffset[parent + 1]; ++i)
       {
-         v2k.GetVertex3D(i, tv, ks, pv);
+         v2k.GetVertex3D(i, tvi, ks, pv);
 
-         gridVertex(ks[0], ks[1]) = tv;
+         gridVertex(ks[0], ks[1]) = tvi;
 
          if (i == parentOffset[parent])
          {
