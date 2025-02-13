@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(10, 120, Element::QUADRILATERAL));
+   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(500, 750, Element::QUADRILATERAL));
 
    // translate to 1.0 in x direction
    new_mesh->Transform([](const Vector &x, Vector &p)
