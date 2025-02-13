@@ -1738,6 +1738,10 @@ void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
       const int parentEdge = v2e[parentPair];
       masterEdges.insert(parentEdge);
 
+      const int kv = KnotInd(parentEdge);
+      // TODO: just make parentToKV map to std::array<int,2>?
+      parentToKV[parentPair] = std::pair<int, int>(kv, -1);
+
       if (pv[1] < pv[0])
       {
          reversedParents.insert(parentEdge);
@@ -2099,23 +2103,8 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
       if (kvf.size() > 0)
       {
-         // Find kv.
-
-         // TODO: this is repeated. Either make a function for this look-up,
-         // or store the KV for each parent with more convenient access (map from parentFace index?).
-
-         int tv;
-         std::array<int, 2> ks;
-         std::array<int, 4> pv;
-         v2k.GetVertex3D(parentOffset[parent], tv, ks, pv);
-
-         // The face with vertices (pv[0], pv[1], pv[2], pv[3]) is defined as a parent face.
-         const auto pvmin = std::min_element(pv.begin(), pv.end());
-         const int idmin = std::distance(pv.begin(), pvmin);
-         const int c0 = pv[idmin];  // First corner
-         const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
-
-         const std::pair<int, int> parentPair(c0, c1);
+         const std::pair<int, int> parentPair = v2k.GetVertexParentPair(
+                                                   parentOffset[parent]);
          std::pair<int, int> kv = parentToKV.at(parentPair);
 
          kvi[0] = kv.first;
@@ -2766,15 +2755,19 @@ void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> & auxface2elem)
 
       for (auto face : faces)
       {
-         if (masterFaceToId.count(face) > 0)  // If a master face
+         const bool isMaster = dim == 2 ? masterEdgeToId.count(face) > 0 :
+                               masterFaceToId.count(face) > 0;
+         if (isMaster)  // If a master face
          {
-            const int mid = masterFaceToId.at(face);
-            for (auto slave : masterFaceSlaves[mid])
+            const int mid = dim == 2 ? masterEdgeToId.at(face) : masterFaceToId.at(face);
+            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
+                                             masterFaceSlaves[mid];
+            for (auto s : slaves)
             {
-               if (slave < 0)
+               if (s < 0)
                {
                   // Auxiliary face.
-                  const int aux = -1 - slave;
+                  const int aux = -1 - s;
                   if (auxface2elem(aux, 0) >= 0)
                   {
                      if (auxface2elem(aux, 1) != -1)
@@ -2800,13 +2793,14 @@ void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> & auxface2elem)
 // Use "Patch" instead of "Element"?
 void NURBSExtension::GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem)
 {
-   sface2elem.SetSize(slaveFacesUnique.Size(), 2);
+   const int dim = Dimension();
+   const int numUnique = dim == 2 ? slaveEdgesUnique.Size() :
+                         slaveFacesUnique.Size();
+   sface2elem.SetSize(numUnique, 2);
 
-   if (slaveFacesUnique.Size() == 0) { return; }
+   if (numUnique == 0) { return; }
 
    sface2elem = -1;
-
-   const int dim = Dimension();
 
    bool consistent = true;
 
@@ -2818,15 +2812,19 @@ void NURBSExtension::GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem)
 
       for (auto face : faces)
       {
-         if (masterFaceToId.count(face) > 0)  // If a master face
+         const bool isMaster = dim == 2 ? masterEdgeToId.count(face) > 0 :
+                               masterFaceToId.count(face) > 0;
+         if (isMaster)  // If a master face
          {
-            const int mid = masterFaceToId.at(face);
-            for (auto slave : masterFaceSlaves[mid])
+            const int mid = dim == 2 ? masterEdgeToId.at(face) : masterFaceToId.at(face);
+            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
+                                             masterFaceSlaves[mid];
+            for (auto id : slaves)
             {
-               if (slave >= 0)
+               if (id >= 0)
                {
-                  const int s = slaveFaces[slave];
-                  const int u = slaveFacesToUnique[s];
+                  const int s = dim == 2 ? slaveEdges[id] : slaveFaces[id];
+                  const int u = dim == 2 ? slaveEdgesToUnique[s] : slaveFacesToUnique[s];
                   if (sface2elem(u, 0) >= 0)
                   {
                      if (sface2elem(u, 1) != -1)
@@ -3104,8 +3102,9 @@ void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
    }
 }
 
-void VertexToKnotSpan::SetSize(int dim, int numVertices)
+void VertexToKnotSpan::SetSize(int dimension, int numVertices)
 {
+   dim = dimension;
    MFEM_ASSERT((dim == 2 || dim == 3) && numVertices > 0, "Invalid size");
    data.SetSize(numVertices, dim == 3 ? 7 : 4);
 }
@@ -3180,4 +3179,35 @@ void VertexToKnotSpan::Print(std::ostream &os) const
    }
 }
 
+std::pair<int, int> VertexToKnotSpan::GetVertexParentPair(int index) const
+{
+   int c0, c1;
+   if (dim == 3)
+   {
+      std::array<int, 4> pv;
+      for (int i=0; i<4; ++i)
+      {
+         pv[i] = data(index, 3 + i);
+      }
+
+      // The face with vertices (pv[0], pv[1], pv[2], pv[3]) is defined as a parent face.
+      const auto pvmin = std::min_element(pv.begin(), pv.end());
+      const int idmin = std::distance(pv.begin(), pvmin);
+      c0 = pv[idmin];  // First corner
+      c1 = pv[(idmin + 2) % 4];  // Opposite corner
+   }
+   else
+   {
+      c0 = data(index, 2);
+      c1 = data(index, 3);
+
+      if (c0 > c1)
+      {
+         std::swap(c0, c1);
+      }
+   }
+
+   return std::pair<int, int>(c0, c1);
 }
+
+} // namespace mfem

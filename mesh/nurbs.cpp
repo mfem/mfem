@@ -213,9 +213,9 @@ Vector KnotVector::GetFineKnots(const int cf) const
    Array<int> mlt(fine.Size());
    mlt = 1;
 
-   for (int i=ifine0+1, ifine=0; i<knot.Size(); ++i)
+   for (int j=ifine0+1, ifine=0; j<knot.Size(); ++j)
    {
-      if (knot(i) == fine(ifine))
+      if (knot(j) == fine(ifine))
       {
          mlt[ifine]++;
       }
@@ -230,7 +230,7 @@ Vector KnotVector::GetFineKnots(const int cf) const
 
    MFEM_VERIFY(mlt.Sum() == fine.Size() * mlt[0], "");
 
-   for (int i=0; i<fine.Size(); ++i)
+   for (i=0; i<fine.Size(); ++i)
    {
       for (int j=0; j<mlt[0]; ++j)
       {
@@ -5296,6 +5296,7 @@ int NURBSExtension::SetPatchFactors(int p)
 
    int dirSet = 0;
 
+   bool partialChange = false;
    bool consistent = true;
    for (int d=0; d<dim; ++d)
    {
@@ -5309,26 +5310,12 @@ int NURBSExtension::SetPatchFactors(int p)
          const int kv = edge_to_knot[edge];
          const int akv = kv < 0 ? -1 - kv : kv;
          const int nfe = knotVectors[akv]->GetNE();
-         const Array<int> rf_i = (kvf.size() > 0 &&
-                                  kvf[akv].Size() == nfe) ? kvf[akv] : CoarseToFineFactors(kvf[akv]);
+         const bool fullSize = kvf.size() > 0 && kvf[akv].Size() == nfe;
+         const Array<int> rf_i = fullSize ? kvf[akv] : CoarseToFineFactors(kvf[akv]);
 
-         if (rf_i.Size() > 0)
+         if (rf_i.Size() > 0 && rf.Size() == 0)
          {
-            if (rf.Size() == 0)
-            {
-               rf = rf_i;
-            }
-            else
-            {
-               MFEM_VERIFY(rf.Size() == rf_i.Size(), "");
-               for (int j=0; j<rf.Size(); ++j)
-               {
-                  if (rf[j] != rf_i[j] && rf_i[j] != unsetFactor)
-                  {
-                     consistent = false;
-                  }
-               }
-            }
+            rf = rf_i;
          }
 
          if (isMaster)
@@ -5382,14 +5369,16 @@ int NURBSExtension::SetPatchFactors(int p)
                      rf = unsetFactor;
                   }
 
+                  const bool rev = kv < 0;
                   for (int j = os[piece]; j < os[piece + 1]; ++j)
                   {
-                     if (rf[j] != sf && rf[j] != unsetFactor)
+                     const int jr = rev ? rf.Size() - 1 - j : j;
+                     if (rf[jr] != sf && rf[jr] != unsetFactor)
                      {
                         consistent = false;
                      }
 
-                     rf[j] = sf;
+                     rf[jr] = sf;
                   }
                }
             }
@@ -5408,6 +5397,13 @@ int NURBSExtension::SetPatchFactors(int p)
          const int edge = edges[edgeIndex];
          const int kv = edge_to_knot[edge];
          const int akv = kv < 0 ? -1 - kv : kv;
+         const bool rev = kv < 0;
+
+         if (kvf[akv] != rf)
+         {
+            partialChange = true;
+         }
+
          kvf[akv] = rf;
 
          if (masterEdges.count(edge))
@@ -5421,20 +5417,17 @@ int NURBSExtension::SetPatchFactors(int p)
             Array<int> os;
             GetMasterEdgePieceOffsets(mid, os);
 
-            Array<int> rf_i;
-            // The 4 edges in the same direction on this patch may have pieces
-            // not aligned. In general, the factors must be mapped
-            // element-wise.
-            rf_i = rf;
-
             for (int piece=0; piece<numPieces; ++piece)
             {
                const int e = masterEdgeSlaves[mid][piece];
                const int s = slaveEdges[e];
-               const int sf = rf_i[os[piece]];
+               const int j0 = os[piece];
+               const int j0r = rev ? rf.Size() - 1 - j0 : j0;
+               const int sf = rf[j0r];
                for (int j = os[piece] + 1; j < os[piece + 1]; ++j)
                {
-                  if (sf != rf_i[j])
+                  const int jr = rev ? rf.Size() - 1 - j : j;
+                  if (sf != rf[jr])
                   {
                      consistent = false;
                   }
@@ -5473,12 +5466,15 @@ int NURBSExtension::SetPatchFactors(int p)
          }
       }
 
-      dirSet += pow(2, d);
+      if (rf.Min() > unsetFactor)
+      {
+         dirSet += pow(2, d);
+      }
    }
 
    MFEM_VERIFY(consistent, "");
 
-   return dirSet;
+   return partialChange ? -1 - dirSet : dirSet;
 }
 
 void NURBSExtension::PropagateFactorsForKV(int rf_default)
@@ -5548,8 +5544,6 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    }
 
-   std::set<int> patchesDone;
-
    // Initialize a set of patches to visit, using face-neighbors of the first patch.
    std::set<int> nextPatches;
 
@@ -5571,9 +5565,11 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
          Array<int> row;
          face2elem->GetRow(face, row);
 
-         if (slaveFacesToUnique.count(face) > 0)
+         const bool isSlave = dim == 2 ? slaveEdgesToUnique.count(
+                                 face) > 0 : slaveFacesToUnique.count(face) > 0;
+         if (isSlave)
          {
-            const int u = slaveFacesToUnique[face];
+            const int u = dim == 2 ? slaveEdgesToUnique[face] : slaveFacesToUnique[face];
 
             for (int i=0; i<2; ++i)
             {
@@ -5596,16 +5592,19 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
       for (auto face : faces)
       {
-         // TODO: 2D version with edges instead of faces.
-         if (masterFaceToId.count(face) > 0)  // If a master face
+         const bool isMaster = dim == 2 ? masterEdgeToId.count(face) > 0 :
+                               masterFaceToId.count(face) > 0;
+         if (isMaster)  // If a master face
          {
-            const int mid = masterFaceToId.at(face);
-            for (auto slave : masterFaceSlaves[mid])
+            const int mid = dim == 2 ? masterEdgeToId.at(face) : masterFaceToId.at(face);
+            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
+                                             masterFaceSlaves[mid];
+            for (auto s : slaves)
             {
-               if (slave < 0)
+               if (s < 0)
                {
                   // Auxiliary face.
-                  const int aux = -1 - slave;
+                  const int aux = -1 - s;
                   for (int i=0; i<2; ++i)
                   {
                      const int elem = auxface2elem(aux, i);
@@ -5616,13 +5615,12 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
                {
                   // Slave face in patchTopo.
                   Array<int> row;
-                  face2elem->GetRow(slave, row);
+                  face2elem->GetRow(s, row);
                   for (auto elem : row) { nghb.insert(elem); }
                }
             }
          }
       }
-
    };
 
    auto auxFaceNeighbors = [&](int p, std::set<int> & nghb)
@@ -5647,9 +5645,9 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
    bool done = false;
    while (iter < 100 && !done)
    {
+      // Start each iteration at the patch last changed
       nextPatches.clear();
-      nextPatches.insert(
-         lastChanged);  // Start each iteration at the patch last changed
+      nextPatches.insert(lastChanged);
 
       std::set<int> visited;  // Visit each patch only once per iteration
       iter++;
@@ -5661,15 +5659,10 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
          visited.insert(p);
 
-         const int dirSet = SetPatchFactors(p);
-
-         // TODO: patchesDone is unnecessary when patchState[p] == dirAllSet is equivalent to containment.
-         if (dirSet == dirAllSet)  // If all directions are set
-         {
-            patchesDone.insert(p);
-         }
-
-         const bool changed = (patchState[p] != dirSet);
+         const int dirSetSigned = SetPatchFactors(p);
+         const bool partialChange = dirSetSigned < 0;
+         const int dirSet = partialChange ? -1 - dirSetSigned : dirSetSigned;
+         const bool changed = (patchState[p] != dirSet) || partialChange;
          patchState[p] = dirSet;
 
          // Find neighbors of patch p
@@ -5705,6 +5698,24 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
          else
          {
             unchanged.insert(p);
+         }
+
+         if (unchanged.size() == npatchall)
+         {
+            // Make another pass through all patches to check for changes
+            for (int i=0; i<npatchall; ++i)
+            {
+               const int dirSetSigned_i = SetPatchFactors(i);
+               const bool partialChange_i = dirSetSigned_i < 0;
+               const int dirSet_i = partialChange_i ? -1 - dirSetSigned_i : dirSetSigned_i;
+               const bool changed_i = (patchState[i] != dirSet_i) || partialChange_i;
+               patchState[p] = dirSet_i;
+               if (changed_i)
+               {
+                  unchanged.erase(i);
+                  lastChanged = i;
+               }
+            }
          }
 
          if (unchanged.size() == npatchall)
@@ -5913,7 +5924,7 @@ void NURBSExtension::UniformRefinement(Array<int> const& rf,
 
    if (nonconforming)
    {
-      patchTopo->ncmesh->RefineVertexToKnot(rf, kvf, knotVectors, parentToKV);
+      patchTopo->ncmesh->RefineVertexToKnot(kvf, knotVectors, parentToKV);
       RefineKnotIndices(rf);
       UpdateCoarseKVF();
    }
