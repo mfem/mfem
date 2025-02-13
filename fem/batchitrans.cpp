@@ -13,7 +13,7 @@
 #include "eltrans/eltrans_basis.hpp"
 #include "fem.hpp"
 
-#include "general/forall.hpp"
+#include "../general/forall.hpp"
 
 #include <cmath>
 
