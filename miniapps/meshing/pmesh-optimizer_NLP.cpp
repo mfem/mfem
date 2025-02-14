@@ -47,6 +47,7 @@
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
+#include "../linalg/dual.hpp"
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer_using_NLP.hpp"
@@ -56,9 +57,79 @@
 using namespace mfem;
 using namespace std;
 
+/// MFEM native AD-type for first derivatives
+typedef internal::dual<real_t, real_t> ADFType;
+/// MFEM native AD-type for second derivatives
+typedef internal::dual<ADFType, ADFType> ADSType;
+/// MFEM native AD-type for third derivatives
+typedef internal::dual<ADSType, ADSType> ADTType;
+
+real_t ADVal_func( const Vector &x, std::function<ADFType( std::vector<ADFType>&)> func)
+{
+  int dim = x.Size();
+  int matsize = dim;  
+   std::vector<ADFType> adinp(matsize);
+   for (int i=0; i<matsize; i++) { adinp[i] = ADFType{x[i], 0.0}; }
+
+   return func(adinp).value;
+}
+
+
+void ADGrad_func( const Vector &x, std::function<ADFType( std::vector<ADFType>&)> func, Vector &grad)
+{
+   int dim = x.Size();
+
+   std::vector<ADFType> adinp(dim);
+
+   for (int i=0; i<dim; i++) { adinp[i] = ADFType{x[i], 0.0}; }
+
+   for (int i=0; i<dim; i++)
+   {
+      adinp[i] = ADFType{x[i], 1.0};
+      ADFType rez = func(adinp);
+      grad[i] = rez.gradient;
+      adinp[i] = ADFType{x[i], 0.0};
+   }
+}
+
+void ADHessian_func(const Vector &x, std::function<ADSType( std::vector<ADSType>&)> func, DenseMatrix &H)
+{
+   int dim = x.Size();
+  
+   //use forward-forward mode
+   std::vector<ADSType> aduu(dim);
+   for (int ii = 0; ii < dim; ii++)
+   {
+      aduu[ii].value = ADFType{x[ii], 0.0};
+      aduu[ii].gradient = ADFType{0.0, 0.0};
+   }
+
+   for (int ii = 0; ii < dim; ii++)
+   {
+      aduu[ii].value = ADFType{x[ii], 1.0};
+      for (int jj = 0; jj < (ii + 1); jj++)
+      {
+         aduu[jj].gradient = ADFType{1.0, 0.0};
+         ADSType rez = func(aduu);
+         H(ii,jj) = rez.gradient.gradient;
+         H(jj,ii) = rez.gradient.gradient;
+         aduu[jj].gradient = ADFType{0.0, 0.0};
+      }
+      aduu[ii].value = ADFType{x[ii], 0.0};
+   }
+   return;
+}
+
 int ftype = 1;
 double kw = 20.0;
 double alphaw = 50;
+
+template <typename type>
+auto func_0( std::vector<type>& x ) -> type
+{
+   return sin( M_PI *x[0] )*sin(2.0*M_PI*x[1]);;
+};
+
 
 class OSCoefficient : public TMOPMatrixCoefficient
 {
@@ -98,6 +169,7 @@ double trueSolFunc(const Vector & x)
 {
   if (ftype == 0)
   {
+    //return ADVal_func(x, func_0<ADFType>);
     double val = std::sin( M_PI *x[0] )*std::sin(2.0*M_PI*x[1]);
     return val;
   }
@@ -181,8 +253,7 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
 {
   if (ftype == 0)
   {
-    grad[0] = M_PI*std::cos( M_PI *x[0] )*std::sin(2.0*M_PI*x[1]);
-    grad[1] = 2.0*M_PI*std::sin( M_PI *x[0] )*std::cos(2.0*M_PI*x[1]);
+    ADGrad_func(x, func_0<ADFType>, grad);
   }
   else if (ftype == 1) // circular wave centered in domain
   {
@@ -285,7 +356,9 @@ double loadFunc(const Vector & x)
 {
   if (ftype == 0)
   {
-    double val = 5.0*M_PI*M_PI * std::sin( M_PI *x[0] )*std::sin(2.0*M_PI *x[1]);
+    DenseMatrix Hessian(x.Size());
+    ADHessian_func(x, func_0<ADSType>, Hessian);
+    double val = -1.0*(Hessian(0,0)+Hessian(1,1));
     return val;
   }
   else if (ftype == 1)
