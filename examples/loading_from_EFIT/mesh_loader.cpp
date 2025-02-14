@@ -2,8 +2,6 @@
 #include <fstream>
 #include <iostream>
 
-#include "B_field_loader.hpp"
-
 using namespace std;
 using namespace mfem;
 
@@ -17,7 +15,6 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
