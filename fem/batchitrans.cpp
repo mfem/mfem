@@ -13,6 +13,8 @@
 #include "eltrans/eltrans_basis.hpp"
 #include "fem.hpp"
 
+#include "eltrans.hpp"
+
 #include "../general/forall.hpp"
 
 #include <cmath>
@@ -53,6 +55,106 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
    points1d = poly1d.GetPointsArray(order, tfe->GetBasisType());
 }
 
+
+void BatchInverseElementTransformation::Transform(const Vector &pts,
+                                                  const Array<int> &elems,
+                                                  Array<int> &types,
+                                                  Vector &refs, bool use_dev)
+{
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      // no devices available
+      use_dev = false;
+   }
+   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
+   const FiniteElement *fe = fespace->GetTypicalFE();
+   const int dim = fe->GetDim();
+   const int vdim = fespace->GetVDim();
+   const int NE = fespace->GetNE();
+   // const int ND = fe->GetDof();
+   const int order = fe->GetOrder();
+   int npts = elems.Size();
+   auto geom = fe->GetGeomType();
+
+   types.SetSize(npts);
+   refs.SetSize(npts * dim);
+
+   auto pptr = pts.Read(use_dev);
+   auto eptr = elems.Read(use_dev);
+   auto mptr = node_pos.Read(use_dev);
+   auto tptr = types.Write(use_dev);
+   auto xptr = refs.ReadWrite(use_dev);
+   auto nptr = points1d->Read(use_dev);
+   int ndof1d = points1d->Size();
+
+   switch (init_guess_type)
+   {
+      case InverseElementTransformation::Center:
+      {
+         real_t cx, cy, cz;
+         auto ip0 = Geometries.GetCenter(geom);
+         cx = ip0.x;
+         cy = ip0.y;
+         cz = ip0.z;
+         switch (dim)
+         {
+            case 1:
+               forall_switch(use_dev, npts,
+               [=] MFEM_HOST_DEVICE(int i) { xptr[i] = cx; });
+               break;
+            case 2:
+               forall_switch(use_dev, npts, [=] MFEM_HOST_DEVICE(int i)
+               {
+                  xptr[i] = cx;
+                  xptr[i + npts] = cy;
+               });
+               break;
+            case 3:
+               forall_switch(use_dev, npts, [=] MFEM_HOST_DEVICE(int i)
+               {
+                  xptr[i] = cx;
+                  xptr[i + npts] = cy;
+                  xptr[i + 2 * npts] = cz;
+               });
+               break;
+         }
+      } break;
+      case InverseElementTransformation::ClosestRefNode:
+      case InverseElementTransformation::ClosestPhysNode:
+      {
+         int nq1d = std::max(order + rel_qpts_order, 0) + 1;
+         int btype = BasisType::GetNodalBasis(guess_points_type);
+         auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
+         auto qptr = qpoints->Read(use_dev);
+         if (init_guess_type == InverseElementTransformation::ClosestPhysNode)
+         {
+            FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
+                                      mptr, pptr, eptr, nptr, qptr, xptr);
+         }
+         else
+         {
+            FindClosestRefPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
+                                     mptr, pptr, eptr, nptr, qptr, xptr);
+         }
+      } break;
+      case InverseElementTransformation::GivenPoint:
+         // nothing to do here
+         break;
+      case InverseElementTransformation::EdgeScan:
+      {
+         // TODO
+      }
+      return;
+   }
+   // general case: for each point, use guess inside refs
+   NewtonSolve::Run(geom, vdim, solver_type, use_dev, ref_tol, phys_rtol,
+                    max_iter, npts, NE, ndof1d, mptr, pptr, eptr, nptr, tptr,
+                    xptr);
+}
+
+/// \cond DO_NOT_DOCUMENT
+namespace internal
+{
 // data for batch inverse transform newton solvers
 struct InvTNewtonSolverBase
 {
@@ -990,27 +1092,6 @@ static void ClosestRefNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    MFEM_ABORT("ClostestRefNodeImpl not implemented yet");
 }
 
-template <int Geom, int SDim, bool use_dev>
-BatchInverseElementTransformation::ClosestPhysPointKernelType
-BatchInverseElementTransformation::FindClosestPhysPoint::Kernel()
-{
-   return ClosestPhysNodeImpl<Geom, SDim, use_dev>;
-}
-
-BatchInverseElementTransformation::ClosestPhysPointKernelType
-BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int,
-                                                                  bool)
-{
-   MFEM_ABORT("Invalid Geom/SDim combination");
-}
-
-template <int Geom, int SDim, bool use_dev>
-BatchInverseElementTransformation::ClosestRefPointKernelType
-BatchInverseElementTransformation::FindClosestRefPoint::Kernel()
-{
-   return ClosestRefNodeImpl<Geom, SDim, use_dev>;
-}
-
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
           bool use_dev>
 static void
@@ -1045,12 +1126,35 @@ NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter, int npts,
    }
 }
 
+} // namespace internal
+
+template <int Geom, int SDim, bool use_dev>
+BatchInverseElementTransformation::ClosestPhysPointKernelType
+BatchInverseElementTransformation::FindClosestPhysPoint::Kernel()
+{
+   return internal::ClosestPhysNodeImpl<Geom, SDim, use_dev>;
+}
+
+BatchInverseElementTransformation::ClosestPhysPointKernelType
+BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int,
+                                                                  bool)
+{
+   MFEM_ABORT("Invalid Geom/SDim combination");
+}
+
+template <int Geom, int SDim, bool use_dev>
+BatchInverseElementTransformation::ClosestRefPointKernelType
+BatchInverseElementTransformation::FindClosestRefPoint::Kernel()
+{
+   return internal::ClosestRefNodeImpl<Geom, SDim, use_dev>;
+}
+
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
           bool use_dev>
 BatchInverseElementTransformation::NewtonKernelType
 BatchInverseElementTransformation::NewtonSolve::Kernel()
 {
-   return NewtonSolveImpl<Geom, SDim, SType, use_dev>;
+   return internal::NewtonSolveImpl<Geom, SDim, SType, use_dev>;
 }
 
 BatchInverseElementTransformation::ClosestRefPointKernelType
@@ -1065,102 +1169,6 @@ BatchInverseElementTransformation::NewtonSolve::Fallback(
    int, int, InverseElementTransformation::SolverType, bool)
 {
    MFEM_ABORT("Invalid Geom/SDim/SolverType combination");
-}
-
-void BatchInverseElementTransformation::Transform(const Vector &pts,
-                                                  const Array<int> &elems,
-                                                  Array<int> &types,
-                                                  Vector &refs, bool use_dev)
-{
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      // no devices available
-      use_dev = false;
-   }
-   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
-   const FiniteElement *fe = fespace->GetTypicalFE();
-   const int dim = fe->GetDim();
-   const int vdim = fespace->GetVDim();
-   const int NE = fespace->GetNE();
-   // const int ND = fe->GetDof();
-   const int order = fe->GetOrder();
-   int npts = elems.Size();
-   auto geom = fe->GetGeomType();
-
-   types.SetSize(npts);
-   refs.SetSize(npts * dim);
-
-   auto pptr = pts.Read(use_dev);
-   auto eptr = elems.Read(use_dev);
-   auto mptr = node_pos.Read(use_dev);
-   auto tptr = types.Write(use_dev);
-   auto xptr = refs.ReadWrite(use_dev);
-   auto nptr = points1d->Read(use_dev);
-   int ndof1d = points1d->Size();
-
-   switch (init_guess_type)
-   {
-      case InverseElementTransformation::Center:
-      {
-         real_t cx, cy, cz;
-         auto ip0 = Geometries.GetCenter(geom);
-         cx = ip0.x;
-         cy = ip0.y;
-         cz = ip0.z;
-         switch (dim)
-         {
-            case 1:
-               forall_switch(use_dev, npts,
-               [=] MFEM_HOST_DEVICE(int i) { xptr[i] = cx; });
-               break;
-            case 2:
-               forall_switch(use_dev, npts, [=] MFEM_HOST_DEVICE(int i)
-               {
-                  xptr[i] = cx;
-                  xptr[i + npts] = cy;
-               });
-               break;
-            case 3:
-               forall_switch(use_dev, npts, [=] MFEM_HOST_DEVICE(int i)
-               {
-                  xptr[i] = cx;
-                  xptr[i + npts] = cy;
-                  xptr[i + 2 * npts] = cz;
-               });
-               break;
-         }
-      } break;
-      case InverseElementTransformation::ClosestRefNode:
-      case InverseElementTransformation::ClosestPhysNode:
-      {
-         int nq1d = std::max(order + rel_qpts_order, 0) + 1;
-         int btype = BasisType::GetNodalBasis(guess_points_type);
-         auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
-         auto qptr = qpoints->Read(use_dev);
-         if (init_guess_type == InverseElementTransformation::ClosestPhysNode)
-         {
-            FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
-                                      mptr, pptr, eptr, nptr, qptr, xptr);
-         }
-         else
-         {
-            FindClosestRefPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
-                                     mptr, pptr, eptr, nptr, qptr, xptr);
-         }
-      } break;
-      case InverseElementTransformation::GivenPoint:
-         // nothing to do here
-         break;
-      case InverseElementTransformation::EdgeScan:
-      {
-         // TODO
-      }
-      return;
-   }
-   // general case: for each point, use guess inside refs
-   NewtonSolve::Run(geom, vdim, solver_type, use_dev, ref_tol, phys_rtol,
-                    max_iter, npts, NE, ndof1d, mptr, pptr, eptr, nptr, tptr,
-                    xptr);
 }
 
 BatchInverseElementTransformation::Kernels::Kernels()
@@ -1266,4 +1274,7 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject,
             false>();
 }
+
+/// \endcond DO_NOT_DOCUMENT
+
 } // namespace mfem
