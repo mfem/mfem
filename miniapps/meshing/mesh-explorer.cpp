@@ -603,6 +603,9 @@ int main (int argc, char *argv[])
          }
          else if (type == 's')
          {
+            MFEM_VERIFY(mesh->SpaceDimension() >= 2,
+            "Mesh space dimension must be atleast 2 "
+            "for spiral transformation.\n");
             cout << "Note: For Spiral transformation, the input mesh is "
                  "assumed to be in [0,1]^D.\n" << flush;
             real_t turns, width, gap, height = 1.0;
@@ -612,12 +615,13 @@ int main (int argc, char *argv[])
             cin >> width;
             cout << "Gap between adjacent spiral arms at the end of each turn (e.g. 0.05) ---> " << flush;
             cin >> gap;
-            if (mesh->Dimension() == 3)
+            if (mesh->SpaceDimension() == 3)
             {
-               cout << "Spiral height ---> " << flush;
+               cout << "Maximum spiral height ---> " << flush;
                cin >> height;
             }
-            common::SpiralTransformation spiralT(mesh->Dimension(), turns, width, gap, height);
+            common::SpiralTransformation spiralT(mesh->SpaceDimension(), turns,
+                                                 width, gap, height);
             mesh->Transform(spiralT);
          }
          else

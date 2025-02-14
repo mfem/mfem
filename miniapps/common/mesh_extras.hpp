@@ -104,6 +104,14 @@ public:
    using VectorCoefficient::Eval;
 };
 
+/// Transform a [0,1]^D mesh into a spiral. The parameters are:
+/// @a turns - number of turns around the origin,
+/// @a width - for D >= 2, the width of the spiral arm,
+/// @ gap    - gap between adjacent spiral arms at the end of each turn,
+/// @ height - for D = 3, the maximum height of the spiral.
+// Usage:
+// common::SpiralTransformation spiralT(spaceDim, 2.4, 0.1, 0.05, 1.0);
+// pmesh->Transform(spiralT);
 class SpiralTransformation : public VectorCoefficient
 {
 private:
