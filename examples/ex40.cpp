@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
       }
 
       alpha *= max(growth_rate, 1_r);
-      alpha = min(alpha, 50.0);
+      alpha = min(alpha, 50_r);
       neg_alpha_cf.constant = -alpha;
 
    }
