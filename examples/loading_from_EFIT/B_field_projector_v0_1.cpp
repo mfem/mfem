@@ -86,5 +86,8 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n"
                << *new_mesh << B_tor << flush;
    }
+
+   delete new_mesh;
+
    return 0;
 }

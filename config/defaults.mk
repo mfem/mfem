@@ -26,7 +26,7 @@ MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++11
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS) -pedantic-errors -fsanitize=address,leak,undefined
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
 CXX_XCOMPILER =

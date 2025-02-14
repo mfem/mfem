@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
    mesh_ofs.close();
    newmesh.PrintVTU("3d_mesh");
 
+   delete mesh;
+   
    return 0;
 }
 

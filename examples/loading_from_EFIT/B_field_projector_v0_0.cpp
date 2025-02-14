@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(10, 120, Element::QUADRILATERAL));
+   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(256, 512, Element::QUADRILATERAL));
 
    // translate to 1.0 in x direction
    // Upper right corner of the mesh is at 10 - 7.0 / 514, 6.0 - 12.0 / 1026
@@ -64,6 +64,8 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n"
                << *new_mesh << B_tor << flush;
    }
+
+   delete new_mesh;
 
    return 0;
 }
