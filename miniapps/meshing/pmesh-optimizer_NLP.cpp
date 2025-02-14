@@ -155,7 +155,7 @@ void AD3rdDeric_func(const Vector &x, std::function<ADTType( std::vector<ADTType
 }
 
 int ftype = 1;
-double kw = 20.0;
+double kw = 5.0;
 double alphaw = 50;
 
 template <typename type>
@@ -164,6 +164,15 @@ auto func_0( std::vector<type>& x ) -> type
    return sin( M_PI *x[0] )*sin(2.0*M_PI*x[1]);;
 };
 
+template <typename type>
+auto func_1( std::vector<type>& x ) -> type
+{
+    double k_w = kw;
+    double k_t = 0.5;
+    double T_ref = 1.0;
+
+    return 0.5+0.5*tanh(k_w*((sin( M_PI *x[0] )*sin(M_PI *x[1]))-k_t*T_ref));
+};
 
 class OSCoefficient : public TMOPMatrixCoefficient
 {
@@ -207,13 +216,7 @@ double trueSolFunc(const Vector & x)
   }
   else if (ftype == 1) // circular wave centered in domain
   {
-    // double k_w = 5.0;
-    double k_w = kw;
-    double k_t = 0.5;
-    double T_ref = 1.0;
-
-    double val = 0.5+0.5*std::tanh(k_w*((std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]))-k_t*T_ref));
-    return val;
+      return ADVal_func(x, func_1<ADFType>);
   }
   else if (ftype == 2) // circular shock wave front centered at origin
   {
@@ -289,13 +292,7 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
   }
   else if (ftype == 1) // circular wave centered in domain
   {
-    double k_w = kw;
-    double k_t = 0.5;
-    double T_ref = 1.0;
-    double g = std::sin( M_PI *x[0])*std::sin(M_PI *x[1])-k_t*T_ref;
-
-    grad[0]= 0.5*M_PI * k_w * std::cos(M_PI * x[0])*std::sin(M_PI * x[1]) / std::pow(std::cosh(k_w*g), 2);
-    grad[1]= 0.5*M_PI * k_w * std::cos(M_PI * x[1])*std::sin(M_PI * x[0]) / std::pow(std::cosh(k_w*g), 2);
+    ADGrad_func(x, func_1<ADFType>, grad);
   }
   else if (ftype == 2) // circular shock wave front centered at origin
   {
@@ -395,34 +392,10 @@ double loadFunc(const Vector & x)
   }
   else if (ftype == 1)
   {
-    double k_w = kw;
-    double k_t = 0.5;
-    double T_ref = 1.0;
-
-    double bt = k_w*M_PI*M_PI*std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]);
-    double bx = k_w*M_PI*std::cos( M_PI *x[0] )*std::sin(M_PI *x[1]);
-    double by = k_w*M_PI*std::sin( M_PI *x[0] )*std::cos(M_PI *x[1]);
-    double sh = std::tanh(k_w*((std::sin( M_PI *x[0] )*std::sin(M_PI *x[1]))-k_t*T_ref));
-
-
-    double val = -1.0*( 0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*bx*bx + sh*sh*bt) +
-                        0.5*( - 1.0*bt - (2.0*sh*(1 - sh*sh))*by*by + sh*sh*bt) );
+    DenseMatrix Hessian(x.Size());
+    ADHessian_func(x, func_1<ADSType>, Hessian);
+    double val = -1.0*(Hessian(0,0)+Hessian(1,1));
     return val;
-
-    // double k_w = kw;
-    // double k_t = 0.5;
-    // double T_ref = 1.0;
-
-    // double g = std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]) - k_t * T_ref;
-    // double tanh_val = std::tanh(k_w * g);
-    // double sech2 = 1.0 / (std::cosh(k_w * g) * std::cosh(k_w * g));
-    // double sin_x = std::sin(M_PI * x[0]);
-    // double cos_x = std::cos(M_PI * x[0]);
-    // double sin_y = std::sin(M_PI * x[1]);
-    // double cos_y = std::cos(M_PI * x[1]);
-    // double neg_laplacian = 0.5 * k_w * M_PI * M_PI * sin_x * sin_y * sech2
-    //                       + k_w * k_w * M_PI * M_PI * sech2 * tanh_val * (sin_x * sin_x + sin_y * sin_y);
-    // return neg_laplacian;
   }
   else if (ftype == 2)
   {
@@ -508,6 +481,14 @@ void trueLoadFuncGrad(const Vector & x,Vector & grad)
     grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
     grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
   }
+  else if (ftype == 1)
+  {
+    std::vector<DenseMatrix> TRD(x.Size());
+    for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
+    AD3rdDeric_func(x, func_1<ADTType>, TRD);
+    grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
+    grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
+  }
   else if (ftype == 8)
   {
     grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
@@ -559,7 +540,7 @@ int main (int argc, char *argv[])
 
   int qoitype = static_cast<int>(QoIType::H1_ERROR);
   bool weakBC = false;
-  bool perturbMesh = true;
+  bool perturbMesh = false;
   double epsilon_pert =  0.006;
   int ref_ser = 2;
   int mesh_node_ordering = 0;
@@ -869,14 +850,14 @@ int main (int argc, char *argv[])
   Vector & trueOptvar = gridfuncOptVar.GetTrueVector();
 
   const int nbattr = PMesh->bdr_attributes.Max();
-  //std::vector<std::pair<int, double>> essentialBC(nbattr);
-  std::vector<std::pair<int, double>> essentialBC(2);
-  //for (int i = 0; i < nbattr; i++)
+  std::vector<std::pair<int, double>> essentialBC(nbattr);
+  //std::vector<std::pair<int, double>> essentialBC(2);
+  for (int i = 0; i < nbattr; i++)
   {
     // std::cout << i << " "  << " k101\n";
-    //essentialBC[i] = {i+1, 0};
-    essentialBC[0] = {1, 0};
-    essentialBC[1] = {3, 0};
+    essentialBC[i] = {i+1, 0};
+    // essentialBC[0] = {1, 0};
+    // essentialBC[1] = {3, 0};
   }
 
   const IntegrationRule &ir =

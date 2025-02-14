@@ -345,6 +345,15 @@ dual<value_type, gradient_type> tan(dual<value_type, gradient_type> a)
    return {f, a.gradient * (value_type{1} + f * f)};
 }
 
+/** @brief implementation of tanh for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> tanh(dual<value_type, gradient_type> a)
+{
+   using std::tanh;
+   value_type f = tanh(a.value);
+   return {f, a.gradient * (value_type{1} - f * f)};
+}
+
 /** @brief implementation of atan for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> atan(dual<value_type, gradient_type> a)
