@@ -26,6 +26,44 @@ Those modes are essentially the same, but we emphasize building the
 dependencies as a first isolated step because it makes it clear what is
 happening and how to use this workflow.
 
+## Shortcut:
+
+To help developers reproduce jobs from the CI, a reproducer script is printed
+in each job that will allow for fast and accurate reproduction of the same
+scenario as in the CI job. Below is an example extracted for a CI job log:
+
+```bash
+working_dir="/usr/workspace/${USER}/mfem/2405156-$(date +%s)"
+mkdir -p ${working_dir} && cd ${working_dir}
+git clone https://github.com/MFEM/mfem.git --single-branch --depth=1
+cd mfem
+git fetch origin --depth=1 4868222660f03e15ebf7a6daca90800b64baf69d
+git checkout 4868222660f03e15ebf7a6daca90800b64baf69d
+git submodule update --init --recursive
+
+# Variables
+export SPEC="%gcc@8.3.1 +mpi +cuda cuda_arch=70"
+
+# Directories
+export BUILD_ROOT="${working_dir}"
+export SHARED_REPOS_DIR="${BUILD_ROOT}/.."
+export MFEM_DATA_DIR="${SHARED_REPOS_DIR}/mfem-data"
+
+# Repositories
+export TPLS_REPO="ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git"
+export TESTS_REPO="ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git"
+export AUTOTEST_REPO="ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git"
+export MFEM_DATA_REPO="https://github.com/mfem/data.git"
+
+# Setup directories
+./tests/gitlab/build_and_test_setup
+
+# Using the CI build cache is optional and requires a token. Set it like so:
+# export REGISTRY_TOKEN="<your token here>"
+
+lalloc 1 -W 45 -q pci --atsdisable tests/gitlab/build_and_test --spec "%gcc@8.3.1 +mpi +cuda cuda_arch=70" --data-dir "/usr/workspace/mfem/gitlab-runner/bernede1/repos/mfem-data" --data
+```
+
 ## Prerequisite: Retrieve Uberenv
 
 ```bash
@@ -87,6 +125,11 @@ When using this command, the configuration files will not be copied (saved),
 but still ready to use.
 
 ## Build and test MFEM
+
+**NOTE**
+
+If you need mfem data and/or the autotest repo, you may clone them next to your
+mfem repository.
 
 ### Option 1: Without using scripts
 

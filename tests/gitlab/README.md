@@ -9,6 +9,14 @@
 
 This directory contains utility scripts related to GitLab testing at LLNL.
 
+* `build_and_test_setup` is used in CI to setup certain directories before
+  running the tests.
+
+   This script was designed to be used in CI context. It is easier for the sake
+   of reproducibility to clone MFEM `data` and `autotest` repository manually
+   next to your MFEM repository, _unless you are using the inline reproducer
+   provided in CI, in which case the required variables will be set for you._
+
 * `build_and_test` is used in CI to build TPLs (dependencies) and MFEM and to
   perform testing.
 
