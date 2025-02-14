@@ -675,9 +675,9 @@ void TMOP_Metric_skew2D::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
 }
 
 void TMOP_Metric_skew2D::AssembleH(const DenseMatrix &Jpt,
-                                 const DenseMatrix &DS,
-                                 const real_t weight,
-                                 DenseMatrix &A) const
+                                   const DenseMatrix &DS,
+                                   const real_t weight,
+                                   DenseMatrix &A) const
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
