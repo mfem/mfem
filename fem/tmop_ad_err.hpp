@@ -138,12 +138,12 @@ public:
 
   virtual const mfem::Vector CustomDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
-    mfem::Vector grad;
+    // mfem::Vector grad;
     mfem::Vector trueGrad;
     trueSolutionGrad_->Eval (trueGrad, T, ip);
-    solutionField_->GetGradient (T, grad);
+    // solutionField_->GetGradient (T, grad);
     trueGrad *= -1.0;
-    grad += trueGrad;
+    // grad += trueGrad;
     return trueGrad;
     // return grad;
   }
@@ -660,10 +660,12 @@ public:
   ThermalHeatSourceShapeSensitivityIntegrator_new(mfem::Coefficient &heatSource, const mfem::ParGridFunction &t_adjoint, int oa = 2,
       int ob = 2);
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+  void SetLoadGrad(mfem::VectorCoefficient *LoadGrad) { LoadGrad_ = LoadGrad; };
 private:
   mfem::Coefficient *Q_;
   const mfem::ParGridFunction *t_adjoint_;
   int oa_, ob_;
+  mfem::VectorCoefficient *LoadGrad_;
 };
 
 class ElasticityStiffnessShapeSensitivityIntegrator : public mfem::LinearFormIntegrator
@@ -758,7 +760,7 @@ private:
 class Diffusion_Solver
 {
 public:
-    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2, Coefficient *truesolfunc = nullptr, bool weakBC = false)
+    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
     {
         weakBC_ = weakBC;
         pmesh=mesh_;
@@ -825,6 +827,10 @@ public:
           solgf.ProjectBdrCoefficient(*truesolfunc, ess_bdr_attr);
           bcGridFunc_ = bdrsol;
           trueSolCoeff = truesolfunc;
+        }
+        if (loadFuncGrad)
+        {
+          loadGradCoef_ = loadFuncGrad;
         }
     }
 
@@ -920,6 +926,7 @@ private:
     mfem::Array<int> ess_tdof_list_;
 
     mfem::Coefficient * QCoef_ = nullptr;
+    mfem::VectorCoefficient *loadGradCoef_ = nullptr;
 
     bool weakBC_ = false;
 };

@@ -392,6 +392,16 @@ double loadFunc(const Vector & x)
   return 0.0;
 };
 
+void trueLoadFuncGrad(const Vector & x,Vector & grad)
+{
+  grad = 0.0;
+  if (ftype == 8)
+  {
+    grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
+    grad[1] = 0.0;
+  }
+}
+
 void VisVectorField(OSCoefficient *adapt_coeff, ParMesh *pmesh, ParGridFunction *orifield)
 {
   ParFiniteElementSpace *pfespace = orifield->ParFESpace();
@@ -798,8 +808,10 @@ if (myid == 0) {
   }
 }
 
+  VectorCoefficient *loadFuncGrad = new VectorFunctionCoefficient(dim,
+                                                              trueLoadFuncGrad);
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
-  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
+  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC, loadFuncGrad);
   // Elasticity_Solver solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);

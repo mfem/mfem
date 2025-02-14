@@ -216,12 +216,13 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
     Vectorize(NxPhix, IxN_vec);
     elvect.Add(w , IxN_vec);
 
-        // Term 4 - custom derivative
+    // Term 4 - custom derivative
+    DenseMatrix D = QoI_->explicitSolutionDerivative(T, ip);
     Vector v = QoI_->CustomDerivative(T, ip);
     for (int d = 0; d < dim; d++)
     {
-      Vector elvect_temp(elvect.GetData(), dof);
-      elvect_temp.Add(w*QoI_->Eval(T, ip)*v(d), N);
+      Vector elvect_temp(elvect.GetData() + d*dof, dof);
+      elvect_temp.Add(w*D(0,0)*v(d), N);
     }
   }
 }
@@ -982,6 +983,7 @@ void ThermalHeatSourceShapeSensitivityIntegrator_new::AssembleRHSElementVect(con
   int dim = el.GetDim();
 
   // initialize storage
+  Vector N(dof);
   DenseMatrix dN(dof, dim);
   Vector te_adjoint(dof);
   DenseMatrix B(dof, dim);
@@ -1007,6 +1009,7 @@ void ThermalHeatSourceShapeSensitivityIntegrator_new::AssembleRHSElementVect(con
     double w = ip.weight * T.Weight();
 
     // evaluate shape function derivative
+    el.CalcShape(ip, N);
     el.CalcDShape(ip, dN);
 
     // get inverse jacobian
@@ -1018,6 +1021,15 @@ void ThermalHeatSourceShapeSensitivityIntegrator_new::AssembleRHSElementVect(con
     Mult(B, I, IxB);
     Vectorize(IxB, IxBTvec);
     elvect.Add( w * adj_val * Q_->Eval(T, ip), IxBTvec);
+
+    // term2
+    Vector loadgrad(dim);
+    LoadGrad_->Eval(loadgrad, T, ip);
+    for (int d = 0; d < dim; d++)
+    {
+      Vector elvect_temp(elvect.GetData() + d*dof, dof);
+      elvect_temp.Add( w * adj_val * loadgrad(d), N); //k10-trial
+    }
   }
 }
 
@@ -1611,7 +1623,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     if(weakBC_)
     {
       kForm.AddBoundaryIntegrator(new BoundaryMassIntegrator(wCoef));
-    } 
+    }
     kForm.Assemble();
     //kForm.Finalize();
 
@@ -1663,14 +1675,14 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     //kForm.RecoverFEMSolution(X, rhs, adj_sol);
 
     delete tTransOp;
-    delete A;
+    // delete A;
 
     ParLinearForm LHS_sensitivity(coord_fes_);
     LHS_sensitivity.AddDomainIntegrator(new ThermalConductivityShapeSensitivityIntegrator_new(kCoef, solgf, adj_sol));
     if(weakBC_)
     {
       LHS_sensitivity.AddBoundaryIntegrator(new PenaltyMassShapeSensitivityIntegrator(wCoef, solgf, adj_sol));
-    } 
+    }
     LHS_sensitivity.Assemble();
 
     ParLinearForm RHS_sensitivity(coord_fes_);
@@ -1679,6 +1691,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     {
       RHS_sensitivity.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(truesolWCoef, adj_sol, 12, 12));
     }
+    if (loadGradCoef_) { lfi->SetLoadGrad(loadGradCoef_); }
     IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
     lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
     RHS_sensitivity.AddDomainIntegrator(lfi);
