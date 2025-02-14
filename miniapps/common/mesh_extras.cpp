@@ -294,8 +294,7 @@ void SpiralTransformation::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(dim);
    V(0) = r_xyz*std::cos(theta);
    V(1) = r_xyz*std::sin(theta);
-   real_t theta_max = 2.0*M_PI*turns;
-   if (dim == 3) { V(2) = width*z + height*x; }
+   if (dim == 3) { V(2) = z*width + x*height; }
 }
 
 } // namespace common
