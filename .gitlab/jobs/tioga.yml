@@ -43,14 +43,14 @@ setup:
 
 # Build and test jobs, simply provide a spec
 
-.tioga_job_command:
-  script:
-    - echo PROXY="${PROXY}"
-    - echo TIOGA_JOB_ALLOC="${TIOGA_JOB_ALLOC}"
-    - "printf '#!/bin/bash\n%s\n' \"${JOB_CMD}\" > flux_script.sh"
-    - cat flux_script.sh
-    - ${PROXY} flux watch $( ${PROXY} flux batch -o output.stdout.type=kvs ${TIOGA_JOB_ALLOC} flux_script.sh )
-    - rm -f flux_script.sh
+#.tioga_job_command:
+#  script:
+#    - echo PROXY="${PROXY}"
+#    - echo TIOGA_JOB_ALLOC="${TIOGA_JOB_ALLOC}"
+#    - "printf '#!/bin/bash\n%s\n' \"${JOB_CMD}\" > flux_script.sh"
+#    - cat flux_script.sh
+#    - ${PROXY} flux watch $( ${PROXY} flux batch -o output.stdout.type=kvs ${TIOGA_JOB_ALLOC} flux_script.sh )
+#    - rm -f flux_script.sh
 
 .mfem_job_on_tioga:
   extends: .job_on_tioga

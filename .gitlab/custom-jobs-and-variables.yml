@@ -20,7 +20,7 @@ variables:
 # protect variables with quotes so that their value may remain a string even if
 # they contain whitespaces.
   JOB_CMD:
-    value: tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+    value: tests/gitlab/build_and_test --spec \"${SPEC}\" --data-dir ${MFEM_DATA_DIR} --data
 # The path to the shared resource between all jobs in the 'ruby-baseline'
 # pipeline. For example, external repositories like 'tests' and 'tpls' are
 # cloned here. Also, 'tpls' is built once for all targets, so that build happens

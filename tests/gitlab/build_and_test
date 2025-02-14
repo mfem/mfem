@@ -68,8 +68,8 @@ function usage()
 project_dir="$(pwd)"
 hostname="$(hostname)"
 
-mode=""
 spec=""
+mode=""
 data_dir=""
 with_data=false
 
@@ -99,6 +99,8 @@ ci_registry_user=${CI_REGISTRY_USER:-"${USER}"}
 ci_registry_image=${CI_REGISTRY_IMAGE:-"czregistry.llnl.gov:5050/mfem/mfem-autotest"}
 ci_registry_token=${CI_JOB_TOKEN:-"${registry_token}"}
 
+spec_tab=()
+
 # Options
 while [[ $# -gt 0 ]]
 do
@@ -106,9 +108,19 @@ do
 
     case $key in
         --spec)
-            spec="$2"
-            shift # past argument
-            shift # past value
+            shift
+            arg="${1}"
+            if [[ "${arg}" =~ ^\" ]]; then
+              arg="${arg#\"}"
+              while [[ ! "${arg}" =~ [^\\]\"$ ]]; do
+                spec_tab+=("${arg}")
+                shift
+                arg="${1}"
+              done
+              arg="${arg%\"}"
+            fi
+            spec_tab+=("${arg}")
+            shift
             ;;
         --deps-only|--build-only|--test-only)
             mode="$key"
@@ -133,6 +145,8 @@ do
             ;;
     esac
 done
+
+spec="${spec_tab[@]}"
 
 timed_message ()
 {
