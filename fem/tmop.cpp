@@ -624,6 +624,30 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1(weight, A.GetData());
 }
 
+real_t TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(2, 2);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   real_t norm_prod = col1.Norml2() * col2.Norml2();
+   const real_t cos_Jpr = (col1 * col2) / norm_prod,
+                sin_Jpr = fabs(Jpr.Det()) / norm_prod;
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   norm_prod = col1.Norml2() * col2.Norml2();
+   const real_t cos_Jtr = (col1 * col2) / norm_prod,
+                sin_Jtr = fabs(Jtr->Det()) / norm_prod;
+
+   return 0.5 * (1.0 - cos_Jpr * cos_Jtr - sin_Jpr * sin_Jtr);
+}
+
 real_t TMOP_Metric_skew3D::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
