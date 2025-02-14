@@ -1630,7 +1630,7 @@ public:
    /// @name Access connectivity data
    /// @{
 
-   /// @note The returned Table should be deleted by the caller
+   /// Returns the vertex-to-element Table which should NOT be deleted by the caller
    Table *GetVertexToElementTable() const;
 
    /// @note The returned Table should be deleted by the caller

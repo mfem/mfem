@@ -7474,10 +7474,8 @@ Table *Mesh::GetVertexToFaceTable() const
 
 Table *Mesh::GetVertexToElementTable() const
 {
-   int i, j, nv, *v;
-
    if (vertex_to_el) {return vertex_to_el;}
-   vertex_to_el = new Table;
+   Table *vertex_to_el = new Table;
 
    vertex_to_el->MakeI(NumOfVertices);
 
@@ -13747,7 +13745,6 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
          }
       next_point: ;
       }
-      delete vtoel;
    }
    if (inv_trans == NULL) { delete inv_tr; }
 
@@ -14231,9 +14228,8 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    // sorted.
    boundary_to_part.DeleteAll();
 
-   Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
-   vertex_to_element.Swap(*vert_element);
-   delete vert_element;
+   Table *vert_element = mesh.GetVertexToElementTable();
+   vertex_to_element.Copy(*vert_element);
 }
 
 void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const

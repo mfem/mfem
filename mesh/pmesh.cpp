@@ -233,7 +233,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
       MFEM_ASSERT(mesh.GetNFaces() == 0 || Dim >= 3, "");
 
       Array<int> face_group(mesh.GetNFaces());
-      Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
+      Table *vert_element = mesh.GetVertexToElementTable();
 
       FindSharedFaces(mesh, partitioning, face_group, groups);
       int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
@@ -246,6 +246,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
       int ngroups = groups.Size()-1, nstris, nsquads;
       BuildFaceGroup(ngroups, mesh, face_group, nstris, nsquads);
       BuildEdgeGroup(ngroups, *edge_element);
+
       BuildVertexGroup(ngroups, *vert_element);
 
       // build shared_faces and sface_lface mapping
@@ -259,7 +260,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
 
       // build svert_lvert mapping
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
-      delete vert_element;
    }
 
    if (mesh.NURBSext)
