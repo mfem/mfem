@@ -1,3 +1,4 @@
+#include "fem/intrules.hpp"
 #include "mfem.hpp"
 #include "miniapps/simpl/topopt.hpp"
 #include "topopt_problems.hpp"
@@ -305,13 +306,6 @@ int main(int argc, char *argv[])
             real_t lambda_k = (x - x_old)/step_size; // -grad F(rho_{k-1})
             // Definition -Brendan
             return std::max(std::max(-lambda_k*rho_k, lambda_k*(1-rho_k)), 0.0);
-            // return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
-            // Definition -Thomas
-            // More robust when gradient has large magnitude.
-            return std::fabs(lambda_k
-                             - std::min(0.0, rho_k     + lambda_k)
-                             - std::max(0.0, rho_k - 1 + lambda_k));
-            // return lambda_k*(1.0-2*rho_k) >= 0;
          });
          break;
       }
@@ -327,7 +321,6 @@ int main(int argc, char *argv[])
             return std::fabs(lambda_k
                              - std::min(0.0, rho_k     + lambda_k)
                              - std::max(0.0, rho_k - 1 + lambda_k));
-            // return lambda_k*(1.0-2*rho_k) >= 0;
          });
          break;
       }
@@ -437,6 +430,13 @@ int main(int argc, char *argv[])
       old_objval = objval;
       bool converged = false;
       entropyPenalty = -1.0;
+      int order_quad = std::max(5, 3*order_control+1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
       for (num_reeval=0; num_reeval < max_it_backtrack; num_reeval++)
       {
          control_gf = control_old_gf;
@@ -452,7 +452,8 @@ int main(int argc, char *argv[])
          diff_density_form.Assemble();
          real_t grad_diffrho = InnerProduct(MPI_COMM_WORLD,
                                             diff_density_form, grad_gf);
-         real_t bregman_diff = zero_gf.ComputeL1Error(bregman_diff_old);
+
+         real_t bregman_diff = zero_gf.ComputeL1Error(bregman_diff_old, irs);
          real_t target_objval = use_bregman_backtrack
                                 ? old_objval + grad_diffrho + bregman_diff / step_size
                                 : old_objval + c1*grad_diffrho;

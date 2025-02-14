@@ -171,7 +171,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
       case MBB2:
       {
          filename << "MBB2";
-         if (r_min < 0) { r_min = 0.05; }
+         if (r_min < 0) { r_min = 0.02; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
          mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
