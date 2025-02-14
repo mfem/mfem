@@ -120,6 +120,40 @@ void ADHessian_func(const Vector &x, std::function<ADSType( std::vector<ADSType>
    return;
 }
 
+void AD3rdDeric_func(const Vector &x, std::function<ADTType( std::vector<ADTType>&)> func, std::vector<DenseMatrix> &TRD)
+{
+   int dim = x.Size();
+  
+   //use forward-forward mode
+   std::vector<ADTType> aduu(dim);
+   for (int ii = 0; ii < dim; ii++)
+   {
+      aduu[ii].value.value = ADFType{x[ii], 0.0};
+      aduu[ii].value.gradient = ADFType{0.0, 0.0};
+      aduu[ii].gradient.value = ADFType{0.0, 0.0};
+      aduu[ii].gradient.gradient = ADFType{0.0, 0.0};
+   }
+
+   for (int ii = 0; ii < dim; ii++)
+   {
+      aduu[ii].value.value = ADFType{x[ii], 1.0};
+      for (int jj = 0; jj < dim; jj++)
+      {
+         aduu[jj].value.gradient = ADFType{1.0, 0.0};
+         for (int kk = 0; kk < dim; kk++)                    // FIXME is ymmetric, only loop over half the possibilites
+         {
+            aduu[kk].gradient.value = ADFType{1.0, 0.0};
+            ADTType rez = func(aduu);
+            TRD[ii](jj,kk) = rez.gradient.gradient.gradient;
+            aduu[kk].gradient.value = ADFType{0.0, 0.0};
+         }
+         aduu[jj].value.gradient = ADFType{0.0, 0.0};
+      }
+      aduu[ii].value.value = ADFType{x[ii], 0.0};
+   }
+   return;
+}
+
 int ftype = 1;
 double kw = 20.0;
 double alphaw = 50;
@@ -169,9 +203,7 @@ double trueSolFunc(const Vector & x)
 {
   if (ftype == 0)
   {
-    //return ADVal_func(x, func_0<ADFType>);
-    double val = std::sin( M_PI *x[0] )*std::sin(2.0*M_PI*x[1]);
-    return val;
+    return ADVal_func(x, func_0<ADFType>);
   }
   else if (ftype == 1) // circular wave centered in domain
   {
@@ -470,8 +502,11 @@ void trueLoadFuncGrad(const Vector & x,Vector & grad)
   grad = 0.0;
   if (ftype == 0)
   {
-    grad[0] = 5.0*M_PI*M_PI * M_PI*std::cos( M_PI *x[0] )*std::sin(2.0*M_PI *x[1]);
-    grad[1] = 10.0*M_PI*M_PI * M_PI*std::sin( M_PI *x[0] )*std::cos(2.0*M_PI *x[1]);
+    std::vector<DenseMatrix> TRD(x.Size());
+    for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
+    AD3rdDeric_func(x, func_0<ADTType>, TRD);
+    grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
+    grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
   }
   else if (ftype == 8)
   {
@@ -524,7 +559,7 @@ int main (int argc, char *argv[])
 
   int qoitype = static_cast<int>(QoIType::H1_ERROR);
   bool weakBC = false;
-  bool perturbMesh = false;
+  bool perturbMesh = true;
   double epsilon_pert =  0.006;
   int ref_ser = 2;
   int mesh_node_ordering = 0;
