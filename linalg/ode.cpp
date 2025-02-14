@@ -1161,17 +1161,11 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
    real_t fac4 = gamma;
 
    // In the first pass compute d2xdt2 directly from operator.
-   if (state.Size() == 0)
+   if (state[0].Size() == 0)
    {
-      if (no_mult)
-      {
-         MidPointStep(x, dxdt, t, dt);
-         return;
-      }
-      else
-      {
-         f->Mult(x, dxdt, state[0]);
-      }
+      state[0].SetSize(f->Width());
+      state[0] = 0.0;
+      f->Mult(x, dxdt, state[0]);
    }
    f->SetTime(t + dt);
 
