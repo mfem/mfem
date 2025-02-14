@@ -264,18 +264,23 @@ public:
 
 // TODO: Remove in MFEM 5.0
 /// (DEPRECATED) 2D non-barrier Skew metric.
+/// We recommend TMOP_AMetric_050 metric for controlling skewness only. In
+/// general, the Size+Skew metric TMOP_AMetric_051 may produce better
+/// meshes than a purely Skew metric.
 class MFEM_DEPRECATED TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
    // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override
-   { MFEM_ABORT("Not implemented"); }
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Skew metric.
