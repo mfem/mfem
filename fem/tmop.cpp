@@ -293,6 +293,30 @@ type nu107_ad(const std::vector<type> &T, const std::vector<type> &W)
    return (0.5/alpha)*fnorm2_2D(Mat);
 };
 
+// 0.5[ 1.0 - cos( phi_A - phi_W ) ]
+template <typename type>
+type skew2D_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   // We assume that both A and W are nonsingular.
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+
+   return 0.5*(1.0 - cos_A*cos_W - sin_A*sin_W);
+};
+
 // Given mu(X,Y), compute dmu/dX or dmu/dY. Y is an optional parameter when
 // computing dmu/dX.
 void ADGrad(std::function<AD1Type(std::vector<AD1Type>&,
@@ -624,28 +648,41 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1(weight, A.GetData());
 }
 
-real_t TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_Metric_skew2D::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
+   int matsize = Jpt.TotalSize();
+   std::vector<AD1Type> T(matsize), W(matsize);
+   for (int i=0; i<matsize; i++)
+   {
+      T[i] = AD1Type{Jpt.GetData()[i], 0.0};
+      W[i] = AD1Type{Jtr->GetData()[i], 0.0};
+   }
+   return skew2D_ad(T, W).value;
+}
 
-   DenseMatrix Jpr(2, 2);
-   Mult(Jpt, *Jtr, Jpr);
+void TMOP_Metric_skew2D::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(skew2D_ad<AD1Type>, P, Jpt, Jtr);
+   return;
+}
 
-   Vector col1, col2;
-   Jpr.GetColumn(0, col1);
-   Jpr.GetColumn(1, col2);
-   real_t norm_prod = col1.Norml2() * col2.Norml2();
-   const real_t cos_Jpr = (col1 * col2) / norm_prod,
-                sin_Jpr = fabs(Jpr.Det()) / norm_prod;
+void TMOP_Metric_skew2D::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   ADGrad(skew2D_ad<AD1Type>, PW, Jpt, Jtr, false);
+   return;
+}
 
-   Jtr->GetColumn(0, col1);
-   Jtr->GetColumn(1, col2);
-   norm_prod = col1.Norml2() * col2.Norml2();
-   const real_t cos_Jtr = (col1 * col2) / norm_prod,
-                sin_Jtr = fabs(Jtr->Det()) / norm_prod;
-
-   return 0.5 * (1.0 - cos_Jpr * cos_Jtr - sin_Jpr * sin_Jtr);
+void TMOP_Metric_skew2D::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(skew2D_ad<AD2Type>, H, Jpt, Jtr);
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_Metric_skew3D::EvalW(const DenseMatrix &Jpt) const
