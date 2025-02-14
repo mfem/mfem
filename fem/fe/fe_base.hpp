@@ -1079,7 +1079,6 @@ public:
 
        @param[in] p      The polynomial degree; the number of points is `p+1`.
        @param[in] btype  The BasisType.
-       @param[in] on_device  true if the requested pointer should be accessible from the device.
 
        @return A pointer to an array containing the `p+1` coordinates of the
                points. Returns NULL if the BasisType has no associated set of
@@ -1091,19 +1090,25 @@ public:
 
        @param[in] p      The polynomial degree; the number of points is `p+1`.
        @param[in] btype  The BasisType.
-       @param[in] on_device  true if the requested pointer should be accessible from the device.
+       @param[in] on_device  true if the requested pointer should be accessible
+       from the device.
 
        @return A pointer to an array containing the `p+1` coordinates of the
                points. Returns NULL if the BasisType has no associated set of
                points. */
-   const real_t *GetPoints(const int p, const int btype, bool on_device=false)
-   { return GetPointsArray(p, btype)->Read(on_device); }
+   const real_t *GetPoints(const int p, const int btype,
+                           bool on_device = false)
+   {
+      return GetPointsArray(p, btype)->Read(on_device);
+   }
 
    /// Get coordinates of an open (GaussLegendre) set of points if degree @a p
    const real_t *OpenPoints(const int p,
-                            const int btype = BasisType::GaussLegendre
-                                              , bool on_device=false)
-   { return GetPoints(p, btype, on_device); }
+                            const int btype = BasisType::GaussLegendre,
+                            bool on_device = false)
+   {
+      return GetPoints(p, btype, on_device);
+   }
 
    /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
    const real_t *ClosedPoints(const int p,
