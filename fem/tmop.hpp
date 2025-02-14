@@ -262,6 +262,22 @@ public:
    int Id() const override { return 1; }
 };
 
+// TODO: Remove in MFEM 5.0
+/// (DEPRECATED) 2D non-barrier Skew metric.
+class MFEM_DEPRECATED TMOP_Metric_skew2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
+   real_t EvalW(const DenseMatrix &Jpt) const override;
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
+   { MFEM_ABORT("Not implemented"); }
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
+   { MFEM_ABORT("Not implemented"); }
+};
+
 /// 3D non-barrier Skew metric.
 class TMOP_Metric_skew3D : public TMOP_QualityMetric
 {
