@@ -55,15 +55,15 @@ plt.plot(x1, -y1, label='Bernstein', marker='o', color='red')
 
 # plt.plot(x1a-1, -y1a, label='Propose approach ($M=N-1$)', marker='x')
 
-plt.plot(x2-1, -y2, label='Propose approach ($M=N$)', marker='s')
+plt.plot(x2-1, -y2, label='Proposed approach ($M=N=4$)', marker='s')
 # plt.plot(x2[:-1]-1, y2b[:-1], marker='s', linestyle='none', color='blue')
 # plt.plot(x2[-1]-1, -y2b[-1], marker='s', linestyle='none', color='blue')
 
-plt.plot(x3-1, -y3, label='Propose approach ($M=N+1$)', marker='^')
+plt.plot(x3-1, -y3, label='Proposed approach ($M=N+1$)', marker='^')
 # plt.plot(x3[:-1]-1, y3b[:-1], marker='^', linestyle='none', color='green')
 # plt.plot(x3[-1]-1, -y3b[-1], marker='^', linestyle='none', color='green')
 
-plt.plot(x4-1, -y4, label='Propose approach ($M=N+2$)', marker='d')
+plt.plot(x4-1, -y4, label='Proposed approach ($M=N+2$)', marker='d')
 plt.plot([np.min(x1),np.max(x1)],[0.000215656,0.000215656],'k-')
 
 plt.yscale('log')

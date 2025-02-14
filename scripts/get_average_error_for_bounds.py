@@ -176,7 +176,7 @@ for i, N in enumerate(Ns):
 	plt.title(f'N = {N}')
 
 	if i == 0:
-		plt.legend(['GL + endpoints', 'Chebyshev', 'GLL', 'Equispaced', 'Opt'])
+		plt.legend(['$\eta_{GL + endpoints},q_{opt}$', '$\eta_{Chebyshev},q_{opt}$', '$\eta_{GLL},q_{opt}$', '$\eta_{equispaced},q_{opt}$', '$\eta_{opt},q_{opt}$'])
 
 	np.savetxt(f'basis_l2errs_N{N}.csv', writeerrs.T, header='gl, gll, cheb, eq, opt', delimiter=',', comments='')
 

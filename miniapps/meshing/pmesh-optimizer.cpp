@@ -971,10 +971,12 @@ int main (int argc, char *argv[])
    }
 
    int order = pfespace->GetMaxElementOrder();
-   int n1D = 2*order+1;
+   int det_order = dim*order-1;
+   int n1D = det_order+1;
    int mr = n1D+1;
-   std::string filename = "../../scripts/bnddata_" + std::to_string(
-                             n1D) + "_" + std::to_string(mr) + ".txt";
+   std::string filename = "../../scripts/bounds/bnddata_spts_lobatto_" +
+                           std::to_string(n1D) + "_bdpts_opt_" +
+                           std::to_string(mr) + ".txt";
    auto fileExists = [](const std::string& filepath) -> bool
    {
       std::ifstream file(filepath);

@@ -22,6 +22,8 @@ Show(solution2, renderView1)
 solutionDisplay2.NonlinearSubdivisionLevel=3
 # ColorBy(solutionDisplay2, None)
 solutionDisplay2.SetRepresentationType('Wireframe')
+solutionDisplay2.AmbientColor = [0.0, 0.0, 0.0]
+solutionDisplay2.DiffuseColor = [0.0, 0.0, 0.0]
 solutionDisplay2.LineWidth = 6.0
 
 renderView1.OrientationAxesVisibility = 0

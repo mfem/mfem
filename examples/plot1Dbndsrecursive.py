@@ -112,7 +112,7 @@ def main():
     print("Reading ",bases_data_file)
     nr, mr, gllC, intC, lboundC, uboundC = get_bases_bounds_Tarik(bases_data_file)
 
-    bases_data_file = "../scripts/bounds/bnddata_spts_lobatto_" + str(N) + "_bpts_chebyshev_" + str(N) + ".txt"
+    bases_data_file = "../scripts/bounds/bnddata_spts_lobatto_" + str(N) + "_bpts_chebyshev_" + str(M) + ".txt"
     print("Reading ",bases_data_file)
     nr, mr, gllTT, intTT, lboundTT, uboundTT = get_bases_bounds_Tarik(bases_data_file)
 
@@ -194,13 +194,13 @@ def main():
             int_locs = np.unique(pts[deb_indices])
         for i in range(nplots):
             ids = pos_indices[2*i:2*i+2]
-            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='-',marker='o', markersize=ms*8,linewidth=3,markerfacecolor='none')
-            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='-',marker='o', markersize=ms*8,linewidth=3,markerfacecolor='none')
+            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='-',marker='o', markersize=ms*8,linewidth=2,markerfacecolor='none')
+            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='-',marker='o', markersize=ms*8,linewidth=2,markerfacecolor='none')
         nplots = int(len(neg_indices)/2)
         for i in range(nplots):
             ids = neg_indices[2*i:2*i+2]
-            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='dotted',marker='o', markersize=ms*8,linewidth=3,markerfacecolor='none')
-            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='dotted',marker='o', markersize=ms*8,linewidth=3,markerfacecolor='none')
+            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='dotted',marker='o', markersize=ms*8,linewidth=2,markerfacecolor='none')
+            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='dotted',marker='o', markersize=ms*8,linewidth=2,markerfacecolor='none')
         plt.savefig('rec_bnd_d='+str(d)+'_N='+str(N)+'_M='+str(M)+ "_out=" + str(O)+'.pdf',format='pdf',bbox_inches='tight')
         plotindex += 1
         plt.ylim([-0.3, 1.3])
@@ -240,7 +240,7 @@ def main():
         pdf_pages.savefig()
     pdf_pages.close()
 
-    plt.rcParams['lines.linewidth'] = 3  # Sets the default linewidth to 2
+    plt.rcParams['lines.linewidth'] = 2  # Sets the default linewidth to 2
     #plot all the bases now first and then individual bases with their bounds
     pdf_pages = PdfPages('rec_bnd_bases_N='+str(N)+'_M='+str(M)+ "_out=" + str(O)+'.pdf')
     plt.figure(plotindex)
@@ -317,14 +317,16 @@ def main():
     for i in range(N):
         plt.figure(plotindex)
         plt.plot(sample_locs, mylagpoly[:,i],label=f'$\phi_{i+1}$')
-        plt.plot(intx, lbound[i,:], color=cycle[1], linestyle='dashdot',linewidth=2)
-        plt.plot(intx, ubound[i,:],color=cycle[2], linestyle='dashdot',linewidth=2)
+        # plt.plot(intx, lbound[i,:], color=cycle[1], linestyle='dashdot',linewidth=2)
+        # plt.plot(intx, ubound[i,:],color=cycle[2], linestyle='dashdot',linewidth=2)
+        # plt.plot(intx, lbound[i,:], color=cycle[1],linewidth=2)
+        plt.plot(intx, ubound[i,:],color=cycle[2],linewidth=2)
 
         # plt.plot(intC, lboundC[i,:], label='$\underline{v}_{i,\eta_{cheb},q_{opt}}$',color=cycle[1], linestyle='--')
         # plt.plot(intC, uboundC[i,:],label='$\bar{v}_{i,\eta_{cheb},q_{opt}}$',color=cycle[2], linestyle='--')
 
-        plt.plot(intT, lboundT[i,:],color=cycle[1],linewidth=2)
-        plt.plot(intT, uboundT[i,:],color=cycle[2],linewidth=2)
+        # plt.plot(intT, lboundT[i,:],color=cycle[3],linewidth=2)
+        plt.plot(intT, uboundT[i,:],color=cycle[4],linewidth=2)
 
         plt.plot(gllG,0*solG,'ko-')
         plt.plot(intx,0*intx,'rs',markerfacecolor='none')
@@ -349,11 +351,37 @@ def main():
         pdf_pages.savefig()
         plotindex += 1
 
-
-
-
     pdf_pages.close()
 
+
+    # make animation of bounds with bases
+    plt.rcParams['text.usetex'] = True
+    plotindex += 1
+    basis_cumul_val = np.zeros(npts)
+    ubound_cumul_val = np.zeros(M)
+    lbound_cumul_val = np.zeros(M)
+    pdf_pages = PdfPages('rec_bnd_bases_animation_N='+str(N)+'_M='+str(M)+ "_out=" + str(O)+'.pdf')
+
+    for i in range(N):
+        plt.figure(plotindex)
+        # plt.plot(sample_locs, upoly, 'r--', label='u(r)', linewidth=3)
+        basis_cumul_val[:] += mylagpolyscaled[:,i]
+        dummy = np.reshape(uboundTT[i,:],(-1))
+        ubound_cumul_val[:] += solG[i]*dummy
+        dummy = np.reshape(lboundTT[i,:],(-1))
+        lbound_cumul_val[:] += solG[i]*dummy
+        plt.plot(sample_locs, basis_cumul_val,color=colors[0],label=fr'$\sum_{{i=0}}^{{{i}}} u_i \phi_i(r)$')
+        llabel = fr'$\sum_{{i=0}}^{{{i}}} u_i \underline{{\phi}}_i(r)$'
+        plt.plot(intTT, ubound_cumul_val,color=colors[1],label=llabel)
+        llabel = fr'$\sum_{{i=0}}^{{{i}}} u_i \bar{{\phi}}_i(r)$'
+        plt.plot(intTT, lbound_cumul_val,color=colors[2],label=llabel)
+        plt.plot(sample_locs, upoly*0, 'k--', linewidth=1)
+        # if (i == 0)
+        plt.legend(loc='upper right')
+        pdf_pages.savefig()
+        plotindex += 1
+
+    pdf_pages.close()
 
 
 
