@@ -36,7 +36,8 @@ template <> struct GeometryUtils<Geometry::SEGMENT>
       return x >= 0 && x <= 1;
    }
 
-   /// @b Bound the reference coordinate @a x to be inside the segment
+   /// @b Bound the reference coordinate @a x += dx to be inside the segment.
+   /// @a dx is updated to be dx = project(x+dx) - x
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &dx)
    {
       real_t tmp = x;
@@ -59,13 +60,15 @@ template <> struct GeometryUtils<Geometry::SEGMENT>
 
 template <> struct GeometryUtils<Geometry::SQUARE>
 {
-   /// @b true if the given point x in ref space is inside the element
+   /// @b true if the given point (x,y) in ref space is inside the element
    static bool MFEM_HOST_DEVICE inside(real_t x, real_t y)
    {
       return (x >= 0) && (x <= 1) && (y >= 0) && (y <= 1);
    }
 
-   /// @b Bound the reference coordinate @a x and @a y to be inside the square
+   /// @b Bound the reference coordinate @a (x,y) += (dx,dy) to be inside the
+   /// square.
+   /// @a dx and @a dy are updated to be (dx,dy) = project(x+dx,y+dy) - (x,y)
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &dx,
                                         real_t &dy)
    {
@@ -104,13 +107,16 @@ template <> struct GeometryUtils<Geometry::SQUARE>
 
 template <> struct GeometryUtils<Geometry::CUBE>
 {
-   /// @b true if the given point x in ref space is inside the element
+   /// @b true if the given point (x,y,z) in ref space is inside the element
    static bool MFEM_HOST_DEVICE inside(real_t x, real_t y, real_t z)
    {
       return (x >= 0) && (x <= 1) && (y >= 0) && (y <= 1) && (z >= 0) && (z <= 1);
    }
-   /// @b Bound the reference coordinate @a x, @a y, and @a z to be inside the
-   /// square
+
+   /// @b Bound the reference coordinate @a (x,y,z) += (dx,dy,dz) to be inside
+   /// the cube.
+   /// @a dx, @a dy, and @ dz are updated to be
+   /// (dx,dy,dz) = project(x+dx,y+dy,z+dz) - (x,y,z)
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &z,
                                         real_t &dx, real_t &dy, real_t &dz)
    {
