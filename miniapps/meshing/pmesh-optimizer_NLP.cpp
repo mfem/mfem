@@ -395,7 +395,12 @@ double loadFunc(const Vector & x)
 void trueLoadFuncGrad(const Vector & x,Vector & grad)
 {
   grad = 0.0;
-  if (ftype == 8)
+  if (ftype == 0)
+  {
+    grad[0] = 5.0*M_PI*M_PI * M_PI*std::cos( M_PI *x[0] )*std::sin(2.0*M_PI *x[1]);
+    grad[1] = 10.0*M_PI*M_PI * M_PI*std::sin( M_PI *x[0] )*std::cos(2.0*M_PI *x[1]);
+  }
+  else if (ftype == 8)
   {
     grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
     grad[1] = 0.0;
@@ -456,7 +461,7 @@ int main (int argc, char *argv[])
   double weight_tmop = 1e-2;
   int metric_id   = 2;
   int target_id   = 1;
-  int quad_order        = 8;
+  int quad_order  = 8;
   srand(9898975);
   bool visualization = true;
   int method = 0;
@@ -762,8 +767,8 @@ int main (int argc, char *argv[])
   {
     // std::cout << i << " "  << " k101\n";
     //essentialBC[i] = {i+1, 0};
-    essentialBC[0] = {2, 0};
-    essentialBC[1] = {4, 0};
+    essentialBC[0] = {1, 0};
+    essentialBC[1] = {3, 0};
   }
 
   const IntegrationRule &ir =
