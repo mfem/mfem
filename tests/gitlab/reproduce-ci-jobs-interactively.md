@@ -67,6 +67,10 @@ export MFEM_DATA_REPO="https://github.com/mfem/data.git"
 lalloc 1 -W 45 -q pci --atsdisable tests/gitlab/build_and_test --spec "%gcc@8.3.1 +mpi +cuda cuda_arch=70" --data-dir "/usr/workspace/mfem/gitlab-runner/bernede1/repos/mfem-data" --data
 ```
 
+**NOTE**
+
+The REGISTRY_TOKEN can be set using a GitLab Personal Access Token (PAT) with read access to gitlab container registry. This allows to speed up the local builds by fetching the dependencies library instead of building them.
+
 ## Prerequisite: Retrieve Uberenv
 
 ```bash

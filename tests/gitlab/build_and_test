@@ -81,15 +81,19 @@ use_dev_shm=${USE_DEV_SHM:-true}
 spack_debug=${SPACK_DEBUG:-false}
 debug_mode=${DEBUG_MODE:-false}
 
-# FIXME: since CI_JOB_TOKEN is always defined, REGISTRY_TOKEN will never be
-#        used?
-# REGISTRY_TOKEN allows you to provide your own personal access token to the CI
-# registry. Be sure to set the token with at least read access to the registry.
-#
 # CI_REGISTRY_USER, CI_REGISTRY_IMAGE, and CI_JOB_TOKEN are automatically set by
 # Gitlab, see https://docs.gitlab.com/ee/ci/variables/predefined_variables.html.
 # The Spack build cache files can be viewed from the Gitlab web interface under
 # "Deploy" -> "Container Registry".
+#
+# Since the CI_<VARIABLES> are only set in CI, we provide sensible defaults for
+# usage outside CI context (e.g. to reproduce a CI scenario locally).
+#
+# REGISTRY_TOKEN when set allows to provide our own personal access token to
+# the CI registry. Be sure to set the token with at least read access to the
+# registry. It is optional outside CI but will speed up the build if many
+# dependencies are needed.
+#
 registry_token=${REGISTRY_TOKEN:-""}
 ci_registry_user=${CI_REGISTRY_USER:-"${USER}"}
 ci_registry_image=${CI_REGISTRY_IMAGE:-"czregistry.llnl.gov:5050/mfem/mfem-autotest"}
