@@ -297,11 +297,11 @@ public:
         solver_type(NewtonElementProject),
         max_iter(16),
 #ifdef MFEM_USE_DOUBLE
-        ref_tol(4e-15),
+        ref_tol(1e-15),
         phys_rtol(4e-15),
         ip_tol(1e-8),
 #elif defined(MFEM_USE_SINGLE)
-        ref_tol(1e-6),
+        ref_tol(4e-7),
         phys_rtol(1e-6),
         ip_tol(1e-4),
 #endif
@@ -395,10 +395,10 @@ class BatchInverseElementTransformation
    int max_iter = 16;
    Vector node_pos;
 #ifdef MFEM_USE_DOUBLE
-   real_t ref_tol = 4e-15;
+   real_t ref_tol = 1e-15;
    real_t phys_rtol = 4e-15;
 #else
-   real_t ref_tol = 1e-6;
+   real_t ref_tol = 4e-7;
    real_t phys_rtol = 1e-6;
 #endif
    // not owned, location of tensor product basis nodes in reference space

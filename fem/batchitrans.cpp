@@ -27,32 +27,73 @@ BatchInverseElementTransformation::~BatchInverseElementTransformation() {}
 void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
 {
    static Kernels kernels;
+   MemoryType my_d_mt =
+      (d_mt != MemoryType::DEFAULT) ? d_mt : Device::GetDeviceMemoryType();
 
    mesh = &m;
    MFEM_VERIFY(mesh->GetNodes(), "the provided mesh must have valid nodes.");
    const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
-   const bool use_tensor_products = UsesTensorBasis(*fespace);
-   MFEM_VERIFY(
-      use_tensor_products,
-      "BatchInverseElementTransform only supports UsesTensorBasis() == true");
-   const FiniteElement *fe = fespace->GetTypicalFE();
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
-   // const int dim = fe->GetDim();
+   const int max_order = fespace->GetMaxElementOrder();
+   const int ndof1d = max_order + 1;
+   int ND = ndof1d;
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
+               "Mixed meshes are not swupported.");
+   for (int d = 1; d < dim; ++d)
+   {
+      ND *= ndof1d;
+   }
    const int vdim = fespace->GetVDim();
    const int NE = fespace->GetNE();
-   const int ND = fe->GetDof();
-   const int order = fe->GetOrder();
-
-   // can't just use mesh->GetGeometricFactors since we need the raw element DOFs
-   const ElementDofOrdering e_ordering = use_tensor_products
-                                         ? ElementDofOrdering::LEXICOGRAPHIC
-                                         : ElementDofOrdering::NATIVE;
-   const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
-   MemoryType my_d_mt =
-      (d_mt != MemoryType::DEFAULT) ? d_mt : Device::GetDeviceMemoryType();
    node_pos.SetSize(vdim * ND * NE, my_d_mt);
-   elem_restr->Mult(*mesh->GetNodes(), node_pos);
-   points1d = poly1d.GetPointsArray(order, tfe->GetBasisType());
+
+   const FiniteElement *fe = fespace->GetTypicalFE();
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
+   if (fespace->IsVariableOrder() || tfe == nullptr)
+   {
+      MFEM_VERIFY(fe->GetGeomType() == Geometry::SEGMENT ||
+                  fe->GetGeomType() == Geometry::SQUARE ||
+                  fe->GetGeomType() == Geometry::CUBE,
+                  "unsupported geometry type");
+      // project onto GLL nodes
+      points1d = poly1d.GetPointsArray(max_order, BasisType::GaussLobatto);
+      points1d->HostRead();
+      // either mixed order, or not a tensor basis
+      node_pos.HostWrite();
+      real_t tmp[3];
+      int sdim = mesh->SpaceDimension();
+      MFEM_VERIFY(sdim == vdim,
+                  "mesh.SpaceDimension and fespace.GetVDim mismatch");
+      Vector pos(tmp, sdim);
+      IntegrationPoint ip;
+      int idcs[3];
+      for (int e = 0; e < NE; ++e)
+      {
+         fe = fespace->GetFE(e);
+         for (int i = 0; i < ND; ++i)
+         {
+            idcs[0] = i % ndof1d;
+            idcs[1] = i / ndof1d;
+            idcs[2] = idcs[1] / ndof1d;
+            idcs[1] = idcs[1] % ndof1d;
+            ip.x = (*points1d)[idcs[0]];
+            ip.y = (*points1d)[idcs[1]];
+            ip.z = (*points1d)[idcs[2]];
+            mesh->GetNodes()->GetVectorValue(e, ip, pos);
+            for (int d = 0; d < sdim; ++d)
+            {
+               node_pos[i + (d * NE + e) * ND] = pos[d];
+            }
+         }
+      }
+   }
+   else
+   {
+      const Operator *elem_restr =
+         fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      elem_restr->Mult(*mesh->GetNodes(), node_pos);
+      points1d = poly1d.GetPointsArray(max_order, tfe->GetBasisType());
+   }
 }
 
 
