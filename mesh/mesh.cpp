@@ -7475,7 +7475,7 @@ Table *Mesh::GetVertexToFaceTable() const
 Table *Mesh::GetVertexToElementTable() const
 {
    if (vertex_to_el) {return vertex_to_el;}
-   Table *vertex_to_el = new Table;
+   vertex_to_el = new Table;
 
    vertex_to_el->MakeI(NumOfVertices);
 
