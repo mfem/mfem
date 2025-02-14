@@ -35,7 +35,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
       "BatchInverseElementTransform only supports UsesTensorBasis() == true");
    const FiniteElement *fe = fespace->GetTypicalFE();
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement *>(fe);
-   const int dim = fe->GetDim();
+   // const int dim = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE = fespace->GetNE();
    const int ND = fe->GetDof();
@@ -1082,7 +1082,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
    const int dim = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE = fespace->GetNE();
-   const int ND = fe->GetDof();
+   // const int ND = fe->GetDof();
    const int order = fe->GetOrder();
    int npts = elems.Size();
    auto geom = fe->GetGeomType();
