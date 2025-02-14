@@ -17,9 +17,9 @@ and nightly testing on GitLab.
 
 ## Top level
 
-The root configuration file is `.gitlab-ci.yml` at the root of MFEM repo.
-This file only defines one stage, in which we trigger several
-sub-pipelines.
+The root configuration file is `.gitlab-ci.yml` at the root of MFEM repo. This
+file only defines three stages, a prerequisites one, and two main stages in
+which we trigger several sub-pipelines.
 
 We use sub-pipelines to isolate the test for one combination of `machine`
 and `test type`.
@@ -28,7 +28,7 @@ Machines typically include:
 
 * Ruby: 2nd Gen Intel Xeon (Cascade Lake)
 * Lassen: Power9 + Nvidia GPU
-* Corona: AMD GPU
+* Tioga: AMD GPU
 
 Test types include:
 
@@ -41,9 +41,31 @@ altering the scheduling, execution and displaying of the others.
 
 ## Sub-pipelines
 
-Each file is this directory is the root configuration file for one
-sub-pipeline. The naming reflects the corresponding couple (`machine`,
-`test_type`).
+### build-and-test
+
+The build-and-test sub-pipelines leverage RADIUSS Shared CI to share most of
+the CI implementation. RADIUSS Shared CI provides a shared CI infrastructure
+vetted on most LC systems of interest and efficiently leveraging each machine
+scheduler to increase CI throughput. The maintenance of RADIUSS Shared CI is
+shared among several RADIUSS projects.
+
+Jobs for the build-and-test sub-pipelines are defined in the jobs directory.
+Because build-and-test jobs leverage Uberenv and Spack to build the
+dependencies automatically, the jobs essentially consists in a `spack spec`
+defined in the jobs files, and some scheduling parameters defined in the
+`.gitlab/custom-jobs-and-variables.yml` file.
+
+Build-and-test jobs all run the `tests/gitlab/build_and_test` script.
+
+The build-and-test pipelines are controlled by the
+`.gitlab/subscribed-pipelines.yml` which defines which machines to run on and
+implements additional features like machine availability check, and job list
+generation.
+
+### baseline
+
+Baseline sub-pipelines are described by files with names reflecting the
+machine it runs on, e.g. `ruby-baseline`.
 
 Those files define the *stages* and the *jobs* for the sub-pipeline. They
 also contain any configuration that cannot be shared. For the most part
@@ -65,11 +87,11 @@ usage function. This should be improved.
 
 # More testing
 
-## Adding a new target to a build_and_test pipeline
+## Adding a new target to a build-and-test pipeline
 
-`build_and_test` pipelines rely on Spack to install dependencies. Spack is
+`build-and-test` pipelines rely on Spack to install dependencies. Spack is
 driven by Uberenv which helps freezing Spack configuration: the goal being to
-point to specific commit in Spack and isolate its configuration so that it is
+point to a specific commit in Spack and isolate its configuration so that it is
 not influenced by the user environment. More documentation about this can be
 found in `tests/gitlab`.
 
@@ -84,7 +106,7 @@ spack spec to use. Adding a job on ruby for example resumes to:
 <job_name>:
   variables:
     SPEC: "<spack_spec>"
-  extends: .build_and_test_on_ruby
+  extends: .job_on_ruby
 ```
 
 The remaining and non trivial work is to make sure this spec is working. To
