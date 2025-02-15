@@ -355,10 +355,10 @@ template <> struct InvTLinSolve<3, 3>
                rhs[2] * (jac[0 + 0 * 3] * jac[1 + 2 * 3] -
                          jac[0 + 2 * 3] * jac[1 + 0 * 3])) *
               den;
-      dx[1] = (rhs[0] * (jac[1 + 0 * 3] * jac[2 + 1 * 3] -
-                         jac[1 + 1 * 3] * jac[2 + 0 * 3]) +
+      dx[2] = (rhs[0] * (jac[1 + 0 * 3] * jac[2 + 1 * 3] -
+                         jac[1 + 1 * 3] * jac[2 + 0 * 3]) -
                rhs[1] * (jac[0 + 0 * 3] * jac[2 + 1 * 3] -
-                         jac[0 + 1 * 3] * jac[2 + 0 * 3]) -
+                         jac[0 + 1 * 3] * jac[2 + 0 * 3]) +
                rhs[2] * (jac[0 + 0 * 3] * jac[1 + 1 * 3] -
                          jac[0 + 1 * 3] * jac[1 + 0 * 3])) *
               den;
@@ -754,9 +754,6 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim,
 
          bool hit_bdr = eltrans::GeometryUtils<Geometry::CUBE>::project(
                            ref_coord[0], ref_coord[1], ref_coord[2], dx[0], dx[1], dx[2]);
-         // for (int d = 0; d < Dim; ++d) {
-         //   ref_coord[d] += dx[d];
-         // }
 
          // check for ref coord convergence or stagnation on boundary
          if (dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2] <= ref_tol * ref_tol)
