@@ -486,8 +486,8 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim,
       int iter = 0;
       real_t ref_coord[Dim];
       real_t phys_coord[SDim];
-      MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t dbasis1_buf[max_dof1d * max_team_x];
+      MFEM_SHARED real_t basis0_buf[max_dof1d * max_team_x];
+      MFEM_SHARED real_t dbasis0_buf[max_dof1d * max_team_x];
       // contiguous in SDim
       real_t jac[SDim * Dim];
       for (int d = 0; d < Dim; ++d)
@@ -511,35 +511,37 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim,
          {
             jac[i] = 0;
          }
-         for (int j1 = 0; j1 < basis1d.pN; ++j1)
-         {
-            basis1d.eval_d1(
-               basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               ref_coord[1], j1);
-         }
          for (int j0 = 0; j0 < basis1d.pN; ++j0)
          {
-            real_t b0, db0;
-            basis1d.eval_d1(b0, db0, ref_coord[0], j0);
-            for (int j1 = 0; j1 < basis1d.pN; ++j1)
+            basis1d.eval_d1(
+               basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)],
+               dbasis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)],
+               ref_coord[0], j0);
+         }
+         for (int j1 = 0; j1 < basis1d.pN; ++j1)
+         {
+            real_t b1, db1;
+            basis1d.eval_d1(b1, db1, ref_coord[1], j1);
+            for (int j0 = 0; j0 < basis1d.pN; ++j0)
             {
-               real_t b1 =
-                  b0 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+               real_t b0 =
+                  b1 * basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)];
                for (int d = 0; d < SDim; ++d)
                {
                   phys_coord[d] +=
                      mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
                              d * stride_sdim] *
+                     b0;
+                  jac[d] +=
+                     mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                             d * stride_sdim] *
+                     dbasis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)] *
                      b1;
-                  jac[d] += mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
-                                 d * stride_sdim] *
-                            db0 *
-                            basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
                   jac[d + SDim] +=
                      mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
                              d * stride_sdim] *
-                     b0 * dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+                     basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)] *
+                     db1;
                }
             }
          }
@@ -625,10 +627,10 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim,
       int iter = 0;
       real_t ref_coord[Dim];
       real_t phys_coord[SDim];
+      MFEM_SHARED real_t basis0_buf[max_dof1d * max_team_x];
+      MFEM_SHARED real_t dbasis0_buf[max_dof1d * max_team_x];
       MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
       MFEM_SHARED real_t dbasis1_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t basis2_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t dbasis2_buf[max_dof1d * max_team_x];
       // contiguous in SDim
       real_t jac[SDim * Dim];
       for (int d = 0; d < Dim; ++d)
@@ -655,26 +657,26 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim,
          for (int j1 = 0; j1 < basis1d.pN; ++j1)
          {
             basis1d.eval_d1(
+               basis0_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
+               dbasis0_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
+               ref_coord[0], j1);
+            basis1d.eval_d1(
                basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
                dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
                ref_coord[1], j1);
-            basis1d.eval_d1(
-               basis2_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               dbasis2_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               ref_coord[2], j1);
          }
-         for (int j0 = 0; j0 < basis1d.pN; ++j0)
+         for (int j2 = 0; j2 < basis1d.pN; ++j2)
          {
-            real_t b0, db0;
-            basis1d.eval_d1(b0, db0, ref_coord[0], j0);
+            real_t b2, db2;
+            basis1d.eval_d1(b2, db2, ref_coord[2], j2);
             for (int j1 = 0; j1 < basis1d.pN; ++j1)
             {
                real_t b1 =
-                  b0 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
-               for (int j2 = 0; j2 < basis1d.pN; ++j2)
+                  b2 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+               for (int j0 = 0; j0 < basis1d.pN; ++j0)
                {
-                  real_t b2 =
-                     b1 * basis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
+                  real_t b0 =
+                     b1 * basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)];
                   for (int d = 0; d < SDim; ++d)
                   {
                      phys_coord[d] +=
@@ -682,30 +684,34 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim,
                                 (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
                                 basis1d.pN +
                                 d * stride_sdim] *
-                        b2;
-                     jac[d] +=
-                        mptr[j0 +
-                                (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                                basis1d.pN +
-                                d * stride_sdim] *
-                        db0 *
-                        basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] *
-                        basis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
+                        b0;
+                     jac[d] += mptr[j0 +
+                                    (j1 + (j2 + eptr[idx] * basis1d.pN) *
+                                     basis1d.pN) *
+                                    basis1d.pN +
+                                    d * stride_sdim] *
+                               b1 *
+                               dbasis0_buf[MFEM_THREAD_ID(x) +
+                                                             j0 * MFEM_THREAD_SIZE(x)];
                      jac[d + SDim] +=
                         mptr[j0 +
                                 (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
                                 basis1d.pN +
                                 d * stride_sdim] *
-                        b0 *
+                        b2 *
                         dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] *
-                        basis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
+                        basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)];
                      jac[d + 2 * SDim] +=
                         mptr[j0 +
-                                (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                                (j1 +
+                                 (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
                                 basis1d.pN +
                                 d * stride_sdim] *
-                        b1 *
-                        dbasis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
+                        basis0_buf[MFEM_THREAD_ID(x) +
+                                                     j0 * MFEM_THREAD_SIZE(x)] *
+                        basis1_buf[MFEM_THREAD_ID(x) +
+                                                     j1 * MFEM_THREAD_SIZE(x)] *
+                        db2;
                   }
                }
             }
