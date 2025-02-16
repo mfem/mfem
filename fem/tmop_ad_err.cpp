@@ -205,24 +205,23 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
     elvect.Add( -1.0 * w , graduDerivxBvec);
 
     // term 2 - (u-u*)^2 d(detJ)/dx
-    Mult(B, I, IxB);
-    Vectorize(IxB, IxBTvec);
-    elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
-    // Vector Bvec(B.GetData(), dof*dim);
-    // elvect.Add( w * QoI_->Eval(T, ip), Bvec);
+    // Mult(B, I, IxB);
+    // Vectorize(IxB, IxBTvec);
+    // elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
+    Vector Bvec(B.GetData(), dof*dim);
+    elvect.Add( w * QoI_->Eval(T, ip), Bvec);
 
     // term 3 - this is for when QoI has x inside e.g. (u * x - u* * x)^2
     Mult(matN, QoI_->explicitShapeDerivative(T, ip), NxPhix);
     Vectorize(NxPhix, IxN_vec);
     elvect.Add(w , IxN_vec);
 
-    // Term 4 - custom derivative
-    DenseMatrix D = QoI_->explicitSolutionDerivative(T, ip);
-    Vector v = QoI_->CustomDerivative(T, ip);
+    // Term 4 - custom derivative 2(u-u*)(-\phi_j du*/dx_a) w_q det(J)
+    Vector v = QoI_->DerivativeExactWRTX(T, ip);
     for (int d = 0; d < dim; d++)
     {
       Vector elvect_temp(elvect.GetData() + d*dof, dof);
-      elvect_temp.Add(w*D(0,0)*v(d), N);
+      elvect_temp.Add(w*v(d), N);
     }
   }
 }
@@ -606,7 +605,7 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
       shapeSum.Add(w*vol, shape);
   }
 
-  /* should be this ->
+  // /* should be this ->
   shapeSum = 0.0;
   double el_vol = 0.0;
   for (int i = 0; i < ir->GetNPoints(); i++)
@@ -618,9 +617,9 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
       shapeSum.Add(ip.weight * T.Weight(), shape);
   }
   shapeSum *= 1.0/el_vol;
-  */
+  // */
 
-  //-----------------------------------------------------------------------------------
+  // -----------------------------------------------------------------------------------
 
   // output vector
   elvect.SetSize( dof);
@@ -1213,7 +1212,7 @@ double QuantityOfInterest::EvalQoI()
      break;
   case 1:
     if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-    ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_);
+    ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
     break;
   case 2:
     integ = new DiffusionIntegrator(one);
@@ -1291,7 +1290,7 @@ void QuantityOfInterest::EvalQoIGrad()
       break;
     case 1:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_);
+      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
       break;
     case 2:
       integ = new DiffusionIntegrator(one);
@@ -1506,8 +1505,6 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     cg.Mult(B, X);
 
     a.RecoverFEMSolution(X, rhs, adj_sol);
-
-
 
     // make a Parlinear form to compute sensivity w.r.t. nodal coordinates
     // here we can use sensitivity w.r.t coordinate since d/dU = d/dX * dX/dU = d/dX * 1

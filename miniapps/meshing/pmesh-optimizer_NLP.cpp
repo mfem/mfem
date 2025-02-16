@@ -47,7 +47,7 @@
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
-#include "../linalg/dual.hpp"
+#include "linalg/dual.hpp"
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer_using_NLP.hpp"
@@ -67,7 +67,7 @@ typedef internal::dual<ADSType, ADSType> ADTType;
 real_t ADVal_func( const Vector &x, std::function<ADFType( std::vector<ADFType>&)> func)
 {
   int dim = x.Size();
-  int matsize = dim;  
+  int matsize = dim;
    std::vector<ADFType> adinp(matsize);
    for (int i=0; i<matsize; i++) { adinp[i] = ADFType{x[i], 0.0}; }
 
@@ -95,7 +95,7 @@ void ADGrad_func( const Vector &x, std::function<ADFType( std::vector<ADFType>&)
 void ADHessian_func(const Vector &x, std::function<ADSType( std::vector<ADSType>&)> func, DenseMatrix &H)
 {
    int dim = x.Size();
-  
+
    //use forward-forward mode
    std::vector<ADSType> aduu(dim);
    for (int ii = 0; ii < dim; ii++)
@@ -123,7 +123,7 @@ void ADHessian_func(const Vector &x, std::function<ADSType( std::vector<ADSType>
 void AD3rdDeric_func(const Vector &x, std::function<ADTType( std::vector<ADTType>&)> func, std::vector<DenseMatrix> &TRD)
 {
    int dim = x.Size();
-  
+
    //use forward-forward mode
    std::vector<ADTType> aduu(dim);
    for (int ii = 0; ii < dim; ii++)
@@ -174,6 +174,23 @@ auto func_1( std::vector<type>& x ) -> type
     return 0.5+0.5*tanh(k_w*((sin( M_PI *x[0] )*sin(M_PI *x[1]))-k_t*T_ref));
 };
 
+template <typename type>
+auto func_2( std::vector<type>& x ) -> type
+{
+    double xc = -0.05,
+           yc = -0.05,
+           zc = -0.05,
+           rc = 0.7,
+           alpha = alphaw;
+    auto dx = (x[0]-xc),
+         dy = x[1]-yc;
+    auto val = dx*dx + dy*dy;
+    if (val > 0.0) { val = sqrt(val); }
+    val -= rc;
+    val = alpha*val;
+    return atan(val);
+};
+
 class OSCoefficient : public TMOPMatrixCoefficient
 {
 private:
@@ -220,24 +237,7 @@ double trueSolFunc(const Vector & x)
   }
   else if (ftype == 2) // circular shock wave front centered at origin
   {
-    double xc = -0.05,
-           yc = -0.05,
-           zc = -0.05,
-           rc = 0.7,
-           alpha = alphaw;
-    double dx = (x[0]-xc),
-           dy = x[1]-yc,
-           dz = 0.0;
-    double val = dx*dx + dy*dy;
-    if (x.Size() == 3)
-    {
-      dz = x[2]-zc;
-      val += dz*dz;
-    }
-    if (val > 0.0) { val = std::sqrt(val); }
-    val -= rc;
-    val *= alpha;
-    return std::atan(val);
+    return ADVal_func(x, func_2<ADFType>);
   }
   else if (ftype == 3) // incline shock
   {
@@ -296,34 +296,7 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
   }
   else if (ftype == 2) // circular shock wave front centered at origin
   {
-    double xc = -0.05,
-        yc = -0.05,
-        zc = -0.05,
-        rc = 0.7,
-        alpha = alphaw;
-    double dx = (x[0]-xc),
-           dy = x[1]-yc,
-           dz = 0.0;
-    double val = dx*dx + dy*dy;
-    if (x.Size() == 3)
-    {
-      dz = x[2]-zc;
-      val += dz*dz;
-    }
-    if (val > 0.0) { val = std::sqrt(val); }
-    double valo = val;
-    val -= rc;
-    val *= alpha;
-    // return std::atan(val);
-
-    double den1 = (1.0+val*val)*(valo);
-    grad[0] = alpha*dx/den1;
-    grad[1] = alpha*dy/den1;
-    if (x.Size() == 3)
-    {
-      grad[2] = alpha*dz/den1;
-    }
-    // mfem_error("ftype 2 not implemented");
+    ADGrad_func(x, func_2<ADFType>, grad);
   }
   else if (ftype == 3)
   {
@@ -399,29 +372,10 @@ double loadFunc(const Vector & x)
   }
   else if (ftype == 2)
   {
-    double xc = -0.05,
-           yc = -0.05,
-           zc = -0.05,
-           rc = 0.7,
-           alpha = alphaw;
-    double dx = (x[0]-xc),
-           dy = x[1]-yc,
-           dz = 0.0;
-    double val = dx*dx + dy*dy;
-    if (x.Size() == 3)
-    {
-      dz = x[2]-zc;
-      val += dz*dz;
-    }
-    if (val > 0.0) { val = std::sqrt(val); }
-    double num1 = 2.0*alpha*alpha*alpha*(val-rc);
-    double den1 = std::pow((1.0 + alpha*alpha*(val-rc)*(val-rc)),2.0);
-
-    double num2 = 1.0*alpha;
-    double den2 = val*((1.0 + alpha*alpha*(val-rc)*(val-rc)));
-
-    double f = num1/den1 - num2/den2;
-    return f;
+    DenseMatrix Hessian(x.Size());
+    ADHessian_func(x, func_2<ADSType>, Hessian);
+    double val = -1.0*(Hessian(0,0)+Hessian(1,1));
+    return val;
   }
   else if (ftype == 3)
   {
@@ -489,10 +443,35 @@ void trueLoadFuncGrad(const Vector & x,Vector & grad)
     grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
     grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
   }
+  else if (ftype == 2)
+  {
+    std::vector<DenseMatrix> TRD(x.Size());
+    for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
+    AD3rdDeric_func(x, func_2<ADTType>, TRD);
+    grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
+    grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
+  }
   else if (ftype == 8)
   {
     grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
     grad[1] = 0.0;
+  }
+}
+
+void trueHessianFunc(const Vector & x,DenseMatrix & Hessian)
+{
+  Hessian.SetSize(x.Size());
+  if (ftype == 0)
+  {
+    ADHessian_func(x, func_0<ADSType>, Hessian);
+  }
+  else if (ftype == 1)
+  {
+    ADHessian_func(x, func_1<ADSType>, Hessian);
+  }
+  else
+  {
+    MFEM_ABORT("Not implemented\n");
   }
 }
 
@@ -620,10 +599,8 @@ int main (int argc, char *argv[])
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
   bool dQdxFD =false;
-  bool dQdxFD_global =true;
-  bool BreakAfterFirstIt = true;
-
-
+  bool dQdxFD_global =false;
+  bool BreakAfterFirstIt = false;
 
   // Create mesh
   Mesh *des_mesh = nullptr;
@@ -682,13 +659,7 @@ int main (int argc, char *argv[])
   //    elements which are tensor products of quadratic finite elements. The
   //    number of components in the vector finite element space is specified by
   //    the last parameter of the FiniteElementSpace constructor.
-  FiniteElementCollection *fec;
-  if (mesh_poly_deg <= 0)
-  {
-    fec = new QuadraticPosFECollection;
-    mesh_poly_deg = 2;
-  }
-  else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+  FiniteElementCollection *fec= new H1_FECollection(mesh_poly_deg, dim);
   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(PMesh, fec, dim,
                                                                mesh_node_ordering);
   auto fespace_scalar = new ParFiniteElementSpace(PMesh, fec, 1);
@@ -721,6 +692,7 @@ int main (int argc, char *argv[])
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 36: metric = new TMOP_AMetric_036; break;
+      case 50: metric = new TMOP_Metric_050; break;
       case 80: metric = new TMOP_Metric_080(0.8); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
@@ -823,7 +795,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-          // gridfuncLSBoundIndicator[ vdofs[j+0*nd] ] = 1.0;
+          gridfuncLSBoundIndicator[ vdofs[j+0*nd] ] = 1.0; // stops all motion
         }
       }
       else if (attribute == 1) // zero out in x
@@ -831,7 +803,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-          // gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0; // stops all motion
         }
       }
       else if (dim == 3 && attribute == 3) // zero out in z
@@ -857,7 +829,7 @@ int main (int argc, char *argv[])
     // std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
     // essentialBC[0] = {1, 0};
-    // essentialBC[1] = {3, 0};
+    // essentialBC[0] = {2, 0};
   }
 
   const IntegrationRule &ir =
@@ -912,13 +884,17 @@ if (myid == 0) {
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
-  VectorCoefficient *trueSolutionGrad = new VectorFunctionCoefficient(dim,
-                                                              trueSolGradFunc);
+  VectorCoefficient *trueSolutionGrad =
+                          new VectorFunctionCoefficient(dim, trueSolGradFunc);
+  MatrixCoefficient *trueSolutionHess = new
+                                MatrixFunctionCoefficient(dim,trueHessianFunc);
   QoIEvaluator.setTrueSolCoeff( trueSolution );
   if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
+  QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
   x_gf.ProjectCoefficient(*trueSolution);
+
 
   Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
   Diffusion_Solver solver_FD2(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);

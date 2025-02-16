@@ -987,7 +987,7 @@ void TMOP_MMA::Mult(Vector &x)
    Vector x_orig = x;
    Vector dx(x.Size());
    dx = 0.0;
-   double deps = 1e-6;
+   double deps = 1e-12;
 
    Vector xxmin = dx;
    Vector xxmax = dx;
@@ -1057,8 +1057,8 @@ void TMOP_MMA::Mult(Vector &x)
          xxmax=dx;
          if (it < 3)
          {
-          xxmin-=1.0*dlower;
-          xxmax+=1.0*dupper;
+          xxmin-=0.1*dlower;
+          xxmax+=0.1*dupper;
          }
          else
          {

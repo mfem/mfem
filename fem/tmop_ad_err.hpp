@@ -70,7 +70,7 @@ public:
 
   virtual const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) = 0;
 
-    virtual const mfem::Vector CustomDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) {
+    virtual const mfem::Vector DerivativeExactWRTX(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) {
     Vector vec(T.GetSpaceDim());
     vec = 0.0;
     return vec;
@@ -136,15 +136,20 @@ public:
     return dtheta_dX;
   };
 
-  virtual const mfem::Vector CustomDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
+  // 2(u-u*)(-du*/dx_a)
+  virtual const mfem::Vector DerivativeExactWRTX(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
-    // mfem::Vector grad;
     mfem::Vector trueGrad;
-    trueSolutionGrad_->Eval (trueGrad, T, ip);
-    // solutionField_->GetGradient (T, grad);
-    trueGrad *= -1.0;
-    // grad += trueGrad;
+    trueSolutionGrad_->Eval(trueGrad, T, ip);
+
+    double fieldVal = solutionField_->GetValue( T, ip );
+    double trueVal = trueSolution_->Eval( T, ip );
+    trueGrad *= -2.0*(fieldVal-trueVal);
     return trueGrad;
+    // mfem::Vector grad;
+    // solutionField_->GetGradient (T, grad);
+    // grad *= 2.0*(fieldVal-trueVal);
+    // grad += trueGrad;
     // return grad;
   }
 private:
@@ -163,8 +168,10 @@ private:
 
 class H1Error_QoI : public QoIBaseCoefficient {
 public:
-  H1Error_QoI(mfem::ParGridFunction * solutionField, mfem::VectorCoefficient * trueSolution)
-    : solutionField_(solutionField), trueSolution_(trueSolution)
+  H1Error_QoI(mfem::ParGridFunction * solutionField,
+              mfem::VectorCoefficient * trueSolution,
+              mfem::MatrixCoefficient * trueSolutionHess)
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(trueSolutionHess)
   {};
 
   ~H1Error_QoI() {};
@@ -247,11 +254,29 @@ public:
 
     return dUXdtheta_dGradU;
   };
+
+//  -2(\grad u - \grad u*)^T.[nabla^2 u]
+  virtual const mfem::Vector DerivativeExactWRTX(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
+  {
+    mfem::Vector grad;
+    mfem::Vector trueGrad;
+    trueSolution_->Eval (trueGrad, T, ip);
+    solutionField_->GetGradient (T, grad);
+
+    DenseMatrix Hess;
+    trueSolutionHess_->Eval(Hess, T, ip);
+
+    grad -= trueGrad;
+    Vector HessTgrad(grad.Size());
+    Hess.MultTranspose(grad, HessTgrad);
+    return HessTgrad;
+  }
 private:
 
 
   mfem::ParGridFunction * solutionField_;
   mfem::VectorCoefficient * trueSolution_;
+  mfem::MatrixCoefficient * trueSolutionHess_;
 
   int Dim_ = 2;
 
@@ -713,6 +738,7 @@ public:
 
     void setTrueSolCoeff( mfem::Coefficient * trueSolution ){ trueSolution_ = trueSolution; };
     void setTrueSolGradCoeff( mfem::VectorCoefficient * trueSolutionGrad ){ trueSolutionGrad_ = trueSolutionGrad; };
+    void setTrueSolHessCoeff( mfem::MatrixCoefficient * trueSolutionHess ){ trueSolutionHess_ = trueSolutionHess; };
     void SetDesign( mfem::Vector & design){ designVar = design; };
     void SetNodes( mfem::Vector & coords){ X0_ = coords; };
     void SetDesignVarFromUpdatedLocations( mfem::Vector & design)
@@ -733,6 +759,7 @@ public:
 private:
     mfem::Coefficient * trueSolution_ = nullptr;
     mfem::VectorCoefficient * trueSolutionGrad_ = nullptr;
+    mfem::MatrixCoefficient * trueSolutionHess_ = nullptr;
 
     mfem::ParMesh* pmesh;
     enum QoIType qoiType_;
