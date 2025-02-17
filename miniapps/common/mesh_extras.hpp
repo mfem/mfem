@@ -122,11 +122,11 @@ public:
                         real_t gap_ = 0.05, real_t height_ = 1.0)
       : VectorCoefficient(dim_), dim(dim_),
         turns(turns_), width(width_), gap(gap_), height(height_)
-        {
-            MFEM_VERIFY(turns > 0 && width > 0 && gap > 0 && height > 0,
-            "Spiral transformation requires positive parameters: turns, "
-            " width, gap, and height.");
-        }
+   {
+      MFEM_VERIFY(turns > 0 && width > 0 && gap > 0 && height > 0,
+                  "Spiral transformation requires positive parameters: turns, "
+                  " width, gap, and height.");
+   }
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
