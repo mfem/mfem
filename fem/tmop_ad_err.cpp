@@ -1,5 +1,4 @@
 #include "tmop_ad_err.hpp"
-#include "datacollection.hpp"
 
 namespace mfem {
 
@@ -205,24 +204,23 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
     elvect.Add( -1.0 * w , graduDerivxBvec);
 
     // term 2 - (u-u*)^2 d(detJ)/dx
-    Mult(B, I, IxB);
-    Vectorize(IxB, IxBTvec);
-    elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
-    // Vector Bvec(B.GetData(), dof*dim);
-    // elvect.Add( w * QoI_->Eval(T, ip), Bvec);
+    // Mult(B, I, IxB);
+    // Vectorize(IxB, IxBTvec);
+    // elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
+    Vector Bvec(B.GetData(), dof*dim);
+    elvect.Add( w * QoI_->Eval(T, ip), Bvec);
 
     // term 3 - this is for when QoI has x inside e.g. (u * x - u* * x)^2
     Mult(matN, QoI_->explicitShapeDerivative(T, ip), NxPhix);
     Vectorize(NxPhix, IxN_vec);
     elvect.Add(w , IxN_vec);
 
-    // Term 4 - custom derivative
-    DenseMatrix D = QoI_->explicitSolutionDerivative(T, ip);
-    Vector v = QoI_->CustomDerivative(T, ip);
+    // Term 4 - custom derivative 2(u-u*)(-\phi_j du*/dx_a) w_q det(J)
+    Vector v = QoI_->DerivativeExactWRTX(T, ip);
     for (int d = 0; d < dim; d++)
     {
       Vector elvect_temp(elvect.GetData() + d*dof, dof);
-      elvect_temp.Add(w*D(0,0)*v(d), N);
+      elvect_temp.Add(w*v(d), N);
     }
   }
 }
@@ -606,7 +604,7 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
       shapeSum.Add(w*vol, shape);
   }
 
-  /* should be this ->
+  // /* should be this ->
   shapeSum = 0.0;
   double el_vol = 0.0;
   for (int i = 0; i < ir->GetNPoints(); i++)
@@ -618,9 +616,9 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
       shapeSum.Add(ip.weight * T.Weight(), shape);
   }
   shapeSum *= 1.0/el_vol;
-  */
+  // */
 
-  //-----------------------------------------------------------------------------------
+  // -----------------------------------------------------------------------------------
 
   // output vector
   elvect.SetSize( dof);
@@ -1206,14 +1204,31 @@ double QuantityOfInterest::EvalQoI()
   mfem::ParGridFunction b_GF(b.ParFESpace(), assembledVector);
   GridFunctionCoefficient L2Field(&b_GF);
 
+    //  for (int d = 0; d < pmesh->Dimension(); d++)
+    //  {
+    //   int ndofs = true_solgf_.Size();
+    //   ParGridFunction grad_temp_(temp_fes_,
+    //                              true_solgradgf_.GetData() + d*ndofs);
+    //   true_solgf_.GetDerivative(1, d, grad_temp_);
+    //  }
+
   switch (qoiType_) {
   case 0:
      if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
-     ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+    //  ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+     ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
      break;
   case 1:
     if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-    ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_);
+    // ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
+     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
+     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
+     ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
     break;
   case 2:
     integ = new DiffusionIntegrator(one);
@@ -1287,11 +1302,20 @@ void QuantityOfInterest::EvalQoIGrad()
   switch (qoiType_) {
     case 0:
       if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
-      ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+      // ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+        ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
       break;
     case 1:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
+     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
+     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
+      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
+      // ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
       break;
     case 2:
       integ = new DiffusionIntegrator(one);
@@ -1507,8 +1531,6 @@ void Elasticity_Solver::ASolve( Vector & rhs )
 
     a.RecoverFEMSolution(X, rhs, adj_sol);
 
-
-
     // make a Parlinear form to compute sensivity w.r.t. nodal coordinates
     // here we can use sensitivity w.r.t coordinate since d/dU = d/dX * dX/dU = d/dX * 1
     ::mfem::ParLinearForm LHS_sensitivity(coord_fes_);
@@ -1691,7 +1713,11 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     {
       RHS_sensitivity.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(truesolWCoef, adj_sol, 12, 12));
     }
-    if (loadGradCoef_) { lfi->SetLoadGrad(loadGradCoef_); }
+    if (loadGradCoef_) {
+      lfi->SetLoadGrad(loadGradCoef_);
+      // trueloadgradgf_.ProjectCoefficient(*loadGradCoef_);
+      // lfi->SetLoadGrad(&trueloadgradgf_coeff_);
+    }
     IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
     lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
     RHS_sensitivity.AddDomainIntegrator(lfi);
