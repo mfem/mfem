@@ -2007,19 +2007,6 @@ const FiniteElement *
 H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return H1_Elements[GeomType];
-   /*
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-   {
-      return H1_Elements[GeomType];
-   }
-   else
-   {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
-                 "for order > 1.");
-      return NULL;
-   }
-   */
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2406,19 +2393,6 @@ const FiniteElement *
 L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return L2_Elements[GeomType];
-   /*
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 0)
-   {
-      return L2_Elements[GeomType];
-   }
-   else
-   {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("L2 Pyramid basis functions are not yet supported "
-                 "for order > 0.");
-      return NULL;
-   }
-   */
 }
 
 const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2665,19 +2639,6 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
 const FiniteElement *
 RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   /*
-    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-    {
-       return RT_Elements[GeomType];
-    }
-    else
-    {
-       if (error_mode == RETURN_NULL) { return nullptr; }
-       MFEM_ABORT("RT Pyramid basis functions are not yet supported "
-                  "for order > 0.");
-       return NULL;
-    }
-   */
    return RT_Elements[GeomType];
 }
 
@@ -2956,19 +2917,6 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 const FiniteElement *
 ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   /*
-    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-    {
-       return ND_Elements[GeomType];
-    }
-    else
-    {
-       if (error_mode == RETURN_NULL) { return nullptr; }
-       MFEM_ABORT("ND Pyramid basis functions are not yet supported "
-                  "for order > 1.");
-       return NULL;
-    }
-   */
    return ND_Elements[GeomType];
 }
 
