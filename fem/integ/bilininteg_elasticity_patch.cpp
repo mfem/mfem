@@ -24,14 +24,16 @@ void PatchElasticitySetup3D(const int Q1Dx,
                             const int Q1Dz,
                             const Array<real_t> &w,
                             const Vector &j,
+                            const Vector &c,
                             Vector &d)
 {
    // computes d=[J^{-T}(xq), W(xq)*det(J(xq))] at quadrature points
    const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
-   // nq * [9 (J^{-T}) + 1 (WdetJ)]
-   d.SetSize(Q1Dx * Q1Dy * Q1Dz * 10);
-   auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 10);
+   const auto C = Reshape(c.Read(), 2,Q1Dx,Q1Dy,Q1Dz);
+   // nq * [9 (J^{-T}) + 1 (WdetJ) + 1 (lambda) + 1 (mu)]
+   d.SetSize(Q1Dx * Q1Dy * Q1Dz * 12);
+   auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 12);
    const int NE = 1;  // TODO: MFEM_FORALL_3D without e?
    MFEM_FORALL_3D(e, NE, Q1Dx, Q1Dy, Q1Dz,
    {
@@ -77,6 +79,9 @@ void PatchElasticitySetup3D(const int Q1Dx,
                // store w_detJ
                // TODO: Small efficiency to multiply by sqrt(W*detJ)?
                D(qx,qy,qz,9) = W(qx,qy,qz) * detJ;
+               // Coefficients
+               D(qx,qy,qz,10) = C(0,qx,qy,qz); // lambda
+               D(qx,qy,qz,11) = C(1,qx,qy,qz); // mu
             }
          }
       }
@@ -233,6 +238,9 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    IntegrationPoint ip;
 
    Vector jac(vdim * vdim * nq);  // Computed as in GeometricFactors::Compute
+   Vector coeffsv(2 * nq);        // lambda, mu at quad points
+   auto coeffs = Reshape(coeffsv.HostReadWrite(), 2, Q1D[0], Q1D[1], Q1D[2]);
+
 
    // TODO: use QuadratureInterpolator instead of ElementTransformation?
    for (int qz=0; qz<Q1D[2]; ++qz)
@@ -242,34 +250,44 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
          for (int qx=0; qx<Q1D[0]; ++qx)
          {
             const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-            patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
             const int e = patchRules->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
+            patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
 
             weights[p] = ip.weight;
+
+            // mfem::out << "SetupPatchPA(): patch = " << patch
+            //           << ", e = " << e
+            //           << ", tr.Attribute = " << tr->Attribute
+            //           << ", lambda = " << lambda->Eval(*tr, ip)
+            //           << std::endl;
+            coeffs(0,qx,qy,qz) = lambda->Eval(*tr, ip);
+            coeffs(1,qx,qy,qz) = mu->Eval(*tr, ip);
 
             tr->SetIntPoint(&ip);
 
             const DenseMatrix& Jp = tr->Jacobian();
             for (int i=0; i<vdim; ++i)
+            {
                for (int j=0; j<vdim; ++j)
                {
                   jac[p + ((i + (j * vdim)) * nq)] = Jp(i,j);
                }
+            }
          }
       }
    }
 
    // TODO: Compute coefficient at quadrature points
-   const FiniteElementSpace *fes = mesh->GetNodalFESpace();
-   SetUpQuadratureSpaceAndCoefficients(*fes);
+   // const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+   // SetUpQuadratureSpaceAndCoefficients(*fes);
 
    if (unitWeights)
    {
       weights = 1.0;
    }
    // Computes "D"
-   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, pa_data);
+   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, coeffsv, pa_data);
 
    mfem::out << "Finished computing D " << patch << std::endl;
 

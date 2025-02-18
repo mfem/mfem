@@ -175,7 +175,7 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    auto Y = Reshape(y.HostReadWrite(), vdim, D1D[0], D1D[1], D1D[2]);
 
    // First 9 entries are J^{-T}, last entry is W*detJ
-   const auto qd = Reshape(pa_data.HostRead(), NQ, 10);
+   const auto qd = Reshape(pa_data.HostRead(), NQ, 12);
 
    // grad(c,d,qx,qy,qz)
    // derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
@@ -274,6 +274,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             const real_t Jinvt21 = qd(q,7);
             const real_t Jinvt22 = qd(q,8);
             const real_t wdetj   = qd(q,9);
+            const real_t lambda  = qd(q,10);
+            const real_t mu      = qd(q,11);
 
             // grad_u = J^{-T} * grad_uhat
             for (int c = 0; c < vdim; ++c)
@@ -285,6 +287,10 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
                grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
             }
+
+            // debugging
+            // mfem::out << "lambda = " << lambda << std::endl;
+            // mfem::out << "mu = " << mu << std::endl;
 
 
             // hydrostatic term: lambda*div(u)*I
@@ -302,7 +308,7 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       } // qy
    } // qz
 
-   // // mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
+   mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
    // // mfem::out << "grad[0](1,1,1) = " << grad[0](1,1,1) << std::endl;
 
    // // 4) Add the contributions
