@@ -1,5 +1,4 @@
 #include "tmop_ad_err.hpp"
-#include "datacollection.hpp"
 
 namespace mfem {
 
@@ -1205,14 +1204,31 @@ double QuantityOfInterest::EvalQoI()
   mfem::ParGridFunction b_GF(b.ParFESpace(), assembledVector);
   GridFunctionCoefficient L2Field(&b_GF);
 
+    //  for (int d = 0; d < pmesh->Dimension(); d++)
+    //  {
+    //   int ndofs = true_solgf_.Size();
+    //   ParGridFunction grad_temp_(temp_fes_,
+    //                              true_solgradgf_.GetData() + d*ndofs);
+    //   true_solgf_.GetDerivative(1, d, grad_temp_);
+    //  }
+
   switch (qoiType_) {
   case 0:
      if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
-     ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+    //  ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+     ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
      break;
   case 1:
     if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-    ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
+    // ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
+     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
+     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
+     ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
     break;
   case 2:
     integ = new DiffusionIntegrator(one);
@@ -1286,11 +1302,20 @@ void QuantityOfInterest::EvalQoIGrad()
   switch (qoiType_) {
     case 0:
       if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
-      ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+      // ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
+        ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
       break;
     case 1:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
+     true_solgf_.ProjectCoefficient(*trueSolution_);
+     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
+     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
+     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
+      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
+      // ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
       break;
     case 2:
       integ = new DiffusionIntegrator(one);
@@ -1688,7 +1713,11 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     {
       RHS_sensitivity.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(truesolWCoef, adj_sol, 12, 12));
     }
-    if (loadGradCoef_) { lfi->SetLoadGrad(loadGradCoef_); }
+    if (loadGradCoef_) {
+      lfi->SetLoadGrad(loadGradCoef_);
+      // trueloadgradgf_.ProjectCoefficient(*loadGradCoef_);
+      // lfi->SetLoadGrad(&trueloadgradgf_coeff_);
+    }
     IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
     lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
     RHS_sensitivity.AddDomainIntegrator(lfi);

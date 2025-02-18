@@ -45,6 +45,11 @@
 // L-shaped domain.
 
 
+// l2 error
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 1000 -ft 1 --qtype 0 -w1 2e4 -w2 1e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
+// h1 error
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 1000 -ft 1 --qtype 1 -w1 2e2 -w2 8e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "linalg/dual.hpp"
@@ -155,7 +160,7 @@ void AD3rdDeric_func(const Vector &x, std::function<ADTType( std::vector<ADTType
 }
 
 int ftype = 1;
-double kw = 5.0;
+double kw = 10.0;
 double alphaw = 50;
 
 template <typename type>
@@ -475,6 +480,14 @@ void trueHessianFunc(const Vector & x,DenseMatrix & Hessian)
   }
 }
 
+void trueHessianFunc_v(const Vector & x,Vector & Hessian)
+{
+  DenseMatrix HessianM;
+  trueHessianFunc(x,HessianM);
+  Hessian.SetSize(HessianM.Height()*HessianM.Width());
+  Hessian = HessianM.GetData();
+}
+
 void VisVectorField(OSCoefficient *adapt_coeff, ParMesh *pmesh, ParGridFunction *orifield)
 {
   ParFiniteElementSpace *pfespace = orifield->ParFESpace();
@@ -539,6 +552,7 @@ int main (int argc, char *argv[])
   bool exactaction      = false;
   double ls_norm_fac    = 1.2;
   double ls_energy_fac  = 1.1;
+  bool   bndr_fix       = true;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -587,6 +601,9 @@ int main (int argc, char *argv[])
                   "line-search norm factor");
    args.AddOption(&ls_energy_fac, "-lse", "--ls-energy-fac",
                   "line-search energy factor");
+    args.AddOption(&bndr_fix, "-bndr", "--bndrfix",
+                  "-bndrfree", "--bndr-free",
+                  "Enable exact action of TMOP_Integrator.");
 
    args.Parse();
    if (!args.Good())
@@ -795,7 +812,9 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j+0*nd] ] = 1.0; // stops all motion
+          if (bndr_fix) {
+            gridfuncLSBoundIndicator[ vdofs[j+0*nd] ] = 1.0; // stops all motion
+          }
         }
       }
       else if (attribute == 1) // zero out in x
@@ -803,7 +822,10 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0; // stops all motion
+          if (bndr_fix)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0; // stops all motion
+          }
         }
       }
       else if (dim == 3 && attribute == 3) // zero out in z
@@ -888,10 +910,13 @@ if (myid == 0) {
                           new VectorFunctionCoefficient(dim, trueSolGradFunc);
   MatrixCoefficient *trueSolutionHess = new
                                 MatrixFunctionCoefficient(dim,trueHessianFunc);
+  VectorCoefficient *trueSolutionHessV =
+                          new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
   QoIEvaluator.setTrueSolCoeff( trueSolution );
   if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
+  QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
   x_gf.ProjectCoefficient(*trueSolution);
 

@@ -12,6 +12,7 @@
 // #include "tmop.hpp"
 //#include "gslib.hpp"
 #include "../linalg/mma.hpp"
+#include "datacollection.hpp"
 
 
 namespace mfem{
@@ -171,7 +172,12 @@ public:
   H1Error_QoI(mfem::ParGridFunction * solutionField,
               mfem::VectorCoefficient * trueSolution,
               mfem::MatrixCoefficient * trueSolutionHess)
-    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(trueSolutionHess)
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(trueSolutionHess), trueSolutionHessV_(nullptr) {};
+
+  H1Error_QoI(mfem::ParGridFunction * solutionField,
+              mfem::VectorCoefficient * trueSolution,
+              mfem::VectorCoefficient * trueSolutionHessV)
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(nullptr), trueSolutionHessV_(trueSolutionHessV)
   {};
 
   ~H1Error_QoI() {};
@@ -264,7 +270,16 @@ public:
     solutionField_->GetGradient (T, grad);
 
     DenseMatrix Hess;
-    trueSolutionHess_->Eval(Hess, T, ip);
+    if (trueSolutionHess_)
+    {
+      trueSolutionHess_->Eval(Hess, T, ip);
+    }
+    else
+    {
+      Vector HessV;
+      trueSolutionHessV_->Eval(HessV, T, ip);
+      Hess = HessV.GetData();
+    }
 
     grad -= trueGrad;
     Vector HessTgrad(grad.Size());
@@ -276,7 +291,8 @@ private:
 
   mfem::ParGridFunction * solutionField_;
   mfem::VectorCoefficient * trueSolution_;
-  mfem::MatrixCoefficient * trueSolutionHess_;
+  mfem::MatrixCoefficient * trueSolutionHess_ = nullptr;
+  mfem::VectorCoefficient * trueSolutionHessV_ = nullptr;
 
   int Dim_ = 2;
 
@@ -719,11 +735,29 @@ public:
         fec = new H1_FECollection(order_,dim);
         temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
+        hess_fes_ = new ParFiniteElementSpace(pmesh,fec,dim*dim);
 
         solgf_.SetSpace(temp_fes_);
 
         dQdu_ = new mfem::ParLinearForm(temp_fes_);
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
+
+        true_solgf_.SetSpace(temp_fes_);
+        true_solgradgf_.SetSpace(coord_fes_);
+        true_solhessgf_.SetSpace(hess_fes_);
+        true_solgf_coeff_.SetGridFunction(&true_solgf_);
+        true_solgradgf_coeff_.SetGridFunction(&true_solgradgf_);
+        true_solhessgf_coeff_.SetGridFunction(&true_solhessgf_);
+
+        // debug_pdc = new ParaViewDataCollection("DebugQoI", temp_fes_->GetParMesh());
+        // debug_pdc->SetLevelsOfDetail(1);
+        // debug_pdc->SetDataFormat(VTKFormat::BINARY);
+        // debug_pdc->SetHighOrderOutput(true);
+        // debug_pdc->SetCycle(0);
+        // debug_pdc->SetTime(0.0);
+        // debug_pdc->RegisterField("sol",&solgf_);
+        // debug_pdc->RegisterField("true_sol",&true_solgf_);
+        // debug_pdc->RegisterField("true_sol_grad",&true_solgradgf_);
     }
 
     ~QuantityOfInterest()
@@ -739,6 +773,7 @@ public:
     void setTrueSolCoeff( mfem::Coefficient * trueSolution ){ trueSolution_ = trueSolution; };
     void setTrueSolGradCoeff( mfem::VectorCoefficient * trueSolutionGrad ){ trueSolutionGrad_ = trueSolutionGrad; };
     void setTrueSolHessCoeff( mfem::MatrixCoefficient * trueSolutionHess ){ trueSolutionHess_ = trueSolutionHess; };
+    void setTrueSolHessCoeff( mfem::VectorCoefficient * trueSolutionHessV ){ trueSolutionHessV_ = trueSolutionHessV; };
     void SetDesign( mfem::Vector & design){ designVar = design; };
     void SetNodes( mfem::Vector & coords){ X0_ = coords; };
     void SetDesignVarFromUpdatedLocations( mfem::Vector & design)
@@ -760,6 +795,7 @@ private:
     mfem::Coefficient * trueSolution_ = nullptr;
     mfem::VectorCoefficient * trueSolutionGrad_ = nullptr;
     mfem::MatrixCoefficient * trueSolutionHess_ = nullptr;
+    mfem::VectorCoefficient * trueSolutionHessV_ = nullptr;
 
     mfem::ParMesh* pmesh;
     enum QoIType qoiType_;
@@ -770,11 +806,19 @@ private:
     mfem::FiniteElementCollection *fec;
     mfem::ParFiniteElementSpace	  *temp_fes_;
     mfem::ParFiniteElementSpace	  *coord_fes_;
+    mfem::ParFiniteElementSpace	  *hess_fes_;
 
     mfem::ParLinearForm * dQdu_;
     mfem::ParLinearForm * dQdx_;
 
     mfem::ParGridFunction solgf_;
+    mfem::ParGridFunction true_solgf_, true_solgradgf_, true_solhessgf_;
+    mfem::GridFunctionCoefficient true_solgf_coeff_;
+    mfem::VectorGridFunctionCoefficient true_solgradgf_coeff_;
+    mfem::VectorGridFunctionCoefficient true_solhessgf_coeff_;
+
+    ParaViewDataCollection *debug_pdc;
+    int pdc_cycle = 0;
 
     std::shared_ptr<QoIBaseCoefficient> ErrorCoefficient_ = nullptr;
     Array<double> gllvec_;
@@ -859,6 +903,9 @@ public:
         {
           loadGradCoef_ = loadFuncGrad;
         }
+
+        trueloadgradgf_.SetSpace(coord_fes_);
+        trueloadgradgf_coeff_.SetGridFunction(&trueloadgradgf_);
     }
 
     ~Diffusion_Solver(){
@@ -954,6 +1001,11 @@ private:
 
     mfem::Coefficient * QCoef_ = nullptr;
     mfem::VectorCoefficient *loadGradCoef_ = nullptr;
+
+
+    mfem::ParGridFunction trueloadgradgf_;
+    mfem::VectorGridFunctionCoefficient trueloadgradgf_coeff_;
+
 
     bool weakBC_ = false;
 };
