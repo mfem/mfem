@@ -808,12 +808,14 @@ class NewmarkSolver : public SecondOrderODESolver
 {
 private:
    real_t beta, gamma;
+   bool no_mult;
 
 public:
    NewmarkSolver(real_t beta_ = 0.25, real_t gamma_ = 0.5, bool no_mult_ = false)
    {
       beta = beta_;
       gamma = gamma_;
+      no_mult = no_mult_;
    };
 
    void PrintProperties(std::ostream &os = mfem::out);
