@@ -1080,25 +1080,25 @@ private:
 class VectorHelmholtz
 {
 public:
-    VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2)
+    VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, real_t radius, int order_=2)
     {
+        
+        radius_ = new ConstantCoefficient(radius);
         pmesh=mesh_;
         int dim=pmesh->Dimension();
 
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        u_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
-        sol.SetSize(u_fes_->GetTrueVSize()); sol=0.0;
-        rhs.SetSize(u_fes_->GetTrueVSize()); rhs=0.0;
-        adj.SetSize(u_fes_->GetTrueVSize()); adj=0.0;
+        sol.SetSize(coord_fes_->GetTrueVSize()); sol=0.0;
+        rhs.SetSize(coord_fes_->GetTrueVSize()); rhs=0.0;
+        adj.SetSize(coord_fes_->GetTrueVSize()); adj=0.0;
 
-        solgf.SetSpace(u_fes_);
-        adjgf.SetSpace(u_fes_);
+        solgf.SetSpace(coord_fes_);
+        adjgf.SetSpace(coord_fes_);
 
-        dQdu_ = new mfem::ParLinearForm(u_fes_);
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
 
         SetLinearSolver();
@@ -1107,7 +1107,7 @@ public:
         int maxAttribute = pmesh->bdr_attributes.Max();
         ::mfem::Array<int> bdr_attr_is_ess(maxAttribute);
         ess_tdof_list_.DeleteAll();
-        ::mfem::Vector ess_bc(u_fes_->GetTrueVSize());
+        ::mfem::Vector ess_bc(coord_fes_->GetTrueVSize());
         ess_bc = 0.0;
 
         // loop over input attribute, value pairs
@@ -1119,7 +1119,7 @@ public:
             bdr_attr_is_ess = 0;
             bdr_attr_is_ess[attribute - 1] = 1; // mfem attributes 1-indexed, arrays 0-indexed
             ::mfem::Array<int> u_tdofs;
-            u_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, u_tdofs);
+            coord_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, u_tdofs);
 
             // append to global dof list
             ess_tdof_list_.Append(u_tdofs);
@@ -1128,17 +1128,16 @@ public:
             double value = bc.second;
             ess_bc.SetSubVector(u_tdofs, value);
         }
-        bcGridFunc_.SetSpace(u_fes_);
+        bcGridFunc_.SetSpace(coord_fes_);
         bcGridFunc_.SetFromTrueDofs(ess_bc);
     }
 
     ~VectorHelmholtz(){
-        delete u_fes_;
         delete coord_fes_;
         delete fec;
 
-        delete dQdu_;
         delete dQdx_;
+        delete radius_;
     }
 
     /// Set the Linear Solver
@@ -1178,11 +1177,9 @@ private:
     mfem::ParGridFunction adjgf;
     mfem::ParGridFunction bcGridFunc_;
 
-    mfem::ParLinearForm * dQdu_;
     mfem::ParLinearForm * dQdx_;
 
     mfem::FiniteElementCollection *fec;
-    mfem::ParFiniteElementSpace	  *u_fes_;
     mfem::ParFiniteElementSpace	  *coord_fes_;
 
     //Linear solver parameters
@@ -1198,6 +1195,8 @@ private:
     mfem::Array<int> ess_tdof_list_;
 
     mfem::VectorCoefficient * QCoef_ = nullptr;
+
+    Coefficient * radius_;
 };
 
 }

@@ -143,9 +143,11 @@ void AD3rdDeric_func(const Vector &x, std::function<ADTType( std::vector<ADTType
          for (int kk = 0; kk < dim; kk++)                    // FIXME is ymmetric, only loop over half the possibilites
          {
             aduu[kk].gradient.value = ADFType{1.0, 0.0};
+            //aduu[kk].gradient.gradient = ADFType{1.0, 0.0};
             ADTType rez = func(aduu);
             TRD[ii](jj,kk) = rez.gradient.gradient.gradient;
             aduu[kk].gradient.value = ADFType{0.0, 0.0};
+            //aduu[kk].gradient.gradient = ADFType{0.0, 0.0};
          }
          aduu[jj].value.gradient = ADFType{0.0, 0.0};
       }
@@ -155,13 +157,13 @@ void AD3rdDeric_func(const Vector &x, std::function<ADTType( std::vector<ADTType
 }
 
 int ftype = 1;
-double kw = 5.0;
+double kw = 20.0;
 double alphaw = 50;
 
 template <typename type>
 auto func_0( std::vector<type>& x ) -> type
 {
-   return sin( M_PI *x[0] )*sin(2.0*M_PI*x[1]);;
+   return sin( 2.0*M_PI *x[0] )*sin(4.0*M_PI*x[1]);;
 };
 
 template <typename type>
@@ -171,7 +173,13 @@ auto func_1( std::vector<type>& x ) -> type
     double k_t = 0.5;
     double T_ref = 1.0;
 
-    return 0.5+0.5*tanh(k_w*((sin( M_PI *x[0] )*sin(M_PI *x[1]))-k_t*T_ref));
+    return 0.5+0.5*tanh(k_w*  ((sin( M_PI *x[0] )*sin(M_PI *x[1]))-k_t*T_ref)   );
+};
+
+template <typename type>
+auto func_8( std::vector<type>& x ) -> type
+{
+   return sin( M_PI *x[0] );
 };
 
 class OSCoefficient : public TMOPMatrixCoefficient
@@ -486,13 +494,19 @@ void trueLoadFuncGrad(const Vector & x,Vector & grad)
     std::vector<DenseMatrix> TRD(x.Size());
     for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
     AD3rdDeric_func(x, func_1<ADTType>, TRD);
-    grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
-    grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
+    grad[0] = -1.0*(TRD[0](0,0)+TRD[1](1,0));
+    grad[1] = -1.0*(TRD[0](0,1)+TRD[1](1,1));
   }
   else if (ftype == 8)
   {
-    grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
-    grad[1] = 0.0;
+    std::vector<DenseMatrix> TRD(x.Size());
+    for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
+    AD3rdDeric_func(x, func_8<ADTType>, TRD);
+    grad[0] = -1.0*(TRD[0](0,0)+TRD[1](1,0));
+    grad[1] = -1.0*(TRD[0](0,1)+TRD[1](1,1));
+
+    // grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
+    // grad[1] = 0.0;
   }
 }
 
@@ -552,7 +566,8 @@ int main (int argc, char *argv[])
   int target_id   = 1;
   int quad_order  = 8;
   srand(9898975);
-  bool visualization = true;
+  bool visualization = false;
+  double filterRadius = 0.01;
   int method = 0;
   int mesh_poly_deg     = 1;
   int nx                = 4;
@@ -620,8 +635,8 @@ int main (int argc, char *argv[])
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
   bool dQdxFD =false;
-  bool dQdxFD_global =true;
-  bool BreakAfterFirstIt = true;
+  bool dQdxFD_global =false;
+  bool BreakAfterFirstIt = false;
 
 
 
@@ -796,7 +811,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          //gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
       else if (attribute == 2 || attribute == 4) // zero out in x
@@ -804,7 +819,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          //gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
         }
       }
     }
@@ -854,10 +869,10 @@ int main (int argc, char *argv[])
   //std::vector<std::pair<int, double>> essentialBC(2);
   for (int i = 0; i < nbattr; i++)
   {
-    // std::cout << i << " "  << " k101\n";
+    //std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
-    // essentialBC[0] = {1, 0};
-    // essentialBC[1] = {3, 0};
+    //essentialBC[0] = {1, 0};
+    //essentialBC[1] = {3, 0};
   }
 
   const IntegrationRule &ir =
@@ -909,6 +924,9 @@ if (myid == 0) {
   // Elasticity_Solver solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
+
+  //std::vector<std::pair<int, double>> essentialBC_filter(0);
+  VectorHelmholtz filterSolver(PMesh, essentialBC, filterRadius, mesh_poly_deg);
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
@@ -1104,13 +1122,16 @@ if (myid == 0) {
   {
     for(int i=1;i<max_it;i++)
     {
-      solver.SetDesign( gridfuncOptVar );
+      filterSolver.FSolve(gridfuncOptVar);
+      ParGridFunction & filteredDesign = filterSolver.GetSolution();
+
+      solver.SetDesign( filteredDesign );
       solver.FSolve();
 
       ParGridFunction & discretSol = solver.GetSolution();
 
-      QoIEvaluator.SetDesign( gridfuncOptVar );
-      MeshQualityEvaluator.SetDesign( gridfuncOptVar );
+      QoIEvaluator.SetDesign( filteredDesign );
+      MeshQualityEvaluator.SetDesign( filteredDesign );
 
       QoIEvaluator.SetDiscreteSol( discretSol );
       QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
@@ -1133,19 +1154,29 @@ if (myid == 0) {
 
       ParLinearForm dQdx(pfespace); dQdx = 0.0;
       ParLinearForm dQdx_physics(pfespace); dQdx_physics = 0.0;
+      ParLinearForm dQdx_filtered(pfespace); dQdx_filtered = 0.0;
       dQdx_physics.Add(1.0, *dQdxExpl);
       dQdx_physics.Add(1.0, *dQdxImpl);
-      dQdx.Add(weight_1, *dQdxExpl);
-      dQdx.Add(weight_1, *dQdxImpl);
-      dQdx.Add(weight_tmop, *dMeshQdxExpl);
+
+      dQdx_filtered.Add(weight_1, *dQdxExpl);
+      dQdx_filtered.Add(weight_1, *dQdxImpl);
+      dQdx_filtered.Add(weight_tmop, *dMeshQdxExpl);
+
+      HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
+      mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
+
+
+      filterSolver.ASolve(dQdx_filtered);
+      ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
+
+      dQdx.Add(1.0, *dQdxImplfilter);
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
-      HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
+      
       HypreParVector *truedQdx_Expl = dQdxExpl->ParallelAssemble();
       HypreParVector *truedQdx_Impl = dQdxImpl->ParallelAssemble();
 
       // Construct grid function from hypre vector
-      mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
       mfem::ParGridFunction dQdx_ExplGF(pfespace, truedQdx_Expl);
       mfem::ParGridFunction dQdx_ImplGF(pfespace, truedQdx_Impl);
 
@@ -1300,7 +1331,6 @@ if (myid == 0) {
         std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
       }
 
-      gridfuncOptVar = 0.0;
       if(dQdxFD_global)
       {
         double epsilon = 1e-8;
@@ -1407,6 +1437,13 @@ if (myid == 0) {
           xxmax[li] =  1e-8;
         }
       }
+
+      Vector Xi = x0;
+      Xi += filteredDesign;
+      PMesh->SetNodes(Xi);
+      PMesh->DeleteGeometricFactors();
+
+
 
       x_gf.ProjectCoefficient(*trueSolution);
       //ParGridFunction objGradGF(pfespace); objGradGF = objgrad;

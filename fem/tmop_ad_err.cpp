@@ -1239,7 +1239,7 @@ double QuantityOfInterest::EvalQoI()
   lfi->SetQoI(ErrorCoefficient_);
   // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-  lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 50));
+  lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 12));
 
 
   lfi->SetGLLVec(gllvec_);
@@ -1401,7 +1401,7 @@ void QuantityOfInterest::EvalQoIGrad()
       lfi->SetQoI(ErrorCoefficient_);
 
       IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 50));
+      //lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 12));
 
       // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       lfi->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), quad_order));
@@ -1543,13 +1543,13 @@ void Diffusion_Solver::FSolve()
   ParLinearForm QForm(temp_fes_);
   kForm.AddDomainIntegrator(new DiffusionIntegrator(kCoef));
 
-  QForm.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_, 24,24));
+  QForm.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_, 12,12));
 
   if(weakBC_)
   {
     kForm.AddBoundaryIntegrator(new BoundaryMassIntegrator(wCoef));
 
-    QForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 24, 24));
+    QForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
   }
 
   kForm.Assemble();
@@ -1561,7 +1561,7 @@ void Diffusion_Solver::FSolve()
   ParGridFunction &T = solgf;
   if (trueSolCoeff)
   {
-    T.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
+    //T.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
   }
 
   HypreParMatrix A;
@@ -1713,18 +1713,16 @@ void VectorHelmholtz::FSolve( mfem::Vector & rhs )
 
   Array<int> ess_tdof_list(ess_tdof_list_);
 
-  // make coefficients of the linear elastic properties
-  ::mfem::ConstantCoefficient radius(1.0);
   mfem::ParGridFunction loadGF(coord_fes_);
   loadGF.SetFromTrueDofs(rhs);
-  ::mfem::GridFunctionCoefficient QF(&loadGF);
+  ::mfem::VectorGridFunctionCoefficient QF(&loadGF);
 
-  ParBilinearForm a(u_fes_);
-  ParLinearForm b(u_fes_);
+  ParBilinearForm a(coord_fes_);
+  ParLinearForm b(coord_fes_);
   a.AddDomainIntegrator(new VectorMassIntegrator);
-  a.AddDomainIntegrator(new VectorMassIntegrator(radius));
+  a.AddDomainIntegrator(new VectorDiffusionIntegrator(*radius_));
 
-  b.AddDomainIntegrator(new DomainLFIntegrator(QF));
+  b.AddDomainIntegrator(new VectorDomainLFIntegrator(QF));
 
   a.Assemble();
   b.Assemble();
@@ -1740,9 +1738,9 @@ void VectorHelmholtz::FSolve( mfem::Vector & rhs )
   HypreBoomerAMG amg(A);
   amg.SetPrintLevel(0);
 
-  CGSolver cg(u_fes_->GetParMesh()->GetComm());
-  cg.SetRelTol(1e-10);
-  cg.SetMaxIter(500);
+  CGSolver cg(coord_fes_->GetParMesh()->GetComm());
+  cg.SetRelTol(1e-12);
+  cg.SetMaxIter(5000);
   cg.SetPreconditioner(amg);
   cg.SetOperator(A);
   cg.Mult(B, X);
@@ -1758,45 +1756,46 @@ void VectorHelmholtz::ASolve( Vector & rhs )
 
     Array<int> ess_tdof_list(ess_tdof_list_);
 
-    // make coefficients of the linear elastic properties
-    ::mfem::ConstantCoefficient radius(1.0);
-
-    ParBilinearForm a(u_fes_);
+    ParBilinearForm a(coord_fes_);
     a.AddDomainIntegrator(new VectorMassIntegrator);
-    a.AddDomainIntegrator(new VectorMassIntegrator(radius));
+    a.AddDomainIntegrator(new VectorDiffusionIntegrator(*radius_));
     a.Assemble();
 
     // solve adjoint problem
-    ParGridFunction adj_sol(u_fes_);
+    ParGridFunction adj_sol(coord_fes_);
     adj_sol = 0.0;
 
     HypreParMatrix A;
     Vector X, B;
     a.FormLinearSystem(ess_tdof_list, adj_sol, rhs, A, X, B);
 
-    HypreBoomerAMG amg(A);
+    mfem::HypreParMatrix* tTransOp = reinterpret_cast<mfem::HypreParMatrix*>(&A)->Transpose();
+
+    HypreBoomerAMG amg(*tTransOp);
     amg.SetPrintLevel(0);
 
-    CGSolver cg(u_fes_->GetParMesh()->GetComm());
-    cg.SetRelTol(1e-10);
-    cg.SetMaxIter(500);
+    CGSolver cg(coord_fes_->GetParMesh()->GetComm());
+    cg.SetRelTol(1e-12);
+    cg.SetMaxIter(5000);
     cg.SetPreconditioner(amg);
-    cg.SetOperator(A);
+    cg.SetOperator(*tTransOp);
     cg.Mult(B, X);
+
+    delete tTransOp;
 
     a.RecoverFEMSolution(X, rhs, adj_sol);
 
-    // make a Parlinear form to compute sensivity w.r.t. nodal coordinates
-    // here we can use sensitivity w.r.t coordinate since d/dU = d/dX * dX/dU = d/dX * 1
-    ::mfem::ParLinearForm LHS_sensitivity(coord_fes_);
-    LHS_sensitivity.Assemble();
+      ::mfem::VectorGridFunctionCoefficient QF(&adj_sol);
 
-    ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
+    ParLinearForm RHS_sensitivity(coord_fes_);
+    VectorDomainLFIntegrator *lfi = new VectorDomainLFIntegrator(QF);
+    IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+    lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+    RHS_sensitivity.AddDomainIntegrator(lfi);
     RHS_sensitivity.Assemble();
 
     *dQdx_ = 0.0;
-    dQdx_->Add(-1.0, LHS_sensitivity);
-    dQdx_->Add( 1.0, RHS_sensitivity);
+    dQdx_->Add(1.0, RHS_sensitivity);   // - because
 }
 
 }
