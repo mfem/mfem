@@ -559,7 +559,7 @@ int main (int argc, char *argv[])
   int quad_order  = 8;
   srand(9898975);
   bool visualization = false;
-  double filterRadius = 0.01;
+  double filterRadius = 0.05;
   int method = 0;
   int mesh_poly_deg     = 1;
   int nx                = 4;

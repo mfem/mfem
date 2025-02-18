@@ -677,10 +677,11 @@ private:
 class PenaltyShapeSensitivityIntegrator : public mfem::LinearFormIntegrator {
 public:
   PenaltyShapeSensitivityIntegrator(mfem::Coefficient &penalty,
-      const mfem::ParGridFunction &t_adjoint, int oa = 2, int ob = 2);
+      const mfem::ParGridFunction &t_adjoint, mfem::VectorCoefficient *SolGrad_= nullptr, int oa = 2, int ob = 2);
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
 private:
-  mfem::Coefficient *penalty_;
+  mfem::Coefficient *penalty_ = nullptr;
+  mfem::VectorCoefficient *SolGradCoeff_= nullptr;
   const mfem::ParGridFunction *t_adjoint_;
   int oa_, ob_;
 };

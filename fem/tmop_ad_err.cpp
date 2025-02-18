@@ -849,8 +849,8 @@ void PenaltyMassShapeSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
 }
 
 PenaltyShapeSensitivityIntegrator::PenaltyShapeSensitivityIntegrator(
-  Coefficient &penalty, const ParGridFunction &t_adjoint, int oa, int ob)
-  : penalty_(&penalty), t_adjoint_(&t_adjoint), oa_(oa), ob_(ob)
+  Coefficient &penalty, const ParGridFunction &t_adjoint, mfem::VectorCoefficient *SolGrad, int oa, int ob)
+  : penalty_(&penalty), t_adjoint_(&t_adjoint), SolGradCoeff_(SolGrad), oa_(oa), ob_(ob)
 {}
 
 void PenaltyShapeSensitivityIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -862,6 +862,7 @@ void PenaltyShapeSensitivityIntegrator::AssembleRHSElementVect(const FiniteEleme
   int dimS = T.GetSpaceDim();
 
   // initialize storage
+  Vector N( dimR);
   DenseMatrix dN(dof, dimR);
   DenseMatrix B(dof, dimS);
   DenseMatrix IxB(dof, dimS);
@@ -884,6 +885,7 @@ void PenaltyShapeSensitivityIntegrator::AssembleRHSElementVect(const FiniteEleme
     T.SetIntPoint(&ip);
 
     double w = ip.weight * T.Weight();
+    el.CalcShape(ip, N);
     el.CalcDShape(ip, dN);
     Mult(dN, T.InverseJacobian(), B);
 
@@ -894,6 +896,18 @@ void PenaltyShapeSensitivityIntegrator::AssembleRHSElementVect(const FiniteEleme
     Mult(B, I, IxB);
     Vectorize(IxB, IxBTvec);
     elvect.Add( w * k * val_adj, IxBTvec);
+
+    // spatial derivative boundary condition
+    if( SolGradCoeff_ != nullptr)
+    {
+      Vector solGrad(dimR);
+      SolGradCoeff_->Eval(solGrad,T,ip);
+      for (int d = 0; d < dimR; d++)
+      {
+        Vector elvect_temp(elvect.GetData() + d*dof, dof);
+        elvect_temp.Add(w*val_adj*solGrad(d), N);
+      }
+    }
   }
 }
 
@@ -1222,13 +1236,13 @@ double QuantityOfInterest::EvalQoI()
      break;
   case 1:
     if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-    // ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
-     true_solgf_.ProjectCoefficient(*trueSolution_);
-     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
-     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
-     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
-     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
-     ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
+     ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
+    //  true_solgf_.ProjectCoefficient(*trueSolution_);
+    //  true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+    //  MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
+    //  MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
+    //  true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
+    //  ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
     break;
   case 2:
     integ = new DiffusionIntegrator(one);
@@ -1309,13 +1323,13 @@ void QuantityOfInterest::EvalQoIGrad()
       break;
     case 1:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-     true_solgf_.ProjectCoefficient(*trueSolution_);
-     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
-     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
-     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
-     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
-      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
-      // ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
+    //  true_solgf_.ProjectCoefficient(*trueSolution_);
+    //  true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
+    //  MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
+    //  MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
+    //  true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
+    //   ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
+       ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
       break;
     case 2:
       integ = new DiffusionIntegrator(one);
@@ -1622,18 +1636,16 @@ void Diffusion_Solver::ASolve( Vector & rhs )
 
 
     //copy BC values from the grid function to the solution vector
-    // {
-    //   //adjgf.GetTrueDofs(rhs);
-    //   for(int ii=0;ii<ess_tdof_list.Size();ii++) {
-    //       //adj_sol[ess_tdof_list[ii]]=rhs[ess_tdof_list[ii]];
-    //       if(!weakBC_)
-    //       {
-    //         rhs[ess_tdof_list[ii]]=0.0;
-    //       }
-    //   }
-    // }
-
-    //rhs *= -1.0;
+    {
+      //adjgf.GetTrueDofs(rhs);
+      for(int ii=0;ii<ess_tdof_list.Size();ii++) {
+          //adj_sol[ess_tdof_list[ii]]=rhs[ess_tdof_list[ii]];
+          if(!weakBC_)
+          {
+            rhs[ess_tdof_list[ii]]=0.0;
+          }
+      }
+    }
 
     // assemble LHS matrix
     ConstantCoefficient kCoef(1.0);
@@ -1650,12 +1662,6 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     //kForm.Finalize();
 
     // solve adjoint problem
-
-
-  // if (trueSolCoeff)
-  // {
-  //   adj_sol.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
-  // }
 
     HypreParMatrix A;
     //OperatorHandle A;
@@ -1697,7 +1703,6 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     //kForm.RecoverFEMSolution(X, rhs, adj_sol);
 
     delete tTransOp;
-    // delete A;
 
     ParLinearForm LHS_sensitivity(coord_fes_);
     LHS_sensitivity.AddDomainIntegrator(new ThermalConductivityShapeSensitivityIntegrator_new(kCoef, solgf, adj_sol));
@@ -1711,7 +1716,8 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     ThermalHeatSourceShapeSensitivityIntegrator_new *lfi = new ThermalHeatSourceShapeSensitivityIntegrator_new(*QCoef_, adj_sol);
     if(weakBC_)
     {
-      RHS_sensitivity.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(truesolWCoef, adj_sol, 12, 12));
+      mfem_error("add solution gradient coeff instead of nullptr");
+      RHS_sensitivity.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(truesolWCoef, adj_sol, nullptr, 12, 12));
     }
     if (loadGradCoef_) {
       lfi->SetLoadGrad(loadGradCoef_);
@@ -1726,9 +1732,6 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);
     dQdx_->Add( 1.0, RHS_sensitivity);
-
-    // dQdx_->Add(1.0, LHS_sensitivity);
-    // dQdx_->Add(-1.0, RHS_sensitivity);
 }
 
 void VectorHelmholtz::FSolve( mfem::Vector & rhs )
