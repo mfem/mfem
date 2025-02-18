@@ -161,25 +161,13 @@ private:
    mutable DenseTensor tmp_ijk;
 #endif
    DenseMatrixInverse Ti;
-   /*
-    static void calcBasis(const int p, const IntegrationPoint &ip,
-                          Vector *tmp_x, double *tmp_y, double *tmp_z,
-                          double *u);
-   */
+
    void calcBasis(const int p, const IntegrationPoint &ip,
                   Vector &phi_i, DenseMatrix &phi_ij, Vector &u) const;
    void calcGradBasis(const int p, const IntegrationPoint &ip,
                       Vector &phi_i, DenseMatrix &dphi_i,
                       DenseMatrix &phi_ij, DenseTensor &dphi_ij,
                       DenseMatrix &du) const;
-   /*
-   {
-       calcBasis(p, ip, tmp_x, tmp_y.GetData(), tmp_z.GetData(),
-                 u.GetData());
-    }
-   */
-   // static void calcDBasis(const int p, const IntegrationPoint &ip,
-   //                      DenseMatrix &du);
 
 public:
    H1_FuentesPyramidElement(const int p,
