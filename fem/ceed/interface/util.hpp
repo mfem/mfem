@@ -33,7 +33,6 @@ class FiniteElement;
 class FiniteElementSpace;
 class ElementTransformation;
 class IntegrationRule;
-class Vector;
 
 /** @brief Function that determines if a CEED kernel should be used, based on
     the current mfem::Device configuration. */
