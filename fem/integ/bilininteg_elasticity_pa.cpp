@@ -160,15 +160,15 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    // Shape functions (B) and their derivatives (G) for this patch
    const std::vector<Array2D<real_t>>& B = pB[patch];
    const std::vector<Array2D<real_t>>& G = pG[patch];
-   // for reduced rules
+
+   // minD/maxD : shape function/dof index |-> min/max quadrature index within support
    const IntArrayVar2D& minD = pminD[patch];
    const IntArrayVar2D& maxD = pmaxD[patch];
+   // minQ/maxQ : quadrature index |-> min/max shape function/dof index that supports
    const IntArrayVar2D& minQ = pminQ[patch];
    const IntArrayVar2D& maxQ = pmaxQ[patch];
 
    const int NQ = Q1D[0] * Q1D[1] * Q1D[2];
-   const int max_pts_x = std::max(Q1D[0], D1D[0]);
-   const int max_pts_y = std::max(Q1D[1], D1D[1]);
 
    mfem::out << "AddMultPatchPA(): Size of x = " << x.Size() << std::endl;
    auto X = Reshape(x.HostRead(), vdim, D1D[0], D1D[1], D1D[2]);
@@ -181,113 +181,126 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    // derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
    Vector gradv(NQ);
    auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto stress = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
 
    // Accumulators
+   // Data is stored in Vectors but shaped as a DeviceTensor for easy access
+   const int max_pts_x = std::max(Q1D[0], D1D[0]);
+   const int max_pts_y = std::max(Q1D[1], D1D[1]);
    Vector gradXYv(vdim*vdim*max_pts_x*max_pts_y);
    Vector gradXv(vdim*vdim*max_pts_x);
    auto gradXY = Reshape(gradXYv.HostReadWrite(), vdim, vdim, max_pts_x, max_pts_y);
    auto gradX = Reshape(gradXv.HostReadWrite(), vdim, vdim, max_pts_x);
 
    mfem::out << "AddMultPatchPA() " << patch << " - finished 1) init grad u" << std::endl;
-   mfem::out << "grad[0][0](1,1,1) = " << grad(0,0,1,1,1) << std::endl;
+   mfem::out << "grad(0,1,1,2,1) = " << grad(0,1,1,2,1) << std::endl;
 
-   // 2) compute grad(u) interpolated at quadrature points
+   // 2) compute grad_uhat interpolated at quadrature points
    // B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
    // Because shape functions are tensor prodcuts they are decomposed
-   // for (int c = 0; c < vdim; ++c)
-   // {
-   //    for (int dz = 0; dz < D1D[2]; ++dz)
-   //    {
-   //       gradXY = 0.0;
-   //       for (int dy = 0; dy < D1D[1]; ++dy)
-   //       {
-   //          gradX = 0.0;
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             const real_t s = X(c, dx,dy,dz);
-   //             for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
-   //             {
-   //                gradX(0,qx) += s * B[0](qx,dx);
-   //                gradX(1,qx) += s * G[0](qx,dx);
-   //             }
-   //          }
-   //          for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
-   //          {
-   //             const real_t wy  = B[1](qy,dy);
-   //             const real_t wDy = G[1](qy,dy);
-   //             // This full range of qx values is generally necessary.
-   //             for (int qx = 0; qx < Q1D[0]; ++qx)
-   //             {
-   //                const real_t wx  = gradX(0,qx);
-   //                const real_t wDx = gradX(1,qx);
-   //                gradXY(0,qx,qy) += wDx * wy;
-   //                gradXY(1,qx,qy) += wx  * wDy;
-   //                gradXY(2,qx,qy) += wx  * wy;
-   //             }
-   //          }
-   //       }
-   //       for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
-   //       {
-   //          const real_t wz  = B[2](qz,dz);
-   //          const real_t wDz = G[2](qz,dz);
-   //          for (int qy = 0; qy < Q1D[1]; ++qy)
-   //          {
-   //             for (int qx = 0; qx < Q1D[0]; ++qx)
-   //             {
-   //                grad[c][0](qx,qy,qz) += gradXY(0,qx,qy) * wz;
-   //                grad[c][1](qx,qy,qz) += gradXY(1,qx,qy) * wz;
-   //                grad[c][2](qx,qy,qz) += gradXY(2,qx,qy) * wDz;
-   //             }
-   //          }
-   //       }
-   //    }
-   // }
+   for (int dz = 0; dz < D1D[2]; ++dz)
+   {
+      gradXYv = 0.0;
+      for (int dy = 0; dy < D1D[1]; ++dy)
+      {
+         gradXv = 0.0;
+         for (int dx = 0; dx < D1D[0]; ++dx)
+         {
+            for (int c = 0; c < vdim; ++c)
+            {
+               const real_t s = X(c, dx,dy,dz);
+               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               {
+                  gradX(c,0,qx) += s * B[0](qx,dx);
+                  gradX(c,1,qx) += s * G[0](qx,dx);
+               }
+            }
+         }
+         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         {
+            const real_t wy  = B[1](qy,dy);
+            const real_t wDy = G[1](qy,dy);
+            for (int c = 0; c < vdim; ++c)
+            {
+               // This full range of qx values is generally necessary.
+               for (int qx = 0; qx < Q1D[0]; ++qx)
+               {
+                  const real_t wx  = gradX(c,0,qx);
+                  const real_t wDx = gradX(c,1,qx);
+                  gradXY(c,0,qx,qy) += wDx * wy;
+                  gradXY(c,1,qx,qy) += wx  * wDy;
+                  gradXY(c,2,qx,qy) += wx  * wy;
+               }
+            }
+         }
+      }
+      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      {
+         const real_t wz  = B[2](qz,dz);
+         const real_t wDz = G[2](qz,dz);
+         for (int c = 0; c < vdim; ++c)
+         {
+            for (int qy = 0; qy < Q1D[1]; ++qy)
+            {
+               for (int qx = 0; qx < Q1D[0]; ++qx)
+               {
+                  grad(c,0,qx,qy,qz) += gradXY(c,0,qx,qy) * wz;
+                  grad(c,1,qx,qy,qz) += gradXY(c,1,qx,qy) * wz;
+                  grad(c,2,qx,qy,qz) += gradXY(c,2,qx,qy) * wDz;
+               }
+            }
+         }
+      }
+   }
 
-   // // mfem::out << "AddMultPatchPA() " << patch << " - finished 2) compute grad u" << std::endl;
-   // // mfem::out << "grad[0](1,2,1) = " << grad[0](1,2,1) << std::endl;
+   mfem::out << "AddMultPatchPA() " << patch << " - finished 2) compute grad u" << std::endl;
+   mfem::out << "grad(0,1,1,2,1) = " << grad(0,1,1,2,1) << std::endl;
 
-   // // 3) Apply the "D" operator at each quadrature point
-   // // D ( grad(u) )
-   // for (int qz = 0; qz < Q1D[2]; ++qz)
-   // {
-   //    for (int qy = 0; qy < Q1D[1]; ++qy)
-   //    {
-   //       for (int qx = 0; qx < Q1D[0]; ++qx)
-   //       {
-   //          const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-   //          const real_t Jinvt00 = qd(q,0);
-   //          const real_t Jinvt01 = qd(q,1);
-   //          const real_t Jinvt02 = qd(q,2);
-   //          const real_t Jinvt10 = qd(q,3);
-   //          const real_t Jinvt11 = qd(q,4);
-   //          const real_t Jinvt12 = qd(q,5);
-   //          const real_t Jinvt20 = qd(q,6);
-   //          const real_t Jinvt21 = qd(q,7);
-   //          const real_t Jinvt22 = qd(q,8);
-   //          const real_t wdetj   = qd(q,9);
+   // 3) Apply the "D" operator at each quadrature point: D( grad_uhat )
+   for (int qz = 0; qz < Q1D[2]; ++qz)
+   {
+      for (int qy = 0; qy < Q1D[1]; ++qy)
+      {
+         for (int qx = 0; qx < Q1D[0]; ++qx)
+         {
+            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+            const real_t Jinvt00 = qd(q,0);
+            const real_t Jinvt01 = qd(q,1);
+            const real_t Jinvt02 = qd(q,2);
+            const real_t Jinvt10 = qd(q,3);
+            const real_t Jinvt11 = qd(q,4);
+            const real_t Jinvt12 = qd(q,5);
+            const real_t Jinvt20 = qd(q,6);
+            const real_t Jinvt21 = qd(q,7);
+            const real_t Jinvt22 = qd(q,8);
+            const real_t wdetj   = qd(q,9);
 
-   //          // get grad_u = J^{-T} * grad_uhat
-   //          // ...
-   //          // grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
-   //          // grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
-   //          // grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
-
-
-   //          // lambda*div(u)
-
-   //          // mu*strain(u)
-
-   //          const real_t grad0 = grad[0](qx,qy,qz);
-   //          const real_t grad1 = grad[1](qx,qy,qz);
-   //          const real_t grad2 = grad[2](qx,qy,qz);
-
-   //          // ... grad[8]
-   //          // apply D(grad(u))
+            // grad_u = J^{-T} * grad_uhat
+            for (int c = 0; c < vdim; ++c)
+            {
+               const real_t grad0 = grad(c,0,qx,qy,qz);
+               const real_t grad1 = grad(c,1,qx,qy,qz);
+               const real_t grad2 = grad(c,2,qx,qy,qz);
+               grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt01*grad1)+(Jinvt02*grad2);
+               grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
+               grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
+            }
 
 
-   //       } // qx
-   //    } // qy
-   // } // qz
+            // hydrostatic term: lambda*div(u)*I
+            // stress(c,0,qx,qy,qz) += lambda;
+
+
+            // mu*strain(u)
+
+
+            // ... grad[8]
+            // apply D(grad(u))
+
+
+         } // qx
+      } // qy
+   } // qz
 
    // // mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
    // // mfem::out << "grad[0](1,1,1) = " << grad[0](1,1,1) << std::endl;

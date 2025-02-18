@@ -194,6 +194,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    Array3D<real_t> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1], D1D[1]));
    Array2D<real_t> gradX(3, std::max(Q1D[0], D1D[0]));
 
+   // Initialize
    for (int d=0; d<dim; ++d)
    {
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
@@ -210,6 +211,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       }
    }
 
+   // Interpolate grad_uhat at reference quadrature points
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -269,6 +271,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       }
    }
 
+   // Apply D( grad_uhat )
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -297,6 +300,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       } // qy
    } // qz
 
+   // Apply test function to move from quads -> dofs
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       for (int dy = 0; dy < D1D[1]; ++dy)

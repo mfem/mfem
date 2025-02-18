@@ -29,7 +29,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
    // computes d=[J^{-T}(xq), W(xq)*det(J(xq))] at quadrature points
    const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
-   // nq * [9 (J^{-T}) + 1 WdetJ]
+   // nq * [9 (J^{-T}) + 1 (WdetJ)]
    d.SetSize(Q1Dx * Q1Dy * Q1Dz * 10);
    auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 10);
    const int NE = 1;  // TODO: MFEM_FORALL_3D without e?
@@ -75,7 +75,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
                D(qx,qy,qz,7) = A23 / detJ;
                D(qx,qy,qz,8) = A33 / detJ;
                // store w_detJ
-               // TODO: Small efficiency to multiply by sqrt(W*detJ)? Might not work for negative weights
+               // TODO: Small efficiency to multiply by sqrt(W*detJ)?
                D(qx,qy,qz,9) = W(qx,qy,qz) * detJ;
             }
          }
