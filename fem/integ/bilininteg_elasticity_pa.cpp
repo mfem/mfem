@@ -292,24 +292,24 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             // mfem::out << "lambda = " << lambda << std::endl;
             // mfem::out << "mu = " << mu << std::endl;
 
-
-            // hydrostatic term: lambda*div(u)*I
-            // stress(c,0,qx,qy,qz) += lambda;
-
-
-            // mu*strain(u)
-
-
-            // ... grad[8]
-            // apply D(grad(u))
-
+            // Compute stress tensor
+            for (int c = 0; c < vdim; ++c)
+            {
+               // hydrostatic term: lambda*div(u)*I
+               stress(c,c,qx,qy,qz) += lambda * grad(c,c,qx,qy,qz);
+               for (int d = 0; d < vdim; ++d)
+               {
+                  // deviatoric term: mu*strain(u)
+                  stress(c,d,qx,qy,qz) += mu * (grad(c,d,qx,qy,qz) + grad(d,c,qx,qy,qz))/2;
+               }
+            }
 
          } // qx
       } // qy
    } // qz
 
    mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
-   // // mfem::out << "grad[0](1,1,1) = " << grad[0](1,1,1) << std::endl;
+   mfem::out << "stress(1,1,1,1,1) = " << stress(1,1,1,1,1) << std::endl;
 
    // // 4) Add the contributions
    // // for c, vdim
