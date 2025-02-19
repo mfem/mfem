@@ -21,6 +21,7 @@
 if (FETCH_TPLS)
   add_library(METIS STATIC IMPORTED)
   # define external project
+  message(STATUS "Will fetch metis v4.0.3 to be built with default options")
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/metis)
   include(ExternalProject)
   ExternalProject_Add(metis
