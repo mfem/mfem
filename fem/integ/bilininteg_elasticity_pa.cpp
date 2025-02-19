@@ -181,7 +181,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    // derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
    Vector gradv(NQ);
    auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
-   auto stress = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   // TODO: Make this method explicitly 3D
+   // [s00, s01, s02, s11, s12, s22]
+   auto stress = Reshape(gradv.HostReadWrite(), 6, Q1D[0], Q1D[1], Q1D[2]);
 
    // Accumulators
    // Data is stored in Vectors but shaped as a DeviceTensor for easy access
@@ -319,16 +321,13 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             }
 
             // Compute stress tensor
-            for (int c = 0; c < vdim; ++c)
-            {
-               // hydrostatic term: lambda*div(u)*I
-               stress(c,c,qx,qy,qz) += lambda * grad(c,c,qx,qy,qz) * wdetj;
-               for (int d = 0; d < vdim; ++d)
-               {
-                  // deviatoric term: mu*strain(u)
-                  stress(c,d,qx,qy,qz) += mu * (grad(c,d,qx,qy,qz) + grad(d,c,qx,qy,qz))/2 * wdetj;
-               }
-            }
+            // [s00, s01, s02, s11, s12, s22]
+            stress(0,qx,qy,qz) = (lambda + mu) * grad(0,0,qx,qy,qz) * wdetj;
+            stress(1,qx,qy,qz) = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz)) / 2 * wdetj;
+            stress(2,qx,qy,qz) = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz)) / 2 * wdetj;
+            stress(3,qx,qy,qz) = (lambda + mu) * grad(1,1,qx,qy,qz) * wdetj;
+            stress(4,qx,qy,qz) = mu * (grad(1,2,qx,qy,qz) + grad(2,1,qx,qy,qz)) / 2 * wdetj;
+            stress(5,qx,qy,qz) = (lambda + mu) * grad(2,2,qx,qy,qz) * wdetj;
 
          } // qx
       } // qy
