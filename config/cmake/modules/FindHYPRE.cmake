@@ -56,11 +56,11 @@ if (FETCH_TPLS)
   include(ExternalProject)
   ExternalProject_Add(hypre
     GIT_REPOSITORY https://github.com/hypre-space/hypre.git
-    GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
+    GIT_TAG v2.32.0
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR src
     PREFIX ${PREFIX}
-    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} ${CMAKE_OPTIONS})
+    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} -DCMAKE_INSTALL_LIBDIR:PATH=lib ${CMAKE_OPTIONS})
   file(MAKE_DIRECTORY ${PREFIX}/include)
   # set imported library target properties
   add_dependencies(HYPRE hypre hypre-install)
