@@ -5,51 +5,141 @@
 using namespace std;
 using namespace mfem;
 
-class FindPointsGSLIBOneByOne : public FindPointsGSLIB {
+class FindPointsGSLIBOneByOne : public FindPointsGSLIB
+{
 public:
-    FindPointsGSLIBOneByOne() : FindPointsGSLIB() {
-    }
+   FindPointsGSLIBOneByOne(const GridFunction *gf) : FindPointsGSLIB()
+   {
+      gf->FESpace()->GetMesh()->EnsureNodes();
+      Setup(*gf->FESpace()->GetMesh());
+   }
 
-    void InterpolateOneByOne(const Vector &point_pos,
-                             const GridFunction &field_in,
-                             Vector &field_out,
-                             int point_pos_ordering = Ordering::byNODES) {
-        FindPoints(point_pos, point_pos_ordering);
-        // gsl_mfem_elem (element number) and gsl_mfem_ref (this is the integration point location)
-        int element_number = gsl_mfem_elem[0];
-        IntegrationPoint ip;
-        ip.Set2(gsl_mfem_ref.GetData());
-        field_in.GetVectorValue(element_number, ip, field_out);
-    }
+   void InterpolateOneByOne(const Vector &point_pos,
+                            const GridFunction &field_in,
+                            Vector &field_out,
+                            int point_pos_ordering = Ordering::byNODES)
+   {
+      FindPoints(point_pos, point_pos_ordering);
+      // gsl_mfem_elem (element number) and gsl_mfem_ref (this is the integration point location)
+      int element_number = gsl_mfem_elem[0];
+      IntegrationPoint ip;
+      ip.Set2(gsl_mfem_ref.GetData());
+      field_in.GetVectorValue(element_number, ip, field_out);
+   }
+
+   ~FindPointsGSLIBOneByOne()
+   {
+      FreeData();
+   }
 };
 
 /// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
-class BTorFromFGridFunctionCoefficient : public Coefficient {
+class BTorFromFGridFunctionCoefficient : public Coefficient
+{
 private:
-    const GridFunction *gf;
+   const GridFunction *gf;
+   FindPointsGSLIBOneByOne finder;
 
 public:
-    int counter = 0;
-    FindPointsGSLIBOneByOne finder;
+   int counter = 0;
 
-    BTorFromFGridFunctionCoefficient() : Coefficient(), gf(nullptr) {
-    }
+   // disable default constructor
+   BTorFromFGridFunctionCoefficient() = delete;
 
-    BTorFromFGridFunctionCoefficient(const GridFunction *gf)
-        : Coefficient(), gf(gf) {
-        gf->FESpace()->GetMesh()->EnsureNodes();
-        finder.Setup(*gf->FESpace()->GetMesh());
-    }
+   BTorFromFGridFunctionCoefficient(const GridFunction *gf)
+       : Coefficient(), gf(gf), finder(gf)
+   {
+   }
 
-    real_t Eval(ElementTransformation &T,
-                const IntegrationPoint &ip) override {
-        // get r, z coordinates
-        Vector x;
-        T.Transform(ip, x);
-        real_t r = x[0];
-        counter++;
-        Vector interp_val(1);
-        finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-        return interp_val[0] / (1e-10 + r);
-    }
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      return interp_val[0] / (1e-10 + r);
+   }
+};
+
+/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+class BPerpPsiOverRGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   BPerpPsiOverRGridFunctionCoefficient() = delete;
+
+   BPerpPsiOverRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      if (V.Size() == 2)
+      {
+         Vector normal(2);
+         // get normal vector
+         CalcOrtho(T.Jacobian(), normal);
+         // normalize
+         normal /= normal.Norml2();
+
+         V(0) = -normal(1);
+         V(1) = normal(0);
+
+         V *= interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
+      }
+      else
+         V(0) = interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
+   }
+};
+/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+class BPerpPsiOverRSquareGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   BPerpPsiOverRSquareGridFunctionCoefficient() = delete;
+
+   BPerpPsiOverRSquareGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+
+      V(0) = 0;
+      V(1) = interp_val[0] / (1e-10 + r * r) * (flip_sign ? -1 : 1);
+   }
 };

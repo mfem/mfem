@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = mesh_maker mesh_loader B_field_projector_v0_0 B_field_projector_v0_1
+SEQ_EXAMPLES = mesh_maker mesh_loader B_field_projector_v0_0 B_field_projector_v0_1 B_field_projector_v1_1
 PAR_EXAMPLES = 
 
 
@@ -85,6 +85,7 @@ $(SUBDIRS_TPRINT):
 # Additional dependencies
 B_field_projector_v0_0 : B_field_vec_coeffs_v1.hpp
 B_field_projector_v0_1 : B_field_vec_coeffs_v1.hpp
+B_field_projector_v1_1 : B_field_vec_coeffs_v1.hpp
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
