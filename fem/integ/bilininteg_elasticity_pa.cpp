@@ -322,11 +322,11 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             for (int c = 0; c < vdim; ++c)
             {
                // hydrostatic term: lambda*div(u)*I
-               stress(c,c,qx,qy,qz) += lambda * grad(c,c,qx,qy,qz);
+               stress(c,c,qx,qy,qz) += lambda * grad(c,c,qx,qy,qz) * wdetj;
                for (int d = 0; d < vdim; ++d)
                {
                   // deviatoric term: mu*strain(u)
-                  stress(c,d,qx,qy,qz) += mu * (grad(c,d,qx,qy,qz) + grad(d,c,qx,qy,qz))/2;
+                  stress(c,d,qx,qy,qz) += mu * (grad(c,d,qx,qy,qz) + grad(d,c,qx,qy,qz))/2 * wdetj;
                }
             }
 
@@ -337,8 +337,28 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
    mfem::out << "stress(1,1,1,1,1) = " << stress(1,1,1,1,1) << std::endl;
 
-   // 4) Contraction with grad_v (quads -> dofs)
-   // for c, vdim
+   /*
+   4) Contraction with grad_v (quads -> dofs)
+
+   stress = [
+      s00, s01, s02,
+      s10, s11, s12,
+      s20, s21, s22,
+   ]
+   grad_v = [
+      dX*Y*Z, dX*Y*Z, dX*Y*Z,
+      X*dY*Z, X*dY*Z, X*dY*Z,
+      X*Y*dZ, X*Y*dZ, X*Y*dZ,
+   ]
+
+   stress : grad_v = sX * dX*Y*Z + sY * X*dY*Z + sZ * X*Y*dZ
+   sX = s00 + s01 + s02
+   sY = s10 + s11 + s12
+   sZ = s20 + s21 + s22
+
+   */
+
+
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       gradXYv = 0.0;
@@ -347,16 +367,22 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          gradXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const real_t gX = grad(c,0,qx,qy,qz);
-            const real_t gY = grad(c,1,qx,qy,qz);
-            const real_t gZ = grad(c,2,qx,qy,qz);
+            const real_t sX = stress(0,0,qx,qy,qz) +
+                              stress(0,1,qx,qy,qz) +
+                              stress(0,2,qx,qy,qz);
+            const real_t sY = stress(1,0,qx,qy,qz) +
+                              stress(1,1,qx,qy,qz) +
+                              stress(1,2,qx,qy,qz);
+            const real_t sZ = stress(2,0,qx,qy,qz) +
+                              stress(2,1,qx,qy,qz) +
+                              stress(2,2,qx,qy,qz);
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
-               gradX(0,dx) += gX * wDx;
-               gradX(1,dx) += gY * wx;
-               gradX(2,dx) += gZ * wx;
+               gradX(0,0,dx) += sX * wDx;
+               gradX(0,1,dx) += sY * wx;
+               gradX(0,2,dx) += sZ * wx;
             }
          }
          for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
@@ -365,9 +391,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             const real_t wDy = G[1](qy,dy);
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               gradXY(0,dx,dy) += gradX(0,dx) * wy;
-               gradXY(1,dx,dy) += gradX(1,dx) * wDy;
-               gradXY(2,dx,dy) += gradX(2,dx) * wy;
+               gradXY(0,0,dx,dy) += gradX(0,0,dx) * wy;
+               gradXY(0,1,dx,dy) += gradX(0,1,dx) * wDy;
+               gradXY(0,2,dx,dy) += gradX(0,2,dx) * wy;
             }
          }
       }
