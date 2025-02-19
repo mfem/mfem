@@ -195,9 +195,39 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    mfem::out << "AddMultPatchPA() " << patch << " - finished 1) init grad u" << std::endl;
    mfem::out << "grad(0,1,1,2,1) = " << grad(0,1,1,2,1) << std::endl;
 
-   // 2) compute grad_uhat interpolated at quadrature points
-   // B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
-   // Because shape functions are tensor prodcuts they are decomposed
+   /*
+   2) Compute grad_uhat (reference space) interpolated at quadrature points
+
+   B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
+
+   Variables:
+   - c  = component
+   - d  = derivative
+   - dx, dy, dz = degrees of freedom (DOF) indices
+   - qx, qy, qz = quadrature indices
+
+   Tensor product shape functions:
+   phi[dx,dy,dz](qx,qy,qz) = phix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
+
+   Gradient of shape functions:
+   grad_phi[dx,dy,dz](qx,qy,qz) = [
+      dphix[dx](qx) * phiy[dy](qy)  * phiz[dz](qz),
+      phix[dx](qx)  * dphiy[dy](qy) * phiz[dz](qz),
+      phix[dx](qx)  * phiy[dy](qy)  * dphiz[dz](qz)
+   ]
+
+   Computation of grad_uhat[c,0] (sum factorization):
+   grad_uhat[c,0](qx,qy,qz)
+      = \sum_{dx,dy,dz} U[c][dx,dy,dz] * grad_phi[dx,dy,dz][0](qx,qy,qz)
+      = \sum_{dx,dy,dz} U[c][dx,dy,dz] * dphix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
+      = \sum_{dz} phiz[dz](qz)
+         \sum_{dy} phiy[dy](qy)
+            \sum_{dx} U[c][dx,dy,dz] * dphix[dx](qx)
+
+   Because a nurbs patch is "sparse" compared to an element in terms of shape
+   function support - we can further optimize the computation by restricting
+   interpolation to only the qudrature points supported in each dimension.
+   */
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       gradXYv = 0.0;
@@ -208,11 +238,11 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          {
             for (int c = 0; c < vdim; ++c)
             {
-               const real_t s = X(c, dx,dy,dz);
+               const real_t U = X(c,dx,dy,dz);
                for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
                {
-                  gradX(c,0,qx) += s * B[0](qx,dx);
-                  gradX(c,1,qx) += s * G[0](qx,dx);
+                  gradX(c,0,qx) += U * B[0](qx,dx);
+                  gradX(c,1,qx) += U * G[0](qx,dx);
                }
             }
          }
@@ -288,10 +318,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
             }
 
-            // debugging
-            // mfem::out << "lambda = " << lambda << std::endl;
-            // mfem::out << "mu = " << mu << std::endl;
-
             // Compute stress tensor
             for (int c = 0; c < vdim; ++c)
             {
@@ -311,71 +337,56 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
    mfem::out << "stress(1,1,1,1,1) = " << stress(1,1,1,1,1) << std::endl;
 
-   // // 4) Add the contributions
-   // // for c, vdim
-   // for (int qz = 0; qz < Q1D[2]; ++qz)
-   // {
-   //    for (int dy = 0; dy < D1D[1]; ++dy)
-   //    {
-   //       for (int dx = 0; dx < D1D[0]; ++dx)
-   //       {
-   //          for (int d=0; d<3; ++d)
-   //          {
-   //             gradXY(d,dx,dy) = 0.0;
-   //          }
-   //       }
-   //    }
-   //    for (int qy = 0; qy < Q1D[1]; ++qy)
-   //    {
-   //       for (int dx = 0; dx < D1D[0]; ++dx)
-   //       {
-   //          for (int d=0; d<3; ++d)
-   //          {
-   //             gradX(d,dx) = 0.0;
-   //          }
-   //       }
-   //       for (int qx = 0; qx < Q1D[0]; ++qx)
-   //       {
-   //          const real_t gX = grad[c][0](qx,qy,qz);
-   //          const real_t gY = grad[c][1](qx,qy,qz);
-   //          const real_t gZ = grad[c][2](qx,qy,qz);
-   //          for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
-   //          {
-   //             const real_t wx  = B[0](qx,dx);
-   //             const real_t wDx = G[0](qx,dx);
-   //             gradX(0,dx) += gX * wDx;
-   //             gradX(1,dx) += gY * wx;
-   //             gradX(2,dx) += gZ * wx;
-   //          }
-   //       }
-   //       for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
-   //       {
-   //          const real_t wy  = B[1](qy,dy);
-   //          const real_t wDy = G[1](qy,dy);
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             gradXY(0,dx,dy) += gradX(0,dx) * wy;
-   //             gradXY(1,dx,dy) += gradX(1,dx) * wDy;
-   //             gradXY(2,dx,dy) += gradX(2,dx) * wy;
-   //          }
-   //       }
-   //    }
-   //    for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
-   //    {
-   //       const real_t wz  = B[2](qz,dz);
-   //       const real_t wDz = G[2](qz,dz);
-   //       for (int dy = 0; dy < D1D[1]; ++dy)
-   //       {
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             Y(c,dx,dy,dz) +=
-   //                ((gradXY(0,dx,dy) * wz) +
-   //                 (gradXY(1,dx,dy) * wz) +
-   //                 (gradXY(2,dx,dy) * wDz));
-   //          }
-   //       }
-   //    } // dz
-   // } // qz
+   // 4) Contraction with grad_v (quads -> dofs)
+   // for c, vdim
+   for (int qz = 0; qz < Q1D[2]; ++qz)
+   {
+      gradXYv = 0.0;
+      for (int qy = 0; qy < Q1D[1]; ++qy)
+      {
+         gradXv = 0.0;
+         for (int qx = 0; qx < Q1D[0]; ++qx)
+         {
+            const real_t gX = grad(c,0,qx,qy,qz);
+            const real_t gY = grad(c,1,qx,qy,qz);
+            const real_t gZ = grad(c,2,qx,qy,qz);
+            for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+            {
+               const real_t wx  = B[0](qx,dx);
+               const real_t wDx = G[0](qx,dx);
+               gradX(0,dx) += gX * wDx;
+               gradX(1,dx) += gY * wx;
+               gradX(2,dx) += gZ * wx;
+            }
+         }
+         for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+         {
+            const real_t wy  = B[1](qy,dy);
+            const real_t wDy = G[1](qy,dy);
+            for (int dx = 0; dx < D1D[0]; ++dx)
+            {
+               gradXY(0,dx,dy) += gradX(0,dx) * wy;
+               gradXY(1,dx,dy) += gradX(1,dx) * wDy;
+               gradXY(2,dx,dy) += gradX(2,dx) * wy;
+            }
+         }
+      }
+      for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+      {
+         const real_t wz  = B[2](qz,dz);
+         const real_t wDz = G[2](qz,dz);
+         for (int dy = 0; dy < D1D[1]; ++dy)
+         {
+            for (int dx = 0; dx < D1D[0]; ++dx)
+            {
+               Y(c,dx,dy,dz) +=
+                  ((gradXY(0,dx,dy) * wz) +
+                   (gradXY(1,dx,dy) * wz) +
+                   (gradXY(2,dx,dy) * wDz));
+            }
+         }
+      } // dz
+   } // qz
 }
 
 void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
