@@ -89,14 +89,14 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("Bperp", new_mesh);
+      ParaViewDataCollection paraview_dc("Btor", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("Bperp", &B_tor);
+      paraview_dc.RegisterField("Btor", &B_tor);
       paraview_dc.Save();
    }
 
