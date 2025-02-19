@@ -96,7 +96,6 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
    }
 }
 
-
 void BatchInverseElementTransformation::Transform(const Vector &pts,
                                                   const Array<int> &elems,
                                                   Array<int> &types,
@@ -269,16 +268,16 @@ template <> struct InvTLinSolve<2, 2>
                         jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] -
                         jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
                         jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)]);
-      dx[0] = (jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
-               rhs[0 * MFEM_THREAD_SIZE(x)] -
-               jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
-               rhs[1 * MFEM_THREAD_SIZE(x)]) *
-              den;
-      dx[1] = (jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
-               rhs[1 * MFEM_THREAD_SIZE(x)] -
-               jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
-               rhs[0 * MFEM_THREAD_SIZE(x)]) *
-              den;
+      dx[0] =
+         (jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] * rhs[0 * MFEM_THREAD_SIZE(x)] -
+          jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
+          rhs[1 * MFEM_THREAD_SIZE(x)]) *
+         den;
+      dx[1] =
+         (jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)] * rhs[1 * MFEM_THREAD_SIZE(x)] -
+          jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
+          rhs[0 * MFEM_THREAD_SIZE(x)]) *
+         den;
    }
 };
 
@@ -329,52 +328,52 @@ template <> struct InvTLinSolve<2, 3>
       //   x0*(a00*(a01**2 + a11**2 + a21**2) - a01*(a00*a01 + a10*a11 + a20*a21))
       // + x1*(a10*(a01**2 + a11**2 + a21**2) - a11*(a00*a01 + a10*a11 + a20*a21))
       // + x2*(a20*(a01**2 + a11**2 + a21**2) - a21*(a00*a01 + a10*a11 + a20*a21))
-      dx[0] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
-                jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
-               rhs[1 * MFEM_THREAD_SIZE(x)] *
-               (jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
-                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
-               rhs[2 * MFEM_THREAD_SIZE(x)] *
-               (jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3)]) -
-                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]))) *
-              den;
+      dx[0] =
+         (rhs[0 * MFEM_THREAD_SIZE(x)] *
+          (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+           (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
+           jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+           (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+          rhs[1 * MFEM_THREAD_SIZE(x)] *
+          (jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+           (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
+           jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+           (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+          rhs[2 * MFEM_THREAD_SIZE(x)] *
+          (jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+           (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] * jac[(2 + 1 * 3)]) -
+           jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+           (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+            jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]))) *
+         den;
       //  x0*(a01*(a00**2 + a10**2 + a20**2)-a00*(a00*a01 + a10*a11 + a20*a21))
       // +x1*(a11*(a00**2 + a10**2 + a20**2)-a10*(a00*a01 + a10*a11 + a20*a21))
       // +x2*(a21*(a00**2 + a10**2 + a20**2)-a20*(a00*a01 + a10*a11 + a20*a21))
@@ -506,7 +505,7 @@ struct ProjectType;
 template <>
 struct ProjectType<Geometry::SEGMENT, InverseElementTransformation::Newton>
 {
-   static MFEM_HOST_DEVICE bool project(real_t& x, real_t& dx)
+   static MFEM_HOST_DEVICE bool project(real_t &x, real_t &dx)
    {
       x += dx;
       return false;
@@ -541,7 +540,7 @@ struct ProjectType<Geometry::CUBE, InverseElementTransformation::Newton>
 template <int Geom>
 struct ProjectType<Geom, InverseElementTransformation::NewtonElementProject>
 {
-   template <class... Ts> static MFEM_HOST_DEVICE bool project(Ts&&... args)
+   template <class... Ts> static MFEM_HOST_DEVICE bool project(Ts &&...args)
    {
       return eltrans::GeometryUtils<Geom>::project(args...);
    }
@@ -751,8 +750,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
          {
             phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
          }
-         phys_tol =
-            fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
+         phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
       }
       // for each iteration
       while (true)
@@ -781,18 +779,15 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             for (int d = 0; d < SDim; ++d)
             {
                phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                  mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
                                d * stride_sdim] *
                   basis0[idcs[0]] * basis1[idcs[1]];
                jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                  mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
                                d * stride_sdim] *
                   dbasis0[idcs[0]] * basis1[idcs[1]];
                jac[MFEM_THREAD_ID(x) + (d + 1 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                  mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
                                d * stride_sdim] *
                   basis0[idcs[0]] * dbasis1[idcs[1]];
             }
@@ -1111,10 +1106,11 @@ struct NodeFinderBase
    int nq;
 };
 
-template <int Geom, int SDim, int max_team_x> struct PhysNodeFinder;
+template <int Geom, int SDim, int max_team_x, int max_q1d>
+struct PhysNodeFinder;
 
-template <int SDim, int max_team_x>
-struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x>
+template <int SDim, int max_team_x, int max_q1d>
+struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x, max_q1d>
    : public NodeFinderBase
 {
 
@@ -1191,8 +1187,8 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x>
    }
 };
 
-template <int SDim, int max_team_x>
-struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
+template <int SDim, int max_team_x, int max_q1d>
+struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x, max_q1d>
    : public NodeFinderBase
 {
 
@@ -1211,7 +1207,7 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
       // L-2 norm squared
       MFEM_SHARED real_t dists[max_team_x];
       MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-      MFEM_SHARED real_t basis_buf[max_dof1d * max_team_x];
+      MFEM_SHARED real_t basis[max_dof1d * max_q1d];
       MFEM_FOREACH_THREAD(i, x, max_team_x)
       {
 #ifdef MFEM_USE_DOUBLE
@@ -1220,30 +1216,30 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
          dists[i] = HUGE_VALF;
 #endif
       }
+      MFEM_FOREACH_THREAD(j0, x, nq1d)
+      {
+         for (int i0 = 0; i0 < basis1d.pN; ++i0)
+         {
+            basis[j0 + i0 * nq1d] = basis1d.eval(qptr[j0], i0);
+         }
+      }
       MFEM_SYNC_THREAD;
       // team serial portion
-      MFEM_FOREACH_THREAD(i, x, nq)
+      MFEM_FOREACH_THREAD(j, x, nq)
       {
          real_t phys_coord[SDim] = {0};
          int idcs[Dim];
-         idcs[0] = i % nq1d;
-         idcs[1] = i / nq1d;
-         for (int j1 = 0; j1 < basis1d.pN; ++j1)
+         idcs[0] = j % nq1d;
+         idcs[1] = j / nq1d;
+         for (int i1 = 0; i1 < basis1d.pN; ++i1)
          {
-            basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] =
-               basis1d.eval(qptr[idcs[1]], j1);
-         }
-         for (int j0 = 0; j0 < basis1d.pN; ++j0)
-         {
-            real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
-            for (int j1 = 0; j1 < basis1d.pN; ++j1)
+            for (int i0 = 0; i0 < basis1d.pN; ++i0)
             {
-               real_t b =
-                  b0 * basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
+               real_t b = basis[idcs[0] + i0 * nq1d] * basis[idcs[1] + i1 * nq1d];
                for (int d = 0; d < SDim; ++d)
                {
                   phys_coord[d] +=
-                     mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                     mptr[i0 + (i1 + eptr[idx] * basis1d.pN) * basis1d.pN +
                              d * stride_sdim] *
                      b;
                }
@@ -1253,7 +1249,7 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
          // L-2 norm squared
          for (int d = 0; d < SDim; ++d)
          {
-            real_t tmp = phys_coord[d] - pptr[idx + d * npts];
+            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
             dist += tmp * tmp;
          }
          if (dist < dists[MFEM_THREAD_ID(x)])
@@ -1289,8 +1285,8 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
    }
 };
 
-template <int SDim, int max_team_x>
-struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x>
+template <int SDim, int max_team_x, int max_q1d>
+struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x, max_q1d>
    : public NodeFinderBase
 {
 
@@ -1303,15 +1299,14 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x>
 
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
-      // TODO: for some reason this is extremely slow?
       constexpr int Dim = 3;
       constexpr int max_dof1d = 32;
       int n = (nq < max_team_x) ? nq : max_team_x;
       // L-2 norm squared
       MFEM_SHARED real_t dists[max_team_x];
       MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-      MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t basis2_buf[max_dof1d * max_team_x];
+      // contiguous in quad
+      MFEM_SHARED real_t basis[max_dof1d * max_q1d];
       MFEM_FOREACH_THREAD(i, x, max_team_x)
       {
 #ifdef MFEM_USE_DOUBLE
@@ -1320,39 +1315,36 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x>
          dists[i] = HUGE_VALF;
 #endif
       }
+      MFEM_FOREACH_THREAD(j0, x, nq1d)
+      {
+         for (int i0 = 0; i0 < basis1d.pN; ++i0)
+         {
+            basis[j0 + i0 * nq1d] = basis1d.eval(qptr[j0], i0);
+         }
+      }
       MFEM_SYNC_THREAD;
       // team serial portion
-      MFEM_FOREACH_THREAD(i, x, nq)
+      MFEM_FOREACH_THREAD(j, x, nq)
       {
          real_t phys_coord[SDim] = {0};
          int idcs[Dim];
-         idcs[0] = i % nq1d;
-         idcs[1] = i / nq1d;
+         idcs[0] = j % nq1d;
+         idcs[1] = j / nq1d;
          idcs[2] = idcs[1] / nq1d;
          idcs[1] = idcs[1] % nq1d;
-         for (int j1 = 0; j1 < basis1d.pN; ++j1)
+         for (int i2 = 0; i2 < basis1d.pN; ++i2)
          {
-            basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] =
-               basis1d.eval(qptr[idcs[1]], j1);
-            basis2_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] =
-               basis1d.eval(qptr[idcs[2]], j1);
-         }
-         for (int j0 = 0; j0 < basis1d.pN; ++j0)
-         {
-            real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
-            for (int j1 = 0; j1 < basis1d.pN; ++j1)
+            for (int i1 = 0; i1 < basis1d.pN; ++i1)
             {
-               real_t b1 =
-                  b0 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
-               for (int j2 = 0; j2 < basis1d.pN; ++j2)
+               for (int i0 = 0; i0 < basis1d.pN; ++i0)
                {
-                  real_t b =
-                     b1 * basis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
+                  real_t b = basis[idcs[0] + i0 * nq1d] * basis[idcs[1] + i1 * nq1d] *
+                             basis[idcs[2] + i2 * nq1d];
                   for (int d = 0; d < SDim; ++d)
                   {
                      phys_coord[d] +=
-                        mptr[j0 +
-                                (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                        mptr[i0 +
+                                (i1 + (i2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
                                 basis1d.pN +
                                 d * stride_sdim] *
                         b;
@@ -1364,7 +1356,7 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x>
          // L-2 norm squared
          for (int d = 0; d < SDim; ++d)
          {
-            real_t tmp = phys_coord[d] - pptr[idx + d * npts];
+            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
             dist += tmp * tmp;
          }
          if (dist < dists[MFEM_THREAD_ID(x)])
@@ -1406,10 +1398,12 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                 const int *eptr, const real_t *nptr,
                                 const real_t *qptr, real_t *xptr)
 {
-   constexpr int max_team_x = use_dev ? 64 : 1;
-   PhysNodeFinder<Geom, SDim, max_team_x> func;
+   constexpr int max_team_x = 64;
+   constexpr int max_q1d = 128;
+   PhysNodeFinder<Geom, SDim, max_team_x, max_q1d> func;
    // constexpr int max_dof1d = 32;
    MFEM_ASSERT(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
+   MFEM_ASSERT(nq1d <= max_q1d, "maximum of 128 test points per dim is allowed");
    func.basis1d.z = nptr;
    func.basis1d.pN = ndof1d;
    func.mptr = mptr;
@@ -1421,7 +1415,6 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    func.nq1d = nq1d;
    func.nq = func.compute_nq(nq1d);
    func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
-   // TODO: any batching of npts?
    if (use_dev)
    {
       int team_x = std::min<int>(max_team_x, func.nq);

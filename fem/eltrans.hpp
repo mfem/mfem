@@ -381,7 +381,8 @@ public:
 
 /**
  * @brief Performs batch inverse element transforms. Currently only supports
- * meshes where UsesTensorBasis() == true
+ * meshes non-mixed meshes with SEGMENT, SQUARE, or CUBE geometries. Mixed
+ * element order meshes are projected onto an equivalent uniform order mesh.
  */
 class BatchInverseElementTransformation
 {
@@ -408,7 +409,7 @@ public:
    ~BatchInverseElementTransformation();
 
    /** @brief Choose how the initial guesses for subsequent calls to Transform()
-        will be selected. */
+        will be selected. ClosestRefNode is currently not supported. */
    void SetInitialGuessType(InverseElementTransformation::InitGuessType itype)
    {
       init_guess_type = itype;
@@ -424,7 +425,8 @@ public:
    void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
 
    /** @brief Specify which algorithm to use for solving the transformation
-       equation, i.e. when calling the Transform() method. */
+       equation, i.e. when calling the Transform() method. NewtonSegmentProject
+       is currently not supported. */
    void SetSolverType(InverseElementTransformation::SolverType stype)
    {
       solver_type = stype;
@@ -440,10 +442,10 @@ public:
    void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
 
    /**
-     * @brief Performs setup for a batch transformation. This must be called
-     * at least once before calls to Transform. This function must be called after
-     * m.NodesUpdated() is called prior to calling Transform()
-     */
+    * @brief Performs setup for a batch transformation. This must be called
+    * at least once before calls to Transform. This function must be re-called
+    * after m.NodesUpdated() is called prior to calling Transform()
+    */
    void Setup(Mesh &m, MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Performs a batch request of a set of points belonging to the given
