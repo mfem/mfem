@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -525,6 +525,7 @@ void BilinearForm::Assemble(int skip_zeros)
             elmat.SetSize(0);
             for (int k = 0; k < domain_integs.Size(); k++)
             {
+               if (domain_integs_marker[k]) { domain_integs_marker[k]->HostRead(); }
                if ((domain_integs_marker[k] == NULL ||
                     (*(domain_integs_marker[k]))[elem_attr-1] == 1)
                    && !domain_integs[k]->Patchwise())

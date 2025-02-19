@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -324,23 +324,12 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
 
 int GridFunction::VectorDim() const
 {
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return fes->GetVDim();
-   }
-   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetRangeDim());
+   return fes->GetVectorDim();
 }
 
 int GridFunction::CurlDim() const
 {
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return 2 * fes->GetMesh()->SpaceDimension() - 3;
-   }
-   return fes->GetVDim()*fe->GetCurlDim();
+   return fes->GetCurlDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const

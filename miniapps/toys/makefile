@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -24,7 +24,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = automata life mandel rubik snake lissajous mondrian
+SEQ_MINIAPPS = automata life mandel rubik snake lissajous mondrian spiral
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -87,6 +87,8 @@ rubik-test-seq: rubik
 	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-init.mesh)
 
 # Testing: Specific execution options
+spiral-test-seq:
+	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
