@@ -565,7 +565,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
    // theoretically unbounded
    static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 0x1000; }
 
-   void MFEM_HOST_DEVICE operator()(int idx) const
+   int MFEM_HOST_DEVICE operator()(int idx) const
    {
       // parallelize one team per pt
       constexpr int Dim = 1;
@@ -576,10 +576,12 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
       // contiguous in team_x, SDim, then Dim
       MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
       MFEM_SHARED bool term_flag[1];
+      MFEM_SHARED int res[1];
       real_t phys_tol = 0;
       if (MFEM_THREAD_ID(x) == 0)
       {
          term_flag[0] = false;
+         res[0] = InverseElementTransformation::Unknown;
          for (int d = 0; d < Dim; ++d)
          {
             ref_coord[d] = xptr[idx + d * npts];
@@ -656,10 +658,11 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             if (dist <= phys_tol)
             {
                // found solution
-               tptr[idx] =
-                  eltrans::GeometryUtils<Geometry::SEGMENT>::inside(ref_coord[0])
-                  ? InverseElementTransformation::Inside
-                  : InverseElementTransformation::Outside;
+               tptr[idx] = res[0] =
+                   eltrans::GeometryUtils<Geometry::SEGMENT>::inside(
+                       ref_coord[0])
+                       ? InverseElementTransformation::Inside
+                       : InverseElementTransformation::Outside;
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
@@ -669,7 +672,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             else if (iter >= max_iter)
             {
                // terminate on max iterations
-               tptr[idx] = InverseElementTransformation::Unknown;
+               tptr[idx] = res[0] = InverseElementTransformation::Unknown;
                // might as well save where we failed at
                for (int d = 0; d < Dim; ++d)
                {
@@ -689,7 +692,8 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                // check for ref coord convergence or stagnation on boundary
                if (fabs(dx[0]) <= ref_tol)
                {
-                  tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
+                  tptr[idx] = res[0] =
+                      hit_bdr ? InverseElementTransformation::Outside
                               : InverseElementTransformation::Inside;
                   for (int d = 0; d < Dim; ++d)
                   {
@@ -703,7 +707,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
          MFEM_SYNC_THREAD;
          if (term_flag[0])
          {
-            return;
+            return res[0];
          }
          ++iter;
       }
@@ -723,7 +727,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
 
    static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 32; }
 
-   void MFEM_HOST_DEVICE operator()(int idx) const
+   int MFEM_HOST_DEVICE operator()(int idx) const
    {
       // parallelize one team per pt
       constexpr int Dim = 2;
@@ -738,10 +742,12 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
       // contiguous in team_x, SDim, then Dim
       MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
       MFEM_SHARED bool term_flag[1];
+      MFEM_SHARED int res[1];
       real_t phys_tol = 0;
       if (MFEM_THREAD_ID(x) == 0)
       {
          term_flag[0] = false;
+         res[0] = InverseElementTransformation::Unknown;
          for (int d = 0; d < Dim; ++d)
          {
             ref_coord[d] = xptr[idx + d * npts];
@@ -832,10 +838,11 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             if (dist <= phys_tol)
             {
                // found solution
-               tptr[idx] = eltrans::GeometryUtils<Geometry::SQUARE>::inside(
-                              ref_coord[0], ref_coord[1])
-                           ? InverseElementTransformation::Inside
-                           : InverseElementTransformation::Outside;
+               tptr[idx] = res[0] =
+                   eltrans::GeometryUtils<Geometry::SQUARE>::inside(
+                       ref_coord[0], ref_coord[1])
+                       ? InverseElementTransformation::Inside
+                       : InverseElementTransformation::Outside;
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
@@ -845,7 +852,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             else if (iter >= max_iter)
             {
                // terminate on max iterations
-               tptr[idx] = InverseElementTransformation::Unknown;
+               tptr[idx] = res[0] = InverseElementTransformation::Unknown;
                // might as well save where we failed at
                for (int d = 0; d < Dim; ++d)
                {
@@ -865,7 +872,8 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                // check for ref coord convergence or stagnation on boundary
                if (dx[0] * dx[0] + dx[1] * dx[1] <= ref_tol * ref_tol)
                {
-                  tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
+                  tptr[idx] = res[0] =
+                      hit_bdr ? InverseElementTransformation::Outside
                               : InverseElementTransformation::Inside;
                   for (int d = 0; d < Dim; ++d)
                   {
@@ -879,7 +887,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
          MFEM_SYNC_THREAD;
          if (term_flag[0])
          {
-            return;
+            return res[0];
          }
          ++iter;
       }
@@ -900,7 +908,7 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
 
    static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 32; }
 
-   void MFEM_HOST_DEVICE operator()(int idx) const
+   int MFEM_HOST_DEVICE operator()(int idx) const
    {
       // parallelize one team per pt
       constexpr int Dim = 3;
@@ -917,12 +925,13 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
       // contiguous in team_x, SDim, then Dim
       MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
       MFEM_SHARED bool term_flag[1];
+      MFEM_SHARED int res[1];
       real_t phys_tol = 0;
       if (MFEM_THREAD_ID(x) == 0)
       {
          term_flag[0] = false;
-         for (int d = 0; d < Dim; ++d)
-         {
+         res[0] = InverseElementTransformation::Unknown;
+         for (int d = 0; d < Dim; ++d) {
             ref_coord[d] = xptr[idx + d * npts];
          }
          for (int d = 0; d < SDim; ++d)
@@ -1026,10 +1035,11 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
             if (dist <= phys_tol)
             {
                // found solution
-               tptr[idx] = eltrans::GeometryUtils<Geometry::CUBE>::inside(
-                              ref_coord[0], ref_coord[1], ref_coord[2])
-                           ? InverseElementTransformation::Inside
-                           : InverseElementTransformation::Outside;
+               tptr[idx] = res[0] =
+                   eltrans::GeometryUtils<Geometry::CUBE>::inside(
+                       ref_coord[0], ref_coord[1], ref_coord[2])
+                       ? InverseElementTransformation::Inside
+                       : InverseElementTransformation::Outside;
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
@@ -1039,7 +1049,7 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
             else if (iter >= max_iter)
             {
                // terminate on max iterations
-               tptr[idx] = InverseElementTransformation::Unknown;
+               tptr[idx] = res[0] = InverseElementTransformation::Unknown;
                // might as well save where we failed at
                for (int d = 0; d < Dim; ++d)
                {
@@ -1060,7 +1070,8 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                if (dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2] <=
                    ref_tol * ref_tol)
                {
-                  tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
+                  tptr[idx] = res[0] =
+                      hit_bdr ? InverseElementTransformation::Outside
                               : InverseElementTransformation::Inside;
                   for (int d = 0; d < Dim; ++d)
                   {
@@ -1074,7 +1085,7 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
          MFEM_SYNC_THREAD;
          if (term_flag[0])
          {
-            return;
+            return res[0];
          }
          ++iter;
       }
