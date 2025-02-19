@@ -377,15 +377,15 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
 
    Vector sXYv(vdim*2*D1D[0]*D1D[1]);
    Vector sXv(vdim*vdim*D1D[0]);
-   auto sXY = Reshape(gradXYv.HostReadWrite(), vdim, 2, D1D[0], D1D[1]);
-   auto sX = Reshape(gradXv.HostReadWrite(), vdim, vdim, D1D[0]);
+   auto sXY = Reshape(sXYv.HostReadWrite(), vdim, 2, D1D[0], D1D[1]);
+   auto sX = Reshape(sXv.HostReadWrite(), vdim, vdim, D1D[0]);
 
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
-      gradXYv = 0.0;
+      sXYv = 0.0;
       for (int qy = 0; qy < Q1D[1]; ++qy)
       {
-         gradXv = 0.0;
+         sXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const real_t s[3][3] = {
