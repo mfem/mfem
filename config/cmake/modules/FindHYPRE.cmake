@@ -49,9 +49,9 @@ if (FETCH_TPLS)
   if (MFEM_USE_SINGLE)
     list(APPEND CMAKE_OPTIONS -DHYPRE_ENABLE_SINGLE:BOOL=ON)
   endif()
-  message(STATUS "Fetched hypre will be built with ${CMAKE_OPTIONS}")
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
+  message(STATUS "Will fetch hypre v2.32.0 to be built with ${CMAKE_OPTIONS}")
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
   include(ExternalProject)
   ExternalProject_Add(hypre
