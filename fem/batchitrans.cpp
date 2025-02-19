@@ -237,8 +237,11 @@ template <> struct InvTLinSolve<1, 2>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = jac[0] * jac[0] + jac[1] * jac[1];
-      dx[0] = (jac[0] * rhs[0] + jac[1] * rhs[1]) / den;
+      real_t den = jac[0] * jac[0] +
+                   jac[1 * MFEM_THREAD_SIZE(x)] * jac[1 * MFEM_THREAD_SIZE(x)];
+      dx[0] = (jac[0] * rhs[0] +
+               jac[1 * MFEM_THREAD_SIZE(x)] * rhs[1 * MFEM_THREAD_SIZE(x)]) /
+              den;
    }
 };
 
@@ -247,8 +250,13 @@ template <> struct InvTLinSolve<1, 3>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = jac[0] * jac[0] + jac[1] * jac[1] + jac[2] * jac[2];
-      dx[0] = (jac[0] * rhs[0] + jac[1] * rhs[1] + jac[2] * rhs[2]) / den;
+      real_t den = jac[0] * jac[0] +
+                   jac[1 * MFEM_THREAD_SIZE(x)] * jac[1 * MFEM_THREAD_SIZE(x)] +
+                   jac[2 * MFEM_THREAD_SIZE(x)] * jac[2 * MFEM_THREAD_SIZE(x)];
+      dx[0] = (jac[0] * rhs[0] +
+               jac[1 * MFEM_THREAD_SIZE(x)] * rhs[1 * MFEM_THREAD_SIZE(x)] +
+               jac[2 * MFEM_THREAD_SIZE(x)] * rhs[2 * MFEM_THREAD_SIZE(x)]) /
+              den;
    }
 };
 
@@ -257,10 +265,20 @@ template <> struct InvTLinSolve<2, 2>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den =
-         1 / (jac[0 + 0 * 2] * jac[1 + 1 * 2] - jac[0 + 1 * 2] * jac[1 + 0 * 2]);
-      dx[0] = (jac[1 + 1 * 2] * rhs[0] - jac[0 + 1 * 2] * rhs[1]) * den;
-      dx[1] = (jac[0 + 0 * 2] * rhs[1] - jac[1 + 0 * 2] * rhs[0]) * den;
+      real_t den = 1 / (jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] -
+                        jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)]);
+      dx[0] = (jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
+               rhs[0 * MFEM_THREAD_SIZE(x)] -
+               jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
+               rhs[1 * MFEM_THREAD_SIZE(x)]) *
+              den;
+      dx[1] = (jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
+               rhs[1 * MFEM_THREAD_SIZE(x)] -
+               jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
+               rhs[0 * MFEM_THREAD_SIZE(x)]) *
+              den;
    }
 };
 
@@ -272,60 +290,139 @@ template <> struct InvTLinSolve<2, 3>
       // a00**2*a11**2 + a00**2*a21**2 - 2*a00*a01*a10*a11 - 2*a00*a01*a20*a21 +
       // a01**2*a10**2 + a01**2*a20**2 + a10**2*a21**2 - 2*a10*a11*a20*a21 +
       // a11**2*a20**2
-      real_t den =
-         1 /
-         (jac[0 + 0 * 3] * jac[0 + 0 * 3] * jac[1 + 1 * 3] * jac[1 + 1 * 3] +
-          jac[0 + 0 * 3] * jac[0 + 0 * 3] * jac[2 + 1 * 3] * jac[2 + 1 * 3] -
-          2 * jac[0 + 0 * 3] * jac[0 + 1 * 3] * jac[1 + 0 * 3] * jac[1 + 1 * 3] -
-          2 * jac[0 + 0 * 3] * jac[0 + 1 * 3] * jac[2 + 0 * 3] * jac[2 + 1 * 3] +
-          jac[0 + 1 * 3] * jac[0 + 1 * 3] * jac[1 + 0 * 3] * jac[1 + 0 * 3] +
-          jac[0 + 1 * 3] * jac[0 + 1 * 3] * jac[2 + 0 * 3] * jac[2 + 0 * 3] +
-          jac[1 + 0 * 3] * jac[1 + 0 * 3] * jac[2 + 1 * 3] * jac[2 + 1 * 3] -
-          2 * jac[1 + 0 * 3] * jac[1 + 1 * 3] * jac[2 + 0 * 3] * jac[2 + 1 * 3] +
-          jac[1 + 1 * 3] * jac[1 + 1 * 3] * jac[2 + 0 * 3] * jac[2 + 0 * 3]);
+      real_t den = 1 / (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                        2 * jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                        2 * jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                        2 * jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]);
       //   x0*(a00*(a01**2 + a11**2 + a21**2) - a01*(a00*a01 + a10*a11 + a20*a21))
       // + x1*(a10*(a01**2 + a11**2 + a21**2) - a11*(a00*a01 + a10*a11 + a20*a21))
       // + x2*(a20*(a01**2 + a11**2 + a21**2) - a21*(a00*a01 + a10*a11 + a20*a21))
-      dx[0] = (rhs[0] * (jac[0 + 0 * 3] * (jac[0 + 1 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 1 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 1 * 3] * jac[2 + 1 * 3]) -
-                         jac[0 + 1 * 3] * (jac[0 + 0 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 1 * 3])) +
-               rhs[1] * (jac[1 + 0 * 3] * (jac[0 + 1 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 1 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 1 * 3] * jac[2 + 1 * 3]) -
-                         jac[1 + 1 * 3] * (jac[0 + 0 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 1 * 3])) +
-               rhs[2] * (jac[2 + 0 * 3] * (jac[0 + 1 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 1 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 1 * 3] * jac[2 + 1 * 3]) -
-                         jac[2 + 1 * 3] * (jac[0 + 0 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 1 * 3]))) *
+      dx[0] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
+                jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+               rhs[1 * MFEM_THREAD_SIZE(x)] *
+               (jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
+                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] *
+               (jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3)]) -
+                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]))) *
               den;
       //  x0*(a01*(a00**2 + a10**2 + a20**2)-a00*(a00*a01 + a10*a11 + a20*a21))
       // +x1*(a11*(a00**2 + a10**2 + a20**2)-a10*(a00*a01 + a10*a11 + a20*a21))
       // +x2*(a21*(a00**2 + a10**2 + a20**2)-a20*(a00*a01 + a10*a11 + a20*a21))
-      dx[1] = (rhs[0] * (jac[0 + 1 * 3] * (jac[0 + 0 * 3] * jac[0 + 0 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 0 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 0 * 3]) -
-                         jac[0 + 0 * 3] * (jac[0 + 0 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 1 * 3])) +
-               rhs[1] * (jac[1 + 1 * 3] * (jac[0 + 0 * 3] * jac[0 + 0 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 0 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 0 * 3]) -
-                         jac[1 + 0 * 3] * (jac[0 + 0 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 1 * 3])) +
-               rhs[2] * (jac[2 + 1 * 3] * (jac[0 + 0 * 3] * jac[0 + 0 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 0 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 0 * 3]) -
-                         jac[2 + 0 * 3] * (jac[0 + 0 * 3] * jac[0 + 1 * 3] +
-                                           jac[1 + 0 * 3] * jac[1 + 1 * 3] +
-                                           jac[2 + 0 * 3] * jac[2 + 1 * 3]))) *
+      dx[1] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
+                jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+               rhs[1 * MFEM_THREAD_SIZE(x)] *
+               (jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
+                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] *
+               (jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
+                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
+                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]))) *
               den;
    }
 };
@@ -335,33 +432,118 @@ template <> struct InvTLinSolve<3, 3>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = 1 / (jac[0 + 0 * 3] * jac[1 + 1 * 3] * jac[2 + 2 * 3] -
-                        jac[0 + 0 * 3] * jac[1 + 2 * 3] * jac[2 + 2 * 3] -
-                        jac[0 + 1 * 3] * jac[1 + 0 * 3] * jac[2 + 2 * 3] +
-                        jac[0 + 1 * 3] * jac[1 + 2 * 3] * jac[2 + 0 * 3] +
-                        jac[0 + 2 * 3] * jac[1 + 0 * 3] * jac[2 + 1 * 3] -
-                        jac[0 + 2 * 3] * jac[1 + 1 * 3] * jac[2 + 0 * 3]);
-      dx[0] = (rhs[0] * (jac[1 + 1 * 3] * jac[2 + 2 * 3] -
-                         jac[1 + 2 * 3] * jac[2 + 1 * 3]) -
-               rhs[1] * (jac[0 + 1 * 3] * jac[2 + 2 * 3] -
-                         jac[0 + 2 * 3] * jac[2 + 1 * 3]) +
-               rhs[2] * (jac[0 + 1 * 3] * jac[1 + 2 * 3] -
-                         jac[0 + 2 * 3] * jac[1 + 1 * 3])) *
+      real_t den = 1 / (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
+                        jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                        jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]);
+      dx[0] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
+               (jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
+               rhs[1 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)])) *
               den;
-      dx[1] = (rhs[0] * (jac[1 + 2 * 3] * jac[2 + 0 * 3] -
-                         jac[1 + 0 * 3] * jac[2 + 2 * 3]) +
-               rhs[1] * (jac[0 + 0 * 3] * jac[2 + 2 * 3] -
-                         jac[0 + 2 * 3] * jac[2 + 0 * 3]) -
-               rhs[2] * (jac[0 + 0 * 3] * jac[1 + 2 * 3] -
-                         jac[0 + 2 * 3] * jac[1 + 0 * 3])) *
+      dx[1] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
+               (jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] * jac[2 + 0 * 3] -
+                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)]) +
+               rhs[1 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
+               rhs[2 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)])) *
               den;
-      dx[2] = (rhs[0] * (jac[1 + 0 * 3] * jac[2 + 1 * 3] -
-                         jac[1 + 1 * 3] * jac[2 + 0 * 3]) -
-               rhs[1] * (jac[0 + 0 * 3] * jac[2 + 1 * 3] -
-                         jac[0 + 1 * 3] * jac[2 + 0 * 3]) +
-               rhs[2] * (jac[0 + 0 * 3] * jac[1 + 1 * 3] -
-                         jac[0 + 1 * 3] * jac[1 + 0 * 3])) *
+      dx[2] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
+               (jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
+               rhs[1 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] *
+               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
+                jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
+                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)])) *
               den;
+   }
+};
+
+template <int Geom, InverseElementTransformation::SolverType SolverType>
+struct ProjectType;
+
+template <>
+struct ProjectType<Geometry::SEGMENT, InverseElementTransformation::Newton>
+{
+   static MFEM_HOST_DEVICE bool project(real_t& x, real_t& dx)
+   {
+      x += dx;
+      return false;
+   }
+};
+
+template <>
+struct ProjectType<Geometry::SQUARE, InverseElementTransformation::Newton>
+{
+   static MFEM_HOST_DEVICE bool project(real_t &x, real_t &y, real_t &dx,
+                                        real_t &dy)
+   {
+      x += dx;
+      y += dy;
+      return false;
+   }
+};
+
+template <>
+struct ProjectType<Geometry::CUBE, InverseElementTransformation::Newton>
+{
+   static MFEM_HOST_DEVICE bool project(real_t &x, real_t &y, real_t &z,
+                                        real_t &dx, real_t &dy, real_t &dz)
+   {
+      x += dx;
+      y += dy;
+      z += dz;
+      return false;
+   }
+};
+
+template <int Geom>
+struct ProjectType<Geom, InverseElementTransformation::NewtonElementProject>
+{
+   template <class... Ts> static MFEM_HOST_DEVICE bool project(Ts&&... args)
+   {
+      return eltrans::GeometryUtils<Geom>::project(args...);
    }
 };
 
@@ -369,239 +551,339 @@ template <int Geom, int SDim,
           InverseElementTransformation::SolverType SolverType, int max_team_x>
 struct InvTNewtonSolver;
 
-template <int SDim, int max_team_x>
-struct InvTNewtonSolver<Geometry::SEGMENT, SDim,
-          InverseElementTransformation::NewtonElementProject,
-          max_team_x> : public InvTNewtonSolverBase
+template <int SDim, InverseElementTransformation::SolverType SType,
+          int max_team_x>
+struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
+   : public InvTNewtonSolverBase
 {
    static int compute_stride_sdim(int ndof1d, int nelems)
    {
       return ndof1d * nelems;
    }
 
+   static int ndofs(int ndof1d) { return ndof1d; }
+
+   // theoretically unbounded
+   static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 0x1000; }
+
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
-      // parallelize one thread per pt
+      // parallelize one team per pt
       constexpr int Dim = 1;
       int iter = 0;
-      real_t ref_coord;
-      real_t phys_coord[SDim];
-      real_t jac[SDim * Dim];
-      ref_coord = xptr[idx];
+      MFEM_SHARED real_t ref_coord[Dim];
+      // contiguous in team_x, then SDim
+      MFEM_SHARED real_t phys_coord[SDim * max_team_x];
+      // contiguous in team_x, SDim, then Dim
+      MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
+      MFEM_SHARED bool term_flag[1];
       real_t phys_tol = 0;
-      for (int d = 0; d < SDim; ++d)
+      if (MFEM_THREAD_ID(x) == 0)
       {
-         phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+         term_flag[0] = false;
+         for (int d = 0; d < Dim; ++d)
+         {
+            ref_coord[d] = xptr[idx + d * npts];
+         }
+         for (int d = 0; d < SDim; ++d)
+         {
+            phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+         }
+         phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
       }
-      phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
+      // for each iteration
       while (true)
       {
-         for (int i = 0; i < SDim; ++i)
+         MFEM_SYNC_THREAD;
+         // compute phys_coord and jacobian at the same time
+         for (int d = 0; d < SDim; ++d)
          {
-            phys_coord[i] = 0;
+            phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] = 0;
          }
          for (int i = 0; i < SDim * Dim; ++i)
          {
-            jac[i] = 0;
+            jac[MFEM_THREAD_ID(x) + i * MFEM_THREAD_SIZE(x)] = 0;
          }
-         // compute phys_coord and jacobian at the same time
-         for (int j0 = 0; j0 < basis1d.pN; ++j0)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(j0, x, basis1d.pN)
          {
-            real_t b, db;
-            basis1d.eval_d1(b, db, ref_coord, j0);
+            real_t b0, db0;
+            basis1d.eval_d1(b0, db0, ref_coord[0], j0);
             for (int d = 0; d < SDim; ++d)
             {
-               phys_coord[d] +=
-                  mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
-               jac[d] += mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db;
+               phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
+                  mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b0;
+               jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
+                  mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db0;
             }
          }
-         // compute objective function
-         // f(x) = 1/2 |pt - F(x)|^2
-         real_t dist = 0;
-         for (int d = 0; d < SDim; ++d)
+
+         for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
          {
-            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
-            phys_coord[d] = tmp;
-            dist += tmp * tmp;
+            MFEM_SYNC_THREAD;
+            int a = MFEM_THREAD_ID(x);
+            int b = a + i;
+            if (a < i && b < basis1d.pN)
+            {
+               for (int d = 0; d < SDim; ++d)
+               {
+                  phys_coord[a + d * MFEM_THREAD_SIZE(x)] +=
+                     phys_coord[b + d * MFEM_THREAD_SIZE(x)];
+               }
+               for (int j = 0; j < SDim * Dim; ++j)
+               {
+                  jac[a + j * MFEM_THREAD_SIZE(x)] +=
+                     jac[b + j * MFEM_THREAD_SIZE(x)];
+               }
+            }
          }
-         // phys_coord now contains pt - F(x)
-         // check for phys_tol convergence
-         if (dist <= phys_tol)
+         MFEM_SYNC_THREAD;
+
+         // rest of newton solve logic is serial, have thread 0 solve for it
+         if (MFEM_THREAD_ID(x) == 0)
          {
-            // found solution
-            tptr[idx] = eltrans::GeometryUtils<Geometry::SEGMENT>::inside(ref_coord)
-                        ? InverseElementTransformation::Inside
-                        : InverseElementTransformation::Outside;
-            xptr[idx] = ref_coord;
+            // compute objective function
+            // f(x) = 1/2 |pt - F(x)|^2
+            real_t dist = 0;
+            for (int d = 0; d < SDim; ++d)
+            {
+               real_t tmp =
+                  pptr[idx + d * npts] - phys_coord[d * MFEM_THREAD_SIZE(x)];
+               phys_coord[d * MFEM_THREAD_SIZE(x)] = tmp;
+               dist += tmp * tmp;
+            }
+            // phys_coord now contains pt - F(x)
+            // check for phys_tol convergence
+            if (dist <= phys_tol)
+            {
+               // found solution
+               tptr[idx] =
+                  eltrans::GeometryUtils<Geometry::SEGMENT>::inside(ref_coord[0])
+                  ? InverseElementTransformation::Inside
+                  : InverseElementTransformation::Outside;
+               for (int d = 0; d < Dim; ++d)
+               {
+                  xptr[idx + d * npts] = ref_coord[d];
+               }
+               term_flag[0] = true;
+            }
+            else if (iter >= max_iter)
+            {
+               // terminate on max iterations
+               tptr[idx] = InverseElementTransformation::Unknown;
+               // might as well save where we failed at
+               for (int d = 0; d < Dim; ++d)
+               {
+                  xptr[idx + d * npts] = ref_coord[d];
+               }
+               term_flag[0] = true;
+            }
+            else
+            {
+               // compute dx = (pseudo)-inverse jac * [pt - F(x)]
+               real_t dx[Dim];
+               InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, dx);
+
+               bool hit_bdr = ProjectType<Geometry::SEGMENT, SType>::project(
+                                 ref_coord[0], dx[0]);
+
+               // check for ref coord convergence or stagnation on boundary
+               if (fabs(dx[0]) <= ref_tol)
+               {
+                  tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
+                              : InverseElementTransformation::Inside;
+                  for (int d = 0; d < Dim; ++d)
+                  {
+                     xptr[idx + d * npts] = ref_coord[d];
+                  }
+                  term_flag[0] = true;
+               }
+            }
+         }
+
+         MFEM_SYNC_THREAD;
+         if (term_flag[0])
+         {
             return;
          }
-
-         if (iter >= max_iter)
-         {
-            // terminate on max iterations
-            tptr[idx] = InverseElementTransformation::Unknown;
-            // might as well save where we failed at
-            xptr[idx] = ref_coord;
-            return;
-         }
-
-         // compute dx = (pseudo)-inverse jac * [pt - F(x)]
-         real_t dx = 0;
-         InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, &dx);
-
-         bool hit_bdr =
-            eltrans::GeometryUtils<Geometry::SEGMENT>::project(ref_coord, dx);
-         // ref_coord += dx;
-
-         // check for ref coord convergence or stagnation on boundary
-         if (fabs(dx) <= ref_tol)
-         {
-            tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
-                        : InverseElementTransformation::Inside;
-            xptr[idx] = ref_coord;
-            return;
-         }
-
          ++iter;
       }
    }
 };
 
-template <int SDim, int max_team_x>
-struct InvTNewtonSolver<Geometry::SQUARE, SDim,
-          InverseElementTransformation::NewtonElementProject,
-          max_team_x> : public InvTNewtonSolverBase
+template <int SDim, InverseElementTransformation::SolverType SType,
+          int max_team_x>
+struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
+   : public InvTNewtonSolverBase
 {
+   static int ndofs(int ndof1d) { return ndof1d * ndof1d; }
    static int compute_stride_sdim(int ndof1d, int nelems)
    {
       return ndof1d * ndof1d * nelems;
    }
 
+   static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 32; }
+
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
-      // parallelize one thread per pt
+      // parallelize one team per pt
       constexpr int Dim = 2;
-      constexpr int max_dof1d = 32;
       int iter = 0;
-      real_t ref_coord[Dim];
-      real_t phys_coord[SDim];
-      MFEM_SHARED real_t basis0_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t dbasis0_buf[max_dof1d * max_team_x];
-      // contiguous in SDim
-      real_t jac[SDim * Dim];
-      for (int d = 0; d < Dim; ++d)
-      {
-         ref_coord[d] = xptr[idx + d * npts];
-      }
+      MFEM_SHARED real_t ref_coord[Dim];
+      // contiguous in team_x, then SDim
+      MFEM_SHARED real_t phys_coord[SDim * max_team_x];
+      MFEM_SHARED real_t basis0[max_dof1d()];
+      MFEM_SHARED real_t dbasis0[max_dof1d()];
+      MFEM_SHARED real_t basis1[max_dof1d()];
+      MFEM_SHARED real_t dbasis1[max_dof1d()];
+      // contiguous in team_x, SDim, then Dim
+      MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
+      MFEM_SHARED bool term_flag[1];
       real_t phys_tol = 0;
-      for (int d = 0; d < SDim; ++d)
+      if (MFEM_THREAD_ID(x) == 0)
       {
-         phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+         term_flag[0] = false;
+         for (int d = 0; d < Dim; ++d)
+         {
+            ref_coord[d] = xptr[idx + d * npts];
+         }
+         for (int d = 0; d < SDim; ++d)
+         {
+            phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+         }
+         phys_tol =
+            fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
       }
-      phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
+      // for each iteration
       while (true)
       {
+         MFEM_SYNC_THREAD;
          // compute phys_coord and jacobian at the same time
-         for (int i = 0; i < SDim; ++i)
+         for (int d = 0; d < SDim; ++d)
          {
-            phys_coord[i] = 0;
+            phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] = 0;
          }
          for (int i = 0; i < SDim * Dim; ++i)
          {
-            jac[i] = 0;
+            jac[MFEM_THREAD_ID(x) + i * MFEM_THREAD_SIZE(x)] = 0;
          }
-         for (int j0 = 0; j0 < basis1d.pN; ++j0)
+         MFEM_FOREACH_THREAD(j0, x, basis1d.pN)
          {
-            basis1d.eval_d1(
-               basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)],
-               dbasis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)],
-               ref_coord[0], j0);
+            basis1d.eval_d1(basis0[j0], dbasis0[j0], ref_coord[0], j0);
+            basis1d.eval_d1(basis1[j0], dbasis1[j0], ref_coord[1], j0);
          }
-         for (int j1 = 0; j1 < basis1d.pN; ++j1)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(jidx, x, basis1d.pN * basis1d.pN)
          {
-            real_t b1, db1;
-            basis1d.eval_d1(b1, db1, ref_coord[1], j1);
-            for (int j0 = 0; j0 < basis1d.pN; ++j0)
+            int idcs[Dim];
+            idcs[0] = jidx % basis1d.pN;
+            idcs[1] = jidx / basis1d.pN;
+            for (int d = 0; d < SDim; ++d)
             {
-               real_t b0 =
-                  b1 * basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)];
+               phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                               d * stride_sdim] *
+                  basis0[idcs[0]] * basis1[idcs[1]];
+               jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                               d * stride_sdim] *
+                  dbasis0[idcs[0]] * basis1[idcs[1]];
+               jac[MFEM_THREAD_ID(x) + (d + 1 * SDim) * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                               d * stride_sdim] *
+                  basis0[idcs[0]] * dbasis1[idcs[1]];
+            }
+         }
+
+         for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+         {
+            MFEM_SYNC_THREAD;
+            int a = MFEM_THREAD_ID(x);
+            int b = a + i;
+            if (a < i && b < basis1d.pN * basis1d.pN)
+            {
                for (int d = 0; d < SDim; ++d)
                {
-                  phys_coord[d] +=
-                     mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
-                             d * stride_sdim] *
-                     b0;
-                  jac[d] +=
-                     mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
-                             d * stride_sdim] *
-                     dbasis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)] *
-                     b1;
-                  jac[d + SDim] +=
-                     mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
-                             d * stride_sdim] *
-                     basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)] *
-                     db1;
+                  phys_coord[a + d * MFEM_THREAD_SIZE(x)] +=
+                     phys_coord[b + d * MFEM_THREAD_SIZE(x)];
+               }
+               for (int j = 0; j < SDim * Dim; ++j)
+               {
+                  jac[a + j * MFEM_THREAD_SIZE(x)] +=
+                     jac[b + j * MFEM_THREAD_SIZE(x)];
                }
             }
          }
-         // compute objective function
-         // f(x) = 1/2 |pt - F(x)|^2
-         real_t dist = 0;
-         for (int d = 0; d < SDim; ++d)
+         MFEM_SYNC_THREAD;
+
+         // rest of newton solve logic is serial, have thread 0 solve for it
+         if (MFEM_THREAD_ID(x) == 0)
          {
-            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
-            phys_coord[d] = tmp;
-            dist += tmp * tmp;
-         }
-         // phys_coord now contains pt - F(x)
-         // check for phys_tol convergence
-         if (dist <= phys_tol)
-         {
-            // found solution
-            tptr[idx] = eltrans::GeometryUtils<Geometry::SQUARE>::inside(
-                           ref_coord[0], ref_coord[1])
-                        ? InverseElementTransformation::Inside
-                        : InverseElementTransformation::Outside;
-            for (int d = 0; d < Dim; ++d)
+            // compute objective function
+            // f(x) = 1/2 |pt - F(x)|^2
+            real_t dist = 0;
+            for (int d = 0; d < SDim; ++d)
             {
-               xptr[idx + d * npts] = ref_coord[d];
+               real_t tmp =
+                  pptr[idx + d * npts] - phys_coord[d * MFEM_THREAD_SIZE(x)];
+               phys_coord[d * MFEM_THREAD_SIZE(x)] = tmp;
+               dist += tmp * tmp;
             }
-            return;
+            // phys_coord now contains pt - F(x)
+            // check for phys_tol convergence
+            if (dist <= phys_tol)
+            {
+               // found solution
+               tptr[idx] = eltrans::GeometryUtils<Geometry::SQUARE>::inside(
+                              ref_coord[0], ref_coord[1])
+                           ? InverseElementTransformation::Inside
+                           : InverseElementTransformation::Outside;
+               for (int d = 0; d < Dim; ++d)
+               {
+                  xptr[idx + d * npts] = ref_coord[d];
+               }
+               term_flag[0] = true;
+            }
+            else if (iter >= max_iter)
+            {
+               // terminate on max iterations
+               tptr[idx] = InverseElementTransformation::Unknown;
+               // might as well save where we failed at
+               for (int d = 0; d < Dim; ++d)
+               {
+                  xptr[idx + d * npts] = ref_coord[d];
+               }
+               term_flag[0] = true;
+            }
+            else
+            {
+               // compute dx = (pseudo)-inverse jac * [pt - F(x)]
+               real_t dx[Dim];
+               InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, dx);
+
+               bool hit_bdr = ProjectType<Geometry::SQUARE, SType>::project(
+                                 ref_coord[0], ref_coord[1], dx[0], dx[1]);
+
+               // check for ref coord convergence or stagnation on boundary
+               if (dx[0] * dx[0] + dx[1] * dx[1] <= ref_tol * ref_tol)
+               {
+                  tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
+                              : InverseElementTransformation::Inside;
+                  for (int d = 0; d < Dim; ++d)
+                  {
+                     xptr[idx + d * npts] = ref_coord[d];
+                  }
+                  term_flag[0] = true;
+               }
+            }
          }
 
-         if (iter >= max_iter)
+         MFEM_SYNC_THREAD;
+         if (term_flag[0])
          {
-            // terminate on max iterations
-            tptr[idx] = InverseElementTransformation::Unknown;
-            // might as well save where we failed at
-            for (int d = 0; d < Dim; ++d)
-            {
-               xptr[idx + d * npts] = ref_coord[d];
-            }
-            return;
-         }
-
-         // compute dx = (pseudo)-inverse jac * [pt - F(x)]
-         // real_t invJ_den = 1 / (jac[0] * jac[3] - jac[1] * jac[2]);
-         real_t dx[Dim];
-         InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, dx);
-
-         bool hit_bdr = eltrans::GeometryUtils<Geometry::SQUARE>::project(
-                           ref_coord[0], ref_coord[1], dx[0], dx[1]);
-         // for (int d = 0; d < Dim; ++d) {
-         //   ref_coord[d] += dx[d];
-         // }
-
-         // check for ref coord convergence or stagnation on boundary
-         if (dx[0] * dx[0] + dx[1] * dx[1] <= ref_tol * ref_tol)
-         {
-            tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
-                        : InverseElementTransformation::Inside;
-            for (int d = 0; d < Dim; ++d)
-            {
-               xptr[idx + d * npts] = ref_coord[d];
-            }
             return;
          }
          ++iter;
@@ -609,167 +891,194 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim,
    }
 };
 
-template <int SDim, int max_team_x>
-struct InvTNewtonSolver<Geometry::CUBE, SDim,
-          InverseElementTransformation::NewtonElementProject,
-          max_team_x> : public InvTNewtonSolverBase
+template <int SDim, InverseElementTransformation::SolverType SType,
+          int max_team_x>
+struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
+   : public InvTNewtonSolverBase
 {
    static int compute_stride_sdim(int ndof1d, int nelems)
    {
       return ndof1d * ndof1d * ndof1d * nelems;
    }
 
+   static int ndofs(int ndof1d) { return ndof1d * ndof1d * ndof1d; }
+
+   static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 32; }
+
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
-      // parallelize one thread per pt
+      // parallelize one team per pt
       constexpr int Dim = 3;
-      constexpr int max_dof1d = 32;
       int iter = 0;
-      real_t ref_coord[Dim];
-      real_t phys_coord[SDim];
-      MFEM_SHARED real_t basis0_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t dbasis0_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
-      MFEM_SHARED real_t dbasis1_buf[max_dof1d * max_team_x];
-      // contiguous in SDim
-      real_t jac[SDim * Dim];
-      for (int d = 0; d < Dim; ++d)
-      {
-         ref_coord[d] = xptr[idx + d * npts];
-      }
+      MFEM_SHARED real_t ref_coord[Dim];
+      // contiguous in team_x, then SDim
+      MFEM_SHARED real_t phys_coord[SDim * max_team_x];
+      MFEM_SHARED real_t basis0[max_dof1d()];
+      MFEM_SHARED real_t dbasis0[max_dof1d()];
+      MFEM_SHARED real_t basis1[max_dof1d()];
+      MFEM_SHARED real_t dbasis1[max_dof1d()];
+      MFEM_SHARED real_t basis2[max_dof1d()];
+      MFEM_SHARED real_t dbasis2[max_dof1d()];
+      // contiguous in team_x, SDim, then Dim
+      MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
+      MFEM_SHARED bool term_flag[1];
       real_t phys_tol = 0;
-      for (int d = 0; d < SDim; ++d)
+      if (MFEM_THREAD_ID(x) == 0)
       {
-         phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+         term_flag[0] = false;
+         for (int d = 0; d < Dim; ++d)
+         {
+            ref_coord[d] = xptr[idx + d * npts];
+         }
+         for (int d = 0; d < SDim; ++d)
+         {
+            phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+         }
+         phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
       }
-      phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
+      // for each iteration
       while (true)
       {
-         for (int i = 0; i < SDim; ++i)
+         MFEM_SYNC_THREAD;
+         // compute phys_coord and jacobian at the same time
+         for (int d = 0; d < SDim; ++d)
          {
-            phys_coord[i] = 0;
+            phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] = 0;
          }
          for (int i = 0; i < SDim * Dim; ++i)
          {
-            jac[i] = 0;
+            jac[MFEM_THREAD_ID(x) + i * MFEM_THREAD_SIZE(x)] = 0;
          }
-         // compute phys_coord and jacobian at the same time
-         for (int j1 = 0; j1 < basis1d.pN; ++j1)
+         MFEM_FOREACH_THREAD(j0, x, basis1d.pN)
          {
-            basis1d.eval_d1(
-               basis0_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               dbasis0_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               ref_coord[0], j1);
-            basis1d.eval_d1(
-               basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)],
-               ref_coord[1], j1);
+            basis1d.eval_d1(basis0[j0], dbasis0[j0], ref_coord[0], j0);
+            basis1d.eval_d1(basis1[j0], dbasis1[j0], ref_coord[1], j0);
+            basis1d.eval_d1(basis2[j0], dbasis2[j0], ref_coord[2], j0);
          }
-         for (int j2 = 0; j2 < basis1d.pN; ++j2)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(jidx, x, basis1d.pN * basis1d.pN * basis1d.pN)
          {
-            real_t b2, db2;
-            basis1d.eval_d1(b2, db2, ref_coord[2], j2);
-            for (int j1 = 0; j1 < basis1d.pN; ++j1)
+            int idcs[Dim];
+            idcs[0] = jidx % basis1d.pN;
+            idcs[1] = jidx / basis1d.pN;
+            idcs[2] = idcs[1] / basis1d.pN;
+            idcs[1] %= basis1d.pN;
+            for (int d = 0; d < SDim; ++d)
             {
-               real_t b1 =
-                  b2 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
-               for (int j0 = 0; j0 < basis1d.pN; ++j0)
+               phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                               basis1d.pN +
+                               d * stride_sdim] *
+                  basis0[idcs[0]] * basis1[idcs[1]] * basis2[idcs[2]];
+               jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                               basis1d.pN +
+                               d * stride_sdim] *
+                  dbasis0[idcs[0]] * basis1[idcs[1]] * basis2[idcs[2]];
+               jac[MFEM_THREAD_ID(x) + (d + 1 * SDim) * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                               basis1d.pN +
+                               d * stride_sdim] *
+                  basis0[idcs[0]] * dbasis1[idcs[1]] * basis2[idcs[2]];
+               jac[MFEM_THREAD_ID(x) + (d + 2 * SDim) * MFEM_THREAD_SIZE(x)] +=
+                  mptr[idcs[0] +
+                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                               basis1d.pN +
+                               d * stride_sdim] *
+                  basis0[idcs[0]] * basis1[idcs[1]] * dbasis2[idcs[2]];
+            }
+         }
+
+         for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+         {
+            MFEM_SYNC_THREAD;
+            int a = MFEM_THREAD_ID(x);
+            int b = a + i;
+            if (a < i && b < basis1d.pN * basis1d.pN * basis1d.pN)
+            {
+               for (int d = 0; d < SDim; ++d)
                {
-                  real_t b0 =
-                     b1 * basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)];
-                  for (int d = 0; d < SDim; ++d)
-                  {
-                     phys_coord[d] +=
-                        mptr[j0 +
-                                (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                                basis1d.pN +
-                                d * stride_sdim] *
-                        b0;
-                     jac[d] += mptr[j0 +
-                                    (j1 + (j2 + eptr[idx] * basis1d.pN) *
-                                     basis1d.pN) *
-                                    basis1d.pN +
-                                    d * stride_sdim] *
-                               b1 *
-                               dbasis0_buf[MFEM_THREAD_ID(x) +
-                                                             j0 * MFEM_THREAD_SIZE(x)];
-                     jac[d + SDim] +=
-                        mptr[j0 +
-                                (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                                basis1d.pN +
-                                d * stride_sdim] *
-                        b2 *
-                        dbasis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] *
-                        basis0_buf[MFEM_THREAD_ID(x) + j0 * MFEM_THREAD_SIZE(x)];
-                     jac[d + 2 * SDim] +=
-                        mptr[j0 +
-                                (j1 +
-                                 (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                                basis1d.pN +
-                                d * stride_sdim] *
-                        basis0_buf[MFEM_THREAD_ID(x) +
-                                                     j0 * MFEM_THREAD_SIZE(x)] *
-                        basis1_buf[MFEM_THREAD_ID(x) +
-                                                     j1 * MFEM_THREAD_SIZE(x)] *
-                        db2;
-                  }
+                  phys_coord[a + d * MFEM_THREAD_SIZE(x)] +=
+                     phys_coord[b + d * MFEM_THREAD_SIZE(x)];
+               }
+               for (int j = 0; j < SDim * Dim; ++j)
+               {
+                  jac[a + j * MFEM_THREAD_SIZE(x)] +=
+                     jac[b + j * MFEM_THREAD_SIZE(x)];
                }
             }
          }
-         // compute objective function
-         // f(x) = 1/2 |pt - F(x)|^2
-         real_t dist = 0;
-         for (int d = 0; d < SDim; ++d)
+         MFEM_SYNC_THREAD;
+
+         // rest of newton solve logic is serial, have thread 0 solve for it
+         if (MFEM_THREAD_ID(x) == 0)
          {
-            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
-            phys_coord[d] = tmp;
-            dist += tmp * tmp;
-         }
-         // phys_coord now contains pt - F(x)
-         // check for phys_tol convergence
-         if (dist <= phys_tol)
-         {
-            // found solution
-            tptr[idx] = eltrans::GeometryUtils<Geometry::CUBE>::inside(
-                           ref_coord[0], ref_coord[1], ref_coord[2])
-                        ? InverseElementTransformation::Inside
-                        : InverseElementTransformation::Outside;
-            for (int d = 0; d < Dim; ++d)
+            // compute objective function
+            // f(x) = 1/2 |pt - F(x)|^2
+            real_t dist = 0;
+            for (int d = 0; d < SDim; ++d)
             {
-               xptr[idx + d * npts] = ref_coord[d];
+               real_t tmp =
+                  pptr[idx + d * npts] - phys_coord[d * MFEM_THREAD_SIZE(x)];
+               phys_coord[d * MFEM_THREAD_SIZE(x)] = tmp;
+               dist += tmp * tmp;
             }
-            return;
+            // phys_coord now contains pt - F(x)
+            // check for phys_tol convergence
+            if (dist <= phys_tol)
+            {
+               // found solution
+               tptr[idx] = eltrans::GeometryUtils<Geometry::CUBE>::inside(
+                              ref_coord[0], ref_coord[1], ref_coord[2])
+                           ? InverseElementTransformation::Inside
+                           : InverseElementTransformation::Outside;
+               for (int d = 0; d < Dim; ++d)
+               {
+                  xptr[idx + d * npts] = ref_coord[d];
+               }
+               term_flag[0] = true;
+            }
+            else if (iter >= max_iter)
+            {
+               // terminate on max iterations
+               tptr[idx] = InverseElementTransformation::Unknown;
+               // might as well save where we failed at
+               for (int d = 0; d < Dim; ++d)
+               {
+                  xptr[idx + d * npts] = ref_coord[d];
+               }
+               term_flag[0] = true;
+            }
+            else
+            {
+               // compute dx = (pseudo)-inverse jac * [pt - F(x)]
+               real_t dx[Dim];
+               InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, dx);
+
+               bool hit_bdr = ProjectType<Geometry::CUBE, SType>::project(
+                                 ref_coord[0], ref_coord[1], ref_coord[2], dx[0], dx[1], dx[2]);
+
+               // check for ref coord convergence or stagnation on boundary
+               if (dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2] <=
+                   ref_tol * ref_tol)
+               {
+                  tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
+                              : InverseElementTransformation::Inside;
+                  for (int d = 0; d < Dim; ++d)
+                  {
+                     xptr[idx + d * npts] = ref_coord[d];
+                  }
+                  term_flag[0] = true;
+               }
+            }
          }
 
-         if (iter >= max_iter)
+         MFEM_SYNC_THREAD;
+         if (term_flag[0])
          {
-            // terminate on max iterations
-            tptr[idx] = InverseElementTransformation::Unknown;
-            // might as well save where we failed at
-            for (int d = 0; d < Dim; ++d)
-            {
-               xptr[idx + d * npts] = ref_coord[d];
-            }
-            return;
-         }
-
-         // compute dx = (pseudo)-inverse jac * [pt - F(x)]
-         // real_t invJ_den = 1 / (jac[0] * jac[3] - jac[1] * jac[2]);
-         real_t dx[Dim];
-         InvTLinSolve<Dim, SDim>::solve(jac, phys_coord, dx);
-
-         bool hit_bdr = eltrans::GeometryUtils<Geometry::CUBE>::project(
-                           ref_coord[0], ref_coord[1], ref_coord[2], dx[0], dx[1], dx[2]);
-
-         // check for ref coord convergence or stagnation on boundary
-         if (dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2] <= ref_tol * ref_tol)
-         {
-            tptr[idx] = hit_bdr ? InverseElementTransformation::Outside
-                        : InverseElementTransformation::Inside;
-            for (int d = 0; d < Dim; ++d)
-            {
-               xptr[idx + d * npts] = ref_coord[d];
-            }
             return;
          }
          ++iter;
@@ -819,7 +1128,6 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x>
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
       constexpr int Dim = 1;
-      // constexpr int max_team_x = use_dev ? 64 : 1;
       // int n = (nq < max_team_x) ? nq : max_team_x;
       // L-2 norm squared
       MFEM_SHARED real_t dists[max_team_x];
@@ -898,7 +1206,6 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x>
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
       constexpr int Dim = 2;
-      // constexpr int max_team_x = use_dev ? 64 : 1;
       constexpr int max_dof1d = 32;
       int n = (nq < max_team_x) ? nq : max_team_x;
       // L-2 norm squared
@@ -996,8 +1303,8 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x>
 
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
+      // TODO: for some reason this is extremely slow?
       constexpr int Dim = 3;
-      // constexpr int max_team_x = use_dev ? 64 : 1;
       constexpr int max_dof1d = 32;
       int n = (nq < max_team_x) ? nq : max_team_x;
       // L-2 norm squared
@@ -1119,10 +1426,11 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    {
       int team_x = std::min<int>(max_team_x, func.nq);
       forall_2D(npts, team_x, 1, func);
+      MFEM_DEVICE_SYNC;
    }
    else
    {
-      forall_switch(use_dev, npts, func);
+      forall_switch(false, npts, func);
    }
 }
 
@@ -1143,10 +1451,11 @@ NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter, int npts,
                 int nelems, int ndof1d, const real_t *mptr, const real_t *pptr,
                 const int *eptr, const real_t *nptr, int *tptr, real_t *xptr)
 {
-   constexpr int max_team_x = use_dev ? 32 : 1;
+   constexpr int max_team_x = use_dev ? 64 : 1;
    InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
    // constexpr int max_dof1d = 32;
-   MFEM_ASSERT(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
+   MFEM_ASSERT(ndof1d <= func.max_dof1d(),
+               "exceeded max_dof1d limit (32 for 2D/3D)");
    func.ref_tol = ref_tol;
    func.phys_rtol = phys_rtol;
    func.max_iter = max_iter;
@@ -1161,12 +1470,12 @@ NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter, int npts,
    func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
-      int team_x = std::min<int>(max_team_x, npts);
-      forall(npts, func, team_x);
+      int team_x = std::min<int>(max_team_x, func.ndofs(ndof1d));
+      forall_2D(npts, team_x, 1, func);
    }
    else
    {
-      forall_switch(use_dev, npts, func);
+      forall_switch(false, npts, func);
    }
 }
 
@@ -1248,7 +1557,7 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::CUBE, 3, false>();
 
    // NewtonSolve
-#if 0
+#if 1
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SEGMENT, 1, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
@@ -1282,7 +1591,7 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::SEGMENT, 3, InverseElementTransformation::NewtonElementProject,
             false>();
 
-#if 0
+#if 1
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SQUARE, 2, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
@@ -1305,7 +1614,7 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::SQUARE, 3, InverseElementTransformation::NewtonElementProject,
             false>();
 
-#if 0
+#if 1
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::CUBE, 3, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
