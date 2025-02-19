@@ -66,19 +66,16 @@ Mesh MakeElementMesh(Geometry::Type type, real_t * vertices)
    {
       dim = 1;
       sdim = 1;
-      bdr_type = Geometry::POINT;
    }
    else if (type >= Geometry::TRIANGLE && type <= Geometry::SQUARE)
    {
       dim = 2;
       sdim = 2;
-      bdr_type = Geometry::SEGMENT;
    }
    else if (type >= Geometry::TETRAHEDRON)
    {
       dim = 3;
       sdim = 3;
-      bdr_type = Geometry::TRIANGLE;
    }
 
    Mesh mesh(vertices, nvert, &el_inds[0], type, &el_attr[0], 1, NULL,
