@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    //    load from solution file
-   ifstream temp_log("./EFIT_loading/B_r.gf");
+   ifstream temp_log("./EFIT_loading/B_z.gf");
    GridFunction x(&mesh, temp_log);
 
    // GridFunction x(&fespace);
@@ -29,9 +29,9 @@ int main(int argc, char *argv[])
 
    // saving as vtk
    const int ref = 0;
-   ofstream vtk_ofs("B_r.vtk");
+   ofstream vtk_ofs("B_z.vtk");
    mesh.PrintVTK(vtk_ofs, ref);
-   x.SaveVTK(vtk_ofs, "Bperp", ref);
+   x.SaveVTK(vtk_ofs, "B_z", ref);
    vtk_ofs.close();
    cout << "Mesh saved" << endl;
    
