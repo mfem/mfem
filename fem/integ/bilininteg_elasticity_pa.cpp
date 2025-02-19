@@ -61,9 +61,11 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   mfem::out << "START ElasticityIntegrator::AssembleDiagonalPA" << std::endl;
    q_vec->SetVDim(vdim*vdim*vdim*vdim);
    internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
                                           *geom, *maps, *q_vec, diag);
+   mfem::out << "END ElasticityIntegrator::AssembleDiagonalPA" << std::endl;
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -195,7 +197,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    auto gradX = Reshape(gradXv.HostReadWrite(), vdim, 2, Q1D[0]);
 
    mfem::out << "AddMultPatchPA() " << patch << " - finished 1) init grad u" << std::endl;
-   mfem::out << "grad(0,1,1,2,1) = " << grad(0,1,1,2,1) << std::endl;
+   mfem::out << "Q1D[0] = " << Q1D[0] << ", Q1D[1] = " << Q1D[1] << ", Q1D[2] = " << Q1D[2] << std::endl;
+   mfem::out << "grad(0,1,1,1,1) = " << grad(0,1,1,1,1) << std::endl;
 
    /*
    2) Compute grad_uhat (reference space) interpolated at quadrature points
@@ -286,7 +289,7 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    }
 
    mfem::out << "AddMultPatchPA() " << patch << " - finished 2) compute grad u" << std::endl;
-   mfem::out << "grad(0,1,1,2,1) = " << grad(0,1,1,2,1) << std::endl;
+   mfem::out << "grad(0,1,1,1,1) = " << grad(0,1,1,1,1) << std::endl;
 
    // 3) Apply the "D" operator at each quadrature point: D( grad_uhat )
    for (int qz = 0; qz < Q1D[2]; ++qz)
@@ -322,9 +325,10 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
 
             // Compute stress tensor
             // [s00, s11, s22, s12, s02, s01]
-            stress(0,qx,qy,qz) = (lambda + mu) * grad(0,0,qx,qy,qz) * wdetj;
-            stress(1,qx,qy,qz) = (lambda + mu) * grad(1,1,qx,qy,qz) * wdetj;
-            stress(2,qx,qy,qz) = (lambda + mu) * grad(2,2,qx,qy,qz) * wdetj;
+            real_t div = grad(0,0,qx,qy,qz) + grad(1,1,qx,qy,qz) + grad(2,2,qx,qy,qz);
+            stress(0,qx,qy,qz) = (lambda*div + mu*grad(0,0,qx,qy,qz)) * wdetj;
+            stress(1,qx,qy,qz) = (lambda*div + mu*grad(1,1,qx,qy,qz)) * wdetj;
+            stress(2,qx,qy,qz) = (lambda*div + mu*grad(2,2,qx,qy,qz)) * wdetj;
             stress(3,qx,qy,qz) = mu * (grad(1,2,qx,qy,qz) + grad(2,1,qx,qy,qz)) / 2 * wdetj;
             stress(4,qx,qy,qz) = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz)) / 2 * wdetj;
             stress(5,qx,qy,qz) = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz)) / 2 * wdetj;
@@ -371,8 +375,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       ((s01*dX) * Y + (s11*X) * dY) * Z + ((s12*X) * Y) * dZ,
       ((s02*dX) * Y + (s12*X) * dY) * Z + ((s22*X) * Y) * dZ,
    ]
-
-
    */
 
    Vector sXYv(vdim*2*D1D[0]*D1D[1]);
@@ -455,6 +457,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
       } // dz
    } // qz
+
+   mfem::out << "AddMultPatchPA() " << patch << " - finished 4) contraction" << std::endl;
 }
 
 void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
