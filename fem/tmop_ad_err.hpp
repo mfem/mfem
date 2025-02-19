@@ -45,11 +45,12 @@ void   MatrixConjugationProduct(const mfem::DenseMatrix &A, const mfem::DenseMat
 enum QoIType
 {
   L2_ERROR,
-  H1_ERROR,
+  H1S_ERROR,
   ZZ_ERROR,
   AVG_ERROR,
   ENERGY,
-  GZZ_ERROR
+  GZZ_ERROR,
+  H1_ERROR
 };
 
 class QoIBaseCoefficient : public mfem::Coefficient {
@@ -83,12 +84,12 @@ class Error_QoI : public QoIBaseCoefficient
 {
 public:
   Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution, mfem::VectorCoefficient * trueSolutionGrad)
-    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionGrad_(trueSolutionGrad)
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionGrad_(trueSolutionGrad), Dim_(trueSolutionGrad->GetVDim())
   {};
 
   ~Error_QoI() {};
 
-  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     double fieldVal = solutionField_->GetValue( T, ip );
     double trueVal = trueSolution_->Eval( T, ip );
@@ -98,7 +99,7 @@ public:
     return squaredError;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
+  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip) override
   {
     dtheta_dU.SetSize(1);
     double fieldVal = solutionField_->GetValue( T, ip );
@@ -112,7 +113,7 @@ public:
   };
 
   const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation & /*T*/,
-      const mfem::IntegrationPoint & /*ip*/)
+      const mfem::IntegrationPoint & /*ip*/) override
   {
     dtheta_dGradU.SetSize(1, Dim_);
     dtheta_dGradU = 0.0;
@@ -120,7 +121,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -129,7 +130,7 @@ public:
   };
 
   virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative(mfem::ElementTransformation &T,
-      const mfem::IntegrationPoint &ip)
+      const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(Dim_, Dim_);
     dtheta_dX = 0.0;
@@ -147,6 +148,7 @@ public:
     double trueVal = trueSolution_->Eval( T, ip );
     trueGrad *= -2.0*(fieldVal-trueVal);
     return trueGrad;
+
     // mfem::Vector grad;
     // solutionField_->GetGradient (T, grad);
     // grad *= 2.0*(fieldVal-trueVal);
@@ -159,7 +161,7 @@ private:
   mfem::Coefficient * trueSolution_;
   mfem::VectorCoefficient * trueSolutionGrad_;
 
-  int Dim_ = 2;
+  int Dim_;
 
   double theta = 0.0;
   mfem::DenseMatrix dtheta_dX;
@@ -167,22 +169,22 @@ private:
   mfem::DenseMatrix dtheta_dGradU;
 };
 
-class H1Error_QoI : public QoIBaseCoefficient {
+class H1SemiError_QoI : public QoIBaseCoefficient {
 public:
-  H1Error_QoI(mfem::ParGridFunction * solutionField,
+  H1SemiError_QoI(mfem::ParGridFunction * solutionField,
               mfem::VectorCoefficient * trueSolution,
               mfem::MatrixCoefficient * trueSolutionHess)
     : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(trueSolutionHess), trueSolutionHessV_(nullptr) {};
 
-  H1Error_QoI(mfem::ParGridFunction * solutionField,
+  H1SemiError_QoI(mfem::ParGridFunction * solutionField,
               mfem::VectorCoefficient * trueSolution,
               mfem::VectorCoefficient * trueSolutionHessV)
     : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(nullptr), trueSolutionHessV_(trueSolutionHessV)
   {};
 
-  ~H1Error_QoI() {};
+  ~H1SemiError_QoI() {};
 
-  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     mfem::Vector grad;
     mfem::Vector trueGrad;
@@ -197,7 +199,7 @@ public:
     return val;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint & /*ip*/)
+  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint & /*ip*/) override
   {
     dtheta_dU.SetSize(1);
     dtheta_dU = 0.0;
@@ -206,7 +208,7 @@ public:
   };
 
   const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation & T,
-      const mfem::IntegrationPoint & ip)
+      const mfem::IntegrationPoint & ip) override
   {
     mfem::Vector grad(Dim_);
     mfem::Vector trueGrad(Dim_);
@@ -227,7 +229,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint &/*ip*/)
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint &/*ip*/) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -236,7 +238,7 @@ public:
   };
 
   virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative(mfem::ElementTransformation &T,
-      const mfem::IntegrationPoint &ip)
+      const mfem::IntegrationPoint &ip) override
   {
     mfem::Vector grad(Dim_);
     mfem::Vector trueGrad(Dim_);
@@ -303,6 +305,92 @@ private:
   mfem::DenseMatrix dUXdtheta_dGradU;
 };
 
+class H1Error_QoI : public QoIBaseCoefficient {
+public:
+  H1Error_QoI(Error_QoI *l2error, H1SemiError_QoI *h1semierror)
+    : l2error_(l2error), h1semierror_(h1semierror)
+  {};
+
+  ~H1Error_QoI() {};
+
+  Error_QoI *l2error_;
+  H1SemiError_QoI *h1semierror_;
+  mfem::DenseMatrix dtheta_dX;
+  mfem::DenseMatrix dtheta_dU;
+  mfem::DenseMatrix dtheta_dGradU;
+  mfem::DenseMatrix dUXdtheta_dGradU;
+  int Dim_ = 2;
+  double h1weight = 1.0/60.0;
+
+  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
+  {
+    return l2error_->Eval(T, ip) + h1weight*h1semierror_->Eval(T, ip);
+  };
+
+  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip) override
+  {
+    dtheta_dU.SetSize(1);
+    DenseMatrix tempM(1);
+
+    dtheta_dU = l2error_->explicitSolutionDerivative(T, ip);
+    tempM = h1semierror_->explicitSolutionDerivative(T, ip);
+    tempM *= h1weight;
+    dtheta_dU += tempM;
+    return dtheta_dU;
+  };
+
+  const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip) override
+  {
+    dtheta_dGradU.SetSize(1, Dim_);
+    DenseMatrix tempM(1, Dim_);
+
+    dtheta_dGradU = l2error_->explicitSolutionGradientDerivative(T, ip);
+    tempM = h1semierror_->explicitSolutionGradientDerivative(T, ip);
+    tempM *= h1weight;
+    dtheta_dGradU += tempM;
+    return dtheta_dGradU;
+  };
+
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
+  {
+    dtheta_dX.SetSize(1, Dim_);
+    DenseMatrix tempM(1, Dim_);
+
+    dtheta_dX = l2error_->explicitSolutionGradientDerivative(T, ip);
+    tempM = h1semierror_->explicitSolutionGradientDerivative(T, ip);
+    tempM *= h1weight;
+    dtheta_dX += tempM;
+
+    return dtheta_dX;
+  };
+
+  virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative(mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip) override
+  {
+    dtheta_dX.SetSize(Dim_, Dim_);
+    DenseMatrix tempM(Dim_, Dim_);
+
+    dtheta_dX = l2error_->gradTimesexplicitSolutionGradientDerivative(T, ip);
+    tempM = h1semierror_->gradTimesexplicitSolutionGradientDerivative(T, ip);
+    tempM *= h1weight;
+    dtheta_dX += tempM;
+
+    return dtheta_dX;
+  };
+
+  // 2(u-u*)(-du*/dx_a)
+  virtual const mfem::Vector DerivativeExactWRTX(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
+  {
+    Vector dustar_dx, temp;
+    dustar_dx = l2error_->DerivativeExactWRTX(T, ip);
+    temp = h1semierror_->DerivativeExactWRTX(T, ip);
+    temp *= h1weight;
+    dustar_dx += temp;
+    return dustar_dx;
+  }
+};
+
 class ZZError_QoI : public QoIBaseCoefficient {
 public:
   ZZError_QoI(mfem::ParGridFunction * solutionField, mfem::VectorCoefficient * trueSolution)
@@ -311,7 +399,7 @@ public:
 
   ~ZZError_QoI() {};
 
-  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     mfem::Vector grad;
     mfem::Vector trueGrad;
@@ -326,7 +414,7 @@ public:
     return val;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint & /*ip*/)
+  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dU.SetSize(1);
     dtheta_dU = 0.0;
@@ -335,7 +423,7 @@ public:
   };
 
   const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation & T,
-      const mfem::IntegrationPoint & ip)
+      const mfem::IntegrationPoint & ip) override
   {
     mfem::Vector grad(Dim_);
     mfem::Vector trueGrad(Dim_);
@@ -356,7 +444,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint &/*ip*/)
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -365,7 +453,7 @@ public:
   };
 
   virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative(mfem::ElementTransformation &T,
-      const mfem::IntegrationPoint &ip)
+      const mfem::IntegrationPoint &ip) override
   {
     mfem::Vector grad(Dim_);
     mfem::Vector trueGrad(Dim_);
@@ -412,7 +500,7 @@ public:
 
   ~AvgError_QoI() {};
 
-  double Eval( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  double Eval( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     double fieldVal = solutionField_->GetValue( T, ip );
     double trueVal = trueSolution_->Eval( T, ip );
@@ -422,7 +510,7 @@ public:
     return squaredError;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative( mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
+  const mfem::DenseMatrix &explicitSolutionDerivative( mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip) override
   {
     dtheta_dU.SetSize(1);
 
@@ -434,7 +522,7 @@ public:
   };
 
   const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation & /*T*/,
-      const mfem::IntegrationPoint & /*ip*/)
+      const mfem::IntegrationPoint & /*ip*/) override
   {
     dtheta_dGradU.SetSize(1, Dim_);
     dtheta_dGradU = 0.0;
@@ -442,7 +530,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  const mfem::DenseMatrix &explicitShapeDerivative( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -451,7 +539,7 @@ public:
   };
 
   virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative( mfem::ElementTransformation &T,
-      const mfem::IntegrationPoint &ip)
+      const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(Dim_, Dim_);
     dtheta_dX = 0.0;
@@ -480,7 +568,7 @@ public:
 
   ~Energy_QoI() {};
 
-  double Eval( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  double Eval( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     double fieldVal = solutionField_->GetValue( T, ip );
     double Val = force_->Eval( T, ip );
@@ -489,7 +577,7 @@ public:
     return energy;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative( mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
+  const mfem::DenseMatrix &explicitSolutionDerivative( mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip) override
   {
     dtheta_dU.SetSize(1);
 
@@ -500,7 +588,7 @@ public:
   };
 
   const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation & /*T*/,
-      const mfem::IntegrationPoint & /*ip*/)
+      const mfem::IntegrationPoint & /*ip*/) override
   {
     dtheta_dGradU.SetSize(1, Dim_);
     dtheta_dGradU = 0.0;
@@ -508,7 +596,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  const mfem::DenseMatrix &explicitShapeDerivative( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -517,7 +605,7 @@ public:
   };
 
   virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative( mfem::ElementTransformation &T,
-      const mfem::IntegrationPoint &ip)
+      const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(Dim_, Dim_);
     dtheta_dX = 0.0;
@@ -676,11 +764,11 @@ private:
 
 class PenaltyShapeSensitivityIntegrator : public mfem::LinearFormIntegrator {
 public:
-  PenaltyShapeSensitivityIntegrator(mfem::Coefficient &penalty,
-      const mfem::ParGridFunction &t_adjoint, mfem::VectorCoefficient *SolGrad_= nullptr, int oa = 2, int ob = 2);
+  PenaltyShapeSensitivityIntegrator(Coefficient &t_primal, const ParGridFunction &t_adjoint, Coefficient &t_penalty, mfem::VectorCoefficient *SolGrad_= nullptr, int oa = 2, int ob = 2);
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
 private:
-  mfem::Coefficient *penalty_ = nullptr;
+  mfem::Coefficient *t_primal_ = nullptr;
+  mfem::Coefficient *t_penalty_ = nullptr;
   mfem::VectorCoefficient *SolGradCoeff_= nullptr;
   const mfem::ParGridFunction *t_adjoint_;
   int oa_, ob_;
@@ -791,7 +879,6 @@ public:
     void SetGLLVec(Array<double> &gllvec) { gllvec_ = gllvec;}
     void SetNqptsPerEl(int nqp) { nqptsperel = nqp; }
     void SetIntegrationRules(IntegrationRules *irule_, int quad_order_) { irules = irule_; quad_order = quad_order_; }
-
 private:
     mfem::Coefficient * trueSolution_ = nullptr;
     mfem::VectorCoefficient * trueSolutionGrad_ = nullptr;
@@ -953,6 +1040,8 @@ public:
       QCoef_ = QCoef;
     }
 
+    void setTrueSolGradCoeff( mfem::VectorCoefficient * trueSolutionGradCoef ){ trueSolutionGradCoef_ = trueSolutionGradCoef; };
+
     /// Returns the solution
     mfem::ParGridFunction& GetSolution(){return solgf;}
 
@@ -994,6 +1083,7 @@ private:
     int linear_iter;
 
     int print_level = 1;
+    int pdc_cycle = 0;
 
     // holds NBC in coefficient form
     std::map<int, mfem::Coefficient*> ncc;
@@ -1002,6 +1092,7 @@ private:
 
     mfem::Coefficient * QCoef_ = nullptr;
     mfem::VectorCoefficient *loadGradCoef_ = nullptr;
+    mfem::VectorCoefficient *trueSolutionGradCoef_ = nullptr;
 
 
     mfem::ParGridFunction trueloadgradgf_;
@@ -1162,7 +1253,7 @@ class VectorHelmholtz
 public:
     VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, real_t radius, int order_=2)
     {
-        
+
         radius_ = new ConstantCoefficient(radius);
         pmesh=mesh_;
         int dim=pmesh->Dimension();
@@ -1278,7 +1369,5 @@ private:
 
     Coefficient * radius_;
 };
-
 }
-
 #endif
