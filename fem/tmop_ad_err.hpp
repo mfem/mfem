@@ -174,12 +174,12 @@ public:
   H1SemiError_QoI(mfem::ParGridFunction * solutionField,
               mfem::VectorCoefficient * trueSolution,
               mfem::MatrixCoefficient * trueSolutionHess)
-    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(trueSolutionHess), trueSolutionHessV_(nullptr) {};
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(trueSolutionHess), trueSolutionHessV_(nullptr), Dim_(trueSolution->GetVDim()) {};
 
   H1SemiError_QoI(mfem::ParGridFunction * solutionField,
               mfem::VectorCoefficient * trueSolution,
               mfem::VectorCoefficient * trueSolutionHessV)
-    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(nullptr), trueSolutionHessV_(trueSolutionHessV)
+    : solutionField_(solutionField), trueSolution_(trueSolution), trueSolutionHess_(nullptr), trueSolutionHessV_(trueSolutionHessV), Dim_(trueSolution->GetVDim())
   {};
 
   ~H1SemiError_QoI() {};
@@ -288,6 +288,8 @@ public:
     Hess.MultTranspose(grad, HessTgrad);
     return HessTgrad;
   }
+
+  int GetDim() { return Dim_; }
 private:
 
 
@@ -296,7 +298,7 @@ private:
   mfem::MatrixCoefficient * trueSolutionHess_ = nullptr;
   mfem::VectorCoefficient * trueSolutionHessV_ = nullptr;
 
-  int Dim_ = 2;
+  int Dim_;
 
   double theta = 0.0;
   mfem::DenseMatrix dtheta_dX;
@@ -308,7 +310,7 @@ private:
 class H1Error_QoI : public QoIBaseCoefficient {
 public:
   H1Error_QoI(Error_QoI *l2error, H1SemiError_QoI *h1semierror)
-    : l2error_(l2error), h1semierror_(h1semierror)
+    : l2error_(l2error), h1semierror_(h1semierror), Dim_(h1semierror_->GetDim())
   {};
 
   ~H1Error_QoI() {};
@@ -319,7 +321,7 @@ public:
   mfem::DenseMatrix dtheta_dU;
   mfem::DenseMatrix dtheta_dGradU;
   mfem::DenseMatrix dUXdtheta_dGradU;
-  int Dim_ = 2;
+  int Dim_;
   double h1weight = 1.0/60.0;
 
   double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
@@ -390,7 +392,7 @@ class ZZH1Error_QoI : public QoIBaseCoefficient {
 public:
   ZZH1Error_QoI(mfem::ParGridFunction * solutionField,
               mfem::VectorCoefficient * trueSolution)
-    : solutionField_(solutionField), trueSolution_(trueSolution) {};
+    : solutionField_(solutionField), trueSolution_(trueSolution), Dim_(trueSolution->GetVDim()) {};
 
   ~ZZH1Error_QoI() {};
 
@@ -483,7 +485,7 @@ private:
   mfem::MatrixCoefficient * trueSolutionHess_ = nullptr;
   mfem::VectorCoefficient * trueSolutionHessV_ = nullptr;
 
-  int Dim_ = 2;
+  int Dim_;
 
   double theta = 0.0;
   mfem::DenseMatrix dtheta_dX;
@@ -496,7 +498,7 @@ private:
 class ZZError_QoI : public QoIBaseCoefficient {
 public:
   ZZError_QoI(mfem::ParGridFunction * solutionField, mfem::VectorCoefficient * trueSolution)
-    : solutionField_(solutionField), trueSolution_(trueSolution)
+    : solutionField_(solutionField), trueSolution_(trueSolution), Dim_(trueSolution->GetVDim())
   {};
 
   ~ZZError_QoI() {};
@@ -585,7 +587,7 @@ private:
   mfem::ParGridFunction * solutionField_;
   mfem::VectorCoefficient * trueSolution_;
 
-  int Dim_ = 2;
+  int Dim_;
 
   double theta = 0.0;
   mfem::DenseMatrix dtheta_dX;
@@ -596,8 +598,8 @@ private:
 
 class AvgError_QoI : public QoIBaseCoefficient {
 public:
-  AvgError_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
-    : solutionField_(solutionField), trueSolution_(trueSolution)
+  AvgError_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution, int Dim)
+    : solutionField_(solutionField), trueSolution_(trueSolution), Dim_(Dim)
   {};
 
   ~AvgError_QoI() {};
@@ -654,7 +656,7 @@ private:
   mfem::ParGridFunction * solutionField_;
   mfem::Coefficient * trueSolution_;
 
-  int Dim_ = 2;
+  int Dim_;
 
   double theta = 0.0;
   mfem::DenseMatrix dtheta_dX;
@@ -664,8 +666,8 @@ private:
 
 class Energy_QoI : public QoIBaseCoefficient {
 public:
-  Energy_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * force)
-    : solutionField_(solutionField), force_(force)
+  Energy_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * force, int Dim)
+    : solutionField_(solutionField), force_(force), Dim_(Dim)
   {};
 
   ~Energy_QoI() {};
@@ -720,7 +722,7 @@ private:
   mfem::ParGridFunction * solutionField_;
   mfem::Coefficient * force_;
 
-  int Dim_ = 2;
+  int Dim_;
 
   double theta = 0.0;
   mfem::DenseMatrix dtheta_dX;
@@ -1215,7 +1217,6 @@ private:
     mfem::Coefficient * QCoef_ = nullptr;
     mfem::VectorCoefficient *loadGradCoef_ = nullptr;
     mfem::VectorCoefficient *trueSolutionGradCoef_ = nullptr;
-
 
     mfem::ParGridFunction trueloadgradgf_;
     mfem::VectorGridFunctionCoefficient trueloadgradgf_coeff_;

@@ -576,6 +576,7 @@ int main (int argc, char *argv[])
   int metric_id   = 2;
   int target_id   = 1;
   int quad_order  = 8;
+  int quad_order2 = 8;
   srand(9898975);
   bool visualization = false;
   double filterRadius = 0.000;
@@ -608,6 +609,8 @@ int main (int argc, char *argv[])
                 "5: Ideal shape, given size (in physical space)");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
+  args.AddOption(&quad_order2, "-qo2", "--quad_order2",
+                  "Order of the quadrature rule for sensitivities.");
    args.AddOption(&method, "-met", "--method",
                   "0(Defaults to TMOP_MMA), 1 - MS");
    args.AddOption(&max_ch, "-ch", "--max-ch",
@@ -972,7 +975,7 @@ if (myid == 0) {
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
-  QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
+  QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order2);
   x_gf.ProjectCoefficient(*trueSolution);
   solver.setTrueSolGradCoeff(trueSolutionGrad);
 

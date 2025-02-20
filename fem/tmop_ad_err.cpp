@@ -1280,7 +1280,8 @@ double QuantityOfInterest::EvalQoI()
   BilinearFormIntegrator *integ = nullptr;
   ParGridFunction flux(coord_fes_);
 
-  mfem::L2_FECollection fecGF_0(0, pmesh->Dimension(), mfem::BasisType::GaussLobatto);
+  const int dim = pmesh->Dimension();
+  mfem::L2_FECollection fecGF_0(0, dim, mfem::BasisType::GaussLobatto);
   mfem::ParFiniteElementSpace fesGF_0(pmesh, &fecGF_0, 1);
   mfem::GridFunctionCoefficient tL2Coeff(&solgf_);
   mfem::ConstantCoefficient tConstCoeff(1.0);
@@ -1331,11 +1332,11 @@ double QuantityOfInterest::EvalQoI()
     ErrorCoefficient_ = std::make_shared<ZZError_QoI>(&solgf_, trueSolutionGrad_);
     break;
   case 3:
-    ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field);
+    ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field, dim);
     break;
   case 4:
       if( trueSolution_ == nullptr ){ mfem_error("force coeff.");}
-      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, trueSolution_);
+      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, trueSolution_, dim);
       break;
   case 5:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution grad not set.");}
@@ -1402,7 +1403,8 @@ void QuantityOfInterest::EvalQoIGrad()
   ParGridFunction flux(coord_fes_);
   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
 
-  mfem::L2_FECollection fecGF_0(0, pmesh->Dimension(), mfem::BasisType::GaussLobatto);
+  const int dim = pmesh->Dimension();
+  mfem::L2_FECollection fecGF_0(0, dim, mfem::BasisType::GaussLobatto);
   mfem::ParFiniteElementSpace fesGF_0(pmesh, &fecGF_0, 1);
   mfem::GridFunctionCoefficient tL2Coeff(&solgf_);
   mfem::ConstantCoefficient tConstCoeff(1.0);
@@ -1445,7 +1447,6 @@ void QuantityOfInterest::EvalQoIGrad()
 
        ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
       //  ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
-
       break;
     case 1:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
@@ -1464,11 +1465,11 @@ void QuantityOfInterest::EvalQoIGrad()
       ErrorCoefficient_ = std::make_shared<ZZError_QoI>(&solgf_, trueSolutionGrad_);
       break;
     case 3:
-      ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field);
+      ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field, dim);
       break;
     case 4:
       if( trueSolution_ == nullptr ){ mfem_error("force coeff.");}
-      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, trueSolution_);
+      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, trueSolution_, dim);
       break;
     case 5:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution grad not set.");}
@@ -1506,7 +1507,6 @@ void QuantityOfInterest::EvalQoIGrad()
     // evaluate grad wrt temp
     {
         int nfe = temp_fes_->GetNE();
-
 
         Array<int> fdofs;
         DofTransformation *fdoftrans;
@@ -1831,11 +1831,14 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     rhs_gf.SetFromTrueVector();
     Vector &rhs_tvec = rhs_gf.GetTrueVector();
 
+    // ParGridFunction tempgf(coord_fes_);
+    // tempgf = 0.0;
     // VisItDataCollection vis_dc("Adjoint", temp_fes_->GetParMesh());
-    // vis_dc.SetCycle(0);
-    // vis_dc.SetTime(0.0);
+    // vis_dc.SetCycle(pdc_cycle);
+    // vis_dc.SetTime((pdc_cycle++)*1.0);
     // adj_sol = rhs;
     // vis_dc.RegisterField("adjoint",&adj_sol);
+    // vis_dc.RegisterField("sensitivities",&tempgf);
     // vis_dc.Save();
     // adj_sol = 0.0;
 
@@ -1892,26 +1895,9 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     cg.Mult(B, X);
     kForm.RecoverFEMSolution(X, rhs, adj_sol);
 
-    // if (pdc_cycle % 10 == 0)
-    // {
-    //   vis_dc.SetCycle(pdc_cycle/10);
-    //   vis_dc.SetTime((pdc_cycle++)*1.0);
-    //   vis_dc.Save();
-    // }
-    // else
-    // {
-    //   pdc_cycle++;
-    // }
-    // MFEM_ABORT(" ");
-
-    // for (int ii = 0; ii < rhs.Size(); ii++)
-    // {
-    //   adj_sol(ii) *= rhs_gf(ii); // zero out rhs for true dofs
-    // }
-
-    // adj_sol.SetFromTrueDofs(X);
-
-    //kForm.RecoverFEMSolution(X, rhs, adj_sol);
+    // vis_dc.SetCycle(pdc_cycle);
+    // vis_dc.SetTime((pdc_cycle++)*1.0);
+    // vis_dc.Save();
 
     delete tTransOp;
 
@@ -1944,7 +1930,17 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     RHS_sensitivity.AddDomainIntegrator(lfi);
     RHS_sensitivity.Assemble();
 
+    // tempgf = LHS_sensitivity;
+    // vis_dc.SetCycle(pdc_cycle);
+    // vis_dc.SetTime((pdc_cycle++)*1.0);
+    // vis_dc.Save();
 
+    // tempgf = RHS_sensitivity;
+    // vis_dc.SetCycle(pdc_cycle);
+    // vis_dc.SetTime((pdc_cycle++)*1.0);
+    // vis_dc.Save();
+
+    // MFEM_ABORT(" ");
 
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);
