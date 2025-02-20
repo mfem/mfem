@@ -139,22 +139,16 @@ protected:
 
    // Device functions
    // FindPoints locally on device for 3D.
-   void FindPointsLocal3(const Vector &point_pos,
-                         int point_pos_ordering,
+   void FindPointsLocal3(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
-                         Array<unsigned int> &gsl_elem_dev_l,
-                         Vector &gsl_ref_l,
-                         Vector &gsl_dist_l,
-                         int npt);
+                         Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
+                         Vector &gsl_dist_l, int npt, Array<int> *steps);
 
    // FindPoints locally on device for 2D.
-   void FindPointsLocal2(const Vector &point_pos,
-                         int point_pos_ordering,
+   void FindPointsLocal2(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
-                         Array<unsigned int> &gsl_elem_dev_l,
-                         Vector &gsl_ref_l,
-                         Vector &gsl_dist_l,
-                         int npt);
+                         Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
+                         Vector &gsl_dist_l, int npt, Array<int> *steps);
 
    // Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
@@ -176,9 +170,11 @@ protected:
 
    /** Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
-       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
+       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. Optionally
+       track number of @a steps used to find solution.  */
    void FindPointsOnDevice(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES);
+                           int point_pos_ordering = Ordering::byNODES,
+                           Array<int> *steps = nullptr);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in_evec E-vector of gridfunction to be interpolated.
