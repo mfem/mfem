@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ public:
    /// Return the total error from the last error estimate.
    /** @note This method is optional for derived classes to override and the
        base class implementation simply returns 0. */
-   virtual double GetTotalError() const { return 0.0; }
+   virtual real_t GetTotalError() const { return 0.0; }
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() = 0;
@@ -90,7 +90,7 @@ class ZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
 protected:
    long current_sequence;
    Vector error_estimates;
-   double total_error;
+   real_t total_error;
    bool anisotropic;
    Array<int> aniso_flags;
    int flux_averaging; // see SetFluxAveraging()
@@ -172,10 +172,10 @@ public:
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -184,14 +184,14 @@ public:
    /** @brief Get an Array<int> with anisotropic flags for all mesh elements.
        Return an empty array when anisotropic estimates are not available or
        enabled. */
-   virtual const Array<int> &GetAnisotropicFlags() override
+   const Array<int> &GetAnisotropicFlags() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
        FiniteElementSpace, flux_space. */
@@ -243,9 +243,9 @@ class LSZienkiewiczZhuEstimator : public ErrorEstimator
 protected:
    long current_sequence;
    Vector error_estimates;
-   double total_error;
+   real_t total_error;
    bool subdomain_reconstruction = true;
-   double tichonov_coeff;
+   real_t tichonov_coeff;
 
    BilinearFormIntegrator &integ;
    GridFunction &solution;
@@ -291,24 +291,24 @@ public:
     *         using tensor product elements, which typically require fewer
     *         integration points and, therefore, may lead to an
     *         ill-conditioned linear system. */
-   void SetTichonovRegularization(double tcoeff = 1.0e-8)
+   void SetTichonovRegularization(real_t tcoeff = 1.0e-8)
    {
       MFEM_VERIFY(tcoeff >= 0.0, "Tichonov coefficient cannot be negative");
       tichonov_coeff = tcoeff;
    }
 
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    virtual ~LSZienkiewiczZhuEstimator() { }
 };
@@ -331,7 +331,7 @@ protected:
    long current_sequence;
    int local_norm_p; ///< Local L_p norm to use, default is 1.
    Vector error_estimates;
-   double total_error;
+   real_t total_error;
 
    BilinearFormIntegrator &integ;
    ParGridFunction &solution;
@@ -411,17 +411,17 @@ public:
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
 
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a L2ZienkiewiczZhuEstimator object. Destroys, if owned,
        the FiniteElementSpace, flux_space. */
@@ -452,7 +452,7 @@ protected:
    int local_norm_p;
    Vector error_estimates;
 
-   double total_error = 0.0;
+   real_t total_error = 0.0;
 
    Coefficient * coef;
    VectorCoefficient * vcoef;
@@ -505,10 +505,10 @@ public:
    void SetCoef(VectorCoefficient &A) { vcoef = &A; }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -557,18 +557,18 @@ class KellyErrorEstimator final : public ErrorEstimator
 public:
    /// Function type to compute the local coefficient hₑ of an element.
    using ElementCoefficientFunction =
-      std::function<double(Mesh*, const int)>;
+      std::function<real_t(Mesh*, const int)>;
    /** @brief Function type to compute the local coefficient hₖ of a face. The
        third argument is true for shared faces and false for local faces. */
    using FaceCoefficientFunction =
-      std::function<double(Mesh*, const int, const bool)>;
+      std::function<real_t(Mesh*, const int, const bool)>;
 
 private:
    int current_sequence = -1;
 
    Vector error_estimates;
 
-   double total_error = 0.0;
+   real_t total_error = 0.0;
 
    Array<int> attributes;
 
@@ -661,7 +661,7 @@ public:
    /// Reset the error estimator.
    void Reset() override { current_sequence = -1; };
 
-   virtual double GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /** @brief Change the method to compute hₑ on a per-element basis.
        @param compute_element_coefficient_

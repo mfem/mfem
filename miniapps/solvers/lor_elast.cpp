@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 //                --------------------------------------------
 //                Elasticity LOR Block Preconditioning Miniapp
 //                --------------------------------------------
@@ -66,7 +77,7 @@
 //       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 4 -o 2 -pa -ca
 //       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 5 -ca
 //
-//    References:
+// References:
 //    [1] Mihajlović, M.D. and Mijalković, S., "A component decomposition
 //        preconditioning for 3D stress analysis problems", Numerical Linear
 //        Algebra with Applications, 2002.
@@ -193,13 +204,13 @@ int main(int argc, char *argv[])
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
-   //     right-hand side of the FEM linear system. In this case, b_i equals the
-   //     boundary integral of f*phi_i where f represents a "pull down" force on
-   //     the Neumann part of the boundary and phi_i are the basis functions in
-   //     the finite element fespace. The force is defined by the object f, which
-   //     is a vector of Coefficient objects. The fact that f is non-zero on
-   //     boundary attribute 2 is indicated by the use of piece-wise constants
-   //     coefficient for its last component.
+   //    right-hand side of the FEM linear system. In this case, b_i equals the
+   //    boundary integral of f*phi_i where f represents a "pull down" force on
+   //    the Neumann part of the boundary and phi_i are the basis functions in
+   //    the finite element fespace. The force is defined by the object f, which
+   //    is a vector of Coefficient objects. The fact that f is non-zero on
+   //    boundary attribute 2 is indicated by the use of piece-wise constants
+   //    coefficient for its last component.
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
@@ -282,20 +293,20 @@ int main(int argc, char *argv[])
    //     block CG solvers and the high order, partially assembled components.
    vector<unique_ptr<ParBilinearForm>> bilinear_forms;
    vector<unique_ptr<HypreParMatrix>> lor_block;
-   //amg_blocks stores preconditioners of lor_block.
+   // amg_blocks stores preconditioners of lor_block.
    vector<unique_ptr<HypreBoomerAMG>> amg_blocks;
-   //cg_blocks only gets used if -ss is enabled.
+   // cg_blocks only gets used if -ss is enabled.
    vector<unique_ptr<CGSolver>> cg_blocks;
-   //diag_ho only used if -hoa enabled. The high order partial assembled operators
-   //with the essential dofs eliminated and constrained to one.
+   // diag_ho only used if -hoa enabled. The high order partial assembled operators
+   // with the essential dofs eliminated and constrained to one.
    vector<unique_ptr<ParBilinearForm>> ho_bilinear_form_blocks;
    vector<unique_ptr<ConstrainedOperator>> diag_ho;
-   //If -ca is used, component bilinear forms are stored in pa_components, and
-   //pointers to fespaces.
+   // If -ca is used, component bilinear forms are stored in pa_components, and
+   // pointers to fespaces.
    vector<unique_ptr<ParBilinearForm>> pa_components;
    vector<const FiniteElementSpace*> fespaces;
-   //get block essential boundary info.
-   //need to allocate here since constrained operator will not own essential dofs.
+   // get block essential boundary info.
+   // need to allocate here since constrained operator will not own essential dofs.
    Array<int> ess_tdof_list_block_ho, ess_bdr_block_ho(pmesh.bdr_attributes.Max());
    ess_bdr_block_ho = 0;
    ess_bdr_block_ho[0] = 1;
@@ -308,24 +319,24 @@ int main(int argc, char *argv[])
       {
          ElasticityComponentIntegrator *block = new ElasticityComponentIntegrator(
             lor_integrator, j, j);
-         //create the LOR matrix and corresponding AMG preconditioners.
+         // create the LOR matrix and corresponding AMG preconditioners.
          bilinear_forms.emplace_back(new ParBilinearForm(scalar_lor_fespace.get()));
          bilinear_forms[j]->SetAssemblyLevel(AssemblyLevel::FULL);
          bilinear_forms[j]->EnableSparseMatrixSorting(Device::IsEnabled());
          bilinear_forms[j]->AddDomainIntegrator(block);
          bilinear_forms[j]->Assemble();
 
-         //get block essential boundary info
+         // get block essential boundary info
          Array<int> ess_tdof_list_block, ess_bdr_block(pmesh.bdr_attributes.Max());
          ess_bdr_block = 0;
          ess_bdr_block[0] = 1;
          scalar_lor_fespace->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
          lor_block.emplace_back(bilinear_forms[j]->ParallelAssemble());
          lor_block[j]->EliminateBC(ess_tdof_list_block,
-                                   Operator::DiagonalPolicy::DIAG_ONE);//not sure which diagonal policy to use
+                                   Operator::DiagonalPolicy::DIAG_ONE);
          amg_blocks.emplace_back(new HypreBoomerAMG);
          amg_blocks[j]->SetStrengthThresh(0.25);
-         amg_blocks[j]->SetRelaxType(16);  //Chebyshev
+         amg_blocks[j]->SetRelaxType(16);  // Chebyshev
          amg_blocks[j]->SetOperator(*lor_block[j]);
          block_offsets[j+1] = amg_blocks[j]->Height();
          // 13(b) If needed, create the block components for operator action.
@@ -352,7 +363,7 @@ int main(int argc, char *argv[])
       // 13(c) If needed, create CG solvers for diagonal sub-systems.
       if (sub_solve)
       {
-         //Create diagonal high order partial assembly operators.
+         // create diagonal high order partial assembly operators
          for (int i = 0; i < dim; i++)
          {
             ElasticityComponentIntegrator *block = new ElasticityComponentIntegrator(
@@ -367,7 +378,7 @@ int main(int argc, char *argv[])
             diag_ho.emplace_back(new ConstrainedOperator(rap, ess_tdof_list_block_ho, true,
                                                          Operator::DiagonalPolicy::DIAG_ONE));
          }
-         //create CG solvers
+         // create CG solvers
          for (int i = 0; i < dim; i++)
          {
             cg_blocks.emplace_back(new CGSolver(MPI_COMM_WORLD));
@@ -465,7 +476,7 @@ int main(int argc, char *argv[])
    //     original grid). This output can be viewed later using GLVis: "glvis
    //     -np <np> -m mesh -g sol".
    //
-   //     Also, save the displacement, with dispaced mesh, to VTK.
+   //     Also, save the displacement, with displaced mesh, to VTK.
    if (visualization)
    {
       GridFunction *nodes = pmesh.GetNodes();

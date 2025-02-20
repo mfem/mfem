@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -125,7 +125,7 @@ void test_assembly_level(const char *meshname,
    // Don't use a special integration rule if q_order_inc == 0
    const bool use_ir = q_order_inc > 0;
    const IntegrationRule *ir =
-      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+      use_ir ? &IntRules.Get(mesh.GetTypicalElementGeometry(), q_order) : nullptr;
 
    switch (pb)
    {
@@ -212,7 +212,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 
    SECTION("Nonconforming")
    {
-      // Test AMR cases (DG not implemented)
+      // Test AMR cases
       SECTION("AMR 2D")
       {
          auto order = !all_tests ? GENERATE(2, 3) : GENERATE(1, 2, 3);
@@ -268,9 +268,9 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 
    SECTION("Nonconforming")
    {
-      // Full assembly DG not implemented on NCMesh
       auto assembly = GENERATE(AssemblyLevel::PARTIAL,
-                               AssemblyLevel::ELEMENT);
+                               AssemblyLevel::ELEMENT,
+                               AssemblyLevel::FULL);
 
       SECTION("AMR 2D")
       {
@@ -300,13 +300,13 @@ void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
 
    const int *I1 = A1.HostReadI();
    const int *J1 = A1.HostReadJ();
-   const double *V1 = A1.HostReadData();
+   const real_t *V1 = A1.HostReadData();
 
    A2.HostReadI();
    A2.HostReadJ();
    A2.HostReadData();
 
-   double error = 0.0;
+   real_t error = 0.0;
 
    for (int i=0; i<n; ++i)
    {
@@ -382,15 +382,8 @@ void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
    CompareMatricesNonZeros(*M2, *M1);
 }
 
-TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
+void TestH1FullAssembly(Mesh &mesh, int order)
 {
-   auto order = GENERATE(1, 2, 3);
-   auto mesh_fname = GENERATE(
-                        "../../data/star.mesh",
-                        "../../data/fichera.mesh"
-                     );
-
-   Mesh mesh(mesh_fname);
    int dim = mesh.Dimension();
 
    H1_FECollection fec(order, dim);
@@ -443,6 +436,47 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
 
    B1 -= B2;
    REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
+{
+   auto order = GENERATE(1, 2, 3);
+   auto mesh_fname = GENERATE(
+                        "../../data/star.mesh",
+                        "../../data/fichera.mesh"
+                     );
+   Mesh mesh(mesh_fname);
+   TestH1FullAssembly(mesh, order);
+}
+
+TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [CUDA]")
+{
+   const int order = GENERATE(1, 2, 3);
+   const int ne = GENERATE(4, 8, 16, 32);
+
+   // Create a "star-shaped" quad mesh, where all elements share one vertex at
+   // the origin, and the other vertices are distributed radially in a zig-zag
+   // pattern.
+   //
+   // The valence of the center vertex is equal to the number of elements in the
+   // mesh.
+   const int nv = 2*ne + 1;
+   Mesh mesh(2, nv, ne, 0);
+   mesh.AddVertex(0.0, 0.0);
+   for (int i = 0; i < 2*ne; ++i)
+   {
+      const real_t theta = 2*M_PI*i / real_t(2*ne);
+      const real_t r = (i%2 == 0) ? 1.0 : 0.75;
+      mesh.AddVertex(r*cos(theta), r*sin(theta));
+   }
+   for (int i = 0; i < ne; ++i)
+   {
+      const int base = 2 * i;
+      mesh.AddQuad(0, base + 2, base + 1, i == 0 ? 2*ne : base);
+   }
+   mesh.FinalizeMesh();
+
+   TestH1FullAssembly(mesh, order);
 }
 
 TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@
 // Compile with: make findpts
 //
 // Sample runs:
-//    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
+//    findpts -m ../../data/rt-2d-p4-tri.mesh -o 8 -mo 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
@@ -38,7 +38,7 @@
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
-//    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
+//    findpts -m ../../data/rt-2d-q3.mesh -o 8 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr -mpr
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2

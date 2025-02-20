@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,7 +43,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int ns = 16;
-   int  r = 90;
+   int r = 90;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -103,7 +105,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
    }
 
@@ -196,6 +197,6 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int ns, int s)
 {
    for (int i=0; i<2*ns-1; i++)
    {
-      x[s*(2*ns-1)+i] = (double)b[i];
+      x[s*(2*ns-1)+i] = (real_t)b[i];
    }
 }

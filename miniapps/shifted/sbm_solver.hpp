@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,17 +23,17 @@ namespace mfem
 class ShiftedFunctionCoefficient : public Coefficient
 {
 protected:
-   std::function<double(const Vector &)> Function;
-   double constant = 0.0;
+   std::function<real_t(const Vector &)> Function;
+   real_t constant = 0.0;
    bool constantcoefficient;
 
 public:
-   ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
+   ShiftedFunctionCoefficient(std::function<real_t(const Vector &v)> F)
       : Function(std::move(F)), constantcoefficient(false) { }
-   ShiftedFunctionCoefficient(double constant_)
+   ShiftedFunctionCoefficient(real_t constant_)
       : constant(constant_), constantcoefficient(true) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       if (constantcoefficient) { return constant; }
 
@@ -43,7 +43,7 @@ public:
    }
 
    /// Evaluate the coefficient at @a ip + @a D.
-   double Eval(ElementTransformation &T,
+   real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip,
                const Vector &D);
 };
@@ -59,8 +59,8 @@ public:
       : VectorCoefficient(dim), Function(std::move(F)) { }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       Vector D(vdim);
       D = 0.;
@@ -76,12 +76,12 @@ public:
 
 /// BilinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// \f[
+/// $$
 ///  A(u, w) = -\langle \nabla u \cdot n, w \rangle
 ///            -\langle u + \nabla u \cdot d + h.o.t, \nabla w.n \rangle
 ///            +\langle \alpha h^{-1} (u + \nabla u \cdot d + h.o.t), w + \nabla w \cdot d + h.o.t \rangle
-/// \f]
-/// where \f$h.o.t\f$ include higher-order derivatives (\f$\nabla^k u\f$) due to Taylor
+/// $$
+/// where $h.o.t$ include higher-order derivatives ($\nabla^k u$) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
@@ -90,10 +90,10 @@ public:
 class SBM2DirichletIntegrator : public BilinearFormIntegrator
 {
 protected:
-   double alpha;
+   real_t alpha;
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -109,7 +109,7 @@ protected:
 
 public:
    SBM2DirichletIntegrator(const ParMesh *pmesh,
-                           const double a,
+                           const real_t a,
                            VectorCoefficient &vD_,
                            Array<int> &elem_marker_,
                            Array<int> &cut_marker_,
@@ -124,39 +124,39 @@ public:
         cut_marker(cut_marker_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    virtual ~SBM2DirichletIntegrator() { }
 };
 
 /// LinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// \f[
+/// $$
 ///   (u, w) = -\langle u_D, \nabla w \cdot n  \rangle
 ///            +\langle \alpha h^{-1} u_D, w + \nabla w \cdot d + h.o.t \rangle
-/// \f]
-/// where \f$h.o.t\f$ include higher-order derivatives (\f$\nabla^k u\f$) due to Taylor
+/// $$
+/// where $h.o.t$ include higher-order derivatives ($\nabla^k u$) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
 /// only the element that is adjacent to that face (Trans.Elem1 or Trans.Elem2)
 /// and is part of the surrogate domain.
-/// Note that \f$u_D\f$ is evaluated at the true boundary using the distance function
-/// and ShiftedFunctionCoefficient, i.e. \f$u_D(x_{true}) = u_D(x_{surrogate} + D)\f$,
-/// where \f$x_{surrogate}\f$ is the location of the integration point on the surrogate
-/// boundary and \f$D\f$ is the distance vector from the surrogate boundary to the
+/// Note that $u_D$ is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. $u_D(x_{true}) = u_D(x_{surrogate} + D)$,
+/// where $x_{surrogate}$ is the location of the integration point on the surrogate
+/// boundary and $D$ is the distance vector from the surrogate boundary to the
 /// true boundary.
 class SBM2DirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    ShiftedFunctionCoefficient *uD;
-   double alpha;              // Nitsche parameter
+   real_t alpha;              // Nitsche parameter
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -172,7 +172,7 @@ protected:
 public:
    SBM2DirichletLFIntegrator(const ParMesh *pmesh,
                              ShiftedFunctionCoefficient &u,
-                             const double alpha_,
+                             const real_t alpha_,
                              VectorCoefficient &vD_,
                              Array<int> &elem_marker_,
                              bool include_cut_cell_ = false,
@@ -186,26 +186,26 @@ public:
         par_shared_face_count(0),
         ls_cut_marker(ls_cut_marker_) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el1,
-                                       const FiniteElement &el2,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el1,
+                               const FiniteElement &el2,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 };
 
 
 /// BilinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// \f[
+/// $$
 ///   A(u,w) = \langle [\nabla u + \nabla(\nabla u) \cdot d + h.o.t.] \cdot \hat{n} \, (n \cdot \hat{n}),w ⟩ - \langle \nabla u \cdot n,w \rangle
-/// \f]
-/// where h.o.t are the high-order terms due to Taylor expansion for \f$\nabla u\f$,
-/// \f$\hat{n}\f$ is the normal vector at the true boundary, \f$n\f$ is the normal vector at
+/// $$
+/// where h.o.t are the high-order terms due to Taylor expansion for $\nabla u$,
+/// $\hat{n}$ is the normal vector at the true boundary, $n$ is the normal vector at
 /// the surrogate boundary. Since this interior face integrator is applied to
 /// the surrogate boundary (see marking.hpp for notes on how the surrogate faces
 /// are determined and elements are marked), this integrator adds contribution
@@ -217,7 +217,7 @@ protected:
    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // Marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -248,10 +248,10 @@ public:
         cut_marker(cut_marker_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    bool GetTrimFlag() const { return include_cut_cell; }
 
@@ -260,20 +260,20 @@ public:
 
 /// LinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// \f[
+/// $$
 ///   (u, w) = \langle \hat{n} \cdot n \, t_n, w \rangle
-/// \f]
-/// where \f$\hat{n}\f$ is the normal vector at the true boundary, \f$n\f$ is the normal vector
-/// at the surrogate boundary, and \f$t_n\f$ is the traction boundary condition.
+/// $$
+/// where $\hat{n}$ is the normal vector at the true boundary, $n$ is the normal vector
+/// at the surrogate boundary, and $t_n$ is the traction boundary condition.
 /// Since this interior face integrator is applied to the surrogate boundary
 /// (see marking.hpp for notes on how the surrogate faces are determined and
 /// elements are marked), this integrator adds contribution to only the element
 /// that is adjacent to that face (Trans.Elem1 or Trans.Elem2) and is part of
 /// the surrogate domain.
-/// Note that \f$t_n\f$ is evaluated at the true boundary using the distance function
-/// and ShiftedFunctionCoefficient, i.e. \f$t_n(x_{true}) = t_N(x_{surrogate} + D)\f$,
-/// where \f$x_{surrogate}\f$ is the location of the integration point on the surrogate
-/// boundary and \f$D\f$ is the distance vector from the surrogate boundary to the
+/// Note that $t_n$ is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. $t_n(x_{true}) = t_N(x_{surrogate} + D)$,
+/// where $x_{surrogate}$ is the location of the integration point on the surrogate
+/// boundary and $D$ is the distance vector from the surrogate boundary to the
 /// true boundary.
 class SBM2NeumannLFIntegrator : public LinearFormIntegrator
 {
@@ -309,16 +309,16 @@ public:
          par_shared_face_count(0),
          ls_cut_marker(ls_cut_marker_) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el1,
-                                       const FiniteElement &el2,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el1,
+                               const FiniteElement &el2,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
    bool GetTrimFlag() const { return include_cut_cell; }
 };
 

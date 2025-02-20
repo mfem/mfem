@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -79,7 +79,9 @@ if (HYPRE_FOUND AND HYPRE_USING_CUDA)
   find_package(CUDAToolkit REQUIRED)
   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
   get_target_property(CURAND_LIBRARIES CUDA::curand LOCATION)
-  list(APPEND HYPRE_LIBRARIES ${CUSPARSE_LIBRARIES} ${CURAND_LIBRARIES})
+  get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+  list(APPEND HYPRE_LIBRARIES ${CUSPARSE_LIBRARIES} ${CURAND_LIBRARIES}
+       ${CUBLAS_LIBRARIES})
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")

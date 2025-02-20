@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,12 +62,12 @@ class BilinearForm : public Matrix
    friend FABilinearFormExtension;
 
 protected:
-   /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
+   /// Sparse matrix $ M $ to be associated with the form. Owned.
    SparseMatrix *mat;
 
-   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
+   /** @brief Sparse Matrix $ M_e $ used to store the eliminations
         from the b.c.  Owned.
-       \f$ M + M_e = M_{original} \f$ */
+       $ M + M_e = M_{original} $ */
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives. Not owned.
@@ -119,8 +119,8 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
-   DenseMatrix elemmat;
-   Array<int>  vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  vdofs;
 
    DenseTensor *element_matrices; ///< Owned.
 
@@ -138,8 +138,8 @@ protected:
    void AllocMat();
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing \f$ P^t A P\f$ where \f$ A \f$ is the
-       internal sparse matrix and \f$ P \f$ is the conforming prolongation
+       assembly process by performing $ P^t A P $ where $ A $ is the
+       internal sparse matrix and $ P $ is the conforming prolongation
        matrix of the trial/test FE space. After this call the
        BilinearForm becomes an operator on the conforming FE space. */
    void ConformingAssemble();
@@ -290,63 +290,63 @@ public:
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   const double &operator()(int i, int j) { return (*mat)(i,j); }
+   /// Returns a reference to: $ M_{ij} $
+   const real_t &operator()(int i, int j) { return (*mat)(i,j); }
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   /// Returns a reference to: $ M_{ij} $
+   real_t &Elem(int i, int j) override;
 
-   /// Returns constant reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   /// Returns constant reference to: $ M_{ij} $
+   const real_t &Elem(int i, int j) const override;
 
-   /// Matrix vector multiplication:  \f$ y = M x \f$
-   virtual void Mult(const Vector &x, Vector &y) const;
+   /// Matrix vector multiplication:  $ y = M x $
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Matrix vector multiplication with the original uneliminated
-       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
-       \f$ y = M x + M_e x \f$ */
+       matrix.  The original matrix is $ M + M_e $ so we have:
+       $ y = M x + M_e x $ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   /// Add the matrix vector multiple to a vector:  $ y += a M x $
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
    { mat -> AddMult (x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
-       The original matrix is \f$ M + Me \f$ so we have:
-       \f$ y += M x + M_e x \f$ */
+       The original matrix is $ M + Me $ so we have:
+       $ y += M x + M_e x $ */
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const
+   /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
+   void AddMultTranspose(const Vector & x, Vector & y,
+                         const real_t a = 1.0) const override
    { mat->AddMultTranspose(x, y, a); }
 
    /** @brief Add the original uneliminated matrix transpose vector
-       multiple to a vector. The original matrix is \f$ M + M_e \f$
-       so we have: \f$ y += M^T x + {M_e}^T x \f$ */
+       multiple to a vector. The original matrix is $ M + M_e $
+       so we have: $ y += M^T x + {M_e}^T x $ */
    void FullAddMultTranspose(const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   /// Matrix transpose vector multiplication:  $ y = M^T x $
+   void MultTranspose(const Vector & x, Vector & y) const override;
 
-   /// Compute \f$ y^T M x \f$
-   double InnerProduct(const Vector &x, const Vector &y) const
+   /// Compute $ y^T M x $
+   real_t InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
-       \f$ M^{-1} \f$ (currently returns NULL) */
-   virtual MatrixInverse *Inverse() const;
+       $ M^{-1} $ (currently returns NULL) */
+   MatrixInverse *Inverse() const override;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
+   /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.
-       THe matrix that gets finalized is different if you are using static
+       The matrix that gets finalized is different if you are using static
        condensation or hybridization.*/
-   virtual void Finalize(int skip_zeros = 1);
+   void Finalize(int skip_zeros = 1) override;
 
-   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a const reference to the sparse matrix:  $ M $
     *
        This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
@@ -355,7 +355,7 @@ public:
       return *mat;
    }
 
-   /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a reference to the sparse matrix:  $ M $
     *
        This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
@@ -373,12 +373,12 @@ public:
    }
 
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+   /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
-       \f$ M_e \f$
+       $ M_e $
 
        This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
@@ -388,7 +388,7 @@ public:
    }
 
    /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
-       \f$ M_e \f$
+       $ M_e $
 
        This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
@@ -439,8 +439,8 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
-   /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
-   void operator=(const double a)
+   /// Sets all sparse values of $ M $ and $ M_e $ to 'a'.
+   void operator=(const real_t a)
    {
       if (mat != NULL) { *mat = a; }
       if (mat_e != NULL) { *mat_e = a; }
@@ -458,18 +458,18 @@ public:
        conforming prolongation, and |.| denotes the entry-wise absolute value.
        In general, this is just an approximation of the exact diagonal for this
        case. */
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Get the finite element space prolongation operator.
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return fes->GetConformingProlongation(); }
 
    /// Get the finite element space restriction operator
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return fes->GetConformingRestriction(); }
 
    /// Get the output finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return GetProlongation(); }
 
    /** @brief Returns the output fe space restriction matrix, transposed
@@ -477,11 +477,11 @@ public:
        Logically, this is the transpose of GetOutputRestriction, but in
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
+   const Operator *GetOutputRestrictionTranspose() const override
    { return fes->GetRestrictionTransposeOperator(); }
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return GetRestriction(); }
 
    /// Compute serial RAP operator and store it in @a A as a SparseMatrix.
@@ -566,7 +566,8 @@ public:
        FormLinearSystem() method to recover the solution as a GridFunction-size
        vector in @a x. Use the same arguments as in the FormLinearSystem() call.
    */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b,
+                           Vector &x) override;
 
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();
@@ -580,10 +581,18 @@ public:
        or the one stored internally by a prior call of ComputeElementMatrices()
        is returned when available.
    */
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -635,16 +644,16 @@ public:
                              DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
-                                 double value);
+                                 real_t value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
-   /** In this case the eliminations are applied to the internal \f$ M \f$
-       and @a rhs without storing the elimination matrix \f$ M_e \f$. */
+   /** In this case the eliminations are applied to the internal $ M $
+       and @a rhs without storing the elimination matrix $ M_e $. */
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** @brief  Eliminate the given @a vdofs, storing the eliminated part
-       internally in \f$ M_e \f$.
+   /** @brief Eliminate the given @a vdofs, storing the eliminated part
+       internally in $ M_e $.
 
        This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
@@ -669,7 +678,7 @@ public:
                                      DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
-                                         double value);
+                                         real_t value);
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
@@ -678,8 +687,8 @@ public:
                             Vector &b);
 
    /** @brief Compute inner product for full uneliminated matrix:
-        \f$ y^T M x + y^T M_e x \f$ */
-   double FullInnerProduct(const Vector &x, const Vector &y) const
+        $ y^T M x + y^T M_e x $ */
+   real_t FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /** @brief Update the @a FiniteElementSpace and delete all data associated
@@ -763,6 +772,14 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_integs_marker;
 
+   /// Interior face integrators.
+   Array<BilinearFormIntegrator*> interior_face_integs;
+
+   /// Boundary face integrators.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   /// Entries are not owned.
+   Array<Array<int>*> boundary_face_integs_marker;
+
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> trace_face_integs;
 
@@ -771,8 +788,8 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
-   DenseMatrix elemmat;
-   Array<int>  trial_vdofs, test_vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -802,51 +819,73 @@ public:
                      FiniteElementSpace *te_fes,
                      MixedBilinearForm *mbf);
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   /// Returns a reference to: $ M_{ij} $
+   real_t &Elem(int i, int j) override;
 
-   /// Returns a reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   /// Returns a reference to: $ M_{ij} $
+   const real_t &Elem(int i, int j) const override;
 
-   /// Matrix multiplication: \f$ y = M x \f$
-   virtual void Mult(const Vector & x, Vector & y) const;
+   /// Matrix multiplication: $ y = M x $
+   void Mult(const Vector & x, Vector & y) const override;
 
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector & x, Vector & y,
-                        const double a = 1.0) const;
+   /// Add the matrix vector multiple to a vector:  $ y += a M x $
+   void AddMult(const Vector & x, Vector & y,
+                const real_t a = 1.0) const override;
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   /// Matrix transpose vector multiplication:  $ y = M^T x $
+   void MultTranspose(const Vector & x, Vector & y) const override;
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const;
+   /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
+   void AddMultTranspose(const Vector & x, Vector & y,
+                         const real_t a = 1.0) const override;
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
-       \f$ M^{-1} \f$ (currently unimplemented and returns NULL)*/
-   virtual MatrixInverse *Inverse() const;
+       $ M^{-1} $ (currently unimplemented and returns NULL)*/
+   MatrixInverse *Inverse() const override;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
+   /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.*/
-   virtual void Finalize(int skip_zeros = 1);
+   void Finalize(int skip_zeros = 1) override;
 
    /** @brief Extract the associated matrix as SparseMatrix blocks. The number
        of block rows and columns is given by the vector dimensions (vdim) of the
        test and trial spaces, respectively. */
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
-   /// Returns a const reference to the sparse matrix:  \f$ M \f$
+   /// Returns a const reference to the sparse matrix:  $ M $
    /** This will segfault if the usual sparse mat is not defined
        like when static condensation is being used or AllocMat() has
-       not yet been called.*/
-   const SparseMatrix &SpMat() const { return *mat; }
+       not yet been called. */
+   const SparseMatrix &SpMat() const
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
-   SparseMatrix &SpMat() { return *mat; }
+   /// Returns a reference to the sparse matrix:  $ M $
+   SparseMatrix &SpMat()
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+   /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
+
+   /// Returns a const reference to the sparse matrix of eliminated b.c.:  $ M_e $
+   const SparseMatrix &SpMatElim() const
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
+
+   /// Returns a reference to the sparse matrix of eliminated b.c.:  $ M_e $
+   SparseMatrix &SpMatElim()
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
@@ -861,6 +900,16 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
                               Array<int> &bdr_marker);
+
+   /// Adds an interior face integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
@@ -892,6 +941,16 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
 
+   /// Access all integrators added with AddInteriorFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
+
+   /// Access all integrators added with AddBdrFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
+   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBFBFI_Marker() { return &boundary_face_integs_marker; }
+
    /// Access all integrators added with AddTraceFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &trace_face_integs; }
 
@@ -906,8 +965,8 @@ public:
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
 
-   /// Sets all sparse values of \f$ M \f$ to @a a.
-   void operator=(const double a) { *mat = a; }
+   /// Sets all sparse values of $ M $ to @a a.
+   void operator=(const real_t a) { *mat = a; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. See ::AssemblyLevel*/
@@ -920,34 +979,49 @@ public:
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
    /// Get the input finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return trial_fes->GetProlongationMatrix(); }
 
    /// Get the input finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return trial_fes->GetRestrictionMatrix(); }
 
    /// Get the test finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return test_fes->GetProlongationMatrix(); }
 
    /// Get the test finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return test_fes->GetRestrictionMatrix(); }
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing \f$ P2^t A P1 \f$ where \f$ A \f$ is the
-       internal sparse matrix; \f$ P1 \f$ and \f$ P2 \f$ are the conforming
+       assembly process by performing $ P2^t A P1 $ where $ A $ is the
+       internal sparse matrix; $ P1 $ and $ P2 $ are the conforming
        prolongation matrices of the trial and test FE spaces, respectively.
        After this call the MixedBilinearForm becomes an operator on the
        conforming FE spaces. */
    void ConformingAssemble();
 
    /// Compute the element matrix of the given element
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the trace face matrix of the given face element
+   void ComputeTraceFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary trace face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -989,24 +1063,61 @@ public:
                                  Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
-   /// Eliminate essential boundary DOFs from the columns of the system.
+   /// Eliminate essential boundary trial DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary.  All entries in the columns will be
-       set to 0.0 through elimination.*/
-   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
-                           const Vector &sol, Vector &rhs);
+       the essential part of the boundary. */
+   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                  const Vector &sol, Vector &rhs);
 
-   /// Eliminate the list of DOFs from the columns of the system.
-   /** @a marked_vdofs is the of colunm numbers that will be eliminated.  All
-       entries in the columns will be set to 0.0 through elimination.*/
+   /// Eliminate essential boundary trial DOFs from the system matrix.
+   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
+       the essential part of the boundary. */
+   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// (DEPRECATED) Eliminate essential boundary trial DOFs from the system.
+   /** @see EliminateTrialEssentialBC() */
+   MFEM_DEPRECATED void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
+                                           const Vector &sol, Vector &rhs)
+   { EliminateTrialEssentialBC(bdr_attr_is_ess, sol, rhs); }
+
+   /// Eliminate the given trial @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   /** In this case the eliminations are applied to the internal $ M $
+       and @a rhs without storing the elimination matrix $ M_e $. */
+   void EliminateTrialVDofs(const Array<int> &vdofs, const Vector &sol,
+                            Vector &rhs);
+
+   /// Eliminate the given trial @a vdofs, storing the eliminated part internally in $ M_e $.
+   /** This method works in conjunction with EliminateTrialVDofsInRHS() and allows
+       elimination of boundary conditions in multiple right-hand sides. In this
+       method, @a vdofs is a list of DOFs. */
+   void EliminateTrialVDofs(const Array<int> &vdofs);
+
+   /** @brief Use the stored eliminated part of the matrix (see
+       EliminateTrialVDofs(const Array<int> &)) to modify the r.h.s.
+       @a b; @a vdofs is a list of DOFs (non-directional, i.e. >= 0). */
+   void EliminateTrialVDofsInRHS(const Array<int> &vdofs, const Vector &x,
+                                 Vector &b);
+
+   /** @brief Similar to
+      EliminateTrialVDofs(const Array<int> &, const Vector &, Vector &)
+      but here @a ess_dofs is a marker (boolean) array on all vector-dofs
+      (@a ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
-   /// Eliminate essential boundary DOFs from the rows of the system.
+   /// Eliminate essential boundary test DOFs from the system matrix.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary.  All entries in the rows will be
-       set to 0.0 through elimination.*/
-   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+       the essential part of the boundary. */
+   void EliminateTestEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// (DEPRECATED) Eliminate essential boundary test DOFs from the system.
+   /** @see EliminateTestEssentialBC() */
+   MFEM_DEPRECATED virtual void EliminateTestDofs(const Array<int>
+                                                  &bdr_attr_is_ess)
+   { EliminateTestEssentialBC(bdr_attr_is_ess); }
+
+   /// Eliminate the given test @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   void EliminateTestVDofs(const Array<int> &vdofs);
 
    /** @brief Return in @a A that is column-constrained.
 
@@ -1162,7 +1273,7 @@ public:
 
    /** @brief Get the output finite element space restriction matrix in
        transposed form. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
+   const Operator *GetOutputRestrictionTranspose() const override
    { return test_fes->GetRestrictionTransposeOperator(); }
 };
 

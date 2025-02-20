@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -305,7 +305,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    const Array<int> &ess_tdofs
-) : GeometricMultigrid(hierarchy)
+) : GeometricMultigrid(hierarchy, Array<int>())
 {
    int nlevels = fespaces.GetNumLevels();
    ceed_operators.SetSize(nlevels);

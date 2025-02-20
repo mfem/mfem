@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,6 @@ using namespace mfem;
 using namespace std;
 
 char vishost[] = "localhost";
-int  visport   = 19916;
 int  wsize     = 350;
 
 int main (int argc, char *argv[])
@@ -43,6 +42,7 @@ int main (int argc, char *argv[])
    int mesh_poly_deg = 2;
    int quad_order    = 5;
    bool glvis        = true;
+   int visport       = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -57,6 +57,7 @@ int main (int argc, char *argv[])
    args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -105,7 +106,7 @@ int main (int argc, char *argv[])
       for (int j = 0; j < nd; j++)
       {
          int j_x = vdofs[j], j_y = vdofs[nd+j];
-         const double x = coord(j_x),
+         const real_t x = coord(j_x),
                       z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
          fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
          fit_marker_vis_gf(j_x) = 1.0;
@@ -198,7 +199,7 @@ int main (int argc, char *argv[])
    a.SetEssentialVDofs(ess_vdofs);
    a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
-      IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);
@@ -206,7 +207,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(200);
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
-   solver.EnableAdaptiveSurfaceFitting();
+   solver.SetAdaptiveSurfaceFittingScalingFactor(10);
    solver.SetTerminationWithMaxSurfaceFittingError(1e-3);
 
    // Solve.

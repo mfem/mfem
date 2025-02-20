@@ -3,14 +3,14 @@
 // Compile with: make ex10p
 //
 // Sample runs:
-//    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 3 -rs 2 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-tri.mesh -s 3 -rs 2 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 2 -rs 1 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-tet.mesh -s 2 -rs 1 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-wedge.mesh -s 2 -rs 1 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 14 -rs 2 -dt 0.03 -vs 20
-//    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 14 -rs 1 -dt 0.05 -vs 20
-//    mpirun -np 4 ex10p -m ../data/beam-quad-amr.mesh -s 3 -rs 2 -dt 3
+//    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 23 -rs 2 -dt 3
+//    mpirun -np 4 ex10p -m ../data/beam-tri.mesh -s 23 -rs 2 -dt 3
+//    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 22 -rs 1 -dt 3
+//    mpirun -np 4 ex10p -m ../data/beam-tet.mesh -s 22 -rs 1 -dt 3
+//    mpirun -np 4 ex10p -m ../data/beam-wedge.mesh -s 22 -rs 1 -dt 3
+//    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 4 -rs 2 -dt 0.03 -vs 20
+//    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 4 -rs 1 -dt 0.05 -vs 20
+//    mpirun -np 4 ex10p -m ../data/beam-quad-amr.mesh -s 23 -rs 2 -dt 3
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -63,7 +63,7 @@ protected:
 
    ParBilinearForm M, S;
    ParNonlinearForm H;
-   double viscosity;
+   real_t viscosity;
    HyperelasticModel *model;
 
    HypreParMatrix *Mmat; // Mass matrix from ParallelAssemble()
@@ -86,20 +86,20 @@ protected:
 
 public:
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
-                        double visc, double mu, double K);
+                        real_t visc, real_t mu, real_t K);
 
    /// Compute the right-hand side of the ODE system.
-   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+   void Mult(const Vector &vx, Vector &dvx_dt) const override;
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   double ElasticEnergy(const ParGridFunction &x) const;
-   double KineticEnergy(const ParGridFunction &v) const;
+   real_t ElasticEnergy(const ParGridFunction &x) const;
+   real_t KineticEnergy(const ParGridFunction &v) const;
    void GetElasticEnergyDensity(const ParGridFunction &x,
                                 ParGridFunction &w) const;
 
-   virtual ~HyperelasticOperator();
+   ~HyperelasticOperator() override;
 };
 
 /** Nonlinear operator of the form:
@@ -112,7 +112,7 @@ private:
    ParBilinearForm *M, *S;
    ParNonlinearForm *H;
    mutable HypreParMatrix *Jacobian;
-   double dt;
+   real_t dt;
    const Vector *v, *x;
    mutable Vector w, z;
    const Array<int> &ess_tdof_list;
@@ -122,15 +122,15 @@ public:
                          ParNonlinearForm *H_, const Array<int> &ess_tdof_list);
 
    /// Set current dt, v, x values - needed to compute action and Jacobian.
-   void SetParameters(double dt_, const Vector *v_, const Vector *x_);
+   void SetParameters(real_t dt_, const Vector *v_, const Vector *x_);
 
    /// Compute y = H(x + dt (v + dt k)) + M k + S (v + dt k).
-   virtual void Mult(const Vector &k, Vector &y) const;
+   void Mult(const Vector &k, Vector &y) const override;
 
    /// Compute J = M + dt S + dt^2 grad_H(x + dt (v + dt k)).
-   virtual Operator &GetGradient(const Vector &k) const;
+   Operator &GetGradient(const Vector &k) const override;
 
-   virtual ~ReducedSystemOperator();
+   ~ReducedSystemOperator() override;
 };
 
 
@@ -146,8 +146,8 @@ private:
 public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-   virtual ~ElasticEnergyCoefficient() { }
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+   ~ElasticEnergyCoefficient() override { }
 };
 
 void InitialDeformation(const Vector &x, Vector &y);
@@ -172,12 +172,12 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 2;
-   int ode_solver_type = 3;
-   double t_final = 300.0;
-   double dt = 3.0;
-   double visc = 1e-2;
-   double mu = 0.25;
-   double K = 5.0;
+   int ode_solver_type = 23;
+   real_t t_final = 300.0;
+   real_t dt = 3.0;
+   real_t visc = 1e-2;
+   real_t mu = 0.25;
+   real_t K = 5.0;
    bool adaptive_lin_rtol = true;
    bool visualization = true;
    int vis_steps = 1;
@@ -192,11 +192,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "            11 - Forward Euler, 12 - RK2,\n\t"
-                  "            13 - RK3 SSP, 14 - RK4."
-                  "            22 - Implicit Midpoint Method,\n\t"
-                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -238,31 +234,7 @@ int main(int argc, char *argv[])
    // 4. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         if (myid == 0)
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
-         delete mesh;
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -358,8 +330,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   double ee0 = oper.ElasticEnergy(x_gf);
-   double ke0 = oper.KineticEnergy(v_gf);
+   real_t ee0 = oper.ElasticEnergy(x_gf);
+   real_t ke0 = oper.KineticEnergy(v_gf);
    if (myid == 0)
    {
       cout << "initial elastic energy (EE) = " << ee0 << endl;
@@ -367,7 +339,7 @@ int main(int argc, char *argv[])
       cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
    }
 
-   double t = 0.0;
+   real_t t = 0.0;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -376,7 +348,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(vx, t, dt_real);
 
@@ -386,8 +358,8 @@ int main(int argc, char *argv[])
       {
          v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
-         double ee = oper.ElasticEnergy(x_gf);
-         double ke = oper.KineticEnergy(v_gf);
+         real_t ee = oper.ElasticEnergy(x_gf);
+         real_t ke = oper.KineticEnergy(v_gf);
 
          if (myid == 0)
          {
@@ -433,7 +405,6 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
-   delete ode_solver;
    delete pmesh;
 
    return 0;
@@ -485,7 +456,7 @@ ReducedSystemOperator::ReducedSystemOperator(
      ess_tdof_list(ess_tdof_list_)
 { }
 
-void ReducedSystemOperator::SetParameters(double dt_, const Vector *v_,
+void ReducedSystemOperator::SetParameters(real_t dt_, const Vector *v_,
                                           const Vector *x_)
 {
    dt = dt_;  v = v_;  x = x_;
@@ -523,17 +494,27 @@ ReducedSystemOperator::~ReducedSystemOperator()
 
 
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
-                                           Array<int> &ess_bdr, double visc,
-                                           double mu, double K)
-   : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
+                                           Array<int> &ess_bdr, real_t visc,
+                                           real_t mu, real_t K)
+   : TimeDependentOperator(2*f.TrueVSize(), (real_t) 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
      z(height/2)
 {
-   const double rel_tol = 1e-8;
+#if defined(MFEM_USE_DOUBLE)
+   const real_t rel_tol = 1e-8;
+   const real_t newton_abs_tol = 0.0;
+#elif defined(MFEM_USE_SINGLE)
+   const real_t rel_tol = 1e-3;
+   const real_t newton_abs_tol = 1e-4;
+#else
+#error "Only single and double precision are supported!"
+   const real_t rel_tol = real_t(1);
+   const real_t newton_abs_tol = real_t(0);
+#endif
    const int skip_zero_entries = 0;
 
-   const double ref_density = 1.0; // density in the reference configuration
+   const real_t ref_density = 1.0; // density in the reference configuration
    ConstantCoefficient rho0(ref_density);
    M.AddDomainIntegrator(new VectorMassIntegrator(rho0));
    M.Assemble(skip_zero_entries);
@@ -581,7 +562,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    newton_solver.SetOperator(*reduced_oper);
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetAbsTol(newton_abs_tol);
    newton_solver.SetAdaptiveLinRtol(2, 0.5, 0.9);
    newton_solver.SetMaxIter(10);
 }
@@ -607,7 +588,7 @@ void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    dx_dt = v;
 }
 
-void HyperelasticOperator::ImplicitSolve(const double dt,
+void HyperelasticOperator::ImplicitSolve(const real_t dt,
                                          const Vector &vx, Vector &dvx_dt)
 {
    int sc = height/2;
@@ -629,17 +610,14 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
+real_t HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 {
    return H.GetEnergy(x);
 }
 
-double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
+real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   double loc_energy = 0.5*M.InnerProduct(v, v);
-   double energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPI_DOUBLE, MPI_SUM,
-                 fespace.GetComm());
+   real_t energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 
@@ -660,7 +638,7 @@ HyperelasticOperator::~HyperelasticOperator()
 }
 
 
-double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
+real_t ElasticEnergyCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    model.SetTransformation(T);
@@ -680,7 +658,7 @@ void InitialDeformation(const Vector &x, Vector &y)
 void InitialVelocity(const Vector &x, Vector &v)
 {
    const int dim = x.Size();
-   const double s = 0.1/64.;
+   const real_t s = 0.1/64.;
 
    v = 0.0;
    v(dim-1) = s*x(0)*x(0)*(8.0-x(0));

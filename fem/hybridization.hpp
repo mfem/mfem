@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,41 +19,42 @@
 namespace mfem
 {
 
-/** Auxiliary class Hybridization, used to implement BilinearForm hybridization.
+/** @brief Auxiliary class Hybridization, used to implement BilinearForm
+    hybridization.
 
     Hybridization can be viewed as a technique for solving linear systems
-    obtained through finite element assembly. The assembled matrix \f$ A \f$ can
+    obtained through finite element assembly. The assembled matrix $ A $ can
     be written as:
-        \f[ A = P^T \hat{A} P, \f]
-    where \f$ P \f$ is the matrix mapping the conforming finite element space to
+        $$ A = P^T \hat{A} P, $$
+    where $ P $ is the matrix mapping the conforming finite element space to
     the purely local finite element space without any inter-element constraints
-    imposed, and \f$ \hat{A} \f$ is the block-diagonal matrix of all element
+    imposed, and $ \hat{A} $ is the block-diagonal matrix of all element
     matrices.
 
     We assume that:
-    - \f$ \hat{A} \f$ is invertible,
-    - \f$ P \f$ has a left inverse \f$ R \f$, such that \f$ R P = I \f$,
-    - a constraint matrix \f$ C \f$ can be constructed, such that
-      \f$ \operatorname{Ker}(C) = \operatorname{Im}(P) \f$.
+    - $ \hat{A} $ is invertible,
+    - $ P $ has a left inverse $ R $, such that $ R P = I $,
+    - a constraint matrix $ C $ can be constructed, such that
+      $ \operatorname{Ker}(C) = \operatorname{Im}(P) $.
 
-    Under these conditions, the linear system \f$ A x = b \f$ can be solved
+    Under these conditions, the linear system $ A x = b $ can be solved
     using the following procedure:
-    - solve for \f$ \lambda \f$ in the linear system:
-          \f[ (C \hat{A}^{-1} C^T) \lambda = C \hat{A}^{-1} R^T b \f]
-    - compute \f$ x = R \hat{A}^{-1} (R^T b - C^T \lambda) \f$
+    - solve for $ \lambda $ in the linear system:
+          $$ (C \hat{A}^{-1} C^T) \lambda = C \hat{A}^{-1} R^T b $$
+    - compute $ x = R \hat{A}^{-1} (R^T b - C^T \lambda) $
 
     Hybridization is advantageous when the matrix
-    \f$ H = (C \hat{A}^{-1} C^T) \f$ of the hybridized system is either smaller
+    $ H = (C \hat{A}^{-1} C^T) $ of the hybridized system is either smaller
     than the original system, or is simpler to invert with a known method.
 
-    In some cases, e.g. high-order elements, the matrix \f$ C \f$ can be written
+    In some cases, e.g. high-order elements, the matrix $ C $ can be written
     as
-        \f[ C = \begin{pmatrix} 0 & C_b \end{pmatrix}, \f]
-    and then the hybridized matrix \f$ H \f$ can be assembled using the identity
-        \f[ H = C_b S_b^{-1} C_b^T, \f]
-    where \f$ S_b \f$ is the Schur complement of \f$ \hat{A} \f$ with respect to
-    the same decomposition as the columns of \f$ C \f$:
-        \f[ S_b = \hat{A}_b - \hat{A}_{bf} \hat{A}_{f}^{-1} \hat{A}_{fb}. \f]
+        $$ C = \begin{pmatrix} 0 & C_b \end{pmatrix}, $$
+    and then the hybridized matrix $ H $ can be assembled using the identity
+        $$ H = C_b S_b^{-1} C_b^T, $$
+    where $ S_b $ is the Schur complement of $ \hat{A} $ with respect to
+    the same decomposition as the columns of $ C $:
+        $$ S_b = \hat{A}_b - \hat{A}_{bf} \hat{A}_{f}^{-1} \hat{A}_{fb}. $$
 
     Hybridization can also be viewed as a discretization method for imposing
     (weak) continuity constraints between neighboring elements. */
@@ -63,11 +64,17 @@ protected:
    FiniteElementSpace *fes, *c_fes;
    BilinearFormIntegrator *c_bfi;
 
+   /// Set of constraint boundary face integrators to be applied.
+   Array<BilinearFormIntegrator*> boundary_constraint_integs;
+   Array<Array<int>*>             boundary_constraint_integs_marker;
+   /// Indicates if the boundary_constraint_integs integrators are owned externally
+   bool extern_bdr_constr_integs;
+
    SparseMatrix *Ct, *H;
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
-   double *Af_data;
+   real_t *Af_data;
    int *Af_ipiv;
 
 #ifdef MFEM_USE_MPI
@@ -104,6 +111,33 @@ public:
        will delete the integrator when destroyed. */
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { delete c_bfi; c_bfi = c_integ; }
+
+   /** Add the boundary face integrator that will be used to construct the
+       constraint matrix C. The Hybridization object assumes ownership of the
+       integrator, i.e. it will delete the integrator when destroyed. */
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   {
+      boundary_constraint_integs.Append(c_integ);
+      boundary_constraint_integs_marker.Append(
+         NULL); // NULL marker means apply everywhere
+   }
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                   Array<int> &bdr_marker)
+   {
+      boundary_constraint_integs.Append(c_integ);
+      boundary_constraint_integs_marker.Append(&bdr_marker);
+   }
+
+   /// Access all integrators added with AddBdrConstraintIntegrator().
+   Array<BilinearFormIntegrator*> *GetBCBFI() { return &boundary_constraint_integs; }
+
+   /// Access all boundary markers added with AddBdrConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBCBFI_Marker() { return &boundary_constraint_integs_marker; }
+
+   /// Indicate that boundary constraint integrators are not owned
+   void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = true; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);

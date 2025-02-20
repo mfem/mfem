@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,7 +43,7 @@ public:
    static const int MaxDim = 3;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
-   static const double Volume[NumGeom];
+   static const real_t Volume[NumGeom];
    static const int Dimension[NumGeom];
    static const int DimStart[MaxDim+2]; // including MaxDim+1
    static const int NumVerts[NumGeom];
@@ -79,7 +79,7 @@ public:
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
    /** @brief Check if the given point is inside the given reference element.
        Overload for fuzzy tolerance. */
-   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, double eps);
+   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, real_t eps);
 
    /// Project a point @a end, onto the given Geometry::Type, @a GeomType.
    /** Check if the @a end point is inside the reference element, if not
@@ -121,6 +121,9 @@ public:
          default: MFEM_ABORT("Invalid dimension."); return INVALID;
       }
    }
+
+   /// Return the inverse of the given orientation for the specified geometry type.
+   static int GetInverseOrientation(Type geom_type, int orientation);
 
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) const { return NumBdrArray[GeomType]; }

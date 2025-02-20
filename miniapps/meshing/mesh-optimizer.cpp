@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,8 +36,8 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -bnd -qt 1 -qo 8
-//   Adapted analytic shape+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation (AD):
+//     mesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
 //     mesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
@@ -51,32 +51,29 @@
 //   Adapted discrete size NC mesh;
 //     mesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size 3D with PA:
-//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation:
-//      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
+//   Adapted discrete size+orientation (AD):
+//      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
 //   Adapted discrete aspect ratio (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape (AD):
+//     mesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
 //   * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
-//   Blade shape with FD-based solver:
-//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -118,16 +115,20 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   double jitter         = 0.0;
+   real_t jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   double lim_const      = 0.0;
-   double adapt_lim_const   = 0.0;
+   real_t lim_const      = 0.0;
+   real_t adapt_lim_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
-   double solver_rtol    = 1e-10;
+#ifdef MFEM_USE_SINGLE
+   real_t solver_rtol    = 1e-4;
+#else
+   real_t solver_rtol    = 1e-10;
+#endif
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
@@ -181,7 +182,6 @@ int main(int argc, char *argv[])
                   "94 : balanced combo mu_2 & mu_56    -- 2D shape+size\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
                   // "211: (tau-1)^2-tau+sqrt(tau^2+eps)  -- 2D untangling\n\t"
-                  // "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
@@ -205,6 +205,8 @@ int main(int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
@@ -365,21 +367,21 @@ int main(int argc, char *argv[])
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
-   double mesh_volume = 0.0;
+   real_t mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
       fespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh->GetElementSize(i);
+      const real_t hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
       mesh_volume += mesh->GetElementVolume(i);
    }
-   const double small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
+   const real_t small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -423,7 +425,7 @@ int main(int argc, char *argv[])
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
-   double min_detJ = -0.1;
+   real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -470,7 +472,9 @@ int main(int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 49: metric = new TMOP_AMetric_049(0.9); break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          cout << "Unknown metric_id: " << metric_id << endl;
@@ -554,7 +558,9 @@ int main(int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   int ind_fec_order = (target_id >= 5 && target_id <= 8 && !fdscheme) ?
+                       1 : mesh_poly_deg;
+   H1_FECollection ind_fec(ind_fec_order, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
@@ -595,6 +601,7 @@ int main(int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          target_c = tc;
          break;
       }
@@ -631,16 +638,16 @@ int main(int argc, char *argv[])
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
-         const double max = size.Max();
+         const real_t max = size.Max();
 
          for (int i = 0; i < d_x.Size(); i++)
          {
             d_x(i) = std::abs(d_x(i));
             d_y(i) = std::abs(d_y(i));
          }
-         const double eps = 0.01;
-         const double aspr_ratio = 20.0;
-         const double size_ratio = 40.0;
+         const real_t eps = 0.01;
+         const real_t aspr_ratio = 20.0;
+         const real_t size_ratio = 40.0;
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -652,7 +659,7 @@ int main(int argc, char *argv[])
          }
          Vector vals;
          const int NE = mesh->GetNE();
-         double volume = 0.0, volume_ind = 0.0;
+         real_t volume = 0.0, volume_ind = 0.0;
 
          for (int i = 0; i < NE; i++)
          {
@@ -669,19 +676,19 @@ int main(int argc, char *argv[])
             }
          }
 
-         const double avg_zone_size = volume / NE;
+         const real_t avg_zone_size = volume / NE;
 
-         const double small_avg_ratio = (volume_ind + (volume - volume_ind) /
+         const real_t small_avg_ratio = (volume_ind + (volume - volume_ind) /
                                          size_ratio) /
                                         volume;
 
-         const double small_zone_size = small_avg_ratio * avg_zone_size;
-         const double big_zone_size   = size_ratio * small_zone_size;
+         const real_t small_zone_size = small_avg_ratio * avg_zone_size;
+         const real_t big_zone_size   = size_ratio * small_zone_size;
 
          for (int i = 0; i < size.Size(); i++)
          {
-            const double val = size(i);
-            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            const real_t val = size(i);
+            const real_t a = (big_zone_size - small_zone_size) / small_zone_size;
             size(i) = big_zone_size / (1.0+a*val);
          }
 
@@ -689,6 +696,7 @@ int main(int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          tc->SetSerialDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -736,6 +744,7 @@ int main(int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
@@ -945,7 +954,7 @@ int main(int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(mesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
       // Slightly below minJ0 to avoid div by 0.
@@ -953,9 +962,9 @@ int main(int argc, char *argv[])
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetGridFunctionEnergy(x) /
+   const real_t init_energy = a.GetGridFunctionEnergy(x) /
                               (hradaptivity ? mesh->GetNE() : 1);
-   double init_metric_energy = init_energy;
+   real_t init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
@@ -1033,7 +1042,11 @@ int main(int argc, char *argv[])
    // As we use the inexact Newton method to solve the resulting nonlinear
    // system, here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
+#ifdef MFEM_USE_SINGLE
+   const real_t linsol_rtol = 1e-5;
+#else
+   const real_t linsol_rtol = 1e-12;
+#endif
    // Level of output.
    IterativeSolver::PrintLevel linsolver_print;
    if (verbosity_level == 2)
@@ -1084,7 +1097,7 @@ int main(int argc, char *argv[])
    // Perform the nonlinear optimization.
    //
    const IntegrationRule &ir =
-      irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
@@ -1101,8 +1114,8 @@ int main(int argc, char *argv[])
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0)
-   { newton_print.Errors().Warnings().Iterations(); }
+   if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
+   else { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
@@ -1132,9 +1145,9 @@ int main(int argc, char *argv[])
    }
 
    // Report the final energy of the functional.
-   const double fin_energy = a.GetGridFunctionEnergy(x) /
+   const real_t fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
-   double fin_metric_energy = fin_energy;
+   real_t fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;

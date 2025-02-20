@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "block_fespace_operator.hpp"
 
 namespace mfem
@@ -15,8 +26,8 @@ BlockFESpaceOperator::BlockFESpaceOperator(const
 {
    for (size_t i = 0; i <fespaces.size(); i++)
    {
-      //Since const_cast is required here, be sure to avoid using
-      //BlockOperator::GetBlock on restriction or prolongation.
+      // Since const_cast is required here, be sure to avoid using
+      // BlockOperator::GetBlock on restriction or prolongation.
       prolongation.SetDiagonalBlock(i,
                                     const_cast<Operator *>(fespaces[i]->GetProlongationMatrix()));
       restriction.SetDiagonalBlock(i,
@@ -106,4 +117,4 @@ const Operator* BlockFESpaceOperator::GetRestriction() const
    return &restriction;
 }
 
-}//namespace mfem
+} // namespace mfem

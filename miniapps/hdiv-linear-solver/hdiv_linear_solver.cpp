@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@ namespace mfem
 void Reciprocal(Vector &x)
 {
    const int n = x.Size();
-   double *d_x = x.ReadWrite();
+   real_t *d_x = x.ReadWrite();
    MFEM_FORALL(i, n, d_x[i] = 1.0/d_x[i]; );
 }
 
@@ -39,8 +39,8 @@ HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
    {
       int *I = diag_spmat.WriteI();
       int *J = diag_spmat.WriteJ();
-      double *A = diag_spmat.WriteData();
-      const double *d_diag = diag.Read();
+      real_t *A = diag_spmat.WriteData();
+      const real_t *d_diag = diag.Read();
       MFEM_FORALL(i, n+1, I[i] = i;);
       MFEM_FORALL(i, n,
       {
@@ -58,8 +58,9 @@ HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
 const IntegrationRule &GetMassIntRule(FiniteElementSpace &fes_l2)
 {
    Mesh *mesh = fes_l2.GetMesh();
-   const FiniteElement *fe = fes_l2.GetFE(0);
-   return MassIntegrator::GetRule(*fe, *fe, *mesh->GetElementTransformation(0));
+   const FiniteElement *fe = fes_l2.GetTypicalFE();
+   return MassIntegrator::GetRule(
+             *fe, *fe, *mesh->GetTypicalElementTransformation());
 }
 
 HdivSaddlePointSolver::HdivSaddlePointSolver(
@@ -75,7 +76,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      ess_rt_dofs(ess_rt_dofs_),
      basis_l2(fes_l2_),
      basis_rt(fes_rt_),
-     convert_map_type(fes_l2_.GetFE(0)->GetMapType() == FiniteElement::VALUE),
+     convert_map_type(fes_l2_.GetTypicalFE()->GetMapType() == FiniteElement::VALUE),
      mass_l2(&fes_l2),
      mass_rt(&fes_rt),
      L_coeff(L_coeff_),
@@ -177,13 +178,13 @@ void HdivSaddlePointSolver::Setup()
    if (convert_map_type)
    {
       const int n = W_mix_coeff_qf.Size();
-      const double *d_detJ = geom->detJ.Read();
-      double *d_w_mix = W_mix_coeff_qf.ReadWrite();
-      double *d_w = W_coeff_qf.ReadWrite();
+      const real_t *d_detJ = geom->detJ.Read();
+      real_t *d_w_mix = W_mix_coeff_qf.ReadWrite();
+      real_t *d_w = W_coeff_qf.ReadWrite();
       const bool zero_l2 = zero_l2_block;
       MFEM_FORALL(i, n,
       {
-         const double detJ = d_detJ[i];
+         const real_t detJ = d_detJ[i];
          if (!zero_l2) { d_w[i] *= detJ*detJ; }
          d_w_mix[i] *= detJ;
       });
@@ -214,11 +215,11 @@ void HdivSaddlePointSolver::Setup()
          mass_l2_mix.AssembleDiagonal(L_diag_unweighted);
       }
 
-      const double *d_L_diag_unweighted = L_diag_unweighted.Read();
-      double *d_L_diag = L_diag.ReadWrite();
+      const real_t *d_L_diag_unweighted = L_diag_unweighted.Read();
+      real_t *d_L_diag = L_diag.ReadWrite();
       MFEM_FORALL(i, L_diag.Size(),
       {
-         const double d = d_L_diag_unweighted[i];
+         const real_t d = d_L_diag_unweighted[i];
          d_L_diag[i] /= d*d;
       });
    }
@@ -234,7 +235,7 @@ void HdivSaddlePointSolver::Setup()
    // Update the mass RT diagonal for essential DOFs
    {
       const int *d_I = ess_rt_dofs.Read();
-      double *d_R_diag = R_diag.ReadWrite();
+      real_t *d_R_diag = R_diag.ReadWrite();
       MFEM_FORALL(i, ess_rt_dofs.Size(), d_R_diag[d_I[i]] = 1.0;);
    }
 
@@ -292,8 +293,8 @@ void HdivSaddlePointSolver::EliminateBC(Vector &b) const
    z.UseDevice(true);
    z = 0.0;
    const int *d_I = ess_rt_dofs.Read();
-   const double *d_x_bc = x_bc.Read();
-   double *d_z = z.ReadWrite();
+   const real_t *d_x_bc = x_bc.Read();
+   real_t *d_z = z.ReadWrite();
    MFEM_FORALL(i, n_ess_dofs,
    {
       const int j = d_I[i];
@@ -314,8 +315,8 @@ void HdivSaddlePointSolver::EliminateBC(Vector &b) const
    bF += z;
 
    // Insert the RT BCs into the RHS at the essential DOFs.
-   const double *d_w = w.Read();
-   double *d_bF = bF.ReadWrite(); // Need read-write access to set subvector
+   const real_t *d_w = w.Read();
+   real_t *d_bF = bF.ReadWrite(); // Need read-write access to set subvector
    MFEM_FORALL(i, n_ess_dofs,
    {
       const int j = d_I[i];
