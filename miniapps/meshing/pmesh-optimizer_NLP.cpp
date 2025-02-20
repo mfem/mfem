@@ -28,7 +28,7 @@
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 5e-2 -w2 5e-2 -m square01.mesh -rs 2 -o 2 -lsn 1.05 -lse 1.05
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 1e-1 -w2 5 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -ft 2 --qtype 3 -w1 2e3 -w2 30 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 200 -ft 2 -w1 1e1 -w2 0.5 -qoit 1 -rs 3 -m square01.mesh -lsn 1.01 -o 1
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 200 -ft 2 -w1 1e1 -w2 0.5 -qt 1 -rs 3 -m square01.mesh -lsn 1.01 -o 1
 
 // order 1, cube mesh
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
@@ -190,19 +190,34 @@ auto func_8( std::vector<type>& x ) -> type
 template <typename type>
 auto func_2( std::vector<type>& x ) -> type
 {
+    double theta = 0.0;
+    auto xv = 1.0-x[0];
+    auto yv = 1.0-x[1];
     double xc = -0.05,
            yc = -0.05,
            zc = -0.05,
            rc = 0.7,
            alpha = alphaw;
-    auto dx = (x[0]-xc),
-         dy = x[1]-yc;
+    auto dx = xv-xc,
+         dy = yv-yc;
     auto val = dx*dx + dy*dy;
     if (val > 0.0) { val = sqrt(val); }
     val -= rc;
     val = alpha*val;
-    return atan(val);
+    return 5.0+atan(val);
 };
+
+template <typename type>
+auto func_3( std::vector<type>& x ) -> type
+{
+    auto xv = x[0];
+    auto yv = x[1];
+    auto alpha = alphaw;
+    // auto dx = xv - 0.5-0.2*(yv-0.5);
+    auto dx = xv-0.5;
+    // auto dx = xv - 0.5-0.2*(yv-0.5);
+    return atan(alpha*dx);
+}
 
 class OSCoefficient : public TMOPMatrixCoefficient
 {
@@ -254,11 +269,7 @@ double trueSolFunc(const Vector & x)
   }
   else if (ftype == 3) // incline shock
   {
-    double xv = x[0];
-    double yv = x[1];
-    double alpha = alphaw;
-    double dx = xv - 0.5-0.2*(yv-0.5);
-    return std::atan(alpha*dx);
+    return ADVal_func(x, func_3<ADFType>);
   }
   else if (ftype == 4)
   {
@@ -313,12 +324,7 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
   }
   else if (ftype == 3)
   {
-    double xv = x[0];
-    double yv = x[1];
-    double alpha = alphaw;
-    double dx = xv - 0.5-0.2*(yv-0.5);
-    grad[0] = alpha/(1.0+std::pow(dx*alpha,2.0));
-    grad[1] = -0.2*grad[0];
+    ADGrad_func(x, func_3<ADFType>, grad);
   }
   else if (ftype == 4)
   {
@@ -392,13 +398,10 @@ double loadFunc(const Vector & x)
   }
   else if (ftype == 3)
   {
-    double xv = x[0];
-    double yv = x[1];
-    double alpha = alphaw;
-    double dx = xv - 0.5-0.2*(yv-0.5);
-    double num1 = std::pow(alpha,3.0)*dx;
-    double den1 = std::pow((1.0+std::pow(dx*alpha,2.0)),2.0);
-    return 2.08*num1/den1;
+    DenseMatrix Hessian(x.Size());
+    ADHessian_func(x, func_3<ADSType>, Hessian);
+    double val = -1.0*(Hessian(0,0)+Hessian(1,1));
+    return val;
   }
   else if (ftype == 4)
   {
@@ -439,7 +442,6 @@ double loadFunc(const Vector & x)
 
 void trueLoadFuncGrad(const Vector & x,Vector & grad)
 {
-  grad = 0.0;
   if (ftype == 0)
   {
     std::vector<DenseMatrix> TRD(x.Size());
@@ -461,6 +463,14 @@ void trueLoadFuncGrad(const Vector & x,Vector & grad)
     std::vector<DenseMatrix> TRD(x.Size());
     for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
     AD3rdDeric_func(x, func_2<ADTType>, TRD);
+    grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
+    grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
+  }
+  else if (ftype == 3)
+  {
+    std::vector<DenseMatrix> TRD(x.Size());
+    for(int i=0; i<x.Size();i++){TRD[i].SetSize(x.Size());}
+    AD3rdDeric_func(x, func_3<ADTType>, TRD);
     grad[0] = -1.0*(TRD[0](0,0)+TRD[0](1,1));
     grad[1] = -1.0*(TRD[1](0,0)+TRD[1](1,1));
   }
@@ -487,6 +497,14 @@ void trueHessianFunc(const Vector & x,DenseMatrix & Hessian)
   else if (ftype == 1)
   {
     ADHessian_func(x, func_1<ADSType>, Hessian);
+  }
+  else if (ftype == 2)
+  {
+    ADHessian_func(x, func_2<ADSType>, Hessian);
+  }
+  else if (ftype == 3)
+  {
+    ADHessian_func(x, func_3<ADSType>, Hessian);
   }
   else
   {
@@ -544,7 +562,7 @@ int main (int argc, char *argv[])
    MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 #endif
 
-  int qoitype = static_cast<int>(QoIType::H1_ERROR);
+  int qoitype = static_cast<int>(QoIType::H1S_ERROR);
   bool weakBC = false;
   bool perturbMesh = false;
   double epsilon_pert =  0.006;
@@ -599,7 +617,7 @@ int main (int argc, char *argv[])
                   "function type");
    args.AddOption(&alphaw, "-alpha", "--alpha",
                   "alpha weight for functions");
-   args.AddOption(&qoitype, "-qoit", "--qtype",
+   args.AddOption(&qoitype, "-qt", "--qtype",
                   "Quantity of interest type");
    args.AddOption(&weight_1, "-w1", "--weight1",
                   "Quantity of interest weight");
@@ -619,6 +637,12 @@ int main (int argc, char *argv[])
     args.AddOption(&bndr_fix, "-bndr", "--bndrfix",
                   "-bndrfree", "--bndr-free",
                   "Enable exact action of TMOP_Integrator.");
+    args.AddOption(&visualization, "-vis", "--vis",
+                  "-no-vis", "--no-vis",
+                  "Enable/disable visualization.");
+    args.AddOption(&weakBC, "-weakbc", "--weakbc",
+                  "-no-weakbc", "--no-weakbc",
+                  "Enable/disable weak boundary condition.");
 
    args.Parse();
    if (!args.Good())
@@ -631,8 +655,8 @@ int main (int argc, char *argv[])
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
   bool dQdxFD =false;
-  bool dQdxFD_global =false;
-  bool BreakAfterFirstIt = false;
+  bool dQdxFD_global =true;
+  bool BreakAfterFirstIt = true;
 
   // Create mesh
   Mesh *des_mesh = nullptr;
@@ -800,7 +824,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-          //gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
       else if (attribute == 2 || attribute == 4) // zero out in x
@@ -808,7 +832,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-          //gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
         }
       }
     }
@@ -866,9 +890,6 @@ int main (int argc, char *argv[])
   {
     //std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
-    //essentialBCfilter[i] = {i+1, 0};
-    //essentialBC[0] = {1, 0};
-    //essentialBC[1] = {3, 0};
   }
 
   essentialBCfilter[0] = {1, 1};
@@ -902,7 +923,7 @@ if (myid == 0) {
     std::cout<<" L2 Error"<<std::endl;
     break;
   case 1:
-    std::cout<<" H1 Error"<<std::endl;
+    std::cout<<" H1 semi-norm Error"<<std::endl;
     break;
   case 2:
     std::cout<<" ZZ Error"<<std::endl;
@@ -914,7 +935,10 @@ if (myid == 0) {
     std::cout<<" Energy"<<std::endl;;
     break;
   case 5:
-    std::cout<<" Global ZZ"<<std::endl;;
+    std::cout<<" Global ZZ"<<std::endl;
+    break;
+  case 6:
+    std::cout<<" L2+H1"<<std::endl;;
     break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType << std::endl;
@@ -947,6 +971,7 @@ if (myid == 0) {
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
   x_gf.ProjectCoefficient(*trueSolution);
+  solver.setTrueSolGradCoeff(trueSolutionGrad);
 
 
   Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
@@ -989,6 +1014,14 @@ if (myid == 0) {
 
   x.SetTrueVector();
 
+  VisItDataCollection *visdc = new VisItDataCollection("tmop-pde", PMesh);
+  visdc->RegisterField("solution", &(solver.GetSolution()));
+  visdc->SetCycle(0);
+  visdc->SetTime(0.0);
+  visdc->Save();
+  int save_freq = 10;
+
+
   if (method == 0)
   {
     ParNonlinearForm a(pfespace);
@@ -1019,7 +1052,7 @@ if (myid == 0) {
     }
 
     // Set min jac
-    tmma->SetMinimumDeterminantThreshold(1e-5);
+    tmma->SetMinimumDeterminantThreshold(1e-7);
 
     // Set line search factors
     tmma->SetLineSearchNormFactor(ls_norm_fac);
@@ -1033,14 +1066,9 @@ if (myid == 0) {
 
     // Set max # iterations
     bool save_after_every_iteration = true;
-    VisItDataCollection *visdc = new VisItDataCollection("tmop-pde", PMesh);
-    visdc->RegisterField("solution", &(solver.GetSolution()));
-    visdc->SetCycle(0);
-    visdc->SetTime(0.0);
-    visdc->Save();
     if (save_after_every_iteration)
     {
-      tmma->SetDataCollectionObjectandMesh(visdc, PMesh, 10);
+      tmma->SetDataCollectionObjectandMesh(visdc, PMesh, save_freq);
     }
     tmma->SetMaxIter(max_it);
     tmma->Mult(x.GetTrueVector());
@@ -1131,6 +1159,7 @@ if (myid == 0) {
   }
   else
   {
+    int cycle_count = 1;
     for(int i=1;i<max_it;i++)
     {
       filterSolver.setLoadGridFunction(gridfuncOptVar);
@@ -1177,14 +1206,13 @@ if (myid == 0) {
       HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
       mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
-
       filterSolver.ASolve(dQdx_filtered);
       ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
 
       dQdx.Add(1.0, *dQdxImplfilter);
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
-      
+
       HypreParVector *truedQdx_Expl = dQdxExpl->ParallelAssemble();
       HypreParVector *truedQdx_Impl = dQdxImpl->ParallelAssemble();
 
@@ -1454,6 +1482,13 @@ if (myid == 0) {
       Xi += filteredDesign;
       PMesh->SetNodes(Xi);
       PMesh->DeleteGeometricFactors();
+
+      if (i % save_freq == 0)
+      {
+         visdc->SetCycle(cycle_count++);
+         visdc->SetTime(cycle_count*1.0);
+         visdc->Save();
+      }
 
 
 
