@@ -181,11 +181,11 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
 
    // grad(c,d,qx,qy,qz)
    // derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
-   Vector gradv(NQ);
+   Vector gradv(vdim*vdim*NQ);
    auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
    // TODO: Make this method explicitly 3D
-   // [s00, s11, s22, s12, s02, s01]
-   auto stress = Reshape(gradv.HostReadWrite(), 6, Q1D[0], Q1D[1], Q1D[2]);
+   Vector Sv(vdim*vdim*NQ);
+   auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
 
    // Accumulators
    // Data is stored in Vectors but shaped as a DeviceTensor for easy access
@@ -321,29 +321,54 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt01*grad1)+(Jinvt02*grad2);
                grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
                grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
+               // grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt10*grad1)+(Jinvt20*grad2);
+               // grad(c,1,qx,qy,qz) = (Jinvt01*grad0)+(Jinvt11*grad1)+(Jinvt21*grad2);
+               // grad(c,2,qx,qy,qz) = (Jinvt02*grad0)+(Jinvt12*grad1)+(Jinvt22*grad2);
             }
 
             // Compute stress tensor
             // [s00, s11, s22, s12, s02, s01]
             real_t div = grad(0,0,qx,qy,qz) + grad(1,1,qx,qy,qz) + grad(2,2,qx,qy,qz);
-            stress(0,qx,qy,qz) = (lambda*div + mu*grad(0,0,qx,qy,qz)) * wdetj;
-            stress(1,qx,qy,qz) = (lambda*div + mu*grad(1,1,qx,qy,qz)) * wdetj;
-            stress(2,qx,qy,qz) = (lambda*div + mu*grad(2,2,qx,qy,qz)) * wdetj;
-            stress(3,qx,qy,qz) = mu * (grad(1,2,qx,qy,qz) + grad(2,1,qx,qy,qz)) / 2 * wdetj;
-            stress(4,qx,qy,qz) = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz)) / 2 * wdetj;
-            stress(5,qx,qy,qz) = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz)) / 2 * wdetj;
+            real_t sigma00 = (lambda*div + 2.0*mu*grad(0,0,qx,qy,qz)) * wdetj;
+            real_t sigma11 = (lambda*div + 2.0*mu*grad(1,1,qx,qy,qz)) * wdetj;
+            real_t sigma22 = (lambda*div + 2.0*mu*grad(2,2,qx,qy,qz)) * wdetj;
+            real_t sigma12 = mu * (grad(1,2,qx,qy,qz) + grad(2,1,qx,qy,qz)) * wdetj;
+            real_t sigma02 = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz)) * wdetj;
+            real_t sigma01 = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz)) * wdetj;
+
+            // S = J^{-1} * stress
+            /*
+               Jinvt00, Jinvt10, Jinvt20,
+               Jinvt01, Jinvt11, Jinvt21,
+               Jinvt02, Jinvt12, Jinvt22,
+
+               s00, s01, s02,
+               s01, s11, s12,
+               s02, s12, s22,
+            */
+            // (J^{-1} term comes from test function)
+            S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
+            S(0,1,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
+            S(0,2,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
+            S(1,0,qx,qy,qz) = Jinvt01*sigma00 + Jinvt11*sigma01 + Jinvt21*sigma02;
+            S(1,1,qx,qy,qz) = Jinvt01*sigma01 + Jinvt11*sigma11 + Jinvt21*sigma12;
+            S(1,2,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
+            S(2,0,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
+            S(2,1,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
+            S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
+
 
          } // qx
       } // qy
    } // qz
 
    mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
-   mfem::out << "stress(1,1,1,1) = " << stress(1,1,1,1) << std::endl;
+   mfem::out << "S(0,0,1,1,1) = " << S(0,0,1,1,1) << std::endl;
 
    /*
    4) Contraction with grad_v (quads -> dofs)
 
-   stress[ij] = [
+   S[ij] = [
       s00, s01, s02,
       s10, s11, s12,
       s20, s21, s22,
@@ -351,29 +376,28 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    grad_v[ij] = e[i] * grad_phi[j]
              = e[i] * [ dX*Y*Z, X*dY*Z, X*Y*dZ ]
 
-   Y[i] = stress[ij] * grad_phi[j] = [
+   Y[i] = S[ij] * grad_phi[j] = [
       s00*dX*Y*Z + s01*X*dY*Z + s02*X*Y*dZ,
-      s01*dX*Y*Z + s11*X*dY*Z + s12*X*Y*dZ,
-      s02*dX*Y*Z + s12*X*dY*Z + s22*X*Y*dZ,
+      s10*dX*Y*Z + s11*X*dY*Z + s12*X*Y*dZ,
+      s20*dX*Y*Z + s21*X*dY*Z + s22*X*Y*dZ,
    ]
 
    sX = [
       s00*dX, s01*X, s02*X,
-      s01*dX, s11*X, s12*X,
-      s02*dX, s12*X, s22*X,
+      s10*dX, s11*X, s12*X,
+      s20*dX, s21*X, s22*X,
    ]
-   (could optimize slightly by using the fact that s12 * X is repeated)
 
    sXY = [
       (s00*dX) * Y + (s01*X) * dY, (s02*X) * Y,
-      (s01*dX) * Y + (s11*X) * dY, (s12*X) * Y,
-      (s02*dX) * Y + (s12*X) * dY, (s22*X) * Y,
+      (s10*dX) * Y + (s11*X) * dY, (s12*X) * Y,
+      (s20*dX) * Y + (s21*X) * dY, (s22*X) * Y,
    ]
 
    Y[i] = [
       ((s00*dX) * Y + (s01*X) * dY) * Z + ((s02*X) * Y) * dZ,
-      ((s01*dX) * Y + (s11*X) * dY) * Z + ((s12*X) * Y) * dZ,
-      ((s02*dX) * Y + (s12*X) * dY) * Z + ((s22*X) * Y) * dZ,
+      ((s10*dX) * Y + (s11*X) * dY) * Z + ((s12*X) * Y) * dZ,
+      ((s20*dX) * Y + (s21*X) * dY) * Z + ((s22*X) * Y) * dZ,
    ]
    */
 
@@ -391,9 +415,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const real_t s[3][3] = {
-               { stress(0,qx,qy,qz), stress(5,qx,qy,qz), stress(4,qx,qy,qz) },
-               { stress(5,qx,qy,qz), stress(1,qx,qy,qz), stress(3,qx,qy,qz) },
-               { stress(4,qx,qy,qz), stress(3,qx,qy,qz), stress(2,qx,qy,qz) }
+               { S(0,0,qx,qy,qz), S(0,1,qx,qy,qz), S(0,2,qx,qy,qz) },
+               { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
+               { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
             };
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
@@ -419,7 +443,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
          for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
          {
-
             /*
             sXY = [
                (s00*dX) * Y + (s01*X) * dY, (s02*X) * Y,

@@ -38,12 +38,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 0. Initialize MPI and HYPRE.
-   Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-   Hypre::Init();
-
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
    // const char *mesh_file = "../../data/beam-hex.mesh";
@@ -77,10 +71,7 @@ int main(int argc, char *argv[])
    args.Parse();
 
    // Print & verify options
-   if (Mpi::Root())
-   {
-      args.PrintOptions(cout);
-   }
+   args.PrintOptions(cout);
    MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
 
    // 2. Read the serial mesh from the given mesh file.
@@ -109,9 +100,6 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
-   // 5. Define a parallel mesh by a partitioning of the serial mesh.
-   // ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   // serial_mesh.Clear(); // the serial mesh is no longer needed
 
    // 5. Define a finite element space on the mesh.
    // Node ordering is important
@@ -119,23 +107,11 @@ int main(int argc, char *argv[])
       reorder_space ? Ordering::byNODES : Ordering::byVDIM;
 
    FiniteElementCollection * fec = nullptr;
-   if (isNURBS)
-   {
-      fec = mesh.GetNodes()->OwnFEC();
-   }
-   else
-   {
-      fec = new H1_FECollection(1, dim);
-   }
-
-   // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(&mesh, fec, dim, fes_ordering);
+   fec = isNURBS ? mesh.GetNodes()->OwnFEC() : new H1_FECollection(1, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec, dim, fes_ordering);
    // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
-   if (Mpi::Root())
-   {
-      cout << "Finite Element Collection: " << fec->Name() << endl;
-      cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() << endl;
-   }
+   cout << "Finite Element Collection: " << fec->Name() << endl;
+   cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() << endl;
 
    // Print out some info on the size of spaces
    // const Operator *G;
@@ -145,7 +121,10 @@ int main(int argc, char *argv[])
    cout << "GetNE() = " << fespace->GetNE() << std::endl;
    cout << "GetVSize() = " << fespace->GetVSize() << std::endl; // Vsize = VDIM * ND
    cout << "GetNDofs() = " << fespace->GetNDofs() << std::endl;
-   cout << "GetNP() = " << mesh.NURBSext->GetNP() << std::endl;
+   if (isNURBS)
+   {
+      cout << "GetNP() = " << mesh.NURBSext->GetNP() << std::endl;
+   }
 
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -169,15 +148,9 @@ int main(int argc, char *argv[])
 
    LinearForm b(fespace);
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-   if (Mpi::Root())
-   {
-      cout << "RHS ... " << flush;
-   }
+   cout << "RHS ... " << flush;
    b.Assemble();
-   if (Mpi::Root())
-   {
-      cout << "done." << endl;
-   }
+   cout << "done." << endl;
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -191,13 +164,13 @@ int main(int argc, char *argv[])
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
-   lambda = 2.0;
+   lambda = 1.0;
    lambda(0) = lambda(1)*50;
    PWConstCoefficient lambda_func(lambda);
    cout << "lambda = " << endl;
    lambda.Print(cout);
    Vector mu(mesh.attributes.Max());
-   mu = 3.0;
+   mu = 1.0;
    mu(0) = mu(1)*50;
    PWConstCoefficient mu_func(mu);
 
@@ -213,10 +186,7 @@ int main(int argc, char *argv[])
    if (isNURBS)
    {
       if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
-      if (Mpi::Root())
-      {
-         cout << "Using ir_order " << ir_order << endl;
-      }
+      cout << "Using ir_order " << ir_order << endl;
 
       patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
       // Loop over patches and set a different rule for each patch.
@@ -244,47 +214,35 @@ int main(int argc, char *argv[])
 
    // 10. Assemble and solve the linear system
    // Define and assemble bilinear form
-   if (Mpi::Root())
-   {
-      cout << "Assemble a ... " << flush;
-   }
+   cout << "Assemble a ... " << flush;
    BilinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(ei);
-   a.UseExternalIntegrators();
+   // a.UseExternalIntegrators();
    a.Assemble();
-   if (Mpi::Root())
-   {
-      cout << "done." << endl;
-   }
+   cout << "done." << endl;
 
    // Define linear system
-   if (Mpi::Root())
-   {
-      cout << "Matrix ... " << flush;
-   }
+   cout << "Matrix ... " << flush;
    OperatorPtr A;
    // SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   if (Mpi::Root())
-   {
-      cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
-   }
+   cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
    // Solve the linear system A X = B.
-   if (Mpi::Root())
-   {
-      cout << "Solving linear system ... " << endl;
-   }
+   cout << "Solving linear system ... " << endl;
    // GSSmoother M(A);
-   GSSmoother M((SparseMatrix&)(*A));
-   PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
+   // GSSmoother M((SparseMatrix&)(*A));
+   // PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
 
-   if (Mpi::Root())
-   {
-      cout << "Done solving system." << endl;
-   }
+   // a.AddMult(X, B);
+   // B.Print(cout);
+   // OperatorJacobiSmoother M(a, ess_tdof_list);
+   // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+   CG(*A, B, X, 1, 10, 1e-20, 0.0);
+
+   cout << "Done solving system." << endl;
 
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
@@ -310,7 +268,7 @@ int main(int argc, char *argv[])
       // send to socket
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      // sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x;
       sol_sock << "window_geometry " << 0 << " " << 0 << " "
