@@ -452,8 +452,8 @@ public:
        elements.
         @a pts list of physical point coordinates ordered by
            Ordering::Type::byNODES.
-        @a elems which element index to search for each corresponding point in @a
-           pts
+        @a elems which element index to search for each corresponding point in
+      @a pts
         @a types output search classification (@see
       InverseElementTransformation::TransformResult).
         @a refs result reference point coordinates ordered by
@@ -462,9 +462,12 @@ public:
         @a use_dev hint for if device acceleration should be used.
        Device acceleration is currently only implemented for meshes containing
        only a single tensor product basis element type.
+        @a iters optional array storing how many iterations was spent on each
+      tested point
      */
    void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
-                  Vector &refs, bool use_dev = true);
+                  Vector &refs, bool use_dev = true,
+                  Array<int> *iters = nullptr);
 
    using ClosestPhysPointKernelType = void (*)(int, int, int, int,
                                                const real_t *, const real_t *,
@@ -486,11 +489,22 @@ public:
 
    using NewtonKernelType = void (*)(real_t, real_t, int, int, int, int,
                                      const real_t *, const real_t *,
-                                     const int *, const real_t *, int *,
+                                     const int *, const real_t *, int *, int*,
                                      real_t *);
 
    // specialization params: Geom, SDim, SolverType, use_dev
    MFEM_REGISTER_KERNELS(NewtonSolve, NewtonKernelType,
+                         (int, int, InverseElementTransformation::SolverType,
+                          bool));
+
+   using NewtonEdgeScanKernelType = void (*)(real_t, real_t, int, int, int, int,
+                                             const real_t *, const real_t *,
+                                             const int *, const real_t *,
+                                             const real_t *, int, int *, int *,
+                                             real_t *);
+
+   // specialization params: Geom, SDim, SolverType, use_dev
+   MFEM_REGISTER_KERNELS(NewtonEdgeScan, NewtonEdgeScanKernelType,
                          (int, int, InverseElementTransformation::SolverType,
                           bool));
 
@@ -508,6 +522,7 @@ public:
    static void AddNewtonSolveSpecialization()
    {
       NewtonSolve::Specialization<Dim, SDim, SType, use_dev>::Add();
+      NewtonEdgeScan::Specialization<Dim, SDim, SType, use_dev>::Add();
    }
 };
 

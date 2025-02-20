@@ -99,7 +99,8 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
 void BatchInverseElementTransformation::Transform(const Vector &pts,
                                                   const Array<int> &elems,
                                                   Array<int> &types,
-                                                  Vector &refs, bool use_dev)
+                                                  Vector &refs, bool use_dev,
+                                                  Array<int> *iters)
 {
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
@@ -124,6 +125,11 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
    auto mptr = node_pos.Read(use_dev);
    auto tptr = types.Write(use_dev);
    auto xptr = refs.ReadWrite(use_dev);
+   int* iter_ptr = nullptr;
+   if (iters)
+   {
+      iter_ptr = iters->Write(use_dev);
+   }
    auto nptr = points1d->Read(use_dev);
    int ndof1d = points1d->Size();
 
@@ -182,14 +188,20 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
          break;
       case InverseElementTransformation::EdgeScan:
       {
-         // TODO
+         int nq1d = std::max(order + rel_qpts_order, 0) + 1;
+         int btype = BasisType::GetNodalBasis(guess_points_type);
+         auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
+         auto qptr = qpoints->Read(use_dev);
+         NewtonEdgeScan::Run(geom, vdim, solver_type, use_dev, ref_tol,
+                             phys_rtol, max_iter, npts, NE, ndof1d, mptr, pptr,
+                             eptr, nptr, qptr, nq1d, tptr, iter_ptr, xptr);
       }
       return;
    }
    // general case: for each point, use guess inside refs
    NewtonSolve::Run(geom, vdim, solver_type, use_dev, ref_tol, phys_rtol,
                     max_iter, npts, NE, ndof1d, mptr, pptr, eptr, nptr, tptr,
-                    xptr);
+                    iter_ptr, xptr);
 }
 
 /// \cond DO_NOT_DOCUMENT
@@ -208,6 +220,8 @@ struct InvTNewtonSolverBase
    const int *eptr;
    // newton solve result code
    int *tptr;
+   // number of iterations taken
+   int *iter_ptr;
    // result ref coords
    real_t *xptr;
    eltrans::Lagrange basis1d;
@@ -659,13 +673,17 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             {
                // found solution
                tptr[idx] = res[0] =
-                   eltrans::GeometryUtils<Geometry::SEGMENT>::inside(
-                       ref_coord[0])
-                       ? InverseElementTransformation::Inside
-                       : InverseElementTransformation::Outside;
+                              eltrans::GeometryUtils<Geometry::SEGMENT>::inside(
+                                 ref_coord[0])
+                              ? InverseElementTransformation::Inside
+                              : InverseElementTransformation::Outside;
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
+               }
+               if (iter_ptr)
+               {
+                  iter_ptr[idx] = iter;
                }
                term_flag[0] = true;
             }
@@ -677,6 +695,10 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
+               }
+               if (iter_ptr)
+               {
+                  iter_ptr[idx] = iter;
                }
                term_flag[0] = true;
             }
@@ -693,11 +715,15 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                if (fabs(dx[0]) <= ref_tol)
                {
                   tptr[idx] = res[0] =
-                      hit_bdr ? InverseElementTransformation::Outside
-                              : InverseElementTransformation::Inside;
+                                 hit_bdr ? InverseElementTransformation::Outside
+                                 : InverseElementTransformation::Inside;
                   for (int d = 0; d < Dim; ++d)
                   {
                      xptr[idx + d * npts] = ref_coord[d];
+                  }
+                  if (iter_ptr)
+                  {
+                     iter_ptr[idx] = iter;
                   }
                   term_flag[0] = true;
                }
@@ -839,13 +865,17 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             {
                // found solution
                tptr[idx] = res[0] =
-                   eltrans::GeometryUtils<Geometry::SQUARE>::inside(
-                       ref_coord[0], ref_coord[1])
-                       ? InverseElementTransformation::Inside
-                       : InverseElementTransformation::Outside;
+                              eltrans::GeometryUtils<Geometry::SQUARE>::inside(
+                                 ref_coord[0], ref_coord[1])
+                              ? InverseElementTransformation::Inside
+                              : InverseElementTransformation::Outside;
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
+               }
+               if (iter_ptr)
+               {
+                  iter_ptr[idx] = iter;
                }
                term_flag[0] = true;
             }
@@ -857,6 +887,10 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
+               }
+               if (iter_ptr)
+               {
+                  iter_ptr[idx] = iter;
                }
                term_flag[0] = true;
             }
@@ -873,11 +907,15 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                if (dx[0] * dx[0] + dx[1] * dx[1] <= ref_tol * ref_tol)
                {
                   tptr[idx] = res[0] =
-                      hit_bdr ? InverseElementTransformation::Outside
-                              : InverseElementTransformation::Inside;
+                                 hit_bdr ? InverseElementTransformation::Outside
+                                 : InverseElementTransformation::Inside;
                   for (int d = 0; d < Dim; ++d)
                   {
                      xptr[idx + d * npts] = ref_coord[d];
+                  }
+                  if (iter_ptr)
+                  {
+                     iter_ptr[idx] = iter;
                   }
                   term_flag[0] = true;
                }
@@ -931,7 +969,8 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
       {
          term_flag[0] = false;
          res[0] = InverseElementTransformation::Unknown;
-         for (int d = 0; d < Dim; ++d) {
+         for (int d = 0; d < Dim; ++d)
+         {
             ref_coord[d] = xptr[idx + d * npts];
          }
          for (int d = 0; d < SDim; ++d)
@@ -1036,13 +1075,17 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
             {
                // found solution
                tptr[idx] = res[0] =
-                   eltrans::GeometryUtils<Geometry::CUBE>::inside(
-                       ref_coord[0], ref_coord[1], ref_coord[2])
-                       ? InverseElementTransformation::Inside
-                       : InverseElementTransformation::Outside;
+                              eltrans::GeometryUtils<Geometry::CUBE>::inside(
+                                 ref_coord[0], ref_coord[1], ref_coord[2])
+                              ? InverseElementTransformation::Inside
+                              : InverseElementTransformation::Outside;
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
+               }
+               if (iter_ptr)
+               {
+                  iter_ptr[idx] = iter;
                }
                term_flag[0] = true;
             }
@@ -1054,6 +1097,10 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
+               }
+               if (iter_ptr)
+               {
+                  iter_ptr[idx] = iter;
                }
                term_flag[0] = true;
             }
@@ -1071,11 +1118,15 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                    ref_tol * ref_tol)
                {
                   tptr[idx] = res[0] =
-                      hit_bdr ? InverseElementTransformation::Outside
-                              : InverseElementTransformation::Inside;
+                                 hit_bdr ? InverseElementTransformation::Outside
+                                 : InverseElementTransformation::Inside;
                   for (int d = 0; d < Dim; ++d)
                   {
                      xptr[idx + d * npts] = ref_coord[d];
+                  }
+                  if (iter_ptr)
+                  {
+                     iter_ptr[idx] = iter;
                   }
                   term_flag[0] = true;
                }
@@ -1430,7 +1481,6 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    {
       int team_x = std::min<int>(max_team_x, func.nq);
       forall_2D(npts, team_x, 1, func);
-      MFEM_DEVICE_SYNC;
    }
    else
    {
@@ -1450,10 +1500,11 @@ static void ClosestRefNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
 
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
           bool use_dev>
-static void
-NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter, int npts,
-                int nelems, int ndof1d, const real_t *mptr, const real_t *pptr,
-                const int *eptr, const real_t *nptr, int *tptr, real_t *xptr)
+static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
+                            int npts, int nelems, int ndof1d,
+                            const real_t *mptr, const real_t *pptr,
+                            const int *eptr, const real_t *nptr, int *tptr,
+                            int *iter_ptr, real_t *xptr)
 {
    constexpr int max_team_x = use_dev ? 64 : 1;
    InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
@@ -1469,12 +1520,102 @@ NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter, int npts,
    func.pptr = pptr;
    func.eptr = eptr;
    func.xptr = xptr;
+   func.iter_ptr = iter_ptr;
    func.tptr = tptr;
    func.npts = npts;
    func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
       int team_x = std::min<int>(max_team_x, func.ndofs(ndof1d));
+      forall_2D(npts, team_x, 1, func);
+   }
+   else
+   {
+      forall_switch(false, npts, func);
+   }
+}
+
+template <int Geom, int SDim,
+          InverseElementTransformation::SolverType SolverType, int max_team_x>
+struct InvTNewtonEdgeScanner
+{
+   InvTNewtonSolver<Geom, SDim, SolverType, max_team_x> solver;
+   // 1D ref space initial guesses
+   const real_t *qptr;
+   // num 1D points in qptr
+   int nq1d;
+
+   void MFEM_HOST_DEVICE operator()(int idx) const
+   {
+      // can only be outside if all test points report outside
+      for (int i = 0; i < nq1d; ++i)
+      {
+         for (int d = 0; d < ::mfem::eltrans::GeometryUtils<Geom>::Dimension();
+              ++d)
+         {
+            if (MFEM_THREAD_ID(x) == 0)
+            {
+               for (int d2 = 0;
+                    d2 < ::mfem::eltrans::GeometryUtils<Geom>::Dimension();
+                    ++d2)
+               {
+                  solver.xptr[idx + d2 * solver.npts] = 0;
+               }
+               solver.xptr[idx + d * solver.npts] = qptr[i];
+            }
+            MFEM_SYNC_THREAD;
+            int res = solver(idx);
+            switch (res)
+            {
+               case InverseElementTransformation::Inside:
+                  return;
+               case InverseElementTransformation::Outside:
+                  break;
+               case InverseElementTransformation::Unknown:
+                  return;
+            }
+            if (qptr[i] == 0)
+            {
+               // don't repeat test the origin
+               break;
+            }
+         }
+      }
+   }
+};
+
+template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
+          bool use_dev>
+static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
+                               int npts, int nelems, int ndof1d,
+                               const real_t *mptr, const real_t *pptr,
+                               const int *eptr, const real_t *nptr,
+                               const real_t *qptr, int nq1d, int *tptr,
+                               int *iter_ptr, real_t *xptr)
+{
+   constexpr int max_team_x = use_dev ? 64 : 1;
+   InvTNewtonEdgeScanner<Geom, SDim, SType, max_team_x> func;
+   // constexpr int max_dof1d = 32;
+   MFEM_ASSERT(ndof1d <= func.solver.max_dof1d(),
+               "exceeded max_dof1d limit (32 for 2D/3D)");
+   func.solver.ref_tol = ref_tol;
+   func.solver.phys_rtol = phys_rtol;
+   func.solver.max_iter = max_iter;
+   func.solver.basis1d.z = nptr;
+   func.solver.basis1d.pN = ndof1d;
+   func.solver.mptr = mptr;
+   func.solver.pptr = pptr;
+   func.solver.eptr = eptr;
+   func.solver.xptr = xptr;
+   func.solver.iter_ptr = iter_ptr;
+   func.solver.tptr = tptr;
+   func.solver.npts = npts;
+   func.solver.stride_sdim = func.solver.compute_stride_sdim(ndof1d, nelems);
+   func.nq1d = nq1d;
+   func.qptr = qptr;
+   if (use_dev)
+   {
+      int team_x = std::min<int>(max_team_x, func.solver.ndofs(ndof1d));
       forall_2D(npts, team_x, 1, func);
    }
    else
@@ -1514,6 +1655,14 @@ BatchInverseElementTransformation::NewtonSolve::Kernel()
    return internal::NewtonSolveImpl<Geom, SDim, SType, use_dev>;
 }
 
+template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
+          bool use_dev>
+BatchInverseElementTransformation::NewtonEdgeScanKernelType
+BatchInverseElementTransformation::NewtonEdgeScan::Kernel()
+{
+   return internal::NewtonEdgeScanImpl<Geom, SDim, SType, use_dev>;
+}
+
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Fallback(int, int,
                                                                  bool)
@@ -1523,6 +1672,13 @@ BatchInverseElementTransformation::FindClosestRefPoint::Fallback(int, int,
 
 BatchInverseElementTransformation::NewtonKernelType
 BatchInverseElementTransformation::NewtonSolve::Fallback(
+   int, int, InverseElementTransformation::SolverType, bool)
+{
+   MFEM_ABORT("Invalid Geom/SDim/SolverType combination");
+}
+
+BatchInverseElementTransformation::NewtonEdgeScanKernelType
+BatchInverseElementTransformation::NewtonEdgeScan::Fallback(
    int, int, InverseElementTransformation::SolverType, bool)
 {
    MFEM_ABORT("Invalid Geom/SDim/SolverType combination");
@@ -1561,7 +1717,6 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::CUBE, 3, false>();
 
    // NewtonSolve
-#if 1
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SEGMENT, 1, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
@@ -1574,7 +1729,6 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::SEGMENT, 3, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SEGMENT, 3, InverseElementTransformation::Newton, false>();
-#endif
 
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SEGMENT, 1, InverseElementTransformation::NewtonElementProject,
@@ -1595,7 +1749,6 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::SEGMENT, 3, InverseElementTransformation::NewtonElementProject,
             false>();
 
-#if 1
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SQUARE, 2, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
@@ -1604,7 +1757,6 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::SQUARE, 3, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SQUARE, 3, InverseElementTransformation::Newton, false>();
-#endif
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::SQUARE, 2, InverseElementTransformation::NewtonElementProject,
             true>();
@@ -1618,12 +1770,10 @@ BatchInverseElementTransformation::Kernels::Kernels()
    Geometry::SQUARE, 3, InverseElementTransformation::NewtonElementProject,
             false>();
 
-#if 1
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::CUBE, 3, InverseElementTransformation::Newton, true>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::CUBE, 3, InverseElementTransformation::Newton, false>();
-#endif
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
    Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject,
             true>();
