@@ -213,8 +213,8 @@ auto func_3( std::vector<type>& x ) -> type
     auto xv = x[0];
     auto yv = x[1];
     auto alpha = alphaw;
-    // auto dx = xv - 0.5-0.2*(yv-0.5);
-    auto dx = xv-0.5;
+    auto dx = xv - 0.5-0.2*(yv-0.5);
+    // auto dx = xv-0.5;
     // auto dx = xv - 0.5-0.2*(yv-0.5);
     return atan(alpha*dx);
 }
