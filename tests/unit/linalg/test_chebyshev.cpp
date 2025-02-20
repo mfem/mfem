@@ -49,12 +49,12 @@ TEST_CASE("Chebyshev symmetry", "[OperatorChebyshevSmoother]")
    // test that x^T S y = y^T S x
    Vector smooth(n);
    smoother.Mult(right, smooth);
-   double forward_val = left * smooth;
+   real_t forward_val = left * smooth;
 
    smoother.Mult(left, smooth);
-   double transpose_val = right * smooth;
+   real_t transpose_val = right * smooth;
 
-   double error = std::abs(forward_val - transpose_val) / std::abs(forward_val);
+   real_t error = std::abs(forward_val - transpose_val) / std::abs(forward_val);
    CAPTURE(order, error);
    REQUIRE(error == MFEM_Approx(0.0));
 }
