@@ -555,6 +555,7 @@ int main (int argc, char *argv[])
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
+   int nranks = Mpi::WorldSize();
    Hypre::Init();
 
 #ifdef MFEM_USE_PETSC
