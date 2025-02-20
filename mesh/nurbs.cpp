@@ -2331,7 +2331,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    ConnectBoundaries();
 }
 
-NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
+NURBSExtension::NURBSExtension(const Mesh * const mesh_array[], int num_pieces)
 {
    NURBSExtension *parent = mesh_array[0]->NURBSext;
 
@@ -2873,7 +2873,8 @@ void NURBSExtension::GenerateActiveBdrElems()
 }
 
 
-void NURBSExtension::MergeWeights(Mesh *mesh_array[], int num_pieces)
+void NURBSExtension::MergeWeights(const Mesh * const mesh_array[],
+                                  int num_pieces)
 {
    Array<int> lelem_elem;
 
@@ -2899,7 +2900,7 @@ void NURBSExtension::MergeWeights(Mesh *mesh_array[], int num_pieces)
 }
 
 void NURBSExtension::MergeGridFunctions(
-   GridFunction *gf_array[], int num_pieces, GridFunction &merged)
+   const GridFunction * const gf_array[], int num_pieces, GridFunction &merged)
 {
    FiniteElementSpace *gfes = merged.FESpace();
    Array<int> lelem_elem, dofs;
@@ -2907,7 +2908,7 @@ void NURBSExtension::MergeGridFunctions(
 
    for (int i = 0; i < num_pieces; i++)
    {
-      FiniteElementSpace *lfes = gf_array[i]->FESpace();
+      const FiniteElementSpace *lfes = gf_array[i]->FESpace();
       NURBSExtension *lext = lfes->GetMesh()->NURBSext;
 
       lext->GetElementLocalToGlobal(lelem_elem);
