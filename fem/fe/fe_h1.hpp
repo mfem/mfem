@@ -13,6 +13,7 @@
 #define MFEM_FE_H1
 
 #include "fe_base.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -146,6 +147,58 @@ public:
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
+};
+
+class H1_FuentesPyramidElement
+   : public NodalFiniteElement, public FuentesPyramid
+{
+private:
+   mutable real_t zmax;
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector tmp_i, tmp_u;
+   mutable DenseMatrix tmp1_ij, tmp2_ij, tmp_du;
+   mutable DenseTensor tmp_ijk;
+#endif
+   DenseMatrixInverse Ti;
+
+   void calcBasis(const int p, const IntegrationPoint &ip,
+                  Vector &phi_i, DenseMatrix &phi_ij, Vector &u) const;
+   void calcGradBasis(const int p, const IntegrationPoint &ip,
+                      Vector &phi_i, DenseMatrix &dphi_i,
+                      DenseMatrix &phi_ij, DenseTensor &dphi_ij,
+                      DenseMatrix &du) const;
+
+public:
+   H1_FuentesPyramidElement(const int p,
+                            const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   void CalcRawShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcRawDShape(const IntegrationPoint &ip,
+                      DenseMatrix &dshape) const;
+
+   real_t GetZetaMax() const { return zmax; }
+};
+
+class H1_BergotPyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_z_dt, u;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z;
+   mutable DenseMatrix du, ddu;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   H1_BergotPyramidElement(const int p,
+                           const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
 };
 
 } // namespace mfem
