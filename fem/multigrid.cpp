@@ -56,16 +56,17 @@ void MultigridBase::InitVectors() const
    X.SetSize(M, nrhs);
    Y.SetSize(M, nrhs);
    R.SetSize(M, nrhs);
-   Z.SetSize(M, nrhs);
-   for (int i = 0; i < X.NumRows(); ++i)
+   for (int i = 0; i < M; ++i)
    {
       const int n = operators[i]->Height();
-      for (int j = 0; j < X.NumCols(); ++j)
+      for (int j = 0; j < nrhs; ++j)
       {
-         X(i, j) = new Vector(n);
-         Y(i, j) = new Vector(n);
+         if (i < M - 1)
+         {
+            X(i, j) = new Vector(n);
+            Y(i, j) = new Vector(n);
+         }
          R(i, j) = new Vector(n);
-         Z(i, j) = new Vector(n);
       }
    }
 }
@@ -76,10 +77,12 @@ void MultigridBase::EraseVectors() const
    {
       for (int j = 0; j < X.NumCols(); ++j)
       {
-         delete X(i, j);
-         delete Y(i, j);
+         if (i < X.NumRows() - 1)
+         {
+            delete X(i, j);
+            delete Y(i, j);
+         }
          delete R(i, j);
-         delete Z(i, j);
       }
    }
 }
@@ -119,11 +122,6 @@ void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
                "Multigrid solver does not have operators set!");
    MFEM_ASSERT(X_.Size() == Y_.Size(),
                "Number of columns mismatch in MultigridBase::Mult!");
-   if (iterative_mode)
-   {
-      MFEM_WARNING("Multigrid solver does not use iterative_mode and ignores "
-                   "the initial guess!");
-   }
 
    // Add capacity as necessary
    nrhs = X_.Size();
@@ -134,93 +132,110 @@ void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
    for (int j = 0; j < nrhs; ++j)
    {
       MFEM_ASSERT(X_[j] && Y_[j], "Missing Vector in MultigridBase::Mult!");
-      *X(M - 1, j) = *X_[j];
-      *Y(M - 1, j) = 0.0;
+      X(M - 1, j) = const_cast<Vector*>(X_[j]);
+      Y(M - 1, j) = Y_[j];
    }
-   Cycle(M - 1);
-   for (int j = 0; j < nrhs; ++j)
-   {
-      *Y_[j] = *Y(M - 1, j);
-   }
+   const bool zero = !iterative_mode;
+   Cycle(M - 1, zero);
 }
 
 void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
 {
    // y = y + S (x - A y) or y = y + S^T (x - A y)
+
+   // Note: 'zero' == true means that Y(level,*) are not initialized and we
+   // should assume that the input they typically provide to this call is zeros.
+
+   // We can't use the smoothers' iterative mode since we don't know if they
+   // actually support it, so we always turn the iterative mode off to properly
+   // use smoothers that do support it.
+   smoothers[level]->iterative_mode = false;
+
    if (zero)
    {
+      MFEM_ASSERT(!transpose, "internal error!");
       Array<Vector *> X_(X[level], nrhs), Y_(Y[level], nrhs);
       GetSmootherAtLevel(level)->ArrayMult(X_, Y_);
    }
    else
    {
-      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
-            Z_(Z[level], nrhs);
+      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs);
+      GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
-         *R_[j] = *X(level, j);
+         // *R_[j] = *X(level, j) - *R_[j]
+         subtract(*X(level, j), *R_[j], *R_[j]);
       }
-      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
       if (transpose)
       {
-         GetSmootherAtLevel(level)->ArrayMultTranspose(R_, Z_);
+         GetSmootherAtLevel(level)->ArrayAddMultTranspose(R_, Y_);
       }
       else
       {
-         GetSmootherAtLevel(level)->ArrayMult(R_, Z_);
-      }
-      for (int j = 0; j < nrhs; ++j)
-      {
-         *Y_[j] += *Z_[j];
+         GetSmootherAtLevel(level)->ArrayAddMult(R_, Y_);
       }
    }
 }
 
-void MultigridBase::Cycle(int level) const
+void MultigridBase::Cycle(int level, bool zero) const
 {
+   // Note: 'zero' == true means that Y(level,*) are not initialized and we
+   // should assume that the input they typically provide to this call is zeros.
+
    // Coarse solve
    if (level == 0)
    {
-      SmoothingStep(0, true, false);
+      SmoothingStep(0, zero, false);
       return;
    }
 
    // Pre-smooth
    for (int i = 0; i < preSmoothingSteps; ++i)
    {
-      SmoothingStep(level, (cycleType == CycleType::VCYCLE && i == 0), false);
+      SmoothingStep(level, zero && (i == 0), false);
    }
 
    // Compute residual and restrict
+   if (preSmoothingSteps == 0 && zero)
+   {
+      Array<Vector *> X_l(X[level], nrhs), X_lm1(X[level - 1], nrhs);
+      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(X_l, X_lm1);
+   }
+   else
    {
       Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
             X_(X[level - 1], nrhs);
+
+      GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
-         *R_[j] = *X(level, j);
+         // *R_[j] = *X(level, j) - *R_[j]
+         subtract(*X(level, j), *R_[j], *R_[j]);
       }
-      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
       GetProlongationAtLevel(level - 1)->ArrayMultTranspose(R_, X_);
-      for (int j = 0; j < nrhs; ++j)
-      {
-         *Y(level - 1, j) = 0.0;
-      }
    }
 
    // Corrections
-   Cycle(level - 1);
+   Cycle(level - 1, true);
    if (cycleType == CycleType::WCYCLE)
    {
-      Cycle(level - 1);
+      // If the coarse solve at level 0 is "exact" solve, then we don't want to
+      // repeat it.
+      // To support multiple level 0 coarse-grid corrections, one can wrap that
+      // smoother in an SLI solver and use that instead.
+      if (level > 1) { Cycle(level - 1, false); }
    }
 
    // Prolongate and add
    {
-      Array<Vector *> Y_(Y[level - 1], nrhs), Z_(Z[level], nrhs);
-      GetProlongationAtLevel(level - 1)->ArrayMult(Y_, Z_);
-      for (int j = 0; j < nrhs; ++j)
+      Array<Vector *> Y_lm1(Y[level - 1], nrhs), Y_l(Y[level], nrhs);
+      if (preSmoothingSteps == 0 && zero)
       {
-         *Y(level, j) += *Z_[j];
+         GetProlongationAtLevel(level - 1)->ArrayMult(Y_lm1, Y_l);
+      }
+      else
+      {
+         GetProlongationAtLevel(level - 1)->ArrayAddMult(Y_lm1, Y_l);
       }
    }
 

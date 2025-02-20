@@ -621,9 +621,6 @@ public:
       const FiniteElementSpace& lFESpace_,
       const FiniteElementSpace& hFESpace_);
 
-   /// Destructor
-   virtual ~TensorProductPRefinementTransferOperator();
-
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
    void Mult(const Vector& x, Vector& y) const override;

@@ -308,25 +308,29 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_VERIFY(x.Size() == Width(), "invalid input vector");
    MFEM_VERIFY(y.Size() == Height(), "invalid output vector");
 
+   auto DI = dinv.Read();
+   auto X = x.Read();
    if (iterative_mode)
    {
       MFEM_VERIFY(oper, "iterative_mode == true requires the forward operator");
       oper->Mult(y, residual);  // r = A y
-      subtract(x, residual, residual); // r = x - A y
+      auto R = residual.Read();
+      auto Y = y.ReadWrite();
+      // y += D^{-1} (x - A y)
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y[i] += DI[i] * (X[i] - R[i]);
+      });
    }
    else
    {
-      residual = x;
-      y.UseDevice(true);
-      y = 0.0;
+      auto Y = y.Write();
+      // y = D^{-1} x
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y[i] = DI[i] * X[i];
+      });
    }
-   auto DI = dinv.Read();
-   auto R = residual.Read();
-   auto Y = y.ReadWrite();
-   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
-   {
-      Y[i] += DI[i] * R[i];
-   });
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
@@ -343,6 +347,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    coeffs(order),
    ess_tdof_list(ess_tdofs),
    residual(N),
+   z(order > 1 ? N : 0),
    oper(&oper_) { Setup(); }
 
 #ifdef MFEM_USE_MPI
@@ -364,6 +369,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
      coeffs(order),
      ess_tdof_list(ess_tdofs),
      residual(N),
+     z(order > 1 ? N : 0),
      oper(&oper_)
 {
    OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
@@ -407,7 +413,7 @@ void OperatorChebyshevSmoother::Setup()
 {
    // Invert diagonal
    residual.UseDevice(true);
-   helperVector.UseDevice(true);
+   z.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
@@ -496,32 +502,35 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       MFEM_ABORT("Chebyshev smoother requires operator");
    }
 
-   residual = x;
-   helperVector.SetSize(x.Size());
-   helperVector.UseDevice(true);
-
-   y.UseDevice(true);
-   y = 0.0;
-
-   for (int k = 0; k < order; ++k)
+   // for k = 0, perform:
+   //    r = D^{-1} x
+   //    y = C_0 r
+   const real_t C_0 = coeffs[0];
+   auto Dinv = dinv.Read();
+   auto X = x.Read();
+   auto R0 = residual.Write();
+   auto Y0 = y.Write();
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
    {
-      // Apply
-      if (k > 0)
-      {
-         oper->Mult(residual, helperVector);
-         residual = helperVector;
-      }
+      Y0[i] = C_0 * (R0[i] = Dinv[i] * X[i]);
+   });
 
-      // Scale residual by inverse diagonal
-      const int n = N;
-      auto Dinv = dinv.Read();
-      auto R = residual.ReadWrite();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { R[i] *= Dinv[i]; });
+   for (int k = 1; k < order; ++k)
+   {
+      // Apply: z = A r
+      oper->Mult(residual, z);
 
-      // Add weighted contribution to y
+      // Scale residual by inverse diagonal and add weighted contribution to y:
+      //   r = D^{-1} z
+      //   y += C_k r
+      const real_t C_k = coeffs[k];
+      auto Z = z.Read();
+      auto R = residual.Write();
       auto Y = y.ReadWrite();
-      auto C = coeffs.Read();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y[i] += C_k * (R[i] = Dinv[i] * Z[i]);
+      });
    }
 }
 
@@ -3149,7 +3158,7 @@ void ResidualBCMonitor::MonitorResidual(
    MPI_Comm comm = iter_solver->GetComm();
    if (comm != MPI_COMM_NULL)
    {
-      double glob_bc_norm_squared = 0.0;
+      real_t glob_bc_norm_squared = 0.0;
       MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1,
                  MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, 0, comm);

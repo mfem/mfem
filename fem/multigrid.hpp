@@ -41,7 +41,7 @@ protected:
    int preSmoothingSteps;
    int postSmoothingSteps;
 
-   mutable Array2D<Vector*> X, Y, R, Z;
+   mutable Array2D<Vector*> X, Y, R;
    mutable int nrhs;
 
 public:
@@ -118,7 +118,7 @@ public:
 
 private:
    /// Application of a multigrid cycle at particular level
-   void Cycle(int level) const;
+   void Cycle(int level, bool zero) const;
 
    /// Application of a pre-/post-smoothing step at particular level
    void SmoothingStep(int level, bool zero, bool transpose) const;
