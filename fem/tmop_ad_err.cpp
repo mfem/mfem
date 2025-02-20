@@ -1341,7 +1341,7 @@ double QuantityOfInterest::EvalQoI()
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution grad not set.");}
       {
         std::vector<std::pair<int, int>> essentialBC(0);
-        double mesh_poly_deg = 1.0;
+        double mesh_poly_deg = pmesh->GetNodalFESpace()->GetOrder(0);
         VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0, mesh_poly_deg);
         gradGF= new mfem::GradientGridFunctionCoefficient(&solgf_);
         filterSolver.setLoadCoeff(gradGF);
@@ -1432,7 +1432,7 @@ void QuantityOfInterest::EvalQoIGrad()
   ParGridFunction fiteredGradField(coord_fes_);
 
   std::vector<std::pair<int, int>> essentialBC(0);
-  double mesh_poly_deg = 1.0;
+  double mesh_poly_deg = pmesh->GetNodalFESpace()->GetMaxElementOrder();
   VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0, mesh_poly_deg);
 
   Error_QoI *ErrorCoefficient_T1_;
@@ -1474,7 +1474,6 @@ void QuantityOfInterest::EvalQoIGrad()
     case 5:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution grad not set.");}
       {
-
         gradGF= new mfem::GradientGridFunctionCoefficient(&solgf_);
         filterSolver.setLoadCoeff(gradGF);
         filterSolver.FSolve();
