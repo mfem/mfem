@@ -168,7 +168,7 @@ double alphaw = 50;
 template <typename type>
 auto func_0( std::vector<type>& x ) -> type
 {
-   return sin( 2.0*M_PI *x[0] )*sin(4.0*M_PI*x[1]);;
+   return sin( 1.0*M_PI *x[0] )*sin(2.0*M_PI*x[1]);;
 };
 
 template <typename type>
@@ -559,7 +559,7 @@ int main (int argc, char *argv[])
   int quad_order  = 8;
   srand(9898975);
   bool visualization = false;
-  double filterRadius = 0.05;
+  double filterRadius = 0.000;
   int method = 0;
   int mesh_poly_deg     = 1;
   int nx                = 4;
@@ -860,14 +860,21 @@ int main (int argc, char *argv[])
 
   const int nbattr = PMesh->bdr_attributes.Max();
   std::vector<std::pair<int, double>> essentialBC(nbattr);
+  std::vector<std::pair<int, int>> essentialBCfilter(nbattr);
   //std::vector<std::pair<int, double>> essentialBC(2);
   for (int i = 0; i < nbattr; i++)
   {
     //std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
+    //essentialBCfilter[i] = {i+1, 0};
     //essentialBC[0] = {1, 0};
     //essentialBC[1] = {3, 0};
   }
+
+  essentialBCfilter[0] = {1, 1};
+  essentialBCfilter[1] = {2, 0};
+  essentialBCfilter[2] = {3, 1};
+  essentialBCfilter[3] = {4, 0};
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -906,6 +913,9 @@ if (myid == 0) {
   case 4:
     std::cout<<" Energy"<<std::endl;;
     break;
+  case 5:
+    std::cout<<" Global ZZ"<<std::endl;;
+    break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType << std::endl;
   }
@@ -920,7 +930,7 @@ if (myid == 0) {
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
   //std::vector<std::pair<int, double>> essentialBC_filter(0);
-  VectorHelmholtz filterSolver(PMesh, essentialBC, filterRadius, mesh_poly_deg);
+  VectorHelmholtz filterSolver(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
@@ -1123,7 +1133,8 @@ if (myid == 0) {
   {
     for(int i=1;i<max_it;i++)
     {
-      filterSolver.FSolve(gridfuncOptVar);
+      filterSolver.setLoadGridFunction(gridfuncOptVar);
+      filterSolver.FSolve();
       ParGridFunction & filteredDesign = filterSolver.GetSolution();
 
       solver.SetDesign( filteredDesign );
@@ -1341,7 +1352,7 @@ if (myid == 0) {
           if(gridfuncLSBoundIndicator[Ia] == 1.0)
           {
             dQdx_physics[Ia] = 0.0;
-            dQdx_physicsGF[Ia] = 0.0;
+            dQdx[Ia] = 0.0;
 
             continue;
           }
@@ -1386,13 +1397,13 @@ if (myid == 0) {
           tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
         }
 
-        dQdx_physics.Print();
+        dQdx.Print();
         std::cout<<"  ----------  FD Diff - Global ------------"<<std::endl;
         tFD_sens.Print();
 
         std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
         mfem::ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
-        tFD_diff = dQdx_physics;
+        tFD_diff = dQdx;
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
         std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
