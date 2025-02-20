@@ -461,7 +461,7 @@ int IsoparametricTransformation::OrderW() const
       case FunctionSpace::Qk:
          return (FElem->GetOrder() * FElem->GetDim() - 1);
       case FunctionSpace::Uk:
-         return (FElem->GetOrder() * FElem->GetDim());
+         return (FElem->GetOrder() * FElem->GetDim() - 1);
       default:
          MFEM_ABORT("unsupported finite element");
    }
