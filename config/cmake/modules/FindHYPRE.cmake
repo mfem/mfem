@@ -20,7 +20,7 @@
 #   - HYPRE (imported library target)
 #   - HYPRE_VERSION (cache variable)
 
-if (HYPRE_FOUND)
+if (HYPRE_FOUND OR TARGET HYPRE)
   if (HYPRE_USING_CUDA)
     find_package(CUDAToolkit REQUIRED)
   endif()
