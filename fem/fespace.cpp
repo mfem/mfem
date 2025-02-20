@@ -4261,7 +4261,7 @@ void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
 
    if (want_transfer)
    {
-      fesPrev.reset(new FiniteElementSpace(mesh, fec));
+      fesPrev.reset(new FiniteElementSpace(mesh, fec, vdim, ordering));
       for (int i = 0; i<mesh->GetNE(); i++)
       {
          fesPrev->SetElementOrder(i, GetElementOrder(i));
@@ -4299,7 +4299,7 @@ bool FiniteElementSpace::PRefinementSupported()
    mesh->GetGeometries(dim, geoms);
    if (geoms.Size() != 1) { return false; }
    if (dim == 2 && geoms[0] != Geometry::Type::SQUARE) { return false; }
-   else if (geoms[0] != Geometry::Type::CUBE) { return false; }
+   else if (dim == 3 && geoms[0] != Geometry::Type::CUBE) { return false; }
 
    return true;
 }

@@ -4976,7 +4976,7 @@ void ParFiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
 
    if (want_transfer)
    {
-      pfesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
+      pfesPrev.reset(new ParFiniteElementSpace(pmesh, fec, vdim, ordering));
       for (int i = 0; i<pmesh->GetNE(); i++)
       {
          pfesPrev->SetElementOrder(i, GetElementOrder(i));
