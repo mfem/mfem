@@ -1323,7 +1323,6 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
     dimension m x n. */
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
-
 // Inline methods
 
 inline real_t &DenseMatrix::operator()(int i, int j)
