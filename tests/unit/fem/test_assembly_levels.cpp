@@ -12,6 +12,7 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 #include "linalg/dtensor.hpp"
+#include <math.h> // M_PI
 #include <fstream>
 #include <iostream>
 
