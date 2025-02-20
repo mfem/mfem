@@ -46,7 +46,7 @@ void GLVis::Update()
       if (parallel)
       {
          *sockets[i] << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                     "\n";
+                        "\n";
       }
 #endif
       *sockets[i] << "solution\n" << *meshes[i] << *gfs[i];
@@ -272,14 +272,39 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       }
    }
    const real_t targ_vol = vol > max_vol ? max_vol : min_vol;
+   mu = mu_max;
+   real_t vol_upper = zero->ComputeL1Error(density_cf) - targ_vol;
+   mu = mu_min;
+   real_t vol_lower = zero->ComputeL1Error(density_cf) - targ_vol;
+   bool was_larger = false;
    for (int i=0; i< 200; i++)
    {
-      mu = (mu_max+mu_min)*0.5;
+      mu =( vol_upper*mu_min - vol_lower*mu_max ) / (vol_upper - vol_lower);
       vol = zero->ComputeL1Error(density_cf);
-      if (vol > targ_vol) { mu_max = mu; }
-      else if (vol < targ_vol) { mu_min = mu; }
+      if (vol > targ_vol)
+      {
+         mu_max = mu; vol_upper = vol - targ_vol;
+         if (i > 0 && was_larger)
+         {
+            vol_lower = vol_lower * 0.5;
+         }
+         was_larger = true;
+      }
+      else if (vol < targ_vol)
+      {
+         mu_min = mu; vol_lower = vol - targ_vol;
+         if (i > 0 && !was_larger)
+         {
+            vol_upper = vol_upper * 0.5;
+         }
+         was_larger = false;
+      }
       else { break; }
-      if (mu_max - mu_min < 1e-12) { break; }
+      if (mu_max - mu_min < 1e-12)
+      {
+         if (Mpi::Root()) { out << "Converged after " << i << " iterations." << std::endl; }
+         break;
+      }
    }
    x.ProjectCoefficient(masked_newx_cf);
 }
@@ -399,7 +424,7 @@ DensityBasedTopOpt::DensityBasedTopOpt(
    L2projector.reset(new L2Projection(*control_gf.FESpace(), empty));
    grad_filter_cf.SetGridFunction(&grad_filter);
    L2projector->GetLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
-                                                           grad_filter_cf));
+            grad_filter_cf));
    if (state_eq.HasAdjoint())
    {
       adj_state_gf.resize(state_gf.size());
@@ -480,7 +505,7 @@ real_t ComputeKKT(const ParGridFunction &control_gf,
    MPI_Comm comm = control_gf.ParFESpace()->GetComm();
    ParGridFunction &dual_B = kkt;
    MappedPairedGFCoefficient signmismatch(control_gf, grad, [&dual_V,
-                                                             &entropy](const real_t psi, const real_t g)
+                                          &entropy](const real_t psi, const real_t g)
    {
       return sign(entropy.backward(psi)-0.5)!=sign(-g+dual_V);
    });

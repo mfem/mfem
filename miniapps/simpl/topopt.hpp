@@ -8,6 +8,13 @@
 namespace mfem
 {
 
+/* std::tuple<real_t, real_t, int> bisection( */
+/*    real_t x_l, real_t x_r, std::function<real_t(real_t)> f, */
+/*    const real_t tol_x = 1e-12, const real_t tol_f = 1e-12, const int max_it = 10000); */
+/* std::tuple<real_t, real_t, int> regula_falsi_illinois( */
+/*    real_t x_l, real_t x_r, std::function<real_t(real_t)> f, */
+/*    const real_t tol_x = 1e-12, const real_t tol_f = 1e-12, const int max_it = 10000); */
+
 class GLVis
 {
    Array<socketstream *> sockets;
@@ -102,7 +109,7 @@ public:
       void_attr_id = attr;
    }
 
-   void LimitedChange(bool flag=true){ limited_change=flag; }
+   void LimitedChange(bool flag=true) { limited_change=flag; }
 
    void ProjectedStep(GridFunction &x, const real_t step_size,
                       const GridFunction &grad, real_t &mu, real_t &vol,
@@ -224,7 +231,8 @@ public:
    DensityBasedTopOpt(DesignDensity &density, GridFunction &gf_control,
                       GridFunction &grad_control, HelmholtzFilter &filter,
                       GridFunction &gf_filter, GridFunction &grad_filter,
-                      EllipticProblem &state_eq, std::vector<std::unique_ptr<GridFunction>> &gf_state);
+                      EllipticProblem &state_eq,
+                      std::vector<std::unique_ptr<GridFunction>> &gf_state);
 
    real_t GetCurrentVolume()
    {
