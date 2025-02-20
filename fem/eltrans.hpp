@@ -388,10 +388,12 @@ class BatchInverseElementTransformation
 {
    Mesh* mesh = nullptr;
    InverseElementTransformation::InitGuessType init_guess_type =
-      InverseElementTransformation::Center;
-   int rel_qpts_order = -1;
+      InverseElementTransformation::ClosestPhysNode;
+   int rel_qpts_order = 0;
    InverseElementTransformation::SolverType solver_type =
       InverseElementTransformation::NewtonElementProject;
+   /// basis type stored in points1d
+   int basis_type = BasisType::Invalid;
    int guess_points_type = Quadrature1D::ClosedUniform;
    int max_iter = 16;
    Vector node_pos;
@@ -423,6 +425,9 @@ public:
        max(trans_order+order,0)+1, where trans_order is the order of the current
        ElementTransformation. */
    void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
+
+   /// @b Gets the basis type nodes are projected onto. Call only after Setup()
+   int GetBasisType() const { return basis_type; }
 
    /** @brief Specify which algorithm to use for solving the transformation
        equation, i.e. when calling the Transform() method. NewtonSegmentProject
@@ -467,7 +472,7 @@ public:
      */
    void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
                   Vector &refs, bool use_dev = true,
-                  Array<int> *iters = nullptr);
+                  Array<int> *iters = nullptr) const;
 
    using ClosestPhysPointKernelType = void (*)(int, int, int, int,
                                                const real_t *, const real_t *,
@@ -476,6 +481,23 @@ public:
 
    // specialization params: Geom, SDim, use_dev
    MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
+                         (int, int, bool));
+
+   using ClosestPhysDofKernelType = void (*)(int, int, int,
+                                             const real_t *, const real_t *,
+                                             const int *, const real_t *,
+                                             real_t *);
+
+   // specialization params: Geom, SDim, use_dev
+   MFEM_REGISTER_KERNELS(FindClosestPhysDof, ClosestPhysDofKernelType,
+                         (int, int, bool));
+
+   using ClosestRefDofKernelType = void (*)(int, int, int, const real_t *,
+                                            const real_t *, const int *,
+                                            const real_t *, real_t *);
+
+   // specialization params: Geom, SDim, use_dev
+   MFEM_REGISTER_KERNELS(FindClosestRefDof, ClosestRefDofKernelType,
                          (int, int, bool));
 
    using ClosestRefPointKernelType = void (*)(int, int, int, int, const real_t *,
@@ -510,19 +532,26 @@ public:
 
    struct Kernels { Kernels(); };
 
-   template <int Dim, int SDim, bool use_dev>
+   template <int Dim, int SDim>
    static void AddFindClosestSpecialization()
    {
-      FindClosestPhysPoint::Specialization<Dim, SDim, use_dev>::Add();
-      FindClosestRefPoint::Specialization<Dim, SDim, use_dev>::Add();
+      FindClosestPhysPoint::Specialization<Dim, SDim, true>::Add();
+      FindClosestRefPoint::Specialization<Dim, SDim, true>::Add();
+      FindClosestPhysPoint::Specialization<Dim, SDim, false>::Add();
+      FindClosestRefPoint::Specialization<Dim, SDim, false>::Add();
+      FindClosestPhysDof::Specialization<Dim, SDim, true>::Add();
+      FindClosestRefDof::Specialization<Dim, SDim, true>::Add();
+      FindClosestPhysDof::Specialization<Dim, SDim, false>::Add();
+      FindClosestRefDof::Specialization<Dim, SDim, false>::Add();
    }
 
-   template <int Dim, int SDim, InverseElementTransformation::SolverType SType,
-             bool use_dev>
+   template <int Dim, int SDim, InverseElementTransformation::SolverType SType>
    static void AddNewtonSolveSpecialization()
    {
-      NewtonSolve::Specialization<Dim, SDim, SType, use_dev>::Add();
-      NewtonEdgeScan::Specialization<Dim, SDim, SType, use_dev>::Add();
+      NewtonSolve::Specialization<Dim, SDim, SType, true>::Add();
+      NewtonEdgeScan::Specialization<Dim, SDim, SType, true>::Add();
+      NewtonSolve::Specialization<Dim, SDim, SType, false>::Add();
+      NewtonEdgeScan::Specialization<Dim, SDim, SType, false>::Add();
    }
 };
 

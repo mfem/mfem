@@ -56,6 +56,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
                   fe->GetGeomType() == Geometry::CUBE,
                   "unsupported geometry type");
       // project onto GLL nodes
+      basis_type = BasisType::GaussLobatto;
       points1d = poly1d.GetPointsArray(max_order, BasisType::GaussLobatto);
       points1d->HostRead();
       // either mixed order, or not a tensor basis
@@ -92,7 +93,8 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
       const Operator *elem_restr =
          fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
       elem_restr->Mult(*mesh->GetNodes(), node_pos);
-      points1d = poly1d.GetPointsArray(max_order, tfe->GetBasisType());
+      basis_type = tfe->GetBasisType();
+      points1d = poly1d.GetPointsArray(max_order, basis_type);
    }
 }
 
@@ -100,7 +102,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
                                                   const Array<int> &elems,
                                                   Array<int> &types,
                                                   Vector &refs, bool use_dev,
-                                                  Array<int> *iters)
+                                                  Array<int> *iters) const
 {
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
@@ -171,17 +173,39 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       {
          int nq1d = std::max(order + rel_qpts_order, 0) + 1;
          int btype = BasisType::GetNodalBasis(guess_points_type);
-         auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
-         auto qptr = qpoints->Read(use_dev);
-         if (init_guess_type == InverseElementTransformation::ClosestPhysNode)
+
+         if ((basis_type == BasisType::Invalid || btype == basis_type) &&
+             nq1d == ndof1d)
          {
-            FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
-                                      mptr, pptr, eptr, nptr, qptr, xptr);
+            // special case: test points are basis nodal points
+            if (init_guess_type ==
+                InverseElementTransformation::ClosestPhysNode)
+            {
+               FindClosestPhysDof::Run(geom, vdim, use_dev, npts, NE, ndof1d,
+                                       mptr, pptr, eptr, nptr, xptr);
+            }
+            else
+            {
+               FindClosestRefDof::Run(geom, vdim, use_dev, npts, NE, ndof1d, mptr,
+                                      pptr, eptr, nptr, xptr);
+            }
          }
          else
          {
-            FindClosestRefPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
-                                     mptr, pptr, eptr, nptr, qptr, xptr);
+            auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
+            auto qptr = qpoints->Read(use_dev);
+            if (init_guess_type ==
+                InverseElementTransformation::ClosestPhysNode)
+            {
+               FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d,
+                                         nq1d, mptr, pptr, eptr, nptr, qptr,
+                                         xptr);
+            }
+            else
+            {
+               FindClosestRefPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d,
+                                        nq1d, mptr, pptr, eptr, nptr, qptr, xptr);
+            }
          }
       } break;
       case InverseElementTransformation::GivenPoint:
@@ -1205,6 +1229,265 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
    }
 };
 
+// data for finding the batch transform initial guess co-located at dofs
+struct DofFinderBase
+{
+   // physical space coordinates of mesh element nodes
+   const real_t *mptr;
+   // physical space point coordinates to find
+   const real_t *pptr;
+   // element indices
+   const int *eptr;
+   // reference space nodes to test
+   const real_t *qptr;
+   // initial guess results
+   real_t *xptr;
+   eltrans::Lagrange basis1d;
+
+   // ndof * nelems
+   int stride_sdim;
+   // number of points in pptr
+   int npts;
+};
+
+template <int Geom, int SDim, int max_team_x>
+struct PhysDofFinder;
+
+template <int SDim, int max_team_x>
+struct PhysDofFinder<Geometry::SEGMENT, SDim, max_team_x>
+   : public DofFinderBase
+{
+   static int compute_stride_sdim(int ndof1d, int nelems)
+   {
+      return ndof1d * nelems;
+   }
+
+   void MFEM_HOST_DEVICE operator()(int idx) const
+   {
+      constexpr int Dim = 1;
+      // L-2 norm squared
+      MFEM_SHARED real_t dists[max_team_x];
+      MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+      MFEM_FOREACH_THREAD(i, x, max_team_x)
+      {
+#ifdef MFEM_USE_DOUBLE
+         dists[i] = HUGE_VAL;
+#else
+         dists[i] = HUGE_VALF;
+#endif
+      }
+      MFEM_SYNC_THREAD;
+      // team serial portion
+      MFEM_FOREACH_THREAD(i, x, basis1d.pN)
+      {
+         real_t phys_coord[SDim];
+         for (int d = 0; d < SDim; ++d)
+         {
+            phys_coord[d] = mptr[i + eptr[idx] * basis1d.pN + d * stride_sdim];
+         }
+         real_t dist = 0;
+         // L-2 norm squared
+         for (int d = 0; d < SDim; ++d)
+         {
+            real_t tmp = phys_coord[d] - pptr[idx + d * npts];
+            dist += tmp * tmp;
+         }
+         if (dist < dists[MFEM_THREAD_ID(x)])
+         {
+            // closer guess in physical space
+            dists[MFEM_THREAD_ID(x)] = dist;
+            ref_buf[MFEM_THREAD_ID(x)] = basis1d.z[i];
+         }
+      }
+      // now do tree reduce
+      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      {
+         MFEM_SYNC_THREAD;
+         if (MFEM_THREAD_ID(x) < i)
+         {
+            if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)])
+            {
+               dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+               ref_buf[MFEM_THREAD_ID(x)] = ref_buf[MFEM_THREAD_ID(x) + i];
+            }
+         }
+      }
+      // write results out
+      // not needed in 1D
+      // MFEM_SYNC_THREAD;
+      if (MFEM_THREAD_ID(x) == 0)
+      {
+         xptr[idx] = ref_buf[0];
+      }
+   }
+};
+
+template <int SDim, int max_team_x>
+struct PhysDofFinder<Geometry::SQUARE, SDim, max_team_x>
+   : public DofFinderBase
+{
+   static int compute_stride_sdim(int ndof1d, int nelems)
+   {
+      return ndof1d * ndof1d * nelems;
+   }
+
+   void MFEM_HOST_DEVICE operator()(int idx) const
+   {
+      constexpr int Dim = 2;
+      int n = basis1d.pN * basis1d.pN;
+      if (n > max_team_x)
+      {
+         n = max_team_x;
+      }
+      // L-2 norm squared
+      MFEM_SHARED real_t dists[max_team_x];
+      MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+      MFEM_FOREACH_THREAD(i, x, max_team_x)
+      {
+#ifdef MFEM_USE_DOUBLE
+         dists[i] = HUGE_VAL;
+#else
+         dists[i] = HUGE_VALF;
+#endif
+      }
+      // team serial portion
+      MFEM_FOREACH_THREAD(j, x, basis1d.pN * basis1d.pN)
+      {
+         real_t phys_coord[SDim] = {0};
+         int idcs[Dim];
+         idcs[0] = j % basis1d.pN;
+         idcs[1] = j / basis1d.pN;
+         for (int d = 0; d < SDim; ++d)
+         {
+            phys_coord[d] =
+               mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
+                            d * stride_sdim];
+         }
+         real_t dist = 0;
+         // L-2 norm squared
+         for (int d = 0; d < SDim; ++d)
+         {
+            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
+            dist += tmp * tmp;
+         }
+         if (dist < dists[MFEM_THREAD_ID(x)])
+         {
+            // closer guess in physical space
+            dists[MFEM_THREAD_ID(x)] = dist;
+            for (int d = 0; d < Dim; ++d)
+            {
+               ref_buf[MFEM_THREAD_ID(x) + d * n] = basis1d.z[idcs[d]];
+            }
+         }
+      }
+      // now do tree reduce
+      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      {
+         MFEM_SYNC_THREAD;
+         if (MFEM_THREAD_ID(x) < i)
+         {
+            if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)])
+            {
+               dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+               for (int d = 0; d < Dim; ++d)
+               {
+                  ref_buf[MFEM_THREAD_ID(x) + d * n] =
+                     ref_buf[MFEM_THREAD_ID(x) + i + d * n];
+               }
+            }
+         }
+      }
+      // write results out
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(d, x, Dim) { xptr[idx + d * npts] = ref_buf[d * n]; }
+   }
+};
+
+template <int SDim, int max_team_x>
+struct PhysDofFinder<Geometry::CUBE, SDim, max_team_x>
+   : public DofFinderBase
+{
+   static int compute_stride_sdim(int ndof1d, int nelems)
+   {
+      return ndof1d * ndof1d * ndof1d * nelems;
+   }
+
+   void MFEM_HOST_DEVICE operator()(int idx) const
+   {
+      constexpr int Dim = 3;
+      int n = basis1d.pN * basis1d.pN * basis1d.pN;
+      if (n > max_team_x)
+      {
+         n = max_team_x;
+      }
+      // L-2 norm squared
+      MFEM_SHARED real_t dists[max_team_x];
+      MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+      MFEM_FOREACH_THREAD(i, x, max_team_x)
+      {
+#ifdef MFEM_USE_DOUBLE
+         dists[i] = HUGE_VAL;
+#else
+         dists[i] = HUGE_VALF;
+#endif
+      }
+      // team serial portion
+      MFEM_FOREACH_THREAD(j, x, basis1d.pN * basis1d.pN * basis1d.pN)
+      {
+         real_t phys_coord[SDim] = {0};
+         int idcs[Dim];
+         idcs[0] = j % basis1d.pN;
+         idcs[1] = j / basis1d.pN;
+         idcs[2] = idcs[1] / basis1d.pN;
+         idcs[1] = idcs[1] % basis1d.pN;
+         for (int d = 0; d < SDim; ++d)
+         {
+            phys_coord[d] = mptr[idcs[0] +
+                                 (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) *
+                                  basis1d.pN) *
+                                 basis1d.pN +
+                                 d * stride_sdim];
+         }
+         real_t dist = 0;
+         // L-2 norm squared
+         for (int d = 0; d < SDim; ++d)
+         {
+            real_t tmp = pptr[idx + d * npts] - phys_coord[d];
+            dist += tmp * tmp;
+         }
+         if (dist < dists[MFEM_THREAD_ID(x)])
+         {
+            // closer guess in physical space
+            dists[MFEM_THREAD_ID(x)] = dist;
+            for (int d = 0; d < Dim; ++d)
+            {
+               ref_buf[MFEM_THREAD_ID(x) + d * n] = basis1d.z[idcs[d]];
+            }
+         }
+      }
+      // now do tree reduce
+      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      {
+         MFEM_SYNC_THREAD;
+         if (MFEM_THREAD_ID(x) < i)
+         {
+            if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)])
+            {
+               dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+               for (int d = 0; d < Dim; ++d)
+               {
+                  ref_buf[MFEM_THREAD_ID(x) + d * n] =
+                     ref_buf[MFEM_THREAD_ID(x) + i + d * n];
+               }
+            }
+         }
+      }
+      // write results out
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(d, x, Dim) { xptr[idx + d * npts] = ref_buf[d * n]; }
+   }
+};
+
 // data for finding the batch transform initial guess
 struct NodeFinderBase
 {
@@ -1551,6 +1834,43 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
 }
 
 template <int Geom, int SDim, bool use_dev>
+static void ClosestPhysDofImpl(int npts, int nelems, int ndof1d,
+                               const real_t *mptr, const real_t *pptr,
+                               const int *eptr, const real_t *nptr,
+                               real_t *xptr)
+{
+   constexpr int max_team_x = 64;
+   PhysDofFinder<Geom, SDim, max_team_x> func;
+   func.basis1d.z = nptr;
+   func.basis1d.pN = ndof1d;
+   func.mptr = mptr;
+   func.pptr = pptr;
+   func.eptr = eptr;
+   func.xptr = xptr;
+   func.npts = npts;
+   func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
+   if (use_dev)
+   {
+      int team_x = std::min<int>(max_team_x, func.stride_sdim / nelems);
+      forall_2D(npts, team_x, 1, func);
+   }
+   else
+   {
+      forall_switch(false, npts, func);
+   }
+}
+
+template <int Geom, int SDim, bool use_dev>
+static void ClosestRefDofImpl(int npts, int nelems, int ndof1d,
+                              const real_t *mptr, const real_t *pptr,
+                              const int *eptr, const real_t *nptr,
+                              real_t *xptr)
+{
+   // TODO
+   MFEM_ABORT("ClostestRefDofImpl not implemented yet");
+}
+
+template <int Geom, int SDim, bool use_dev>
 static void ClosestRefNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                const real_t *mptr, const real_t *pptr,
                                const int *eptr, const real_t *nptr,
@@ -1701,11 +2021,11 @@ BatchInverseElementTransformation::FindClosestPhysPoint::Kernel()
    return internal::ClosestPhysNodeImpl<Geom, SDim, use_dev>;
 }
 
-BatchInverseElementTransformation::ClosestPhysPointKernelType
-BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int,
-                                                                  bool)
+template <int Geom, int SDim, bool use_dev>
+BatchInverseElementTransformation::ClosestPhysDofKernelType
+BatchInverseElementTransformation::FindClosestPhysDof::Kernel()
 {
-   MFEM_ABORT("Invalid Geom/SDim combination");
+   return internal::ClosestPhysDofImpl<Geom, SDim, use_dev>;
 }
 
 template <int Geom, int SDim, bool use_dev>
@@ -1713,6 +2033,13 @@ BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Kernel()
 {
    return internal::ClosestRefNodeImpl<Geom, SDim, use_dev>;
+}
+
+template <int Geom, int SDim, bool use_dev>
+BatchInverseElementTransformation::ClosestRefDofKernelType
+BatchInverseElementTransformation::FindClosestRefDof::Kernel()
+{
+   return internal::ClosestRefDofImpl<Geom, SDim, use_dev>;
 }
 
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
@@ -1729,6 +2056,13 @@ BatchInverseElementTransformation::NewtonEdgeScanKernelType
 BatchInverseElementTransformation::NewtonEdgeScan::Kernel()
 {
    return internal::NewtonEdgeScanImpl<Geom, SDim, SType, use_dev>;
+}
+
+BatchInverseElementTransformation::ClosestPhysPointKernelType
+BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int,
+                                                                  bool)
+{
+   MFEM_ABORT("Invalid Geom/SDim combination");
 }
 
 BatchInverseElementTransformation::ClosestRefPointKernelType
@@ -1752,102 +2086,76 @@ BatchInverseElementTransformation::NewtonEdgeScan::Fallback(
    MFEM_ABORT("Invalid Geom/SDim/SolverType combination");
 }
 
+BatchInverseElementTransformation::ClosestPhysDofKernelType
+BatchInverseElementTransformation::FindClosestPhysDof::Fallback(int, int, bool)
+{
+   MFEM_ABORT("Invalid Geom/SDim combination");
+}
+
+BatchInverseElementTransformation::ClosestRefDofKernelType
+BatchInverseElementTransformation::FindClosestRefDof::Fallback(int, int, bool)
+{
+   MFEM_ABORT("Invalid Geom/SDim combination");
+}
+
 BatchInverseElementTransformation::Kernels::Kernels()
 {
    BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 1, true>();
+   Geometry::SEGMENT, 1>();
    BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 2, true>();
+   Geometry::SEGMENT, 2>();
    BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 3, true>();
+   Geometry::SEGMENT, 3>();
 
    BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SQUARE, 2, true>();
+   Geometry::SQUARE, 2>();
    BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SQUARE, 3, true>();
+   Geometry::SQUARE, 3>();
 
    BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::CUBE, 3, true>();
-
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 1, false>();
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 2, false>();
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 3, false>();
-
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SQUARE, 2, false>();
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SQUARE, 3, false>();
-
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::CUBE, 3, false>();
+   Geometry::CUBE, 3>();
 
    // NewtonSolve
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1, InverseElementTransformation::Newton, true>();
+   Geometry::SEGMENT, 1, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1, InverseElementTransformation::Newton, false>();
+   Geometry::SEGMENT, 1, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2, InverseElementTransformation::Newton, true>();
+   Geometry::SEGMENT, 2, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2, InverseElementTransformation::Newton, false>();
+   Geometry::SEGMENT, 2, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3, InverseElementTransformation::Newton, true>();
+   Geometry::SEGMENT, 3, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3, InverseElementTransformation::Newton, false>();
+   Geometry::SEGMENT, 3, InverseElementTransformation::Newton>();
 
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1, InverseElementTransformation::NewtonElementProject,
-            true>();
+   Geometry::SEGMENT, 1,
+            InverseElementTransformation::NewtonElementProject>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1, InverseElementTransformation::NewtonElementProject,
-            false>();
+   Geometry::SEGMENT, 2,
+            InverseElementTransformation::NewtonElementProject>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2, InverseElementTransformation::NewtonElementProject,
-            true>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2, InverseElementTransformation::NewtonElementProject,
-            false>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3, InverseElementTransformation::NewtonElementProject,
-            true>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3, InverseElementTransformation::NewtonElementProject,
-            false>();
+   Geometry::SEGMENT, 3,
+            InverseElementTransformation::NewtonElementProject>();
 
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 2, InverseElementTransformation::Newton, true>();
+   Geometry::SQUARE, 2, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 2, InverseElementTransformation::Newton, false>();
+   Geometry::SQUARE, 3, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 3, InverseElementTransformation::Newton, true>();
+   Geometry::SQUARE, 2,
+            InverseElementTransformation::NewtonElementProject>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 3, InverseElementTransformation::Newton, false>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 2, InverseElementTransformation::NewtonElementProject,
-            true>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 2, InverseElementTransformation::NewtonElementProject,
-            false>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 3, InverseElementTransformation::NewtonElementProject,
-            true>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 3, InverseElementTransformation::NewtonElementProject,
-            false>();
+   Geometry::SQUARE, 3,
+            InverseElementTransformation::NewtonElementProject>();
 
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::Newton, true>();
+   Geometry::CUBE, 3, InverseElementTransformation::Newton>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::Newton, false>();
+   Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject>();
    BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject,
-            true>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject,
-            false>();
+   Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject>();
 }
 
 /// \endcond DO_NOT_DOCUMENT
