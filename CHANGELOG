@@ -81,6 +81,10 @@ GPU computing
 - Added support for GPU accelerated FindPointsGSLIB. Note that this will require
   the users to switch from gslib v1.0.7 to v1.0.9.
 
+- Allow BlockLowerTriangularPreconditioner to run on GPU.
+
+- Use device vectors in GMRES, FGMRES and other iterative methods.
+
 Miscellaneous
 -------------
 - Added support for SUNDIALS v7. See the section "API changes" for some small
@@ -126,10 +130,12 @@ Miscellaneous
 
 API changes
 -----------
+- API change: 'TMOP_Metric_skew2D' has been marked as deprecated.
+
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
 
 - API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
-  been been depracated through typedef)
+  been been deprecated through typedef)
 
 - API change: support for SUNDIALS v7:
   * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7
