@@ -31,7 +31,7 @@ if (HYPRE_FOUND)
   return()
 endif()
 
-if (HYPRE_FETCH)
+if (HYPRE_FETCH OR FETCH_TPLS)
   set(HYPRE_FETCH_VERSION 2.32.0)
   add_library(HYPRE STATIC IMPORTED)
   # set options and associated dependencies
