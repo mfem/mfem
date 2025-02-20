@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = mesh_maker mesh_loader B_field_projector_v0_0 B_field_projector_v0_1 B_field_projector_v1_1 B_field_projector_v1_2 J_field_projector_v2_1
+SEQ_EXAMPLES = mesh_maker mesh_loader B_field_projector_v0_0 B_field_projector_v0_1 B_field_projector_v0_2 B_field_projector_v1_1 B_field_projector_v1_2 J_field_projector_v2_1 J_field_projector_v2_2
 PAR_EXAMPLES = 
 
 

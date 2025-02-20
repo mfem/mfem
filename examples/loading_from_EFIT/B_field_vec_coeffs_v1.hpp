@@ -34,7 +34,7 @@ public:
 };
 
 /// @brief Input $f$ and return $f/r$
-class BTorFromFGridFunctionCoefficient : public Coefficient
+class BTorFOverRGridFunctionCoefficient : public Coefficient
 {
 private:
    const GridFunction *gf;
@@ -44,9 +44,9 @@ public:
    int counter = 0;
 
    // disable default constructor
-   BTorFromFGridFunctionCoefficient() = delete;
+   BTorFOverRGridFunctionCoefficient() = delete;
 
-   BTorFromFGridFunctionCoefficient(const GridFunction *gf)
+   BTorFOverRGridFunctionCoefficient(const GridFunction *gf)
        : Coefficient(), gf(gf), finder(gf)
    {
    }
@@ -62,6 +62,37 @@ public:
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
       return interp_val[0] / (1e-10 + r);
+   }
+};
+
+/// @brief Input $f$ and return $f$
+class BTorFGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *gf;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   // disable default constructor
+   BTorFGridFunctionCoefficient() = delete;
+
+   BTorFGridFunctionCoefficient(const GridFunction *gf)
+       : Coefficient(), gf(gf), finder(gf)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      return interp_val[0];
    }
 };
 
@@ -110,6 +141,7 @@ public:
          V(0) = interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
+
 /// @brief Input $\Psi$ and return $\Psi / r^2$
 class BPerpPsiOverRSquareGridFunctionCoefficient : public VectorCoefficient
 {
@@ -190,13 +222,12 @@ public:
 };
 
 /// @brief Return $r$
-class BPerpRGridFunctionCoefficient : public Coefficient
+class RGridFunctionCoefficient : public Coefficient
 {
 private:
-
 public:
    int counter = 0;
-   BPerpRGridFunctionCoefficient()
+   RGridFunctionCoefficient()
        : Coefficient()
    {
    }

@@ -33,39 +33,7 @@ public:
    }
 };
 
-/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
-class JTorFromFGridFunctionCoefficient : public Coefficient
-{
-private:
-   const GridFunction *gf;
-   FindPointsGSLIBOneByOne finder;
-
-public:
-   int counter = 0;
-
-   // disable default constructor
-   JTorFromFGridFunctionCoefficient() = delete;
-
-   JTorFromFGridFunctionCoefficient(const GridFunction *gf)
-       : Coefficient(), gf(gf), finder(gf)
-   {
-   }
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override
-   {
-      // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
-      real_t r = x[0];
-      counter++;
-      Vector interp_val(1);
-      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      return interp_val[0] / (1e-14 + r);
-   }
-};
-
-/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+/// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
 class JPerpBGridFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -109,7 +77,7 @@ public:
          V(0) = interp_val[0] * (flip_sign ? -1 : 1);
    }
 };
-/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+/// @brief Input $B_tor$ and return $B_tor/r$
 class JPerpBOverRGridFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -140,5 +108,75 @@ public:
 
       V(0) = 0;
       V(1) = interp_val[0] / (1e-14 + r) * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Input $B_tor$ and return $B_tor r n^\perp$ if v is 2D and $B_tor r$ if v is 1D
+class JPerpBRGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   JPerpBRGridFunctionCoefficient() = delete;
+
+   JPerpBRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      if (V.Size() == 2)
+      {
+         Vector normal(2);
+         // get normal vector
+         CalcOrtho(T.Jacobian(), normal);
+         // normalize
+         normal /= normal.Norml2();
+
+         V(0) = -normal(1);
+         V(1) = normal(0);
+
+         V *= interp_val[0] * r * (flip_sign ? -1 : 1);
+      }
+      else
+         V(0) = interp_val[0] * r * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Return $r$
+class RGridFunctionCoefficient : public Coefficient
+{
+private:
+
+public:
+   int counter = 0;
+   RGridFunctionCoefficient()
+       : Coefficient()
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      return r;
    }
 };

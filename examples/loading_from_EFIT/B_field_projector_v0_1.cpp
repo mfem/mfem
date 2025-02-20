@@ -44,8 +44,8 @@ int main(int argc, char *argv[])
 
    // 1. make the linear form
    LinearForm b(&fespace);
-   BTorFromFGridFunctionCoefficient gg_coef(&gg);
-   b.AddDomainIntegrator(new DomainLFIntegrator(gg_coef));
+   BTorFOverRGridFunctionCoefficient f_over_r_coef(&gg);
+   b.AddDomainIntegrator(new DomainLFIntegrator(f_over_r_coef));
    b.Assemble();
 
    // 2. make the bilinear form

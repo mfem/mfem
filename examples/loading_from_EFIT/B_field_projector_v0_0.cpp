@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
    // project the grid function onto the new space
    // 1. make a coefficient from the grid function
-   BTorFromFGridFunctionCoefficient gg_coef(&gg);
+   BTorFOverRGridFunctionCoefficient gg_coef(&gg);
    B_tor.ProjectCoefficient(gg_coef);
 
    // ifstream temp_log2("./EFIT_loading/B_phi.gf");

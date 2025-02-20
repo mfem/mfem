@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(500, 1000, Element::QUADRILATERAL));
+   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(256, 512, Element::QUADRILATERAL));
 
    // translate to 1.0 in x direction
    new_mesh->Transform([](const Vector &x, Vector &p)
@@ -32,7 +32,6 @@ int main(int argc, char *argv[])
 
    // make a Hcurl space with the mesh
    // L2_FECollection fec(0, dim);
-   
    ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
 
@@ -46,20 +45,17 @@ int main(int argc, char *argv[])
 
    // 1. make the linear form
    LinearForm b(&fespace);
-   JPerpBGridFunctionCoefficient B_tor_coef(dim, &psi, false);
-   b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(B_tor_coef));
+   JPerpBRGridFunctionCoefficient B_tor_r_coef(dim, &psi, false);
+   b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(B_tor_r_coef));
 
-   JPerpBOverRGridFunctionCoefficient B_tor_over_r_coef(dim, &psi, true);
-   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(B_tor_over_r_coef));
-
-   JPerpBGridFunctionCoefficient neg_B_tor_coef(dim, &psi, true);
-   b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_coef));
+   JPerpBRGridFunctionCoefficient neg_B_tor_r_coef(dim, &psi, true);
+   b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
    b.Assemble();
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   ConstantCoefficient one(1.0);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+   RGridFunctionCoefficient r_coef;
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();
 

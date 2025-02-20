@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   BPerpRGridFunctionCoefficient r_coef;
+   RGridFunctionCoefficient r_coef;
    a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();

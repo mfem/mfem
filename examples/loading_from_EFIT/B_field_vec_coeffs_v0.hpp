@@ -5,13 +5,13 @@
 using namespace std;
 using namespace mfem;
 
-/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
-class BTorFromFGridFunctionCoefficient : public GridFunctionCoefficient
+/// @brief Input $f$ and return $f/r$
+class BTorFOverRGridFunctionCoefficient : public GridFunctionCoefficient
 {
 public:
-    BTorFromFGridFunctionCoefficient() : GridFunctionCoefficient() {}
+    BTorFOverRGridFunctionCoefficient() : GridFunctionCoefficient() {}
 
-    BTorFromFGridFunctionCoefficient(const GridFunction *gf) : GridFunctionCoefficient(gf)
+    BTorFOverRGridFunctionCoefficient(const GridFunction *gf) : GridFunctionCoefficient(gf)
     {
     }
 
