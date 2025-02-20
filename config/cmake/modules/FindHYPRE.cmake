@@ -31,7 +31,8 @@ if (HYPRE_FOUND)
   return()
 endif()
 
-if (FETCH_TPLS)
+if (HYPRE_FETCH)
+  set(HYPRE_FETCH_VERSION 2.32.0)
   add_library(HYPRE STATIC IMPORTED)
   # set options and associated dependencies
   set(CMAKE_OPTIONS)
@@ -51,12 +52,12 @@ if (FETCH_TPLS)
   endif()
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
-  message(STATUS "Will fetch hypre v2.32.0 to be built with ${CMAKE_OPTIONS}")
+  message(STATUS "Will fetch HYPRE ${HYPRE_FETCH_VERSION} to be built with ${CMAKE_OPTIONS}")
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
   include(ExternalProject)
   ExternalProject_Add(hypre
     GIT_REPOSITORY https://github.com/hypre-space/hypre.git
-    GIT_TAG v2.32.0
+    GIT_TAG v${HYPRE_FETCH_VERSION}
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR src
     PREFIX ${PREFIX}
@@ -67,8 +68,14 @@ if (FETCH_TPLS)
   set_target_properties(HYPRE PROPERTIES
     IMPORTED_LOCATION ${PREFIX}/lib/libHYPRE.a
     INTERFACE_INCLUDE_DIRECTORIES ${PREFIX}/include)
+  # convert HYPRE version to integer
+  string(REGEX MATCHALL "[0-9]+" HYPRE_SPLIT_VERSION ${HYPRE_FETCH_VERSION})
+  list(GET HYPRE_SPLIT_VERSION 0 HYPRE_MAJOR_VERSION)
+  list(GET HYPRE_SPLIT_VERSION 1 HYPRE_MINOR_VERSION)
+  list(GET HYPRE_SPLIT_VERSION 2 HYPRE_PATCH_VERSION)
+  math(EXPR HYPRE_VERSION "10000*${HYPRE_MAJOR_VERSION} + 100*${HYPRE_MINOR_VERSION} + ${HYPRE_PATCH_VERSION}")
   # set cache variables that would otherwise be set after mfem_find_package call
-  set(HYPRE_VERSION "23200" CACHE STRING "HYPRE version." FORCE)
+  set(HYPRE_VERSION ${HYPRE_VERSION} CACHE STRING "HYPRE version." FORCE)
   return()
 endif()
 
