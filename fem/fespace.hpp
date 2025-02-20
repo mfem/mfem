@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -212,7 +212,7 @@ class FaceQuadratureInterpolator;
     @par
     %Vector dofs do not represent a specific index space the way the three
     previous types of dofs do. Rather they are related to modifications of
-    these other index spaces to accomodate multiple copies of the underlying
+    these other index spaces to accommodate multiple copies of the underlying
     function spaces.
     @par
     When using @b vdofs, i.e. when @b vdim != 1, the FiniteElementSpace only
@@ -746,7 +746,9 @@ public:
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
 
-   /// Returns vector dimension.
+   /// Returns the vector dimension of the finite element space.
+   /** Since the finite elements could be vector-valued, this may not be the
+       dimension of an actual vector in the space; see GetVectorDim(). */
    inline int GetVDim() const { return vdim; }
 
    /// @brief Returns number of degrees of freedom.
@@ -764,6 +766,22 @@ public:
    int GetNConformingDofs() const;
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+
+   /// Return the total dimension of a vector in the space
+   /** This accounts for the vectorization of elements and cases where the
+       elements themselves are vector-valued; see FiniteElement:GetRangeDim().
+       If the finite elements are FiniteElement::SCALAR, this equals GetVDim().
+
+       Note: For vector-valued elements, the results pads up the range dimension
+       to the spatial dimension. E.g., consider a stack of 5 vector-valued
+       elements each representing 2D vectors, living in a 3 dimensional space.
+       Then this fucntion would give 15, not 10.
+       */
+   int GetVectorDim() const;
+
+   /// Return the dimension of the curl of a GridFunction defined on this space.
+   /** Note: This assumes a space dimension of 2 or 3 only. */
+   int GetCurlDim() const;
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
@@ -1267,6 +1285,18 @@ public:
        FiniteElementSpace::GetEssentialTrueDofs with all boundary attributes
        marked as essential. */
    void GetBoundaryTrueDofs(Array<int> &boundary_dofs, int component = -1);
+
+   /** @brief Mark degrees of freedom associated with exterior faces of the
+       mesh. For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component. */
+   virtual void GetExteriorVDofs(Array<int> &exterior_vdofs,
+                                 int component = -1) const;
+
+   /** @brief Get a list of all true dofs on the exterior of the mesh,
+       @a exterior_dofs. For spaces with 'vdim' > 1, the 'component' parameter
+       can be used to restricts the marked tDOFs to the specified component. */
+   virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
+                                    int component = -1) const;
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
