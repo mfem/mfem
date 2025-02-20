@@ -110,4 +110,5 @@ config-mk:
 
 clean:
 	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log
-	rm -f $(GHV) $(GHV).out $(GMV) $(GMV).out *.dSYM
+	rm -f $(GHV) $(GHV).out $(GMV) $(GMV).output
+	rm -rf  *.dSYM
