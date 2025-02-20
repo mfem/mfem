@@ -522,6 +522,7 @@ void BilinearForm::Assemble(int skip_zeros)
             elmat.SetSize(0);
             for (int k = 0; k < domain_integs.Size(); k++)
             {
+               if (domain_integs_marker[k]) { domain_integs_marker[k]->HostRead(); }
                if ((domain_integs_marker[k] == NULL ||
                     (*(domain_integs_marker[k]))[elem_attr-1] == 1)
                    && !domain_integs[k]->Patchwise())

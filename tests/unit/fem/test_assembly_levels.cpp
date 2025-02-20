@@ -502,15 +502,8 @@ void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
    CompareMatricesNonZeros(*M2, *M1);
 }
 
-TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
+void TestH1FullAssembly(Mesh &mesh, int order)
 {
-   auto order = GENERATE(1, 2, 3);
-   auto mesh_fname = GENERATE(
-                        "../../data/star.mesh",
-                        "../../data/fichera.mesh"
-                     );
-
-   Mesh mesh(mesh_fname);
    int dim = mesh.Dimension();
 
    H1_FECollection fec(order, dim);
@@ -563,6 +556,47 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
 
    B1 -= B2;
    REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
+{
+   auto order = GENERATE(1, 2, 3);
+   auto mesh_fname = GENERATE(
+                        "../../data/star.mesh",
+                        "../../data/fichera.mesh"
+                     );
+   Mesh mesh(mesh_fname);
+   TestH1FullAssembly(mesh, order);
+}
+
+TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [CUDA]")
+{
+   const int order = GENERATE(1, 2, 3);
+   const int ne = GENERATE(4, 8, 16, 32);
+
+   // Create a "star-shaped" quad mesh, where all elements share one vertex at
+   // the origin, and the other vertices are distributed radially in a zig-zag
+   // pattern.
+   //
+   // The valence of the center vertex is equal to the number of elements in the
+   // mesh.
+   const int nv = 2*ne + 1;
+   Mesh mesh(2, nv, ne, 0);
+   mesh.AddVertex(0.0, 0.0);
+   for (int i = 0; i < 2*ne; ++i)
+   {
+      const real_t theta = 2*M_PI*i / real_t(2*ne);
+      const real_t r = (i%2 == 0) ? 1.0 : 0.75;
+      mesh.AddVertex(r*cos(theta), r*sin(theta));
+   }
+   for (int i = 0; i < ne; ++i)
+   {
+      const int base = 2 * i;
+      mesh.AddQuad(0, base + 2, base + 1, i == 0 ? 2*ne : base);
+   }
+   mesh.FinalizeMesh();
+
+   TestH1FullAssembly(mesh, order);
 }
 
 #ifdef MFEM_USE_MPI
