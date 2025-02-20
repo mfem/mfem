@@ -655,8 +655,8 @@ int main (int argc, char *argv[])
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
   bool dQdxFD =false;
-  bool dQdxFD_global =true;
-  bool BreakAfterFirstIt = true;
+  bool dQdxFD_global =false;
+  bool BreakAfterFirstIt = false;
 
   // Create mesh
   Mesh *des_mesh = nullptr;

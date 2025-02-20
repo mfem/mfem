@@ -1352,6 +1352,7 @@ double QuantityOfInterest::EvalQoI()
 
         ErrorCoefficient_ = std::make_shared<ZZH1Error_QoI>(&solgf_, gradField);
       }
+      break;
   case 6:
       // setup l2 first
       // true_solgf_.ProjectCoefficient(*trueSolution_);
@@ -1483,6 +1484,7 @@ void QuantityOfInterest::EvalQoIGrad()
 
         ErrorCoefficient_ = std::make_shared<ZZH1Error_QoI>(&solgf_, gradField);
       }
+      break;
   case 6:
       // setup l2 first
       // true_solgf_.ProjectCoefficient(*trueSolution_);
@@ -1665,97 +1667,6 @@ void QuantityOfInterest::EvalQoIGrad()
       dQdx_->Add(1.0, ud_gradForm);
     }
   }
-}
-
-void Elasticity_Solver::FSolve()
-{
-  this->UpdateMesh(designVar);
-
-  Array<int> ess_tdof_list(ess_tdof_list_);
-
-  // make coefficients of the linear elastic properties
-  ::mfem::ConstantCoefficient firstLameCoef(1.0);
-  ::mfem::ConstantCoefficient secondLameCoef(0.0);
-
-  ParBilinearForm a(u_fes_);
-  ParLinearForm b(u_fes_);
-  a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
-
-
-  //b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*f_));
-
-  a.Assemble();
-  b.Assemble();
-
-  // solve for temperature
-  ParGridFunction &u = solgf;
-
-  u = 0.0;
-  HypreParMatrix A;
-  Vector X, B;
-  a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
-
-  HypreBoomerAMG amg(A);
-  amg.SetPrintLevel(0);
-
-  CGSolver cg(u_fes_->GetParMesh()->GetComm());
-  cg.SetRelTol(1e-10);
-  cg.SetMaxIter(500);
-  cg.SetPreconditioner(amg);
-  cg.SetOperator(A);
-  cg.Mult(B, X);
-
-  a.RecoverFEMSolution(X, b, u);
-}
-
-void Elasticity_Solver::ASolve( Vector & rhs )
-{
-    // the nodal coordinates will default to the initial mesh
-    this->UpdateMesh(designVar);
-
-    Array<int> ess_tdof_list(ess_tdof_list_);
-
-    // make coefficients of the linear elastic properties
-    ::mfem::ConstantCoefficient firstLameCoef(1.0);
-    ::mfem::ConstantCoefficient secondLameCoef(0.0);
-
-    ParBilinearForm a(u_fes_);
-    a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
-    a.Assemble();
-
-    // solve adjoint problem
-    ParGridFunction adj_sol(u_fes_);
-    adj_sol = 0.0;
-
-    HypreParMatrix A;
-    Vector X, B;
-    a.FormLinearSystem(ess_tdof_list, adj_sol, rhs, A, X, B);
-
-    HypreBoomerAMG amg(A);
-    amg.SetPrintLevel(0);
-
-    CGSolver cg(u_fes_->GetParMesh()->GetComm());
-    cg.SetRelTol(1e-10);
-    cg.SetMaxIter(500);
-    cg.SetPreconditioner(amg);
-    cg.SetOperator(A);
-    cg.Mult(B, X);
-
-    a.RecoverFEMSolution(X, rhs, adj_sol);
-
-    // make a Parlinear form to compute sensivity w.r.t. nodal coordinates
-    // here we can use sensitivity w.r.t coordinate since d/dU = d/dX * dX/dU = d/dX * 1
-    ::mfem::ParLinearForm LHS_sensitivity(coord_fes_);
-    LHS_sensitivity.AddDomainIntegrator(new ElasticityStiffnessShapeSensitivityIntegrator(
-                                            firstLameCoef, secondLameCoef, solgf, adj_sol));
-    LHS_sensitivity.Assemble();
-
-    ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
-    RHS_sensitivity.Assemble();
-
-    *dQdx_ = 0.0;
-    dQdx_->Add(-1.0, LHS_sensitivity);
-    dQdx_->Add( 1.0, RHS_sensitivity);
 }
 
 void Diffusion_Solver::FSolve()
@@ -2165,65 +2076,6 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);
     dQdx_->Add( 1.0, RHS_sensitivity);
-}
-
-void Diffusion_Solver::FSolve()
-{
-  this->UpdateMesh(designVar);
-
-    Array<int> ess_tdof_list;
-    if(!weakBC_)
-    {
-      ess_tdof_list=ess_tdof_list_;
-    }
-
-  // assemble LHS matrix
-  ConstantCoefficient kCoef(1.0);
-  ConstantCoefficient wCoef(1e5);
-  ProductCoefficient  truesolWCoef(wCoef,*trueSolCoeff);
-
-  ParBilinearForm kForm(temp_fes_);
-  ParLinearForm QForm(temp_fes_);
-  kForm.AddDomainIntegrator(new DiffusionIntegrator(kCoef));
-
-  QForm.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_, 12,12));
-
-  if(weakBC_)
-  {
-    kForm.AddBoundaryIntegrator(new BoundaryMassIntegrator(wCoef));
-
-    QForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
-  }
-
-  kForm.Assemble();
-  QForm.Assemble();
-
-  solgf = 0.0;
-
-  // solve for temperature
-  ParGridFunction &T = solgf;
-  if (trueSolCoeff && !weakBC_)
-  {
-    T.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
-  }
-
-  HypreParMatrix A;
-  Vector X, B;
-  kForm.FormLinearSystem(ess_tdof_list, T, QForm, A, X, B);
-
-  HypreBoomerAMG amg(A);
-  amg.SetPrintLevel(0);
-
-  CGSolver cg(temp_fes_->GetParMesh()->GetComm());
-  cg.SetRelTol(1e-12);
-  cg.SetMaxIter(5000);
-  cg.SetPreconditioner(amg);
-  cg.SetOperator(A);
-  cg.SetPrintLevel(0);
-
-  cg.Mult(B, X);
-
-  kForm.RecoverFEMSolution(X, QForm, T);
 }
 
 void Elasticity_Solver::UpdateMesh(Vector const &U)
