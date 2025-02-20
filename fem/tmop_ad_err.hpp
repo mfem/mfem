@@ -112,8 +112,8 @@ public:
     return dtheta_dU;
   };
 
-  const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation & /*T*/,
-      const mfem::IntegrationPoint & /*ip*/) override
+  const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip) override
   {
     dtheta_dGradU.SetSize(1, Dim_);
     dtheta_dGradU = 0.0;
@@ -199,7 +199,7 @@ public:
     return val;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint & /*ip*/) override
+  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dU.SetSize(1);
     dtheta_dU = 0.0;
@@ -229,7 +229,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint &/*ip*/) override
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -271,7 +271,7 @@ public:
     trueSolution_->Eval (trueGrad, T, ip);
     solutionField_->GetGradient (T, grad);
 
-    DenseMatrix Hess;
+    DenseMatrix Hess(Dim_);
     if (trueSolutionHess_)
     {
       trueSolutionHess_->Eval(Hess, T, ip);
@@ -352,7 +352,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint &/*ip*/)
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -409,7 +409,7 @@ public:
     return val;
   };
 
-  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint & /*ip*/) override
+  const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dU.SetSize(1);
     dtheta_dU = 0.0;
@@ -438,7 +438,7 @@ public:
     return dtheta_dGradU;
   };
 
-  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation & /*T*/, const mfem::IntegrationPoint &/*ip*/)
+  const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     dtheta_dX.SetSize(1, Dim_);
     dtheta_dX = 0.0;
@@ -446,8 +446,7 @@ public:
     return dtheta_dX;
   };
 
-  const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative(mfem::ElementTransformation &T,
-      const mfem::IntegrationPoint &ip)
+  const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) override
   {
     mfem::Vector grad(Dim_);
     mfem::Vector trueGrad(Dim_);
@@ -624,8 +623,8 @@ public:
     return dtheta_dU;
   };
 
-  const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation & /*T*/,
-      const mfem::IntegrationPoint & /*ip*/) override
+  const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip) override
   {
     dtheta_dGradU.SetSize(1, Dim_);
     dtheta_dGradU = 0.0;
@@ -690,8 +689,8 @@ public:
     return dtheta_dU;
   };
 
-  const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation & /*T*/,
-      const mfem::IntegrationPoint & /*ip*/) override
+  const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip) override
   {
     dtheta_dGradU.SetSize(1, Dim_);
     dtheta_dGradU = 0.0;
@@ -1422,7 +1421,7 @@ public:
             // append to global dof list
             ess_tdof_list_.Append(u_tdofs);
         }
-  
+
     }
 
     ~VectorHelmholtz(){
@@ -1464,7 +1463,7 @@ public:
     };
 
     void setLoadCoeff(mfem::VectorCoefficient * loadCoeff)
-    { 
+    {
       if(coeffSet) { mfem_error("coeff already set"); }
       coeffSet = true;
       QCoef_ =loadCoeff; };

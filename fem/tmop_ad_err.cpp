@@ -1594,7 +1594,7 @@ void QuantityOfInterest::EvalQoIGrad()
       *dQdu_ = 0.0;
       dQdu_->Add(1.0, T_gradForm);
 
-      //--------------------------------------------------------------------  
+      //--------------------------------------------------------------------
 
       ParLinearForm SmoothTForm(coord_fes_);
       LFFilteredFieldErrorDerivativeIntegrator *lfi_s = new LFFilteredFieldErrorDerivativeIntegrator;
@@ -1611,7 +1611,7 @@ void QuantityOfInterest::EvalQoIGrad()
       mfem::ParLinearForm * dQsdu = filterSolver.GetImplicitDqDu();
 
       dQdu_->Add(-1.0, *dQsdu);
-      
+
     }
     // evaluate grad wrt coord
     {
@@ -1946,7 +1946,7 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
     {
       ParLinearForm RHS_sensitivity(coord_fes_);
       VectorDomainLFIntegrator *lfi = new VectorDomainLFIntegrator(QF);
-      
+
       lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 24));
       RHS_sensitivity.AddDomainIntegrator(lfi);
       RHS_sensitivity.Assemble();
@@ -1983,7 +1983,7 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
       }
 
     }
-    
+
 }
 
 
