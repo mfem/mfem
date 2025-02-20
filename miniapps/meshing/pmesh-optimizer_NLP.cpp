@@ -889,14 +889,16 @@ int main (int argc, char *argv[])
   //std::vector<std::pair<int, double>> essentialBC(2);
   for (int i = 0; i < nbattr; i++)
   {
-    //std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
   }
 
-  essentialBCfilter[0] = {1, 1};
-  essentialBCfilter[1] = {2, 0};
-  essentialBCfilter[2] = {3, 1};
-  essentialBCfilter[3] = {4, 0};
+  if (strcmp(mesh_file, "null.mesh") == 0)
+  {
+    essentialBCfilter[0] = {1, 1};
+    essentialBCfilter[1] = {2, 0};
+    essentialBCfilter[2] = {3, 1};
+    essentialBCfilter[3] = {4, 0};
+  }
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
