@@ -33,6 +33,7 @@ private:
 
 protected:
 
+    int current_operation = -1;
 
 public:
 
@@ -66,6 +67,23 @@ public:
         MFEM_ABORT("Not implemented for this MFEMApplication.");
     }
 
+    /**
+     * @brief Set the Operation to perform
+     */
+    virtual void SetOperation(const int op) {
+        current_operation = op;
+    }
+
+    /**
+     * @brief Get the Operation to perform
+     */
+    virtual int GetOperation() const {
+        return current_operation;
+    }   
+
+    virtual void PerformOperation(const Vector &x, Vector &y) {
+        mfem_error("MFEMApplication::PerformOperation() is not overridden!");
+    }
 
     // Need something to fetch/link variables for multiapp integration
     // Need something to get/set/fetch/perform internal operations
@@ -107,6 +125,11 @@ public:
     void Mult(const Vector &x, Vector &y) const override
     {
         app.Mult(x, y);
+    }
+
+    void PerformOperation(const Vector &x, Vector &y) override
+    {
+        app.PerformOperation(const Vector &x, Vector &y);
     }
 };
 
@@ -185,6 +208,15 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const {
         for (const auto &app : apps) {
             app->Mult(x, y);
+        }
+    }
+
+    /**
+     * @brief Perform the specified operation for each application to the vector @a x
+     */
+    void PerformOperation(const Vector &x, Vector &y) {
+        for (const auto &app : apps) {
+            app->PerformOperation(x, y);
         }
     }
 
