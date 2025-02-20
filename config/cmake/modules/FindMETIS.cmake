@@ -31,13 +31,12 @@ if (METIS_FETCH OR FETCH_TPLS)
     GIT_SHALLOW TRUE
     UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
-    CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3.tar.gz
-    BUILD_COMMAND cd metis-4.0.3 && make
-    INSTALL_COMMAND mkdir -p ${PREFIX}/Lib && cp metis-4.0.3/libmetis.a ${PREFIX}/Lib/)
+    CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3.tar.gz --strip=1
+    INSTALL_COMMAND mkdir -p ${PREFIX}/lib && cp libmetis.a ${PREFIX}/lib/)
   # set imported library target properties
   add_dependencies(METIS metis metis-install)
   set_target_properties(METIS PROPERTIES
-    IMPORTED_LOCATION ${PREFIX}/Lib/libmetis.a)
+    IMPORTED_LOCATION ${PREFIX}/lib/libmetis.a)
   # set cache variables that would otherwise be set after mfem_find_package call
   set(METIS_VERSION_5 FALSE CACHE BOOL "Is METIS version 5?")
   return()
