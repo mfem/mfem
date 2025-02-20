@@ -31,6 +31,10 @@ Discretization improvements
 
 - Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
 
+- Added support for H(div) spaces in class QuadratureInterpolator. For now, only
+  (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
+  are implemented. [PR #4669]
+
 Meshing improvements
 --------------------
 - Added native AD support for numerous TMOP metrics that didn't have first or
