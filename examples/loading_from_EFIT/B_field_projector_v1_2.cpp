@@ -14,8 +14,8 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./EFIT_loading/gg.gf");
-   GridFunction gg(&mesh, temp_log);
+   ifstream temp_log("./EFIT_loading/psi.gf");
+   GridFunction psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
@@ -30,28 +30,32 @@ int main(int argc, char *argv[])
    // refine the mesh
    // new_mesh->UniformRefinement();
 
-   // make a H1 space with the mesh
-   H1_FECollection fec(1, dim);
+   // make a Hcurl space with the mesh
+   // L2_FECollection fec(0, dim);
+   ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
 
    // make a grid function with the H1 space
-   GridFunction B_tor(&fespace);
-   cout << B_tor.FESpace()->GetTrueVSize() << endl;
-   B_tor = 0.0;
+   GridFunction B_perp(&fespace);
+   cout << B_perp.FESpace()->GetTrueVSize() << endl;
+   B_perp = 0.0;
 
    // project the grid function onto the new space
-   // solving <B_tor, v> = <gg/R, v> for all v in L2
+   // solving (f, Bperp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
    // 1. make the linear form
    LinearForm b(&fespace);
-   BTorFromFGridFunctionCoefficient gg_coef(&gg);
-   b.AddDomainIntegrator(new DomainLFIntegrator(gg_coef));
+   BPerpPsiGridFunctionCoefficient psi_coef(dim, &psi, false);
+   b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
+
+   BPerpPsiGridFunctionCoefficient neg_psi_coef(dim, &psi, true);
+   b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
    b.Assemble();
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   ConstantCoefficient one(1.0);
-   a.AddDomainIntegrator(new MassIntegrator(one));
+   BPerpRGridFunctionCoefficient r_coef;
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();
 
@@ -64,18 +68,18 @@ int main(int argc, char *argv[])
    M_solver.SetPrintLevel(1);
    M_solver.SetOperator(a.SpMat());
 
-   Vector X(B_tor.Size());
+   Vector X(B_perp.Size());
    X = 0.0;
    M_solver.Mult(b, X);
 
-   B_tor.SetFromTrueDofs(X);
+   B_perp.SetFromTrueDofs(X);
 
    // ifstream temp_log2("./EFIT_loading/B_phi.gf");
    // GridFunction B_psi(&mesh, temp_log2);
 
-   // GridFunction B_tor_diff(&fespace);
-   // B_tor_diff = B_tor;
-   // B_tor_diff -= B_psi;
+   // GridFunction B_perp_diff(&fespace);
+   // B_perp_diff = B_perp;
+   // B_perp_diff -= B_psi;
 
    if (visualization)
    {
@@ -84,25 +88,25 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << *new_mesh << B_tor << flush;
+               << *new_mesh << B_perp << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("Btor", new_mesh);
+      ParaViewDataCollection paraview_dc("Bperp", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("Btor", &B_tor);
+      paraview_dc.RegisterField("Bperp", &B_perp);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("Btor.gf");
+   ofstream sol_ofs("Bperp.gf");
    sol_ofs.precision(8);
-   B_tor.Save(sol_ofs);
+   B_perp.Save(sol_ofs);
 
    delete new_mesh;
 

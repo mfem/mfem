@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 
    // make a grid function with the H1 space
    GridFunction B_perp(&fespace);
-
+   cout << B_perp.FESpace()->GetTrueVSize() << endl;
    B_perp = 0.0;
 
    // project the grid function onto the new space
