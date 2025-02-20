@@ -1831,16 +1831,24 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     rhs_gf.SetFromTrueVector();
     Vector &rhs_tvec = rhs_gf.GetTrueVector();
 
-    // ParGridFunction tempgf(coord_fes_);
-    // tempgf = 0.0;
+    bool visualization = false;
+    ParGridFunction tempgf(coord_fes_);
+    tempgf = 0.0;
     // VisItDataCollection vis_dc("Adjoint", temp_fes_->GetParMesh());
-    // vis_dc.SetCycle(pdc_cycle);
-    // vis_dc.SetTime((pdc_cycle++)*1.0);
-    // adj_sol = rhs;
-    // vis_dc.RegisterField("adjoint",&adj_sol);
-    // vis_dc.RegisterField("sensitivities",&tempgf);
-    // vis_dc.Save();
-    // adj_sol = 0.0;
+    // vis_dc.SetLevelsOfDetail(temp_fes_->GetMaxElementOrder()-1);
+    ParaViewDataCollection vis_dc("Adjoint", temp_fes_->GetParMesh());
+    vis_dc.SetLevelsOfDetail(temp_fes_->GetMaxElementOrder());
+    vis_dc.SetHighOrderOutput(true);
+    if (visualization)
+    {
+      vis_dc.SetCycle(pdc_cycle);
+      vis_dc.SetTime((pdc_cycle++)*1.0);
+      adj_sol = rhs;
+      vis_dc.RegisterField("adjoint",&adj_sol);
+      vis_dc.RegisterField("sensitivities",&tempgf);
+      vis_dc.Save();
+      adj_sol = 0.0;
+    }
 
     Array<int> ess_tdof_list;
     if(!weakBC_)
@@ -1895,9 +1903,12 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     cg.Mult(B, X);
     kForm.RecoverFEMSolution(X, rhs, adj_sol);
 
-    // vis_dc.SetCycle(pdc_cycle);
-    // vis_dc.SetTime((pdc_cycle++)*1.0);
-    // vis_dc.Save();
+    if (visualization)
+    {
+      vis_dc.SetCycle(pdc_cycle);
+      vis_dc.SetTime((pdc_cycle++)*1.0);
+      vis_dc.Save();
+    }
 
     delete tTransOp;
 
@@ -1930,17 +1941,22 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     RHS_sensitivity.AddDomainIntegrator(lfi);
     RHS_sensitivity.Assemble();
 
-    // tempgf = LHS_sensitivity;
-    // vis_dc.SetCycle(pdc_cycle);
-    // vis_dc.SetTime((pdc_cycle++)*1.0);
-    // vis_dc.Save();
+    if (visualization)
+    {
+      HypreParVector *tvec = LHS_sensitivity.ParallelAssemble();
+      tempgf.SetFromTrueDofs(*tvec);
+      vis_dc.SetCycle(pdc_cycle);
+      vis_dc.SetTime((pdc_cycle++)*1.0);
+      vis_dc.Save();
 
-    // tempgf = RHS_sensitivity;
-    // vis_dc.SetCycle(pdc_cycle);
-    // vis_dc.SetTime((pdc_cycle++)*1.0);
-    // vis_dc.Save();
+      HypreParVector *tvec2 = RHS_sensitivity.ParallelAssemble();
+      tempgf.SetFromTrueDofs(*tvec2);
+      vis_dc.SetCycle(pdc_cycle);
+      vis_dc.SetTime((pdc_cycle++)*1.0);
+      vis_dc.Save();
 
-    // MFEM_ABORT(" ");
+      MFEM_ABORT(" ");
+    }
 
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);

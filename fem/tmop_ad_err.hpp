@@ -938,7 +938,7 @@ private:
 class QuantityOfInterest
 {
 public:
-    QuantityOfInterest(mfem::ParMesh* mesh_, enum QoIType qoiType, int order_=1)
+    QuantityOfInterest(mfem::ParMesh* mesh_, enum QoIType qoiType, int order_)
     : pmesh(mesh_), qoiType_(qoiType)
     {
         int dim=pmesh->Dimension();
@@ -1043,7 +1043,7 @@ private:
 class Diffusion_Solver
 {
 public:
-    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
+    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
     {
         weakBC_ = weakBC;
         pmesh=mesh_;
@@ -1228,7 +1228,7 @@ private:
 class Elasticity_Solver
 {
 public:
-    Elasticity_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2)
+    Elasticity_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_)
     {
         pmesh=mesh_;
         int dim=pmesh->Dimension();
@@ -1374,7 +1374,7 @@ private:
 class VectorHelmholtz
 {
 public:
-    VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, real_t radius, int order_=2)
+    VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, real_t radius, int order_)
     {
 
         radius_ = new ConstantCoefficient(radius);
