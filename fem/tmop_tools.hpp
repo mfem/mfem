@@ -170,9 +170,12 @@ protected:
    int solver_type;
    bool parallel;
 
-   // Starting mesh positions (tdofs). Updated by the call to Mult().
+   // Starting mesh positions. Updated by the call to Mult().
    // This solver solves for d, where the final mesh is x = x_0 + d.
-   mutable Vector x_0;
+   // The displacement d is always the tdof vector of an H1 function.
+   // For periodic meshes, x_0 is an L2 function, and the relation
+   // x = x_0 + d is used only per element with appropriate transitions.
+   mutable GridFunction x_0;
 
    // Line search step is rejected if min(detJ) <= min_detJ_limit.
    real_t min_detJ_limit = 0.0;
@@ -239,11 +242,11 @@ protected:
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(comm), solver_type(type), parallel(true), x_0(0),
+      : LBFGSSolver(comm), solver_type(type), parallel(true), x_0(),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(), solver_type(type), parallel(false), x_0(0),
+      : LBFGSSolver(), solver_type(type), parallel(false), x_0(),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
