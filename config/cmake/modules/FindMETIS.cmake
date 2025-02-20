@@ -29,6 +29,7 @@ if (METIS_FETCH OR FETCH_TPLS)
     GIT_REPOSITORY https://github.com/mfem/tpls
     GIT_TAG b60352fbe9675d374b00828055e55be4584c7995 # tag from 1/16/25
     GIT_SHALLOW TRUE
+    UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
     CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3.tar.gz
     BUILD_COMMAND cd metis-4.0.3 && make
