@@ -121,6 +121,11 @@ Parallel build:
    make -j 4
 (For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
+Parallel build with fetching of hypre and METIS:
+   mkdir <mfem-buil-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_MPI=YES -DFETCH_TPLS=YES
+   make -j 4
+
 CUDA build:
    (this build requires CMake 3.8 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
@@ -1060,6 +1065,9 @@ The following options are CMake specific:
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.
+FETCH_TPLS           - Enable fetching of all supported third-party libraries.
+HYPRE_FETCH          - Enable fetching of hypre.
+METIS_FETCH          - Enable fetching of metis.
 
 External libraries (CMake):
 ---------------------------
@@ -1120,6 +1128,14 @@ The following built-in CMake packages are also used:
  - LAPACK, BLAS - Both are enabled via MFEM_USE_LAPACK. If auto-detection fails,
       set the <LIBNAME>_LIBRARIES option directly; the configuration option
       <LIBNAME>_DIR is not supported.
+
+The MFEM CMake build system also provides fetching (automated building) for the
+packages/libraries listed below. Note that when fetching is enabled, any related
+auto-detection functionality is disabled.
+
+ - HYPRE
+ - METIS
+
 
 
 Building without GNU make or CMake
