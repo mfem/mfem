@@ -973,6 +973,36 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+void NodalFiniteElement::ReorderToLexicographic(int ncomp, const Vector &dofs,
+                                                Vector &dofs_lex) const
+{
+   MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
+
+   dofs_lex.SetSize(ncomp * dof);
+   for (int i = 0; i < dof; i++)
+   {
+      for (int c = 0; c < ncomp; c++)
+      {
+         dofs_lex(c*dof + i) = dofs(c*dof + lex_ordering[i]);
+      }
+   }
+}
+
+void NodalFiniteElement::ReorderFromLexicographic(int ncomp,
+                                                  const Vector &dofs_lex,
+                                                  Vector &dofs) const
+{
+   MFEM_ASSERT(dofs_lex.Size() == ncomp * dof, "Wrong input size.");
+
+   dofs.SetSize(ncomp * dof);
+   for (int i = 0; i < dof; i++)
+   {
+      for (int c = 0; c < ncomp; c++)
+      {
+         dofs(c*dof + lex_ordering[i]) = dofs_lex(c*dof + i);
+      }
+   }
+}
 
 VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
                                          int Do, int O, int M, int F)

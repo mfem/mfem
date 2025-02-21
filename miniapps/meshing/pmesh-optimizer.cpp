@@ -348,37 +348,44 @@ int main (int argc, char *argv[])
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   auto s = pmesh->GetNodalFESpace();
+   const bool periodic = (s && s->IsDGSpace()) ? true : false;
+
+   // Define a FE space on the mesh, based on the input order. This space will
+   // also be used to represent the nodal positions of the mesh. We use a vector
+   // FE space which is a tensor product of a scalar FE space. The number of
+   // components in the vector finite element space matches the dimension.
    FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
+   if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
+   if (periodic)
    {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
+      fec = new L2_FECollection(mesh_poly_deg, dim, BasisType::GaussLobatto);
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   //else { fec = new L2_FECollection(mesh_poly_deg, dim); }
    auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
                                              mesh_node_ordering);
 
-   // 5. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the starting mesh curved. This means we define the mesh elements
+   // through a FE-based transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other DOFs in the FE space) as a FE grid
+   // function in pfespace. Note that changing x automatically changes the
+   // shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   // 8. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
-   //
-   //    In addition, compute average mesh size and total volume.
+   // We create an H1 space for the mesh displacements, which are always
+   // in a continuous space, even if the mesh is periodic.
+   // The nonlinear problem will be solved for the continuous displacements.
+   H1_FECollection fec_h1(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim, mesh_node_ordering);
+   ParGridFunction d(&pfes_h1); d = 0.0;
+
+   // Define a vector representing the minimal local mesh size in the mesh
+   // nodes. We index the nodes by the scalar version of the DOFs in pfespace.
+   // In addition, compute average mesh size and total volume.
+   // Note: this is MPI partition-dependent.
    Vector h0(pfespace->GetNDofs());
    h0 = infinity();
    real_t vol_loc = 0.0;
@@ -400,44 +407,63 @@ int main (int argc, char *argv[])
                  MPI_SUM, MPI_COMM_WORLD);
    const real_t small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
-   // 9. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in pfespace.
+   // Add a random perturbation to the nodes in the interior of the domain.
+   // We define a random grid function of pfespace and make sure that it is
+   // zero on the boundary and its values are locally of the order of h0.
+   // The latter is based on the DofToVDof() method which maps the scalar to
+   // the vector degrees of freedom in pfespace.
    if (jitter > 0.0)
    {
-      ParGridFunction rdm(pfespace);
+      // The perturbation is always in H1, even though the mesh nodes can be in
+      // L2 when the mesh is periodic.
+      ParGridFunction rdm(&pfes_h1);
       rdm.Randomize();
       rdm -= 0.25; // Shift to random values in [-0.5,0.5].
       rdm *= jitter;
       rdm.HostReadWrite();
       // Scale the random values to be of order of the local mesh size.
-      for (int i = 0; i < pfespace->GetNDofs(); i++)
+      for (int i = 0; i < pfes_h1.GetNDofs(); i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+            // TODO h0 indices go on the L2 space here, wrong.
+            rdm(pfes_h1.DofToVDof(i,d)) *= h0(i);
          }
       }
+      // Set the boundary values to zero. Note that periodic meshes have no
+      // boundaries and this won't fix anything in the periodic case.
       Array<int> vdofs;
-      for (int i = 0; i < pfespace->GetNBE(); i++)
+      for (int i = 0; i < pfes_h1.GetNBE(); i++)
       {
-         // Get the vector degrees of freedom in the boundary element.
-         pfespace->GetBdrElementVDofs(i, vdofs);
-         // Set the boundary values to zero.
+         pfes_h1.GetBdrElementVDofs(i, vdofs);
          for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
       }
-      x -= rdm;
+
+      if (periodic)
+      {
+         // For H1 the perturbation is controlled by the true nodes.
+         rdm.SetFromTrueVector();
+         ParGridFunction rdm_l2(pfespace);
+         rdm_l2.ProjectGridFunction(rdm);
+         x -= rdm_l2;
+      }
+      else
+      {
+         x -= rdm;
+         // For H1 the perturbation is controlled by the true nodes.
+         x.SetFromTrueVector();
+      }
    }
 
-   // Set the perturbation of all nodes from the true nodes.
-   x.SetTrueVector();
-   x.SetFromTrueVector();
+   if (visualization)
+   {
+      socketstream vis1;
+      common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
+                             300, 600, 300, 300);
+   }
 
-   // 10. Save the starting (prior to the optimization) mesh to a file. This
-   //     output can be viewed later using GLVis: "glvis -m perturbed -np
-   //     num_mpi_tasks".
+   // Save the starting (prior to the optimization) mesh to a file. This
+   // output can be viewed later using GLVis: "glvis -m perturbed -np #tasks".
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -449,7 +475,7 @@ int main (int argc, char *argv[])
    // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(x);
 
-   // 12. Form the integrator that uses the chosen metric and target.
+   // Form the integrator that uses the chosen metric and target.
    real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
@@ -864,7 +890,7 @@ int main (int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
+   ParFiniteElementSpace dist_pfespace(pmesh, &fec_h1); // scalar space
    ParGridFunction dist(&dist_pfespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
@@ -908,13 +934,13 @@ int main (int argc, char *argv[])
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
-   // 13. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights.  Note that there are
-   //     no command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
-   ParNonlinearForm a(pfespace);
+   // Setup the NonlinearForm which defines the integral of interest, its first
+   // and second derivatives. Here we can use a combination of metrics, i.e.,
+   // optimize the sum of two integrals, where both are scaled by used-defined
+   // space-dependent weights. Note that there are no command-line options for
+   // the weights and the type of the second metric; one should update those in
+   // the code.
+   ParNonlinearForm a(&pfes_h1);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *metric_coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
@@ -1006,14 +1032,15 @@ int main (int argc, char *argv[])
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const real_t init_energy = a.GetParGridFunctionEnergy(x) /
+   if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
+   const real_t init_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
    real_t init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      init_metric_energy = a.GetParGridFunctionEnergy(x) /
+      init_metric_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
@@ -1160,7 +1187,7 @@ int main (int argc, char *argv[])
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
    if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
-   else { newton_print.Errors().Warnings(); }
+   else                     { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
