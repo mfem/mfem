@@ -362,6 +362,7 @@ int main(int argc, char *argv[])
    std::map<const DarcySolver*, real_t> setup_time;
    chrono.Restart();
    BDPMinresSolver bdp(M, B, param);
+   bdp.iterative_mode = true;
    setup_time[&bdp] = chrono.RealTime();
 
    chrono.Restart();
