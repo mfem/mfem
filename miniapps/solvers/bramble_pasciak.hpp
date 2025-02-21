@@ -123,14 +123,17 @@ class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
    std::unique_ptr<IterativeSolver> solver_;
-   BlockOperator *oop_, *ipc_;
-   ProductOperator *mop_;
-   SumOperator *map_;
-   ProductOperator *ppc_;
-   BlockDiagonalPreconditioner *cpc_;
+   std::unique_ptr<BlockOperator> oop_, ipc_;
+   std::unique_ptr<ProductOperator> mop_;
+   std::unique_ptr<SumOperator> map_;
+   std::unique_ptr<ProductOperator> ppc_;
+   std::unique_ptr<BlockDiagonalPreconditioner> cpc_;
    std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;
+   std::unique_ptr<HypreParMatrix> S_;
+   std::unique_ptr<TransposeOperator> Bt_;
+   std::unique_ptr<HypreDiagScale> invQ_;
    OperatorPtr M0_;
    OperatorPtr M1_;
    Array<int> ess_zero_dofs_;

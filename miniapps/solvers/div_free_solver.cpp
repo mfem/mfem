@@ -171,7 +171,9 @@ void DFSSpaces::CollectDFSData()
    data_.C[level_+1].Reset(curl.ParallelAssemble());
    mfem::Array<int> ess_hcurl_tdof;
    hcurl_fes_->GetEssentialTrueDofs(ess_bdr_attr_, ess_hcurl_tdof);
-   data_.C[level_+1].As<HypreParMatrix>()->EliminateCols(ess_hcurl_tdof);
+   HypreParMatrix *res =
+      data_.C[level_+1].As<HypreParMatrix>()->EliminateCols(ess_hcurl_tdof);
+   delete res;
 
    ++level_;
 

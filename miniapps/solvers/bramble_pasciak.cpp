@@ -32,12 +32,12 @@ BramblePasciakSolver::BramblePasciakSolver(
 
    Vector diagM;
    M_->GetDiag(diagM);
-   auto BT = B_->Transpose();
-   auto invDBt = new HypreParMatrix(*BT);
+   auto invDBt = B_->Transpose();
    invDBt->InvScaleRows(diagM);
-   auto S = ParMult(B_.get(), invDBt);
+   S_.reset(ParMult(B_.get(), invDBt, true));
+   delete invDBt;
    M0_.Reset(new HypreDiagScale(*M_));
-   M1_.Reset(new HypreBoomerAMG(*S));
+   M1_.Reset(new HypreBoomerAMG(*S_));
    M1_.As<HypreBoomerAMG>()->SetPrintLevel(0);
 
    Init(*M_, *B_, *Q_, *M0_.As<Solver>(), *M1_.As<Solver>(), param);
@@ -57,28 +57,27 @@ void BramblePasciakSolver::Init(
    Solver &M0, Solver &M1,
    const BPSParameters &param)
 {
-   auto Bt = new TransposeOperator(&B);
-   auto invQ = new HypreDiagScale(Q);
+   Bt_.reset(new TransposeOperator(&B));
+   invQ_.reset(new HypreDiagScale(Q));
 
    use_bpcg = param.use_bpcg;
 
    if (use_bpcg)
    {
-      oop_ = new BlockOperator(offsets_);
+      oop_.reset(new BlockOperator(offsets_));
       oop_->owns_blocks = false;
       oop_->SetBlock(0, 0, &M);
-      oop_->SetBlock(0, 1, Bt);
+      oop_->SetBlock(0, 1, Bt_.get());
       oop_->SetBlock(1, 0, &B);
 
       // cpc_ unused in bpcg
       auto temp_cpc = new BlockDiagonalPreconditioner(offsets_);
-      temp_cpc->owns_blocks = true;
-      temp_cpc->SetDiagonalBlock(0, invQ);
+      temp_cpc->SetDiagonalBlock(0, invQ_.get());
       temp_cpc->SetDiagonalBlock(1, &M1);
       // tri(1,0) = B M0 = B invQ
       auto id_m = new IdentityOperator(M.NumRows());
       auto id_b = new IdentityOperator(B.NumRows());
-      auto BinvQ = new ProductOperator(&B, invQ, false, false);
+      auto BinvQ = new ProductOperator(&B, invQ_.get(), false, false);
       // tri
       auto temp_tri = new BlockOperator(offsets_);
       temp_tri->owns_blocks = true;
@@ -86,11 +85,11 @@ void BramblePasciakSolver::Init(
       temp_tri->SetBlock(1, 1, id_b, -1.0);
       temp_tri->SetBlock(1, 0, BinvQ);
 
-      ppc_ = new ProductOperator(temp_cpc, temp_tri, true, true);
+      ppc_.reset(new ProductOperator(temp_cpc, temp_tri, true, true));
 
-      ipc_ = new BlockOperator(offsets_);
+      ipc_.reset(new BlockOperator(offsets_));
       ipc_->owns_blocks = false;
-      ipc_->SetDiagonalBlock(0, invQ);
+      ipc_->SetDiagonalBlock(0, invQ_.get());
 
       // bpcg
       solver_.reset(new BPCGSolver(M.GetComm(), *ipc_, *ppc_));
@@ -102,25 +101,24 @@ void BramblePasciakSolver::Init(
       auto temp_oop = new BlockOperator(offsets_);
       temp_oop->owns_blocks = false;
       temp_oop->SetBlock(0, 0, &M);
-      temp_oop->SetBlock(0, 1, Bt);
+      temp_oop->SetBlock(0, 1, Bt_.get());
       temp_oop->SetBlock(1, 0, &B);
 
       // ipc_ unused in cg
       auto temp_ipc = new BlockOperator(offsets_);
       temp_ipc->owns_blocks = false;
-      temp_ipc->SetDiagonalBlock(0, invQ);
+      temp_ipc->SetDiagonalBlock(0, invQ_.get());
 
       // temp_AN = temp_oop * temp_ipc
       auto temp_AN = new ProductOperator(temp_oop, temp_ipc, true, true);
 
       // Required for updating the RHS
       auto id = new IdentityOperator(M.NumRows()+B.NumRows());
-      map_ = new SumOperator(temp_AN, 1.0, id, -1.0, true, true);
+      map_.reset(new SumOperator(temp_AN, 1.0, id, -1.0, true, true));
 
-      mop_ = new ProductOperator(map_, temp_oop, false, true);
+      mop_.reset(new ProductOperator(map_.get(), temp_oop, false, false));
 
-      cpc_ = new BlockDiagonalPreconditioner(offsets_);
-      cpc_->owns_blocks = true;
+      cpc_.reset(new BlockDiagonalPreconditioner(offsets_));
       cpc_->SetDiagonalBlock(0, &M0);
       cpc_->SetDiagonalBlock(1, &M1);
 

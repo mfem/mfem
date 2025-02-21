@@ -90,8 +90,8 @@ class DarcyProblem
    ParGridFunction u_;
    ParGridFunction p_;
    ParMesh mesh_;
-   ParBilinearForm *mVarf_;
-   ParMixedBilinearForm *bVarf_;
+   std::unique_ptr<ParBilinearForm> mVarf_;
+   std::unique_ptr<ParMixedBilinearForm> bVarf_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    DFSSpaces dfs_spaces_;
@@ -108,8 +108,8 @@ public:
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, std::string tag, int visport = 19916);
-   ParBilinearForm* GetMform() const { return mVarf_; }
-   ParMixedBilinearForm* GetBform() const { return bVarf_; }
+   ParBilinearForm* GetMform() const { return mVarf_.get(); }
+   ParMixedBilinearForm* GetBform() const { return bVarf_.get(); }
 };
 
 DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
@@ -153,9 +153,9 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   mVarf_ = new ParBilinearForm(dfs_spaces_.GetHdivFES());
-   bVarf_ = new ParMixedBilinearForm(dfs_spaces_.GetHdivFES(),
-                                     dfs_spaces_.GetL2FES());
+   mVarf_.reset(new ParBilinearForm(dfs_spaces_.GetHdivFES()));
+   bVarf_.reset(new ParMixedBilinearForm(dfs_spaces_.GetHdivFES(),
+                                         dfs_spaces_.GetL2FES()));
 
    mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
    mVarf_->ComputeElementMatrices();
