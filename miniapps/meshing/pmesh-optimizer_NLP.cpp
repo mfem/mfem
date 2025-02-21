@@ -50,6 +50,30 @@
 // h1 error
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 1000 -ft 1 --qtype 1 -w1 2e2 -w2 8e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
 
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e5 -w2 1e-2 -rs 3 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
+
+
+/*******************************/
+// Presentation runs below:
+
+// zz 2nd order - shock wave around corner - with filter
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
+// average error - 2nd order - shock wave around corner
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005
+// l2 with wave around center - linear
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 400 -ft 1 --qtype 0 -w1 2e4 -w2 1e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
+// h1 with wave around center - linear
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 200 -ft 1 --qtype 1 -w1 2e2 -w2 15e-1 -m uare01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
+
+// inclined wave with avg error
+//  make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.0-lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005
+
+// zz for wave around center
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 500 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 1 -vis -weakbc -filter -frad 0.05
+
+// avg error - inclined wave + analytic orientation
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "linalg/dual.hpp"
@@ -665,8 +689,8 @@ int main (int argc, char *argv[])
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
   bool dQdxFD =false;
-  bool dQdxFD_global =true;
-  bool BreakAfterFirstIt = true;
+  bool dQdxFD_global =false;
+  bool BreakAfterFirstIt = false;
 
   // Create mesh
   Mesh *des_mesh = nullptr;
@@ -1231,10 +1255,12 @@ if (myid == 0) {
       HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
       mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
+      std::cout << dQdx_filtered.Norml2() << " k101-filt1\n";
       filterSolver.ASolve(dQdx_filtered);
       ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
 
       dQdx.Add(1.0, *dQdxImplfilter);
+      std::cout << dQdxImplfilter->Norml2() << " k101-filt2\n";
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
 
@@ -1516,7 +1542,6 @@ if (myid == 0) {
       }
 
 
-
       x_gf.ProjectCoefficient(*trueSolution);
       //ParGridFunction objGradGF(pfespace); objGradGF = objgrad;
       paraview_dc.SetCycle(i);
@@ -1544,7 +1569,9 @@ if (myid == 0) {
       mmaPetsc->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
   #else
       mfem:Vector conDummy(1);  conDummy= -0.1;
+      std::cout << trueOptvar.Norml2() << " k10-dxpre\n";
       mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
+      std::cout << trueOptvar.Norml2() << " k10-dxpost\n";
   #endif
 
       gridfuncOptVar.SetFromTrueVector();

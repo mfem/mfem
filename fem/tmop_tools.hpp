@@ -405,6 +405,10 @@ public:
 
 
    real_t ComputeScalingFactor2(const Vector &x, const Vector &b) const;
+   real_t ComputeScalingFactor2Filter(const Vector &x_orig,
+                                      const Vector &dx,
+                                      const Vector &x_old,
+                                            Vector &fdx) const;
 
    // void SetMaxIter(int max_it) { max_iter = max_it; }
 
