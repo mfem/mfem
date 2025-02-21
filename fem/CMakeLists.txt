@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -110,10 +110,9 @@ set(SRCS
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
   qinterp/eval_by_vdim.cpp
+  qinterp/eval_hdiv.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
-  qinterp/grad_phys_by_nodes.cpp
-  qinterp/grad_phys_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -150,8 +149,13 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findpts_local_2.cpp
+  gslib/findpts_local_3.cpp
+  gslib/interpolate_local_2.cpp
+  gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
+  integrator.cpp
   )
 
 set(HDRS
@@ -192,6 +196,9 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   intrules_cut.hpp
+  kernel_dispatch.hpp
+  kernel_reporter.hpp
+  kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
@@ -223,8 +230,8 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
-  qinterp/dispatch.hpp
   qinterp/eval.hpp
+  qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
   qspace.hpp
   quadinterpolator.hpp
@@ -248,6 +255,7 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  integrator.hpp
   )
 
 if (MFEM_USE_SIDRE)

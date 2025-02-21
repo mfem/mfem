@@ -82,7 +82,7 @@ struct ex1_t
 
    static int run(Mesh *mesh, int ref_levels, int order, int basis,
                   bool static_cond, PCType pc_choice, bool perf,
-                  bool matrix_free, bool visualization);
+                  bool matrix_free, bool visualization, int visport = 19916);
 };
 
 int main(int argc, char *argv[])
@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
    const char *pc = "none";
    bool perf = true;
    bool matrix_free = true;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -122,6 +123,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -164,12 +166,12 @@ int main(int argc, char *argv[])
    if (dim == 2)
    {
       return ex1_t<2>::run(mesh, ref_levels, order, basis, static_cond,
-                           pc_choice, perf, matrix_free, visualization);
+                           pc_choice, perf, matrix_free, visualization, visport);
    }
    else if (dim == 3)
    {
       return ex1_t<3>::run(mesh, ref_levels, order, basis, static_cond,
-                           pc_choice, perf, matrix_free, visualization);
+                           pc_choice, perf, matrix_free, visualization, visport);
    }
    else
    {
@@ -182,7 +184,7 @@ int main(int argc, char *argv[])
 template <int dim>
 int ex1_t<dim>::run(Mesh *mesh, int ref_levels, int order, int basis,
                     bool static_cond, PCType pc_choice, bool perf,
-                    bool matrix_free, bool visualization)
+                    bool matrix_free, bool visualization, int visport)
 {
    // 3. Check if the optimized version matches the given mesh
    if (perf)
@@ -428,7 +430,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ref_levels, int order, int basis,
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;

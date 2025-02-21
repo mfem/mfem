@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,7 +79,8 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);
@@ -106,7 +107,7 @@ string mapTypeStr(int mType);
 int update_basis(vector<socketstream*> & sock, const VisWinLayout & vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData & defData,
-                 bool visualization, int &onlySome);
+                 bool visualization, int &onlySome, int visport = 19916);
 
 int main(int argc, char *argv[])
 {
@@ -131,6 +132,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int onlySome = -1;
 
+   int visport = 19916;
    vector<socketstream*> sock;
 
    OptionsParser args(argc, argv);
@@ -155,6 +157,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&onlySome, "-only", "--onlySome",
                   "Only view 10 dofs, starting with the specified one.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -211,7 +214,7 @@ int main(int argc, char *argv[])
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
       if ( update_basis(sock, vwl, eType, bType, bOrder, mType,
-                        dType, defData, visualization, onlySome) )
+                        dType, defData, visualization, onlySome, visport) )
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
@@ -703,7 +706,7 @@ int
 update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
              Element::Type e, char bType, int bOrder, int mType,
              Deformation::DefType dType, const DeformationData & defData,
-             bool visualization, int &onlySome)
+             bool visualization, int &onlySome, int visport)
 {
    bool vec = false;
 
@@ -802,7 +805,6 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    FESpace.GetElementVDofs(0,vdofs);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int offx = vwl.w+10, offy = vwl.h+45; // window offsets
 

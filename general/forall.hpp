@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -836,6 +836,16 @@ inline void hypre_forall(int N, lambda &&body)
       hypre_forall_gpu(N, body);
    }
 #endif
+}
+
+// Return the most general MemoryClass that can be used with mfem::hypre_forall
+// kernels. The returned MemoryClass is the same as the one returned by
+// GerHypreMemoryClass() except when hypre is configured to use UVM, in which
+// case this function returns MemoryClass::HOST or MemoryClass::DEVICE depending
+// on the result of HypreUsingGPU().
+inline MemoryClass GetHypreForallMemoryClass()
+{
+   return HypreUsingGPU() ? MemoryClass::DEVICE : MemoryClass::HOST;
 }
 
 #endif // MFEM_USE_MPI

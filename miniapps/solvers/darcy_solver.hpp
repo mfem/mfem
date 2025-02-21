@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,10 +63,10 @@ public:
    BDPMinresSolver(const HypreParMatrix& M,
                    const HypreParMatrix& B,
                    IterSolveParameters param);
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector & x, Vector & y) const override;
+   void SetOperator(const Operator &op) override { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+   int GetNumIterations() const override { return solver_.GetNumIterations(); }
 };
 } // namespace blocksolvers
 } // namespace mfem

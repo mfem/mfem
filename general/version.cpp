@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,6 +72,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_AMGX
       "MFEM_USE_AMGX\n"
+#endif
+#ifdef MFEM_USE_MAGMA
+      "MFEM_USE_MAGMA\n"
 #endif
 #ifdef MFEM_USE_CEED
       "MFEM_USE_CEED\n"
