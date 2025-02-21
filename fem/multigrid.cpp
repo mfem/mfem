@@ -17,7 +17,10 @@ namespace mfem
 MultigridBase::MultigridBase()
    : cycleType(CycleType::VCYCLE), preSmoothingSteps(1), postSmoothingSteps(1),
      nrhs(0)
-{}
+{
+   coarse_solver = nullptr;
+   own_coarse_solver = false;
+}
 
 MultigridBase::MultigridBase(const Array<Operator*>& operators_,
                              const Array<Solver*>& smoothers_,
@@ -29,12 +32,18 @@ MultigridBase::MultigridBase(const Array<Operator*>& operators_,
 {
    operators_.Copy(operators);
    smoothers_.Copy(smoothers);
+   coarse_solver = nullptr;
    ownedOperators_.Copy(ownedOperators);
    ownedSmoothers_.Copy(ownedSmoothers);
+   own_coarse_solver = false;
 }
 
 MultigridBase::~MultigridBase()
 {
+   if (own_coarse_solver)
+   {
+      delete coarse_solver;
+   }
    for (int i = 0; i < operators.Size(); ++i)
    {
       if (ownedOperators[i])
@@ -96,6 +105,12 @@ void MultigridBase::AddLevel(Operator* op, Solver* smoother,
    smoothers.Append(smoother);
    ownedOperators.Append(ownOperator);
    ownedSmoothers.Append(ownSmoother);
+}
+
+void MultigridBase::AddCoarseSolver(Solver *c_solver, bool own_c_solver)
+{
+   coarse_solver = c_solver;
+   own_coarse_solver = own_c_solver;
 }
 
 void MultigridBase::SetCycleType(CycleType cycleType_, int preSmoothingSteps_,
@@ -177,13 +192,36 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
    }
 }
 
+void MultigridBase::CoarseSolve(bool zero) const
+{
+   // See the comment about iterative mode in SmoothingStep()
+   coarse_solver->iterative_mode = false;
+
+   if (zero)
+   {
+      Array<Vector *> X_(X[0], nrhs), Y_(Y[0], nrhs);
+      coarse_solver->ArrayMult(X_, Y_);
+   }
+   else
+   {
+      Array<Vector *> Y_(Y[0], nrhs), R_(R[0], nrhs);
+      GetOperatorAtLevel(0)->ArrayMult(Y_, R_);
+      for (int j = 0; j < nrhs; ++j)
+      {
+         // *R_[j] = *X(0, j) - *R_[j]
+         subtract(*X(0, j), *R_[j], *R_[j]);
+      }
+      coarse_solver->ArrayAddMult(R_, Y_);
+   }
+}
+
 void MultigridBase::Cycle(int level, bool zero) const
 {
    // Note: 'zero' == true means that Y(level,*) are not initialized and we
    // should assume that the input they typically provide to this call is zeros.
 
    // Coarse solve
-   if (level == 0)
+   if (level == 0 && !coarse_solver)
    {
       SmoothingStep(0, zero, false);
       return;
@@ -193,6 +231,13 @@ void MultigridBase::Cycle(int level, bool zero) const
    for (int i = 0; i < preSmoothingSteps; ++i)
    {
       SmoothingStep(level, zero && (i == 0), false);
+   }
+
+   // Coarse solve with 'coarse_solver'
+   if (level == 0)
+   {
+      CoarseSolve(preSmoothingSteps == 0 && zero);
+      goto mg_post_smooth;
    }
 
    // Compute residual and restrict
@@ -239,6 +284,7 @@ void MultigridBase::Cycle(int level, bool zero) const
       }
    }
 
+mg_post_smooth:
    // Post-smooth
    for (int i = 0; i < postSmoothingSteps; ++i)
    {

@@ -429,6 +429,19 @@ void OperatorChebyshevSmoother::Setup()
       X[I[i]] = 1.0;
    });
 
+   const int order_save = order;
+   order = -1; // avoid early exit in SetOrder() when 'new_order' == 'order'
+   SetOrder(order_save);
+}
+
+void OperatorChebyshevSmoother::SetOrder(int new_order)
+{
+   if (new_order == order) { return; }
+
+   order = new_order;
+   coeffs.SetSize(order);
+   z.SetSize(order > 1 ? N : 0);
+
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
    // Gauss-Seidel by Adams et al.

@@ -36,6 +36,8 @@ protected:
    Array<Solver*> smoothers;
    Array<bool> ownedOperators;
    Array<bool> ownedSmoothers;
+   Solver *coarse_solver; /// can be NULL, see AddCoarseSolver()
+   bool own_coarse_solver;
 
    CycleType cycleType;
    int preSmoothingSteps;
@@ -64,6 +66,16 @@ public:
        to the Multigrid by setting the according boolean variables */
    void AddLevel(Operator* op, Solver* smoother, bool ownOperator,
                  bool ownSmoother);
+
+   /// Adds a coarse solver for level 0 to work in tandem with the smoother
+   /** If this coarse solver is not given, the smoother at level 0 is used as
+       the coarse solver. When this coarse solver is given, the smoother at
+       level 0 is used similar to the smoothers at other levels. Thus, the
+       action at level 0 consists of:
+       - pre-smoothing steps with smoother 0,
+       - solve step with @a c_solver,
+       - post-smoothing steps with smoother 0. */
+   void AddCoarseSolver(Solver *c_solver, bool own_c_solver);
 
    /// Returns the number of levels
    int NumLevels() const { return operators.Size(); }
@@ -122,6 +134,9 @@ private:
 
    /// Application of a pre-/post-smoothing step at particular level
    void SmoothingStep(int level, bool zero, bool transpose) const;
+
+   /// Perform a coarse solve with 'coarse_solve' (must be non-NULL)
+   void CoarseSolve(bool zero) const;
 
    /// Allocate or destroy temporary storage
    void InitVectors() const;
@@ -202,6 +217,9 @@ public:
 
    /// Recover the solution of a linear system formed with FormFineLinearSystem()
    void RecoverFineFEMSolution(const Vector& X, const Vector& b, Vector& x);
+
+   const Array<int> &GetFineEssentialTrueDofs() const
+   { return *essentialTrueDofs.Last(); }
 };
 
 } // namespace mfem

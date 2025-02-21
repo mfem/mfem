@@ -193,4 +193,4 @@ void mfem_warning(const char *msg)
    }
 }
 
-}
+} // namespace mfem
