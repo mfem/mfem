@@ -14,53 +14,47 @@
 
 using namespace mfem;
 
-TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
+TEST_CASE("Chebyshev symmetry", "[OperatorChebyshevSmoother]")
 {
-   for (int order = 2; order < 5; ++order)
-   {
-      const int cheb_order = 2;
+   const int order = GENERATE(2, 3, 4);
+   const int cheb_order = GENERATE(2, 3);
 
-      Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
-      FiniteElementCollection *fec = new H1_FECollection(order, 3);
-      FiniteElementSpace fespace(&mesh, fec);
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      Array<int> ess_tdof_list;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
+   H1_FECollection fec(order, 3);
+   FiniteElementSpace fespace(&mesh, &fec);
 
-      BilinearForm aform(&fespace);
-      aform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      aform.AddDomainIntegrator(new DiffusionIntegrator);
-      aform.Assemble();
-      OperatorPtr opr;
-      opr.SetType(Operator::ANY_TYPE);
-      aform.FormSystemMatrix(ess_tdof_list, opr);
-      Vector diag(fespace.GetTrueVSize());
-      aform.AssembleDiagonal(diag);
+   Array<int> ess_tdof_list;
+   fespace.GetBoundaryTrueDofs(ess_tdof_list);
 
-      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list,
-                                                       cheb_order);
+   BilinearForm aform(&fespace);
+   aform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   aform.AddDomainIntegrator(new DiffusionIntegrator);
+   aform.Assemble();
 
-      int n = smoother->Width();
-      Vector left(n);
-      Vector right(n);
-      int seed = (int) time(0);
-      left.Randomize(seed);
-      right.Randomize(seed + 2);
+   OperatorPtr opr;
+   opr.SetType(Operator::ANY_TYPE);
+   aform.FormSystemMatrix(ess_tdof_list, opr);
 
-      // test that x^T S y = y^T S x
-      Vector smooth(n);
-      smooth = 0.0;
-      smoother->Mult(right, smooth);
-      double forward_val = left * smooth;
-      smoother->Mult(left, smooth);
-      double transpose_val = right * smooth;
+   Vector diag(fespace.GetTrueVSize());
+   aform.AssembleDiagonal(diag);
 
-      double error = fabs(forward_val - transpose_val) / fabs(forward_val);
-      CAPTURE(order, error);
-      REQUIRE(error < 1.e-13);
+   OperatorChebyshevSmoother smoother(*opr, diag, ess_tdof_list, cheb_order);
 
-      delete smoother;
-      delete fec;
-   }
+   const int n = smoother.Width();
+   Vector left(n);
+   Vector right(n);
+   left.Randomize(1);
+   right.Randomize(2);
+
+   // test that x^T S y = y^T S x
+   Vector smooth(n);
+   smoother.Mult(right, smooth);
+   real_t forward_val = left * smooth;
+
+   smoother.Mult(left, smooth);
+   real_t transpose_val = right * smooth;
+
+   real_t error = std::abs(forward_val - transpose_val) / std::abs(forward_val);
+   CAPTURE(order, error);
+   REQUIRE(error == MFEM_Approx(0.0));
 }
