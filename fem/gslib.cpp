@@ -724,7 +724,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       Array<int> gsl_steps_l;
       if (track_steps)
       {
-         gsl_steps_l.SetSize(n);
+         gsl_steps_l.SetSize(n, 0);
          steps = &gsl_steps_l;
       }
 

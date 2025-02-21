@@ -172,7 +172,6 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       case InverseElementTransformation::ClosestPhysNode:
       {
          int nq1d = std::max(order + rel_qpts_order, 0) + 1;
-         bool use_closest_dof = false;
          int btype = BasisType::GetNodalBasis(guess_points_type);
 
          if ((btype == BasisType::Invalid || btype == basis_type) &&
