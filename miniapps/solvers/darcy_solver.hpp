@@ -57,7 +57,7 @@ class BDPMinresSolver : public DarcySolver
    BlockDiagonalPreconditioner prec_;
    OperatorPtr BT_;
    OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
-   MINRESSolver solver_;
+   mutable MINRESSolver solver_;
    Array<int> ess_zero_dofs_;
 public:
    BDPMinresSolver(const HypreParMatrix& M,

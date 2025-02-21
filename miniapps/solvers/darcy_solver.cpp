@@ -58,6 +58,7 @@ BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
 
 void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
 {
+   solver_.iterative_mode = this->iterative_mode;
    solver_.Mult(x, y);
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
