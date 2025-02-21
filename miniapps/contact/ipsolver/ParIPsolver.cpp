@@ -625,6 +625,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          // HypreBoomerAMG amg(*Huu);
          amg.SetPrintLevel(0);
          amg.SetRelaxType(relax_type);
+         amg.SetMaxIter(2);
          if (pfes)
          {
             amg.SetElasticityOptions(pfes);
@@ -655,7 +656,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          }
          AreducedSolver->SetRelTol(linSolveRelTol);
          AreducedSolver->SetMaxIter(50000);
-         AreducedSolver->SetPrintLevel(1);
+         AreducedSolver->SetPrintLevel(3);
          AreducedSolver->SetOperator(*Areduced);
          GeneralSolutionMonitor * sol_monitor = nullptr;
          if (monitor)
@@ -738,7 +739,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          ///}    
          AreducedSolver.SetRelTol(linSolveRelTol);
          AreducedSolver.SetMaxIter(500);
-         AreducedSolver.SetPrintLevel(1);
+         AreducedSolver.SetPrintLevel(3);
          AreducedSolver.SetOperator(*Areduced);
          AreducedSolver.SetPreconditioner(prec);
          chrono.Clear();

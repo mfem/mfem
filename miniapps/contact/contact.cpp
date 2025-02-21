@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
                   "Enable or disable ParaView visualization.");
    args.AddOption(&outputfiles, "-out", "--output", "-no-out",
                   "--no-ouput",
-                  "Enable or disable ouput to files.");          
+                  "Enable or disable output to files.");          
    args.AddOption(&monitor, "-monitor", "--monitor", "-no-monitor",
                   "--no-monitor",
                   "Enable or disable internal solution monitoring with paraview.");                                  
@@ -297,7 +297,9 @@ int main(int argc, char *argv[])
    else
    {
       E[0] = 1.0;  E[1] = 1e3;
-      nu[0] = 0.45;  nu[1] = 0.0;
+      nu[0] = 0.499;  nu[1] = 0.0;
+      // E[1] = 1.0;  E[0] = 1e3;
+      // nu[1] = 0.499;  nu[0] = 0.0;
    }
 
 
@@ -472,7 +474,7 @@ int main(int argc, char *argv[])
          {
             // ess_values[0] = 8.0/1.4*(i+1-nsteps)/msteps;
             // ess_values[2] = -2.0/1.4;
-            ess_values[0] = -8.0/1.4*(i+1-nsteps)/msteps;
+            ess_values[0] = -3.0/1.4*(i+1-nsteps)/msteps;
             ess_values[2] = 1.0/1.4;
          }
          prob.SetDisplacementDirichletData(ess_values, ess_bdr);
@@ -559,6 +561,46 @@ int main(int argc, char *argv[])
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
       
+      HypreParMatrix * P = contact.GetRestrictionToContactDofs();
+      
+      Vector tone(fes->GetTrueVSize()); tone = 1.0;
+      ParGridFunction one_gf(fes); 
+      one_gf.SetFromTrueDofs(tone);
+      // visualize one_gf to check if the restriction is correct
+      socketstream sol_sock_one;
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int visport = 19916;
+         sol_sock_one.open(vishost, visport);
+         sol_sock_one.precision(8);
+         sol_sock_one << "parallel " << num_procs << " " << myid << "\n"
+                      << "solution\n" << pmesh << one_gf << flush;
+      }
+      mfem::out << "tone norm = " << tone.Norml2() << endl;
+      mfem::out << "P->Height() = " << P->Height() << endl;
+      mfem::out << "P->Width() = " << P->Width() << endl;
+      Vector tcontact(P->Width());
+
+      P->MultTranspose(tone, tcontact);
+      tone = 0.0;
+      P->Mult(tcontact, tone);
+
+      mfem::out << "tone norm = " << tone.Norml2() << endl;
+
+      one_gf = 0.0;
+      one_gf.SetFromTrueDofs(tone);
+      socketstream sol_sock_two;
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int visport = 19916;
+         sol_sock_two.open(vishost, visport);
+         sol_sock_two.precision(8);
+         sol_sock_two << "parallel " << num_procs << " " << myid << "\n"
+                      << "solution\n" << pmesh << one_gf << flush;
+      }
+      
       int numconstr = contact.GetGlobalNumConstraints();
       ParInteriorPointSolver optimizer(&contact);
       if (monitor)
@@ -630,15 +672,21 @@ int main(int argc, char *argv[])
          }
          if (outputfiles)
          {
+            std::string output_dir = "output/test" + std::to_string(testNo) + "/ref"
+                                   + std::to_string(sref+pref);
+            std::string mkdir_command = "mkdir -p " + output_dir;
+            int ret = system(mkdir_command.c_str());
+            if (ret != 0)
+            {
+               std::cerr << "Warning: Failed to create ParaView output directory.\n";
+            }                        
             ostringstream file_name;
-            file_name << "output/testNo" << testNo << "_ref" << sref+pref << "nsteps" << nsteps << "-step-" << i;
-	    //file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-step-" << i; 
+	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-step-" << i; 
             OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
             if (i == nsteps-1)
             {
                ostringstream final_file_name;
-               final_file_name << "output/testNo" << testNo << "_ref" << sref+pref << "nsteps" << nsteps << "-step-" << i << "-final";
-               //final_file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-final"; 
+               final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-final"; 
                OutputFinalData(final_file_name, Einitial, Efinal, gndofs, numconstr, CGiter);
             }
          }
