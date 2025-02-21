@@ -12,6 +12,7 @@
 //               Reynolds number 20.
 
 #include "mfem.hpp"
+#include <numeric>
 
 using namespace std;
 using namespace mfem;
