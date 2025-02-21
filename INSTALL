@@ -1136,8 +1136,6 @@ auto-detection functionality is disabled.
  - HYPRE
  - METIS
 
-
-
 Building without GNU make or CMake
 ==================================
 Before using another build system (e.g. Visual Studio) it is necessary to create
