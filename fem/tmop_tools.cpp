@@ -441,8 +441,6 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 
    // Get the local prolongation of the solution vector.
-   Vector x_loc(fes->GetVSize(), (temp_mt == MemoryType::DEFAULT) ?
-                /* */            Device::GetDeviceMemoryType() : temp_mt);
    Vector d_loc(fes->GetVSize(), (temp_mt == MemoryType::DEFAULT) ?
                 /* */            Device::GetDeviceMemoryType() : temp_mt);
    if (serial)
@@ -458,14 +456,12 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 #endif
 
-   add(x_0, d_loc, x_loc);
-
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
    real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
-      GetSurfaceFittingError(x_loc, init_fit_avg_err, init_fit_max_err);
+      GetSurfaceFittingError(d_loc, init_fit_avg_err, init_fit_max_err);
       // Check for convergence
       if (init_fit_max_err < surf_fit_max_err_limit)
       {
@@ -493,7 +489,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const real_t min_detT_in = ComputeMinDet(x_loc, *fes);
+   const real_t min_detT_in = ComputeMinDet(d_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
@@ -541,10 +537,9 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 #ifdef MFEM_USE_MPI
       else { fes->GetProlongationMatrix()->Mult(d_out, d_loc); }
 #endif
-      add(x_0, d_loc, x_loc);
 
       // Check the changes in detJ.
-      min_detT_out = ComputeMinDet(x_loc, *fes);
+      min_detT_out = ComputeMinDet(d_loc, *fes);
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
@@ -576,7 +571,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // converge based on error.
       if (fitting && surf_fit_converge_error)
       {
-         GetSurfaceFittingError(x_loc, avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(d_loc, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*init_fit_max_err)
          {
             if (print_options.iterations)
@@ -672,6 +667,7 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    auto fes_mesh_nodes = nlf->FESpace()->GetMesh()->GetNodes()->FESpace();
    const Operator *P = fes_mesh_nodes->GetProlongationMatrix();
    x_0.SetSpace(fes_mesh_nodes);
+   periodic = fes_mesh_nodes->IsDGSpace();
    if (P)
    {
       MFEM_VERIFY(x.Size() == P->Width(),
@@ -696,13 +692,19 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    // Solve for the displacement, which always starts from zero.
-   Vector d(x.Size()); d = 0.0;
+   Vector d(height); d = 0.0;
    if (solver_type == 0)      { NewtonSolver::Mult(b, d); }
    else if (solver_type == 1) { LBFGSSolver::Mult(b, d); }
    else { MFEM_ABORT("Invalid solver_type"); }
 
    // Form the final mesh using the computed displacement.
-   x += d;
+   GridFunction d_loc(const_cast<FiniteElementSpace *>(nlf->FESpace()));
+   const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
+   if (Pd) { Pd->Mult(d, d_loc); }
+   else    { d_loc = d; }
+   GridFunction d_loc_l2(fes_mesh_nodes);
+   d_loc_l2.ProjectGridFunction(d_loc);
+   x += d_loc_l2;
 
    // Make sure the pointers don't use invalid memory (x_0_loc is gone).
    for (int i = 0; i < integs.Size(); i++)
@@ -772,7 +774,7 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<real_t> &weights) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
+void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &d_loc,
                                               real_t &err_avg,
                                               real_t &err_max) const
 {
@@ -791,7 +793,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
       {
          if (ti->IsSurfaceFittingEnabled())
          {
-            ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
+            ti->GetSurfaceFittingErrors(d_loc, err_avg_loc, err_max_loc);
             err_avg = std::max(err_avg_loc, err_avg);
             err_max = std::max(err_max_loc, err_max);
          }
@@ -804,7 +806,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
          {
             if (ati[j]->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
+               ati[j]->GetSurfaceFittingErrors(d_loc, err_avg_loc, err_max_loc);
                err_avg = std::max(err_avg_loc, err_avg);
                err_max = std::max(err_max_loc, err_max);
             }
@@ -884,8 +886,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
       P->Mult(d, d_loc);
    }
    else { d_loc = d; }
-   Vector x_loc(x_0.Size());
-   add(x_0, d_loc, x_loc);
 
    const FiniteElementSpace *x_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
@@ -893,10 +893,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+         ti->UpdateAfterMeshPositionChange(d_loc, *x_fes);
          if (compute_metric_quantile_flag)
          {
-            ti->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+            ti->ComputeUntangleMetricQuantiles(d_loc, *x_fes);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -905,10 +905,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+            ati[j]->UpdateAfterMeshPositionChange(d_loc, *x_fes);
             if (compute_metric_quantile_flag)
             {
-               ati[j]->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+               ati[j]->ComputeUntangleMetricQuantiles(d_loc, *x_fes);
             }
          }
       }
@@ -921,7 +921,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
    if (surf_fit_coeff_update)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(x_loc, surf_fit_avg_err, surf_fit_max_err);
+      GetSurfaceFittingError(d_loc, surf_fit_avg_err, surf_fit_max_err);
       // Get array with surface fitting weights.
       Array<real_t> fitweights;
       GetSurfaceFittingWeight(fitweights);
@@ -961,7 +961,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
    }
 }
 
-real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
+real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
                                        const FiniteElementSpace &fes) const
 {
    real_t min_detJ = infinity();
@@ -969,7 +969,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
+   if (true || dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
    {
       for (int i = 0; i < NE; i++)
       {
@@ -977,8 +977,19 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
          DenseMatrix dshape(dof, dim), pos(dof, dim);
          Vector posV(pos.Data(), dof * dim);
 
+         Vector x_0_loc;
+         x_0.GetElementDofValues(i, x_0_loc);
+         if (periodic)
+         {
+            auto n_el = dynamic_cast<const NodalFiniteElement *>(fes.GetFE(i));
+            n_el->ReorderFromLexicographic(dim, x_0_loc, posV);
+         }
+         else { posV = x_0_loc; }
+
+         Vector d_loc_el;
          fes.GetElementVDofs(i, xdofs);
-         x_loc.GetSubVector(xdofs, posV);
+         d_loc.GetSubVector(xdofs, d_loc_el);
+         posV += d_loc_el;
 
          const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
          const int nsp = irule.GetNPoints();
@@ -992,8 +1003,9 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    }
    else
    {
-      min_detJ = dim == 2 ? MinDetJpr_2D(&fes, x_loc) :
-                 dim == 3 ? MinDetJpr_3D(&fes, x_loc) : 0.0;
+      MFEM_ABORT("to fix");
+      min_detJ = dim == 2 ? MinDetJpr_2D(&fes, d_loc) :
+                 dim == 3 ? MinDetJpr_3D(&fes, d_loc) : 0.0;
    }
    real_t min_detT_all = min_detJ;
 #ifdef MFEM_USE_MPI

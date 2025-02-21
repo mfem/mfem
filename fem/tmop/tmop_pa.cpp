@@ -184,6 +184,8 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 {
+   if (periodic) { MFEM_ABORT("periodic not implemented"); }
+
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
 

@@ -176,6 +176,7 @@ protected:
    // For periodic meshes, x_0 is an L2 function, and the relation
    // x = x_0 + d is used only per element with appropriate transitions.
    mutable GridFunction x_0;
+   mutable bool periodic = false;
 
    // Line search step is rejected if min(detJ) <= min_detJ_limit.
    real_t min_detJ_limit = 0.0;
@@ -215,7 +216,7 @@ protected:
       return ir;
    }
 
-   real_t ComputeMinDet(const Vector &x_loc,
+   real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
    real_t MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
@@ -226,7 +227,7 @@ protected:
    /// Get the average and maximum surface fitting error at the marked nodes.
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
-   virtual void GetSurfaceFittingError(const Vector &x_loc,
+   virtual void GetSurfaceFittingError(const Vector &d_loc,
                                        real_t &err_avg, real_t &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.

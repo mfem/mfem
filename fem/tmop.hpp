@@ -1872,8 +1872,7 @@ protected:
    // When x_0 != nullptr, the integrator works on the displacements.
    // TODO in MFEM-5.0 make it always work with displacements.
    const GridFunction *x_0;
-   // Called with nullptr to unset the x_0 after the problem is solved.
-   void SetInitialMeshPos(const GridFunction *x0);
+   bool periodic = false;
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
@@ -2162,6 +2161,9 @@ public:
       IntegRules = &irules;
       integ_order = order;
    }
+
+   // Called with nullptr to unset the x_0 after the problem is solved.
+   void SetInitialMeshPos(const GridFunction *x0);
 
    /// The TMOP integrals can be computed over the reference element or the
    /// target elements. This function is used to switch between the two options.
