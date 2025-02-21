@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -268,7 +268,7 @@ public:
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    /// Solves the optimization problem with xt as initial guess.
-   virtual void Mult(const Vector &xt, Vector &x) const;
+   void Mult(const Vector &xt, Vector &x) const override;
 };
 
 } // mfem namespace

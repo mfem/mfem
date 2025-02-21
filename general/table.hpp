@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,6 +57,14 @@ public:
 
    /// Copy constructor
    Table(const Table &);
+
+   /** Merge constructors
+       This is used to combine two or three tables into one table.*/
+   Table(const Table &table1,
+         const Table &table2, int offset2);
+   Table(const Table &table1,
+         const Table &table2, int offset2,
+         const Table &table3, int offset3);
 
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);

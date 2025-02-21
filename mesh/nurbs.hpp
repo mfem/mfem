@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,6 +64,17 @@ public:
    /** @brief Create a KnotVector with undefined knots (initialized to -1) of
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
+
+   /** @brief Create a KnotVector by passing in a degree, a Vector of interval
+       lengths of length n, and a list of continuity of length n + 1.
+
+       The intervals refer to spans between unique knot values (not counting
+       zero-size intervals at repeated knots), and the continuity values should
+       be >= -1 (discontinuous) and <= order-1 (maximally-smooth for the given
+       polynomial degree). Periodicity is not supported.
+   */
+   KnotVector(int order, const Vector& intervals,
+              const Array<int>& continuity );
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -262,6 +273,22 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim);
 
+   /** Create a bivariate NURBS patch with given control points. See n-variate
+       overload for additional notes. */
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
+              const real_t* control_points);
+   /** Create a trivariate NURBS patch with given control points. See n-variate
+       overload for additional notes. */
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+              const KnotVector *kv2, int dim_, const real_t* control_points);
+   /** Create an n-variate NURBS patch with given control points of dimension
+       dim_, where n is the length of the array of knot vectors and dim_
+       includes the weight. The array of control point coordinates stores each
+       point's coordinates contiguously, and points are ordered in a standard
+       ijk grid ordering. */
+   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+              const real_t* control_points);
+
    /// Constructor for a patch of dimension equal to the size of @a kv.
    NURBSPatch(Array<const KnotVector *> &kv, int dim);
 
@@ -426,6 +453,16 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
+
+   /// Flag for indicating what type of NURBS fespace this extension is used for.
+   enum class Mode
+   {
+      H_1,    ///> Extension for a standard scalar-valued space
+      H_DIV,  ///> Extension for a divergence conforming vector-valued space
+      H_CURL, ///> Extension for a curl conforming vector-valued space
+   };
+   Mode mode = Mode::H_1;
+
    /// Order of KnotVectors, see GetOrder() for description.
    int mOrder;
 
@@ -637,7 +674,7 @@ protected:
    void SetPatchToBdrElements();
 
    /// To be used by ParNURBSExtension constructor(s)
-   NURBSExtension() { }
+   NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
 public:
    /// Copy constructor: deep copy
@@ -655,9 +692,13 @@ public:
    /** @a note If a KnotVector in @a parent already has order greater than or
        equal to the corresponding entry in @a newOrder, it will be used
        unmodified. */
-   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
+   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
+                  Mode mode = Mode::H_1);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
+
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
+
+   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
@@ -841,12 +882,23 @@ public:
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
+   /** Returns the NURBSExtension to be used for @a component of
+       an H(div) conforming NURBS space. Caller gets ownership of
+       the returned object, and is responsible for deletion.*/
+   NURBSExtension* GetDivExtension(int component);
+
+   /** Returns the NURBSExtension to be used for @a component of
+       an H(curl) conforming NURBS space. Caller gets ownership of
+       the returned object, and is responsible for deletion.*/
+   NURBSExtension* GetCurlExtension(int component);
+
    void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
 
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
        non-nested spacing functions. */
    void GetCoarseningFactors(Array<int> & f) const;
+
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
@@ -872,7 +924,7 @@ class ParNURBSExtension : public NURBSExtension
 {
 private:
    /// Partitioning of the global elements by MPI rank
-   int *partitioning;
+   mfem::Array<int> partitioning;
 
    /// Construct and return a table of DOFs for each global element.
    Table *GetGlobalElementDofTable();
@@ -882,9 +934,10 @@ private:
 
    /** @brief Set active global elements and boundary elements based on MPI
        ranks in @a partition and the array @a active_bel. */
-   void SetActive(const int *partition, const Array<bool> &active_bel);
+   void SetActive(const int *partitioning_, const Array<bool> &active_bel);
+
    /// Set up GroupTopology @a gtopo for MPI communication.
-   void BuildGroups(const int *partition, const Table &elem_dof);
+   void BuildGroups(const int *partitioning_, const Table &elem_dof);
 
 public:
    GroupTopology gtopo;
@@ -895,11 +948,12 @@ public:
    ParNURBSExtension(const ParNURBSExtension &orig);
 
    /** @brief Constructor for an MPI communicator @a comm, a global
-       NURBSExtension @a parent, a partitioning @a part of the global elements
-       by MPI rank, and a marker @a active_bel of active global boundary
-       elements on this rank. The partitioning is deep-copied and will not be
-       deleted by this object. */
-   ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent, int *part,
+       NURBSExtension @a parent, a partitioning @a partitioning_ of the global
+       elements by MPI rank, and a marker @a active_bel of active global
+       boundary elements on this rank. The partitioning is deep-copied and will
+       not be deleted by this object. */
+   ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
+                     const int *partitioning_,
                      const Array<bool> &active_bel);
 
    /** @brief Create a parallel version of @a parent with partitioning as in
@@ -907,8 +961,6 @@ public:
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
                      const ParNURBSExtension *par_parent);
-
-   virtual ~ParNURBSExtension() { delete [] partitioning; }
 };
 #endif
 

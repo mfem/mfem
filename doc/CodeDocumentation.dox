@@ -182,6 +182,21 @@ namespace mfem {
  *   <a class="el" href="examples_2superlu_2ex1p_8cpp_source.html">1p</a>,
  *   demonstrating the use of MFEM's \link superlu.hpp SuperLU integration\endlink.
  *
+ * <H4>NURBS Examples</H4>
+ * - Variants of Examples
+ *  <a class="el" href="nurbs__ex1_8cpp_source.html">1</a>,
+ *  <a class="el" href="nurbs__ex1p_8cpp_source.html">1p</a>,
+ *  <a class="el" href="nurbs__ex3_8cpp_source.html">3</a>,
+ *  <a class="el" href="nurbs__ex5_8cpp_source.html">5</a>,
+ *  <a class="el" href="nurbs__ex11p_8cpp_source.html">11p</a>, and
+ *  <a class="el" href="nurbs__ex24_8cpp_source.html">24</a>,
+ *   demonstrating howto perform NURBS-based Isogeometric Analysis.
+ * - Variant of Example <a class="el" href="nurbs__patch__ex1_8cpp_source.html">1</a>: demonstrates the use of patch integration
+ * - <a class="el" href="nurbs__solenoidal_8cpp_source.html">NURBS Divergence-free</a>: solve a solenoidal vector projection with NURBS-based H(div) elements
+ * - <a class="el" href="nurbs__curveint_8cpp_source.html">NURBS Interpolation</a>: NURBS interpolation of given geometry
+ * - <a class="el" href="nurbs__naca__cmesh_8cpp_source.html">NURBS NACA Mesher</a>: generate NURBS based mesh around a NACA foil
+ * - <a class="el" href="nurbs__printfunc_8cpp_source.html">NURBS Printer</a>: print the NURBS-basis
+ *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code

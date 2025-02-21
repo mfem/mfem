@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,6 +51,15 @@ protected:
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
+
+   /// @name Tolerance used for point comparisons
+   ///@{
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t tol_0 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t tol_0 = 1e-7;
+#endif
+   ///@}
 
 public:
 
@@ -176,7 +185,7 @@ public:
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
    virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
-                             const real_t phys_tol = 1e-15) = 0;
+                             const real_t phys_tol = tol_0) = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -281,9 +290,15 @@ public:
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
+#ifdef MFEM_USE_DOUBLE
         ref_tol(1e-15),
         phys_rtol(1e-15),
         ip_tol(1e-8),
+#elif defined(MFEM_USE_SINGLE)
+        ref_tol(1e-7),
+        phys_rtol(1e-7),
+        ip_tol(1e-4),
+#endif
         print_level(-1)
    { }
 
@@ -370,10 +385,10 @@ private:
 
    /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
        store it in dFdx. */
-   virtual const DenseMatrix &EvalJacobian();
+   const DenseMatrix &EvalJacobian() override;
    // Evaluate the Hessian of the transformation at the IntPoint and store it
    // in d2Fdx2.
-   virtual const DenseMatrix &EvalHessian();
+   const DenseMatrix &EvalHessian() override;
 
 public:
    IsoparametricTransformation() : FElem(NULL) {}
@@ -415,32 +430,32 @@ public:
 
    /** @brief Transform integration point from reference coordinates to
        physical coordinates and store them in the vector. */
-   virtual void Transform(const IntegrationPoint &, Vector &);
+   void Transform(const IntegrationPoint &, Vector &) override;
 
    /** @brief Transform all the integration points from the integration rule
        from reference coordinates to physical
       coordinates and store them as column vectors in the matrix. */
-   virtual void Transform(const IntegrationRule &, DenseMatrix &);
+   void Transform(const IntegrationRule &, DenseMatrix &) override;
 
    /** @brief Transform all the integration points from the column vectors
        of @a matrix from reference coordinates to physical
        coordinates and store them as column vectors in @a result. */
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
+   void Transform(const DenseMatrix &matrix, DenseMatrix &result) override;
 
    /// Return the order of the current element we are using for the transformation.
-   virtual int Order() const { return FElem->GetOrder(); }
+   int Order() const override { return FElem->GetOrder(); }
 
    /// Return the order of the elements of the Jacobian of the transformation.
-   virtual int OrderJ() const;
+   int OrderJ() const override;
 
    /** @brief Return the order of the determinant of the Jacobian (weight)
        of the transformation. */
-   virtual int OrderW() const;
+   int OrderW() const override;
 
    /// Return the order of $ adj(J)^T \nabla fi $
-   virtual int OrderGrad(const FiniteElement *fe) const;
+   int OrderGrad(const FiniteElement *fe) const override;
 
-   virtual int GetSpaceDim() const { return PointMat.Height(); }
+   int GetSpaceDim() const override { return PointMat.Height(); }
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
        reference space and optionally can set a solver tolerance using @a phys_tol. */
@@ -448,8 +463,8 @@ public:
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip,
-                             const real_t phys_rel_tol = 1e-15)
+   int TransformBack (const Vector & v, IntegrationPoint & ip,
+                      const real_t phys_rel_tol = tol_0) override
    {
       InverseElementTransformation inv_tr(this);
       inv_tr.SetPhysicalRelTol(phys_rel_tol);
@@ -589,9 +604,9 @@ public:
        has been configured. */
    const IntegrationPoint &GetElement2IntPoint() { return eip2; }
 
-   virtual void Transform(const IntegrationPoint &, Vector &);
-   virtual void Transform(const IntegrationRule &, DenseMatrix &);
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
+   void Transform(const IntegrationPoint &, Vector &) override;
+   void Transform(const IntegrationRule &, DenseMatrix &) override;
+   void Transform(const DenseMatrix &matrix, DenseMatrix &result) override;
 
    ElementTransformation & GetElement1Transformation();
    ElementTransformation & GetElement2Transformation();

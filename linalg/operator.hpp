@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -420,8 +420,9 @@ public:
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
 
-       Presently, this method is used by some PETSc ODE solvers, for more
-       details, see the PETSc Manual. */
+       Presently, this method is used by some PETSc ODE solvers and the
+       SUNDIALS ARKStep integrator, for more details, see either the PETSc
+       Manual or the ARKode User Guide, respectively. */
    virtual void ExplicitMult(const Vector &u, Vector &v) const;
 
    /** @brief Perform the action of the implicit part of the operator, F:
@@ -445,7 +446,7 @@ public:
 
        Regardless of the choice of F and G, this function should always compute
        @a k = inv(M) g(@a u, t). */
-   virtual void Mult(const Vector &u, Vector &v) const override;
+   void Mult(const Vector &u, Vector &k) const override;
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
@@ -496,7 +497,17 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &u) const;
 
-   /** @brief Setup a linear system as needed by some SUNDIALS ODE solvers.
+   /** @brief Setup a linear system as needed by some SUNDIALS ODE solvers to
+       perform a similar action to ImplicitSolve, i.e., solve for k, at the
+       current time t, in F(u + gamma k, k, t) = G(u + gamma k, t).
+
+       The SUNDIALS ODE solvers iteratively solve for k, as knew = kold + dk.
+       The linear system here is for dk, obtained by linearizing the nonlinear
+       system F(u + gamma knew, knew, t) = G(u + gamma knew, t) about dk = 0:
+          F(u + gamma (kold + dk), kold + dk, t) = G(u + gamma (kold + dk), t)
+          => [dF/dk + gamma (dF/du - dG/du)] dk = G - F + O(dk^2)
+       In other words, the linear system to be setup here is A dk = r, where
+       A = [dF/dk + gamma (dF/du - dG/du)] and r = G - F.
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
@@ -506,7 +517,7 @@ public:
          2. F(u,k,t) = M k and G(u,t) = g(u,t)
          3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
-       This function performs setup to solve $ A x = b $ where A is either
+       This function performs setup to solve $ A dk = r $ where A is either
 
          1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
          2. A(@a y,t) = M - @a gamma J(@a y,t)
@@ -527,18 +538,26 @@ public:
    virtual int SUNImplicitSetup(const Vector &y, const Vector &v,
                                 int jok, int *jcur, real_t gamma);
 
-   /** @brief Solve the ODE linear system A @a x = @a b, where A is defined by
-       the method SUNImplicitSetup().
+   /** @brief Solve the ODE linear system A @a dk = @a r , where A and r are
+       defined by the method SUNImplicitSetup().
 
-       @param[in]      b   The linear system right-hand side.
-       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
+       of the following:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+
+       @param[in]      r   inv(M) g(y,t) - k for 1 or g(y,t) - M k for 2 & 3.
+       @param[in,out]  dk  On input, the initial guess. On output, the solution.
        @param[in]      tol Linear solve tolerance.
 
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol);
+   virtual int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol);
 
    /** @brief Setup the mass matrix in the ODE system
        $ M \frac{dy}{dt} = g(y,t) $ .
@@ -787,10 +806,10 @@ public:
    explicit IdentityOperator(int n) : Operator(n) { }
 
    /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+   void Mult(const Vector &x, Vector &y) const override { y = x; }
 
    /// Application of the transpose
-   virtual void MultTranspose(const Vector &x, Vector &y) const { y = x; }
+   void MultTranspose(const Vector &x, Vector &y) const override { y = x; }
 };
 
 /// Returns true if P is the identity prolongation, i.e. if it is either NULL or
@@ -813,11 +832,11 @@ public:
       : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { A_.Mult(x, y); y *= a_; }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A_.MultTranspose(x, y); y *= a_; }
 };
 
@@ -839,11 +858,11 @@ public:
       : Operator(a.Width(), a.Height()), A(a) { }
 
    /// Operator application. Apply the transpose of the original Operator.
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { A.MultTranspose(x, y); }
 
    /// Application of the transpose. Apply the original Operator.
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A.Mult(x, y); }
 };
 
@@ -861,10 +880,10 @@ public:
       const Operator *B, const real_t beta,
       bool ownA, bool ownB);
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
 
    virtual ~SumOperator();
@@ -880,10 +899,10 @@ class ProductOperator : public Operator
 public:
    ProductOperator(const Operator *A, const Operator *B, bool ownA, bool ownB);
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { B->Mult(x, z); A->Mult(z, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A->MultTranspose(x, z); B->MultTranspose(z, y); }
 
    virtual ~ProductOperator();
@@ -905,10 +924,10 @@ public:
    /// Construct the RAP operator given R^T, A and P.
    RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
 
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Operator application.
-   virtual void Mult(const Vector & x, Vector & y) const
+   void Mult(const Vector & x, Vector & y) const override
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
    /// Approximate diagonal of the RAP Operator.
@@ -918,7 +937,7 @@ public:
        When P is the FE space prolongation operator on a mesh without hanging
        nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
        of A is also exact. */
-   virtual void AssembleDiagonal(Vector &diag) const
+   void AssembleDiagonal(Vector &diag) const override
    {
       A.AssembleDiagonal(APx);
       P.MultTranspose(APx, diag);
@@ -929,7 +948,7 @@ public:
    }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector & x, Vector & y) const
+   void MultTranspose(const Vector & x, Vector & y) const override
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 
@@ -948,12 +967,12 @@ public:
    TripleProductOperator(const Operator *A, const Operator *B,
                          const Operator *C, bool ownA, bool ownB, bool ownC);
 
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
 
    virtual ~TripleProductOperator();
@@ -1064,7 +1083,7 @@ public:
    RectangularConstrainedOperator(Operator *A, const Array<int> &trial_list,
                                   const Array<int> &test_list, bool own_A = false);
    /// Returns the type of memory in which the solution and temporaries are stored.
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
    /** @brief Eliminate columns corresponding to "essential boundary condition"
        values specified in @a x from the given right-hand side @a b.
 
@@ -1085,8 +1104,8 @@ public:
 
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
 
