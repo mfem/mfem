@@ -394,7 +394,7 @@ class BatchInverseElementTransformation
       InverseElementTransformation::NewtonElementProject;
    /// basis type stored in points1d
    int basis_type = BasisType::Invalid;
-   int guess_points_type = Quadrature1D::ClosedUniform;
+   int guess_points_type = Quadrature1D::Invalid;
    int max_iter = 16;
    Vector node_pos;
 #ifdef MFEM_USE_DOUBLE

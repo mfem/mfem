@@ -14,6 +14,8 @@
 
 #ifdef MFEM_USE_GSLIB
 
+#include "../general/forall.hpp"
+
 // Ignore warnings from the gslib header (GCC version)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic push
@@ -240,7 +242,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 }
 
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
-                                 int point_pos_ordering)
+                                 int point_pos_ordering, bool track_steps)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    bool dev_mode = (point_pos.UseDevice() && Device::IsEnabled());
@@ -270,7 +272,13 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                     "INSTALL for instructions to update GSLIB.");
       }
 #else
-      FindPointsOnDevice(point_pos, point_pos_ordering);
+      if (track_steps)
+      {
+         gsl_steps.SetSize(points_cnt);
+         auto tmp_ptr = gsl_steps.Write();
+         forall(points_cnt, [=] MFEM_HOST_DEVICE(int i) { tmp_ptr[i] = 0; });
+      }
+      FindPointsOnDevice(point_pos, point_pos_ordering, track_steps);
       return;
 #endif
    }
@@ -488,7 +496,7 @@ void FindPointsGSLIB::SetupDevice()
 
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          int point_pos_ordering,
-                                         Array<int> *steps)
+                                         bool track_steps)
 {
    if (!DEV.setup_device)
    {
@@ -500,11 +508,6 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    gsl_mfem_ref.SetSize(points_cnt * dim);
    gsl_mfem_elem.SetSize(points_cnt);
-   if (steps)
-   {
-      steps->SetSize(points_cnt);
-   }
-
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
    // Initialize arrays for all points (gsl_code is set to not found on device)
@@ -513,6 +516,11 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_elem = 0;
    gsl_mfem_elem = 0;
    gsl_proc = id;
+   Array<int>* steps = nullptr;
+   if (track_steps)
+   {
+      steps = &gsl_steps;
+   }
 
    if (dim == 2)
    {
@@ -530,6 +538,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_dist.HostReadWrite();
    gsl_code.HostReadWrite();
    gsl_elem.HostReadWrite();
+   if (track_steps)
+   {
+      gsl_steps.HostReadWrite();
+   }
    point_pos.HostRead();
 
    // Tolerance for point to be marked as on element edge/face based on the
@@ -588,6 +600,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    {
       double r[3], dist2;
       unsigned int index, code, el, proc;
+      int steps;
    };
 
    {
@@ -708,6 +721,12 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       auto pointl = point_pos_l.HostWrite();
 
       Array<unsigned int> gsl_code_l(n), gsl_elem_l(n);
+      Array<int> gsl_steps_l;
+      if (track_steps)
+      {
+         gsl_steps_l.SetSize(n);
+         steps = &gsl_steps_l;
+      }
 
       for (int point = 0; point < n; ++point)
       {
@@ -733,6 +752,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       gsl_dist_l.HostRead();
       gsl_code_l.HostRead();
       gsl_elem_l.HostRead();
+      if (track_steps)
+      {
+         gsl_steps_l.HostRead();
+      }
 
       // unpack arrays into opt
       for (int point = 0; point < n; point++)
@@ -765,6 +788,14 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                        CODE_INTERNAL : CODE_BORDER;
          opt[point].code = setcode==CODE_BORDER && opt[point].dist2>bdr_tol ?
                            CODE_NOT_FOUND : setcode;
+         if (track_steps)
+         {
+            opt[point].steps = AsConst(gsl_steps_l)[point];
+         }
+         else
+         {
+            opt[point].steps = 0;
+         }
       }
 
       array_free(&src_pt);
@@ -811,6 +842,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             gsl_elem[index] = opt->el;
             gsl_mfem_elem[index]   = opt->el;
             gsl_code[index] = opt->code;
+            if (track_steps)
+            {
+               gsl_steps[index] = opt->steps;
+            }
          }
       }
       array_free(&out_pt);
@@ -1096,7 +1131,8 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
 #else
 void FindPointsGSLIB::SetupDevice() {};
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
-                                         int point_pos_ordering) {};
+                                         int point_pos_ordering,
+                                         bool track_steps) {};
 void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                                           Vector &field_out,
                                           const int nel, const int ncomp,
@@ -1106,13 +1142,14 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
                                  int point_pos_ordering, const double bb_t,
-                                 const double newt_tol, const int npt_max)
+                                 const double newt_tol, const int npt_max,
+                                 bool track_steps)
 {
    if (!setupflag || (mesh != &m) )
    {
       Setup(m, bb_t, newt_tol, npt_max);
    }
-   FindPoints(point_pos, point_pos_ordering);
+   FindPoints(point_pos, point_pos_ordering, track_steps);
 }
 
 void FindPointsGSLIB::Interpolate(const Vector &point_pos,
