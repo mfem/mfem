@@ -588,6 +588,7 @@ int main (int argc, char *argv[])
   double ls_norm_fac    = 1.2;
   double ls_energy_fac  = 1.1;
   bool   bndr_fix       = true;
+  bool   filter         = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -647,6 +648,11 @@ int main (int argc, char *argv[])
     args.AddOption(&weakBC, "-weakbc", "--weakbc",
                   "-no-weakbc", "--no-weakbc",
                   "Enable/disable weak boundary condition.");
+    args.AddOption(&filter, "-filter", "--filter",
+                  "-no-filter", "--no-filter",
+                  "Use vector helmholtz filter.");
+    args.AddOption(&filterRadius, "-frad", "--frad",
+                    "Filter radius");
 
    args.Parse();
    if (!args.Good())
@@ -902,6 +908,11 @@ int main (int argc, char *argv[])
     essentialBCfilter[2] = {3, 1};
     essentialBCfilter[3] = {4, 0};
   }
+  else
+  {
+    essentialBCfilter[0] = {1, 1};
+    essentialBCfilter[1] = {2, 0};
+  }
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -1055,6 +1066,7 @@ if (myid == 0) {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
       tmma->SetDiffusionSolver(&solver);
       tmma->SetQoIWeight(weight_1);
+      tmma->SetVectorHelmholtzFilter(&filterSolver);
     }
 
     // Set min jac
@@ -1077,7 +1089,14 @@ if (myid == 0) {
       tmma->SetDataCollectionObjectandMesh(visdc, PMesh, save_freq);
     }
     tmma->SetMaxIter(max_it);
-    tmma->Mult(x.GetTrueVector());
+    if (filter)
+    {
+      tmma->MultFilter(x.GetTrueVector());
+    }
+    else
+    {
+      tmma->Mult(x.GetTrueVector());
+    }
     x.SetFromTrueVector();
     if (!save_after_every_iteration)
     {

@@ -1387,12 +1387,12 @@ public:
         temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
-        sol.SetSize(coord_fes_->GetTrueVSize()); sol=0.0;
+        // sol.SetSize(coord_fes_->GetTrueVSize()); sol=0.0;
         rhs.SetSize(coord_fes_->GetTrueVSize()); rhs=0.0;
-        adj.SetSize(coord_fes_->GetTrueVSize()); adj=0.0;
+        // adj.SetSize(coord_fes_->GetTrueVSize()); adj=0.0;
 
         solgf.SetSpace(coord_fes_);
-        adjgf.SetSpace(coord_fes_);
+        // adjgf.SetSpace(coord_fes_);
 
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
         dQdu_ = new mfem::ParLinearForm(temp_fes_);
@@ -1459,7 +1459,8 @@ public:
         delete QGF_;
         delete QCoef_;
         QGF_ = new mfem::ParGridFunction(coord_fes_);
-        QGF_->SetFromTrueDofs(loadGF);
+        *QGF_ = loadGF;
+        // QGF_->SetFromTrueDofs(loadGF);
         QCoef_ = new VectorGridFunctionCoefficient(QGF_);
     };
 
@@ -1473,12 +1474,16 @@ public:
     mfem::ParGridFunction& GetSolution(){return solgf;}
 
     /// Returns the solution vector.
-    mfem::Vector& GetSol(){return sol;}
+    mfem::Vector& GetSolutionVec(){return solgf;}
+    mfem::Vector GetSolutionTVec(){
+      solgf.SetTrueVector();
+      return solgf.GetTrueVector();}
 
     /// Returns the adjoint solution vector.
-    mfem::Vector& GetAdj(){return adj;}
+    // mfem::Vector& GetAdj(){return adj;}
 
     mfem::ParLinearForm * GetImplicitDqDx(){ return dQdx_; };
+    mfem::Vector GetImplicitDqDxVec(){ return *dQdx_; };
 
     mfem::ParLinearForm * GetImplicitDqDxshape(){ return dQdxshape_; };
 
@@ -1490,11 +1495,11 @@ private:
     mfem::Vector X0_;
 
     //solution true vector
-    mfem::Vector sol;
-    mfem::Vector adj;
+    // mfem::Vector sol;
+    // mfem::Vector adj;
     mfem::Vector rhs;
     mfem::ParGridFunction solgf;
-    mfem::ParGridFunction adjgf;
+    // mfem::ParGridFunction adjgf;
     mfem::ParGridFunction bcGridFunc_;
 
     mfem::ParLinearForm * dQdx_;

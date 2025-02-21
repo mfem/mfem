@@ -2081,9 +2081,7 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
         *dQdxshape_ = 0.0;
         dQdxshape_->Add(1.0, RHS_sensitivity);   // - because
       }
-
     }
-
 }
 
 void Elasticity_Solver::UpdateMesh(Vector const &U)

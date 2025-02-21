@@ -922,6 +922,62 @@ Vector TMOPNewtonSolver::GetProlongedVector(const Vector &x) const
    return x_loc;
 }
 
+Vector TMOPNewtonSolver::GetRestrictionTransposeVector(const Vector &xt) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   Vector x_loc;
+   const FiniteElementSpace *x_fes = nullptr;
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *pnlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+
+      x_fes = pnlf->ParFESpace();
+      const Operator *Rt = x_fes->GetRestrictionTransposeOperator();
+      x_loc.SetSize(Rt->Height());
+      Rt->Mult(xt, x_loc);
+#endif
+   }
+   else
+   {
+      x_loc = xt;
+   }
+   return x_loc;
+}
+
+Vector TMOPNewtonSolver::GetProlongedTransposeVector(const Vector &x) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   Vector x_loc;
+   const FiniteElementSpace *x_fes = nullptr;
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *pnlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+
+      x_fes = pnlf->ParFESpace();
+      x_loc.SetSize(x_fes->GetTrueVSize());
+      x_fes->GetProlongationMatrix()->MultTranspose(x, x_loc);
+#endif
+   }
+   else
+   {
+      x_fes = nlf->FESpace();
+      const Operator *P = nlf->GetProlongation();
+      if (P)
+      {
+         x_loc.SetSize(P->Width());
+         P->MultTranspose(x,x_loc);
+      }
+      else { x_loc = x; }
+   }
+   return x_loc;
+}
+
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
                                        const FiniteElementSpace &fes) const
 {
@@ -1015,7 +1071,6 @@ void TMOP_MMA::Mult(Vector &x)
       oper->Mult(x, r);
       if (qoi)
       {
-         // std::cout << "Including qoi\n";
          ldx = GetProlongedVector(dx);
          ds->SetDesign(ldx);
          ds->FSolve();
@@ -1091,6 +1146,176 @@ void TMOP_MMA::Mult(Vector &x)
       add(x, c_scale, TMOPNewtonSolver::c, x);
       dx = x;
       dx -= x_orig;;
+
+      ProcessNewState(x);
+      if (dc && pmesh && it % ofq == 0)
+      {
+         pmesh->GetNodes()->SetFromTrueDofs(x);
+         pmesh->GetNodes()->SetFromTrueVector();
+         dc->SetCycle(cycle_count++);
+         dc->SetTime(cycle_count*1.0);
+         dc->Save();
+      }
+
+      norm = Norm(r);
+      // if (norm < 0.1) { weight *= 2.0; }
+   }
+
+   final_iter = it;
+   final_norm = norm;
+
+   if (print_options.summary || (!converged && print_options.warnings) ||
+       print_options.first_and_last)
+   {
+      out << "TMOP MMA: Number of iterations: " << final_iter << '\n'
+                << "   ||r|| = " << final_norm << '\n';
+   }
+   if (print_options.summary || (!converged && print_options.warnings))
+   {
+      out << "TMOP MMA: No convergence!\n";
+   }
+}
+
+
+void TMOP_MMA::MultFilter(Vector &x)
+{
+   int it;
+   real_t norm0, norm, norm_goal;
+   Vector conDummy(1);  conDummy= -0.1;
+   Vector  congradDummy(x.Size());
+   congradDummy = 1.0;
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(true_dofs.Size(), "Set TMOP_MMA true dofs to limit displacement");
+   MFEM_VERIFY((qoi && ds) || (!ds && !qoi), "Either set both QoI and DS or neither");
+   ProcessNewState(x);
+   Vector x_orig = x;
+   Vector dx(x.Size());
+   dx = 0.0;
+   double deps = 1e-12;
+
+   Vector xxmin = dx;
+   Vector xxmax = dx;
+   xxmin -= dlower; // dlower = 0.1
+   xxmax += dupper; // dupper = 0.1
+   for (int i = 0; i < true_dofs.Size(); i++)
+   {
+      if (true_dofs[i] == 1.0)
+      {
+         xxmin[i] = -deps;
+         xxmax[i] = deps;
+      }
+   }
+   Vector xorig = x;
+   // oper->Mult(x, r);
+
+   ParLinearForm * dQdu = NULL;
+   ParLinearForm * dQdxExpl = NULL;
+   ParLinearForm * dQdxImpl = NULL;
+   ParFiniteElementSpace *pfespace = NULL;
+   Vector ldx, fldx;
+   Vector fdx(xorig.Size());
+   fdx = 0.0;
+   ldx = GetProlongedVector(dx);
+   int cycle_count = 1;
+   filter->setLoadGridFunction(ldx);
+   filter->FSolve();
+   fldx = filter->GetSolutionVec();
+   fdx = filter->GetSolutionTVec();
+
+   for (it = 0; it < max_iter; it++)
+   {
+      add(xorig, 1.0, fdx, x);
+      oper->Mult(x, r); // x must be x_orig + filtered * dx i.e. x_orig + fdx
+      // std::cout << r.Size() << " k101\n";
+      if (qoi)
+      {
+         fldx = GetProlongedVector(fdx);
+         ds->SetDesign(fldx);
+         ds->FSolve();
+         ParGridFunction & discretSol = ds->GetSolution();
+         qoi->SetDesign(fldx);
+         qoi->SetDiscreteSol( discretSol );
+         qoi->EvalQoIGrad();
+         dQdu = qoi->GetDQDu();
+         dQdxExpl = qoi->GetDQDx();
+         ds->ASolve( *dQdu );
+         dQdxImpl = ds->GetImplicitDqDx();
+         const ParNonlinearForm *pnlf =
+            dynamic_cast<const ParNonlinearForm *>(oper);
+         MFEM_VERIFY(pnlf != NULL, "Invalid Operator subclass.");
+         pfespace = pnlf->ParFESpace();
+
+         ParLinearForm dQdx(pfespace); dQdx = 0.0;
+         dQdx.Add(weight, *dQdxExpl);
+         dQdx.Add(weight, *dQdxImpl);
+         HypreParVector *truedQdx = dQdx.ParallelAssemble();
+         r += *truedQdx;
+
+         Vector lr = GetRestrictionTransposeVector(r);
+         filter->ASolve(lr);
+         Vector lr_new = filter->GetImplicitDqDxVec(); // this is an l-vector
+         r = GetProlongedTransposeVector(lr_new);
+      }
+      // r.Print();
+      norm = Norm(r);
+      if (it == 0) { norm0 = norm; }
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
+      if (print_options.first_and_last || print_options.iterations)
+      {
+         out << "TMOP-MMA iteration " <<  it
+                   << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            out << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         out << '\n';
+      }
+
+      {
+         xxmin=dx;
+         xxmax=dx;
+         if (it < 3)
+         {
+          xxmin-=0.1*dlower;
+          xxmax+=0.1*dupper;
+         }
+         else
+         {
+          xxmin-=dlower;
+          xxmax+=dupper;
+         }
+         for(int li=0;li<true_dofs.Size();li++)
+         {
+            if( true_dofs[li] ==1.0)
+            {
+               xxmin[li] = -deps;
+               xxmax[li] = deps;
+            }
+         }
+      }
+      Vector dx_old = dx;
+      Update(it, r, conDummy, congradDummy, xxmin,xxmax, dx);
+      ldx = GetProlongedVector(dx);
+      filter->setLoadGridFunction(ldx);
+      filter->FSolve();
+      fdx = filter->GetSolutionTVec();
+      add(x_orig, 1.0, fdx, x);
+      dx = fdx;
+
+      // TMOPNewtonSolver::c = dx;
+      // TMOPNewtonSolver::c -= dx_old;
+
+      // Vector b(0);
+      // const real_t c_scale = ComputeScalingFactor2(x, b); // x = x_{current}
+
+      // if (c_scale == 0.0)
+      // {
+      //    converged = false;
+      //    break;
+      // }
+      // add(x, c_scale, TMOPNewtonSolver::c, x);
+      // dx = x;
+      // dx -= x_orig;;
 
       ProcessNewState(x);
       if (dc && pmesh && it % ofq == 0)

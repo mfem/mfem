@@ -234,6 +234,8 @@ public:
    /// (ii) surface fitting weight.
    void ProcessNewState(const Vector &x) const override;
    Vector GetProlongedVector(const Vector &x) const;
+   Vector GetRestrictionTransposeVector(const Vector &x) const;
+   Vector GetProlongedTransposeVector(const Vector &x) const;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -376,6 +378,7 @@ protected:
    Vector true_dofs;
    QuantityOfInterest *qoi = nullptr;
    Diffusion_Solver *ds = nullptr;
+   VectorHelmholtz *filter = nullptr;
    double weight = 1.0;
    real_t ls_norm_fac = 1.2;
    real_t ls_energy_fac = 1.1;
@@ -398,6 +401,7 @@ public:
 
    using TMOPNewtonSolver::Mult;
    void Mult(Vector &x);
+   void MultFilter(Vector &x);
 
 
    real_t ComputeScalingFactor2(const Vector &x, const Vector &b) const;
@@ -410,6 +414,7 @@ public:
    void SetTrueDofs(Vector &tvec) { true_dofs = tvec; }
    void SetQuantityOfInterest(QuantityOfInterest *qoi_) { qoi = qoi_; }
    void SetDiffusionSolver(Diffusion_Solver *ds_) { ds = ds_; }
+   void SetVectorHelmholtzFilter(VectorHelmholtz *filter_) { filter = filter_; }
    void SetQoIWeight(double w) { weight = w; }
    void SetLineSearchEnergyFactor(double ls_energy_fac_) { ls_energy_fac = ls_energy_fac_;}
    void SetLineSearchNormFactor(double ls_norm_fac_) { ls_norm_fac = ls_norm_fac_; }
