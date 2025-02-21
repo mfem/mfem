@@ -27,7 +27,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
                             const Vector &c,
                             Vector &d)
 {
-   // computes d=[J^{-T}(xq), W(xq)*det(J(xq))] at quadrature points
+   // computes [J^{-T}(xq), W(xq)*det(J(xq)), lambda(xq), mu(xq)] at quadrature points
    const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
    const auto C = Reshape(c.Read(), Q1Dx,Q1Dy,Q1Dz,2);
@@ -289,7 +289,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       weights = 1.0;
    }
    // Computes values at quadrature points
-   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, coeffsv, pa_data);
+   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, coeffsv, pa_data[patch]);
 
    mfem::out << "Finished computing D " << patch << std::endl;
 

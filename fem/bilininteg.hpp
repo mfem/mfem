@@ -3144,7 +3144,6 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int vdim, ndofs;
    const FiniteElementSpace *fespace;   ///< Not owned.
-   Vector pa_data;
    // int dim, ne, dofs1D, quad1D;
 
    std::unique_ptr<QuadratureSpace> q_space;
@@ -3158,6 +3157,10 @@ private:
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
    // Data for NURBS patch PA
+
+   // Set in PatchElasticitySetup3D
+   // Size numPatches < NQ[patch] x 12 >
+   std::vector<Vector> pa_data;
 
    // Type for a variable-row-length 2D array, used for data related to 1D
    // quadrature rules in each dimension.

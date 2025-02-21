@@ -129,6 +129,7 @@ void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    ndofs = fespace->GetTypicalFE()->GetDof();
 
    numPatches = mesh.NURBSext->GetNP();
+   pa_data.resize(numPatches);
    for (int p=0; p<numPatches; ++p)
    {
       mfem::out << "assembling patch " << p << std::endl;
@@ -177,7 +178,7 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 
    // First 9 entries are J^{-T}, W*detJ, lambda, mu
-   const auto qd = Reshape(pa_data.HostRead(), NQ, 12);
+   const auto qd = Reshape(pa_data[patch].HostRead(), NQ, 12);
 
    // grad(c,d,qx,qy,qz)
    // derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
