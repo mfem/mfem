@@ -234,7 +234,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
 
       Array<int> face_group(mesh.GetNFaces());
 
-      // get a copy of this table stored in mesh as it will 
+      // get a copy of this table stored in mesh as it will
       // be edited in FindSharedVertices
       Table *vert_element = new Table(*mesh.GetVertexToElementTable());
 
