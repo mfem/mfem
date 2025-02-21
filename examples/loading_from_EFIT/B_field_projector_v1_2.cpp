@@ -10,6 +10,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "2d_mesh.mesh";
    bool visualization = true;
+   bool bilinear_form = true;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -39,19 +40,41 @@ int main(int argc, char *argv[])
    GridFunction B_perp(&fespace);
    cout << B_perp.FESpace()->GetTrueVSize() << endl;
    B_perp = 0.0;
-
-   // project the grid function onto the new space
-   // solving (f, Bperp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
-
-   // 1. make the linear form
    LinearForm b(&fespace);
-   BPerpPsiGridFunctionCoefficient psi_coef(dim, &psi, false);
-   b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
+   if (!bilinear_form)
+   {
+      cout << "Using linear form" << endl;
+      // project the grid function onto the new space
+      // solving (f, B_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
-   BPerpPsiGridFunctionCoefficient neg_psi_coef(dim, &psi, true);
-   b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
-   b.Assemble();
+      // 1. make the linear form
+      BPerpPsiGridFunctionCoefficient psi_coef(dim, &psi, false);
+      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
 
+      BPerpPsiGridFunctionCoefficient neg_psi_coef(dim, &psi, true);
+      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
+      b.Assemble();
+   }
+   else
+   {
+      cout << "Using bilinear form" << endl;
+      // project the grid function onto the new space
+      // solving (f, B_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+
+      // 1.a make the RHS bilinear form
+      MixedBilinearForm b_bi(psi.FESpace(), &fespace);
+      ConstantCoefficient one(1.0);
+      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(one));
+      b_bi.Assemble();
+
+      // 1.b form linear form from bilinear form
+      LinearForm b_li(&fespace);
+      b_bi.Mult(psi, b_li);
+      BPerpPsiGridFunctionCoefficient neg_psi_coef(dim, &psi, true);
+      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
+      b.Assemble();
+      b += b_li;
+   }
    // 2. make the bilinear form
    BilinearForm a(&fespace);
    RGridFunctionCoefficient r_coef;
@@ -93,18 +116,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("Bperp", new_mesh);
+      ParaViewDataCollection paraview_dc("B_perp", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("Bperp", &B_perp);
+      paraview_dc.RegisterField("B_perp", &B_perp);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("Bperp.gf");
+   ofstream sol_ofs("B_perp.gf");
    sol_ofs.precision(8);
    B_perp.Save(sol_ofs);
 

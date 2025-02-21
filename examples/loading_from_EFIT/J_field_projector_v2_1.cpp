@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    J_perp = 0.0;
 
    // project the grid function onto the new space
-   // solving (f, Jperp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+   // solving (f, J_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
    // 1. make the linear form
    LinearForm b(&fespace);
@@ -96,18 +96,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("Jperp", new_mesh);
+      ParaViewDataCollection paraview_dc("J_perp", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("Jperp", &J_perp);
+      paraview_dc.RegisterField("J_perp", &J_perp);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("Jperp.gf");
+   ofstream sol_ofs("J_perp.gf");
    sol_ofs.precision(8);
    J_perp.Save(sol_ofs);
 

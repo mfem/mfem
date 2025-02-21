@@ -1,7 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "B_field_vec_coeffs_v1.hpp"
+#include "J_field_vec_coeffs_v2.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -10,13 +10,12 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "2d_mesh.mesh";
    bool visualization = true;
-   bool bilinear_form = true;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./EFIT_loading/gg.gf");
-   GridFunction gg(&mesh, temp_log);
+   ifstream temp_log("./B_perp.gf");
+   GridFunction B_perp(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
@@ -31,38 +30,27 @@ int main(int argc, char *argv[])
    // refine the mesh
    // new_mesh->UniformRefinement();
 
-   // make a H1 space with the mesh
-   H1_FECollection fec(1, dim);
+   // make a L2 space with the mesh
+   L2_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
 
    // make a grid function with the H1 space
-   GridFunction B_tor(&fespace);
-   cout << B_tor.FESpace()->GetTrueVSize() << endl;
-   B_tor = 0.0;
+   GridFunction J_tor(&fespace);
+   cout << J_tor.FESpace()->GetTrueVSize() << endl;
+   J_tor = 0.0;
+
+   // project the grid function onto the new space
+   // solving (f, J_tor) = (curl f, B_perp/R e_φ) + <f, n x B_perp/R e_φ>
+
+   // 1.a make the RHS bilinear form
+   MixedBilinearForm b_bi(B_perp.FESpace(), &fespace);
+   RGridFunctionCoefficient neg_r_coef(true);
+   b_bi.AddDomainIntegrator(new MixedScalarCurlIntegrator(neg_r_coef));
+   b_bi.Assemble();
+
+   // 1.b form linear form from bilinear form
    LinearForm b(&fespace);
-   if (!bilinear_form)
-   { 
-      cout << "Using linear form" << endl;
-      // project the grid function onto the new space
-      // solving <B_tor, v> = <gg/R, v> for all v in L2
-
-      // 1. make the linear form
-      BTorFGridFunctionCoefficient f_coef(&gg);
-      b.AddDomainIntegrator(new DomainLFIntegrator(f_coef));
-      b.Assemble();
-   }
-   else
-   { 
-      cout << "Using bilinear form" << endl;
-      // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(gg.FESpace(), &fespace);
-      ConstantCoefficient one(1.0);
-      b_bi.AddDomainIntegrator(new MixedScalarMassIntegrator(one));
-      b_bi.Assemble();
-
-      // 1.b form linear form from bilinear form
-      b_bi.Mult(gg, b);
-   }
+   b_bi.Mult(B_perp, b);
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
@@ -80,18 +68,11 @@ int main(int argc, char *argv[])
    M_solver.SetPrintLevel(1);
    M_solver.SetOperator(a.SpMat());
 
-   Vector X(B_tor.Size());
+   Vector X(J_tor.Size());
    X = 0.0;
    M_solver.Mult(b, X);
 
-   B_tor.SetFromTrueDofs(X);
-
-   // ifstream temp_log2("./EFIT_loading/B_phi.gf");
-   // GridFunction B_psi(&mesh, temp_log2);
-
-   // GridFunction B_tor_diff(&fespace);
-   // B_tor_diff = B_tor;
-   // B_tor_diff -= B_psi;
+   J_tor.SetFromTrueDofs(X);
 
    if (visualization)
    {
@@ -100,25 +81,25 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << *new_mesh << B_tor << flush;
+               << *new_mesh << J_tor << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("B_tor", new_mesh);
+      ParaViewDataCollection paraview_dc("J_tor", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("B_tor", &B_tor);
+      paraview_dc.RegisterField("J_tor", &J_tor);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("B_tor.gf");
+   ofstream sol_ofs("J_tor.gf");
    sol_ofs.precision(8);
-   B_tor.Save(sol_ofs);
+   J_tor.Save(sol_ofs);
 
    delete new_mesh;
 

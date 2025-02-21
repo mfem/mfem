@@ -225,10 +225,11 @@ public:
 class RGridFunctionCoefficient : public Coefficient
 {
 private:
+   bool flip_sign;
 public:
    int counter = 0;
-   RGridFunctionCoefficient()
-       : Coefficient()
+   RGridFunctionCoefficient(bool flip_sign = false)
+       : Coefficient(), flip_sign(flip_sign)
    {
    }
 
@@ -240,6 +241,6 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      return r;
+      return r * (flip_sign ? -1 : 1);
    }
 };
