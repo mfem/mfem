@@ -31,7 +31,7 @@ if (METIS_FETCH OR FETCH_TPLS)
     GIT_SHALLOW TRUE
     UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
-    CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3.tar.gz --strip=1
+    CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3-mac.tgz --strip=1
     INSTALL_COMMAND mkdir -p ${PREFIX}/lib && cp libmetis.a ${PREFIX}/lib/)
   # set imported library target properties
   add_dependencies(METIS metis metis-install)
