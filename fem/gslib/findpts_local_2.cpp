@@ -1116,7 +1116,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                      {
                         if (steps_base)
                         {
-                           steps_base[i] = step;
+                           steps_base[i] = step + 1;
                         }
                      }
                      break;

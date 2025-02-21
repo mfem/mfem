@@ -128,7 +128,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
    auto tptr = types.Write(use_dev);
    auto xptr = refs.ReadWrite(use_dev);
    int* iter_ptr = nullptr;
-   if (iters)
+   if (iters != nullptr)
    {
       iters->SetSize(npts);
       iter_ptr = iters->Write(use_dev);
@@ -172,9 +172,10 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       case InverseElementTransformation::ClosestPhysNode:
       {
          int nq1d = std::max(order + rel_qpts_order, 0) + 1;
+         bool use_closest_dof = false;
          int btype = BasisType::GetNodalBasis(guess_points_type);
 
-         if ((basis_type == BasisType::Invalid || btype == basis_type) &&
+         if ((btype == BasisType::Invalid || btype == basis_type) &&
              nq1d == ndof1d)
          {
             // special case: test points are basis nodal points
@@ -192,6 +193,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
          }
          else
          {
+            BasisType::Check(btype);
             auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
             auto qptr = qpoints->Read(use_dev);
             if (init_guess_type ==
@@ -715,7 +717,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                }
                if (iter_ptr)
                {
-                  iter_ptr[idx] = iter;
+                  iter_ptr[idx] = iter + 1;
                }
                term_flag[0] = true;
             }
@@ -730,7 +732,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                }
                if (iter_ptr)
                {
-                  iter_ptr[idx] = iter;
+                  iter_ptr[idx] = iter + 1;
                }
                term_flag[0] = true;
             }
@@ -763,7 +765,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                         }
                         if (iter_ptr)
                         {
-                           iter_ptr[idx] = iter;
+                           iter_ptr[idx] = iter + 1;
                         }
                         term_flag[0] = true;
                      }
@@ -928,7 +930,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                }
                if (iter_ptr)
                {
-                  iter_ptr[idx] = iter;
+                  iter_ptr[idx] = iter + 1;
                }
                term_flag[0] = true;
             }
@@ -943,7 +945,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                }
                if (iter_ptr)
                {
-                  iter_ptr[idx] = iter;
+                  iter_ptr[idx] = iter + 1;
                }
                term_flag[0] = true;
             }
@@ -976,7 +978,7 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                         }
                         if (iter_ptr)
                         {
-                           iter_ptr[idx] = iter;
+                           iter_ptr[idx] = iter + 1;
                         }
                         term_flag[0] = true;
                      }
@@ -1160,7 +1162,7 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                }
                if (iter_ptr)
                {
-                  iter_ptr[idx] = iter;
+                  iter_ptr[idx] = iter + 1;
                }
                term_flag[0] = true;
             }
@@ -1175,7 +1177,7 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                }
                if (iter_ptr)
                {
-                  iter_ptr[idx] = iter;
+                  iter_ptr[idx] = iter + 1;
                }
                term_flag[0] = true;
             }
@@ -1209,7 +1211,7 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                         }
                         if (iter_ptr)
                         {
-                           iter_ptr[idx] = iter;
+                           iter_ptr[idx] = iter + 1;
                         }
                         term_flag[0] = true;
                      }
@@ -1809,8 +1811,8 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    constexpr int max_q1d = 128;
    PhysNodeFinder<Geom, SDim, max_team_x, max_q1d> func;
    // constexpr int max_dof1d = 32;
-   MFEM_ASSERT(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
-   MFEM_ASSERT(nq1d <= max_q1d, "maximum of 128 test points per dim is allowed");
+   MFEM_VERIFY(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
+   MFEM_VERIFY(nq1d <= max_q1d, "maximum of 128 test points per dim is allowed");
    func.basis1d.z = nptr;
    func.basis1d.pN = ndof1d;
    func.mptr = mptr;
@@ -1891,7 +1893,7 @@ static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    constexpr int max_team_x = use_dev ? 64 : 1;
    InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
    // constexpr int max_dof1d = 32;
-   MFEM_ASSERT(ndof1d <= func.max_dof1d(),
+   MFEM_VERIFY(ndof1d <= func.max_dof1d(),
                "exceeded max_dof1d limit (32 for 2D/3D)");
    func.ref_tol = ref_tol;
    func.phys_rtol = phys_rtol;
@@ -1984,7 +1986,7 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    constexpr int max_team_x = use_dev ? 64 : 1;
    InvTNewtonEdgeScanner<Geom, SDim, SType, max_team_x> func;
    // constexpr int max_dof1d = 32;
-   MFEM_ASSERT(ndof1d <= func.solver.max_dof1d(),
+   MFEM_VERIFY(ndof1d <= func.solver.max_dof1d(),
                "exceeded max_dof1d limit (32 for 2D/3D)");
    func.solver.ref_tol = ref_tol;
    func.solver.phys_rtol = phys_rtol;
