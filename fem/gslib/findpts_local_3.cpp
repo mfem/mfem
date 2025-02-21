@@ -1246,7 +1246,8 @@ static void FindPointsLocal3DKernel(const int npt,
                }
                MFEM_SYNC_THREAD;
 
-               for (int step = 0; step < 50; step++)
+               int step = 0;
+               for (; step < 50; step++)
                {
                   switch (num_constrained(tmp->flags & FLAG_MASK))
                   {
@@ -1746,13 +1747,6 @@ static void FindPointsLocal3DKernel(const int npt,
                   } //switch
                   if (fpt->flags & CONVERGED_FLAG)
                   {
-                     if (MFEM_THREAD_ID(x) == 0)
-                     {
-                        if (steps_base)
-                        {
-                           steps_base[i] = step + 1;
-                        }
-                     }
                      break;
                   }
                   MFEM_SYNC_THREAD;
@@ -1762,6 +1756,13 @@ static void FindPointsLocal3DKernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
                } //for int step < 50
+               if (MFEM_THREAD_ID(x) == 0)
+               {
+                  if (steps_base)
+                  {
+                     steps_base[i] = step + 1;
+                  }
+               }
             } //findpts_el
 
             bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
