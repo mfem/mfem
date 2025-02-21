@@ -132,6 +132,8 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   cout << "ess_tdof_list = " << std::endl;
+   ess_tdof_list.Print(cout);
 
    // 7. Set up the linear form b(.)
    VectorArrayCoefficient f(dim);
@@ -164,14 +166,14 @@ int main(int argc, char *argv[])
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
-   lambda = 1.0;
-   lambda(0) = lambda(1)*50;
+   lambda = 20.0;
+   lambda(0) = lambda(1)*1;
    PWConstCoefficient lambda_func(lambda);
    cout << "lambda = " << endl;
    lambda.Print(cout);
    Vector mu(mesh.attributes.Max());
-   mu = 1.0;
-   mu(0) = mu(1)*50;
+   mu = 20.0;
+   mu(0) = mu(1)*1;
    PWConstCoefficient mu_func(mu);
 
    // Bilinear integrator
@@ -222,12 +224,26 @@ int main(int argc, char *argv[])
    a.Assemble();
    cout << "done." << endl;
 
+
    // Define linear system
    cout << "Matrix ... " << flush;
    OperatorPtr A;
    // SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   cout << "X = " << endl;
+   X.Print();
+   cout << "B = " << endl;
+   B.Print();
+
+   // test
+   Vector Ytest(fespace->GetVSize());
+   Vector Xtest(fespace->GetVSize());
+   Xtest = 0.0; Ytest = 0.0;
+   A->Mult(Xtest, Ytest);
+   cout << "Ytest = " << endl;
+   Ytest.Print();
+
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
    // Solve the linear system A X = B.
@@ -236,11 +252,25 @@ int main(int argc, char *argv[])
    // GSSmoother M((SparseMatrix&)(*A));
    // PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
 
-   // a.AddMult(X, B);
-   // B.Print(cout);
    // OperatorJacobiSmoother M(a, ess_tdof_list);
    // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-   CG(*A, B, X, 1, 10, 1e-20, 0.0);
+   // CG(*A, B, X, 1, 10, 1e-8, 1e-10);
+
+
+   // GSSmoother M(A);
+   // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
+   CGSolver solver;
+   solver.SetMaxIter(2000);
+   // GMRESSolver solver;
+   // solver.SetMaxIter(1000);
+
+   solver.SetPrintLevel(1);
+   solver.SetRelTol(sqrt(1e-6));
+   solver.SetAbsTol(sqrt(1e-8));
+   solver.SetOperator(*A);
+   // solver.SetPreconditioner(M);
+   solver.Mult(B, X);
+
 
    cout << "Done solving system." << endl;
 
@@ -260,6 +290,12 @@ int main(int argc, char *argv[])
       GridFunction *nodes = mesh.GetNodes();
       *nodes += x;
       x *= -1;
+      ofstream mesh_ofs("displaced.mesh");
+      mesh_ofs.precision(8);
+      mesh.Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
    }
 
    // 13. Send the above data by socket to a GLVis server.

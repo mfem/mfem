@@ -196,9 +196,18 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
    // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
-   // GSSmoother M(A);
+   GSSmoother M(A);
    // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
-   CG(A, B, X, 1, 10, 1e-8, 0.0);
+   CG(A, B, X, 1, 1000, 1e-8, 1e-10);
+   // CGSolver solver;
+   // GMRESSolver solver;
+   // solver.SetPrintLevel(1);
+   // solver.SetMaxIter(1000);
+   // solver.SetRelTol(sqrt(1e-6));
+   // solver.SetAbsTol(sqrt(0.0));
+   // solver.SetOperator(A);
+   // solver.SetPreconditioner(M);
+   // solver.Mult(B, X);
 #else
    // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;

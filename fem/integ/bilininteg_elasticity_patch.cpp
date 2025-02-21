@@ -30,7 +30,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
    // computes d=[J^{-T}(xq), W(xq)*det(J(xq))] at quadrature points
    const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
-   const auto C = Reshape(c.Read(), 2,Q1Dx,Q1Dy,Q1Dz);
+   const auto C = Reshape(c.Read(), Q1Dx,Q1Dy,Q1Dz,2);
    // nq * [9 (J^{-T}) + 1 (WdetJ) + 1 (lambda) + 1 (mu)]
    d.SetSize(Q1Dx * Q1Dy * Q1Dz * 12);
    auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 12);
@@ -80,8 +80,8 @@ void PatchElasticitySetup3D(const int Q1Dx,
                // TODO: Small efficiency to multiply by sqrt(W*detJ)?
                D(qx,qy,qz,9) = W(qx,qy,qz) * detJ;
                // Coefficients
-               D(qx,qy,qz,10) = C(0,qx,qy,qz); // lambda
-               D(qx,qy,qz,11) = C(1,qx,qy,qz); // mu
+               D(qx,qy,qz,10) = C(qx,qy,qz,0); // lambda
+               D(qx,qy,qz,11) = C(qx,qy,qz,1); // mu
             }
          }
       }
@@ -217,7 +217,7 @@ void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    pir1d.push_back(ir1d);
 }
 
-// Computes mu, lambda, J^{-T}, and det(J) at quadrature points
+// Computes mu, lambda, J^{-T}, and W*det(J) at quadrature points
 void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                                         bool unitWeights)
 {
@@ -239,7 +239,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    Vector jac(vdim * vdim * nq);  // Computed as in GeometricFactors::Compute
    Vector coeffsv(2 * nq);        // lambda, mu at quad points
-   auto coeffs = Reshape(coeffsv.HostReadWrite(), 2, Q1D[0], Q1D[1], Q1D[2]);
+   auto coeffs = Reshape(coeffsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], 2);
 
 
    // TODO: use QuadratureInterpolator instead of ElementTransformation?
@@ -256,13 +256,15 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
             weights[p] = ip.weight;
 
+            mfem::out << "p = " << p << " (" << nq << "); w = " << ip.weight << std::endl;
+
             // mfem::out << "SetupPatchPA(): patch = " << patch
             //           << ", e = " << e
             //           << ", tr.Attribute = " << tr->Attribute
             //           << ", lambda = " << lambda->Eval(*tr, ip)
             //           << std::endl;
-            coeffs(0,qx,qy,qz) = lambda->Eval(*tr, ip);
-            coeffs(1,qx,qy,qz) = mu->Eval(*tr, ip);
+            coeffs(qx,qy,qz,0) = lambda->Eval(*tr, ip);
+            coeffs(qx,qy,qz,1) = mu->Eval(*tr, ip);
 
             tr->SetIntPoint(&ip);
 
@@ -286,7 +288,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    {
       weights = 1.0;
    }
-   // Computes "D"
+   // Computes values at quadrature points
    PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, coeffsv, pa_data);
 
    mfem::out << "Finished computing D " << patch << std::endl;

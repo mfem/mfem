@@ -370,12 +370,14 @@ void DiffusionIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 {
    Vector xp, yp;
 
+   mfem::out << "AddMultNURBSPA(): size of x = " << x.Size() << std::endl;
    for (int p=0; p<numPatches; ++p)
    {
       Array<int> vdofs;
       fespace->GetPatchVDofs(p, vdofs);
 
       x.GetSubVector(vdofs, xp);
+      mfem::out << "AddMultNURBSPA(): patch " << p << ": size of xp = " << xp.Size() << std::endl;
       yp.SetSize(vdofs.Size());
       yp = 0.0;
 
