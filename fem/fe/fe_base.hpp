@@ -797,8 +797,7 @@ public:
 
    void ReorderToLexicographic(int ncomp, const Vector &dofs,
                                Vector &dofs_lex) const;
-   void ReorderFromLexicographic(int ncomp, const Vector &dofs_lex,
-                                 Vector &dofs) const;
+   void ReorderLexToNative(int ncomp, Vector &dofs) const;
 };
 
 /** @brief Intermediate class for finite elements whose basis functions return
