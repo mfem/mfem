@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "2d_mesh.mesh";
    bool visualization = true;
-   bool bilinear_form = true;
+   bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    cout << B_perp.FESpace()->GetTrueVSize() << endl;
    B_perp = 0.0;
    LinearForm b(&fespace);
-   if (!bilinear_form)
+   if (!mixed_bilinear_form)
    {
       cout << "Using linear form" << endl;
       // project the grid function onto the new space
@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
       // solving (f, B_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
       // 1.a make the RHS bilinear form
+      // Assert that the two spaces are on the same mesh
+      MFEM_ASSERT(psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
       MixedBilinearForm b_bi(psi.FESpace(), &fespace);
       ConstantCoefficient one(1.0);
       b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(one));
