@@ -452,7 +452,7 @@ QuadratureInterpolator::TensorEvalHDivKernels::Kernel()
    using namespace internal::quadrature_interpolator;
    static_assert(DIM == 2 || DIM == 3, "only DIM=2 and DIM=3 are implemented!");
    if (DIM == 2) { return EvalHDiv2D<Q_LAYOUT, FLAGS, D1D, Q1D>; }
-   else if (DIM == 3) { return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>; }
+   return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>;
 }
 
 /// @endcond
