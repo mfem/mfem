@@ -20,9 +20,6 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   // refine the mesh
-   // new_mesh->UniformRefinement();
-
    // make a Hcurl space with the mesh
    // L2_FECollection fec(0, dim);
    ND_FECollection fec(1, dim);

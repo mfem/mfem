@@ -19,9 +19,6 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   // refine the mesh
-   // new_mesh->UniformRefinement();
-
    // make a L2 space with the mesh
    L2_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
