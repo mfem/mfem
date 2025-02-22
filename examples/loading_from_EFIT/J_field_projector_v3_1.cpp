@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
    cout << "Mesh loaded" << endl;
 
    // make a L2 space with the mesh
-   L2_FECollection fec(1, dim);
+   L2_FECollection fec(0, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    // make a grid function with the H1 space
