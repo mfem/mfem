@@ -4596,7 +4596,7 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
             // Flip vector
             int size = pkvc[d]->Size();
-            int ns = ceil(size/2.0);
+            int ns = static_cast<int>(std::ceil(size / 2.0));
             for (int j = 0; j < ns; j++)
             {
                real_t tmp = apb - pkvc[d]->Elem(j);
@@ -4656,7 +4656,7 @@ void NURBSExtension::KnotRemove(Array<Vector *> &kv, real_t tol)
 
             // Flip vector
             int size = pkvc[d]->Size();
-            int ns = ceil(size/2.0);
+            int ns = static_cast<int>(std::ceil(size / 2.0));
             for (int j = 0; j < ns; j++)
             {
                real_t tmp = apb - pkvc[d]->Elem(j);

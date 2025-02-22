@@ -31,10 +31,10 @@
 #define MFEM_GPU_CHECK(x) \
    do \
    { \
-      hipError_t err = (x); \
-      if (err != hipSuccess) \
+      hipError_t hip_error = (x); \
+      if (hip_error != hipSuccess) \
       { \
-         mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
+         mfem_hip_error(hip_error, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
    } \
    while (0)

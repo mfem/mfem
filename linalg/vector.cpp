@@ -1048,24 +1048,25 @@ static real_t cuVectorDot(const int N, const real_t *X, const real_t *Y)
 #endif // MFEM_USE_CUDA
 
 #ifdef MFEM_USE_HIP
-static __global__ void hipKernelMin(const int N, real_t *gdsr, const real_t *x)
+static __global__ void hipKernelMin(const uint32_t N, real_t *gdsr,
+                                    const real_t *x)
 {
-   __shared__ real_t s_min[MFEM_HIP_BLOCKS];
-   const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
-   if (n>=N) { return; }
-   const int bid = hipBlockIdx_x;
-   const int tid = hipThreadIdx_x;
-   const int bbd = bid*hipBlockDim_x;
-   const int rid = bbd+tid;
+   MFEM_SHARED real_t s_min[MFEM_HIP_BLOCKS];
+   const auto n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
+   if (n >= N) { return; }
+   const auto bid = hipBlockIdx_x;
+   const auto tid = hipThreadIdx_x;
+   const auto bbd = bid * hipBlockDim_x;
+   const auto rid = bbd + tid;
    s_min[tid] = x[n];
-   for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
+   for (auto workers=hipBlockDim_x>>1; workers>0; workers>>=1)
    {
-      __syncthreads();
+      MFEM_SYNC_THREAD;
       if (tid >= workers) { continue; }
       if (rid >= N) { continue; }
-      const int dualTid = tid + workers;
+      const auto dualTid = tid + workers;
       if (dualTid >= N) { continue; }
-      const int rdd = bbd+dualTid;
+      const auto rdd = bbd + dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= hipBlockDim_x) { continue; }
       s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
@@ -1092,25 +1093,25 @@ static real_t hipVectorMin(const int N, const real_t *X)
    return min;
 }
 
-static __global__ void hipKernelDot(const int N, real_t *gdsr,
+static __global__ void hipKernelDot(const uint32_t N, real_t *gdsr,
                                     const real_t *x, const real_t *y)
 {
-   __shared__ real_t s_dot[MFEM_HIP_BLOCKS];
-   const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
+   MFEM_SHARED real_t s_dot[MFEM_HIP_BLOCKS];
+   const auto n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (n>=N) { return; }
-   const int bid = hipBlockIdx_x;
-   const int tid = hipThreadIdx_x;
-   const int bbd = bid*hipBlockDim_x;
-   const int rid = bbd+tid;
+   const auto bid = hipBlockIdx_x;
+   const auto tid = hipThreadIdx_x;
+   const auto bbd = bid * hipBlockDim_x;
+   const auto rid = bbd + tid;
    s_dot[tid] = y ? (x[n] * y[n]) : x[n];
-   for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
+   for (auto workers=hipBlockDim_x>>1; workers>0; workers>>=1)
    {
-      __syncthreads();
+      MFEM_SYNC_THREAD;
       if (tid >= workers) { continue; }
       if (rid >= N) { continue; }
-      const int dualTid = tid + workers;
+      const auto dualTid = tid + workers;
       if (dualTid >= N) { continue; }
-      const int rdd = bbd+dualTid;
+      const auto rdd = bbd + dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= hipBlockDim_x) { continue; }
       s_dot[tid] += s_dot[dualTid];
