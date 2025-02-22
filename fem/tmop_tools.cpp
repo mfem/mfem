@@ -698,13 +698,17 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    else { MFEM_ABORT("Invalid solver_type"); }
 
    // Form the final mesh using the computed displacement.
-   GridFunction d_loc(const_cast<FiniteElementSpace *>(nlf->FESpace()));
-   const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
-   if (Pd) { Pd->Mult(d, d_loc); }
-   else    { d_loc = d; }
-   GridFunction d_loc_l2(fes_mesh_nodes);
-   d_loc_l2.ProjectGridFunction(d_loc);
-   x += d_loc_l2;
+   if (periodic)
+   {
+      GridFunction d_loc(const_cast<FiniteElementSpace *>(nlf->FESpace()));
+      const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
+      if (Pd) { Pd->Mult(d, d_loc); }
+      else    { d_loc = d; }
+      GridFunction d_loc_l2(fes_mesh_nodes);
+      d_loc_l2.ProjectGridFunction(d_loc);
+      x += d_loc_l2;
+   }
+   else { x += d; }
 
    // Make sure the pointers don't use invalid memory (x_0_loc is gone).
    for (int i = 0; i < integs.Size(); i++)
@@ -977,14 +981,12 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
          DenseMatrix dshape(dof, dim), pos(dof, dim);
          Vector posV(pos.Data(), dof * dim);
 
-         Vector x_0_loc;
-         x_0.GetElementDofValues(i, x_0_loc);
+         x_0.GetElementDofValues(i, posV);
          if (periodic)
          {
             auto n_el = dynamic_cast<const NodalFiniteElement *>(fes.GetFE(i));
-            n_el->ReorderFromLexicographic(dim, x_0_loc, posV);
+            n_el->ReorderLexToNative(dim, posV);
          }
-         else { posV = x_0_loc; }
 
          Vector d_loc_el;
          fes.GetElementVDofs(i, xdofs);
@@ -1072,6 +1074,26 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
         << "window_geometry "
         << position << " " << 0 << " " << 600 << " " << 600 << "\n"
         << "keys jRmclA\n";
+}
+
+void GetPeriodicDisplacement(const GridFunction &x, const GridFunction &x_0,
+                             GridFunction &d)
+{
+   auto fes_h1 = *d.FESpace();
+   GridFunction d_l2(x);
+   d_l2 -= x_0;
+
+   for (int i = 0; i < fes_h1.GetNE(); i++)
+   {
+      Vector d_el;
+      d_l2.GetElementDofValues(i, d_el);
+      auto h1_el = dynamic_cast<const NodalFiniteElement *>(fes_h1.GetFE(i));
+      h1_el->ReorderLexToNative(fes_h1.GetVDim(), d_el);
+      Array<int> vdofs_h1;
+      d.FESpace()->GetElementVDofs(i, vdofs_h1);
+      d.SetSubVector(vdofs_h1, d_el);
+   }
+   d.SetFromTrueVector();
 }
 
 }

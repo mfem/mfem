@@ -390,6 +390,9 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        char *title, int position);
 #endif
 
+void GetPeriodicDisplacement(const GridFunction &x, const GridFunction &x_0,
+                             GridFunction &d);
+
 }
 
 #endif

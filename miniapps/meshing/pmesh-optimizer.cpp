@@ -934,20 +934,22 @@ int main (int argc, char *argv[])
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
-   // Setup the NonlinearForm which defines the integral of interest, its first
-   // and second derivatives. Here we can use a combination of metrics, i.e.,
-   // optimize the sum of two integrals, where both are scaled by used-defined
-   // space-dependent weights. Note that there are no command-line options for
-   // the weights and the type of the second metric; one should update those in
-   // the code.
+   //
+   // Setup the ParNonlinearForm which defines the integral of interest, its
+   // first and second derivatives.
+   //
+   // Note that the TMOP optimization always operates on H1 spaces. For periodic
+   // meshes, TMOP solves for a continuous periodic displacement.
    ParNonlinearForm a(&pfes_h1);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   // We can use a combination of metrics, i.e., optimize the sum of two
+   // integrals, where both are scaled by used-defined space-dependent weights.
+   // Note that there are no command-line options for the weights and the type
+   // of the second metric; one should update those in the code.
    ConstantCoefficient *metric_coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient metric_coeff2(weight_fun);
-
-   // Explicit combination of metrics.
    if (combomet > 0)
    {
       // First metric.
@@ -981,11 +983,8 @@ int main (int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else
-   {
-      a.AddDomainIntegrator(tmop_integ);
-   }
-
+   else { a.AddDomainIntegrator(tmop_integ); }
+   // The PA setup must be performed after all integrators have been added.
    if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
@@ -1054,10 +1053,10 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
-   // 14. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node.  Attribute dim+1 corresponds to
-   //     an entirely fixed node.
+   // Fix all boundary nodes, or fix only a given component depending on the
+   // boundary attributes of the given mesh.
+   // Attributes 1/2/3 correspond to fixed x/y/z components of the node.
+   // Attribute dim+1 corresponds to an entirely fixed node.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -1069,7 +1068,7 @@ int main (int argc, char *argv[])
       int n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int nd = pfespace->GetBE(i)->GetDof();
+         const int nd = pfes_h1.GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
@@ -1082,9 +1081,9 @@ int main (int argc, char *argv[])
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int nd = pfespace->GetBE(i)->GetDof();
+         const int nd = pfes_h1.GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         pfespace->GetBdrElementVDofs(i, vdofs);
+         pfes_h1.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
@@ -1208,8 +1207,8 @@ int main (int argc, char *argv[])
    }
    hr_solver.Mult();
 
-   // 16. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh to a file. This output can be viewed later
+   // using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
@@ -1219,7 +1218,9 @@ int main (int argc, char *argv[])
    }
 
    // Report the final energy of the functional.
-   const real_t fin_energy = a.GetParGridFunctionEnergy(x) /
+   if (periodic) { GetPeriodicDisplacement(x, x0, d); }
+   if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
+   const real_t fin_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
    real_t fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)

@@ -988,20 +988,20 @@ void NodalFiniteElement::ReorderToLexicographic(int ncomp, const Vector &dofs,
    }
 }
 
-void NodalFiniteElement::ReorderFromLexicographic(int ncomp,
-                                                  const Vector &dofs_lex,
-                                                  Vector &dofs) const
+void NodalFiniteElement::ReorderLexToNative(int ncomp,
+                                            Vector &dofs) const
 {
-   MFEM_ASSERT(dofs_lex.Size() == ncomp * dof, "Wrong input size.");
+   MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
 
-   dofs.SetSize(ncomp * dof);
+   Vector dofs_native(ncomp * dof);
    for (int i = 0; i < dof; i++)
    {
       for (int c = 0; c < ncomp; c++)
       {
-         dofs(c*dof + lex_ordering[i]) = dofs_lex(c*dof + i);
+         dofs_native(c*dof + lex_ordering[i]) = dofs(c*dof + i);
       }
    }
+   dofs = dofs_native;
 }
 
 VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,

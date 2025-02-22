@@ -3867,14 +3867,12 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    if (x_0)
    {
       // The input is the displacement.
-      Vector x_0_loc;
-      x_0->GetElementDofValues(el_id, x_0_loc);
+      x_0->GetElementDofValues(el_id, elfun);
       if (periodic)
       {
          auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
-         n_el->ReorderFromLexicographic(dim, x_0_loc, elfun);
+         n_el->ReorderLexToNative(dim, elfun);
       }
-      else { elfun = x_0_loc; }
       elfun += d_el;
    }
    else { elfun = d_el; }
@@ -3912,6 +3910,11 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Array<int> pos_dofs;
       lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
       lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, pos0V);
+      }
       if (lim_dist)
       {
          lim_dist->GetValues(el_id, ir, d_vals);
@@ -4213,14 +4216,12 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    if (x_0)
    {
       // The input is the displacement.
-      Vector x_0_loc;
-      x_0->GetElementDofValues(el_id, x_0_loc);
+      x_0->GetElementDofValues(el_id, elfun);
       if (periodic)
       {
          auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
-         n_el->ReorderFromLexicographic(dim, x_0_loc, elfun);
+         n_el->ReorderLexToNative(dim, elfun);
       }
-      else { elfun = x_0_loc; }
       elfun += d_el;
    }
    else { elfun = d_el; }
@@ -4257,6 +4258,11 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Array<int> pos_dofs;
       lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
       lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, pos0V);
+      }
       if (lim_dist)
       {
          lim_dist->GetValues(el_id, ir, d_vals);
@@ -4386,14 +4392,12 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    if (x_0)
    {
       // The input is the displacement.
-      Vector x_0_loc;
-      x_0->GetElementDofValues(el_id, x_0_loc);
+      x_0->GetElementDofValues(el_id, elfun);
       if (periodic)
       {
          auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
-         n_el->ReorderFromLexicographic(dim, x_0_loc, elfun);
+         n_el->ReorderLexToNative(dim, elfun);
       }
-      else { elfun = x_0_loc; }
       elfun += d_el;
    }
    else { elfun = d_el; }
@@ -4426,6 +4430,11 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Array<int> pos_dofs;
       lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
       lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, pos0V);
+      }
       if (lim_dist)
       {
          lim_dist->GetValues(el_id, ir, d_vals);
