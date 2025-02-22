@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh.
    // Node ordering is important
+   // Right now, only works with byVDIM
    const Ordering::Type fes_ordering =
       reorder_space ? Ordering::byNODES : Ordering::byVDIM;
 
@@ -260,7 +261,7 @@ int main(int argc, char *argv[])
    // GSSmoother M(A);
    // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
    CGSolver solver;
-   solver.SetMaxIter(2000);
+   solver.SetMaxIter(50);
    // GMRESSolver solver;
    // solver.SetMaxIter(1000);
 

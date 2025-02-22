@@ -234,11 +234,14 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       nq *= Q1D[i];
    }
 
-   Array<real_t> weights(nq);
+   Array<real_t> weightsv(nq);
+   // Vector weightsv(nq);
+   auto weights = Reshape(weightsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2]);
    IntegrationPoint ip;
 
-   Vector jac(vdim * vdim * nq);  // Computed as in GeometricFactors::Compute
-   Vector coeffsv(2 * nq);        // lambda, mu at quad points
+   Vector jacv(nq * vdim * vdim);  // Computed as in GeometricFactors::Compute
+   auto jac = Reshape(jacv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], vdim, vdim);
+   Vector coeffsv(nq * 2);        // lambda, mu at quad points
    auto coeffs = Reshape(coeffsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], 2);
 
 
@@ -273,7 +276,8 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             {
                for (int j=0; j<vdim; ++j)
                {
-                  jac[p + ((i + (j * vdim)) * nq)] = Jp(i,j);
+                  jac(qx,qy,qz,i,j) = Jp(i,j);
+                  // jac[p + ((i + (j * vdim)) * nq)] = Jp(i,j);
                }
             }
          }
@@ -286,10 +290,11 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    if (unitWeights)
    {
-      weights = 1.0;
+      weightsv = 1.0;
+      // MFEM_ABORT("Not implemented yet.");
    }
    // Computes values at quadrature points
-   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weights, jac, coeffsv, pa_data[patch]);
+   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv, pa_data[patch]);
 
    mfem::out << "Finished computing D " << patch << std::endl;
 

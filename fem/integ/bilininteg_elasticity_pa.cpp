@@ -250,14 +250,18 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             {
                // const real_t U = X(c,dx,dy,dz);
                const real_t U = X(dx,dy,dz,c);
-               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               // TEST4
+               // for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               for (int qx = 0; qx < Q1D[0]; ++qx)
                {
                   gradX(c,0,qx) += U * B[0](qx,dx);
                   gradX(c,1,qx) += U * G[0](qx,dx);
                }
             }
          }
-         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         // TEST4
+         // for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         for (int qy = 0; qy < Q1D[1]; ++qy)
          {
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
@@ -275,7 +279,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             }
          }
       }
-      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      // TEST4
+      // for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      for (int qz = 0; qz < Q1D[2]; ++qz)
       {
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
@@ -359,7 +365,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                mfem::out << Jinvt02 << ", " << Jinvt12 << ", " << Jinvt22 << std::endl;
             }
 
-            // S = J^{-1} * stress
+            // S = stress * J^{-T}
+            // (J^{-T} term comes from test function)
             /*
                Jinvt00, Jinvt10, Jinvt20,
                Jinvt01, Jinvt11, Jinvt21,
@@ -374,7 +381,7 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                s01, s11, s12,
                s02, s12, s22,
             */
-            // (J^{-1} term comes from test function)
+            // S = J^{-1} * sigma
             // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
             // S(0,1,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
             // S(0,2,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
@@ -384,17 +391,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             // S(2,0,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
             // S(2,1,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
             // S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
-
-            // J^{-T} * sigma
-            // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt01*sigma01 + Jinvt02*sigma02;
-            // S(0,1,qx,qy,qz) = Jinvt00*sigma01 + Jinvt01*sigma11 + Jinvt02*sigma12;
-            // S(0,2,qx,qy,qz) = Jinvt00*sigma02 + Jinvt01*sigma12 + Jinvt02*sigma22;
-            // S(1,0,qx,qy,qz) = Jinvt10*sigma00 + Jinvt11*sigma01 + Jinvt12*sigma02;
-            // S(1,1,qx,qy,qz) = Jinvt10*sigma01 + Jinvt11*sigma11 + Jinvt12*sigma12;
-            // S(1,2,qx,qy,qz) = Jinvt10*sigma02 + Jinvt11*sigma12 + Jinvt12*sigma22;
-            // S(2,0,qx,qy,qz) = Jinvt20*sigma00 + Jinvt21*sigma01 + Jinvt22*sigma02;
-            // S(2,1,qx,qy,qz) = Jinvt20*sigma01 + Jinvt21*sigma11 + Jinvt22*sigma12;
-            // S(2,2,qx,qy,qz) = Jinvt20*sigma02 + Jinvt21*sigma12 + Jinvt22*sigma22;
 
             // S = sigma * J^{-T}
             S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
@@ -406,6 +402,17 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             S(2,0,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
             S(2,1,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
             S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
+
+            // S = J^{-T} * sigma
+            // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt01*sigma01 + Jinvt02*sigma02;
+            // S(0,1,qx,qy,qz) = Jinvt00*sigma01 + Jinvt01*sigma11 + Jinvt02*sigma12;
+            // S(0,2,qx,qy,qz) = Jinvt00*sigma02 + Jinvt01*sigma12 + Jinvt02*sigma22;
+            // S(1,0,qx,qy,qz) = Jinvt10*sigma00 + Jinvt11*sigma01 + Jinvt12*sigma02;
+            // S(1,1,qx,qy,qz) = Jinvt10*sigma01 + Jinvt11*sigma11 + Jinvt12*sigma12;
+            // S(1,2,qx,qy,qz) = Jinvt10*sigma02 + Jinvt11*sigma12 + Jinvt12*sigma22;
+            // S(2,0,qx,qy,qz) = Jinvt20*sigma00 + Jinvt21*sigma01 + Jinvt22*sigma02;
+            // S(2,1,qx,qy,qz) = Jinvt20*sigma01 + Jinvt21*sigma11 + Jinvt22*sigma12;
+            // S(2,2,qx,qy,qz) = Jinvt20*sigma02 + Jinvt21*sigma12 + Jinvt22*sigma22;
 
             // S = sigma * J^{-1}
             // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt01*sigma01 + Jinvt02*sigma02;
@@ -488,7 +495,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
                { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
             };
-            for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+            // Test4
+            // for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+            for (int dx = 0; dx < D1D[0]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
@@ -508,7 +517,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                }
             }
          }
-         for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+         // TEST4
+         // for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+         for (int dy = 0; dy < D1D[1]; ++dy)
          {
             /*
             sXY = [
@@ -529,7 +540,9 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             }
          }
       }
-      for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+      // TEST4
+      // for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+      for (int dz = 0; dz < D1D[2]; ++dz)
       {
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
