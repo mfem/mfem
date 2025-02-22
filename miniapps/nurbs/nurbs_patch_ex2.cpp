@@ -83,10 +83,9 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(!(isNURBS && !mesh.GetNodes()), "NURBS mesh must have nodes");
    if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
    {
-      cerr << "\nInput mesh should have at least two materials and "
+      cout << "\nInput mesh should have at least two materials and "
            << "two boundary attributes! (See schematic in ex2.cpp)\n"
            << endl;
-      return 3;
    }
 
    // 3. Optionally, increase the NURBS degree.
@@ -167,13 +166,13 @@ int main(int argc, char *argv[])
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
-   lambda = 20.0;
+   lambda = 10.0;
    // lambda(0) = lambda(1)*1;
    PWConstCoefficient lambda_func(lambda);
    cout << "lambda = " << endl;
    lambda.Print(cout);
    Vector mu(mesh.attributes.Max());
-   mu = 20.0;
+   mu = 10.0;
    // mu(0) = mu(1)*1;
    PWConstCoefficient mu_func(mu);
 
@@ -261,13 +260,13 @@ int main(int argc, char *argv[])
    // GSSmoother M(A);
    // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
    CGSolver solver;
-   solver.SetMaxIter(50);
+   solver.SetMaxIter(800);
    // GMRESSolver solver;
    // solver.SetMaxIter(1000);
 
    solver.SetPrintLevel(1);
    solver.SetRelTol(sqrt(1e-6));
-   solver.SetAbsTol(sqrt(1e-8));
+   solver.SetAbsTol(sqrt(1e-12));
    solver.SetOperator(*A);
    // solver.SetPreconditioner(M);
    solver.Mult(B, X);
