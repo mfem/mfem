@@ -19,20 +19,12 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   // r: 3.0:10.0:256, z: -6.0:6.0:512
-   // Use Cartesian coordinates for the extrusion
-   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(256, 512, Element::QUADRILATERAL));
-
-   // translate to 1.0 in x direction
-   new_mesh->Transform([](const Vector &x, Vector &p)
-                       { p[0] = x[0]* ((10.0 - 7.0 / 514) - (3.0 + 7.0 / 514)) + 3.0 + 7.0 / 514; p[1] = x[1]* ((6.0 - 12.0 / 1026) - (-6.0 + 12.0 / 1026)) - 6.0 + 12.0 / 1026; });
-
    // refine the mesh
    // new_mesh->UniformRefinement();
 
    // make a L2 space with the mesh
    L2_FECollection fec(1, dim);
-   FiniteElementSpace fespace(new_mesh, &fec);
+   FiniteElementSpace fespace(&mesh, &fec);
 
    // make a grid function with the H1 space
    GridFunction J_tor(&fespace);
@@ -81,12 +73,12 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << *new_mesh << J_tor << flush;
+               << mesh << J_tor << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("J_tor", new_mesh);
+      ParaViewDataCollection paraview_dc("J_tor", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
@@ -100,8 +92,6 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("J_tor.gf");
    sol_ofs.precision(8);
    J_tor.Save(sol_ofs);
-
-   delete new_mesh;
 
    return 0;
 }
