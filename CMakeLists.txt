@@ -750,7 +750,7 @@ if (MFEM_ENABLE_TESTING)
     add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
                     ${MFEM_ENABLE_BENCHMARKS})
     if (MFEM_ENABLE_BENCHMARKS)
-      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+      add_subdirectory(tests/benchmarks) #install benchmarks if enabled
     else()
       add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
     endif()
