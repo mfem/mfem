@@ -132,6 +132,10 @@ Miscellaneous
   assembly routines (although the latter is still possible, by leaving the new
   virtual method as its default base implementation of returning `NULL`).
 
+- Updated benchmarks to work with newest Google Benchmarks classes.
+
+- Renamed the 'MFEM_ENABLE_GOOGLE_BENCHMARKS' option to 'MFEM_ENABLE_BENCHMARKS'.
+
 API changes
 -----------
 - API change: 'TMOP_Metric_skew2D' has been marked as deprecated.

@@ -744,11 +744,17 @@ if (MFEM_ENABLE_TESTING)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
 
-  # Create a target for all benchmarks and, optionally, enable it.
-  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
-  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
-                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
-  add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+  if (MFEM_USE_BENCHMARK)
+    # Create a target for all benchmarks and, optionally, enable it.
+    set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+    add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                    ${MFEM_ENABLE_BENCHMARKS})
+    if (MFEM_ENABLE_BENCHMARKS)
+      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+    else()
+      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+    endif()
+  endif()
 endif()
 
 # Define a target that all examples and miniapps will depend on.
