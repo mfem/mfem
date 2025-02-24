@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    bool glvis_visualization = true;
    bool paraview_output = false;
-   string root_finding_alg = "newton";
+   bool newton = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -182,7 +182,8 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView output.");
-   args.AddOption(&root_finding_alg, "-root", "--root-find",
+   args.AddOption(&newton, "-new", "--newton", "-bis",
+                  "--bisection",
                   "Find roots with Newton's method or the bisection method.");
    args.Parse();
    if (!args.Good())
@@ -408,11 +409,11 @@ int main(int argc, char *argv[])
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
       real_t material_volume;
-      if (root_finding_alg == "newton")
+      if (newton)
       {
          material_volume = newton_proj(psi, target_volume);
       }
-      else if (root_finding_alg == "bisection")
+      else
       {
          ParGridFunction alpha_grad(grad);
          alpha_grad *= alpha;
