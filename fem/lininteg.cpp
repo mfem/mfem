@@ -739,7 +739,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
 
       vshape.Mult(nor_xt, shape);
 
-      real_t val = ip.weight;
+      real_t val = ip.weight / Tr.Elem1->Weight();
       if (F)
       {
          val *= F->Eval(Tr, ip);
