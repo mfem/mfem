@@ -705,11 +705,11 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             if (dist <= phys_tol)
             {
                // found solution
-               tptr[idx] = res[0] =
-                              eltrans::GeometryUtils<Geometry::SEGMENT>::inside(
-                                 ref_coord[0])
-                              ? InverseElementTransformation::Inside
-                              : InverseElementTransformation::Outside;
+               res[0] = eltrans::GeometryUtils<Geometry::SEGMENT>::inside(
+                           ref_coord[0])
+                        ? InverseElementTransformation::Inside
+                        : InverseElementTransformation::Outside;
+               tptr[idx] = res[0];
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
@@ -723,7 +723,8 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             else if (iter >= max_iter)
             {
                // terminate on max iterations
-               tptr[idx] = res[0] = InverseElementTransformation::Unknown;
+               tptr[idx] = InverseElementTransformation::Unknown;
+               res[0] = InverseElementTransformation::Unknown;
                // might as well save where we failed at
                for (int d = 0; d < Dim; ++d)
                {
@@ -757,7 +758,8 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
                      if (dx_change <= ref_tol * ref_tol)
                      {
                         // stuck on the boundary
-                        tptr[idx] = res[0] = InverseElementTransformation::Outside;
+                        tptr[idx] = InverseElementTransformation::Outside;
+                        res[0] = InverseElementTransformation::Outside;
                         for (int d = 0; d < Dim; ++d)
                         {
                            xptr[idx + d * npts] = ref_coord[d];
@@ -879,6 +881,26 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             }
          }
 
+#if 0
+         MFEM_SYNC_THREAD;
+         if (MFEM_THREAD_ID(x) == 0)
+         {
+            for (int i = 1; i < basis1d.pN*basis1d.pN; ++i)
+            {
+               for (int d = 0; d < SDim; ++d)
+               {
+                  phys_coord[0 + d * MFEM_THREAD_SIZE(x)] +=
+                     phys_coord[i + d * MFEM_THREAD_SIZE(x)];
+               }
+               for (int j = 0; j < SDim * Dim; ++j)
+               {
+                  jac[0 + j * MFEM_THREAD_SIZE(x)] +=
+                     jac[i + j * MFEM_THREAD_SIZE(x)];
+               }
+            }
+         }
+#endif
+
          for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
          {
             MFEM_SYNC_THREAD;
@@ -918,11 +940,11 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             if (dist <= phys_tol)
             {
                // found solution
-               tptr[idx] = res[0] =
-                              eltrans::GeometryUtils<Geometry::SQUARE>::inside(
-                                 ref_coord[0], ref_coord[1])
-                              ? InverseElementTransformation::Inside
-                              : InverseElementTransformation::Outside;
+               res[0] = eltrans::GeometryUtils<Geometry::SQUARE>::inside(
+                           ref_coord[0], ref_coord[1])
+                        ? InverseElementTransformation::Inside
+                        : InverseElementTransformation::Outside;
+               tptr[idx] = res[0];
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
@@ -936,7 +958,8 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             else if (iter >= max_iter)
             {
                // terminate on max iterations
-               tptr[idx] = res[0] = InverseElementTransformation::Unknown;
+               tptr[idx] = InverseElementTransformation::Unknown;
+               res[0] = InverseElementTransformation::Unknown;
                // might as well save where we failed at
                for (int d = 0; d < Dim; ++d)
                {
@@ -970,7 +993,8 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
                      if (dx_change <= ref_tol * ref_tol)
                      {
                         // stuck on the boundary
-                        tptr[idx] = res[0] = InverseElementTransformation::Outside;
+                        tptr[idx] = InverseElementTransformation::Outside;
+                        res[0] = InverseElementTransformation::Outside;
                         for (int d = 0; d < Dim; ++d)
                         {
                            xptr[idx + d * npts] = ref_coord[d];
@@ -1150,11 +1174,11 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
             if (dist <= phys_tol)
             {
                // found solution
-               tptr[idx] = res[0] =
-                              eltrans::GeometryUtils<Geometry::CUBE>::inside(
-                                 ref_coord[0], ref_coord[1], ref_coord[2])
-                              ? InverseElementTransformation::Inside
-                              : InverseElementTransformation::Outside;
+               res[0] = eltrans::GeometryUtils<Geometry::CUBE>::inside(
+                           ref_coord[0], ref_coord[1], ref_coord[2])
+                        ? InverseElementTransformation::Inside
+                        : InverseElementTransformation::Outside;
+               tptr[idx] = res[0];
                for (int d = 0; d < Dim; ++d)
                {
                   xptr[idx + d * npts] = ref_coord[d];
@@ -1168,7 +1192,8 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
             else if (iter >= max_iter)
             {
                // terminate on max iterations
-               tptr[idx] = res[0] = InverseElementTransformation::Unknown;
+               tptr[idx] = InverseElementTransformation::Unknown;
+               res[0] = InverseElementTransformation::Unknown;
                // might as well save where we failed at
                for (int d = 0; d < Dim; ++d)
                {
@@ -1203,7 +1228,8 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
                      if (dx_change <= ref_tol * ref_tol)
                      {
                         // stuck on the boundary
-                        tptr[idx] = res[0] = InverseElementTransformation::Outside;
+                        tptr[idx] = InverseElementTransformation::Outside;
+                        res[0] = InverseElementTransformation::Outside;
                         for (int d = 0; d < Dim; ++d)
                         {
                            xptr[idx + d * npts] = ref_coord[d];
@@ -1825,7 +1851,17 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
-      int team_x = std::min<int>(max_team_x, func.nq);
+      // team_x must be a power of 2
+      int team_x = max_team_x;
+      while (true)
+      {
+         if (team_x <= func.nq)
+         {
+            break;
+         }
+         team_x >>= 1;
+      }
+      team_x = std::min<int>(max_team_x, 2 * team_x);
       forall_2D(npts, team_x, 1, func);
    }
    else
@@ -1852,7 +1888,17 @@ static void ClosestPhysDofImpl(int npts, int nelems, int ndof1d,
    func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
-      int team_x = std::min<int>(max_team_x, func.stride_sdim / nelems);
+      int team_x = max_team_x;
+      int ndof = func.stride_sdim / nelems;
+      while (true)
+      {
+         if (team_x <= ndof)
+         {
+            break;
+         }
+         team_x >>= 1;
+      }
+      team_x = std::min<int>(max_team_x, 2 * team_x);
       forall_2D(npts, team_x, 1, func);
    }
    else
@@ -1889,6 +1935,7 @@ static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
                             const int *eptr, const real_t *nptr, int *tptr,
                             int *iter_ptr, real_t *xptr)
 {
+   // constexpr int max_team_x = use_dev ? 64 : 1;
    constexpr int max_team_x = use_dev ? 64 : 1;
    InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
    // constexpr int max_dof1d = 32;
@@ -1909,7 +1956,17 @@ static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
-      int team_x = std::min<int>(max_team_x, func.ndofs(ndof1d));
+      int team_x = max_team_x;
+      int ndof = func.ndofs(ndof1d);
+      while (true)
+      {
+         if (team_x <= ndof)
+         {
+            break;
+         }
+         team_x >>= 1;
+      }
+      team_x = std::min<int>(max_team_x, 2 * team_x);
       forall_2D(npts, team_x, 1, func);
    }
    else
@@ -2004,7 +2061,17 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    func.qptr = qptr;
    if (use_dev)
    {
-      int team_x = std::min<int>(max_team_x, func.solver.ndofs(ndof1d));
+      int team_x = max_team_x;
+      int ndof = func.solver.ndofs(ndof1d);
+      while (true)
+      {
+         if (team_x <= ndof)
+         {
+            break;
+         }
+         team_x >>= 1;
+      }
+      team_x = std::min<int>(max_team_x, 2 * team_x);
       forall_2D(npts, team_x, 1, func);
    }
    else

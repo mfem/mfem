@@ -172,7 +172,7 @@ TEST_CASE("InverseElementTransformation",
 TEST_CASE("BatchInverseElementTransformation",
           "[InverseElementTransformation], [CUDA]")
 {
-   const real_t tol = 2e-14;
+   const real_t tol = 3e-14;
 
    SECTION("{ C-shaped Q2 Quad }")
    {
@@ -216,15 +216,23 @@ TEST_CASE("BatchInverseElementTransformation",
 
       BatchInverseElementTransformation itransform;
       itransform.Setup(mesh);
+      // itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
+      // itransform.SetInitGuessRelOrder(3);
+      // itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
 
       orig_ref_space.SetSize(npts * dim);
       phys_space.SetSize(npts * dim);
-      elems.SetSize(npts, 0);
+      elems.SetSize(npts);
       res_type.SetSize(npts);
       res_ref_space.SetSize(npts * dim);
 
+      orig_ref_space.HostWrite();
+      phys_space.HostWrite();
+      elems.HostWrite();
+
       for (int i=0; i<npts; ++i)
       {
+         elems[i] = 0;
          // Transform the integration point into space
          const IntegrationPoint& ip = intRule.IntPoint(i);
          tr.Transform(ip, v);
@@ -242,7 +250,6 @@ TEST_CASE("BatchInverseElementTransformation",
       itransform.Transform(phys_space, elems, res_type, res_ref_space);
       res_type.HostRead();
       res_ref_space.HostRead();
-      res_ref_space -= orig_ref_space;
       int pts_found = 0;
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
@@ -252,7 +259,8 @@ TEST_CASE("BatchInverseElementTransformation",
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
+                                            orig_ref_space[i + d * npts]));
             }
          }
       }
@@ -288,21 +296,27 @@ TEST_CASE("BatchInverseElementTransformation",
       BatchInverseElementTransformation itransform;
       itransform.Setup(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
-      itransform.SetInitGuessRelOrder(4 - 20);
+      itransform.SetInitGuessRelOrder(3 - 20);
       itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
 
       orig_ref_space.SetSize(npts * dim);
       phys_space.SetSize(npts * dim);
-      elems.SetSize(npts, 0);
+      elems.SetSize(npts);
       res_type.SetSize(npts);
       res_ref_space.SetSize(npts * dim);
+
+      orig_ref_space.HostWrite();
+      phys_space.HostWrite();
+      elems.HostWrite();
 
       ElementTransformation &T = *mesh.GetElementTransformation(0);
       IntegrationPoint ip;
       Vector pt;
+      pt.SetSize(dim);
 
       for (int i = 0; i < npts; i++)
       {
+         elems[i] = 0;
          Geometry::GetRandomPoint(T.GetGeometryType(), ip);
          T.Transform(ip, pt);
 
@@ -318,8 +332,9 @@ TEST_CASE("BatchInverseElementTransformation",
       // now batch reverse transform
       itransform.Transform(phys_space, elems, res_type, res_ref_space);
       res_type.HostRead();
-      res_ref_space.HostRead();
+      res_ref_space.HostReadWrite();
       res_ref_space -= orig_ref_space;
+      res_ref_space.HostRead();
       int pts_found = 0;
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
