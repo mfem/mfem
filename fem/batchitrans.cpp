@@ -83,7 +83,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
             mesh->GetNodes()->GetVectorValue(e, ip, pos);
             for (int d = 0; d < sdim; ++d)
             {
-               node_pos[i + (d * NE + e) * ND] = pos[d];
+               node_pos[i + (d + e * sdim) * ND] = pos[d];
             }
          }
       }
@@ -254,8 +254,6 @@ struct InvTNewtonSolverBase
    eltrans::Lagrange basis1d;
 
    int max_iter;
-   // ndof * nelems
-   int stride_sdim;
    // number of points in pptr
    int npts;
 };
@@ -596,11 +594,6 @@ template <int SDim, InverseElementTransformation::SolverType SType,
 struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
    : public InvTNewtonSolverBase
 {
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * nelems;
-   }
-
    static int ndofs(int ndof1d) { return ndof1d; }
 
    // theoretically unbounded
@@ -660,9 +653,9 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             for (int d = 0; d < SDim; ++d)
             {
                phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
-                  mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b0;
+                  mptr[j0 + (eptr[idx] * SDim + d) * basis1d.pN] * b0;
                jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db0;
+                  mptr[j0 + (eptr[idx] * SDim + d) * basis1d.pN] * db0;
             }
          }
 
@@ -794,10 +787,6 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
    : public InvTNewtonSolverBase
 {
    static int ndofs(int ndof1d) { return ndof1d * ndof1d; }
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * ndof1d * nelems;
-   }
 
    static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 32; }
 
@@ -867,39 +856,22 @@ struct InvTNewtonSolver<Geometry::SQUARE, SDim, SType, max_team_x>
             for (int d = 0; d < SDim; ++d)
             {
                phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] +
+                               (idcs[1] + (eptr[idx] * SDim + d) * basis1d.pN) *
+                               basis1d.pN] *
                   basis0[idcs[0]] * basis1[idcs[1]];
                jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] +
+                               (idcs[1] + (eptr[idx] * SDim + d) * basis1d.pN) *
+                               basis1d.pN] *
                   dbasis0[idcs[0]] * basis1[idcs[1]];
                jac[MFEM_THREAD_ID(x) + (d + 1 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] +
+                               (idcs[1] + (eptr[idx] * SDim + d) * basis1d.pN) *
+                               basis1d.pN] *
                   basis0[idcs[0]] * dbasis1[idcs[1]];
             }
          }
-
-#if 0
-         MFEM_SYNC_THREAD;
-         if (MFEM_THREAD_ID(x) == 0)
-         {
-            for (int i = 1; i < basis1d.pN*basis1d.pN; ++i)
-            {
-               for (int d = 0; d < SDim; ++d)
-               {
-                  phys_coord[0 + d * MFEM_THREAD_SIZE(x)] +=
-                     phys_coord[i + d * MFEM_THREAD_SIZE(x)];
-               }
-               for (int j = 0; j < SDim * Dim; ++j)
-               {
-                  jac[0 + j * MFEM_THREAD_SIZE(x)] +=
-                     jac[i + j * MFEM_THREAD_SIZE(x)];
-               }
-            }
-         }
-#endif
 
          for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
          {
@@ -1029,11 +1001,6 @@ template <int SDim, InverseElementTransformation::SolverType SType,
 struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
    : public InvTNewtonSolverBase
 {
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * ndof1d * ndof1d * nelems;
-   }
-
    static int ndofs(int ndof1d) { return ndof1d * ndof1d * ndof1d; }
 
    static constexpr MFEM_HOST_DEVICE int max_dof1d() { return 32; }
@@ -1109,28 +1076,28 @@ struct InvTNewtonSolver<Geometry::CUBE, SDim, SType, max_team_x>
             for (int d = 0; d < SDim; ++d)
             {
                phys_coord[MFEM_THREAD_ID(x) + d * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                               basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] + (idcs[1] + (idcs[2] + (eptr[idx] * SDim + d) *
+                                             basis1d.pN) *
+                                  basis1d.pN) *
+                               basis1d.pN] *
                   basis0[idcs[0]] * basis1[idcs[1]] * basis2[idcs[2]];
                jac[MFEM_THREAD_ID(x) + (d + 0 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                               basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] + (idcs[1] + (idcs[2] + (eptr[idx] * SDim + d) *
+                                             basis1d.pN) *
+                                  basis1d.pN) *
+                               basis1d.pN] *
                   dbasis0[idcs[0]] * basis1[idcs[1]] * basis2[idcs[2]];
                jac[MFEM_THREAD_ID(x) + (d + 1 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                               basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] + (idcs[1] + (idcs[2] + (eptr[idx] * SDim + d) *
+                                             basis1d.pN) *
+                                  basis1d.pN) *
+                               basis1d.pN] *
                   basis0[idcs[0]] * dbasis1[idcs[1]] * basis2[idcs[2]];
                jac[MFEM_THREAD_ID(x) + (d + 2 * SDim) * MFEM_THREAD_SIZE(x)] +=
-                  mptr[idcs[0] +
-                               (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                               basis1d.pN +
-                               d * stride_sdim] *
+                  mptr[idcs[0] + (idcs[1] + (idcs[2] + (eptr[idx] * SDim + d) *
+                                             basis1d.pN) *
+                                  basis1d.pN) *
+                               basis1d.pN] *
                   basis0[idcs[0]] * basis1[idcs[1]] * dbasis2[idcs[2]];
             }
          }
@@ -1271,8 +1238,6 @@ struct DofFinderBase
    real_t *xptr;
    eltrans::Lagrange basis1d;
 
-   // ndof * nelems
-   int stride_sdim;
    // number of points in pptr
    int npts;
 };
@@ -1284,10 +1249,7 @@ template <int SDim, int max_team_x>
 struct PhysDofFinder<Geometry::SEGMENT, SDim, max_team_x>
    : public DofFinderBase
 {
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * nelems;
-   }
+   static int ndofs(int ndofs1d) { return ndofs1d; }
 
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
@@ -1310,7 +1272,7 @@ struct PhysDofFinder<Geometry::SEGMENT, SDim, max_team_x>
          real_t phys_coord[SDim];
          for (int d = 0; d < SDim; ++d)
          {
-            phys_coord[d] = mptr[i + eptr[idx] * basis1d.pN + d * stride_sdim];
+            phys_coord[d] = mptr[i + (d + eptr[idx] * SDim) * basis1d.pN];
          }
          real_t dist = 0;
          // L-2 norm squared
@@ -1353,10 +1315,7 @@ template <int SDim, int max_team_x>
 struct PhysDofFinder<Geometry::SQUARE, SDim, max_team_x>
    : public DofFinderBase
 {
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * ndof1d * nelems;
-   }
+   static int ndofs(int ndofs1d) { return ndofs1d * ndofs1d; }
 
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
@@ -1387,8 +1346,8 @@ struct PhysDofFinder<Geometry::SQUARE, SDim, max_team_x>
          for (int d = 0; d < SDim; ++d)
          {
             phys_coord[d] =
-               mptr[idcs[0] + (idcs[1] + eptr[idx] * basis1d.pN) * basis1d.pN +
-                            d * stride_sdim];
+               mptr[idcs[0] + (idcs[1] + (d + eptr[idx] * SDim) * basis1d.pN) *
+                            basis1d.pN];
          }
          real_t dist = 0;
          // L-2 norm squared
@@ -1434,10 +1393,7 @@ template <int SDim, int max_team_x>
 struct PhysDofFinder<Geometry::CUBE, SDim, max_team_x>
    : public DofFinderBase
 {
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * ndof1d * ndof1d * nelems;
-   }
+   static int ndofs(int ndofs1d) { return ndofs1d * ndofs1d * ndofs1d; }
 
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
@@ -1469,11 +1425,11 @@ struct PhysDofFinder<Geometry::CUBE, SDim, max_team_x>
          idcs[1] = idcs[1] % basis1d.pN;
          for (int d = 0; d < SDim; ++d)
          {
-            phys_coord[d] = mptr[idcs[0] +
-                                 (idcs[1] + (idcs[2] + eptr[idx] * basis1d.pN) *
-                                  basis1d.pN) *
-                                 basis1d.pN +
-                                 d * stride_sdim];
+            phys_coord[d] =
+               mptr[idcs[0] + (idcs[1] + (idcs[2] + (d + eptr[idx] * SDim) *
+                                          basis1d.pN) *
+                               basis1d.pN) *
+                            basis1d.pN];
          }
          real_t dist = 0;
          // L-2 norm squared
@@ -1530,8 +1486,6 @@ struct NodeFinderBase
    real_t *xptr;
    eltrans::Lagrange basis1d;
 
-   // ndof * nelems
-   int stride_sdim;
    // number of points in pptr
    int npts;
    // number of points per element along each dimension to test
@@ -1550,10 +1504,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x, max_q1d>
 
    static int compute_nq(int nq1d) { return nq1d; }
 
-   static int compute_stride_sdim(int ndof1d, int nelems)
-   {
-      return ndof1d * nelems;
-   }
+   static int ndofs(int ndof1d) { return ndof1d; }
 
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
@@ -1581,7 +1532,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x, max_q1d>
             for (int d = 0; d < SDim; ++d)
             {
                phys_coord[d] +=
-                  mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
+                  mptr[j0 + (d + eptr[idx] * SDim) * basis1d.pN] * b;
             }
          }
          real_t dist = 0;
@@ -1628,9 +1579,9 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x, max_q1d>
 
    static int compute_nq(int nq1d) { return nq1d * nq1d; }
 
-   static int compute_stride_sdim(int ndof1d, int nelems)
+   static int ndofs(int ndof1d)
    {
-      return ndof1d * ndof1d * nelems;
+      return ndof1d * ndof1d;
    }
 
    void MFEM_HOST_DEVICE operator()(int idx) const
@@ -1673,8 +1624,8 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x, max_q1d>
                for (int d = 0; d < SDim; ++d)
                {
                   phys_coord[d] +=
-                     mptr[i0 + (i1 + eptr[idx] * basis1d.pN) * basis1d.pN +
-                             d * stride_sdim] *
+                     mptr[i0 + (i1 + (d + eptr[idx] * SDim) * basis1d.pN) *
+                             basis1d.pN] *
                      b;
                }
             }
@@ -1726,9 +1677,9 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x, max_q1d>
 
    static int compute_nq(int nq1d) { return nq1d * nq1d * nq1d; }
 
-   static int compute_stride_sdim(int ndof1d, int nelems)
+   static int ndofs(int ndof1d)
    {
-      return ndof1d * ndof1d * ndof1d * nelems;
+      return ndof1d * ndof1d * ndof1d;
    }
 
    void MFEM_HOST_DEVICE operator()(int idx) const
@@ -1778,9 +1729,9 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x, max_q1d>
                   {
                      phys_coord[d] +=
                         mptr[i0 +
-                                (i1 + (i2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
-                                basis1d.pN +
-                                d * stride_sdim] *
+                                (i1 + (i2 + (d + eptr[idx] * SDim) * basis1d.pN) *
+                                 basis1d.pN) *
+                                basis1d.pN] *
                         b;
                   }
                }
@@ -1848,7 +1799,6 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    func.npts = npts;
    func.nq1d = nq1d;
    func.nq = func.compute_nq(nq1d);
-   func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
       // team_x must be a power of 2
@@ -1885,11 +1835,10 @@ static void ClosestPhysDofImpl(int npts, int nelems, int ndof1d,
    func.eptr = eptr;
    func.xptr = xptr;
    func.npts = npts;
-   func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
       int team_x = max_team_x;
-      int ndof = func.stride_sdim / nelems;
+      int ndof = func.ndofs(ndof1d);
       while (true)
       {
          if (team_x <= ndof)
@@ -1953,7 +1902,6 @@ static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    func.iter_ptr = iter_ptr;
    func.tptr = tptr;
    func.npts = npts;
-   func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
    if (use_dev)
    {
       int team_x = max_team_x;
@@ -2056,7 +2004,6 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    func.solver.iter_ptr = iter_ptr;
    func.solver.tptr = tptr;
    func.solver.npts = npts;
-   func.solver.stride_sdim = func.solver.compute_stride_sdim(ndof1d, nelems);
    func.nq1d = nq1d;
    func.qptr = qptr;
    if (use_dev)
