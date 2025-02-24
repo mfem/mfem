@@ -192,7 +192,7 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
    if (dim> 1) { fe->Project(vyCoef, *T, dofsy); }
    if (dim> 2) { fe->Project(vzCoef, *T, dofsz); }
 
-   // Get a uniform grid or integration points
+   // Get a uniform grid of integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
    const IntegrationRule& intRule = ref->RefPts;
 

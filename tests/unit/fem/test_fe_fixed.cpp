@@ -31,7 +31,7 @@ void CompareFE(const FiniteElement &fe1, const FiniteElement &fe2)
    REQUIRE(fe1.HasAnisotropicOrders() == fe2.HasAnisotropicOrders());
    REQUIRE(fe1.Space()                == fe2.Space());
 
-   // Get a uniform grid or integration points
+   // Get a uniform grid of integration points
    const int res = 4;
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe1.GetGeomType(), res);
    const IntegrationRule& intRule = ref->RefPts;
