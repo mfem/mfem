@@ -125,7 +125,7 @@ TEST_CASE("InverseElementTransformation",
       REQUIRE( mesh_file.good() );
 
       const int npts = 100; // number of random points to test
-      const int min_found_pts = 93;
+      const int min_found_pts = 100;
       const int rand_seed = 189548;
       srand(rand_seed);
 
@@ -136,12 +136,13 @@ TEST_CASE("InverseElementTransformation",
 
       ElementTransformation &T = *mesh.GetElementTransformation(0);
       InvTransform inv_T(&T);
-      // inv_T.SetInitialGuessType(InvTransform::ClosestPhysNode);
-      inv_T.SetInitialGuessType(InvTransform::ClosestRefNode);
+      inv_T.SetInitialGuessType(InvTransform::EdgeScan);
       // inv_T.SetSolverType(InvTransform::Newton);
       // inv_T.SetSolverType(InvTransform::NewtonSegmentProject);
       inv_T.SetSolverType(InvTransform::NewtonElementProject);
-      inv_T.SetPrintLevel(0); // 0 - print errors
+      inv_T.SetInitGuessRelOrder(4 - 20);
+      inv_T.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
+      inv_T.SetPrintLevel(-1); // 0 - print errors
       IntegrationPoint ip, ipRev;
       Vector pt;
 
@@ -162,6 +163,177 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
+      CAPTURE(pts_found, npts, max_err);
+      REQUIRE( pts_found >= min_found_pts );
+      REQUIRE( max_err <= tol );
+   }
+}
+
+TEST_CASE("BatchInverseElementTransformation",
+          "[InverseElementTransformation], [CUDA]")
+{
+   const real_t tol = 2e-14;
+
+   SECTION("{ C-shaped Q2 Quad }")
+   {
+      // Create quadratic with single C-shaped quadrilateral
+      std::stringstream meshStr;
+      meshStr << meshPrefixStr << CShapedNodesStr;
+      Mesh mesh( meshStr );
+
+      REQUIRE( mesh.GetNE() == 1 );
+      REQUIRE( mesh.GetNodes() != nullptr );
+
+      // Optionally, dump mesh to disk
+      bool dumpMesh = false;
+      if (dumpMesh)
+      {
+         std::string filename = "c_shaped_quadratic_mesh";
+         VisItDataCollection dataCol(filename, &mesh);
+         dataCol.Save();
+      }
+
+      const int times = 100;
+      const int dim = 2;
+
+      // Create a uniform grid of integration points over the element
+      const int geom = mesh.GetElementBaseGeometry(0);
+      RefinedGeometry* ref =
+         GlobGeometryRefiner.Refine(Geometry::Type(geom), times);
+      const IntegrationRule& intRule = ref->RefPts;
+
+      // Create a transformation
+      IsoparametricTransformation tr;
+      mesh.GetElementTransformation(0, &tr);
+      Vector v(dim);
+
+      const int npts = intRule.GetNPoints();
+      Vector orig_ref_space;
+      Vector phys_space;
+      Array<int> elems;
+      Array<int> res_type;
+      Vector res_ref_space;
+
+      BatchInverseElementTransformation itransform;
+      itransform.Setup(mesh);
+
+      orig_ref_space.SetSize(npts * dim);
+      phys_space.SetSize(npts * dim);
+      elems.SetSize(npts, 0);
+      res_type.SetSize(npts);
+      res_ref_space.SetSize(npts * dim);
+
+      for (int i=0; i<npts; ++i)
+      {
+         // Transform the integration point into space
+         const IntegrationPoint& ip = intRule.IntPoint(i);
+         tr.Transform(ip, v);
+
+         real_t tmp[3];
+         ip.Get(tmp, dim);
+         for (int d = 0; d < dim; ++d)
+         {
+            orig_ref_space(i + d * npts) = tmp[d];
+            phys_space(i + d * npts) = v(d);
+         }
+      }
+
+      // now batch reverse transform
+      itransform.Transform(phys_space, elems, res_type, res_ref_space);
+      res_type.HostRead();
+      res_ref_space.HostRead();
+      res_ref_space -= orig_ref_space;
+      int pts_found = 0;
+      real_t max_err = 0;
+      for (int i = 0; i < npts; ++i)
+      {
+         if (res_type[i] == InverseElementTransformation::Inside)
+         {
+            ++pts_found;
+            for (int d = 0; d < dim; ++d)
+            {
+               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+            }
+         }
+      }
+
+      CAPTURE(pts_found, npts, max_err);
+      REQUIRE( pts_found == npts );
+      REQUIRE( max_err <= tol );
+   }
+
+   SECTION("{ Spiral Q20 Quad }")
+   {
+      // Load the spiral mesh from file:
+      std::ifstream mesh_file("./data/quad-spiral-q20.mesh");
+      REQUIRE( mesh_file.good() );
+
+      const int npts = 100; // number of random points to test
+      const int min_found_pts = npts;
+      const int rand_seed = 189548;
+      srand(rand_seed);
+
+      Mesh mesh(mesh_file);
+      REQUIRE( mesh.Dimension() == 2 );
+      REQUIRE( mesh.SpaceDimension() == 2 );
+      REQUIRE( mesh.GetNE() == 1 );
+
+      int dim = mesh.Dimension();
+      Vector orig_ref_space;
+      Vector phys_space;
+      Array<int> elems;
+      Array<int> res_type;
+      Vector res_ref_space;
+
+      BatchInverseElementTransformation itransform;
+      itransform.Setup(mesh);
+      itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
+      itransform.SetInitGuessRelOrder(4 - 20);
+      itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
+
+      orig_ref_space.SetSize(npts * dim);
+      phys_space.SetSize(npts * dim);
+      elems.SetSize(npts, 0);
+      res_type.SetSize(npts);
+      res_ref_space.SetSize(npts * dim);
+
+      ElementTransformation &T = *mesh.GetElementTransformation(0);
+      IntegrationPoint ip;
+      Vector pt;
+
+      for (int i = 0; i < npts; i++)
+      {
+         Geometry::GetRandomPoint(T.GetGeometryType(), ip);
+         T.Transform(ip, pt);
+
+         real_t tmp[3];
+         ip.Get(tmp, dim);
+         for (int d = 0; d < dim; ++d)
+         {
+            orig_ref_space(i + d * npts) = tmp[d];
+            phys_space(i + d * npts) = pt(d);
+         }
+      }
+
+      // now batch reverse transform
+      itransform.Transform(phys_space, elems, res_type, res_ref_space);
+      res_type.HostRead();
+      res_ref_space.HostRead();
+      res_ref_space -= orig_ref_space;
+      int pts_found = 0;
+      real_t max_err = 0;
+      for (int i = 0; i < npts; ++i)
+      {
+         if (res_type[i] == InverseElementTransformation::Inside)
+         {
+            ++pts_found;
+            for (int d = 0; d < dim; ++d)
+            {
+               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+            }
+         }
+      }
+
       CAPTURE(pts_found, npts, max_err);
       REQUIRE( pts_found >= min_found_pts );
       REQUIRE( max_err <= tol );
