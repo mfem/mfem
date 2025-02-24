@@ -1196,13 +1196,16 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
    if (Monitor(0, beta, r, x) || beta <= final_norm)
    {
-      converged = false;
+      converged = true;
       final_norm = beta;
       final_iter = 0;
 
       Monitor(0, beta, r, x, true);
       return;
    }
+
+   // initialize the first pass
+   converged = false;
 
    if (print_options.iterations || print_options.first_and_last)
    {
