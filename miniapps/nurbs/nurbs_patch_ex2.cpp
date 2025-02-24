@@ -237,12 +237,23 @@ int main(int argc, char *argv[])
    B.Print();
 
    // test
-   Vector Ytest(fespace->GetVSize());
-   Vector Xtest(fespace->GetVSize());
-   Xtest = 0.0; Ytest = 0.0;
-   A->Mult(Xtest, Ytest);
-   cout << "Ytest = " << endl;
-   Ytest.Print();
+   // Vector Xtest(fespace->GetVSize());
+   // Vector AX(fespace->GetVSize());
+   // Xtest = 0.0; AX = 0.0;
+   // // Xtest[1] = 1.0;
+   // Xtest[15] = 1.0;
+   // Xtest[16] = 1.0;
+   // // Test applying twice
+   // A->Mult(Xtest, AX);
+   // A->Mult(AX, X);
+   // // Test applying once
+   // A->Mult(Xtest, X);
+
+   // cout << "Xtest = " << endl;
+   // Xtest.Print();
+   // cout << "A(Xtest) = " << endl;
+   // X.Print();
+
 
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
@@ -259,19 +270,19 @@ int main(int argc, char *argv[])
 
    // GSSmoother M(A);
    // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
-   CGSolver solver;
-   solver.SetMaxIter(800);
    // GMRESSolver solver;
    // solver.SetMaxIter(1000);
+   CGSolver solver;
+   solver.SetMaxIter(800);
 
    solver.SetPrintLevel(1);
    solver.SetRelTol(sqrt(1e-6));
    solver.SetAbsTol(sqrt(1e-12));
    solver.SetOperator(*A);
-   // solver.SetPreconditioner(M);
    solver.Mult(B, X);
 
 
+   // solver.SetPreconditioner(M);
    cout << "Done solving system." << endl;
 
    // Recover the solution as a finite element grid function.
