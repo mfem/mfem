@@ -149,7 +149,6 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    bool glvis_visualization = true;
    bool paraview_output = false;
-   bool newton = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -182,9 +181,6 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView output.");
-   args.AddOption(&newton, "-new", "--newton", "-bis",
-                  "--bisection",
-                  "Find roots with Newton's method or the bisection method.");
    args.Parse();
    if (!args.Good())
    {
@@ -336,7 +332,6 @@ int main(int argc, char *argv[])
    vol_form.Assemble();
    real_t domain_volume = vol_form(onegf);
    const real_t target_volume = domain_volume * vol_fraction;
-   real_t c;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -367,7 +362,6 @@ int main(int argc, char *argv[])
    // 11. Iterate:
    for (int k = 1; k <= max_it; k++)
    {
-      if (k == 1) { c = 0; }
       if (k > 1) { alpha = std::pow((real_t) k,growth); }
 
       if (myid == 0)
@@ -408,19 +402,7 @@ int main(int argc, char *argv[])
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
-      real_t material_volume;
-      if (newton)
-      {
-         material_volume = newton_proj(psi, target_volume);
-      }
-      else
-      {
-         ParGridFunction alpha_grad(grad);
-         alpha_grad *= alpha;
-         std::pair<real_t,real_t> result = bisec_proj(psi, alpha_grad, c, target_volume);
-         material_volume = result.first;
-         c = result.second;
-      }
+      const real_t material_volume = proj(psi, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
       real_t norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
