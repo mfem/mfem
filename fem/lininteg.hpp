@@ -452,7 +452,8 @@ class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
    Coefficient *F;
-   Vector shape;
+   DenseMatrix vshape;
+   Vector shape, nor, nor_xt;
    int oa, ob; // these control the quadrature order, see DomainLFIntegrator
 
 public:
@@ -463,6 +464,10 @@ public:
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
                                Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
