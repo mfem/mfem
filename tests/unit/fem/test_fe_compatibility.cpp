@@ -14,6 +14,9 @@
 
 using namespace mfem;
 
+namespace fe_compatibility
+{
+
 Element * GetElement(Geometry::Type type)
 {
    Element *el = NULL;
@@ -1297,3 +1300,5 @@ TEST_CASE("FE Compatibility",
 
    delete vtrans;
 }
+
+} // namespace fe_compatibility
