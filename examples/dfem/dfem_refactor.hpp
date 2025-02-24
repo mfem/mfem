@@ -190,6 +190,7 @@ public:
       mfem::tuple<input_ts...> inputs,
       mfem::tuple<output_ts...> outputs,
       const IntegrationRule &integration_rule,
+      const Array<int> domain_attributes = {},
       const derivative_indices_t derivative_indices = {});
 
    void SetParameters(std::vector<Vector *> p) const;
@@ -309,6 +310,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    mfem::tuple<input_ts...> inputs,
    mfem::tuple<output_ts...> outputs,
    const IntegrationRule &integration_rule,
+   const Array<int> domain_attributes,
    derivative_ids_t derivative_ids)
 {
    using entity_t = Entity::Element;
@@ -370,6 +372,13 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       inputs_vdim[i] = mfem::get<i>(inputs).vdim;
    });
+
+   Array<int> elem_attributes;
+   elem_attributes.SetSize(mesh.GetNE());
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      elem_attributes[i] = mesh.GetAttribute(i);
+   }
 
    const auto output_fop = mfem::get<0>(outputs);
    const int test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
@@ -565,10 +574,12 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
+         if (!domain_attributes[elem_attributes[e] - 1]) { return; }
+
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
-         unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                      wrapped_fields_e, num_qp, e);
+                  unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+                               wrapped_fields_e, num_qp, e);
 
          map_fields_to_quadrature_data(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,

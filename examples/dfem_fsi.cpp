@@ -1,7 +1,4 @@
 #include "dfem/dfem_refactor.hpp"
-#include "general/tic_toc.hpp"
-#include "linalg/hypre.hpp"
-#include "linalg/solvers.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -11,8 +8,10 @@ constexpr int DIMENSION = 2;
 enum ProblemType
 {
    CFD_EX_TEST = 0,
-   DFG_CFD1_TEST = 1,
-   DFG_CFD2_TEST = 2,
+   CFD1_TEST = 1,
+   CFD2_TEST = 2,
+   FSI_CSM1_TEST = 3,
+   FSI1 = 4,
 };
 
 float clamp(float x, float lowerlimit = 0.0f, float upperlimit = 1.0f)
@@ -28,7 +27,48 @@ struct CFD_TEST_CTX
 } cfd_test_ctx;
 
 template <int dim = 2>
+struct DisplacementMassQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, dim> &u,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w) const
+   {
+      return mfem::tuple{u * det(J) * w};
+   }
+};
+
+template <int dim = 2>
+struct DisplacementLaplacianQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, dim, dim> &dudxi,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w) const
+   {
+      auto invJ = inv(J);
+      return mfem::tuple{dudxi * invJ * det(J) * w * transpose(invJ)};
+   }
+};
+
+template <int dim = 2>
 struct VelocityMassQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, dim> &v,
+                   const tensor<real_t, dim, dim> &dudxi,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w) const
+   {
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto Ju = det(I + dudxi * inv(J));
+      return mfem::tuple{Ju * v * det(J) * w};
+   }
+};
+
+
+template <int dim = 2>
+struct SolidVelocityMassQFunction
 {
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<real_t, dim> &v,
@@ -47,7 +87,76 @@ struct PressureMassQFunction
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w) const
    {
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       return mfem::tuple{p * det(J) * w};
+   }
+};
+
+template <int dim = DIMENSION>
+struct SolidMomentumQFunction
+{
+   SolidMomentumQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const tensor<real_t, dim, dim> &dudxi,
+      const tensor<real_t, dim, dim> &J,
+      const double &w) const
+   {
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      constexpr real_t nu = 0.4;
+      constexpr real_t mu = 0.5 * 1e6;
+      constexpr real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
+
+      auto invJ = inv(J);
+      auto dudx = dudxi * invJ;
+
+      // Linear elasticity
+      // auto E = sym(dudx);
+      // auto JxW = det(J) * w * transpose(inv(J));
+      // return mfem::tuple{(lambda * tr(E) * I + 2.0 * mu * E) * JxW};
+
+      // St. Venant-Kirchhoff model
+      auto Fu = I + dudx;
+      auto Ju = det(Fu);
+      auto C = transpose(Fu) * Fu;
+      auto E = 0.5 * (C - I);
+      auto PK2 = 2.0 * mu * E + lambda * tr(E) * I;
+      auto JxW = det(J) * w * transpose(inv(J));
+      return mfem::tuple{Fu * PK2 * JxW};
+   }
+};
+
+template <int dim = 2>
+struct SolidBodyForceQFunction
+{
+   SolidBodyForceQFunction(real_t body_force) :
+      body_force(body_force) {};
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, dim, dim> &dudxi,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w) const
+   {
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto Fu = I + dudxi * inv(J);
+      auto Ju = det(Fu);
+      tensor<real_t, dim> b = {0.0, -body_force};
+      return mfem::tuple{Ju * b * det(J) * w};
+   }
+
+   const real_t body_force;
+};
+
+template <int dim = 2>
+struct SolidLFQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, dim> &f,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w) const
+   {
+      return mfem::tuple{f * det(J) * w};
    }
 };
 
@@ -57,33 +166,67 @@ struct NavierStokesMomentumConvectiveQFunction
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<real_t, dim> &v,
                    const tensor<real_t, dim, dim> &dvdxi,
+                   const tensor<real_t, dim, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w) const
    {
-      return mfem::tuple{dot(dvdxi * inv(J), v) * det(J) * w};
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto Fu = I + dudxi * inv(J);
+      auto Ju = det(Fu);
+      return mfem::tuple{dot(Ju * (dvdxi * inv(J)) * inv(Fu), v) * det(J) * w};
+   }
+};
+
+template <int dim = 2>
+struct NavierStokesMomentumConvectiveDisplacementQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, dim> &v,
+                   const tensor<real_t, dim, dim> &dvdxi,
+                   const tensor<real_t, dim> &u,
+                   const tensor<real_t, dim, dim> &dudxi,
+                   const tensor<real_t, dim> &uprev,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w) const
+   {
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto Fu = I + dudxi * inv(J);
+      auto Ju = det(Fu);
+      return mfem::tuple{dot(Ju * (dvdxi * inv(J)) * inv(Fu), u - uprev) * det(J) * w};
    }
 };
 
 template <int dim = 2>
 struct NavierStokesMomentumViscousQFunction
 {
-   NavierStokesMomentumViscousQFunction(real_t &kinematic_viscosity) :
+   NavierStokesMomentumViscousQFunction(
+      real_t density,
+      real_t kinematic_viscosity) :
+      density(density),
       kinematic_viscosity(kinematic_viscosity) {};
 
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<real_t, dim, dim> &dvdxi,
                    const real_t &p,
+                   const tensor<real_t, dim, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w) const
    {
       static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto Fu = I + dudxi * inv(J);
+      auto invFu = inv(Fu);
+      auto invFuT = transpose(invFu);
+      auto Ju = det(Fu);
+
       auto invJ = inv(J);
-      auto dudx = dvdxi * invJ;
-      auto viscous_stress = -p * I + 2.0 * kinematic_viscosity * sym(dudx);
+      auto dvdx = dvdxi * invJ;
+      auto viscous_stress = -Ju * p * I +
+                            2.0 * density * kinematic_viscosity * sym(J * dvdx * invFu);
       auto JxW = det(J) * w * transpose(invJ);
-      return mfem::tuple{(viscous_stress) * JxW};
+      return mfem::tuple{viscous_stress * invFuT * JxW};
    }
    const real_t kinematic_viscosity;
+   const real_t density;
 };
 
 template <int dim = 2>
@@ -93,18 +236,27 @@ struct NavierStokesContinuityQFunction
 
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<real_t, dim, dim> &dvdxi,
+                   const tensor<real_t, dim, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w) const
    {
-      return mfem::tuple{tr(dvdxi * inv(J)) * det(J) * w};
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto Fu = I + dudxi * inv(J);
+      auto invFu = inv(Fu);
+      auto Ju = det(Fu);
+      return mfem::tuple{Ju * tr((dvdxi * inv(J)) * invFu) * det(J) * w};
    }
 };
 
 class ALEFSIOperator : public TimeDependentOperator
 {
    static constexpr int Position = 0;
-   static constexpr int Velocity = 1;
-   static constexpr int Pressure = 2;
+   static constexpr int Displacement = 1;
+   static constexpr int Velocity = 2;
+   static constexpr int Pressure = 3;
+   // This is a placeholder ID used for terms like
+   // an auxiliary displacement variable.
+   static constexpr int Aux = 4;
 
    class ALEFSIResidual : public Operator
    {
@@ -115,7 +267,7 @@ class ALEFSIOperator : public TimeDependentOperator
          ALEFSIResJac(const ALEFSIResidual &res, const Vector &u) :
             Operator(u.Size()),
             res(res),
-            u(u)
+            S(u)
          {
             fd_jacobian = std::make_shared<FDJacobian>(res, u);
          }
@@ -126,7 +278,7 @@ class ALEFSIOperator : public TimeDependentOperator
          }
 
          const ALEFSIResidual &res;
-         const Vector u;
+         const Vector S;
          mutable std::shared_ptr<FDJacobian> fd_jacobian;
       };
 
@@ -146,19 +298,21 @@ class ALEFSIOperator : public TimeDependentOperator
             const ALEFSIResidual &res = alefsi_jac->res;
             ALEFSIOperator &op = res.op;
 
-            Vector uv, up;
-            auto uptr = const_cast<Vector*>(&alefsi_jac->u);
-            uv.MakeRef(*uptr, 0, op.H1vtsize);
-            up.MakeRef(*uptr, op.H1vtsize, op.H1tsize);
+            Vector Sd, Sv, Sp;
+            auto Sptr = const_cast<Vector*>(&alefsi_jac->S);
+            Sd.MakeRef(*Sptr, 0, op.H1vtsize);
+            Sv.MakeRef(*Sptr, op.H1vtsize, op.H1vtsize);
+            Sp.MakeRef(*Sptr, 2*op.H1vtsize, op.H1tsize);
 
             auto x_gf = static_cast<ParGridFunction*>(op.H1vfes.GetParMesh()->GetNodes());
-            op.v_gf.SetFromTrueDofs(uv);
-            op.p_gf.SetFromTrueDofs(up);
+            op.d_gf.SetFromTrueDofs(Sd);
+            op.v_gf.SetFromTrueDofs(Sv);
+            op.p_gf.SetFromTrueDofs(Sp);
 
             HypreParMatrix Mv, Mp, Aconv, Avisc, B;
 
-            auto dMDv = op.velocity_mass->GetDerivative(Velocity, {&op.v_gf}, {x_gf});
-            auto dMDp = op.pressure_mass->GetDerivative(Pressure, {&op.p_gf}, {x_gf});
+            auto dMDv = op.fluid_velocity_mass->GetDerivative(Velocity, {&op.v_gf}, {x_gf});
+            auto dMDp = op.fluid_pressure_mass->GetDerivative(Pressure, {&op.p_gf}, {x_gf});
             auto dFcvDv = op.fluid_momentum_convective->GetDerivative(Velocity, {&op.v_gf}, {x_gf});
             auto dFvvDv = op.fluid_momentum_viscous->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, x_gf});
             auto dCDv = op.fluid_continuity->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, x_gf});
@@ -250,92 +404,169 @@ class ALEFSIOperator : public TimeDependentOperator
          Operator(op.offsets.Last()),
          op(op),
          gamma(gamma),
-         prevu(prevS),
+         prevS(prevS),
          z(S.Size()),
+         d_gf(&op.H1vfes),
+         d_prev_gf(&op.H1vfes),
          v_gf(&op.H1vfes),
          p_gf(&op.H1fes),
          H1vtsize(op.H1vfes.GetTrueVSize()),
          H1tsize(op.H1fes.GetTrueVSize()) {}
 
-      void Mult(const Vector &u, Vector &R) const override
+      void Mult(const Vector &S, Vector &R) const override
       {
-         auto uptr = const_cast<Vector*>(&u);
+         auto uptr = const_cast<Vector*>(&S);
 
-         Vector uv, up;
-         uv.MakeRef(*uptr, 0, H1vtsize);
-         up.MakeRef(*uptr, H1vtsize, H1tsize);
+         Vector Sd, Sv, Sp;
+         Sd.MakeRef(*uptr, 0, H1vtsize);
+         Sv.MakeRef(*uptr, H1vtsize, H1vtsize);
+         Sp.MakeRef(*uptr, 2*H1vtsize, H1tsize);
 
-         Vector prevuv, prevup;
-         prevuv.MakeRef(prevu, 0, H1vtsize);
-         prevup.MakeRef(prevu, H1vtsize, H1tsize);
+         Vector prevSd, prevSv, prevSp;
+         prevSd.MakeRef(prevS, 0, H1vtsize);
+         prevSv.MakeRef(prevS, H1vtsize, H1vtsize);
+         prevSp.MakeRef(prevS, 2*H1vtsize, H1tsize);
 
-         Vector Rv, Rp;
-         Rv.MakeRef(R, 0, H1vtsize);
-         Rp.MakeRef(R, H1vtsize, H1tsize);
+         Vector Rd, Rv, Rp;
+         Rd.MakeRef(R, 0, H1vtsize);
+         Rv.MakeRef(R, H1vtsize, H1vtsize);
+         Rp.MakeRef(R, 2*H1vtsize, H1tsize);
 
+         Rd = 0.0;
          Rv = 0.0;
          Rp = 0.0;
 
          auto x_gf = static_cast<ParGridFunction*>(op.H1vfes.GetParMesh()->GetNodes());
 
-         op.velocity_mass->SetParameters({x_gf});
-         op.velocity_mass->Mult(uv, Rv);
+         real_t displacement_laplacian_relax = 1e-20 * 0.5 * 1e6;
 
-         // Current F_v(U)
-         op.fluid_momentum_convective->SetParameters({x_gf});
-         op.fluid_momentum_convective->AddMult(uv, Rv, op.theta*gamma);
-         p_gf.SetFromTrueDofs(up);
-         p_gf *= 1.0 / op.theta;
-         op.fluid_momentum_viscous->SetParameters({&p_gf, x_gf});
-         op.fluid_momentum_viscous->AddMult(uv, Rv, op.theta*gamma);
+         // Displacement terms
+         {
+            op.solid_displacement_mass->SetParameters({x_gf});
+            op.solid_displacement_mass->AddMult(Sd, Rd);
 
-         // Previous F_v(U)
-         op.fluid_momentum_convective->SetParameters({x_gf});
-         op.fluid_momentum_convective->AddMult(prevuv, Rv, (1.0-op.theta)*gamma);
-         p_gf = 0.0;
-         op.fluid_momentum_viscous->SetParameters({&p_gf, x_gf});
-         op.fluid_momentum_viscous->AddMult(prevuv, Rv, (1.0-op.theta)*gamma);
+            op.solid_displacement_mass->SetParameters({x_gf});
+            op.solid_displacement_mass->AddMult(prevSd, Rd, -1.0);
 
-         // Previous time stepping terms
-         op.velocity_mass->SetParameters({x_gf});
-         op.velocity_mass->AddMult(prevuv, Rv, -1.0);
+            d_gf.SetFromTrueDofs(Sd);
+            op.solid_lf->SetParameters({&d_gf, x_gf});
+            op.solid_lf->AddMult(Sv, Rd, -op.theta*gamma);
 
-         p_gf.SetFromTrueDofs(up);
-         op.fluid_continuity->SetParameters({&p_gf, x_gf});
-         op.fluid_continuity->AddMult(uv, Rp, -1.0);
+            op.fluid_displacement_mass->SetParameters({x_gf});
+            op.fluid_displacement_mass->AddMult(Sd, Rd);
 
+            op.fluid_displacement_mass->SetParameters({x_gf});
+            op.fluid_displacement_mass->AddMult(prevSd, Rd, -1.0);
+
+            op.fluid_displacement_laplacian->SetParameters({x_gf});
+            op.fluid_displacement_laplacian->AddMult(Sd, Rd,
+                                                     op.theta*gamma*displacement_laplacian_relax);
+         }
+
+         // Velocity terms
+         {
+            op.solid_velocity_mass->SetParameters({x_gf});
+            op.solid_velocity_mass->AddMult(Sv, Rv);
+
+            op.solid_velocity_mass->SetParameters({x_gf});
+            op.solid_velocity_mass->AddMult(prevSv, Rv, -1.0);
+
+            op.solid_momentum->SetParameters({x_gf});
+            op.solid_momentum->AddMult(Sd, Rv, 1.0/op.density_solid*op.theta*gamma);
+
+            // op.solid_body_force->SetParameters({x_gf});
+            // op.solid_body_force->AddMult(Sd, Rv, -op.theta*gamma);
+
+            d_gf.SetFromTrueDofs(Sd);
+            op.fluid_velocity_mass->SetParameters({&d_gf, x_gf});
+            op.fluid_velocity_mass->AddMult(Sv, Rv);
+
+            d_gf.SetFromTrueDofs(Sd);
+            op.fluid_velocity_mass->SetParameters({&d_gf, x_gf});
+            op.fluid_velocity_mass->AddMult(prevSv, Rv, -1.0);
+
+            d_gf.SetFromTrueDofs(Sd);
+            op.fluid_momentum_convective->SetParameters({&d_gf, x_gf});
+            op.fluid_momentum_convective->AddMult(Sv, Rv, op.theta*gamma);
+
+            // This term is not scaled with gamma as it contains an approximated time derivative
+            // that cancels.
+            d_gf.SetFromTrueDofs(Sd);
+            d_prev_gf.SetFromTrueDofs(prevSd);
+            op.fluid_momentum_convective_displacement->SetParameters({&d_gf, &d_prev_gf, x_gf});
+            op.fluid_momentum_convective_displacement->AddMult(Sv, Rv, -1.0);
+
+            p_gf.SetFromTrueDofs(Sp);
+            p_gf *= 1.0 / op.theta;
+            op.fluid_momentum_viscous->SetParameters({&p_gf, &d_gf, x_gf});
+            op.fluid_momentum_viscous->AddMult(Sv, Rv, 1.0/op.density_fluid*op.theta*gamma);
+
+            d_gf.SetFromTrueDofs(Sd);
+            p_gf.SetFromTrueDofs(Sp);
+            op.fluid_continuity->SetParameters({&p_gf, &d_gf, x_gf});
+            op.fluid_continuity->AddMult(Sv, Rp, -1.0);
+         }
+
+         // Previous
+         // d_gf.SetFromTrueDofs(prevSd);
+         // op.solid_lf->SetParameters({&d_gf, x_gf});
+         // op.solid_lf->AddMult(prevSv, Rd, -(1.0-op.theta)*gamma);
+
+         // op.solid_momentum->SetParameters({x_gf});
+         // op.solid_momentum->AddMult(prevSd, Rv, 1.0/op.density_solid*(1.0-op.theta)*gamma);
+
+         // op.solid_body_force->SetParameters({x_gf});
+         // op.solid_body_force->AddMult(prevSd, Rv, -(1.0-op.theta)*gamma);
+
+         // Previous Fv(S)
+         // d_gf.SetFromTrueDofs(prevSd);
+         // op.fluid_momentum_convective->SetParameters({&d_gf, x_gf});
+         // op.fluid_momentum_convective->AddMult(prevSv, Rv, (1.0-op.theta)*gamma);
+         // p_gf = 0.0;
+         // op.fluid_momentum_viscous->SetParameters({&p_gf, &d_gf, x_gf});
+         // op.fluid_momentum_viscous->AddMult(prevSv, Rv, (1.0-op.theta)*gamma);
+
+         Rd.SetSubVector(op.def_ess_tdof, 0.0);
          Rv.SetSubVector(op.vel_ess_tdof, 0.0);
          Rp.SetSubVector(op.pres_ess_tdof, 0.0);
       }
 
-      Operator& GetGradient(const Vector &u) const override
+      Operator& GetGradient(const Vector &S) const override
       {
-         jacobian.reset(new ALEFSIResJac(*this, u));
-         return *jacobian;
+         // jacobian.reset(new ALEFSIResJac(*this, u));
+         fd_jacobian.reset(new FDJacobian(*this, S));
+         return *fd_jacobian;
       }
 
       ALEFSIOperator &op;
       const real_t gamma;
 
-      mutable ParGridFunction v_gf, p_gf;
+      mutable ParGridFunction d_gf, d_prev_gf, v_gf, p_gf;
 
       const int H1vtsize;
       const int H1tsize;
 
-      mutable Vector z, prevu;
+      mutable Vector z, prevS;
 
       mutable std::shared_ptr<ALEFSIResJac> jacobian;
+      mutable std::shared_ptr<FDJacobian> fd_jacobian;
    };
 
 public:
    ALEFSIOperator(
       real_t theta,
-      real_t &kinematic_viscosity,
+      real_t density_solid,
+      real_t density_fluid,
+      real_t kinematic_viscosity,
       ParFiniteElementSpace &H1vfes,
       ParFiniteElementSpace &H1fes,
       Array<int> &offsets,
+      Array<int> &solid_domain_attr,
+      Array<int> &fluid_domain_attr,
+      Array<int> &def_ess_bdr,
       Array<int> &vel_ess_bdr,
       Array<int> &pres_ess_bdr,
+      VectorCoefficient &def_bdr_coeff,
       VectorCoefficient &vel_bdr_coeff,
       Coefficient &pres_bdr_coeff,
       const IntegrationRule &ir,
@@ -343,17 +574,22 @@ public:
       TimeDependentOperator(offsets.Last()),
       theta(theta),
       kinematic_viscosity(kinematic_viscosity),
+      density_solid(density_solid),
+      density_fluid(density_fluid),
       offsets(offsets),
       H1vfes(H1vfes),
       H1fes(H1fes),
       H1vtsize(H1vfes.GetTrueVSize()),
       H1tsize(H1fes.GetTrueVSize()),
+      dis_ess_bdr(def_ess_bdr),
       vel_ess_bdr(vel_ess_bdr),
       pres_ess_bdr(pres_ess_bdr),
+      dis_bdr_coeff(&def_bdr_coeff),
       vel_bdr_coeff(&vel_bdr_coeff),
       pres_bdr_coeff(&pres_bdr_coeff),
       ir(ir),
       prevS(offsets.Last()),
+      d_gf(&H1vfes),
       v_gf(&H1vfes),
       p_gf(&H1fes)
    {
@@ -361,9 +597,98 @@ public:
       x_gf = static_cast<ParGridFunction*>(mesh->GetNodes());
       ParFiniteElementSpace& mesh_fes = *x_gf->ParFESpace();
 
+      H1vfes.GetEssentialTrueDofs(def_ess_bdr, def_ess_tdof);
       H1vfes.GetEssentialTrueDofs(vel_ess_bdr, vel_ess_tdof);
       H1fes.GetEssentialTrueDofs(pres_ess_bdr, pres_ess_tdof);
 
+      // solid_displacement_mass
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         solid_displacement_mass =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            solid_displacement_mass->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Value<Displacement>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Value<Displacement>{}};
+         auto qf = DisplacementMassQFunction<DIMENSION> {};
+         auto derivatives = std::integer_sequence<size_t, Displacement> {};
+         solid_displacement_mass->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                      solid_domain_attr,
+                                                      derivatives);
+      }
+
+      // fluid displacement mass
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         fluid_displacement_mass =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            fluid_displacement_mass->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Value<Displacement>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Value<Displacement>{}};
+         auto qf = DisplacementMassQFunction<DIMENSION> {};
+         auto derivatives = std::integer_sequence<size_t, Displacement> {};
+         fluid_displacement_mass->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                      fluid_domain_attr,
+                                                      derivatives);
+      }
+
+      // fluid displacement laplacian
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         fluid_displacement_laplacian =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            fluid_displacement_laplacian->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Gradient<Displacement>{}};
+         auto qf = DisplacementLaplacianQFunction<DIMENSION> {};
+         auto derivatives = std::integer_sequence<size_t, Displacement> {};
+         fluid_displacement_laplacian->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                           fluid_domain_attr,
+                                                           derivatives);
+      }
+
+      // solid velocity mass
       {
          auto solutions = std::vector
          {
@@ -375,22 +700,78 @@ public:
             FieldDescriptor{Position, &mesh_fes}
          };
 
-         velocity_mass =
+         solid_velocity_mass =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
          if (!enable_tps)
          {
-            velocity_mass->DisableTensorProductStructure();
+            solid_velocity_mass->DisableTensorProductStructure();
          }
 
          mfem::tuple inputs{Value<Velocity>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Velocity>{}};
-
-         auto mass_qf = VelocityMassQFunction<DIMENSION> {};
+         auto qf = SolidVelocityMassQFunction<DIMENSION> {};
          auto derivatives = std::integer_sequence<size_t, Velocity> {};
-         velocity_mass->AddDomainIntegrator(mass_qf, inputs, outputs, ir, derivatives);
+         solid_velocity_mass->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                  solid_domain_attr,
+                                                  derivatives);
       }
 
+      // solid momentum
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes}
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         solid_momentum =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+         if (!enable_tps)
+         {
+            solid_momentum->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Gradient<Displacement>{}};
+
+         auto qf = SolidMomentumQFunction<DIMENSION> {};
+         auto derivatives = std::integer_sequence<size_t, Displacement> {};
+         solid_momentum->AddDomainIntegrator(qf, inputs, outputs, ir, solid_domain_attr,
+                                             derivatives);
+      }
+
+      // solid body force
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         solid_body_force =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+         if (!enable_tps)
+         {
+            solid_body_force->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Value<Displacement>{}};
+         auto qf = SolidBodyForceQFunction<DIMENSION>(2.0);
+         solid_body_force->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                               solid_domain_attr);
+      }
+
+      // solid linear form
       {
          auto solutions = std::vector
          {
@@ -399,6 +780,64 @@ public:
 
          auto parameters = std::vector
          {
+            FieldDescriptor{Displacement, &H1vfes},
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         solid_lf = std::make_shared<DifferentiableOperator>(solutions, parameters,
+                                                             *mesh);
+         if (!enable_tps)
+         {
+            solid_lf->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Value<Velocity>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Value<Displacement>{}};
+
+         auto qf = SolidLFQFunction<DIMENSION> {};
+         solid_lf->AddDomainIntegrator(qf, inputs, outputs, ir, solid_domain_attr);
+      }
+
+      // fluid velocity mass
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Velocity, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         fluid_velocity_mass =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            fluid_velocity_mass->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs{Value<Velocity>{}, Gradient<Displacement>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple outputs{Value<Velocity>{}};
+         auto qf = VelocityMassQFunction<DIMENSION> {};
+         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         fluid_velocity_mass->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                  fluid_domain_attr,
+                                                  derivatives);
+      }
+
+      // fluid momentum convective
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Velocity, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
             FieldDescriptor{Position, &mesh_fes}
          };
 
@@ -414,18 +853,61 @@ public:
          {
             Value<Velocity>{},
             Gradient<Velocity>{},
+            Gradient<Displacement>{},
             Gradient<Position>{},
             Weight{}
          };
 
          mfem::tuple outputs{Value<Velocity>{}};
 
-         auto momentum_qf = NavierStokesMomentumConvectiveQFunction<DIMENSION> {};
+         auto qf = NavierStokesMomentumConvectiveQFunction<DIMENSION> {};
          auto derivatives = std::integer_sequence<size_t, Velocity> {};
          fluid_momentum_convective->AddDomainIntegrator(
-            momentum_qf, inputs, outputs, ir, derivatives);
+            qf, inputs, outputs, ir, fluid_domain_attr, derivatives);
       }
 
+      // fluid momentum convective displacement
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Velocity, &H1vfes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Displacement, &H1vfes},
+            FieldDescriptor{Aux, &H1vfes},
+            FieldDescriptor{Position, &mesh_fes}
+         };
+
+         fluid_momentum_convective_displacement =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         if (!enable_tps)
+         {
+            fluid_momentum_convective_displacement->DisableTensorProductStructure();
+         }
+
+         mfem::tuple inputs
+         {
+            Value<Velocity>{},
+            Gradient<Velocity>{},
+            Value<Displacement>{},
+            Gradient<Displacement>{},
+            Value<Aux>{},
+            Gradient<Position>{},
+            Weight{}
+         };
+
+         mfem::tuple outputs{Value<Velocity>{}};
+
+         auto qf = NavierStokesMomentumConvectiveDisplacementQFunction<DIMENSION> {};
+         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         fluid_momentum_convective_displacement->AddDomainIntegrator(
+            qf, inputs, outputs, ir, fluid_domain_attr, derivatives);
+      }
+
+      // fluid momentum viscous
       {
          auto solutions = std::vector
          {
@@ -435,6 +917,7 @@ public:
          auto parameters = std::vector
          {
             FieldDescriptor{Pressure, &H1fes},
+            FieldDescriptor{Displacement, &H1vfes},
             FieldDescriptor{Position, &mesh_fes}
          };
 
@@ -450,19 +933,22 @@ public:
          {
             Gradient<Velocity>{},
             Value<Pressure>{},
+            Gradient<Displacement>{},
             Gradient<Position>{},
             Weight{}
          };
 
          mfem::tuple outputs{Gradient<Velocity>{}};
 
-         auto momentum_qf =
-            NavierStokesMomentumViscousQFunction<DIMENSION>(kinematic_viscosity);
+         auto qf = NavierStokesMomentumViscousQFunction<DIMENSION>(
+                      density_fluid,
+                      kinematic_viscosity);
          auto derivatives = std::integer_sequence<size_t, Velocity> {};
-         fluid_momentum_viscous->AddDomainIntegrator(
-            momentum_qf, inputs, outputs, ir, derivatives);
+         fluid_momentum_viscous->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                     fluid_domain_attr, derivatives);
       }
 
+      // fluid continuity
       {
          auto solutions = std::vector
          {
@@ -472,6 +958,7 @@ public:
          auto parameters = std::vector
          {
             FieldDescriptor{Pressure, &H1fes},
+            FieldDescriptor{Displacement, &H1vfes},
             FieldDescriptor{Position, &mesh_fes}
          };
 
@@ -483,14 +970,15 @@ public:
             fluid_continuity->DisableTensorProductStructure();
          }
 
-         mfem::tuple inputs{Gradient<Velocity>{}, Gradient<Position>{}, Weight{}};
+         mfem::tuple inputs{Gradient<Velocity>{}, Gradient<Displacement>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Pressure>{}};
-         auto continuity_qf = NavierStokesContinuityQFunction<DIMENSION> {};
+         auto qf = NavierStokesContinuityQFunction<DIMENSION> {};
          auto derivatives = std::integer_sequence<size_t, Velocity> {};
          fluid_continuity->AddDomainIntegrator(
-            continuity_qf, inputs, outputs, ir, derivatives);
+            qf, inputs, outputs, ir, fluid_domain_attr, derivatives);
       }
 
+      // fluid pressure mass
       {
          auto solutions = std::vector
          {
@@ -502,25 +990,27 @@ public:
             FieldDescriptor{Position, &mesh_fes}
          };
 
-         pressure_mass =
+         fluid_pressure_mass =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
          if (!enable_tps)
          {
-            pressure_mass->DisableTensorProductStructure();
+            fluid_pressure_mass->DisableTensorProductStructure();
          }
 
          mfem::tuple inputs{Value<Pressure>{}, Gradient<Position>{}, Weight{}};
          mfem::tuple outputs{Value<Pressure>{}};
-         auto pressure_mass_qf = PressureMassQFunction<DIMENSION> {};
+         auto qf = PressureMassQFunction<DIMENSION> {};
          auto derivatives = std::integer_sequence<size_t, Pressure> {};
-         pressure_mass->AddDomainIntegrator(
-            pressure_mass_qf, inputs, outputs, ir, derivatives);
+         fluid_pressure_mass->AddDomainIntegrator(qf, inputs, outputs, ir,
+                                                  fluid_domain_attr,
+                                                  derivatives);
       }
    }
 
    void SetTime(const real_t t) override
    {
+      dis_bdr_coeff->SetTime(t);
       vel_bdr_coeff->SetTime(t);
       pres_bdr_coeff->SetTime(t);
    }
@@ -531,9 +1021,14 @@ public:
       prevS = S;
 
       this->SetTime(t + dt);
-      Vector Sv, Sp;
-      Sv.MakeRef(S, 0, H1vtsize);
-      Sp.MakeRef(S, H1vtsize, H1tsize);
+      Vector Sd, Sv, Sp;
+      Sd.MakeRef(S, 0, H1vtsize);
+      Sv.MakeRef(S, H1vtsize, H1vtsize);
+      Sp.MakeRef(S, 2*H1vtsize, H1tsize);
+
+      d_gf.SetFromTrueDofs(Sd);
+      d_gf.ProjectBdrCoefficient(*dis_bdr_coeff, dis_ess_bdr);
+      d_gf.GetTrueDofs(Sd);
 
       v_gf.SetFromTrueDofs(Sv);
       v_gf.ProjectBdrCoefficient(*vel_bdr_coeff, vel_ess_bdr);
@@ -547,17 +1042,19 @@ public:
 
       ALEFSIOperator::ALEFSIResidual::ALEFSIJacPrec prec;
 
-      FGMRESSolver krylov(MPI_COMM_WORLD);
-      krylov.SetRelTol(1e-4);
+      GMRESSolver krylov(MPI_COMM_WORLD);
+      krylov.SetRelTol(1e-8);
       krylov.SetMaxIter(1000);
-      krylov.SetPreconditioner(prec);
+      krylov.SetKDim(500);
+      // krylov.SetPreconditioner(prec);
       krylov.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
 
       NewtonSolver newton(MPI_COMM_WORLD);
       newton.SetOperator(residual);
-      newton.SetSolver(prec);
-      newton.SetRelTol(1e-8);
-      newton.SetMaxIter(10);
+      newton.SetSolver(krylov);
+      newton.SetRelTol(1e-6);
+      newton.SetMaxIter(50);
+      // newton.SetAdaptiveLinRtol();
       newton.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
 
       Vector zero;
@@ -567,22 +1064,35 @@ public:
    }
 
    real_t theta;
+   real_t density_solid;
    real_t kinematic_viscosity;
+   real_t density_fluid;
+
    Array<int> offsets;
+
+   std::shared_ptr<DifferentiableOperator> solid_lf;
+   std::shared_ptr<DifferentiableOperator> solid_body_force;
+   std::shared_ptr<DifferentiableOperator> solid_displacement_mass;
+   std::shared_ptr<DifferentiableOperator> solid_velocity_mass;
+   std::shared_ptr<DifferentiableOperator> solid_momentum;
+
+   std::shared_ptr<DifferentiableOperator> fluid_displacement_mass;
+   std::shared_ptr<DifferentiableOperator> fluid_displacement_laplacian;
+   std::shared_ptr<DifferentiableOperator> fluid_velocity_mass;
+   std::shared_ptr<DifferentiableOperator> fluid_pressure_mass;
    std::shared_ptr<DifferentiableOperator> fluid_momentum_convective;
+   std::shared_ptr<DifferentiableOperator> fluid_momentum_convective_displacement;
    std::shared_ptr<DifferentiableOperator> fluid_momentum_viscous;
    std::shared_ptr<DifferentiableOperator> fluid_continuity;
-   std::shared_ptr<DifferentiableOperator> velocity_mass;
-   std::shared_ptr<DifferentiableOperator> pressure_mass;
 
-   ParGridFunction *x_gf, v_gf, p_gf;
+   ParGridFunction *x_gf, d_gf, v_gf, p_gf;
 
    Vector prevS;
 
-   const Array<int> vel_ess_bdr, pres_ess_bdr;
-   Array<int> vel_ess_tdof, pres_ess_tdof;
+   const Array<int> dis_ess_bdr, vel_ess_bdr, pres_ess_bdr;
+   Array<int> def_ess_tdof, vel_ess_tdof, pres_ess_tdof;
 
-   VectorCoefficient *vel_bdr_coeff;
+   VectorCoefficient *dis_bdr_coeff, *vel_bdr_coeff;
    Coefficient *pres_bdr_coeff;
 
    ParFiniteElementSpace &H1vfes;
@@ -600,27 +1110,33 @@ int main(int argc, char* argv[])
 
    const char* device_config = "cpu";
    const char* mesh_file = "";
-   int polynomial_order_velocity = 2;
+   int polynomial_order_h1v = 2;
    int refinements = 0;
    int problem_type = 0;
    real_t t_final = 0.0;
    real_t dt = 1e-3;
-   real_t kinematic_viscosity = 1.0;
+   real_t density_solid = 1e3;
+   real_t density_fluid = 1e3;
+   real_t kinematic_viscosity = 1.0e-3;
    int vis_steps = 1;
-   real_t theta = 0.5;
+   real_t theta = 1.0;
+   real_t ubar = 0.2;
    bool enable_tps = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&problem_type, "-prob", "--problem", "Problem #");
-   args.AddOption(&polynomial_order_velocity, "-ov", "--order-velocity", "");
+   args.AddOption(&polynomial_order_h1v, "-ov", "--order-velocity", "");
    args.AddOption(&refinements, "-r", "--r", "");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&t_final, "-tf", "--tf", "");
    args.AddOption(&dt, "-dt", "--dt", "");
+   args.AddOption(&density_solid, "-rhos", "--rhos", "");
+   args.AddOption(&density_fluid, "-rhof", "--rhof", "");
    args.AddOption(&kinematic_viscosity, "-kv", "--kinematic-viscosity", "");
    args.AddOption(&theta, "-theta", "--theta", "");
+   args.AddOption(&ubar, "-ubar", "--ubar", "");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&enable_tps, "-tps", "--enable-tps", "-no-tps",
@@ -633,7 +1149,7 @@ int main(int argc, char* argv[])
       device.Print();
    }
 
-   int polynomial_order_pressure = polynomial_order_velocity - 1;
+   int polynomial_order_h1 = polynomial_order_h1v - 1;
 
    Mesh mesh_serial;
    if (problem_type == ProblemType::CFD_EX_TEST)
@@ -644,14 +1160,21 @@ int main(int argc, char* argv[])
       *nodes -= 0.5;
       *nodes *= cfd_test_ctx.L;
    }
-   else if (problem_type == ProblemType::DFG_CFD1_TEST ||
-            problem_type == ProblemType::DFG_CFD2_TEST)
+   else if (problem_type == ProblemType::CFD1_TEST ||
+            problem_type == ProblemType::CFD2_TEST ||
+            problem_type == ProblemType::FSI1)
    {
       mesh_serial = Mesh::LoadFromFile(mesh_file);
-      // Array<int> domains(1);
-      // domains[0] = 1;
-      // mesh_serial = SubMesh::CreateFromDomain(m, domains);
       mesh_serial.EnsureNodes();
+   }
+   else if (problem_type == ProblemType::FSI_CSM1_TEST)
+   {
+      out << "CSM1\n";
+      auto m = Mesh::LoadFromFile(mesh_file);
+      m.EnsureNodes();
+      Array<int> beam(1);
+      beam[0] = 2;
+      mesh_serial = SubMesh::CreateFromDomain(m, beam);
    }
    else
    {
@@ -670,63 +1193,129 @@ int main(int argc, char* argv[])
 
    out << "#el: " << mesh.GetNE() << "\n";
 
-   H1_FECollection velocity_fec(polynomial_order_velocity, dim);
-   H1_FECollection pressure_fec(polynomial_order_pressure);
+   H1_FECollection h1vfec(polynomial_order_h1v, dim);
+   H1_FECollection h1fec(polynomial_order_h1);
 
-   ParFiniteElementSpace H1vfes(&mesh, &velocity_fec, dim);
-   ParFiniteElementSpace H1fes(&mesh, &pressure_fec);
+   ParFiniteElementSpace H1vfes(&mesh, &h1vfec, dim);
+   ParFiniteElementSpace H1fes(&mesh, &h1fec);
 
-   HYPRE_BigInt global_size_velocity = H1vfes.GlobalTrueVSize();
-   HYPRE_BigInt global_size_pressure = H1fes.GlobalTrueVSize();
+   HYPRE_BigInt global_size_h1v = H1vfes.GlobalTrueVSize();
+   HYPRE_BigInt global_size_h1 = H1fes.GlobalTrueVSize();
    if (Mpi::Root())
    {
-      out << "Number of velocity unknowns: " << global_size_velocity << "\n";
-      out << "Number of pressure unknowns: " << global_size_pressure << "\n";
+      out << "displacement #dof: " << global_size_h1v << "\n";
+      out << "velocity #dof: " << global_size_h1v << "\n";
+      out << "pressure #dof: " << global_size_h1 << "\n";
+      out << "Total #dof: " << 2*global_size_h1v + global_size_h1 << "\n";
    }
 
    const IntegrationRule &integration_rule =
       IntRules.Get(H1vfes.GetFE(0)->GetGeomType(),
                    2 * H1vfes.GetFE(0)->GetOrder() + 1);
 
-   Array<int> vel_ess_attr(mesh.bdr_attributes.Max());
+   Array<int> solid_domain_attr(mesh.attributes.Max());
+   solid_domain_attr = 0;
+   Array<int> fluid_domain_attr(mesh.attributes.Max());
+   fluid_domain_attr = 0;
+
    if (problem_type == ProblemType::CFD_EX_TEST)
    {
-      vel_ess_attr = 1;
+      // no solid domain
+      fluid_domain_attr[0] = 1;
    }
-   else if (problem_type == ProblemType::DFG_CFD1_TEST ||
-            problem_type == ProblemType::DFG_CFD2_TEST)
+   else if (problem_type == ProblemType::CFD1_TEST ||
+            problem_type == ProblemType::CFD2_TEST)
    {
+      // all domains are fluid
+      fluid_domain_attr[0] = 1;
+      fluid_domain_attr[1] = 1;
+   }
+   else if (problem_type == ProblemType::FSI_CSM1_TEST)
+   {
+      // no fluid domain
+      solid_domain_attr[1] = 1;
+   }
+   else if (problem_type == ProblemType::FSI1)
+   {
+      solid_domain_attr[1] = 1;
+      fluid_domain_attr[0] = 1;
+   }
+
+   Array<int> disp_ess_attr(mesh.bdr_attributes.Max());
+   Array<int> vel_ess_attr(mesh.bdr_attributes.Max());
+   Array<int> pres_ess_attr(mesh.bdr_attributes.Max());
+
+   if (problem_type == ProblemType::CFD_EX_TEST)
+   {
+      disp_ess_attr = 1;
+      vel_ess_attr = 1;
+      pres_ess_attr = 1;
+   }
+   else if (problem_type == ProblemType::CFD1_TEST ||
+            problem_type == ProblemType::CFD2_TEST)
+   {
+      disp_ess_attr = 1;
+
+      vel_ess_attr = 1;
+      // beam
+      vel_ess_attr[4] = 0;
+      // outlet
+      vel_ess_attr[1] = 0;
+
+      pres_ess_attr = 0;
+   }
+   else if (problem_type == ProblemType::FSI_CSM1_TEST)
+   {
+      disp_ess_attr = 0;
+      // clamped beam edge on cylinder curve
+      disp_ess_attr[6] = 1;
+
+      vel_ess_attr = 0;
+      // clamped beam edge on cylinder curve
+      vel_ess_attr[6] = 1;
+
+      pres_ess_attr = 0;
+   }
+   else if (problem_type == ProblemType::FSI1)
+   {
+      disp_ess_attr = 1;
+      // beam
+      disp_ess_attr[4] = 0;
+
       // everywhere
       vel_ess_attr = 1;
       // beam
       vel_ess_attr[4] = 0;
       // outlet
       vel_ess_attr[1] = 0;
-   }
 
-   Array<int> pres_ess_attr(mesh.bdr_attributes.Max());
-   if (problem_type == ProblemType::CFD_EX_TEST)
-   {
-      pres_ess_attr = 1;
-   }
-   else if (problem_type == ProblemType::DFG_CFD1_TEST ||
-            problem_type == ProblemType::DFG_CFD2_TEST)
-   {
-      // everywhere
       pres_ess_attr = 0;
-      // outlet
-      // pres_ess_attr[1] = 1;
    }
 
-   Array<int> block_offsets(3);
+   Array<int> block_offsets(4);
    block_offsets[0] = 0;
    block_offsets[1] = H1vfes.GetTrueVSize();
-   block_offsets[2] = H1fes.GetTrueVSize();
+   block_offsets[2] = H1vfes.GetTrueVSize();
+   block_offsets[3] = H1fes.GetTrueVSize();
    block_offsets.PartialSum();
 
    BlockVector S(block_offsets, Device::GetDeviceMemoryType());
 
-   ParGridFunction v_gf(&H1vfes), p_gf(&H1fes);
+   ParGridFunction d_gf(&H1vfes), v_gf(&H1vfes), p_gf(&H1fes);
+
+   std::function<void(const Vector &, real_t, Vector &)> displacement_exact;
+   if (problem_type == ProblemType::CFD_EX_TEST ||
+       problem_type == ProblemType::CFD1_TEST ||
+       problem_type == ProblemType::CFD2_TEST ||
+       problem_type == ProblemType::FSI_CSM1_TEST ||
+       problem_type == ProblemType::FSI1)
+   {
+      displacement_exact = [](const Vector &, real_t, Vector &u)
+      {
+         u(0) = 0.0;
+         u(1) = 0.0;
+      };
+   }
 
    std::function<void(const Vector &, real_t, Vector &)> velocity_exact;
    if (problem_type == ProblemType::CFD_EX_TEST)
@@ -741,33 +1330,39 @@ int main(int argc, char* argv[])
          u(1) = sin(2.0 * M_PI * x) * f;
       };
    }
-   else if (problem_type == ProblemType::DFG_CFD1_TEST ||
-            problem_type == ProblemType::DFG_CFD2_TEST)
+   else if (problem_type == ProblemType::CFD1_TEST ||
+            problem_type == ProblemType::CFD2_TEST ||
+            problem_type == ProblemType::FSI1)
    {
-      velocity_exact = [problem_type](const Vector &coords, real_t t, Vector &u)
+      velocity_exact = [problem_type, ubar](const Vector &coords, real_t t, Vector &u)
       {
          const real_t x = coords(0);
          const real_t y = coords(1);
          const real_t H = 0.41;
-         real_t U = 0.3;
-         if (problem_type == DFG_CFD2_TEST)
-         {
-            U = 1.5;
-         }
-         auto smoothstep = [t](const real_t edge0, const real_t edge1, real_t x)
-         {
-            x = clamp((x - edge0) / (edge1 - edge0));
-            return x * x * (3.0 - 2.0 * x);
-         };
+
          if (x == 0.0)
          {
-            u(0) = 4.0 * U * y * (H - y) / powf(H, 2.0) * smoothstep(0.0, 0.1, t);
+            u(0) = 1.5 * ubar * y * (H - y) / powf(H / 2.0, 2.0);
          }
          else
          {
             u(0) = 0.0;
          }
+
+         // ramp up the velocity from [0, t=2]
+         if (t <= 2.0)
+         {
+            u(0) *= (1.0 - cos(M_PI / 2.0 * t)) / 2.0;
+         }
+
          u(1) = 0.0;
+      };
+   }
+   else if (problem_type == ProblemType::FSI_CSM1_TEST)
+   {
+      velocity_exact = [](const Vector &coords, real_t t, Vector &u)
+      {
+         u = 0.0;
       };
    }
 
@@ -782,8 +1377,10 @@ int main(int argc, char* argv[])
          return -cos(2.0 * M_PI * x) * cos(2.0 * M_PI * y) * f;
       };
    }
-   else if (problem_type == ProblemType::DFG_CFD1_TEST ||
-            problem_type == ProblemType::DFG_CFD2_TEST)
+   else if (problem_type == ProblemType::CFD1_TEST ||
+            problem_type == ProblemType::CFD2_TEST ||
+            problem_type == ProblemType::FSI_CSM1_TEST ||
+            problem_type == ProblemType::FSI1)
    {
       pressure_exact = [](const Vector &, real_t)
       {
@@ -791,23 +1388,34 @@ int main(int argc, char* argv[])
       };
    }
 
+   VectorFunctionCoefficient dis_exact(dim, displacement_exact);
    VectorFunctionCoefficient vel_exact(dim, velocity_exact);
    FunctionCoefficient pres_exact(pressure_exact);
 
+   d_gf.ProjectCoefficient(dis_exact);
+   d_gf = 0.0;
+   d_gf.GetTrueDofs(S.GetBlock(0));
+
    v_gf.ProjectCoefficient(vel_exact);
-   v_gf.GetTrueDofs(S.GetBlock(0));
+   v_gf.GetTrueDofs(S.GetBlock(1));
 
    p_gf.ProjectCoefficient(pres_exact);
-   p_gf.GetTrueDofs(S.GetBlock(1));
+   p_gf.GetTrueDofs(S.GetBlock(2));
 
    ALEFSIOperator alefsi(
       theta,
+      density_solid,
+      density_fluid,
       kinematic_viscosity,
       H1vfes,
       H1fes,
       block_offsets,
+      solid_domain_attr,
+      fluid_domain_attr,
+      disp_ess_attr,
       vel_ess_attr,
       pres_ess_attr,
+      dis_exact,
       vel_exact,
       pres_exact,
       integration_rule,
@@ -826,7 +1434,8 @@ int main(int argc, char* argv[])
 
    ParaViewDataCollection dc("dfem_fsi", &mesh);
    dc.SetHighOrderOutput(true);
-   dc.SetLevelsOfDetail(polynomial_order_velocity);
+   dc.SetLevelsOfDetail(polynomial_order_h1v);
+   dc.RegisterField("displacement", &d_gf);
    dc.RegisterField("velocity", &v_gf);
    dc.RegisterField("pressure", &p_gf);
    if (problem_type == ProblemType::CFD_EX_TEST)
@@ -852,8 +1461,9 @@ int main(int argc, char* argv[])
 
       if (last_step || (ti % vis_steps == 0))
       {
-         v_gf.SetFromTrueDofs(S.GetBlock(0));
-         p_gf.SetFromTrueDofs(S.GetBlock(1));
+         d_gf.SetFromTrueDofs(S.GetBlock(0));
+         v_gf.SetFromTrueDofs(S.GetBlock(1));
+         p_gf.SetFromTrueDofs(S.GetBlock(2));
 
          if (Mpi::Root())
          {
@@ -898,8 +1508,8 @@ int main(int argc, char* argv[])
       dc.Save();
    }
 
-   if (problem_type == ProblemType::DFG_CFD1_TEST ||
-       problem_type == ProblemType::DFG_CFD2_TEST)
+   if (problem_type == ProblemType::CFD1_TEST ||
+       problem_type == ProblemType::CFD2_TEST)
    {
       DenseMatrix points(dim, 1);
       Vector pointA(2), pointB(2);

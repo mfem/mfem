@@ -18,15 +18,15 @@ struct MomentumRefStateQFunction
    {
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       constexpr real_t nu = 0.4;
-      constexpr real_t mu = 0.5 * 10e6;
-      constexpr real_t lambda = -((mu * nu) / (-1.0 + 2.0 * nu));
+      constexpr real_t mu = 0.5 * 1e6;
+      constexpr real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
 
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
       auto F = I + dudx;
-      auto detF = det(F);
       // St. Venant-Kirchhoff model
-      auto E = 0.5 * (transpose(F) * F - I);
+      auto C = transpose(F) * F;
+      auto E = 0.5 * (C - I);
       auto PK2 = lambda * tr(E) * I + 2.0 * mu * E;
       auto JxW = det(J) * w * transpose(invJ);
       return mfem::tuple{F * PK2 * JxW};
@@ -156,8 +156,10 @@ public:
 
          auto momentum_qf = MomentumRefStateQFunction<DIMENSION> {};
          auto derivatives = std::integer_sequence<size_t, Displacement> {};
+         Array<int> solid_domain_attr(mesh->attributes.Max());
+         solid_domain_attr[0] = 1;
          momentum->AddDomainIntegrator(
-            momentum_qf, inputs, outputs, displacement_ir, derivatives);
+            momentum_qf, inputs, outputs, displacement_ir, solid_domain_attr, derivatives);
       }
 
       {
@@ -253,9 +255,15 @@ int main(int argc, char* argv[])
    mesh.EnsureNodes();
    mesh_serial.Clear();
 
-   Array<int> beam_attributes(1);
-   beam_attributes[0] = 2;
-   auto mesh_beam = ParSubMesh::CreateFromDomain(mesh, beam_attributes);
+   // Array<int> beam_attributes(1);
+   // beam_attributes[0] = 2;
+   // auto mesh_beam = ParSubMesh::CreateFromDomain(mesh, beam_attributes);
+
+
+   mesh_serial = Mesh::MakeCartesian2D(8, 8, Element::QUADRILATERAL, false, 0.35,
+                                       0.02);
+   mesh_serial.EnsureNodes();
+   auto mesh_beam = ParMesh(MPI_COMM_WORLD, mesh_serial);
 
    out << "#el: " << mesh_beam.GetNE() << "\n";
 
@@ -275,7 +283,8 @@ int main(int argc, char* argv[])
    Array<int> bdr_attr_is_ess(mesh_beam.bdr_attributes.Max());
    out << bdr_attr_is_ess.Size() << "\n";
    bdr_attr_is_ess = 0;
-   bdr_attr_is_ess[6] = 1;
+   // bdr_attr_is_ess[6] = 1;
+   bdr_attr_is_ess[3] = 1;
    Array<int> displacement_ess_tdof;
    displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, displacement_ess_tdof);
 
@@ -353,6 +362,22 @@ int main(int argc, char* argv[])
    out << "||b||_2 = " << elasticity.body_force.Norml2() << "\n";
    out << "||b - Ax||_2 / ||b||_2 = " << cg_rnorm / elasticity.body_force.Norml2()
        << "\n";
+
+   // DenseMatrix points(dim, 1);
+   // Vector pointA(2);
+
+   // pointA(0) = 0.6;
+   // pointA(1) = 0.2;
+
+   // Array<int> elem_ids;
+   // Array<IntegrationPoint> ips;
+   // points.SetCol(0, pointA);
+   // mesh.FindPoints(points, elem_ids, ips);
+   // Vector pA(2);
+   // u.GetVectorValue(elem_ids[0], ips[0], pA);
+
+   // out << "displacement_x = " << pA(0) << "\n";
+   // out << "displacement_y = " << pA(1) << "\n";
 
    ParaViewDataCollection dc("dfem_elasticity", &mesh_beam);
    dc.SetHighOrderOutput(true);
