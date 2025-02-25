@@ -22,14 +22,6 @@ using namespace mfem;
 namespace bm = benchmark;
 namespace bmi = benchmark::internal;
 
-namespace benchmark
-{
-namespace internal
-{
-extern std::map<std::string, std::string> *global_context;
-}
-} // namespace benchmark
-
 namespace mfem
 {
 
