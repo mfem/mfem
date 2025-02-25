@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
-   // const char *mesh_file = "../../data/beam-hex.mesh";
    bool pa = false;
    bool patchAssembly = false;
    int ref_levels = 0;
@@ -231,30 +230,6 @@ int main(int argc, char *argv[])
    // SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   cout << "X = " << endl;
-   X.Print();
-   cout << "B = " << endl;
-   B.Print();
-
-   // test
-   // Vector Xtest(fespace->GetVSize());
-   // Vector AX(fespace->GetVSize());
-   // Xtest = 0.0; AX = 0.0;
-   // // Xtest[1] = 1.0;
-   // Xtest[15] = 1.0;
-   // Xtest[16] = 1.0;
-   // // Test applying twice
-   // A->Mult(Xtest, AX);
-   // A->Mult(AX, X);
-   // // Test applying once
-   // A->Mult(Xtest, X);
-
-   // cout << "Xtest = " << endl;
-   // Xtest.Print();
-   // cout << "A(Xtest) = " << endl;
-   // X.Print();
-
-
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
    // Solve the linear system A X = B.
@@ -267,13 +242,12 @@ int main(int argc, char *argv[])
    // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
    // CG(*A, B, X, 1, 10, 1e-8, 1e-10);
 
-
    // GSSmoother M(A);
    // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
    // GMRESSolver solver;
    // solver.SetMaxIter(1000);
    CGSolver solver;
-   solver.SetMaxIter(800);
+   solver.SetMaxIter(2000);
 
    solver.SetPrintLevel(1);
    solver.SetRelTol(sqrt(1e-6));

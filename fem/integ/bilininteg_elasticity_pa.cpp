@@ -163,8 +163,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const std::vector<std::vector<int>> maxD = pb.maxD;
    const std::vector<std::vector<int>> minQ = pb.minQ;
    const std::vector<std::vector<int>> maxQ = pb.maxQ;
-
-   const int NQ = Q1D[0] * Q1D[1] * Q1D[2];
+   const int NQ = pb.NQ;
 
    auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
@@ -181,15 +180,14 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    Sv = 0.0;
    auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
 
-   // Accumulators
-   // Data is stored in Vectors but shaped as a DeviceTensor for easy access
+   // Accumulators; these are shared between grad_u interpolation and grad_v_T
+   // application, so their size is the max of qpts/dofs
    const int max_pts_x = std::max(Q1D[0], D1D[0]);
    const int max_pts_y = std::max(Q1D[1], D1D[1]);
-   const int max_pts_z = std::max(Q1D[2], D1D[2]);
-   Vector gradXYv(vdim*vdim*Q1D[0]*Q1D[1]);
-   Vector gradXv(vdim*2*Q1D[0]);
-   auto gradXY = Reshape(gradXYv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1]);
-   auto gradX = Reshape(gradXv.HostReadWrite(), vdim, 2, Q1D[0]);
+   Vector sumXYv(vdim*vdim*max_pts_x*max_pts_y);
+   Vector sumXv(vdim*vdim*max_pts_x);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, max_pts_x, max_pts_y);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, max_pts_x);
 
    /*
    2) Compute grad_uhat (reference space) interpolated at quadrature points
@@ -226,27 +224,23 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    */
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
-      gradXYv = 0.0;
+      sumXYv = 0.0;
       for (int dy = 0; dy < D1D[1]; ++dy)
       {
-         gradXv = 0.0;
+         sumXv = 0.0;
          for (int dx = 0; dx < D1D[0]; ++dx)
          {
             for (int c = 0; c < vdim; ++c)
             {
                const real_t U = X(dx,dy,dz,c);
-               // TEST4
                for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
-               // for (int qx = 0; qx < Q1D[0]; ++qx)
                {
-                  gradX(c,0,qx) += U * B[0](qx,dx);
-                  gradX(c,1,qx) += U * G[0](qx,dx);
+                  sumX(c,0,qx) += U * B[0](qx,dx);
+                  sumX(c,1,qx) += U * G[0](qx,dx);
                }
             }
          }
-         // TEST4
          for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
-         // for (int qy = 0; qy < Q1D[1]; ++qy)
          {
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
@@ -255,18 +249,16 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                // This full range of qx values is generally necessary.
                for (int qx = 0; qx < Q1D[0]; ++qx)
                {
-                  const real_t wx  = gradX(c,0,qx);
-                  const real_t wDx = gradX(c,1,qx);
-                  gradXY(c,0,qx,qy) += wDx * wy;
-                  gradXY(c,1,qx,qy) += wx  * wDy;
-                  gradXY(c,2,qx,qy) += wx  * wy;
+                  const real_t wx  = sumX(c,0,qx);
+                  const real_t wDx = sumX(c,1,qx);
+                  sumXY(c,0,qx,qy) += wDx * wy;
+                  sumXY(c,1,qx,qy) += wx  * wDy;
+                  sumXY(c,2,qx,qy) += wx  * wy;
                }
             }
          }
       }
-      // TEST4
       for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
-      // for (int qz = 0; qz < Q1D[2]; ++qz)
       {
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
@@ -276,9 +268,9 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             {
                for (int qx = 0; qx < Q1D[0]; ++qx)
                {
-                  grad(c,0,qx,qy,qz) += gradXY(c,0,qx,qy) * wz;
-                  grad(c,1,qx,qy,qz) += gradXY(c,1,qx,qy) * wz;
-                  grad(c,2,qx,qy,qz) += gradXY(c,2,qx,qy) * wDz;
+                  grad(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
+                  grad(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
+                  grad(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
                }
             }
          }
@@ -377,19 +369,15 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    ]
    */
 
-   Vector sXYv(vdim*2*D1D[0]*D1D[1]);
-   Vector sXv(vdim*vdim*D1D[0]);
-   auto sXY = Reshape(sXYv.HostReadWrite(), vdim, 2, D1D[0], D1D[1]);
-   auto sX = Reshape(sXv.HostReadWrite(), vdim, vdim, D1D[0]);
 
    // for (int c = 0; c < vdim; ++c)
    // {
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
-      sXYv = 0.0;
+      sumXYv = 0.0;
       for (int qy = 0; qy < Q1D[1]; ++qy)
       {
-         sXv = 0.0;
+         sumXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const real_t s[3][3] = {
@@ -397,9 +385,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
                { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
             };
-            // Test4
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
-            // for (int dx = 0; dx < D1D[0]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
@@ -413,15 +399,13 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                */
                for (int c = 0; c < vdim; ++c)
                {
-                  sX(c,0,dx) += s[c][0] * wDx;
-                  sX(c,1,dx) += s[c][1] * wx;
-                  sX(c,2,dx) += s[c][2] * wx;
+                  sumX(c,0,dx) += s[c][0] * wDx;
+                  sumX(c,1,dx) += s[c][1] * wx;
+                  sumX(c,2,dx) += s[c][2] * wx;
                }
             }
          }
-         // TEST4
          for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
-         // for (int dy = 0; dy < D1D[1]; ++dy)
          {
             /*
             sXY = [
@@ -436,15 +420,13 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             {
                for (int c = 0; c < vdim; ++c)
                {
-                  sXY(c,0,dx,dy) += sX(c,0,dx) * wy + sX(c,1,dx) * wDy;
-                  sXY(c,1,dx,dy) += sX(c,2,dx) * wy;
+                  sumXY(c,0,dx,dy) += sumX(c,0,dx) * wy + sumX(c,1,dx) * wDy;
+                  sumXY(c,1,dx,dy) += sumX(c,2,dx) * wy;
                }
             }
          }
       }
-      // TEST4
       for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
-      // for (int dz = 0; dz < D1D[2]; ++dz)
       {
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
@@ -456,8 +438,8 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                {
                   // Y(c,dx,dy,dz) +=
                   Y(dx,dy,dz,c) +=
-                     (sXY(c,0,dx,dy) * wz +
-                      sXY(c,1,dx,dy) * wDz);
+                     (sumXY(c,0,dx,dy) * wz +
+                      sumXY(c,1,dx,dy) * wDz);
                }
             }
          }
