@@ -199,10 +199,11 @@ int main(int argc, char *argv[])
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
-   if (bmi::global_context != nullptr)
+   auto global_context = bmi::GetGlobalContext();
+   if (global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
+      const auto device = global_context->find("device");
+      if (device != global_context->end())
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;
