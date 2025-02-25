@@ -63,11 +63,9 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   mfem::out << "START ElasticityIntegrator::AssembleDiagonalPA" << std::endl;
    q_vec->SetVDim(vdim*vdim*vdim*vdim);
    internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
                                           *geom, *maps, *q_vec, diag);
-   mfem::out << "END ElasticityIntegrator::AssembleDiagonalPA" << std::endl;
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -134,7 +132,6 @@ void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    pa_data.resize(numPatches);
    for (int p=0; p<numPatches; ++p)
    {
-      mfem::out << "assembling patch " << p << std::endl;
       AssemblePatchPA(p, fes);
    }
 }
@@ -144,7 +141,6 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
 {
    // TODO
    Mesh *mesh = fes.GetMesh();
-   mfem::out << "AssemblePatchPA() " << patch << std::endl;
    SetupPatchBasisData(mesh, patch);
 
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
@@ -202,10 +198,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    auto gradXY = Reshape(gradXYv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1]);
    auto gradX = Reshape(gradXv.HostReadWrite(), vdim, 2, Q1D[0]);
 
-   mfem::out << "AddMultPatchPA() " << patch << " - finished 1) init grad u" << std::endl;
-   mfem::out << "Q1D[0] = " << Q1D[0] << ", Q1D[1] = " << Q1D[1] << ", Q1D[2] = " << Q1D[2] << std::endl;
-   mfem::out << "grad(0,1,1,1,1) = " << grad(0,1,1,1,1) << std::endl;
-
    /*
    2) Compute grad_uhat (reference space) interpolated at quadrature points
 
@@ -239,9 +231,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    function support - we can further optimize the computation by restricting
    interpolation to only the qudrature points supported in each dimension.
    */
-   // for (int c = 0; c < vdim; ++c)
-   // {
-
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       gradXYv = 0.0;
@@ -252,7 +241,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          {
             for (int c = 0; c < vdim; ++c)
             {
-               // const real_t U = X(c,dx,dy,dz);
                const real_t U = X(dx,dy,dz,c);
                // TEST4
                // for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
@@ -303,97 +291,6 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
       }
    }
-   // }
-
-   // alternate calculation - adapted from Hooke - CalcGrad
-   // --> Produces same results
-   Vector smemv(2*vdim*max_pts_x*max_pts_y*max_pts_z);
-   smemv = 0.0;
-   auto smem = Reshape(smemv.HostReadWrite(), 2, vdim, max_pts_x, max_pts_y, max_pts_z);
-   // // tensor<real_t, 2, 3, Q1D[0], Q1D[1], Q1D[2]> smem;
-   // for (int c = 0; c < vdim; ++c)
-   // {
-   //    for (int dz = 0; dz < D1D[2]; ++dz)
-   //    {
-   //       for (int dy = 0; dy < D1D[1]; ++dy)
-   //       {
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             smem(0,0,dx,dy,dz) = X(dx,dy,dz,c);
-   //          }
-   //       }
-   //    }
-
-   //    for (int dz = 0; dz < D1D[2]; ++dz)
-   //    {
-   //       for (int dy = 0; dy < D1D[1]; ++dy)
-   //       {
-   //          for (int qx = 0; qx < Q1D[0]; ++qx)
-   //          {
-   //             real_t u = 0.0;
-   //             real_t v = 0.0;
-   //             for (int dx = 0; dx < D1D[0]; ++dx)
-   //             {
-   //                const real_t input = smem(0,0,dx,dy,dz);
-   //                u += input * B[0](qx,dx);
-   //                v += input * G[0](qx,dx);
-   //             }
-   //             // smem(0,1,dz,dy,qx) = u;
-   //             // smem(0,2,dz,dy,qx) = v;
-   //             smem(0,1,qx,dy,dz) = u;
-   //             smem(0,2,qx,dy,dz) = v;
-   //          }
-   //       }
-   //    }
-
-   //    for (int dz = 0; dz < D1D[2]; ++dz)
-   //    {
-   //       for (int qy = 0; qy < Q1D[1]; ++qy)
-   //       {
-   //          for (int qx = 0; qx < Q1D[0]; ++qx)
-   //          {
-   //             real_t u = 0.0;
-   //             real_t v = 0.0;
-   //             real_t w = 0.0;
-   //             for (int dy = 0; dy < D1D[1]; ++dy)
-   //             {
-   //                u += smem(0,2,qx,dy,dz) * B[1](qy,dy);
-   //                v += smem(0,1,qx,dy,dz) * G[1](qy,dy);
-   //                w += smem(0,1,qx,dy,dz) * B[1](qy,dy);
-   //             }
-   //             smem(1,0,qx,qy,dz) = u;
-   //             smem(1,1,qx,qy,dz) = v;
-   //             smem(1,2,qx,qy,dz) = w;
-   //          }
-   //       }
-   //    }
-   //    for (int qz = 0; qz < Q1D[2]; ++qz)
-   //    {
-   //       for (int qy = 0; qy < Q1D[1]; ++qy)
-   //       {
-   //          for (int qx = 0; qx < Q1D[0]; ++qx)
-   //          {
-   //             real_t u = 0.0;
-   //             real_t v = 0.0;
-   //             real_t w = 0.0;
-   //             for (int dz = 0; dz < D1D[2]; ++dz)
-   //             {
-   //                u += smem(1,0,qx,qy,dz) * B[2](qz,dz);
-   //                v += smem(1,1,qx,qy,dz) * B[2](qz,dz);
-   //                w += smem(1,2,qx,qy,dz) * G[2](qz,dz);
-   //             }
-   //             grad(c,0,qx,qy,qz) += u;
-   //             grad(c,1,qx,qy,qz) += v;
-   //             grad(c,2,qx,qy,qz) += w;
-   //          }
-   //       }
-   //    }
-   // } //vdim
-
-
-   mfem::out << "AddMultPatchPA() " << patch << " - finished 2) compute grad u" << std::endl;
-   mfem::out << "U(0,1,1,1) = " << X(0,1,1,1) << std::endl;
-   mfem::out << "grad(0,1,1,1,1) = " << grad(0,1,1,1,1) << std::endl;
 
    // 3) Apply the "D" operator at each quadrature point: D( grad_uhat )
    for (int qz = 0; qz < Q1D[2]; ++qz)
@@ -416,27 +313,15 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             const real_t lambda  = qd(q,10);
             const real_t mu      = qd(q,11);
 
-
-            // mfem::out << "wdetj, lambda, mu = " << wdetj << ", " << lambda << ", " << mu << std::endl;
-
             // grad_u = J^{-T} * grad_uhat
             for (int c = 0; c < vdim; ++c)
             {
                const real_t grad0 = grad(c,0,qx,qy,qz);
                const real_t grad1 = grad(c,1,qx,qy,qz);
                const real_t grad2 = grad(c,2,qx,qy,qz);
-               // grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt01*grad1)+(Jinvt02*grad2);
-               // grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
-               // grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
-               // J^{-1} * grad_uhat
-               // grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt10*grad1)+(Jinvt20*grad2);
-               // grad(c,1,qx,qy,qz) = (Jinvt01*grad0)+(Jinvt11*grad1)+(Jinvt21*grad2);
-               // grad(c,2,qx,qy,qz) = (Jinvt02*grad0)+(Jinvt12*grad1)+(Jinvt22*grad2);
-               // grad_uhat * J^{-1}
-               grad(c,0,qx,qy,qz) = Jinvt00*grad0 + Jinvt10*grad1 + Jinvt20*grad2;
-               grad(c,1,qx,qy,qz) = Jinvt01*grad0 + Jinvt11*grad1 + Jinvt21*grad2;
-               grad(c,2,qx,qy,qz) = Jinvt02*grad0 + Jinvt12*grad1 + Jinvt22*grad2;
-
+               grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt01*grad1)+(Jinvt02*grad2);
+               grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
+               grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
             }
 
             // Compute stress tensor
@@ -449,125 +334,19 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             const real_t sigma02 = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz)) * wdetj;
             const real_t sigma01 = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz)) * wdetj;
 
-            if (qx == 1 && qy == 1 && qz == 1)
-            {
-               mfem::out << "sigma =" << std::endl;
-               mfem::out << sigma00 << ", " << sigma01 << ", " << sigma02 << std::endl;
-               mfem::out << sigma01 << ", " << sigma11 << ", " << sigma12 << std::endl;
-               mfem::out << sigma02 << ", " << sigma12 << ", " << sigma22 << std::endl;
-               mfem::out << "jinv =" << std::endl;
-               mfem::out << Jinvt00 << ", " << Jinvt10 << ", " << Jinvt20 << std::endl;
-               mfem::out << Jinvt01 << ", " << Jinvt11 << ", " << Jinvt21 << std::endl;
-               mfem::out << Jinvt02 << ", " << Jinvt12 << ", " << Jinvt22 << std::endl;
-            }
-
-            // S = stress * J^{-T}
-            // (J^{-T} term comes from test function)
-            /*
-               Jinvt00, Jinvt10, Jinvt20,
-               Jinvt01, Jinvt11, Jinvt21,
-               Jinvt02, Jinvt12, Jinvt22,
-
-               J^{-T}
-               Jinvt00, Jinvt01, Jinvt02,
-               Jinvt10, Jinvt11, Jinvt12,
-               Jinvt20, Jinvt21, Jinvt22,
-
-               s00, s01, s02,
-               s01, s11, s12,
-               s02, s12, s22,
-            */
-            // S = J^{-1} * sigma
-            S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
-            S(0,1,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
-            S(0,2,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
-            S(1,0,qx,qy,qz) = Jinvt01*sigma00 + Jinvt11*sigma01 + Jinvt21*sigma02;
-            S(1,1,qx,qy,qz) = Jinvt01*sigma01 + Jinvt11*sigma11 + Jinvt21*sigma12;
-            S(1,2,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
-            S(2,0,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
-            S(2,1,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
-            S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
-
             // S = sigma * J^{-T}
-            // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
-            // S(0,1,qx,qy,qz) = Jinvt01*sigma00 + Jinvt11*sigma01 + Jinvt21*sigma02;
-            // S(0,2,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
-            // S(1,0,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
-            // S(1,1,qx,qy,qz) = Jinvt01*sigma01 + Jinvt11*sigma11 + Jinvt21*sigma12;
-            // S(1,2,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
-            // S(2,0,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
-            // S(2,1,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
-            // S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
-
-            // S = J^{-T} * sigma
-            // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt01*sigma01 + Jinvt02*sigma02;
-            // S(0,1,qx,qy,qz) = Jinvt00*sigma01 + Jinvt01*sigma11 + Jinvt02*sigma12;
-            // S(0,2,qx,qy,qz) = Jinvt00*sigma02 + Jinvt01*sigma12 + Jinvt02*sigma22;
-            // S(1,0,qx,qy,qz) = Jinvt10*sigma00 + Jinvt11*sigma01 + Jinvt12*sigma02;
-            // S(1,1,qx,qy,qz) = Jinvt10*sigma01 + Jinvt11*sigma11 + Jinvt12*sigma12;
-            // S(1,2,qx,qy,qz) = Jinvt10*sigma02 + Jinvt11*sigma12 + Jinvt12*sigma22;
-            // S(2,0,qx,qy,qz) = Jinvt20*sigma00 + Jinvt21*sigma01 + Jinvt22*sigma02;
-            // S(2,1,qx,qy,qz) = Jinvt20*sigma01 + Jinvt21*sigma11 + Jinvt22*sigma12;
-            // S(2,2,qx,qy,qz) = Jinvt20*sigma02 + Jinvt21*sigma12 + Jinvt22*sigma22;
-
-            // S = sigma * J^{-1}
-            // S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt01*sigma01 + Jinvt02*sigma02;
-            // S(0,1,qx,qy,qz) = Jinvt10*sigma00 + Jinvt11*sigma01 + Jinvt12*sigma02;
-            // S(0,2,qx,qy,qz) = Jinvt20*sigma00 + Jinvt21*sigma01 + Jinvt22*sigma02;
-            // S(1,0,qx,qy,qz) = Jinvt00*sigma01 + Jinvt01*sigma11 + Jinvt02*sigma12;
-            // S(1,1,qx,qy,qz) = Jinvt10*sigma01 + Jinvt11*sigma11 + Jinvt12*sigma12;
-            // S(1,2,qx,qy,qz) = Jinvt20*sigma01 + Jinvt21*sigma11 + Jinvt22*sigma12;
-            // S(2,0,qx,qy,qz) = Jinvt00*sigma02 + Jinvt01*sigma12 + Jinvt02*sigma22;
-            // S(2,1,qx,qy,qz) = Jinvt10*sigma02 + Jinvt11*sigma12 + Jinvt12*sigma22;
-            // S(2,2,qx,qy,qz) = Jinvt20*sigma02 + Jinvt21*sigma12 + Jinvt22*sigma22;
-
+            S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
+            S(0,1,qx,qy,qz) = Jinvt01*sigma00 + Jinvt11*sigma01 + Jinvt21*sigma02;
+            S(0,2,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
+            S(1,0,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
+            S(1,1,qx,qy,qz) = Jinvt01*sigma01 + Jinvt11*sigma11 + Jinvt21*sigma12;
+            S(1,2,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
+            S(2,0,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
+            S(2,1,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
+            S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
          } // qx
       } // qy
    } // qz
-
-   // Alternate calculation - adapted from Hooke
-   // for (int qz = 0; qz < Q1D[2]; ++qz)
-   // {
-   //    for (int qy = 0; qy < Q1D[1]; ++qy)
-   //    {
-   //       for (int qx = 0; qx < Q1D[0]; ++qx)
-   //       {
-   //          const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-   //          // J^{-1} * stress(gradu * J^{-1}) * detJ * W
-   //          constexpr auto I = mfem::internal::IsotropicIdentity<3>();
-   //          auto gradu_q = make_tensor<3,3>(
-   //             [&](int i, int j) { return grad(i,j,qx,qy,qz); });
-   //          auto invJq = make_tensor<3, 3>(
-   //             [&](int i, int j) { return qd(q,i*3+j); });
-   //          const real_t wdetj   = qd(q,9);
-   //          const real_t lambda  = qd(q,10);
-   //          const real_t mu      = qd(q,11);
-   //          auto epsilon = sym(gradu_q);
-   //          auto sigma = lambda * tr(epsilon) * I + 2.0 * mu * epsilon;
-   //          auto result = invJq * sigma * wdetj;
-
-   //          for (int c = 0; c < vdim; ++c)
-   //          {
-   //             for (int d = 0; d < vdim; ++d)
-   //             {
-   //                S(c,d,qx,qy,qz) = result(c,d);
-   //             }
-   //          }
-   //       }
-   //    }
-   // }
-
-
-
-   mfem::out << "AddMultPatchPA() " << patch << " - finished 3) apply D" << std::endl;
-   mfem::out << "S(:,:,1,1,1) = " << std::endl;
-   mfem::out << S(0,0,1,1,1) << " " << S(0,1,1,1,1) << " " << S(0,2,1,1,1) << std::endl;
-   mfem::out << S(1,0,1,1,1) << " " << S(1,1,1,1,1) << " " << S(1,2,1,1,1) << std::endl;
-   mfem::out << S(2,0,1,1,1) << " " << S(2,1,1,1,1) << " " << S(2,2,1,1,1) << std::endl;
-   mfem::out << "jacinvt(0) = " << std::endl;
-   mfem::out << qd(0,0) << " " << qd(0,1) << " " << qd(0,2) << std::endl;
-   mfem::out << qd(0,3) << " " << qd(0,4) << " " << qd(0,5) << std::endl;
-   mfem::out << qd(0,6) << " " << qd(0,7) << " " << qd(0,8) << std::endl;
 
    /*
    4) Contraction with grad_v (quads -> dofs)
@@ -605,169 +384,100 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    ]
    */
 
-   // Vector sXYv(vdim*2*D1D[0]*D1D[1]);
-   // Vector sXv(vdim*vdim*D1D[0]);
-   // auto sXY = Reshape(sXYv.HostReadWrite(), vdim, 2, D1D[0], D1D[1]);
-   // auto sX = Reshape(sXv.HostReadWrite(), vdim, vdim, D1D[0]);
+   Vector sXYv(vdim*2*D1D[0]*D1D[1]);
+   Vector sXv(vdim*vdim*D1D[0]);
+   auto sXY = Reshape(sXYv.HostReadWrite(), vdim, 2, D1D[0], D1D[1]);
+   auto sX = Reshape(sXv.HostReadWrite(), vdim, vdim, D1D[0]);
 
-   // // for (int c = 0; c < vdim; ++c)
-   // // {
-   // for (int qz = 0; qz < Q1D[2]; ++qz)
+   // for (int c = 0; c < vdim; ++c)
    // {
-   //    sXYv = 0.0;
-   //    for (int qy = 0; qy < Q1D[1]; ++qy)
-   //    {
-   //       sXv = 0.0;
-   //       for (int qx = 0; qx < Q1D[0]; ++qx)
-   //       {
-   //          const real_t s[3][3] = {
-   //             { S(0,0,qx,qy,qz), S(0,1,qx,qy,qz), S(0,2,qx,qy,qz) },
-   //             { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
-   //             { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
-   //          };
-   //          // Test4
-   //          // for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             const real_t wx  = B[0](qx,dx);
-   //             const real_t wDx = G[0](qx,dx);
-
-   //             /*
-   //             sX = [
-   //                s00*dX, s01*X, s02*X,
-   //                s10*dX, s11*X, s12*X,
-   //                s20*dX, s21*X, s22*X,
-   //             ]
-   //             */
-   //             for (int c = 0; c < vdim; ++c)
-   //             {
-   //                sX(c,0,dx) = s[c][0] * wDx;
-   //                sX(c,1,dx) = s[c][1] * wx;
-   //                sX(c,2,dx) = s[c][2] * wx;
-   //             }
-   //          }
-   //       }
-   //       // TEST4
-   //       // for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
-   //       for (int dy = 0; dy < D1D[1]; ++dy)
-   //       {
-   //          /*
-   //          sXY = [
-   //             (s00*dX) * Y + (s01*X) * dY, (s02*X) * Y,
-   //             (s10*dX) * Y + (s11*X) * dY, (s12*X) * Y,
-   //             (s20*dX) * Y + (s21*X) * dY, (s22*X) * Y,
-   //          ]
-   //          */
-   //          const real_t wy  = B[1](qy,dy);
-   //          const real_t wDy = G[1](qy,dy);
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             for (int c = 0; c < vdim; ++c)
-   //             {
-   //                sXY(c,0,dx,dy) += sX(c,0,dx) * wy + sX(c,1,dx) * wDy;
-   //                sXY(c,1,dx,dy) += sX(c,2,dx) * wy;
-   //             }
-   //          }
-   //       }
-   //    }
-   //    // TEST4
-   //    // for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
-   //    for (int dz = 0; dz < D1D[2]; ++dz)
-   //    {
-   //       const real_t wz  = B[2](qz,dz);
-   //       const real_t wDz = G[2](qz,dz);
-   //       for (int dy = 0; dy < D1D[1]; ++dy)
-   //       {
-   //          for (int dx = 0; dx < D1D[0]; ++dx)
-   //          {
-   //             for (int c = 0; c < vdim; ++c)
-   //             {
-   //                // Y(c,dx,dy,dz) +=
-   //                Y(dx,dy,dz,c) +=
-   //                   (sXY(c,0,dx,dy) * wz +
-   //                    sXY(c,1,dx,dy) * wDz);
-   //             }
-   //          }
-   //       }
-   //    } // dz
-   // } // qz
-   // }
-
-
-   // Alternate calculation - adapted from Hooke
-   for (int c = 0; c < vdim; ++c)
+   for (int qz = 0; qz < Q1D[2]; ++qz)
    {
-
-      for (int qz = 0; qz < Q1D[2]; ++qz)
+      sXYv = 0.0;
+      for (int qy = 0; qy < Q1D[1]; ++qy)
       {
-         for (int qy = 0; qy < Q1D[1]; ++qy)
+         sXv = 0.0;
+         for (int qx = 0; qx < Q1D[0]; ++qx)
          {
+            const real_t s[3][3] = {
+               { S(0,0,qx,qy,qz), S(0,1,qx,qy,qz), S(0,2,qx,qy,qz) },
+               { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
+               { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
+            };
+            // Test4
+            // for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               real_t u = 0.0, v = 0.0, w = 0.0;
-               for (int qx = 0; qx < Q1D[0]; ++qx)
+               const real_t wx  = B[0](qx,dx);
+               const real_t wDx = G[0](qx,dx);
+
+               /*
+               sX = [
+                  s00*dX, s01*X, s02*X,
+                  s10*dX, s11*X, s12*X,
+                  s20*dX, s21*X, s22*X,
+               ]
+               */
+               for (int c = 0; c < vdim; ++c)
                {
-                  u += S(0, c, qx, qy, qz) * G[0](qx, dx);
-                  v += S(1, c, qx, qy, qz) * B[0](qx, dx);
-                  w += S(2, c, qx, qy, qz) * B[0](qx, dx);
+                  sX(c,0,dx) += s[c][0] * wDx;
+                  sX(c,1,dx) += s[c][1] * wx;
+                  sX(c,2,dx) += s[c][2] * wx;
                }
-               smem(0, 0, dx, qy, qz) = u;
-               smem(0, 1, dx, qy, qz) = v;
-               smem(0, 2, dx, qy, qz) = w;
             }
          }
-      }
-
-      for (int qz = 0; qz < Q1D[2]; ++qz)
-      {
+         // TEST4
+         // for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
          for (int dy = 0; dy < D1D[1]; ++dy)
          {
+            /*
+            sXY = [
+               (s00*dX) * Y + (s01*X) * dY, (s02*X) * Y,
+               (s10*dX) * Y + (s11*X) * dY, (s12*X) * Y,
+               (s20*dX) * Y + (s21*X) * dY, (s22*X) * Y,
+            ]
+            */
+            const real_t wy  = B[1](qy,dy);
+            const real_t wDy = G[1](qy,dy);
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               real_t u = 0.0, v = 0.0, w = 0.0;
-               for (int qy = 0; qy < Q1D[1]; ++qy)
+               for (int c = 0; c < vdim; ++c)
                {
-                  u += smem(0, 0, dx, qy, qz) * B[1](qy, dy);
-                  v += smem(0, 1, dx, qy, qz) * G[1](qy, dy);
-                  w += smem(0, 2, dx, qy, qz) * B[1](qy, dy);
+                  sXY(c,0,dx,dy) += sX(c,0,dx) * wy + sX(c,1,dx) * wDy;
+                  sXY(c,1,dx,dy) += sX(c,2,dx) * wy;
                }
-               smem(1, 0, dx, dy, qz) = u;
-               smem(1, 1, dx, dy, qz) = v;
-               smem(1, 2, dx, dy, qz) = w;
             }
          }
       }
-
+      // TEST4
+      // for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
       for (int dz = 0; dz < D1D[2]; ++dz)
       {
+         const real_t wz  = B[2](qz,dz);
+         const real_t wDz = G[2](qz,dz);
          for (int dy = 0; dy < D1D[1]; ++dy)
          {
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               real_t u = 0.0, v = 0.0, w = 0.0;
-               for (int qz = 0; qz < Q1D[2]; ++qz)
+               for (int c = 0; c < vdim; ++c)
                {
-                  u += smem(1, 0, dx, dy, qz) * B[2](qz, dz);
-                  v += smem(1, 1, dx, dy, qz) * B[2](qz, dz);
-                  w += smem(1, 2, dx, dy, qz) * G[2](qz, dz);
+                  // Y(c,dx,dy,dz) +=
+                  Y(dx,dy,dz,c) +=
+                     (sXY(c,0,dx,dy) * wz +
+                      sXY(c,1,dx,dy) * wDz);
                }
-               const real_t sum = u + v + w;
-               Y(dx, dy, dz, c) += sum;
             }
          }
-      }
-   }
+      } // dz
+   } // qz
+   // }
 
-
-   mfem::out << "AddMultPatchPA() " << patch << " - finished 4) contraction" << std::endl;
 }
 
 void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 {
-   mfem::out << std::endl << "------------------- AddMultNURBSPA() ---------------------" << std::endl << std::endl;
    Vector xp, yp;
 
-   mfem::out << "AddMultNURBSPA(): size of x = " << x.Size() << std::endl;
    for (int p=0; p<numPatches; ++p)
    {
       Array<int> vdofs;
@@ -776,7 +486,6 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
       // TODO: reorder based on byVDIM or byNODE
 
       x.GetSubVector(vdofs, xp);
-      mfem::out << "AddMultNURBSPA(): patch " << p << ": size of xp = " << xp.Size() << std::endl;
       yp.SetSize(vdofs.Size());
       yp = 0.0;
 
@@ -784,7 +493,6 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 
       y.AddElementVector(vdofs, yp);
    }
-   mfem::out << "----------------------------------------------------------" << std::endl;
 }
 
 } // namespace mfem
