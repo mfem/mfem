@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
    }
-   else if (reduction && dg)
+   else if (reduction && (dg || brt))
    {
       darcy->EnableFluxReduction();
    }
@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
    real_t rtol(1.e-6);
    real_t atol(1.e-10);
 
-   if (hybridization || (reduction && dg))
+   if (hybridization || (reduction && (dg || brt)))
    {
       // 10. Construct the preconditioner
       GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
