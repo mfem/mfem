@@ -119,6 +119,8 @@ public:
    | ND@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | Nedelec vector elements |
    | ND_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0  | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
    | ND_Trace@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
+   | BRT_[DIM]_[ORDER] | L2 | * | 1 / 0 | H_DIV | Broken Raviart-Thomas vector elements |
+   | BRT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | L2 | * | * / * | H_DIV | Broken Raviart-Thomas vector elements |
    | RT_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | Raviart-Thomas vector elements |
    | RT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | Raviart-Thomas vector elements |
    | RT_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
@@ -376,6 +378,45 @@ public:
    { return new L2_FECollection(p, dim, b_type, m_type); }
 
    virtual ~L2_FECollection();
+};
+
+/// Broken H(div) collection (RT elements, no continuity)
+class BrokenHdivFECollection : public FiniteElementCollection
+{
+private:
+   int dim;
+   int cb_type; // closed BasisType
+   int ob_type; // open BasisType
+   char fec_name[32];
+   FiniteElement *RT_Elements[Geometry::NumGeom];
+   int RT_dof[Geometry::NumGeom];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+
+public:
+   BrokenHdivFECollection(const int p, const int dim,
+                          const int cb_type = BasisType::GaussLobatto,
+                          const int ob_type = BasisType::GaussLegendre);
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override
+   { return RT_dof[GeomType]; }
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return fec_name; }
+
+   int GetContType() const override { return DISCONTINUOUS; }
+
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new BrokenHdivFECollection(p, dim, cb_type, ob_type); }
+
+   virtual ~BrokenHdivFECollection();
 };
 
 /// Declare an alternative name for L2_FECollection = DG_FECollection

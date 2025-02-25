@@ -2682,6 +2682,126 @@ RT_FECollection::~RT_FECollection()
    }
 }
 
+BrokenHdivFECollection::BrokenHdivFECollection(
+   const int order, const int dim, const int cb_type, const int ob_type)
+   : FiniteElementCollection(order + 1)
+   , dim(dim)
+   , cb_type(cb_type)
+   , ob_type(ob_type)
+{
+   int p = order;
+   MFEM_VERIFY(p >= 0, "BrokenHdivFECollection requires order >= 0.");
+
+   int cp_type = BasisType::GetQuadrature1D(cb_type);
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
+   {
+      const char *cb_name = BasisType::Name(cb_type); // this may abort
+      MFEM_ABORT("unknown closed BasisType: " << cb_name);
+   }
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::IntegratedGLL)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("unknown open BasisType: " << ob_name);
+   }
+
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(fec_name, 32, "BRT_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(fec_name, 32, "BRT@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      RT_Elements[g] = nullptr;
+      RT_dof[g] = 0;
+   }
+
+   const int pp1 = p + 1;
+   const int pp2 = p + 2;
+   if (dim == 2)
+   {
+      // TODO: cb_type, ob_type for triangles
+      RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
+      RT_dof[Geometry::TRIANGLE] = pp1*pp2;
+
+      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
+                                                                  ob_type);
+      // two vector components * n_unk_face *
+      RT_dof[Geometry::SQUARE] = 2*pp1*pp2;
+   }
+   else if (dim == 3)
+   {
+      // TODO: cb_type, ob_type for tets
+      RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
+      RT_dof[Geometry::TETRAHEDRON] = pp1*pp2*(pp1 + 2)/2;
+
+      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
+      RT_dof[Geometry::CUBE] = 3*pp1*pp2*pp2;
+
+      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
+      RT_dof[Geometry::PRISM] = pp1*pp2*(3*pp1 + 4)/2;
+
+      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
+      RT_dof[Geometry::PYRAMID] = 0;
+   }
+   else
+   {
+      MFEM_ABORT("invalid dim = " << dim);
+   }
+}
+
+const FiniteElement *
+BrokenHdivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+   {
+      return RT_Elements[GeomType];
+   }
+   else
+   {
+      if (error_mode == RETURN_NULL) { return nullptr; }
+      MFEM_ABORT("RT Pyramid basis functions are not yet supported "
+                 "for order > 0.");
+      return NULL;
+   }
+}
+
+const int *BrokenHdivFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType,
+   int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   else if (GeomType == Geometry::TRIANGLE)
+   {
+      return TriDofOrd[Or%6];
+   }
+   else if (GeomType == Geometry::SQUARE)
+   {
+      return QuadDofOrd[Or%8];
+   }
+   return NULL;
+}
+
+BrokenHdivFECollection::~BrokenHdivFECollection()
+{
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      delete RT_Elements[g];
+   }
+}
+
 
 RT_Trace_FECollection::RT_Trace_FECollection(const int p, const int dim,
                                              const int map_type,
