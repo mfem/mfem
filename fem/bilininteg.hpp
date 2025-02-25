@@ -3425,7 +3425,7 @@ protected:
    real_t alpha, beta;
 
 private:
-   Vector shape1, shape2;
+   DenseMatrix te_vshape1, te_vshape2;
    Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
