@@ -72,7 +72,7 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 500 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 1 -vis -weakbc -filter -frad 0.05
 
 // avg error - inclined wave + analytic orientation
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 2e3 -w2 5e-1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -241,6 +241,17 @@ auto func_3( std::vector<type>& x ) -> type
     // auto dx = xv-0.5;
     // auto dx = xv - 0.5-0.2*(yv-0.5);
     return atan(alpha*dx);
+}
+
+double tanh_left_right_walls(const Vector &x)
+{
+  double xv = x(0);
+  double yv = x(1);
+  double beta = 20.0;
+  double betay = 50.0;
+  double yscale = 0.5*(std::tanh(betay*(yv-.2))-std::tanh(betay*(yv-0.8)));
+  double xscale = 0.5*(std::tanh(beta*(xv-.2))-std::tanh(beta*(xv-0.8)));
+  return xscale;
 }
 
 class OSCoefficient : public TMOPMatrixCoefficient
@@ -995,7 +1006,17 @@ if (myid == 0) {
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
   //std::vector<std::pair<int, double>> essentialBC_filter(0);
-  VectorHelmholtz filterSolver(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+  FunctionCoefficient leftrightwalls(&tanh_left_right_walls);
+  ProductCoefficient filterRadiusCoeff(filterRadius, leftrightwalls);
+  VectorHelmholtz *filterSolver;
+  if (metric_id == 107)
+  {
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, &filterRadiusCoeff, mesh_poly_deg);
+  }
+  else
+  {
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+  }
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
@@ -1090,7 +1111,7 @@ if (myid == 0) {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
       tmma->SetDiffusionSolver(&solver);
       tmma->SetQoIWeight(weight_1);
-      tmma->SetVectorHelmholtzFilter(&filterSolver);
+      tmma->SetVectorHelmholtzFilter(filterSolver);
     }
 
     // Set min jac
@@ -1211,9 +1232,9 @@ if (myid == 0) {
     int cycle_count = 1;
     for(int i=1;i<max_it;i++)
     {
-      filterSolver.setLoadGridFunction(gridfuncOptVar);
-      filterSolver.FSolve();
-      ParGridFunction & filteredDesign = filterSolver.GetSolution();
+      filterSolver->setLoadGridFunction(gridfuncOptVar);
+      filterSolver->FSolve();
+      ParGridFunction & filteredDesign = filterSolver->GetSolution();
 
       solver.SetDesign( filteredDesign );
       solver.FSolve();
@@ -1256,8 +1277,8 @@ if (myid == 0) {
       mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
       std::cout << dQdx_filtered.Norml2() << " k101-filt1\n";
-      filterSolver.ASolve(dQdx_filtered);
-      ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
+      filterSolver->ASolve(dQdx_filtered);
+      ParLinearForm * dQdxImplfilter = filterSolver->GetImplicitDqDx();
 
       dQdx.Add(1.0, *dQdxImplfilter);
       std::cout << dQdxImplfilter->Norml2() << " k101-filt2\n";

@@ -1974,7 +1974,7 @@ void VectorHelmholtz::FSolve( )
   ParBilinearForm a(coord_fes_);
   ParLinearForm b(coord_fes_);
   a.AddDomainIntegrator(new VectorMassIntegrator);
-  a.AddDomainIntegrator(new VectorDiffusionIntegrator(*radius_));
+  a.AddDomainIntegrator(new VectorDiffusionIntegrator(pradius_ ? *pradius_ : *radius_));
 
   b.AddDomainIntegrator(new VectorDomainLFIntegrator(*QCoef_));
 
@@ -2012,7 +2012,7 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
 
     ParBilinearForm a(coord_fes_);
     a.AddDomainIntegrator(new VectorMassIntegrator);
-    a.AddDomainIntegrator(new VectorDiffusionIntegrator(*radius_));
+    a.AddDomainIntegrator(new VectorDiffusionIntegrator(pradius_ ? *pradius_ : *radius_));
     a.Assemble();
 
     // solve adjoint problem

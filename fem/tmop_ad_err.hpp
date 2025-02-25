@@ -1422,7 +1422,55 @@ public:
             // append to global dof list
             ess_tdof_list_.Append(u_tdofs);
         }
+    }
 
+    VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, ProductCoefficient *radius, int order_)
+    {
+        pradius_ = radius;
+        pmesh=mesh_;
+        int dim=pmesh->Dimension();
+
+        pmesh->GetNodes(X0_);
+
+        fec = new H1_FECollection(order_,dim);
+        temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
+        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
+
+        // sol.SetSize(coord_fes_->GetTrueVSize()); sol=0.0;
+        rhs.SetSize(coord_fes_->GetTrueVSize()); rhs=0.0;
+        // adj.SetSize(coord_fes_->GetTrueVSize()); adj=0.0;
+
+        solgf.SetSpace(coord_fes_);
+        // adjgf.SetSpace(coord_fes_);
+
+        dQdx_ = new mfem::ParLinearForm(coord_fes_);
+        dQdu_ = new mfem::ParLinearForm(temp_fes_);
+        dQdxshape_ = new mfem::ParLinearForm(coord_fes_);
+
+        SetLinearSolver();
+
+        // store list of essential dofs
+        int maxAttribute = pmesh->bdr_attributes.Max();
+        ::mfem::Array<int> bdr_attr_is_ess(maxAttribute);
+        ess_tdof_list_.DeleteAll();
+        ::mfem::Vector ess_bc(coord_fes_->GetTrueVSize());
+        ess_bc = 0.0;
+
+        // loop over input attribute, value pairs
+        for (const auto &bc: ess_bdr)
+        {
+            int attribute = bc.first;
+            int component = bc.second;
+
+            // get dofs associated with this attribute, component pair
+            bdr_attr_is_ess = 0;
+            bdr_attr_is_ess[attribute - 1] = 1; // mfem attributes 1-indexed, arrays 0-indexed
+            ::mfem::Array<int> u_tdofs;
+            coord_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, u_tdofs, component);
+
+            // append to global dof list
+            ess_tdof_list_.Append(u_tdofs);
+        }
     }
 
     ~VectorHelmholtz(){
@@ -1526,6 +1574,7 @@ private:
     mfem::VectorCoefficient * QCoef_ = nullptr;
 
     Coefficient * radius_;
+    ProductCoefficient *pradius_ = nullptr;
 
     bool GFSet = false;
     bool coeffSet = false;
