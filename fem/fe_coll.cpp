@@ -2682,7 +2682,7 @@ RT_FECollection::~RT_FECollection()
    }
 }
 
-BrokenHdivFECollection::BrokenHdivFECollection(
+BrokenRT_FECollection::BrokenRT_FECollection(
    const int order, const int dim, const int cb_type, const int ob_type)
    : FiniteElementCollection(order + 1)
    , dim(dim)
@@ -2690,7 +2690,7 @@ BrokenHdivFECollection::BrokenHdivFECollection(
    , ob_type(ob_type)
 {
    int p = order;
-   MFEM_VERIFY(p >= 0, "BrokenHdivFECollection requires order >= 0.");
+   MFEM_VERIFY(p >= 0, "BrokenRT_FECollection requires order >= 0.");
 
    int cp_type = BasisType::GetQuadrature1D(cb_type);
    int op_type = BasisType::GetQuadrature1D(ob_type);
@@ -2760,7 +2760,7 @@ BrokenHdivFECollection::BrokenHdivFECollection(
 }
 
 const FiniteElement *
-BrokenHdivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+BrokenRT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
    {
@@ -2775,7 +2775,7 @@ BrokenHdivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
 }
 
-const int *BrokenHdivFECollection::DofOrderForOrientation(
+const int *BrokenRT_FECollection::DofOrderForOrientation(
    Geometry::Type GeomType,
    int Or) const
 {
@@ -2794,7 +2794,7 @@ const int *BrokenHdivFECollection::DofOrderForOrientation(
    return NULL;
 }
 
-BrokenHdivFECollection::~BrokenHdivFECollection()
+BrokenRT_FECollection::~BrokenRT_FECollection()
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {

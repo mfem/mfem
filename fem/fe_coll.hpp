@@ -381,7 +381,7 @@ public:
 };
 
 /// Broken H(div) collection (RT elements, no continuity)
-class BrokenHdivFECollection : public FiniteElementCollection
+class BrokenRT_FECollection : public FiniteElementCollection
 {
 private:
    int dim;
@@ -393,9 +393,9 @@ private:
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
 public:
-   BrokenHdivFECollection(const int p, const int dim,
-                          const int cb_type = BasisType::GaussLobatto,
-                          const int ob_type = BasisType::GaussLegendre);
+   BrokenRT_FECollection(const int p, const int dim,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -414,9 +414,9 @@ public:
    int GetOpenBasisType() const { return ob_type; }
 
    FiniteElementCollection *Clone(int p) const override
-   { return new BrokenHdivFECollection(p, dim, cb_type, ob_type); }
+   { return new BrokenRT_FECollection(p, dim, cb_type, ob_type); }
 
-   virtual ~BrokenHdivFECollection();
+   virtual ~BrokenRT_FECollection();
 };
 
 /// Declare an alternative name for L2_FECollection = DG_FECollection
