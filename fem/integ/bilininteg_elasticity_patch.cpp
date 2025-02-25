@@ -107,14 +107,8 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    // Quadrature points in each dimension for this patch
    const Array<int>& Q1D = pbinfo[patch].Q1D;
-   MFEM_VERIFY(Q1D.Size() == vdim, "");
-
    // Total quadrature points
-   int nq = Q1D[0];
-   for (int i=1; i<vdim; ++i)
-   {
-      nq *= Q1D[i];
-   }
+   const int nq = pbinfo[patch].NQ;
 
    Array<real_t> weightsv(nq);
    // Vector weightsv(nq);

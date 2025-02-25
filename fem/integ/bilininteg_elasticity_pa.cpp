@@ -154,8 +154,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                                             const Vector &x,
                                             Vector &y) const
 {
-   const int vdim = 3;
-
+   // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
    const std::vector<Array2D<real_t>>& B = pb.B;
@@ -164,21 +163,6 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const std::vector<std::vector<int>> maxD = pb.maxD;
    const std::vector<std::vector<int>> minQ = pb.minQ;
    const std::vector<std::vector<int>> maxQ = pb.maxQ;
-
-   // // # of quadrature points in each dimension for this patch
-   // const Array<int>& Q1D = pQ1D[patch];
-   // // # of DOFs in each dimension for this patch
-   // const Array<int>& D1D = pD1D[patch];
-   // // Shape functions (B) and their derivatives (G) for this patch
-   // const std::vector<Array2D<real_t>>& B = pB[patch];
-   // const std::vector<Array2D<real_t>>& G = pG[patch];
-
-   // // minD/maxD : shape function/dof index |-> min/max quadrature index within support
-   // const IntArrayVar2D& minD = pminD[patch];
-   // const IntArrayVar2D& maxD = pmaxD[patch];
-   // // minQ/maxQ : quadrature index |-> min/max shape function/dof index that supports
-   // const IntArrayVar2D& minQ = pminQ[patch];
-   // const IntArrayVar2D& maxQ = pmaxQ[patch];
 
    const int NQ = Q1D[0] * Q1D[1] * Q1D[2];
 

@@ -122,6 +122,7 @@ struct PatchBasisInfo
    // Derivatives of 1D shape functions [vdim x Q1D x D1D]
    std::vector<Array2D<real_t>> G;
    Array<const IntegrationRule*> ir1d;
+   // 1D quadrature points / dofs
    Array<int> Q1D;
    Array<int> D1D;
    // Dof index |-> min/max quadrature index within support
@@ -132,6 +133,8 @@ struct PatchBasisInfo
    std::vector<std::vector<int>> maxQ;
    std::vector<std::vector<int>> minDD;
    std::vector<std::vector<int>> maxDD;
+   // Total quadrature points / dofs
+   int NQ, ND;
 
    PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch, NURBSMeshRules *patchRules);
 

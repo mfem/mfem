@@ -133,6 +133,15 @@ PatchBasisInfo::PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch, NURBSMe
          maxDD[d][i] = maxQ[d][qmax];
       }
    }
+
+   // Total quadrature points
+   NQ = Q1D[0];
+   ND = D1D[0];
+   for (int i=1; i<vdim; ++i)
+   {
+      NQ *= Q1D[i];
+      ND *= D1D[i];
+   }
 }
 
 }
