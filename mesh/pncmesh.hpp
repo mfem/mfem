@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -441,7 +441,7 @@ protected: // implementation
       std::vector<int> elements;
       std::vector<ValueType> values;
 
-      int Size() const { return elements.size(); }
+      int Size() const { return static_cast<int>(elements.size()); }
       void Reserve(int size) { elements.reserve(size); values.reserve(size); }
 
       void Add(int elem, ValueType val)

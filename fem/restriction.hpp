@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,11 +39,6 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). */
 class ElementRestriction : public ElementRestrictionOperator
 {
-private:
-   /** This number defines the maximum number of elements any dof can belong to
-       for the FillSparseMatrix method. */
-   static const int MaxNbNbr = 16;
-
 protected:
    const FiniteElementSpace &fes;
    const int ne;
