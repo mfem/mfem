@@ -869,7 +869,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          // gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
       else if (attribute == 2 || attribute == 4) // zero out in x
@@ -877,7 +877,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          // gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
         }
       }
     }
@@ -930,7 +930,6 @@ int main (int argc, char *argv[])
   const int nbattr = PMesh->bdr_attributes.Max();
   std::vector<std::pair<int, double>> essentialBC(nbattr);
   std::vector<std::pair<int, int>> essentialBCfilter(nbattr);
-  //std::vector<std::pair<int, double>> essentialBC(2);
   for (int i = 0; i < nbattr; i++)
   {
     essentialBC[i] = {i+1, 0};
@@ -945,8 +944,8 @@ int main (int argc, char *argv[])
   }
   else
   {
-    essentialBCfilter[0] = {1, 1};
-    essentialBCfilter[1] = {2, 0};
+    essentialBCfilter[0] = {1, 0};
+    essentialBCfilter[1] = {2, 1};
   }
 
   const IntegrationRule &ir =
@@ -1011,7 +1010,8 @@ if (myid == 0) {
   VectorHelmholtz *filterSolver;
   if (metric_id == 107)
   {
-    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, &filterRadiusCoeff, mesh_poly_deg);
+    // filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, &filterRadiusCoeff, mesh_poly_deg);
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
   }
   else
   {
