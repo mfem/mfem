@@ -1163,7 +1163,6 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
    // In the first pass compute d2xdt2 directly from operator.
    if (state.Size() == 0)
    {
-      state.Increment();
       if (no_mult)
       {
          MidPointStep(x, dxdt, t, dt);
@@ -1173,6 +1172,7 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
       {
          f->Mult(x, dxdt, state[0]);
       }
+      state.Increment();
    }
    f->SetTime(t + dt);
 
