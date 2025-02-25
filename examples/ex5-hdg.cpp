@@ -536,9 +536,11 @@ int main(int argc, char *argv[])
    delete darcy;
    delete W_space;
    delete R_space;
+   delete R_space_dg;
    delete trace_space;
    delete W_coll;
    delete R_coll;
+   delete R_coll_dg;
    delete trace_coll;
    delete mesh;
 
