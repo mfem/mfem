@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -451,9 +451,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      }
                      else
                      {
-                        const FiniteElement *fel = fespace.GetFE(0);
+                        const FiniteElement *fel = fespace.GetTypicalFE();
                         const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                  *mesh.GetElementTransformation(0));
+                                                                                  *mesh.GetTypicalElementTransformation());
 
                         if (spaceType == Hcurl)
                         {

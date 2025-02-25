@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -162,7 +162,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          }
 
          Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-         int max_bdr_attr = parent.bdr_attributes.Max();
+         int max_bdr_attr = parent.bdr_attributes.Size() ?
+                            parent.bdr_attributes.Max() : 1;
 
          for (int i = 0; i < NumOfBdrElements; i++)
          {
