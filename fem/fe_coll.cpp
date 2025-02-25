@@ -320,6 +320,16 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                 BasisType::GetType(name[3]),
                                 BasisType::GetType(name[4]));
    }
+   else if (!strncmp(name, "BRT_", 4))
+   {
+      fec = new BrokenRT_FECollection(atoi(name + 8), atoi(name + 4));
+   }
+   else if (!strncmp(name, "BRT@", 4))
+   {
+      fec = new BrokenRT_FECollection(atoi(name + 11), atoi(name + 7),
+                                      BasisType::GetType(name[4]),
+                                      BasisType::GetType(name[5]));
+   }
    else if (!strncmp(name, "ND_Trace_", 9))
    {
       fec = new ND_Trace_FECollection(atoi(name + 13), atoi(name + 9));
