@@ -113,6 +113,29 @@ protected:
       const ElementTransformation& trans) const
    { return NULL; }
 };
+
+struct PatchBasisInfo
+{
+   unsigned int patch;
+   // 1D shape functions [vdim x Q1D x D1D]
+   std::vector<Array2D<real_t>> B;
+   // Derivatives of 1D shape functions [vdim x Q1D x D1D]
+   std::vector<Array2D<real_t>> G;
+   Array<const IntegrationRule*> ir1d;
+   Array<int> Q1D;
+   Array<int> D1D;
+   // Dof index |-> min/max quadrature index within support
+   std::vector<std::vector<int>> minD;
+   std::vector<std::vector<int>> maxD;
+   // Quadrature index |-> min/max dof index that supports
+   std::vector<std::vector<int>> minQ;
+   std::vector<std::vector<int>> maxQ;
+   std::vector<std::vector<int>> minDD;
+   std::vector<std::vector<int>> maxDD;
+
+   PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch, NURBSMeshRules *patchRules);
+
+};
 }
 
 #endif

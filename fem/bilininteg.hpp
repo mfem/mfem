@@ -13,6 +13,7 @@
 #define MFEM_BILININTEG
 
 #include "../config/config.hpp"
+#include "integrator.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
@@ -3170,13 +3171,14 @@ private:
    static constexpr int numTypes = 2;  // Number of rule types
 
    // TODO: maybe move these into a base class?
+   std::vector<PatchBasisInfo> pbinfo;
+   // std::vector<Array<int>> pQ1D, pD1D;
+   // std::vector<std::vector<Array2D<real_t>>> pB, pG;
+   // std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
+   // std::vector<Array<const IntegrationRule*>> pir1d;
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
-   std::vector<Array<int>> pQ1D, pD1D;
-   std::vector<std::vector<Array2D<real_t>>> pB, pG;
-   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
 
-   std::vector<Array<const IntegrationRule*>> pir1d;
 
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
@@ -3204,6 +3206,8 @@ public:
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
+
+   void AddMultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb, const Vector &x, Vector &y) const;
 
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 

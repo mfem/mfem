@@ -148,38 +148,47 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
 
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.
-void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
-                                          Vector &y) const
+// void AddMultPatchPA3D(const int patch, const Vector &x, Vector &y)
+void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
+                                            const PatchBasisInfo &pb,
+                                            const Vector &x,
+                                            Vector &y) const
 {
-   MFEM_VERIFY(3 == vdim, "Only 3D so far");
+   const int vdim = 3;
 
-   // # of quadrature points in each dimension for this patch
-   const Array<int>& Q1D = pQ1D[patch];
-   // # of DOFs in each dimension for this patch
-   const Array<int>& D1D = pD1D[patch];
-   // Shape functions (B) and their derivatives (G) for this patch
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const std::vector<std::vector<int>> minD = pb.minD;
+   const std::vector<std::vector<int>> maxD = pb.maxD;
+   const std::vector<std::vector<int>> minQ = pb.minQ;
+   const std::vector<std::vector<int>> maxQ = pb.maxQ;
 
-   // minD/maxD : shape function/dof index |-> min/max quadrature index within support
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   // minQ/maxQ : quadrature index |-> min/max shape function/dof index that supports
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
+   // // # of quadrature points in each dimension for this patch
+   // const Array<int>& Q1D = pQ1D[patch];
+   // // # of DOFs in each dimension for this patch
+   // const Array<int>& D1D = pD1D[patch];
+   // // Shape functions (B) and their derivatives (G) for this patch
+   // const std::vector<Array2D<real_t>>& B = pB[patch];
+   // const std::vector<Array2D<real_t>>& G = pG[patch];
+
+   // // minD/maxD : shape function/dof index |-> min/max quadrature index within support
+   // const IntArrayVar2D& minD = pminD[patch];
+   // const IntArrayVar2D& maxD = pmaxD[patch];
+   // // minQ/maxQ : quadrature index |-> min/max shape function/dof index that supports
+   // const IntArrayVar2D& minQ = pminQ[patch];
+   // const IntArrayVar2D& maxQ = pmaxQ[patch];
 
    const int NQ = Q1D[0] * Q1D[1] * Q1D[2];
 
-   // auto X = Reshape(x.HostRead(), vdim, D1D[0], D1D[1], D1D[2]);
-   // auto Y = Reshape(y.HostReadWrite(), vdim, D1D[0], D1D[1], D1D[2]);
    auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 
-   // First 9 entries are J^{-T}, W*detJ, lambda, mu
-   const auto qd = Reshape(pa_data[patch].HostRead(), NQ, 12);
+   // First 9 entries are J^{-T}; last three are W*detJ, lambda, mu
+   const auto qd = Reshape(pa_data.HostRead(), NQ, 12);
 
-   // grad(c,d,qx,qy,qz)
-   // derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
+   // grad(c,d,qx,qy,qz): derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
    Vector gradv(vdim*vdim*NQ);
    gradv = 0.0;
    auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
@@ -243,8 +252,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             {
                const real_t U = X(dx,dy,dz,c);
                // TEST4
-               // for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
-               for (int qx = 0; qx < Q1D[0]; ++qx)
+               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               // for (int qx = 0; qx < Q1D[0]; ++qx)
                {
                   gradX(c,0,qx) += U * B[0](qx,dx);
                   gradX(c,1,qx) += U * G[0](qx,dx);
@@ -252,8 +261,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             }
          }
          // TEST4
-         // for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
-         for (int qy = 0; qy < Q1D[1]; ++qy)
+         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         // for (int qy = 0; qy < Q1D[1]; ++qy)
          {
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
@@ -272,8 +281,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
       }
       // TEST4
-      // for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
-      for (int qz = 0; qz < Q1D[2]; ++qz)
+      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      // for (int qz = 0; qz < Q1D[2]; ++qz)
       {
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
@@ -405,8 +414,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
             };
             // Test4
-            // for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
-            for (int dx = 0; dx < D1D[0]; ++dx)
+            for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+            // for (int dx = 0; dx < D1D[0]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
@@ -427,8 +436,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             }
          }
          // TEST4
-         // for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
-         for (int dy = 0; dy < D1D[1]; ++dy)
+         for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+         // for (int dy = 0; dy < D1D[1]; ++dy)
          {
             /*
             sXY = [
@@ -450,8 +459,8 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
       }
       // TEST4
-      // for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
-      for (int dz = 0; dz < D1D[2]; ++dz)
+      for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+      // for (int dz = 0; dz < D1D[2]; ++dz)
       {
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
@@ -473,6 +482,21 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    // }
 
 }
+
+
+void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
+                                          Vector &y) const
+{
+   if (vdim == 3)
+   {
+      AddMultPatchPA3D(pa_data[patch], pbinfo[patch], x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Only 3D is supported.");
+   }
+}
+
 
 void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 {
