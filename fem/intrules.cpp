@@ -421,7 +421,8 @@ public:
 #endif // MFEM_USE_MPFR
 
 
-void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha, const real_t beta, IntegrationRule* ir)
+void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
+                                        const real_t beta, IntegrationRule* ir)
 {
    /* The np-point Gauss-Jacobi quadrature rule is exact for polynomials of
       degree 2np - 1 with weight function w(x) = (1-x)^alpha * x^beta. The
@@ -455,8 +456,10 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha, const 
    {
       case 1:
          real_t x = (beta - alpha) / (alpha + beta + 2);
-         real_t w = pow(2, alpha + beta + 1) * tgamma(alpha + 2) * tgamma(beta + 2) / tgamma(alpha + beta + 2);
-         ir->IntPoint(0).Set1w((beta - alpha) / (alpha + beta + 2), 4.0 * w / ((1.0 - x*x) * (alpha + beta + 2) * (alpha + beta + 2)));
+         real_t w = pow(2, alpha + beta + 1) * tgamma(alpha + 2) * tgamma(
+                       beta + 2) / tgamma(alpha + beta + 2);
+         ir->IntPoint(0).Set1w((beta - alpha) / (alpha + beta + 2),
+                               4.0 * w / ((1.0 - x*x) * (alpha + beta + 2) * (alpha + beta + 2)));
          return;
    }
 
@@ -486,7 +489,8 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha, const 
       // polynomials
       real_t n_ab_plus_1 = 2 * n + alpha + beta + 1;
       real_t v = (2 * i + alpha - 0.5) * M_PI / n_ab_plus_1;
-      real_t theta = v + 1.0 / (n_ab_plus_1*n_ab_plus_1) * ((0.25 - alpha*alpha) * 1.0/tan(0.5*v) - (0.25 - beta*beta) * tan(0.5*v));
+      real_t theta = v + 1.0 / (n_ab_plus_1*n_ab_plus_1) * ((0.25 - alpha*alpha) *
+                                                            1.0/tan(0.5*v) - (0.25 - beta*beta) * tan(0.5*v));
       real_t z = cos(theta);
 
       real_t pp, p1, p1e, dz, xi = 0.;
@@ -509,7 +513,8 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha, const 
             p1 = ((an * z + bn) * p2 - cn * p3) * D;
          }
          // p1 is Jacobi polynomial
-         pp = n * (alpha - beta - (2 * n + ab) * z) * p1 + 2 * (n + alpha) * (n + beta) * p2;
+         pp = n * (alpha - beta - (2 * n + ab) * z) * p1 + 2 * (n + alpha) *
+              (n + beta) * p2;
          pp = pp / ((2 * n + ab) * (1 - z*z));
          // derivative of the Jacobi polynomial
          if (done) { break; }
@@ -530,11 +535,13 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha, const 
          z -= dz;
          // update: z = z - dz
       }
-      real_t c0 = exp(lgamma(n + alpha + 1) - lgamma(n + ab + 1)) * exp(lgamma(n + beta + 1) - lgamma(n + 1));
+      real_t c0 = exp(lgamma(n + alpha + 1) - lgamma(n + ab + 1)) * exp(lgamma(
+                                                                           n + beta + 1) - lgamma(n + 1));
       // ratio of gamma functions prone to overflow for large n, so compute logarithms
       // of Gamma function instead, i.e. Gamma(a)/Gamma(b) = exp(lgamma(a) - lgamma(b))
       ir->IntPoint(n-i).x = 0.5 * xi + 0.5;
-      ir->IntPoint(n-i).weight = 0.5 * c0 * pow(2.0, ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
+      ir->IntPoint(n-i).weight = 0.5 * c0 * pow(2.0,
+                                                ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
    }
 
 #else // MFEM_USE_MPFR is defined
