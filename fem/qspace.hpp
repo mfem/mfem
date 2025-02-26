@@ -34,11 +34,12 @@ protected:
    mutable Vector weights; ///< Integration weights.
    mutable long nodes_sequence = 0; ///< Nodes counter for cache invalidation.
 
-   /// @brief Entity quadrature point offset array. Supports a constant
-   /// compression scheme for meshes which have a single geometry type. When
-   /// compressed, will have a single value. The true offset can be computed as
-   /// i * offsets[0], where i is the entity index. Otherwise has size
-   /// num_entities + 1.
+   /// @brief Entity quadrature point offset array.
+   ///
+   /// Supports a constant compression scheme for meshes which have a single
+   /// geometry type. When compressed, will have a single value. The true offset
+   /// can be computed as i * offsets[0], where i is the entity index. Otherwise
+   /// has size num_entities + 1.
    ///
    Array<int> offsets;
    /// The quadrature rules used for each geometry type.
