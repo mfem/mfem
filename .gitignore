@@ -413,12 +413,15 @@ tests/unit/parallel_in_serial.mesh
 tests/unit/parallel_in_serial.gf
 
 # Benchmark binaries
+tests/benchmarks/bench_assembly_levels
 tests/benchmarks/bench_ceed
+tests/benchmarks/bench_dg_amr
+tests/benchmarks/bench_elasticity
+tests/benchmarks/bench_lor
+tests/benchmarks/bench_plor
 tests/benchmarks/bench_tmop
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals
-tests/benchmarks/bench_lor
-tests/benchmarks/bench_plor_solvers
 
 # Test script output
 tests/scripts/*.err

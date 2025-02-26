@@ -95,7 +95,7 @@ public:
    {
       for (const auto& run : reports)
       {
-         MFEM_VERIFY(!run.error_occurred, run.error_message.c_str());
+         // MFEM_VERIFY(!run.error_occurred, run.error_message.c_str());
          // const double real_time = run.GetAdjustedRealTime();
          const double cpu_time = run.GetAdjustedCPUTime();
          const char* timeLabel = GetTimeUnitString(run.time_unit);

@@ -251,6 +251,7 @@ struct PLOR_Solvers_Bench
 
    BatchedLORAssembly *GetBatchedLOR() const
    {
+      assert(false);;
       return solv_lor->GetLOR().GetBatchedLOR();
    }
 
