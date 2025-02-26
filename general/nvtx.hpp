@@ -25,7 +25,8 @@
 
 #if 1
 
-#warning no NVTX
+// removinf NVIDIA specificities
+// #warning no NVTX
 namespace mfem { struct Nvtx { Nvtx(const char*) {} }; }
 #define NVTX(...)
 #define MFEM_NVTX NVTX()

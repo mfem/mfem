@@ -41,10 +41,10 @@ public:
       const char *file = base ? base + 1 : FILE;
       const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
       mfem::out << "\033[38;5;" << std::to_string(color) << "m";
-      mfem::out << mpi_rank << std::setw(30) << file << ":";
-      mfem::out << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
+      mfem::out << mpi_rank << std::setw(32) << file << ":";
+      mfem::out << "\033[2m" << std::setw(4) << std::left << LINE << "\033[22m: ";
       if (FUNC) { mfem::out << "[" << FUNC << "] "; }
-      mfem::out << "\033[1m";
+      mfem::out << std::right << "\033[1m";
    }
 
    ~Debug()

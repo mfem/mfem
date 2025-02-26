@@ -27,18 +27,7 @@
 #include <cmath>
 
 ////////////////////////////////////////////////////////////////////////////////
-#ifdef MFEM_USE_CUDA
-#include <curand.h>
-#else
-using cusparseHandle_t = void*;
-using curandGenerator_t = void*;
-#define cusparseCreate(...)
-#define curandCreateGenerator(...)
-#define curandSetPseudoRandomGeneratorSeed(...)
-#endif // MFEM_USE_CUDA
-
-////////////////////////////////////////////////////////////////////////////////
-static std::string config_device = "cuda";
+static std::string config_device = "hip";
 static int config_ndev = 4; // default 4 GPU per node
 
 static bool config_debug = false;
@@ -85,8 +74,8 @@ double f(const Vector &xvec)
 Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
 {
    const int ne = std::max(1, (int)std::ceil(requested_ndof / pow(p, dim)));
-   const int nx = cbrt(ne);
-   const int ny = sqrt(ne / nx);
+   const int nx = static_cast<int>(cbrt(ne));
+   const int ny = static_cast<int>(sqrt(ne / nx));
    const int nz = ne / nx / ny;
    if (Mpi::Root()) { dbg("\033[33mnx:%d ny:%d nz:%d", nx, ny, nz); }
    return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON);
@@ -106,29 +95,31 @@ struct PLOR_Solvers_Bench
    const int p;
 
    // Init cuSparse before timings, used in Dof_TrueDof_Matrix
-   Nvtx nvtx_cusph = {"cusparseHandle"};
-   std::function<cusparseHandle_t()> InitCuSparse = [&]()
-   {
-      MFEM_DEVICE_SYNC;
-      NVTX("InitCuSparse");
-      cusparseCreate(&cusph);
-      MFEM_DEVICE_SYNC;
-      return cusph;
-   };
-   cusparseHandle_t cusph;
+   // Nvtx nvtx_cusph = {"cusparseHandle"};
+   // std::function<cusparseHandle_t()> InitCuSparse = [&]()
+   // {
+   //    dbg("InitCuSparse");
+   //    MFEM_DEVICE_SYNC;
+   //    NVTX("InitCuSparse");
+   //    cusparseCreate(&cusph);
+   //    MFEM_DEVICE_SYNC;
+   //    return cusph;
+   // };
+   // cusparseHandle_t cusph;
 
    // Init cuRandGenerator before timings, used in vector Randomize
-   Nvtx nvtx_curng = {"curandGenerator"};
-   std::function<curandGenerator_t()> InitCuRandNumberGenerator = [&]()
-   {
-      MFEM_DEVICE_SYNC;
-      NVTX("InitCuRNG");
-      curandCreateGenerator(&curng, CURAND_RNG_PSEUDO_DEFAULT);
-      curandSetPseudoRandomGeneratorSeed(curng, 0);
-      MFEM_DEVICE_SYNC;
-      return curng;
-   };
-   curandGenerator_t curng;
+   // Nvtx nvtx_curng = {"curandGenerator"};
+   // std::function<curandGenerator_t()> InitCuRandNumberGenerator = [&]()
+   // {
+   //    dbg("InitCuRandNumberGenerator");
+   //    MFEM_DEVICE_SYNC;
+   //    NVTX("InitCuRNG");
+   //    curandCreateGenerator(&curng, CURAND_RNG_PSEUDO_DEFAULT);
+   //    curandSetPseudoRandomGeneratorSeed(curng, 0);
+   //    MFEM_DEVICE_SYNC;
+   //    return curng;
+   // };
+   // curandGenerator_t curng;
 
    ParMesh pmesh;
    H1_FECollection fec;
@@ -156,8 +147,8 @@ struct PLOR_Solvers_Bench
       num_procs(Mpi::WorldSize()),
       myid(Mpi::WorldRank()),
       p(order),
-      cusph(InitCuSparse()),
-      curng(InitCuRandNumberGenerator()),
+      // cusph(InitCuSparse()),
+      // curng(InitCuRandNumberGenerator()),
       pmesh(MakeParCartesianMesh(p, requested_ndof, dim)),
       fec(p, dim),
       fes(&pmesh, &fec),
@@ -177,14 +168,16 @@ struct PLOR_Solvers_Bench
       x.ProjectCoefficient(u_coeff);
       fes.GetBoundaryTrueDofs(ess_dofs);
 
+      dbg("Assembling b");
       b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
       b.Assemble();
 
+      dbg("Setting a");
       a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
-      /// Overall SETUP
+      dbg("Overall SETUP");
       sw_setup.Clear();
       sw_setup_PA.Clear();
       sw_setup_LOR.Clear();
@@ -192,7 +185,7 @@ struct PLOR_Solvers_Bench
 
       sw_setup.Start();
 
-      /// PA SETUP
+      dbg("PA SETUP");
       MFEM_DEVICE_SYNC;
       sw_setup_PA.Start();
       a.Assemble();
@@ -200,15 +193,15 @@ struct PLOR_Solvers_Bench
       MFEM_DEVICE_SYNC;
       sw_setup_PA.Stop();
 
-      /// LOR SETUP
+      dbg("LOR SETUP");
       MFEM_DEVICE_SYNC;
       sw_setup_LOR.Start();
       solv_lor = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
       MFEM_DEVICE_SYNC;
       sw_setup_LOR.Stop();
 
-      /// AMG SETUP
-      solv_lor->GetSolver().SetPrintLevel(0);
+      dbg("AMG SETUP");
+      solv_lor->GetSolver().SetPrintLevel(1);
       MFEM_DEVICE_SYNC;
       sw_setup_AMG.Start();
       solv_lor->GetSolver().Setup(B, X);
@@ -229,7 +222,7 @@ struct PLOR_Solvers_Bench
       MFEM_DEVICE_SYNC;
       cg_niter = cg.GetNumIterations();
 
-      // Clear all previous calls to Mult (FormLinearSystem, Mult)
+      dbg("Clear all previous calls to Mult (FormLinearSystem, Mult)");
       sw_solve.Clear();
       cg.SwAxpy().Clear();
       cg.SwOper().Clear();
@@ -251,6 +244,7 @@ struct PLOR_Solvers_Bench
 
    BatchedLORAssembly *GetBatchedLOR() const
    {
+      dbg();
       return solv_lor->GetLOR().GetBatchedLOR();
    }
 
@@ -276,19 +270,19 @@ struct PLOR_Solvers_Bench
 
    double T_INNER_AMG_Apply() { return solv_lor->GetSolver().sw_apply.RealTime(); }
    double T_INNER_PA_Apply() { return a.SwApplyPA().RealTime(); }
-
 };
 
 // [0] Requested log_ndof
-// 30 max: 1076.88M NDOFs @ 1024 GPU
+// 30 max: 1076.88M NDOFs @ 1024 GPU on Lassen
 // #define LOG_NDOFS bm::CreateDenseRange(23,30,1)
-#define LOG_NDOFS bm::CreateDenseRange(8,16,1)
+#define LOG_NDOFS bm::CreateDenseRange(8,12,1)
 
 // Maximum number of dofs per rank
 #define MAX_NDOFS 7*1024*1024
 
 // [1] The different orders the tests can run
-#define P_ORDERS {6} // bm::CreateDenseRange(1,6,1)
+// #define P_ORDERS {6}
+#define P_ORDERS bm::CreateDenseRange(1,2,1)
 
 static void pLOR(bm::State &state)
 {
@@ -304,7 +298,7 @@ static void pLOR(bm::State &state)
    dbg("log_ndof:%d order:%d ndofs:%d nranks:%d", log_ndof, order, ndofs, nranks);
    dbg("%d >? %d", ndofs, nranks*MAX_NDOFS);
    const bool skip = ndofs > (nranks*MAX_NDOFS);
-   //if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
+   if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
 
    plor.Setup();
 
@@ -378,11 +372,12 @@ static void pLOR(bm::State &state)
 }
 
 BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
-->ArgsProduct( {LOG_NDOFS, P_ORDERS})->Iterations(10);
+->ArgsProduct( {LOG_NDOFS, P_ORDERS} )->Iterations(10);
 
 int main(int argc, char *argv[])
 {
    Mpi::Init();
+   // Hypre::Init();
 
    bm::Initialize(&argc, argv);
    if (bmi::global_context != nullptr)
@@ -398,15 +393,16 @@ int main(int argc, char *argv[])
    const int mpi_rank = Mpi::WorldRank();
    const int mpi_size = Mpi::WorldSize();
    const int dev = mpi_rank % config_ndev;
-   dbg("[MPI] %d/%d @ device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
    if (Mpi::Root()) { device.Print(); }
 
    Hypre::Init(); // after device selection
 
-   //static hypre_Handle *hypre_h = hypre_HandleCreate();
-   //(void) hypre_h;
+   dbg("[MPI] %d/%d @ device #%d", 1+mpi_rank, mpi_size, dev);
+
+   static hypre_Handle *hypre_h = hypre_HandleCreate();
+   (void) hypre_h;
 
    bm::ConsoleReporter CR;
    if (Mpi::Root()) { bm::RunSpecifiedBenchmarks(&CR); }
@@ -419,7 +415,7 @@ int main(int argc, char *argv[])
       bm::RunSpecifiedBenchmarks(display_reporter.get(), file_reporter.get());
    }
 
-   // MPI_Barrier(MPI_COMM_WORLD);
+   MPI_Barrier(MPI_COMM_WORLD);
    return 0;
 }
 

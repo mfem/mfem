@@ -739,8 +739,8 @@ void CGSolver::UpdateVectors()
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    NVTX("CG");
-#warning [CGSolver::Mult] MFEM_DEVICE_SYNC
-   static const bool EKS = true;//getenv("EKS") != nullptr;
+   // #warning [CGSolver::Mult] MFEM_DEVICE_SYNC
+   static const bool EKS = getenv("EKS") != nullptr;
    static bool init = true;
    if (init) { if (EKS) {dbg("EKS");} init = false;}
 
