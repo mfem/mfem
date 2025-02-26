@@ -394,7 +394,8 @@ public:
 
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
-   void SetAttributes() override;
+   void SetAttributes(bool elem_attrs_changed = true,
+                      bool bdr_attrs_changed = true) override;
 
    /// Checks if any rank in the mesh has boundary elements
    bool HasBoundaryElements() const override;

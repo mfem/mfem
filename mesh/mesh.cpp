@@ -919,9 +919,57 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    return gf;
 }
 
+const Array<int>& Mesh::GetBdrElementAttributes() const
+{
+   if (bdr_attrs_cache.Size() == 0)
+   {
+      std::unordered_map<int, int> f_to_be;
+      for (int i = 0; i < GetNBE(); ++i)
+      {
+         const int f = GetBdrElementFaceIndex(i);
+         f_to_be[f] = i;
+      }
+      const int nf_bdr = GetNFbyType(FaceType::Boundary);
+      // MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
+      bdr_attrs_cache.SetSize(nf_bdr);
+      int f_ind = 0;
+      int missing_bdr_elems = 0;
+      for (int f = 0; f < GetNumFaces(); ++f)
+      {
+         if (!GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
+         {
+            continue;
+         }
+         int attribute = 1; // default value
+         auto iter = f_to_be.find(f);
+         if (iter != f_to_be.end())
+         {
+            const int be = iter->second;
+            attribute = GetBdrAttribute(be);
+         }
+         else
+         {
+            // If a boundary face does not correspond to the a boundary element,
+            // we assign it the default attribute of 1. We also generate a
+            // warning at runtime with the number of such missing elements.
+            ++missing_bdr_elems;
+         }
+         bdr_attrs_cache[f_ind] = attribute;
+         ++f_ind;
+      }
+      if (missing_bdr_elems)
+      {
+         MFEM_VERIFY(false, "Missing " << missing_bdr_elems
+                     << " boundary elements "
+                     "for boundary faces.");
+      }
+   }
+   return bdr_attrs_cache;
+}
+
 const Array<int>& Mesh::GetElementAttributes() const
 {
-   if (elem_attrs_cache.Size() != GetNE())
+   if (elem_attrs_cache.Size() == 0)
    {
       // re-compute cache
       elem_attrs_cache.SetSize(GetNE());
@@ -1816,6 +1864,8 @@ void Mesh::Destroy()
    TetMemory.Clear();
 #endif
 
+   elem_attrs_cache.DeleteAll();
+   bdr_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
 }
@@ -1829,38 +1879,43 @@ void Mesh::ResetLazyData()
    DeleteGeometricFactors();
    nbInteriorFaces = -1;
    nbBoundaryFaces = -1;
-   SetAttributes();
+   // set size to 0 so re-computations can potentially avoid a new allocation
+   bdr_attrs_cache.SetSize(0);
+   elem_attrs_cache.SetSize(0);
 }
 
-void Mesh::SetAttributes()
+void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
 {
-   // set size to 0 so re-computations can potentially avoid a new allocation
-   elem_attrs_cache.SetSize(0);
-
    std::unordered_set<int> attribs;
 
-   for (int i = 0; i < GetNBE(); i++)
+   if (bdr_attrs_changed)
    {
-      attribs.emplace(GetBdrAttribute(i));
-   }
-   bdr_attributes.SetSize(attribs.size());
-   bdr_attributes.HostWrite();
-   {
-      int i = 0;
-      for (auto v : attribs)
+      bdr_attrs_cache.SetSize(0);
+      for (int i = 0; i < GetNBE(); i++)
       {
-         bdr_attributes[i] = v;
-         ++i;
+         attribs.emplace(GetBdrAttribute(i));
+      }
+      bdr_attributes.SetSize(attribs.size());
+      bdr_attributes.HostWrite();
+      {
+         int i = 0;
+         for (auto v : attribs)
+         {
+            bdr_attributes[i] = v;
+            ++i;
+         }
+      }
+      bdr_attributes.Sort();
+      if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive attributes on the boundary!");
       }
    }
-   bdr_attributes.Sort();
-   if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
-   {
-      MFEM_WARNING("Non-positive attributes on the boundary!");
-   }
 
-   // now re-compute the attributes cache
+   if (elem_attrs_changed)
    {
+      // now re-compute the attributes cache
+      elem_attrs_cache.SetSize(0);
       attribs.clear();
       auto &tmp = GetElementAttributes();
       tmp.HostRead();
@@ -1879,10 +1934,10 @@ void Mesh::SetAttributes()
          }
       }
       attributes.Sort();
-   }
-   if (attributes.Size() > 0 && attributes[0] <= 0)
-   {
-      MFEM_WARNING("Non-positive attributes in the domain!");
+      if (attributes.Size() > 0 && attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive attributes in the domain!");
+      }
    }
 }
 

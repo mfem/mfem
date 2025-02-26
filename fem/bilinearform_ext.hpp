@@ -70,7 +70,7 @@ protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    /// Attributes of all mesh elements.
    const Array<int> *elem_attributes; // Not owned
-   Array<int> bdr_attributes;
+   const Array<int> *bdr_attributes; // Not owned
    mutable Vector tmp_evec; // Work array
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;
