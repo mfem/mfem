@@ -29,16 +29,14 @@
 // Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'hipError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
-#define MFEM_GPU_CHECK(x) \
-   do \
-   { \
-      hipError_t err = (x); \
-      if (err != hipSuccess) \
-      { \
-         mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
-      } \
-   } \
-   while (0)
+#define MFEM_GPU_CHECK(x)                                                      \
+  do {                                                                         \
+    hipError_t mfem_internal_name_err = (x);                                   \
+    if (mfem_internal_name_err != hipSuccess) {                                \
+      ::mfem::mfem_hip_error(mfem_internal_name_err, #x, _MFEM_FUNC_NAME,      \
+                             __FILE__, __LINE__);                              \
+    }                                                                          \
+  } while (0)
 #endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
