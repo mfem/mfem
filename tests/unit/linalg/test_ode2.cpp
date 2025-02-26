@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,7 @@ using namespace mfem;
 
 TEST_CASE("Second order ODE methods", "[ODE]")
 {
-   double tol = 0.1;
+   real_t tol = 0.1;
 
    /** Class for simple linear second order ODE.
     *
@@ -27,29 +27,29 @@ TEST_CASE("Second order ODE methods", "[ODE]")
    class ODE2 : public SecondOrderTimeDependentOperator
    {
    protected:
-      double a, b;
+      real_t a, b;
 
    public:
-      ODE2(double a, double b) :
-         SecondOrderTimeDependentOperator(1, 0.0), a(a), b(b) {};
+      ODE2(real_t a, real_t b) :
+         SecondOrderTimeDependentOperator(1, (real_t) 0.0), a(a), b(b) {};
 
       using SecondOrderTimeDependentOperator::Mult;
-      virtual void Mult(const Vector &u, const Vector &dudt,
-                        Vector &d2udt2) const
+      void Mult(const Vector &u, const Vector &dudt,
+                Vector &d2udt2) const override
       {
          d2udt2[0] = -a*u[0] - b*dudt[0];
       }
 
       using SecondOrderTimeDependentOperator::ImplicitSolve;
-      virtual void ImplicitSolve(const double fac0, const double fac1,
-                                 const Vector &u, const Vector &dudt,
-                                 Vector &d2udt2)
+      void ImplicitSolve(const real_t fac0, const real_t fac1,
+                         const Vector &u, const Vector &dudt,
+                         Vector &d2udt2) override
       {
-         double T = 1.0 + a*fac0 + fac1*b;
+         real_t T = 1.0 + a*fac0 + fac1*b;
          d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
       }
 
-      virtual ~ODE2() {};
+      ~ODE2() override {};
    };
 
    // Class for checking order of convergence of second order ODE.
@@ -59,7 +59,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
       int ti_steps,levels;
       Vector u0;
       Vector dudt0;
-      double t_final,dt;
+      real_t t_final,dt;
       ODE2 *oper;
    public:
       CheckODE2()
@@ -75,26 +75,25 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          dudt0  = 1.0;
 
          t_final = 2*M_PI;
-         dt = t_final/double(ti_steps);
+         dt = t_final/real_t(ti_steps);
       };
 
-      void init_hist(SecondOrderODESolver* ode_solver,double dt_)
+      void init_hist(SecondOrderODESolver* ode_solver,real_t dt_)
       {
-         int nstate = ode_solver->GetStateSize();
+         int nstate = ode_solver->GetState().Size();
 
          for (int s = 0; s< nstate; s++)
          {
-            double t = -(s)*dt_;
+            real_t t = -(s)*dt_;
             Vector uh(1);
             uh[0] = -cos(t) - sin(t);
-            ode_solver->SetStateVector(s,uh);
+            ode_solver->GetState().Set(s,uh);
          }
       }
 
-
-      double order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
+      real_t order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt_order,t;
+         real_t dt_order,t;
          Vector u(1);
          Vector du(1);
          Vector err_u(levels);
@@ -102,7 +101,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          int steps = ti_steps;
 
          t = 0.0;
-         dt_order = t_final/double(steps);
+         dt_order = t_final/real_t(steps);
          u = u0;
          du = dudt0;
          ode_solver->Init(*oper);
@@ -124,7 +123,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          mfem::out<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
-         std::vector<Vector> uh(ode_solver->GetMaxStateSize());
+         std::vector<Vector> uh(ode_solver->GetState().MaxSize());
          for (int l = 1; l< levels; l++)
          {
             int lvl = static_cast<int>(pow(2,l));
@@ -144,26 +143,26 @@ TEST_CASE("Second order ODE methods", "[ODE]")
                ode_solver->Step(u, du, t, dt_order);
             }
 
-            int nstate = ode_solver->GetStateSize();
+            int nstate = ode_solver->GetState().Size();
             for (int s = 0; s < nstate; s++)
             {
-               ode_solver->GetStateVector(s,uh[s]);
+               uh[s] = ode_solver->GetState().Get(s);
             }
 
             for (int ll = 1; ll < lvl; ll++)
             {
                for (int s = 0; s < nstate; s++)
                {
-                  ode_solver->SetStateVector(s,uh[s]);
+                  ode_solver->GetState().Set(s,uh[s]);
                }
                for (int ti = 0; ti < steps; ti++)
                {
                   ode_solver->Step(u, du, t, dt_order);
                }
-               nstate = ode_solver->GetStateSize();
+               nstate = ode_solver->GetState().Size();
                for (int s = 0; s< nstate; s++)
                {
-                  uh[s] = ode_solver->GetStateVector(s);
+                  uh[s] = ode_solver->GetState().Get(s);
                }
             }
 
@@ -189,93 +188,93 @@ TEST_CASE("Second order ODE methods", "[ODE]")
    // Newmark-based solvers
    SECTION("Newmark")
    {
-      double conv_rate = check.order(new NewmarkSolver);
+      real_t conv_rate = check.order(new NewmarkSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("LinearAcceleration")
    {
-      double conv_rate = check.order(new LinearAccelerationSolver);
+      real_t conv_rate = check.order(new LinearAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("CentralDifference")
    {
-      double conv_rate = check.order(new CentralDifferenceSolver);
+      real_t conv_rate = check.order(new CentralDifferenceSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("FoxGoodwin")
    {
-      double conv_rate = check.order(new FoxGoodwinSolver);
+      real_t conv_rate = check.order(new FoxGoodwinSolver);
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    // Generalized-alpha based solvers
    SECTION("GeneralizedAlpha(0.0)")
    {
-      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
+      real_t conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5)")
    {
-      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
+      real_t conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5) - restart")
    {
-      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
+      real_t conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(1.0)")
    {
-      double conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
+      real_t conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
 
    SECTION("AverageAcceleration")
    {
-      double conv_rate = check.order(new AverageAccelerationSolver);
+      real_t conv_rate = check.order(new AverageAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(2/3)")
    {
-      double conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
+      real_t conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(0.75)")
    {
-      double conv_rate = check.order(new HHTAlphaSolver(0.75));
+      real_t conv_rate = check.order(new HHTAlphaSolver(0.75));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(1.0)")
    {
-      double conv_rate = check.order(new HHTAlphaSolver(1.0));
+      real_t conv_rate = check.order(new HHTAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.0)")
    {
-      double conv_rate = check.order(new WBZAlphaSolver(0.0));
+      real_t conv_rate = check.order(new WBZAlphaSolver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.5)")
    {
-      double conv_rate = check.order(new WBZAlphaSolver(0.5));
+      real_t conv_rate = check.order(new WBZAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(1.0)")
    {
-      double conv_rate = check.order(new WBZAlphaSolver(1.0));
+      real_t conv_rate = check.order(new WBZAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 }

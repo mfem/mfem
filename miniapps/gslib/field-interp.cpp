@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,8 @@
 //   field-interp -o 1
 //   field-interp -fts 3 -ft 0
 //   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
-//   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1
+//   field-interp -m1 triple-pt-1.mesh -m2 triple-pt-2.mesh -ft 1
+//   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1 -fts 0
 
 #include "mfem.hpp"
 #include <fstream>
@@ -65,6 +66,7 @@ int main (int argc, char *argv[])
    int fieldtype       = -1;
    int order           = 3;
    bool visualization  = true;
+   int visport         = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -92,6 +94,7 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -99,6 +102,12 @@ int main (int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // If a gridfunction is specified, set src_fieldtype to -1
+   if (strcmp(src_sltn_file, "must_be_provided_by_the_user.gf") != 0)
+   {
+      src_fieldtype = -1;
+   }
 
    // Input meshes.
    Mesh mesh_1(src_mesh_file, 1, 1, false);
@@ -131,6 +140,7 @@ int main (int argc, char *argv[])
       ifstream mat_stream_1(src_sltn_file);
       func_source = new GridFunction(&mesh_1, mat_stream_1);
       src_vdim = func_source->FESpace()->GetVDim();
+      src_fes = func_source->FESpace();
    }
    else if (src_fieldtype == 0)
    {
@@ -173,7 +183,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout1;
       sout1.open(vishost, visport);
       if (!sout1)
@@ -193,7 +202,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   const Geometry::Type gt = mesh_2.GetNodalFESpace()->GetFE(0)->GetGeomType();
+   const Geometry::Type gt = mesh_2.GetTypicalElementGeometry();
    MFEM_VERIFY(gt != Geometry::PRISM, "Wedge elements are not currently "
                "supported.");
    MFEM_VERIFY(mesh_2.GetNumGeometries(mesh_2.Dimension()) == 1, "Mixed meshes"
@@ -257,7 +266,7 @@ int main (int argc, char *argv[])
    GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
-             nsp = tar_fes->GetFE(0)->GetNodes().GetNPoints(),
+             nsp = tar_fes->GetTypicalFE()->GetNodes().GetNPoints(),
              tar_ncomp = func_target.VectorDim();
 
    // Generate list of points where the grid function will be evaluated.
@@ -362,7 +371,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout1;
       sout1.open(vishost, visport);
       if (!sout1)
@@ -394,9 +402,16 @@ int main (int argc, char *argv[])
    finder.FreeData();
 
    // Delete remaining memory.
-   delete func_source;
-   delete src_fes;
-   delete src_fec;
+   if (func_source->OwnFEC())
+   {
+      delete func_source;
+   }
+   else
+   {
+      delete func_source;
+      delete src_fes;
+      delete src_fec;
+   }
    delete tar_fes;
    delete tar_fec;
 

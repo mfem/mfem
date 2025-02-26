@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../linalg/operator.hpp"
 #include "../mesh/mesh.hpp"
+#include "normal_deriv_restriction.hpp"
 
 namespace mfem
 {
@@ -21,13 +22,16 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
+class FaceQuadratureSpace;
+
 /// Abstract base class that defines an interface for element restrictions.
 class ElementRestrictionOperator : public Operator
 {
 public:
    /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
    /// of freedom @a y.
-   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override = 0;
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -35,11 +39,6 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). */
 class ElementRestriction : public ElementRestrictionOperator
 {
-private:
-   /** This number defines the maximum number of elements any dof can belong to
-       for the FillSparseMatrix method. */
-   static const int MaxNbNbr = 16;
-
 protected:
    const FiniteElementSpace &fes;
    const int ne;
@@ -52,22 +51,12 @@ protected:
    Array<int> indices;
    Array<int> gather_map;
 
-   friend class BatchedLORAssembly;
-   friend class BatchedLOR_ADS;
-   friend class BatchedLOR_AMS;
-
-   /// @name Low-level access to the underlying element-dof mappings
-   ///@{
-   const Array<int> &GatherMap() const { return gather_map; }
-   const Array<int> &Indices() const { return indices; }
-   const Array<int> &Offsets() const { return offsets; }
-   ///@}
-
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
@@ -99,7 +88,14 @@ public:
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
    /// boolean template parameter @a ADD.
-   template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
+   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
+
+   /// @name Low-level access to the underlying element-dof mappings
+   ///@{
+   const Array<int> &GatherMap() const { return gather_map; }
+   const Array<int> &Indices() const { return indices; }
+   const Array<int> &Offsets() const { return offsets; }
+   ///@}
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -116,9 +112,10 @@ class L2ElementRestriction : public ElementRestrictionOperator
    const int ndofs;
 public:
    L2ElementRestriction(const FiniteElementSpace&);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;
@@ -129,7 +126,7 @@ public:
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
    /// boolean template parameter @a ADD.
-   template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
+   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /** An enum type to specify if only e1 value is requested (SingleValued) or both
@@ -180,8 +177,18 @@ public:
        @param[in]     x The face degrees of freedom on the face.
        @param[in,out] y The L-vector of degrees of freedom to which we add the
                         face degrees of freedom.
+       @param[in]     a Scalar coefficient for addition.
    */
-   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override = 0;
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y ignoring the signs from DOF orientation. */
+   virtual void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                         const real_t a = 1.0) const
+   {
+      AddMultTranspose(x, y, a);
+   }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y. Perform the same computation as AddMultTranspose, but
@@ -211,12 +218,53 @@ public:
       y = 0.0;
       AddMultTranspose(x, y);
    }
+
+   /** @brief For each face, sets @a y to the partial derivative of @a x with
+              respect to the reference coordinate whose direction is
+              perpendicular to the face on the reference element.
+
+    @details This is not the normal derivative in physical coordinates, but can
+             be mapped to the physical normal derivative using the element
+             Jacobian and the tangential derivatives (in reference coordinates)
+             which can be computed from the face values (provided by Mult).
+
+             Note that due to the polynomial degree of the element mapping, the
+             physical normal derivative may be a higher degree polynomial than
+             the restriction of the values to the face. However, the normal
+             derivative in reference coordinates has degree-1, and therefore can
+             be exactly represented with the degrees of freedom of a face
+             E-vector.
+
+    @param[in]     x The L-vector degrees of freedom.
+    @param[in,out] y The reference normal derivative degrees of freedom. Is
+                     E-vector like.
+    */
+   virtual void NormalDerivativeMult(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
+
+   /** @brief Add the face reference-normal derivative degrees of freedom in @a
+              x to the element degrees of freedom in @a y.
+
+       @details see NormalDerivativeMult.
+
+       @param[in]     x The degrees of freedom of the face reference-normal
+                        derivative. Is E-vector like.
+       @param[in,out] y The L-vector degrees of freedom.
+   */
+   virtual void NormalDerivativeAddMultTranspose(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
 };
 
-/// Operator that extracts Face degrees of freedom for H1 FiniteElementSpaces.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetFaceRestriction(). */
-class H1FaceRestriction : public FaceRestriction
+/// @brief Operator that extracts face degrees of freedom for H1, ND, or RT
+/// FiniteElementSpaces.
+///
+/// Objects of this type are typically created and owned by FiniteElementSpace
+/// objects, see FiniteElementSpace::GetFaceRestriction().
+class ConformingFaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -230,29 +278,30 @@ protected:
    Array<int> scatter_indices; // Scattering indices for element 1 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
+   Array<int> vol_dof_map; // mapping from lexicographic to native ordering
 
-   /** @brief Construct an H1FaceRestriction.
+   /** @brief Construct a ConformingFaceRestriction.
 
-       @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific element ordering
-       @param[in] type     Request internal or boundary faces dofs
-       @param[in] build    Request the NCL2FaceRestriction to compute the
-                           scatter/gather indices. False should only be used
-                           when inheriting from H1FaceRestriction.
+       @param[in] fes        The FiniteElementSpace on which this operates
+       @param[in] f_ordering Request a specific face dof ordering
+       @param[in] type       Request internal or boundary faces dofs
+       @param[in] build      Request the NCL2FaceRestriction to compute the
+                             scatter/gather indices. False should only be used
+                             when inheriting from ConformingFaceRestriction.
    */
-   H1FaceRestriction(const FiniteElementSpace& fes,
-                     const ElementDofOrdering ordering,
-                     const FaceType type,
-                     bool build);
+   ConformingFaceRestriction(const FiniteElementSpace& fes,
+                             const ElementDofOrdering f_ordering,
+                             const FaceType type,
+                             bool build);
 public:
-   /** @brief Construct an H1FaceRestriction.
+   /** @brief Construct a ConformingFaceRestriction.
 
-       @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific element ordering
-       @param[in] type     Request internal or boundary faces dofs */
-   H1FaceRestriction(const FiniteElementSpace& fes,
-                     const ElementDofOrdering ordering,
-                     const FaceType type);
+       @param[in] fes        The FiniteElementSpace on which this operates
+       @param[in] f_ordering Request a specific face dof ordering
+       @param[in] type       Request internal or boundary faces dofs */
+   ConformingFaceRestriction(const FiniteElementSpace& fes,
+                             const ElementDofOrdering f_ordering,
+                             const FaceType type);
 
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector.
@@ -277,60 +326,74 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
-       @param[in,out] y The L-vector degrees of freedom. */
-   void AddMultTranspose(const Vector &x, Vector &y) const override;
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]  a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector @b not taking into account signs from DOF orientations.
+
+       @sa AddMultTranspose(). */
+   void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                 const real_t a = 1.0) const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
 
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
+       @param[in] f_ordering Request a specific face dof ordering.
+       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
+   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
                                         const FaceType type);
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
 
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
+       @param[in] f_ordering Request a specific face dof ordering.
+       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering ordering,
+   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
                              const FaceType type);
 
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
-   /** @brief Verify that H1FaceRestriction is build from an H1 FESpace.
+   /** @brief Verify that ConformingFaceRestriction is built from a supported
+       finite element space.
 
-       @param[in] ordering The FESpace element ordering.
+       @param[in] f_ordering The requested face dof ordering.
    */
-   void CheckFESpace(const ElementDofOrdering ordering);
+   void CheckFESpace(const ElementDofOrdering f_ordering);
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face.
 
-       @param[in] face The face information of the current face.
-       @param[in] face_index The interior/boundary face index.
-       @param[in] ordering Request a specific element ordering.
+       @param[in] face        The face information of the current face.
+       @param[in] face_index  The interior/boundary face index.
+       @param[in] f_ordering  Request a specific face dof ordering.
     */
    void SetFaceDofsScatterIndices(const Mesh::FaceInformation &face,
                                   const int face_index,
-                                  const ElementDofOrdering ordering);
+                                  const ElementDofOrdering f_ordering);
 
    /** @brief Set the gathering indices of elem1 for the interior face described
        by the @a face.
 
-       @param[in] face The face information of the current face.
-       @param[in] face_index The interior/boundary face index.
-       @param[in] ordering Request a specific element ordering.
+       @param[in] face        The face information of the current face.
+       @param[in] face_index  The interior/boundary face index.
+       @param[in] f_ordering  Request a specific face dof ordering.
     */
    void SetFaceDofsGatherIndices(const Mesh::FaceInformation &face,
                                  const int face_index,
-                                 const ElementDofOrdering ordering);
+                                 const ElementDofOrdering f_ordering);
 };
+
+/// @brief Alias for ConformingFaceRestriction, for backwards compatibility and
+/// as base class for ParNCH1FaceRestriction.
+using H1FaceRestriction = ConformingFaceRestriction;
 
 /// Operator that extracts Face degrees of freedom for L2 spaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
@@ -339,6 +402,7 @@ class L2FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
+   const ElementDofOrdering ordering;
    const int nf; // Number of faces of the requested type
    const int ne; // Number of elements
    const int vdim; // vdim
@@ -353,20 +417,21 @@ protected:
    Array<int> scatter_indices2; // Scattering indices for element 2 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
+   mutable std::unique_ptr<L2NormalDerivativeFaceRestriction> normal_deriv_restr;
 
    /** @brief Constructs an L2FaceRestriction.
 
-       @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific ordering
-       @param[in] type     Request internal or boundary faces dofs
-       @param[in] m        Request the face dofs for elem1, or both elem1 and
-                           elem2
-       @param[in] build    Request the NCL2FaceRestriction to compute the
-                           scatter/gather indices. False should only be used
-                           when inheriting from L2FaceRestriction.
+       @param[in] fes        The FiniteElementSpace on which this operates
+       @param[in] f_ordering Request a specific face dof ordering
+       @param[in] type       Request internal or boundary faces dofs
+       @param[in] m          Request the face dofs for elem1, or both elem1 and
+                             elem2
+       @param[in] build      Request the NCL2FaceRestriction to compute the
+                             scatter/gather indices. False should only be used
+                             when inheriting from L2FaceRestriction.
    */
    L2FaceRestriction(const FiniteElementSpace& fes,
-                     const ElementDofOrdering ordering,
+                     const ElementDofOrdering f_ordering,
                      const FaceType type,
                      const L2FaceValues m,
                      bool build);
@@ -374,13 +439,13 @@ protected:
 public:
    /** @brief Constructs an L2FaceRestriction.
 
-       @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific ordering
-       @param[in] type     Request internal or boundary faces dofs
-       @param[in] m        Request the face dofs for elem1, or both elem1 and
-                           elem2 */
+       @param[in] fes        The FiniteElementSpace on which this operates
+       @param[in] f_ordering Request a specific face dof ordering
+       @param[in] type       Request internal or boundary faces dofs
+       @param[in] m          Request the face dofs for elem1, or both elem1 and
+                             elem2 */
    L2FaceRestriction(const FiniteElementSpace& fes,
-                     const ElementDofOrdering ordering,
+                     const ElementDofOrdering f_ordering,
                      const FaceType type,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
 
@@ -409,8 +474,10 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
-       @param[in,out] y The L-vector degrees of freedom. */
-   void AddMultTranspose(const Vector &x, Vector &y) const override;
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]  a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction.
@@ -459,34 +526,49 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+      face E-Vector.
+
+      @param[in]  x The L-vector degrees of freedom.
+      @param[out] y The face E-Vector degrees of freedom with the given format:
+                    (face_dofs x vdim x 2 x nf) where nf is the number of
+                    interior or boundary faces requested by @a type in the
+                    constructor. The face_dofs are ordered according to the
+                    given ElementDofOrdering. */
+   void NormalDerivativeMult(const Vector &x, Vector &y) const override;
+
+   /** @brief Add the face reference-normal derivative degrees of freedom in @a
+              x to the element degrees of freedom in @a y.
+
+       @details see NormalDerivativeMult.
+
+       @param[in]     x The degrees of freedom of the face reference-normal
+                        derivative. Is E-vector like.
+       @param[in,out] y The L-vector degrees of freedom.
+   */
+   void NormalDerivativeAddMultTranspose(const Vector &x,
+                                         Vector &y) const override;
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
-
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
+
+   /// Create the internal normal derivative restriction operator if needed.
+   void EnsureNormalDerivativeRestriction() const;
 
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
-   /** @brief Verify that L2FaceRestriction is build from an L2 FESpace.
-
-       @param[in] ordering The FESpace element ordering.
+   /** @brief Verify that L2FaceRestriction is built from an L2 FESpace.
    */
-   void CheckFESpace(const ElementDofOrdering ordering);
+   void CheckFESpace();
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face. The ordering of the face dofs of elem1
@@ -779,17 +861,17 @@ protected:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
        L2FaceRestriction for nonconforming meshes.
 
-       @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific ordering
-       @param[in] type     Request internal or boundary faces dofs
-       @param[in] m        Request the face dofs for elem1, or both elem1 and
-                           elem2
-       @param[in] build    Request the NCL2FaceRestriction to compute the
-                           scatter/gather indices. False should only be used
-                           when inheriting from NCL2FaceRestriction.
+       @param[in] fes        The FiniteElementSpace on which this operates
+       @param[in] f_ordering Request a specific face dof ordering
+       @param[in] type       Request internal or boundary faces dofs
+       @param[in] m          Request the face dofs for elem1, or both elem1 and
+                             elem2
+       @param[in] build      Request the NCL2FaceRestriction to compute the
+                             scatter/gather indices. False should only be used
+                             when inheriting from NCL2FaceRestriction.
    */
    NCL2FaceRestriction(const FiniteElementSpace& fes,
-                       const ElementDofOrdering ordering,
+                       const ElementDofOrdering f_ordering,
                        const FaceType type,
                        const L2FaceValues m,
                        bool build);
@@ -797,14 +879,14 @@ public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
        L2FaceRestriction for nonconforming meshes.
 
-       @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] ordering Request a specific ordering
-       @param[in] type     Request internal or boundary faces dofs
-       @param[in] m        Request the face dofs for elem1, or both elem1 and
-                           elem2
+       @param[in] fes        The FiniteElementSpace on which this operates
+       @param[in] f_ordering Request a specific face dof ordering
+       @param[in] type       Request internal or boundary faces dofs
+       @param[in] m          Request the face dofs for elem1, or both elem1 and
+                             elem2
    */
    NCL2FaceRestriction(const FiniteElementSpace& fes,
-                       const ElementDofOrdering ordering,
+                       const ElementDofOrdering f_ordering,
                        const FaceType type,
                        const L2FaceValues m = L2FaceValues::DoubleValued);
 
@@ -831,8 +913,10 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
-       @param[in,out] y The L-vector degrees of freedom. */
-   void AddMultTranspose(const Vector &x, Vector &y) const override;
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]  a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -908,22 +992,14 @@ private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
        coarse to fine face for master non-comforming faces.
-
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] ordering Request a specific element ordering.
-       @param[in] type     Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
@@ -985,17 +1061,6 @@ public:
    void DoubleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
 };
 
-/** @brief Return the face map that extracts the degrees of freedom for the
-    requested local face of a quad or hex, returned in Lexicographic order.
-
-    @param[in] dim The dimension of the space
-    @param[in] face_id The local face identifier
-    @param[in] dof1d The 1D number of degrees of freedom for each dimension
-    @param[out] face_map The map that maps each face dof to an element dof
-*/
-void GetFaceDofs(const int dim, const int face_id,
-                 const int dof1d, Array<int> &face_map);
-
 /** @brief Convert a dof face index from Native ordering to lexicographic
     ordering for quads and hexes.
 
@@ -1023,6 +1088,20 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
 int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
                   const int size1d, const int index);
+
+/// @brief Return the face-neighbor data given the L-vector @a x.
+///
+/// If the input vector @a x is a ParGridFunction with non-empty face-neighbor
+/// data, return an alias to ParGridFunction::FaceNbrData() (avoiding an
+/// unneeded call to ParGridFunction::ExchangeFaceNbrData).
+///
+/// Otherwise, create a temporary ParGridFunction, exchange the face-neighbor
+/// data, and return the resulting vector.
+///
+/// If @a fes is not a parallel space, or if @a ftype is not FaceType::Interior,
+/// return an empty vector.
+Vector GetLVectorFaceNbrData(
+   const FiniteElementSpace &fes, const Vector &x, FaceType ftype);
 
 }
 

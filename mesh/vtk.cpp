@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -657,6 +657,24 @@ void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
    WriteVTKEncodedCompressed(os, buf.data(), buf.size(), compression_level);
    os << '\n';
    buf.clear();
+}
+
+std::string VTKComponentLabels(int vdim)
+{
+   if (vdim == 1)
+   {
+      return "";
+   }
+   else
+   {
+      std::stringstream s;
+      for (int i = 0; i < vdim; ++i)
+      {
+         s << "ComponentName" << i << "=\"" << i << "\"";
+         if (i < vdim - 1) { s << " "; }
+      }
+      return s.str();
+   }
 }
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,11 +63,14 @@ class FiniteElementSpace;
  */
 class ParNCMesh : public NCMesh
 {
+protected:
+   ParNCMesh() = default;
 public:
    /// Construct by partitioning a serial NCMesh.
    /** SFC partitioning is used by default. A user-specified partition can be
        passed in 'part', where part[i] is the desired MPI rank for element i. */
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh,
+             const int *partitioning = nullptr);
 
    /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
        counterpart for a description of the parameters. */
@@ -81,24 +84,25 @@ public:
 
    /** An override of NCMesh::Refine, which is called eventually, after making
        sure that refinements that occur on the processor boundary are sent to
-       the neighbor processors so they can keep their ghost layers up to date.*/
-   virtual void Refine(const Array<Refinement> &refinements);
+       the neighbor processors so they can keep their ghost layers up to
+       date. */
+   void Refine(const Array<Refinement> &refinements) override;
 
    /// Parallel version of NCMesh::LimitNCLevel.
-   virtual void LimitNCLevel(int max_nc_level);
+   void LimitNCLevel(int max_nc_level) override;
 
    /** Parallel version of NCMesh::CheckDerefinementNCLevel. */
-   virtual void CheckDerefinementNCLevel(const Table &deref_table,
-                                         Array<int> &level_ok, int max_nc_level);
+   void CheckDerefinementNCLevel(const Table &deref_table,
+                                 Array<int> &level_ok, int max_nc_level) override;
 
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
-   virtual void Derefine(const Array<int> &derefs);
+   void Derefine(const Array<int> &derefs) override;
 
    /** Gets partitioning for the coarse mesh if the current fine mesh were to
        be derefined. */
-   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
-                                            Array<int> &new_ranks) const;
+   void GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                    Array<int> &new_ranks) const;
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
@@ -108,15 +112,13 @@ public:
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
-
    // interface for ParFiniteElementSpace
-
    int GetNElements() const { return NElements; }
 
    int GetNGhostVertices() const { return NGhostVertices; }
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
-   int GetNGhostElements() const { return NGhostElements; }
+   int GetNGhostElements() const override { return NGhostElements; }
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
@@ -141,8 +143,8 @@ public:
       return (index < NFaces) ? face_orient[index] : 0;
    }
 
-   typedef short GroupId;
-   typedef std::vector<int> CommGroup;
+   using GroupId = short;
+   using CommGroup = std::vector<int>;
 
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
@@ -231,13 +233,14 @@ public:
                                     const Table &deref_table);
 
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
-       ghost edges from 'bdr_vertices' and 'bdr_edges'. */
-   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
-                                   Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges);
+       ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden
+       internal boundary faces. */
+   void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+                           Array<int> &bdr_vertices,
+                           Array<int> &bdr_edges, Array<int> &bdr_faces) override;
 
    /// Save memory by releasing all non-essential and cached data.
-   virtual void Trim();
+   void Trim() override;
 
    /// Return total number of bytes allocated.
    std::size_t MemoryUsage(bool with_base = true) const;
@@ -251,24 +254,24 @@ public:
 protected: // interface for ParMesh
 
    friend class ParMesh;
+   friend class ParSubMesh;
 
    /** For compatibility with conforming code in ParMesh and ParFESpace.
-       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
-       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
+       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*,
+       s*_l*. The ParMesh then acts as a parallel mesh cut along the NC
+       interfaces. */
    void GetConformingSharedStructures(class ParMesh &pmesh);
 
    /** Populate face neighbor members of ParMesh from the ghost layer, without
        communication. */
    void GetFaceNeighbors(class ParMesh &pmesh);
-
-
 protected: // implementation
 
    MPI_Comm MyComm;
    int NRanks;
 
-   typedef std::vector<CommGroup> GroupList;
-   typedef std::map<CommGroup, GroupId> GroupMap;
+   using GroupList = std::vector<CommGroup>;
+   using GroupMap = std::map<CommGroup, GroupId>;
 
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
@@ -299,7 +302,7 @@ protected: // implementation
    Array<int> ghost_layer;    ///< list of elements whose 'element_type' == 2.
    Array<int> boundary_layer; ///< list of type 3 elements
 
-   virtual void Update();
+   void Update() override;
 
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
@@ -313,13 +316,13 @@ protected: // implementation
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
 
-   virtual void BuildFaceList();
-   virtual void BuildEdgeList();
-   virtual void BuildVertexList();
+   void BuildFaceList() override;
+   void BuildEdgeList() override;
+   void BuildVertexList() override;
 
-   virtual void ElementSharesFace(int elem, int local, int face);
-   virtual void ElementSharesEdge(int elem, int local, int enode);
-   virtual void ElementSharesVertex(int elem, int local, int vnode);
+   void ElementSharesFace(int elem, int local, int face) override;
+   void ElementSharesEdge(int elem, int local, int enode) override;
+   void ElementSharesVertex(int elem, int local, int vnode) override;
 
    GroupId GetGroupId(const CommGroup &group);
    GroupId GetSingletonGroup(int rank);
@@ -336,7 +339,8 @@ protected: // implementation
    void CreateGroups(int nentities, Array<Connection> &index_rank,
                      Array<GroupId> &entity_group);
 
-   static int get_face_orientation(Face &face, Element &e1, Element &e2,
+   static int get_face_orientation(const Face &face, const Element &e1,
+                                   const Element &e2,
                                    int local[2] = NULL /* optional output */);
    void CalcFaceOrientations();
 
@@ -437,7 +441,7 @@ protected: // implementation
       std::vector<int> elements;
       std::vector<ValueType> values;
 
-      int Size() const { return elements.size(); }
+      int Size() const { return static_cast<int>(elements.size()); }
       void Reserve(int size) { elements.reserve(size); values.reserve(size); }
 
       void Add(int elem, ValueType val)
@@ -451,8 +455,8 @@ protected: // implementation
    protected:
       ParNCMesh* pncmesh;
 
-      virtual void Encode(int);
-      virtual void Decode(int);
+      void Encode(int) override;
+      void Decode(int) override;
    };
 
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
@@ -513,16 +517,17 @@ protected: // implementation
    protected:
       ElementSet eset;
 
-      virtual void Encode(int);
-      virtual void Decode(int);
+      void Encode(int) override;
+      void Decode(int) override;
    };
 
    /** Assign new Element::rank to leaf elements and send them to their new
        owners, keeping the ghost layer up to date. Used by Rebalance() and
        Derefine(). 'target_elements' is the number of elements this rank
        is supposed to own after the exchange. If this number is not known
-       a priori, the parameter can be set to -1, but more expensive communication
-       (synchronous sends and a barrier) will be used in that case. */
+       a priori, the parameter can be set to -1, but more expensive
+       communication (synchronous sends and a barrier) will be used in that
+       case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);
 

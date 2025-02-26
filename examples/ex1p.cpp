@@ -30,7 +30,7 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
-//             * mpirun -np 4 ex1p -fa -d cuda
+//               mpirun -np 4 ex1p -fa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
@@ -190,13 +190,18 @@ int main(int argc, char *argv[])
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
+   //    by marking all the external boundary attributes from the mesh as
+   //    essential (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
+      // Apply boundary conditions on all external boundaries:
+      pmesh.MarkExternalBoundaries(ess_bdr);
+      // Boundary conditions can also be applied based on named attributes:
+      // pmesh.MarkNamedBoundaries(set_name, ess_bdr)
+
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -219,7 +224,14 @@ int main(int argc, char *argv[])
    //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa) { a.SetAssemblyLevel(AssemblyLevel::FULL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear

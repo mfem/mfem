@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,16 +12,17 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/tests/benchmarks/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_TESTS = bench_assembly_levels bench_ceed bench_dg_amr bench_elasticity \
-            bench_tmop bench_vector bench_virtuals bench_lor
-PAR_TESTS = 
-
+            bench_tmop bench_vector bench_virtuals bench_lor bench_plor
+PAR_TESTS =
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
 else

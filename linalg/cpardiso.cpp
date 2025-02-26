@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "cpardiso.hpp"
 #include "hypre.hpp"
 #include <algorithm>
@@ -27,6 +38,10 @@ CPardisoSolver::CPardisoSolver(MPI_Comm comm)
    iparm[10] = 1;
    // Perform a check on the input data
    iparm[26] = 1;
+#ifdef MFEM_USE_SINGLE
+   // Single precision
+   iparm[27] = 1;
+#endif
    // 0-based indexing in CSR data structure
    iparm[34] = 1;
    // All inputs are distributed between MPI processes
@@ -55,7 +70,9 @@ void CPardisoSolver::SetOperator(const Operator &op)
    auto parcsr_op = static_cast<hypre_ParCSRMatrix *>(
                        const_cast<HypreParMatrix &>(hypreParMat));
 
+   hypreParMat.HostRead();
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   hypreParMat.HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
@@ -68,7 +85,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
    height = m_loc;
    width = m_loc;
 
-   double *csr_nzval = csr_op->data;
+   real_t *csr_nzval = csr_op->data;
    int *csr_colind = csr_op->j;
 
    delete[] csr_rowptr;
@@ -76,7 +93,7 @@ void CPardisoSolver::SetOperator(const Operator &op)
    delete[] reordered_csr_nzval;
    csr_rowptr = new int[m_loc + 1];
    reordered_csr_colind = new int[nnz_loc];
-   reordered_csr_nzval = new double[nnz_loc];
+   reordered_csr_nzval = new real_t[nnz_loc];
 
    for (int i = 0; i <= m_loc; i++)
    {
@@ -104,13 +121,22 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    hypre_CSRMatrixDestroy(csr_op);
 
-   // The number of row in global matrix, rhs element and solution vector that
+   // iparm[40], the number of row in global matrix, rhs element and solution vector that
    // begins the input domain belonging to this MPI process
-   iparm[40] = first_row;
 
-   // The number of row in global matrix, rhs element and solution vector that
+   // iparm[41], the number of row in global matrix, rhs element and solution vector that
    // ends the input domain belonging to this MPI process
-   iparm[41] = first_row + m_loc - 1;
+   if (m_loc == 0 && first_row == 0)
+   {
+      // Workaround for the issue https://github.com/mfem/mfem/issues/4634
+      iparm[40] = 1;
+      iparm[41] = first_row;
+   }
+   else
+   {
+      iparm[40] = first_row;
+      iparm[41] = first_row + m_loc - 1;
+   }
 
    // Analyze inputs
    phase = 11;

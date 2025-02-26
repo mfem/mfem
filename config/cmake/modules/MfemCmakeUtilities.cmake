@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -46,6 +46,10 @@ endfunction()
 # Wrapper for add_executable
 macro(mfem_add_executable NAME)
   add_executable(${NAME} ${ARGN})
+  if (MFEM_USE_CUDA)
+    set_target_properties(${NAME} PROPERTIES
+      CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+  endif()
 endmacro()
 
 # Wrapper for add_library
@@ -99,25 +103,6 @@ macro(add_mfem_examples EXE_SRCS)
       ${MFEM_EXEC_PREREQUISITES_TARGET_NAME} ${EXE_PREREQUISITE})
 
     target_link_libraries(${EXE_NAME} mfem)
-    if (MFEM_USE_MPI)
-      # Not needed: (mfem already links with MPI_CXX_LIBRARIES)
-      # target_link_libraries(${EXE_NAME} ${MPI_CXX_LIBRARIES})
-
-      # Language-specific include directories:
-      if (MPI_CXX_INCLUDE_PATH)
-        target_include_directories(${EXE_NAME} PRIVATE "${MPI_CXX_INCLUDE_PATH}")
-      endif()
-      if (MPI_CXX_COMPILE_FLAGS)
-        separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
-          "${MPI_CXX_COMPILE_FLAGS}")
-        target_compile_options(${EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_ARGS})
-      endif()
-
-      if (MPI_CXX_LINK_FLAGS)
-        set_target_properties(${EXE_NAME} PROPERTIES
-          LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
-      endif()
-    endif()
   endforeach(SRC_FILE)
 endmacro()
 
@@ -153,57 +138,22 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Actually add the executable
   mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  install(TARGETS ${MFEM_EXE_NAME}
+          RUNTIME DESTINATION miniapps)
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
   # Append the additional libraries and options
   if (LIBRARIES_LIST)
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${LIBRARIES_LIST})
-    else()
-      target_link_libraries(${MFEM_EXE_NAME} ${LIBRARIES_LIST})
-    endif()
+    target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${LIBRARIES_LIST})
   endif()
   if (EXTRA_OPTIONS_LIST)
     string(REPLACE ";" " " EXTRA_OPTIONS_STRING "${EXTRA_OPTIONS_LIST}")
     message(STATUS "${MFEM_EXE_NAME}: add flags \"${EXTRA_OPTIONS_STRING}\"")
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${EXTRA_OPTIONS_LIST})
-    else()
-      get_target_property(THIS_COMPILE_FLAGS ${MFEM_EXE_NAME} COMPILE_FLAGS)
-      if (THIS_COMPILE_FLAGS)
-        set(THIS_COMPILE_FLAGS "${THIS_COMPILE_FLAGS} ${EXTRA_OPTIONS_STRING}")
-      else()
-        set(THIS_COMPILE_FLAGS "${EXTRA_OPTIONS_STRING}")
-      endif()
-      set_target_properties(${MFEM_EXE_NAME}
-        PROPERTIES COMPILE_FLAGS ${THIS_COMPILE_FLAGS})
-    endif()
+    target_compile_options(${MFEM_EXE_NAME} PRIVATE ${EXTRA_OPTIONS_LIST})
   endif()
   if (EXTRA_DEFINES_LIST)
     target_compile_definitions(${MFEM_EXE_NAME} PRIVATE ${EXTRA_DEFINES_LIST})
-  endif()
-
-  # Handle the MPI separately
-  if (MFEM_USE_MPI)
-    # Add MPI_CXX_LIBRARIES, in case this target does not link with mfem.
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_LIBRARIES})
-    else()
-      target_link_libraries(${MFEM_EXE_NAME} ${MPI_CXX_LIBRARIES})
-    endif()
-
-    if (MPI_CXX_INCLUDE_PATH)
-      target_include_directories(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_INCLUDE_PATH})
-    endif()
-    if (MPI_CXX_COMPILE_FLAGS)
-      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_FLAGS})
-    endif()
-
-    if (MPI_CXX_LINK_FLAGS)
-      set_target_properties(${MFEM_EXE_NAME} PROPERTIES
-        LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
-    endif()
   endif()
 endmacro()
 
@@ -449,9 +399,9 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
               break()
             endif()
           endforeach()
-          if (${Required} AND NOT ${ReqPack}_FOUND)
+          if (Required AND NOT ${ReqPack}_FOUND)
             message(FATAL_ERROR " *** Required package ${ReqPack} not found."
-              "Checked target names: ${ReqPack} ${${ReqPack}_TARGET_NAMES}")
+              " Checked target names: ${ReqPack} ${${ReqPack}_TARGET_NAMES}")
           endif()
         endif()
       endif()
@@ -517,14 +467,18 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
           endif()
           get_target_property(IsImported ${TargetName} IMPORTED)
           if (IsImported)
+            get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
+            # message(STATUS "${ReqPack} imported configs: ${ImpConfigs}")
             set(ImportConfig ${${ReqPack}_IMPORT_CONFIG})
             if (NOT ImportConfig)
               set(ImportConfig RELEASE)
+              list(FIND ImpConfigs ${ImportConfig} _Index)
+              if (_Index EQUAL -1)
+                list(GET ImpConfigs 0 ImportConfig)
+              endif()
             endif()
             set(ImportConfigSuffix "_${ImportConfig}")
-            get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
-            list(FIND ImpConfigs ${ImportConfig} _Index)
-            if ((_Index EQUAL -1) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
+            if ((NOT ImportConfig) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
               set(ImportConfig "NO_CONFIG")
               set(ImportConfigSuffix "")
               # message(FATAL_ERROR " *** ${ReqPack}: configuration "
@@ -542,7 +496,8 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
           else()
             # Set _Pack_LIBS from the target properties for ImportConfig
             foreach (_prop IMPORTED_LOCATION${ImportConfigSuffix}
-                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix})
+                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix}
+                INTERFACE_LINK_LIBRARIES)
               get_target_property(_value ${TargetName} ${_prop})
               if (_value)
                 list(APPEND _Pack_LIBS ${_value})
@@ -793,6 +748,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       list(APPEND CompileOpts "-isystem \"${SysDir}\"")
     endforeach()
   endif()
+  set(AddInterfaceLinkLibs TRUE)
   if ("${type}" STREQUAL "STATIC_LIBRARY")
     get_target_property(Location ${tgt} LOCATION)
     if (Location)
@@ -814,18 +770,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
   elseif ("${type}" STREQUAL "INTERFACE_LIBRARY")
-    get_target_property(Libs ${tgt} INTERFACE_LINK_LIBRARIES)
-    if (Libs)
-      foreach(Lib ${Libs})
-        if (NOT (TARGET ${Lib}))
-          list(APPEND LinkOpts "${Lib}")
-        else()
-          mfem_get_target_options(${Lib} COpts LOpts)
-          list(APPEND CompileOpts ${COpts})
-          list(APPEND LinkOpts ${LOpts})
-        endif()
-      endforeach()
-    endif()
+    # The INTERFACE_LINK_LIBRARIES property is handled below.
     # Other properties we may need to handle:
     # INTERFACE_LINK_DEPENDS
     # INTERFACE_LINK_DIRECTORIES
@@ -833,6 +778,26 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   else()
     message(STATUS " *** Warning: [${tgt}] uses target type '${type}'"
       " which is not supported!")
+    set(AddInterfaceLinkLibs FALSE)
+  endif()
+  if (AddInterfaceLinkLibs)
+    get_target_property(Libs ${tgt} INTERFACE_LINK_LIBRARIES)
+    # message(STATUS "${tgt}[INTERFACE_LINK_LIBRARIES]: ${Libs}")
+    if (Libs)
+      foreach(Lib ${Libs})
+        if (NOT (TARGET ${Lib}))
+          # message(STATUS "Lib = ${Lib}")
+          # Filter-out generator expressions
+          if (NOT ("${Lib}" MATCHES "^\\$"))
+            list(APPEND LinkOpts "${Lib}")
+          endif()
+        else()
+          mfem_get_target_options(${Lib} COpts LOpts)
+          list(APPEND CompileOpts ${COpts})
+          list(APPEND LinkOpts ${LOpts})
+        endif()
+      endforeach()
+    endif()
   endif()
 
   # Other potentially relevant properties:
@@ -856,7 +821,24 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   set(${CompileOptsVar} "${CompileOpts}" PARENT_SCOPE)
   set(${LinkOptsVar} "${LinkOpts}" PARENT_SCOPE)
 
+  # message(STATUS "${tgt}[CompileOpts]: ${CompileOpts}")
+  # message(STATUS "${tgt}[LinkOpts]: ${LinkOpts}")
+
 endfunction(mfem_get_target_options)
+
+
+#
+# If ${Path} is not an absolute path, assign ${Prefix}/${Path} to the variable
+# ${OutVar}. If ${Path} is an absolute path, assign ${Path} to the variable
+# ${OutVar}.
+#
+function(mfem_path_to_fullpath Path Prefix OutVar)
+  if(IS_ABSOLUTE "${Path}")
+    set(${OutVar} "${Path}" PARENT_SCOPE)
+  else()
+    set(${OutVar} "${Prefix}/${Path}" PARENT_SCOPE)
+  endif()
+endfunction()
 
 
 #
@@ -876,17 +858,18 @@ function(mfem_export_mk_files)
 
   # Convert Boolean vars to YES/NO without writing the values to cache
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
-      MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
-      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_LEGACY_OPENMP MFEM_USE_OPENMP
-      MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
-      MFEM_USE_SUPERLU MFEM_USE_SUPERLU5 MFEM_USE_MUMPS MFEM_USE_STRUMPACK
-      MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_GNUTLS MFEM_USE_NETCDF
-      MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS
-      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA
-      MFEM_USE_HIP MFEM_USE_RAJA MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER
-      MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO
+      MFEM_USE_SINGLE MFEM_USE_DOUBLE MFEM_DEBUG MFEM_USE_EXCEPTIONS
+      MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE
+      MFEM_USE_LEGACY_OPENMP MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS
+      MFEM_USE_SUITESPARSE MFEM_USE_SUPERLU MFEM_USE_SUPERLU5 MFEM_USE_MUMPS
+      MFEM_USE_STRUMPACK MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_MAGMA
+      MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC
+      MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT MFEM_USE_PUMI
+      MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_RAJA
+      MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER MFEM_USE_UMPIRE MFEM_USE_SIMD
+      MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO
       MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
-      MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
+      MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -907,7 +890,7 @@ function(mfem_export_mk_files)
          "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
-  foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
+  foreach(dir ${TPL_INCLUDE_DIRS})
     set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
   endforeach()
   # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
@@ -1024,9 +1007,12 @@ function(mfem_export_mk_files)
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
-  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  mfem_path_to_fullpath(
+    "${INSTALL_INCLUDE_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_INC_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_LIB_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_SHARE_DIR}/mfem/test.mk" "${CMAKE_INSTALL_PREFIX}" MFEM_TEST_MK)
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
@@ -1036,8 +1022,30 @@ function(mfem_export_mk_files)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/
+    RENAME config.mk)
 
+endfunction()
+
+
+#
+# Function similar to the macro _GNUInstallDirs_cache_path from the module
+# GNUInstallDirs. Used to process variables like INSTALL_LIB_DIR if they are
+# set on the cmake command line without specifying type: -DINSTALL_LIB_DIR=lib.
+# Without this special treatment, relative paths are expanded to full paths
+# and we want to avoid that.
+#
+function(mfem_cache_path PathVar DefaultPath HelpStr)
+  if(NOT DEFINED ${PathVar})
+    set(${PathVar} "${DefaultPath}" CACHE PATH "${HelpStr}")
+  endif()
+  get_property(cache_type CACHE ${PathVar} PROPERTY TYPE)
+  if(cache_type STREQUAL "UNINITIALIZED")
+    file(TO_CMAKE_PATH "${${PathVar}}" cmakepath)
+    set_property(CACHE ${PathVar} PROPERTY TYPE PATH)
+    set_property(CACHE ${PathVar} PROPERTY VALUE "${cmakepath}")
+    set_property(CACHE ${PathVar} PROPERTY HELPSTRING "${HelpStr}")
+  endif()
 endfunction()

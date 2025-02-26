@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -112,7 +112,7 @@ void Array<T>::PartialSum()
 
 // Sum
 template <class T>
-T Array<T>::Sum()
+T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)
@@ -124,7 +124,7 @@ T Array<T>::Sum()
 }
 
 template <class T>
-int Array<T>::IsSorted()
+int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
    for (int i = 1; i < size; i++)
@@ -178,8 +178,8 @@ void Array2D<T>::Print(std::ostream &os, int width_)
 template class Array<char>;
 template class Array<int>;
 template class Array<long long>;
-template class Array<double>;
+template class Array<real_t>;
 template class Array2D<int>;
-template class Array2D<double>;
+template class Array2D<real_t>;
 
 } // namespace mfem

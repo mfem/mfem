@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,15 +12,15 @@
 #ifndef MFEM_HIOP
 #define MFEM_HIOP
 
-#include "linalg.hpp"
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_HIOP
 #include "../general/globals.hpp"
+#include "solvers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "operator.hpp"
 #endif
-
-#ifdef MFEM_USE_HIOP
 
 #include "hiopInterface.hpp"
 #include "hiopNlpFormulation.hpp"
@@ -92,6 +92,8 @@ public:
     *  internally in HiOp. */
    virtual bool get_starting_point(const hiop::size_type &n, double *x0);
 
+   using hiop::hiopInterfaceBase::get_starting_point;
+
    virtual bool get_vars_info(const hiop::size_type &n, double *xlow, double* xupp,
                               NonlinearityType* type);
 
@@ -136,6 +138,8 @@ public:
                           const hiop::index_type *idx_cons,
                           const double *x, bool new_x, double *cons);
 
+   using hiop::hiopInterfaceBase::eval_cons;
+
    /** Evaluates the Jacobian of the subset of constraints indicated by
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
     *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1, then
@@ -152,6 +156,8 @@ public:
                               const hiop::index_type *idx_cons,
                               const double *x, bool new_x, double *Jac);
 
+   using hiop::hiopInterfaceDenseConstraints::eval_Jac_cons;
+
    /** Specifies column partitioning for distributed memory vectors.
     *  Process p owns vector entries with indices cols[p] to cols[p+1]-1,
     *  where p = 0 .. nranks-1. The cols array is of size nranks + 1.
@@ -161,6 +167,36 @@ public:
    virtual bool get_vecdistrib_info(hiop::size_type global_n,
                                     hiop::index_type *cols);
 
+   virtual void solution_callback(hiop::hiopSolveStatus status,
+                                  hiop::size_type n,
+                                  const double *x,
+                                  const double *z_L,
+                                  const double *z_U,
+                                  hiop::size_type m,
+                                  const double *g,
+                                  const double *lambda,
+                                  double obj_value);
+
+   virtual bool iterate_callback(int iter,
+                                 double obj_value,
+                                 double logbar_obj_value,
+                                 int n,
+                                 const double *x,
+                                 const double *z_L,
+                                 const double *z_U,
+                                 int m_ineq,
+                                 const double *s,
+                                 int m,
+                                 const double *g,
+                                 const double *lambda,
+                                 double inf_pr,
+                                 double inf_du,
+                                 double onenorm_pr_,
+                                 double mu,
+                                 double alpha_du,
+                                 double alpha_pr,
+                                 int ls_trials);
+
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)
    {
@@ -168,6 +204,48 @@ public:
       return true;
    }
 #endif
+};
+
+/// Users can inherit this class to access to HiOp-specific functionality.
+class HiOpProblem : public OptimizationProblem
+{
+public:
+   HiOpProblem(int insize, const Operator *C_, const Operator *D_)
+      : OptimizationProblem(insize, C_, D_) { }
+
+   /// See hiopInterfaceBase::solution_callback(...).
+   virtual void SolutionCallback(hiop::hiopSolveStatus status,
+                                 hiop::size_type n,
+                                 const double *x,
+                                 const double *z_L,
+                                 const double *z_U,
+                                 hiop::size_type m,
+                                 const double *g,
+                                 const double *lambda,
+                                 double obj_value) const
+   { }
+
+   /// See hiopInterfaceBase::iterate_callback(...).
+   virtual bool IterateCallback(int iter,
+                                double obj_value,
+                                double logbar_obj_value,
+                                int n,
+                                const double *x,
+                                const double *z_L,
+                                const double *z_U,
+                                int m_ineq,
+                                const double *s,
+                                int m,
+                                const double *g,
+                                const double *lambda,
+                                double inf_pr,
+                                double inf_du,
+                                double onenorm_pr_,
+                                double mu,
+                                double alpha_du,
+                                double alpha_pr,
+                                int ls_trials) const
+   { return true; }
 };
 
 /// Adapts the HiOp functionality to the MFEM OptimizationSolver interface.
@@ -190,7 +268,7 @@ public:
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    /// Solves the optimization problem with xt as initial guess.
-   virtual void Mult(const Vector &xt, Vector &x) const;
+   void Mult(const Vector &xt, Vector &x) const override;
 };
 
 } // mfem namespace

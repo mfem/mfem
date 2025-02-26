@@ -36,7 +36,7 @@ using namespace mfem;
 // Exact solution, F, and r.h.s., f. See below for implementation.
 void F_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = 2;
    int order = 1;
    bool set_bc = true;
    bool static_cond = false;
@@ -56,10 +58,15 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool use_nonoverlapping = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
@@ -82,6 +89,8 @@ int main(int argc, char *argv[])
                   "-no-nonoverlapping", "--no-nonoverlapping",
                   "Use or not the block diagonal PETSc's matrix format "
                   "for non-overlapping domain decomposition.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -95,9 +104,15 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   // 2b. We initialize PETSc
-   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
    kappa = freq * M_PI;
+
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize PETSc
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -111,9 +126,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      if (ser_ref_levels < 0)
+      {
+         ser_ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      }
+      for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -125,7 +142,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -252,7 +268,8 @@ int main(int argc, char *argv[])
       if (use_nonoverlapping)
       {
          ParFiniteElementSpace *prec_fespace =
-            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+            (a->StaticCondensationIsEnabled() ? a->SCParFESpace() :
+             (hfes ? NULL : fespace));
 
          // Auxiliary class for BDDC customization
          PetscBDDCSolverParams opts;
@@ -280,7 +297,7 @@ int main(int argc, char *argv[])
 
    // 14. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(F);
+      real_t err = x.ComputeL2Error(F);
       if (myid == 0)
       {
          cout << "\n|| F_h - F ||_{L^2} = " << err << '\n' << endl;
@@ -337,9 +354,9 @@ void F_exact(const Vector &p, Vector &F)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
+   real_t x = p(0);
+   real_t y = p(1);
+   // real_t z = (dim == 3) ? p(2) : 0.0;
 
    F(0) = cos(kappa*x)*sin(kappa*y);
    F(1) = cos(kappa*y)*sin(kappa*x);
@@ -354,11 +371,11 @@ void f_exact(const Vector &p, Vector &f)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
+   real_t x = p(0);
+   real_t y = p(1);
+   // real_t z = (dim == 3) ? p(2) : 0.0;
 
-   double temp = 1 + 2*kappa*kappa;
+   real_t temp = 1 + 2*kappa*kappa;
 
    f(0) = temp*cos(kappa*x)*sin(kappa*y);
    f(1) = temp*cos(kappa*y)*sin(kappa*x);

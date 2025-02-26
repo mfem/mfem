@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
+#include "lapack.hpp"
 #include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
@@ -22,6 +23,9 @@
 
 #define MFEM_NVTX_COLOR DarkGreen
 #include "../general/nvtx.hpp"
+
+#define MFEM_DEBUG_COLOR 46
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -55,7 +59,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 #endif // MFEM_USE_MPI
 
-double IterativeSolver::Dot(const Vector &x, const Vector &y) const
+real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
 #ifndef MFEM_USE_MPI
    return (x * y);
@@ -190,7 +194,7 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
-void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+void IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
                               const Vector& x, bool final) const
 {
    if (monitor != nullptr)
@@ -200,7 +204,7 @@ void IterativeSolver::Monitor(int it, double norm, const Vector& r,
    }
 }
 
-OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
+OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
    : damping(dmpng),
      ess_tdof_list(nullptr),
      oper(nullptr),
@@ -209,7 +213,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const real_t dmpng)
    :
    Solver(a.FESpace()->GetTrueVSize()),
    dinv(height),
@@ -228,7 +232,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const real_t dmpng)
    :
    Solver(d.Size()),
    dinv(height),
@@ -266,7 +270,7 @@ void OperatorJacobiSmoother::SetOperator(const Operator &op)
       oper = &op;
       height = op.Height();
       width = op.Width();
-      MFEM_ASSERT(height == width, "not a square matrix!");
+      MFEM_VERIFY(height == width, "not a square matrix!");
       // ess_tdof_list is only used with BilinearForm
       ess_tdof_list = nullptr;
    }
@@ -280,11 +284,11 @@ void OperatorJacobiSmoother::SetOperator(const Operator &op)
 void OperatorJacobiSmoother::Setup(const Vector &diag)
 {
    residual.UseDevice(true);
-   const double delta = damping;
+   const real_t delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
    const bool use_abs_diag_ = use_abs_diag;
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       if (D[i] == 0.0)
       {
@@ -296,7 +300,10 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    if (ess_tdof_list && ess_tdof_list->Size() > 0)
    {
       auto I = ess_tdof_list->Read();
-      MFEM_FORALL(i, ess_tdof_list->Size(), DI[I[i]] = delta; );
+      mfem::forall(ess_tdof_list->Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         DI[I[i]] = delta;
+      });
    }
 }
 
@@ -304,8 +311,8 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
    // For empty MPI ranks, height may be 0:
    // MFEM_VERIFY(Height() > 0, "The diagonal hasn't been computed.");
-   MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
-   MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
+   MFEM_VERIFY(x.Size() == Width(), "invalid input vector");
+   MFEM_VERIFY(y.Size() == Height(), "invalid output vector");
 
    if (iterative_mode)
    {
@@ -322,7 +329,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       Y[i] += DI[i] * R[i];
    });
@@ -331,7 +338,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, double max_eig_estimate_)
+                                                     int order_, real_t max_eig_estimate_)
    :
    Solver(d.Size()),
    order(order_),
@@ -348,12 +355,12 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, double power_tolerance)
+                                                     int order_, int power_iterations, real_t power_tolerance)
 #endif
    : Solver(d.Size()),
      order(order_),
@@ -383,21 +390,21 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, double max_eig_estimate_)
+                                                     int order_, real_t max_eig_estimate_)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
 
 #ifdef MFEM_USE_MPI
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
                                power_iterations, power_tolerance) { }
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, double power_tolerance)
+                                                     int order_, int power_iterations, real_t power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
                                power_tolerance) { }
 #endif
@@ -406,19 +413,23 @@ void OperatorChebyshevSmoother::Setup()
 {
    // Invert diagonal
    residual.UseDevice(true);
+   helperVector.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
-   MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
    auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
+   mfem::forall(ess_tdof_list.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      X[I[i]] = 1.0;
+   });
 
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
    // Gauss-Seidel by Adams et al.
-   double upper_bound = 1.2 * max_eig_estimate;
-   double lower_bound = 0.3 * max_eig_estimate;
-   double theta = 0.5 * (upper_bound + lower_bound);
-   double delta = 0.5 * (upper_bound - lower_bound);
+   real_t upper_bound = 1.2 * max_eig_estimate;
+   real_t lower_bound = 0.3 * max_eig_estimate;
+   real_t theta = 0.5 * (upper_bound + lower_bound);
+   real_t delta = 0.5 * (upper_bound - lower_bound);
 
    switch (order-1)
    {
@@ -429,16 +440,16 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 1:
       {
-         double tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
+         real_t tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
          coeffs[0] = -4*theta*tmp_0;
          coeffs[1] = 2*tmp_0;
          break;
       }
       case 2:
       {
-         double tmp_0 = 3*pow(delta, 2);
-         double tmp_1 = pow(theta, 2);
-         double tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
+         real_t tmp_0 = 3*pow(delta, 2);
+         real_t tmp_1 = pow(theta, 2);
+         real_t tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
          coeffs[0] = tmp_2*(tmp_0 - 12*tmp_1);
          coeffs[1] = 12/(tmp_0 - 4*tmp_1);
          coeffs[2] = -4*tmp_2;
@@ -446,10 +457,10 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 3:
       {
-         double tmp_0 = pow(delta, 2);
-         double tmp_1 = pow(theta, 2);
-         double tmp_2 = 8*tmp_0;
-         double tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
+         real_t tmp_0 = pow(delta, 2);
+         real_t tmp_1 = pow(theta, 2);
+         real_t tmp_2 = 8*tmp_0;
+         real_t tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
          coeffs[0] = tmp_3*(32*pow(theta, 3) - 16*theta*tmp_0);
          coeffs[1] = tmp_3*(-48*tmp_1 + tmp_2);
          coeffs[2] = 32*theta*tmp_3;
@@ -458,15 +469,15 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 4:
       {
-         double tmp_0 = 5*pow(delta, 4);
-         double tmp_1 = pow(theta, 4);
-         double tmp_2 = pow(theta, 2);
-         double tmp_3 = pow(delta, 2);
-         double tmp_4 = 60*tmp_3;
-         double tmp_5 = 20*tmp_3;
-         double tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
-         double tmp_7 = 160*tmp_2;
-         double tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
+         real_t tmp_0 = 5*pow(delta, 4);
+         real_t tmp_1 = pow(theta, 4);
+         real_t tmp_2 = pow(theta, 2);
+         real_t tmp_3 = pow(delta, 2);
+         real_t tmp_4 = 60*tmp_3;
+         real_t tmp_5 = 20*tmp_3;
+         real_t tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
+         real_t tmp_7 = 160*tmp_2;
+         real_t tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
          coeffs[0] = tmp_6*(tmp_0 + 80*tmp_1 - tmp_2*tmp_4);
          coeffs[1] = tmp_8*(tmp_4 - tmp_7);
          coeffs[2] = tmp_6*(-tmp_5 + tmp_7);
@@ -493,6 +504,7 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
 
    residual = x;
    helperVector.SetSize(x.Size());
+   helperVector.UseDevice(true);
 
    y.UseDevice(true);
    y = 0.0;
@@ -510,19 +522,22 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       const int n = N;
       auto Dinv = dinv.Read();
       auto R = residual.ReadWrite();
-      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { R[i] *= Dinv[i]; });
 
       // Add weighted contribution to y
       auto Y = y.ReadWrite();
       auto C = coeffs.Read();
-      MFEM_FORALL(i, n, Y[i] += C[k] * R[i]; );
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
    }
 }
 
 void SLISolver::UpdateVectors()
 {
    r.SetSize(width);
+   r.UseDevice(true);
+
    z.SetSize(width);
+   z.UseDevice(true);
 }
 
 void SLISolver::Mult(const Vector &b, Vector &x) const
@@ -564,7 +579,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // General version of SLI with a relative tolerance, optional preconditioner
    // and optional initial guess
-   double r0, nom, nom0, nomold = 1, cf;
+   real_t r0, nom, nom0, nomold = 1, cf;
 
    if (iterative_mode)
    {
@@ -586,8 +601,9 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    {
       nom0 = nom = sqrt(Dot(r, r));
    }
+   initial_norm = nom0;
 
-   if (print_options.iterations | print_options.first_and_last)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
                 << nom << (print_options.first_and_last ? " ..." : "") << '\n';
@@ -672,7 +688,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -687,7 +703,7 @@ void SLI(const Operator &A, const Vector &b, Vector &x,
 
 void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -706,22 +722,43 @@ void CGSolver::UpdateVectors()
 {
    MemoryType mt = GetMemoryType(oper->GetMemoryClass());
 
-   r.SetSize(width, mt); r.UseDevice(true);
-   d.SetSize(width, mt); d.UseDevice(true);
-   z.SetSize(width, mt); z.UseDevice(true);
+   r.SetSize(width, mt);
+   r.UseDevice(true);
+
+   d.SetSize(width, mt);
+   d.UseDevice(true);
+
+   z.SetSize(width, mt);
+   z.UseDevice(true);
+   sw_axpy.Clear();
+   sw_oper.Clear();
+   sw_prec.Clear();
+   sw_pdot.Clear();
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    NVTX("CG");
+#warning [CGSolver::Mult] MFEM_DEVICE_SYNC
+   static const bool EKS = true;//getenv("EKS") != nullptr;
+   static bool init = true;
+   if (init) { if (EKS) {dbg("EKS");} init = false;}
+
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_axpy.Start();
 
    int i;
-   double r0, den, nom, nom0, betanom, alpha, beta;
+   real_t r0, den, nom, nom0, betanom, alpha, beta;
 
    x.UseDevice(true);
    if (iterative_mode)
    {
+      sw_axpy.Stop();
+      sw_oper.Start();
       oper->Mult(x, r);
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_oper.Stop();
+      sw_axpy.Start();
       subtract(b, r, r); // r = b - A x
    }
    else
@@ -732,15 +769,27 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (prec)
    {
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
+      sw_prec.Start();
       prec->Mult(r, z); // z = B r
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_prec.Stop();
+      sw_axpy.Start();
       d = z;
    }
    else
    {
       d = r;
    }
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_axpy.Stop();
+   sw_pdot.Start();
    nom0 = nom = Dot(d, r);
-   MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
+   if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
+   sw_pdot.Stop();
+   sw_axpy.Start();
+   MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
@@ -750,6 +799,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (nom < 0.0)
    {
+      assert(false);
       if (print_options.warnings)
       {
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
@@ -757,23 +807,39 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       converged = false;
       final_iter = 0;
+      initial_norm = nom;
       final_norm = nom;
       return;
    }
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
       return;
    }
 
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_axpy.Stop();
+
+   sw_oper.Start();
    oper->Mult(d, z);  // z = A d
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_oper.Stop();
+
+   sw_pdot.Start();
    den = Dot(z, d);
-   MFEM_ASSERT(IsFinite(den), "den = " << den);
+   sw_pdot.Stop();
+
+   sw_axpy.Start();
+
+   MFEM_VERIFY(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
+      assert(false);
       if (Dot(d, d) > 0.0 && print_options.warnings)
       {
          mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
@@ -781,6 +847,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       if (den == 0.0)
       {
+         sw_axpy.Stop();
          converged = false;
          final_iter = 0;
          final_norm = sqrt(nom);
@@ -797,16 +864,29 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       add(x,  alpha, d, x);     //  x = x + alpha d
       add(r, -alpha, z, r);     //  r = r - alpha A d
 
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
       if (prec)
       {
+         sw_prec.Start();
          prec->Mult(r, z);      //  z = B r
+         if (EKS) { MFEM_DEVICE_SYNC; }
+         sw_prec.Stop();
+
+         sw_pdot.Start();
          betanom = Dot(r, z);
+         sw_pdot.Stop();
       }
       else
       {
+         if (EKS) { MFEM_DEVICE_SYNC; }
+         sw_pdot.Start();
          betanom = Dot(r, r);
+         sw_pdot.Stop();
       }
-      MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
+      sw_axpy.Start();
+
+      MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
          if (print_options.warnings)
@@ -814,6 +894,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                       << betanom << '\n';
          }
+         if (EKS) { MFEM_DEVICE_SYNC; }
+         sw_axpy.Stop();
          converged = false;
          final_iter = i;
          break;
@@ -848,9 +930,22 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
+
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
+
+      sw_oper.Start();
       oper->Mult(d, z);       //  z = A d
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_oper.Stop();
+
+      sw_pdot.Start();
       den = Dot(d, z);
-      MFEM_ASSERT(IsFinite(den), "den = " << den);
+      sw_pdot.Stop();
+
+      sw_axpy.Start();
+
+      MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
          if (Dot(d, d) > 0.0 && print_options.warnings)
@@ -858,6 +953,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
          }
+         assert(false);
          if (den == 0.0)
          {
             final_iter = i;
@@ -889,11 +985,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    final_norm = sqrt(betanom);
 
    Monitor(final_iter, final_norm, r, x, true);
+   sw_axpy.Stop();
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
-        double RTOLERANCE, double ATOLERANCE)
+        real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -908,7 +1005,7 @@ void CG(const Operator &A, const Vector &b, Vector &x,
 
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         real_t RTOLERANCE, real_t ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -923,8 +1020,8 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
 }
 
 
-inline void GeneratePlaneRotation(double &dx, double &dy,
-                                  double &cs, double &sn)
+inline void GeneratePlaneRotation(real_t &dx, real_t &dy,
+                                  real_t &cs, real_t &sn)
 {
    if (dy == 0.0)
    {
@@ -933,21 +1030,21 @@ inline void GeneratePlaneRotation(double &dx, double &dy,
    }
    else if (fabs(dy) > fabs(dx))
    {
-      double temp = dx / dy;
+      real_t temp = dx / dy;
       sn = 1.0 / sqrt( 1.0 + temp*temp );
       cs = temp * sn;
    }
    else
    {
-      double temp = dy / dx;
+      real_t temp = dy / dx;
       cs = 1.0 / sqrt( 1.0 + temp*temp );
       sn = temp * cs;
    }
 }
 
-inline void ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn)
+inline void ApplyPlaneRotation(real_t &dx, real_t &dy, real_t &cs, real_t &sn)
 {
-   double temp = cs * dx + sn * dy;
+   real_t temp = cs * dx + sn * dy;
    dy = -sn * dx + cs * dy;
    dx = temp;
 }
@@ -985,7 +1082,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector r(n), w(n);
    Array<Vector *> v;
 
-   double resid;
+   b.UseDevice(true);
+   x.UseDevice(true);
+   r.UseDevice(true);
+   w.UseDevice(true);
+
    int i, j, k;
 
    if (iterative_mode)
@@ -1020,8 +1121,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          r = b;
       }
    }
-   double beta = Norm(r);  // beta = ||r||
-   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+   real_t beta = initial_norm = Norm(r);  // beta = ||r||
+   MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
@@ -1030,6 +1131,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = true;
+      j = 0;
       goto finish;
    }
 
@@ -1047,7 +1149,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (j = 1; j <= max_iter; )
    {
-      if (v[0] == NULL) { v[0] = new Vector(n); }
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(n);
+         v[0]->UseDevice(true);
+      }
       v[0]->Set(1.0/beta, r);
       s = 0.0; s(0) = beta;
 
@@ -1070,7 +1176,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          }
 
          H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
-         MFEM_ASSERT(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
+         MFEM_VERIFY(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
          if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
          v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
 
@@ -1083,8 +1189,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         resid = fabs(s(i+1));
-         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+         const real_t resid = fabs(s(i+1));
+         MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
          if (resid <= final_norm)
          {
@@ -1123,7 +1229,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          subtract(b, r, r);
       }
       beta = Norm(r);         // beta = ||r||
-      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
          final_norm = beta;
@@ -1142,7 +1248,7 @@ finish:
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << final_iter
-                << "  ||B r|| = " << resid << '\n';
+                << "  ||B r|| = " << final_norm << '\n';
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
@@ -1167,8 +1273,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
 
-   int i, j, k;
+   b.UseDevice(true);
+   x.UseDevice(true);
+   r.UseDevice(true);
 
+   int i, j, k;
 
    if (iterative_mode)
    {
@@ -1180,13 +1289,12 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       x = 0.;
       r = b;
    }
-   double beta = Norm(r);  // beta = ||r||
-   // We need to preallocate this to report the correct result in the case of
-   // no convergence.
-   double resid;
-   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+   real_t beta = initial_norm = Norm(r);  // beta = ||r||
+   MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
+
+   converged = false;
 
    if (beta <= final_norm)
    {
@@ -1217,7 +1325,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    j = 1;
    while (j <= max_iter)
    {
-      if (v[0] == NULL) { v[0] = new Vector(b.Size()); }
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(b.Size());
+         v[0]->UseDevice(true);
+      }
       (*v[0]) = 0.0;
       v[0] -> Add (1.0/beta, r);   // v[0] = r / ||r||
       s = 0.0; s(0) = beta;
@@ -1225,7 +1337,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       for (i = 0; i < m && j <= max_iter; i++, j++)
       {
 
-         if (z[i] == NULL) { z[i] = new Vector(b.Size()); }
+         if (z[i] == NULL)
+         {
+            z[i] = new Vector(b.Size());
+            z[i]->UseDevice(true);
+         }
          (*z[i]) = 0.0;
 
          if (prec)
@@ -1245,7 +1361,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
 
          H(i+1,i)  = Norm(r);       // H(i+1,i) = ||r||
-         if (v[i+1] == NULL) { v[i+1] = new Vector(b.Size()); }
+         if (v[i+1] == NULL)
+         {
+            v[i+1] = new Vector(b.Size());
+            v[i+1]->UseDevice(true);
+         }
          (*v[i+1]) = 0.0;
          v[i+1] -> Add (1.0/H(i+1,i), r); // v[i+1] = r / H(i+1,i)
 
@@ -1258,8 +1378,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         resid = fabs(s(i+1));
-         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+         const real_t resid = fabs(s(i+1));
+         MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
          {
@@ -1300,11 +1420,9 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       oper->Mult(x, r);
       subtract(b,r,r);
       beta = Norm(r);
-      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
-         final_norm = beta;
-         final_iter = j;
          converged = true;
 
          break;
@@ -1317,18 +1435,20 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (v[i]) { delete v[i]; }
       if (z[i]) { delete z[i]; }
    }
-   converged = false;
+
+   final_norm = beta;
+   final_iter = converged ? j : max_iter;
 
    // Note: j is off by one when we arrive here
    if (!print_options.iterations && print_options.first_and_last)
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << j-1
-                << "  || r || = " << resid << endl;
+                << "  || r || = " << final_norm << endl;
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
-      mfem::out << "FGMRES: Number of iterations: " << j-1 << '\n';
+      mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
    }
    if (print_options.warnings && !converged)
    {
@@ -1338,7 +1458,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
 
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
-          int &max_iter, int m, double &tol, double atol, int printit)
+          int &max_iter, int m, real_t &tol, real_t atol, int printit)
 {
    MFEM_PERF_FUNCTION;
 
@@ -1357,7 +1477,7 @@ int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
 }
 
 void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
-           int print_iter, int max_num_iter, int m, double rtol, double atol)
+           int print_iter, int max_num_iter, int m, real_t rtol, real_t atol)
 {
    GMRES(A, x, b, B, max_num_iter, m, rtol, atol, print_iter);
 }
@@ -1366,13 +1486,28 @@ void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 void BiCGSTABSolver::UpdateVectors()
 {
    p.SetSize(width);
+   p.UseDevice(true);
+
    phat.SetSize(width);
+   phat.UseDevice(true);
+
    s.SetSize(width);
+   s.UseDevice(true);
+
    shat.SetSize(width);
+   shat.UseDevice(true);
+
    t.SetSize(width);
+   t.UseDevice(true);
+
    v.SetSize(width);
+   v.UseDevice(true);
+
    r.SetSize(width);
+   r.UseDevice(true);
+
    rtilde.SetSize(width);
+   rtilde.UseDevice(true);
 }
 
 void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
@@ -1381,8 +1516,11 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    // on p. 27 of the SIAM Templates book.
 
    int i;
-   double resid, tol_goal;
-   double rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
+   real_t resid, tol_goal;
+   real_t rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
+
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    if (iterative_mode)
    {
@@ -1396,8 +1534,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    }
    rtilde = r;
 
-   resid = Norm(r);
-   MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+   resid = initial_norm = Norm(r);
+   MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
    if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0
@@ -1464,7 +1602,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       alpha = rho_1 / Dot(rtilde, v);
       add(r, -alpha, v, s); //  s = r - alpha * v
       resid = Norm(s);
-      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+      MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
@@ -1504,7 +1642,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
       rho_2 = rho_1;
       resid = Norm(r);
-      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+      MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
       if (print_options.iterations)
       {
          mfem::out << "   ||r|| = " << resid << '\n';
@@ -1568,7 +1706,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
-             int &max_iter, double &tol, double atol, int printit)
+             int &max_iter, real_t &tol, real_t atol, int printit)
 {
    BiCGSTABSolver bicgstab;
    bicgstab.SetPrintLevel(printit);
@@ -1584,7 +1722,7 @@ int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
 }
 
 void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
-              int print_iter, int max_num_iter, double rtol, double atol)
+              int print_iter, int max_num_iter, real_t rtol, real_t atol)
 {
    BiCGSTAB(A, x, b, B, max_num_iter, rtol, atol, print_iter);
 }
@@ -1594,21 +1732,25 @@ void MINRESSolver::SetOperator(const Operator &op)
 {
    IterativeSolver::SetOperator(op);
    v0.SetSize(width);
+   v0.UseDevice(true);
+
    v1.SetSize(width);
+   v1.UseDevice(true);
+
    w0.SetSize(width);
+   w0.UseDevice(true);
+
    w1.SetSize(width);
+   w1.UseDevice(true);
+
    q.SetSize(width);
+   q.UseDevice(true);
+
    if (prec)
    {
       u1.SetSize(width);
+      u1.UseDevice(true);
    }
-
-   v0.UseDevice(true);
-   v1.UseDevice(true);
-   w0.UseDevice(true);
-   w1.UseDevice(true);
-   q.UseDevice(true);
-   u1.UseDevice(true);
 }
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
@@ -1622,8 +1764,8 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    x.UseDevice(true);
 
    int it;
-   double beta, eta, gamma0, gamma1, sigma0, sigma1;
-   double alpha, delta, rho1, rho2, rho3, norm_goal;
+   real_t beta, eta, gamma0, gamma1, sigma0, sigma1;
+   real_t alpha, delta, rho1, rho2, rho3, norm_goal;
    Vector *z = (prec) ? &u1 : &v1;
 
    converged = true;
@@ -1643,8 +1785,8 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    {
       prec->Mult(v1, u1);
    }
-   eta = beta = sqrt(Dot(*z, v1));
-   MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
+   eta = beta = initial_norm = sqrt(Dot(*z, v1));
+   MFEM_VERIFY(IsFinite(eta), "eta = " << eta);
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
 
@@ -1672,7 +1814,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       oper->Mult(*z, q);
       alpha = Dot(*z, q);
-      MFEM_ASSERT(IsFinite(alpha), "alpha = " << alpha);
+      MFEM_VERIFY(IsFinite(alpha), "alpha = " << alpha);
       if (it > 1) // (v0 == 0) for (it == 1)
       {
          q.Add(-beta, v0);
@@ -1691,8 +1833,8 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          prec->Mult(v0, q);
          beta = sqrt(Dot(v0, q));
       }
-      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
-      rho1 = hypot(delta, beta);
+      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
+      rho1 = std::hypot(delta, beta);
 
       if (it == 1)
       {
@@ -1717,7 +1859,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       sigma1 = beta/rho1;
 
       eta = -sigma1*eta;
-      MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
+      MFEM_VERIFY(IsFinite(eta), "eta = " << eta);
 
       if (fabs(eta) <= norm_goal)
       {
@@ -1778,7 +1920,7 @@ loop_end:
 }
 
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
-            int max_it, double rtol, double atol)
+            int max_it, real_t rtol, real_t atol)
 {
    MFEM_PERF_FUNCTION;
 
@@ -1792,7 +1934,7 @@ void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
 }
 
 void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
-            int print_it, int max_it, double rtol, double atol)
+            int print_it, int max_it, real_t rtol, real_t atol)
 {
    MINRESSolver minres;
    minres.SetPrintLevel(print_it);
@@ -1810,19 +1952,22 @@ void NewtonSolver::SetOperator(const Operator &op)
    oper = &op;
    height = op.Height();
    width = op.Width();
-   MFEM_ASSERT(height == width, "square Operator is required.");
+   MFEM_VERIFY(height == width, "square Operator is required.");
 
    r.SetSize(width);
+   r.UseDevice(true);
+
    c.SetSize(width);
+   c.UseDevice(true);
 }
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-   MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
-   double norm0, norm, norm_goal;
+   real_t norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
@@ -1838,7 +1983,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       r -= b;
    }
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "Newton iteration " << setw(2) << 0
@@ -1851,7 +1996,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
-      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
       if (print_options.iterations)
       {
          mfem::out << "Newton iteration " << setw(2) << it
@@ -1891,7 +2036,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
 
-      const double c_scale = ComputeScalingFactor(x, b);
+      const real_t c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = false;
@@ -1916,7 +2061,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
        print_options.first_and_last)
    {
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
-                << "   ||r|| = " << final_norm << '\n';
+                << "   ||r|| = " << final_norm
+                << ",  ||r||/||r_0|| = " << final_norm/norm0 << '\n';
    }
    if (!converged && (print_options.summary || print_options.warnings))
    {
@@ -1925,10 +2071,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 }
 
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
-                                      const double rtol0,
-                                      const double rtol_max,
-                                      const double alpha_,
-                                      const double gamma_)
+                                      const real_t rtol0,
+                                      const real_t rtol_max,
+                                      const real_t alpha_,
+                                      const real_t gamma_)
 {
    lin_rtol_type = type;
    lin_rtol0 = rtol0;
@@ -1939,15 +2085,15 @@ void NewtonSolver::SetAdaptiveLinRtol(const int type,
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
                                            const int it,
-                                           const double fnorm) const
+                                           const real_t fnorm) const
 {
    // Assume that when adaptive linear solver relative tolerance is activated,
    // we are working with an iterative solver.
    auto iterative_solver = static_cast<IterativeSolver *>(prec);
    // Adaptive linear solver relative tolerance
-   double eta;
+   real_t eta;
    // Safeguard threshold
-   double sg_threshold = 0.1;
+   real_t sg_threshold = 0.1;
 
    if (it == 0)
    {
@@ -1971,7 +2117,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
       }
 
       // Safeguard rtol from "oversolving" ?!
-      const double sg_eta = gamma * pow(eta_last, alpha);
+      const real_t sg_eta = gamma * pow(eta_last, alpha);
       if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
    }
 
@@ -1987,7 +2133,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
 void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
                                             const Vector &b,
                                             const int it,
-                                            const double fnorm) const
+                                            const real_t fnorm) const
 {
    fnorm_last = fnorm;
 
@@ -1998,6 +2144,7 @@ void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
    {
       // lnorm_last = ||F(x0) + DF(x0) s0||
       Vector linres(x.Size());
+      linres.UseDevice(true);
       grad->Mult(x, linres);
       linres -= b;
       lnorm_last = Norm(linres);
@@ -2008,19 +2155,32 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
 
+   b.UseDevice(true);
+   x.UseDevice(true);
+
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
 
    // r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    // x_{k+1}-x_k
-   rk.SetSize(width);    // nabla(f(x_{k}))
-   yk.SetSize(width);    // r_{k+1}-r_{k}
-   rho.SetSize(m);       // 1/(dot(yk,sk)
-   alpha.SetSize(m);     // rhok*sk'*c
+   sk.SetSize(width); // x_{k+1}-x_k
+   sk.UseDevice(true);
+
+   rk.SetSize(width); // nabla(f(x_{k}))
+   rk.UseDevice(true);
+
+   yk.SetSize(width); // r_{k+1}-r_{k}
+   yk.UseDevice(true);
+
+   rho.SetSize(m); // 1/(dot(yk,sk)
+   rho.UseDevice(true);
+
+   alpha.SetSize(m); // rhok*sk'*c
+   alpha.UseDevice(true);
+
    int last_saved_id = -1;
 
    int it;
-   double norm0, norm, norm_goal;
+   real_t norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
@@ -2036,7 +2196,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    c = r;           // initial descent direction
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "LBFGS iteration " << setw(2) << 0
@@ -2045,7 +2205,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    norm_goal = std::max(rel_tol*norm, abs_tol);
    for (it = 0; true; it++)
    {
-      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
       if (print_options.iterations)
       {
          mfem::out << "LBFGS iteration " <<  it
@@ -2070,7 +2230,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       rk = r;
-      const double c_scale = ComputeScalingFactor(x, b);
+      const real_t c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = false;
@@ -2089,7 +2249,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
-      const double gamma = Dot(sk, yk)/Dot(yk, yk);
+      const real_t gamma = Dot(sk, yk)/Dot(yk, yk);
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
@@ -2118,13 +2278,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            double betai = rho(i)*Dot((*ykArray[i]), c);
+            real_t betai = rho(i)*Dot((*ykArray[i]), c);
             add(c, alpha(i)-betai, (*skArray[i]), c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         double betai = rho(i)*Dot((*ykArray[i]), c);
+         real_t betai = rho(i)*Dot((*ykArray[i]), c);
          add(c, alpha(i)-betai, (*skArray[i]), c);
       }
 
@@ -2138,7 +2298,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
        print_options.first_and_last)
    {
       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
-                << "   ||r|| = " << final_norm << '\n';
+                << "   ||r|| = " << final_norm
+                << ",  ||r||/||r_0|| = " << final_norm/norm0 << '\n';
    }
    if (print_options.summary || (!converged && print_options.warnings))
    {
@@ -2148,8 +2309,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
-           int m_max, int m_min, int m_step, double cf,
-           double &tol, double &atol, int printit)
+           int m_max, int m_min, int m_step, real_t cf,
+           real_t &tol, real_t &atol, int printit)
 {
    int n = A.Width();
 
@@ -2159,21 +2320,27 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector w(n), av(n);
 
-   double r1, resid;
+   b.UseDevice(true);
+   x.UseDevice(true);
+   w.UseDevice(true);
+   av.UseDevice(true);
+
+   real_t r1, resid;
    int i, j, k;
 
    M.Mult(b,w);
-   double normb = w.Norml2(); // normb = ||M b||
+   real_t normb = w.Norml2(); // normb = ||M b||
    if (normb == 0.0)
    {
       normb = 1;
    }
 
    Vector r(n);
+   r.UseDevice(true);
    A.Mult(x, r);
    subtract(b,r,w);
    M.Mult(w, r);           // r = M (b - A x)
-   double beta = r.Norml2();  // beta = ||r||
+   real_t beta = r.Norml2();  // beta = ||r||
 
    resid = beta / normb;
 
@@ -2199,6 +2366,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    for (i= 0; i<=m; i++)
    {
       v[i] = new Vector(n);
+      v[i]->UseDevice(true);
       (*v[i]) = 0.0;
    }
 
@@ -2307,14 +2475,14 @@ OptimizationProblem::OptimizationProblem(const int insize,
    : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
      input_size(insize)
 {
-   if (C) { MFEM_ASSERT(C->Width() == input_size, "Wrong width of C."); }
-   if (D) { MFEM_ASSERT(D->Width() == input_size, "Wrong width of D."); }
+   if (C) { MFEM_VERIFY(C->Width() == input_size, "Wrong width of C."); }
+   if (D) { MFEM_VERIFY(D->Width() == input_size, "Wrong width of D."); }
 }
 
 void OptimizationProblem::SetEqualityConstraint(const Vector &c)
 {
-   MFEM_ASSERT(C, "The C operator is unspecified -- can't set constraints.");
-   MFEM_ASSERT(c.Size() == C->Height(), "Wrong size of the constraint.");
+   MFEM_VERIFY(C, "The C operator is unspecified -- can't set constraints.");
+   MFEM_VERIFY(c.Size() == C->Height(), "Wrong size of the constraint.");
 
    c_e = &c;
 }
@@ -2322,8 +2490,8 @@ void OptimizationProblem::SetEqualityConstraint(const Vector &c)
 void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
                                                   const Vector &dh)
 {
-   MFEM_ASSERT(D, "The D operator is unspecified -- can't set constraints.");
-   MFEM_ASSERT(dl.Size() == D->Height() && dh.Size() == D->Height(),
+   MFEM_VERIFY(D, "The D operator is unspecified -- can't set constraints.");
+   MFEM_VERIFY(dl.Size() == D->Height() && dh.Size() == D->Height(),
                "Wrong size of the constraint.");
 
    d_lo = &dl; d_hi = &dh;
@@ -2331,7 +2499,7 @@ void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
 
 void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
 {
-   MFEM_ASSERT(xl.Size() == input_size && xh.Size() == input_size,
+   MFEM_VERIFY(xl.Size() == input_size && xh.Size() == input_size,
                "Wrong size of the constraint.");
 
    x_lo = &xl; x_hi = &xh;
@@ -2352,8 +2520,8 @@ void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
       MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
                    "the l2 norm of (x - x_target).");
    }
-   MFEM_ASSERT(prob.GetC(), "Linear constraint is not set.");
-   MFEM_ASSERT(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
+   MFEM_VERIFY(prob.GetC(), "Linear constraint is not set.");
+   MFEM_VERIFY(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
 
    problem = &prob;
 }
@@ -2364,13 +2532,13 @@ void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
    hi.SetDataAndSize(hi_.GetData(), hi_.Size());
 }
 
-void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, real_t a_)
 {
    w.SetDataAndSize(w_.GetData(), w_.Size());
    a = a_;
 }
 
-inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
+inline void SLBQPOptimizer::print_iteration(int it, real_t r, real_t l) const
 {
    if (print_options.iterations || (print_options.first_and_last && it == 0))
    {
@@ -2388,19 +2556,19 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
 
    // Set some algorithm-specific constants and temporaries.
    int nclip   = 0;
-   double l    = 0;
-   double llow = 0;
-   double lupp = 0;
-   double lnew = 0;
-   double dl   = 2;
-   double r    = 0;
-   double rlow = 0;
-   double rupp = 0;
-   double s    = 0;
+   real_t l    = 0;
+   real_t llow = 0;
+   real_t lupp = 0;
+   real_t lnew = 0;
+   real_t dl   = 2;
+   real_t r    = 0;
+   real_t rlow = 0;
+   real_t rupp = 0;
+   real_t s    = 0;
 
-   const double smin = 0.1;
+   const real_t smin = 0.1;
 
-   const double tol = max(abs_tol, rel_tol*a);
+   const real_t tol = max(abs_tol, rel_tol*a);
 
    // *** Start bracketing phase of SLBQP ***
    if (print_options.iterations)
@@ -2409,7 +2577,7 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
    }
 
    // Solve QP with fixed Lagrange multiplier
-   r = solve(l,xt,x,nclip);
+   r = initial_norm = solve(l,xt,x,nclip);
    print_iteration(nclip, r, l);
 
 
@@ -2551,28 +2719,28 @@ slbqp_done:
 
 struct WeightMinHeap
 {
-   const std::vector<double> &w;
+   const std::vector<real_t> &w;
    std::vector<size_t> c;
    std::vector<int> loc;
 
-   WeightMinHeap(const std::vector<double> &w_) : w(w_)
+   WeightMinHeap(const std::vector<real_t> &w_) : w(w_)
    {
       c.reserve(w.size());
       loc.resize(w.size());
       for (size_t i=0; i<w.size(); ++i) { push(i); }
    }
 
-   size_t percolate_up(size_t pos, double val)
+   size_t percolate_up(size_t pos, real_t val)
    {
       for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
       {
          c[pos] = c[(pos-1)/2];
-         loc[c[(pos-1)/2]] = pos;
+         loc[c[(pos-1)/2]] = static_cast<int>(pos);
       }
       return pos;
    }
 
-   size_t percolate_down(size_t pos, double val)
+   size_t percolate_down(size_t pos, real_t val)
    {
       while (2*pos+1 < c.size())
       {
@@ -2584,7 +2752,7 @@ struct WeightMinHeap
          if (w[c[tgt]] < val)
          {
             c[pos] = c[tgt];
-            loc[c[tgt]] = pos;
+            loc[c[tgt]] = static_cast<int>(pos);
             pos = tgt;
          }
          else
@@ -2597,12 +2765,12 @@ struct WeightMinHeap
 
    void push(size_t i)
    {
-      double val = w[i];
+      real_t val = w[i];
       c.push_back(0);
       size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
       c[pos] = i;
-      loc[i] = pos;
+      loc[i] = static_cast<int>(pos);
    }
 
    int pop()
@@ -2612,23 +2780,23 @@ struct WeightMinHeap
       c.pop_back();
       // Mark as removed
       loc[i] = -1;
-      if (c.empty()) { return i; }
-      double val = w[j];
+      if (c.empty()) { return static_cast<int>(i); }
+      real_t val = w[j];
       size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
-      loc[j] = pos;
-      return i;
+      loc[j] = static_cast<int>(pos);
+      return static_cast<int>(i);
    }
 
    void update(size_t i)
    {
       size_t pos = loc[i];
-      double val = w[i];
+      real_t val = w[i];
       pos = percolate_up(pos, val);
       pos = percolate_down(pos, val);
       c[pos] = i;
-      loc[i] = pos;
+      loc[i] = static_cast<int>(pos);
    }
 
    bool picked(size_t i)
@@ -2643,9 +2811,10 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    // Scale rows by reciprocal of diagonal and take absolute value
    Vector D;
    C.GetDiag(D);
-   int *I = C.GetI();
-   int *J = C.GetJ();
-   double *V = C.GetData();
+   D.HostRead();
+
+   const int *I = C.HostReadI(), *J = C.HostReadJ();
+   real_t *V = C.HostReadWriteData();
    for (int i=0; i<n; ++i)
    {
       for (int j=I[i]; j<I[i+1]; ++j)
@@ -2654,7 +2823,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       }
    }
 
-   std::vector<double> w(n, 0.0);
+   std::vector<real_t> w(n, 0.0);
    for (int k=0; k<n; ++k)
    {
       // Find all neighbors i of k
@@ -2662,7 +2831,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       {
          int i = J[ii];
          // Find value of (i,k)
-         double C_ik = 0.0;
+         real_t C_ik = 0.0;
          for (int kk=I[i]; kk<I[i+1]; ++kk)
          {
             if (J[kk] == k)
@@ -2675,7 +2844,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
          {
             int j = J[jj];
             if (j == k) { continue; }
-            double C_kj = V[jj];
+            real_t C_kj = V[jj];
             bool ij_exists = false;
             for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
             {
@@ -2712,7 +2881,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             int i = J[ii2];
             if (w_heap.picked(i)) { continue; }
             // Find value of (i,k)
-            double C_ik = 0.0;
+            real_t C_ik = 0.0;
             for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
             {
                if (J[kk2] == k)
@@ -2725,7 +2894,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             {
                int j = J[jj];
                if (j == k || w_heap.picked(j)) { continue; }
-               double C_kj = V[jj];
+               real_t C_kj = V[jj];
                bool ij_exists = false;
                for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
                {
@@ -2784,7 +2953,7 @@ void BlockILU::SetOperator(const Operator &op)
    }
    height = op.Height();
    width = op.Width();
-   MFEM_ASSERT(A->Finalized(), "Matrix must be finalized.");
+   MFEM_VERIFY(A->Finalized(), "Matrix must be finalized.");
    CreateBlockPattern(*A);
    Factorize();
 }
@@ -2798,9 +2967,9 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
    }
 
    int nrows = A.Height();
-   const int *I = A.GetI();
-   const int *J = A.GetJ();
-   const double *V = A.GetData();
+   const int *I = A.HostReadI();
+   const int *J = A.HostReadJ();
+   const real_t *V = A.HostReadData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
@@ -2816,7 +2985,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
             unique_block_cols[iblock].insert(J[k] / block_size);
          }
       }
-      nnz += unique_block_cols[iblock].size();
+      nnz += static_cast<int>(unique_block_cols[iblock].size());
    }
 
    if (reordering != Reordering::NONE)
@@ -2841,7 +3010,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
          }
       }
       C.Finalize(false);
-      double *CV = C.GetData();
+      real_t *CV = C.GetData();
       for (int i=0; i<C.NumNonZeroElems(); ++i)
       {
          CV[i] = sqrt(CV[i]);
@@ -2916,7 +3085,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
                if (j >= jblock_perm*block_size && j < (jblock_perm + 1)*block_size)
                {
                   int bj = j - jblock_perm*block_size;
-                  double val = V[k];
+                  real_t val = V[k];
                   AB(bi, bj, counter) = val;
                   // Extract the diagonal
                   if (iblock == jblock)
@@ -2995,7 +3164,7 @@ void BlockILU::Factorize()
 
 void BlockILU::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_ASSERT(height > 0, "BlockILU(0) preconditioner is not constructed");
+   MFEM_VERIFY(height > 0, "BlockILU(0) preconditioner is not constructed");
    int nblockrows = Height()/block_size;
    y.SetSize(Height());
 
@@ -3039,22 +3208,22 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       }
       LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
       // x_i = D_ii^{-1} x_i
-      A_ii_inv.Solve(block_size, 1, xi);
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
 }
 
 
 void ResidualBCMonitor::MonitorResidual(
-   int it, double norm, const Vector &r, bool final)
+   int it, real_t norm, const Vector &r, bool final)
 {
    if (!ess_dofs_list) { return; }
 
-   double bc_norm_squared = 0.0;
+   real_t bc_norm_squared = 0.0;
    r.HostRead();
    ess_dofs_list->HostRead();
    for (int i = 0; i < ess_dofs_list->Size(); i++)
    {
-      const double r_entry = r((*ess_dofs_list)[i]);
+      const real_t r_entry = r((*ess_dofs_list)[i]);
       bc_norm_squared += r_entry*r_entry;
    }
    bool print = true;
@@ -3063,7 +3232,8 @@ void ResidualBCMonitor::MonitorResidual(
    if (comm != MPI_COMM_NULL)
    {
       double glob_bc_norm_squared = 0.0;
-      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, 0, comm);
       bc_norm_squared = glob_bc_norm_squared;
       int rank;
@@ -3126,7 +3296,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
 
    const int * Ap = mat->HostReadI();
    const int * Ai = mat->HostReadJ();
-   const double * Ax = mat->HostReadData();
+   const real_t * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -3202,7 +3372,8 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3213,8 +3384,9 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {
@@ -3235,7 +3407,8 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3247,8 +3420,9 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {
@@ -3285,7 +3459,7 @@ void KLUSolver::SetOperator(const Operator &op)
 {
    if (Numeric)
    {
-      MFEM_ASSERT(Symbolic != 0,
+      MFEM_VERIFY(Symbolic != 0,
                   "Had Numeric pointer in KLU, but not Symbolic");
       klu_free_symbolic(&Symbolic, &Common);
       Symbolic = 0;
@@ -3306,7 +3480,7 @@ void KLUSolver::SetOperator(const Operator &op)
 
    int * Ap = mat->GetI();
    int * Ai = mat->GetJ();
-   double * Ax = mat->GetData();
+   real_t * Ax = mat->GetData();
 
    Symbolic = klu_analyze( height, Ap, Ai, &Common);
    Numeric = klu_factor(Ap, Ai, Ax, Symbolic, &Common);
@@ -3482,17 +3656,19 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    // TODO: GPU/device implementation
 
-   double global_sum = v.Sum();
+   real_t global_sum = v.Sum();
 
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, mycomm);
    }
 #endif
 
-   double ratio = global_sum / static_cast<double>(global_size);
+   real_t ratio = global_sum / static_cast<real_t>(global_size);
    v_ortho.SetSize(v.Size());
+   v_ortho.UseDevice(true);
    v.HostRead();
    v_ortho.HostWrite();
    for (int i = 0; i < v_ortho.Size(); ++i)
@@ -3533,5 +3709,820 @@ void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
    aux_map_->Mult(aux_sol, y);
 }
 #endif // MFEM_USE_MPI
+
+#ifdef MFEM_USE_LAPACK
+
+NNLSSolver::NNLSSolver()
+   : Solver(0), mat(nullptr), const_tol_(1.0e-14), min_nnz_(0),
+     max_nnz_(0), verbosity_(0), res_change_termination_tol_(1.0e-4),
+     zero_tol_(1.0e-14), rhs_delta_(1.0e-11), n_outer_(100000),
+     n_inner_(100000), nStallCheck_(100), normalize_(true),
+     NNLS_qrres_on_(false), qr_residual_mode_(QRresidualMode::hybrid)
+{}
+
+void NNLSSolver::SetOperator(const Operator &op)
+{
+   mat = dynamic_cast<const DenseMatrix*>(&op);
+   MFEM_VERIFY(mat, "NNLSSolver operator must be of type DenseMatrix");
+
+   // The size of this operator is that of the transpose of op.
+   height = op.Width();
+   width = op.Height();
+
+   row_scaling_.SetSize(mat->NumRows());
+   row_scaling_.UseDevice(true);
+   row_scaling_ = 1.0;
+}
+
+void NNLSSolver::SetQRResidualMode(const QRresidualMode qr_residual_mode)
+{
+   qr_residual_mode_ = qr_residual_mode;
+   if (qr_residual_mode_ == QRresidualMode::on)
+   {
+      NNLS_qrres_on_ = true;
+   }
+}
+
+void NNLSSolver::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
+{
+   // Scale everything so that rescaled half gap is the same for all constraints
+   const int m = mat->NumRows();
+
+   MFEM_VERIFY(rhs_lb.Size() == m && rhs_ub.Size() == m, "");
+
+   Vector rhs_avg = rhs_ub;
+   rhs_avg += rhs_lb;
+   rhs_avg *= 0.5;
+
+   Vector rhs_halfgap = rhs_ub;
+   rhs_halfgap -= rhs_lb;
+   rhs_halfgap *= 0.5;
+
+   Vector rhs_avg_glob = rhs_avg;
+   Vector rhs_halfgap_glob = rhs_halfgap;
+   Vector halfgap_target(m);
+   halfgap_target = 1.0e3 * const_tol_;
+
+   row_scaling_.SetSize(m);
+   row_scaling_.UseDevice(true);
+
+   for (int i=0; i<m; ++i)
+   {
+      const real_t s = halfgap_target(i) / rhs_halfgap_glob(i);
+      row_scaling_[i] = s;
+
+      rhs_lb(i) = (rhs_avg(i) * s) - halfgap_target(i);
+      rhs_ub(i) = (rhs_avg(i) * s) + halfgap_target(i);
+   }
+}
+
+void NNLSSolver::Mult(const Vector &w, Vector &sol) const
+{
+   MFEM_VERIFY(mat, "NNLSSolver operator must be of type DenseMatrix");
+   Vector rhs_ub(mat->NumRows());
+   mat->Mult(w, rhs_ub);
+   rhs_ub *= row_scaling_;
+
+   Vector rhs_lb(rhs_ub);
+   Vector rhs_Gw(rhs_ub);
+
+   for (int i=0; i<rhs_ub.Size(); ++i)
+   {
+      rhs_lb(i) -= rhs_delta_;
+      rhs_ub(i) += rhs_delta_;
+   }
+
+   if (normalize_) { NormalizeConstraints(rhs_lb, rhs_ub); }
+   Solve(rhs_lb, rhs_ub, sol);
+
+   if (verbosity_ > 1)
+   {
+      int nnz = 0;
+      for (int i=0; i<sol.Size(); ++i)
+      {
+         if (sol(i) != 0.0)
+         {
+            nnz++;
+         }
+      }
+
+      mfem::out << "Number of nonzeros in NNLSSolver solution: " << nnz
+                << ", out of " << sol.Size() << endl;
+
+      // Check residual of NNLS solution
+      Vector res(mat->NumRows());
+      mat->Mult(sol, res);
+      res *= row_scaling_;
+
+      const real_t normGsol = res.Norml2();
+      const real_t normRHS = rhs_Gw.Norml2();
+
+      res -= rhs_Gw;
+      const real_t relNorm = res.Norml2() / std::max(normGsol, normRHS);
+      mfem::out << "Relative residual norm for NNLSSolver solution of Gs = Gw: "
+                << relNorm << endl;
+   }
+}
+
+void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
+                       Vector& soln) const
+{
+   int m = mat->NumRows();
+   int n = mat->NumCols();
+
+   MFEM_VERIFY(rhs_lb.Size() == m && rhs_lb.Size() == m && soln.Size() == n, "");
+   MFEM_VERIFY(n >= m, "NNLSSolver system cannot be over-determined.");
+
+   if (max_nnz_ == 0)
+   {
+      max_nnz_ = mat->NumCols();
+   }
+
+   // Prepare right hand side
+   Vector rhs_avg(rhs_ub);
+   rhs_avg += rhs_lb;
+   rhs_avg *= 0.5;
+
+   Vector rhs_halfgap(rhs_ub);
+   rhs_halfgap -= rhs_lb;
+   rhs_halfgap *= 0.5;
+
+   Vector rhs_avg_glob(rhs_avg);
+   Vector rhs_halfgap_glob(rhs_halfgap);
+
+   int ione = 1;
+   real_t fone = 1.0;
+
+   char lside = 'L';
+   char trans = 'T';
+   char notrans = 'N';
+
+   std::vector<unsigned int> nz_ind(m);
+   Vector res_glob(m);
+   Vector mu(n);
+   Vector mu2(n);
+   int n_nz_ind = 0;
+   int n_glob = 0;
+   int m_update;
+   int min_nnz_cap = std::min(static_cast<int>(min_nnz_), std::min(m,n));
+   int info;
+   std::vector<real_t> l2_res_hist;
+   std::vector<unsigned int> stalled_indices;
+   int stalledFlag = 0;
+   int num_stalled = 0;
+   int nz_ind_zero = 0;
+
+   Vector soln_nz_glob(m);
+   Vector soln_nz_glob_up(m);
+
+   // The following matrices are stored in column-major format as Vectors
+   Vector mat_0_data(m * n);
+   Vector mat_qr_data(m * n);
+   Vector submat_data(m * n);
+
+   Vector tau(n);
+   Vector sub_tau = tau;
+   Vector vec1(m);
+
+   // Temporary work arrays
+   int lwork;
+   std::vector<real_t> work;
+   int n_outer_iter = 0;
+   int n_total_inner_iter = 0;
+   int i_qr_start;
+   int n_update;
+   // 0 = converged; 1 = maximum iterations reached;
+   // 2 = NNLS stalled (no change in residual for many iterations)
+   int exit_flag = 1;
+
+   res_glob = rhs_avg_glob;
+   Vector qt_rhs_glob = rhs_avg_glob;
+   Vector qqt_rhs_glob = qt_rhs_glob;
+   Vector sub_qt = rhs_avg_glob;
+
+   // Compute threshold tolerance for the Lagrange multiplier mu
+   real_t mu_tol = 0.0;
+
+   {
+      Vector rhs_scaled(rhs_halfgap_glob);
+      Vector tmp(n);
+      rhs_scaled *= row_scaling_;
+      mat->MultTranspose(rhs_scaled, tmp);
+
+      mu_tol = 1.0e-15 * tmp.Max();
+   }
+
+   real_t rmax = 0.0;
+   real_t mumax = 0.0;
+
+   for (int oiter = 0; oiter < n_outer_; ++oiter)
+   {
+      stalledFlag = 0;
+
+      rmax = fabs(res_glob(0)) - rhs_halfgap_glob(0);
+      for (int i=1; i<m; ++i)
+      {
+         rmax = std::max(rmax, fabs(res_glob(i)) - rhs_halfgap_glob(i));
+      }
+
+      l2_res_hist.push_back(res_glob.Norml2());
+
+      if (verbosity_ > 1)
+      {
+         mfem::out << "NNLS " << oiter << " " << n_total_inner_iter << " " << m
+                   << " " << n << " " << n_glob << " " << rmax << " "
+                   << l2_res_hist[oiter] << endl;
+      }
+      if (rmax <= const_tol_ && n_glob >= min_nnz_cap)
+      {
+         if (verbosity_ > 1)
+         {
+            mfem::out << "NNLS target tolerance met" << endl;
+         }
+         exit_flag = 0;
+         break;
+      }
+
+      if (n_glob >= max_nnz_)
+      {
+         if (verbosity_ > 1)
+         {
+            mfem::out << "NNLS target nnz met" << endl;
+         }
+         exit_flag = 0;
+         break;
+      }
+
+      if (n_glob >= m)
+      {
+         if (verbosity_ > 1)
+         {
+            mfem::out << "NNLS system is square... exiting" << endl;
+         }
+         exit_flag = 3;
+         break;
+      }
+
+      // Check for stall after the first nStallCheck iterations
+      if (oiter > nStallCheck_)
+      {
+         real_t mean0 = 0.0;
+         real_t mean1 = 0.0;
+         for (int i=0; i<nStallCheck_/2; ++i)
+         {
+            mean0 += l2_res_hist[oiter - i];
+            mean1 += l2_res_hist[oiter - (nStallCheck_) - i];
+         }
+
+         real_t mean_res_change = (mean1 / mean0) - 1.0;
+         if (std::abs(mean_res_change) < res_change_termination_tol_)
+         {
+            if (verbosity_ > 1)
+            {
+               mfem::out << "NNLSSolver stall detected... exiting" << endl;
+            }
+            exit_flag = 2;
+            break;
+         }
+      }
+
+      // Find the next index
+      res_glob *= row_scaling_;
+      mat->MultTranspose(res_glob, mu);
+
+      for (int i = 0; i < n_nz_ind; ++i)
+      {
+         mu(nz_ind[i]) = 0.0;
+      }
+      for (unsigned int i = 0; i < stalled_indices.size(); ++i)
+      {
+         mu(stalled_indices[i]) = 0.0;
+      }
+
+      mumax = mu.Max();
+
+      if (mumax < mu_tol)
+      {
+         num_stalled = stalled_indices.size();
+         if (num_stalled > 0)
+         {
+            if (verbosity_ > 0)
+            {
+               mfem::out << "NNLS Lagrange multiplier is below the minimum "
+                         << "threshold: mumax = " << mumax << ", mutol = "
+                         << mu_tol << "\n" << " Resetting stalled indices "
+                         << "vector of size " << num_stalled << "\n";
+            }
+            stalled_indices.resize(0);
+
+            mat->MultTranspose(res_glob, mu);
+
+            for (int i = 0; i < n_nz_ind; ++i)
+            {
+               mu(nz_ind[i]) = 0.0;
+            }
+
+            mumax = mu.Max();
+         }
+      }
+
+      int imax = 0;
+      {
+         real_t tmax = mu(0);
+         for (int i=1; i<n; ++i)
+         {
+            if (mu(i) > tmax)
+            {
+               tmax = mu(i);
+               imax = i;
+            }
+         }
+      }
+
+      // Record the local value of the next index
+      nz_ind[n_nz_ind] = imax;
+      ++n_nz_ind;
+
+      if (verbosity_ > 2)
+      {
+         mfem::out << "Found next index: " << imax << " " << mumax << endl;
+      }
+
+      for (int i=0; i<m; ++i)
+      {
+         mat_0_data(i + (n_glob*m)) = (*mat)(i,imax) * row_scaling_[i];
+         mat_qr_data(i + (n_glob*m)) = mat_0_data(i + (n_glob*m));
+      }
+
+      i_qr_start = n_glob;
+      ++n_glob; // Increment the size of the global matrix
+
+      if (verbosity_ > 2)
+      {
+         mfem::out << "Updated matrix with new index" << endl;
+      }
+
+      for (int iiter = 0; iiter < n_inner_; ++iiter)
+      {
+         ++n_total_inner_iter;
+
+         // Initialize
+         const bool incremental_update = true;
+         n_update = n_glob - i_qr_start;
+         m_update = m - i_qr_start;
+         if (incremental_update)
+         {
+            // Apply Householder reflectors to compute Q^T new_cols
+            lwork = -1;
+            work.resize(10);
+
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T A update work calculation failed
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &n_update,
+                                       &i_qr_start, mat_qr_data.GetData(), &m,
+                                       tau.GetData(),
+                                       mat_qr_data.GetData() + (i_qr_start * m),
+                                       &m, work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T A update failed
+            // Compute QR factorization of the submatrix
+            lwork = -1;
+            work.resize(10);
+
+            // Copy m_update-by-n_update submatrix of mat_qr_data,
+            // starting at (i_qr_start, i_qr_start)
+            for (int i=0; i<m_update; ++i)
+               for (int j=0; j<n_update; ++j)
+               {
+                  submat_data[i + (j * m_update)] =
+                     mat_qr_data[i + i_qr_start + ((j + i_qr_start) * m)];
+               }
+
+            // Copy tau subvector of length n_update, starting at i_qr_start
+            for (int j=0; j<n_update; ++j)
+            {
+               sub_tau[j] = tau[i_qr_start + j];
+            }
+
+            MFEM_LAPACK_PREFIX(geqrf_)(&m_update, &n_update, submat_data.GetData(),
+                                       &m_update, sub_tau.GetData(), work.data(),
+                                       &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR update factorization work calc
+            lwork = static_cast<int>(work[0]);
+            if (lwork == 0) { lwork = 1; }
+            work.resize(lwork);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m_update, &n_update, submat_data.GetData(),
+                                       &m_update, sub_tau.GetData(), work.data(),
+                                       &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR update factorization failed
+
+            // Copy result back
+            for (int i=0; i<m_update; ++i)
+               for (int j=0; j<n_update; ++j)
+               {
+                  mat_qr_data[i + i_qr_start + ((j + i_qr_start)* m)] =
+                     submat_data[i + (j * m_update)];
+               }
+
+            for (int j=0; j<n_update; ++j)
+            {
+               tau[i_qr_start + j] = sub_tau[j];
+            }
+         }
+         else
+         {
+            // Copy everything to mat_qr then do full QR
+            for (int i=0; i<m; ++i)
+               for (int j=0; j<n_glob; ++j)
+               {
+                  mat_qr_data(i + (j*m)) = mat_0_data(i + (j*m));
+               }
+
+            // Compute qr factorization (first find the size of work and then
+            // perform qr)
+            lwork = -1;
+            work.resize(10);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m, &n_glob, mat_qr_data.GetData(), &m,
+                                       tau.GetData(), work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR factorization work calculation
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            MFEM_LAPACK_PREFIX(geqrf_)(&m, &n_glob, mat_qr_data.GetData(), &m,
+                                       tau.GetData(), work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR factorization failed
+         }
+
+         if (verbosity_ > 2)
+         {
+            mfem::out << "Updated QR " << iiter << endl;
+         }
+
+         // Apply Householder reflectors to compute Q^T b
+         if (incremental_update && iiter == 0)
+         {
+            lwork = -1;
+            work.resize(10);
+
+            // Copy submatrix of mat_qr_data starting at
+            //   (i_qr_start, i_qr_start), of size m_update-by-1
+            // Copy submatrix of qt_rhs_glob starting at (i_qr_start, 0),
+            //   of size m_update-by-1
+
+            for (int i=0; i<m_update; ++i)
+            {
+               submat_data[i] = mat_qr_data[i + i_qr_start + (i_qr_start * m)];
+               sub_qt[i] = qt_rhs_glob[i + i_qr_start];
+            }
+
+            sub_tau[0] = tau[i_qr_start];
+
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m_update, &ione, &ione,
+                                       submat_data.GetData(), &m_update,
+                                       sub_tau.GetData(), sub_qt.GetData(),
+                                       &m_update, work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // H_last y work calculation failed
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m_update, &ione, &ione,
+                                       submat_data.GetData(), &m_update,
+                                       sub_tau.GetData(), sub_qt.GetData(),
+                                       &m_update, work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // H_last y failed
+            // Copy result back
+            for (int i=0; i<m_update; ++i)
+            {
+               qt_rhs_glob[i + i_qr_start] = sub_qt[i];
+            }
+         }
+         else
+         {
+            // Compute Q^T b from scratch
+            qt_rhs_glob = rhs_avg_glob;
+            lwork = -1;
+            work.resize(10);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &ione, &n_glob,
+                                       mat_qr_data.GetData(), &m, tau.GetData(),
+                                       qt_rhs_glob.GetData(), &m,
+                                       work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T b work calculation failed
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            MFEM_LAPACK_PREFIX(ormqr_)(&lside, &trans, &m, &ione, &n_glob,
+                                       mat_qr_data.GetData(), &m, tau.GetData(),
+                                       qt_rhs_glob.GetData(), &m,
+                                       work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T b failed
+         }
+
+         if (verbosity_ > 2)
+         {
+            mfem::out << "Updated rhs " << iiter << endl;
+         }
+
+         // Apply R^{-1}; first n_glob entries of vec1 are overwritten
+         char upper = 'U';
+         char nounit = 'N';
+         vec1 = qt_rhs_glob;
+         MFEM_LAPACK_PREFIX(trsm_)(&lside, &upper, &notrans, &nounit,
+                                   &n_glob, &ione, &fone,
+                                   mat_qr_data.GetData(), &m,
+                                   vec1.GetData(), &n_glob);
+
+         if (verbosity_ > 2)
+         {
+            mfem::out << "Solved triangular system " << iiter << endl;
+         }
+
+         // Check if all entries are positive
+         int pos_ibool = 0;
+         real_t smin = n_glob > 0 ? vec1(0) : 0.0;
+         for (int i=0; i<n_glob; ++i)
+         {
+            soln_nz_glob_up(i) = vec1(i);
+            smin = std::min(smin, soln_nz_glob_up(i));
+         }
+
+         if (smin > zero_tol_)
+         {
+            pos_ibool = 1;
+            for (int i=0; i<n_glob; ++i)
+            {
+               soln_nz_glob(i) = soln_nz_glob_up(i);
+            }
+         }
+
+         if (pos_ibool == 1)
+         {
+            break;
+         }
+
+         if (verbosity_ > 2)
+         {
+            mfem::out << "Start pruning " << iiter << endl;
+            for (int i = 0; i < n_glob; ++i)
+            {
+               if (soln_nz_glob_up(i) <= zero_tol_)
+               {
+                  mfem::out << i << " " << n_glob << " " << soln_nz_glob_up(i) << endl;
+               }
+            }
+         }
+
+         if (soln_nz_glob_up(n_glob - 1) <= zero_tol_)
+         {
+            stalledFlag = 1;
+            if (verbosity_ > 2)
+            {
+               if (qr_residual_mode_ == QRresidualMode::hybrid)
+               {
+                  mfem::out << "Detected stall due to adding and removing same "
+                            << "column. Switching to QR residual calculation "
+                            << "method." << endl;
+               }
+               else
+               {
+                  mfem::out << "Detected stall due to adding and removing same"
+                            << " column. Exiting now." << endl;
+               }
+            }
+         }
+
+         if (stalledFlag == 1 && qr_residual_mode_ == QRresidualMode::hybrid)
+         {
+            NNLS_qrres_on_ = true;
+            break;
+         }
+
+         real_t alpha = numeric_limits<real_t>::max();
+
+         // Find maximum permissible step
+         for (int i = 0; i < n_glob; ++i)
+         {
+            if (soln_nz_glob_up(i) <= zero_tol_)
+            {
+               alpha = std::min(alpha, soln_nz_glob(i)/(soln_nz_glob(i) - soln_nz_glob_up(i)));
+            }
+         }
+         // Update solution
+         smin = 0.0;
+         for (int i = 0; i < n_glob; ++i)
+         {
+            soln_nz_glob(i) += alpha*(soln_nz_glob_up(i) - soln_nz_glob(i));
+            if (i == 0 || soln_nz_glob(i) < smin)
+            {
+               smin = soln_nz_glob(i);
+            }
+         }
+
+         while (smin > zero_tol_)
+         {
+            // This means there was a rounding error, as we should have
+            // a zero element by definition. Recalculate alpha based on
+            // the index that corresponds to the element that should be
+            // zero.
+
+            int index_min = 0;
+            smin = soln_nz_glob(0);
+            for (int i = 1; i < n_glob; ++i)
+            {
+               if (soln_nz_glob(i) < smin)
+               {
+                  smin = soln_nz_glob(i);
+                  index_min = i;
+               }
+            }
+
+            alpha = soln_nz_glob(index_min)/(soln_nz_glob(index_min)
+                                             - soln_nz_glob_up(index_min));
+
+            // Reupdate solution
+            for (int i = 0; i < n_glob; ++i)
+            {
+               soln_nz_glob(i) += alpha*(soln_nz_glob_up(i) - soln_nz_glob(i));
+            }
+         }
+
+         // Clean up zeroed entry
+         i_qr_start = n_glob+1;
+         while (true)
+         {
+            // Check if there is a zero entry
+            int zero_ibool;
+
+            smin = n_glob > 0 ? soln_nz_glob(0) : 0.0;
+            for (int i=1; i<n_glob; ++i)
+            {
+               smin = std::min(smin, soln_nz_glob(i));
+            }
+
+            if (smin < zero_tol_)
+            {
+               zero_ibool = 1;
+            }
+            else
+            {
+               zero_ibool = 0;
+            }
+
+            if (zero_ibool == 0)   // Break if there is no more zero entry
+            {
+               break;
+            }
+
+            int ind_zero = -1; // Index where the first zero is encountered
+            nz_ind_zero = 0;
+
+            // Identify global index of the zeroed element
+            for (int i = 0; i < n_glob; ++i)
+            {
+               if (soln_nz_glob(i) < zero_tol_)
+               {
+                  ind_zero = i;
+                  break;
+               }
+            }
+            MFEM_VERIFY(ind_zero != -1, "");
+            // Identify the local index for nz_ind to which the zeroed entry
+            // belongs
+            for (int i = 0; i < ind_zero; ++i)
+            {
+               ++nz_ind_zero;
+            }
+
+            {
+               // Copy mat_0.cols[ind_zero+1,n_glob) to mat_qr.cols[ind_zero,n_glob-1)
+               for (int i=0; i<m; ++i)
+                  for (int j=ind_zero; j<n_glob-1; ++j)
+                  {
+                     mat_qr_data(i + (j*m)) = mat_0_data(i + ((j+1)*m));
+                  }
+
+               // Copy mat_qr.cols[ind_zero,n_glob-1) to
+               // mat_0.cols[ind_zero,n_glob-1)
+               for (int i=0; i<m; ++i)
+                  for (int j=ind_zero; j<n_glob-1; ++j)
+                  {
+                     mat_0_data(i + (j*m)) = mat_qr_data(i + (j*m));
+                  }
+            }
+
+            // Remove the zeroed entry from the local matrix index
+            for (int i = nz_ind_zero; i < n_nz_ind-1; ++i)
+            {
+               nz_ind[i] = nz_ind[i+1];
+            }
+            --n_nz_ind;
+
+            // Shift soln_nz_glob and proc_index
+            for (int i = ind_zero; i < n_glob-1; ++i)
+            {
+               soln_nz_glob(i) = soln_nz_glob(i+1);
+            }
+
+            i_qr_start = std::min(i_qr_start, ind_zero);
+            --n_glob;
+         } // End of pruning loop
+
+         if (verbosity_ > 2)
+         {
+            mfem::out << "Finished pruning " << iiter << endl;
+         }
+      } // End of inner loop
+
+      // Check if we have stalled
+      if (stalledFlag == 1)
+      {
+         --n_glob;
+         --n_nz_ind;
+         num_stalled = stalled_indices.size();
+         stalled_indices.resize(num_stalled + 1);
+         stalled_indices[num_stalled] = imax;
+         if (verbosity_ > 2)
+         {
+            mfem::out << "Adding index " << imax << " to stalled index list "
+                      << "of size " << num_stalled << endl;
+         }
+      }
+
+      // Compute residual
+      if (!NNLS_qrres_on_)
+      {
+         res_glob = rhs_avg_glob;
+         real_t fmone = -1.0;
+         MFEM_LAPACK_PREFIX(gemv_)(&notrans, &m, &n_glob, &fmone,
+                                   mat_0_data.GetData(), &m,
+                                   soln_nz_glob.GetData(), &ione, &fone,
+                                   res_glob.GetData(), &ione);
+      }
+      else
+      {
+         // Compute residual using res = b - Q*Q^T*b, where Q is from an
+         // economical QR decomposition
+         lwork = -1;
+         work.resize(10);
+         qqt_rhs_glob = 0.0;
+         for (int i=0; i<n_glob; ++i)
+         {
+            qqt_rhs_glob(i) = qt_rhs_glob(i);
+         }
+
+         MFEM_LAPACK_PREFIX(ormqr_)(&lside, &notrans, &m, &ione, &n_glob,
+                                    mat_qr_data.GetData(), &m,
+                                    tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                                    work.data(), &lwork, &info);
+
+         MFEM_VERIFY(info == 0, ""); // Q Q^T b work calculation failed.
+         lwork = static_cast<int>(work[0]);
+         work.resize(lwork);
+         MFEM_LAPACK_PREFIX(ormqr_)(&lside, &notrans, &m, &ione, &n_glob,
+                                    mat_qr_data.GetData(), &m,
+                                    tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                                    work.data(), &lwork, &info);
+         MFEM_VERIFY(info == 0, ""); // Q Q^T b calculation failed.
+         res_glob = rhs_avg_glob;
+         res_glob -= qqt_rhs_glob;
+      }
+
+      if (verbosity_ > 2)
+      {
+         mfem::out << "Computed residual" << endl;
+      }
+
+      ++n_outer_iter;
+   } // End of outer loop
+
+   // Insert the solutions
+   MFEM_VERIFY(n_glob == n_nz_ind, "");
+   soln = 0.0;
+   for (int i = 0; i < n_glob; ++i)
+   {
+      soln(nz_ind[i]) = soln_nz_glob(i);
+   }
+
+   if (verbosity_ > 0)
+   {
+      mfem::out << "NNLS solver: m = " << m << ", n = " << n
+                << ", outer_iter = " << n_outer_iter << ", inner_iter = "
+                << n_total_inner_iter;
+
+      if (exit_flag == 0)
+      {
+         mfem::out << ": converged" << endl;
+      }
+      else
+      {
+         mfem::out << endl << "Warning, NNLS convergence stalled: "
+                   << (exit_flag == 2) << endl;
+         mfem::out << "resErr = " << rmax << " vs tol = " << const_tol_
+                   << "; mumax = " << mumax << " vs tol = " << mu_tol << endl;
+      }
+   }
+}
+#endif // MFEM_USE_LAPACK
 
 }

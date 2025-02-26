@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,8 @@ protected:
 
 public:
    /// Default constructor, results in an empty vector.
-   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0) { }
+   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0)
+   { UseDevice(true); }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
@@ -38,7 +39,7 @@ public:
    QuadratureFunction(QuadratureSpaceBase &qspace_, int vdim_ = 1)
       : Vector(vdim_*qspace_.GetSize()),
         qspace(&qspace_), own_qspace(false), vdim(vdim_)
-   { }
+   { UseDevice(true); }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
@@ -46,6 +47,17 @@ public:
        @warning @a qspace_ may not be NULL. */
    QuadratureFunction(QuadratureSpaceBase *qspace_, int vdim_ = 1)
       : QuadratureFunction(*qspace_, vdim_) { }
+
+   /** @brief Create a QuadratureFunction based on the given QuadratureSpaceBase,
+       using the external (host) data, @a qf_data. */
+   /** The QuadratureFunction does not assume ownership of the
+       QuadratureSpaceBase or the external data.
+       @warning @a qspace_ may not be NULL.
+       @note @a qf_data must be a valid **host** pointer (see the constructor
+       Vector::Vector(double *, int)). */
+   QuadratureFunction(QuadratureSpaceBase *qspace_, real_t *qf_data, int vdim_ = 1)
+      : Vector(qf_data, vdim_*qspace_->GetSize()),
+        qspace(qspace_), own_qspace(false), vdim(vdim_) { UseDevice(true); }
 
    /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
        in the new object is set to false. */
@@ -93,7 +105,7 @@ public:
        the same.
 
        The data array is replaced by calling Vector::NewDataAndSize(). */
-   inline void SetSpace(QuadratureSpaceBase *qspace_, double *qf_data,
+   inline void SetSpace(QuadratureSpaceBase *qspace_, real_t *qf_data,
                         int vdim_ = -1);
 
    /// Get the QuadratureSpaceBase ownership flag.
@@ -103,7 +115,7 @@ public:
    void SetOwnsSpace(bool own) { own_qspace = own; }
 
    /// Set this equal to a constant value.
-   QuadratureFunction &operator=(double value);
+   QuadratureFunction &operator=(real_t value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
@@ -173,7 +185,7 @@ public:
    /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
    /// binary data.
    void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0) const;
+                int compression_level=0, const std::string &field_name="u") const;
 
    /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
    ///
@@ -181,7 +193,15 @@ public:
    /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
    ///             int compression_level=0)
    void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0) const;
+                int compression_level=0, const std::string &field_name="u") const;
+
+
+   /// Return the integral of the quadrature function (vdim = 1 only).
+   real_t Integrate() const;
+
+   /// @brief Integrate the (potentially vector-valued) quadrature function,
+   /// storing the results in @a integrals (length @a vdim).
+   void Integrate(Vector &integrals) const;
 
    virtual ~QuadratureFunction()
    {
@@ -206,7 +226,7 @@ inline void QuadratureFunction::GetValues(
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
    values.HostWrite();
-   const double *q = HostRead() + vdim*s_offset;
+   const real_t *q = HostRead() + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
    {
       values(i) = *(q++);
@@ -226,7 +246,7 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
    values.SetSize(vdim);
    values.HostWrite();
-   const double *q = HostRead() + s_offset;
+   const real_t *q = HostRead() + s_offset;
    for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
@@ -239,7 +259,7 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->offsets[idx];
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    // Make the values matrix memory an alias of the quadrature function memory
-   Memory<double> &values_mem = values.GetMemory();
+   Memory<real_t> &values_mem = values.GetMemory();
    values_mem.Delete();
    values_mem.MakeAlias(GetMemory(), vdim*s_offset, vdim*sl_size);
    values.SetSize(vdim, sl_size);
@@ -252,7 +272,7 @@ inline void QuadratureFunction::GetValues(
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
    values.HostWrite();
-   const double *q = HostRead() + vdim*s_offset;
+   const real_t *q = HostRead() + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
    {
       for (int i = 0; i<vdim; i++)
@@ -261,6 +281,34 @@ inline void QuadratureFunction::GetValues(
       }
    }
 }
+
+
+inline void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_,
+                                         int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   SetSize(vdim*qspace->GetSize());
+}
+
+inline void QuadratureFunction::SetSpace(
+   QuadratureSpaceBase *qspace_, real_t *qf_data, int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   NewDataAndSize(qf_data, vdim*qspace->GetSize());
+}
+
 
 } // namespace mfem
 

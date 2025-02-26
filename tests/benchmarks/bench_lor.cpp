@@ -14,15 +14,13 @@
 
 #include "bench.hpp"
 
+#include "fem/lor/lor_batched.hpp"
 #include "fem/lor/lor_ads.hpp"
 #include "fem/lor/lor_ams.hpp"
 
 #ifdef MFEM_USE_BENCHMARK
 
 #include "fem/lor/lor.hpp"
-
-#define MFEM_DEBUG_COLOR 119
-#include "general/debug.hpp"
 
 #define MFEM_NVTX_COLOR Lime
 #include "general/nvtx.hpp"
@@ -41,7 +39,9 @@ Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
       const int nx = cbrt(ne);
       const int ny = sqrt(ne / nx);
       const int nz = ne / nx / ny;
-      return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON);
+      const bool sfc_ordering = p > 1;
+      return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON,
+                                   1.0,1.0,1.0, sfc_ordering);
    }
 }
 
@@ -104,7 +104,7 @@ struct RT_LORBench
 
       lor.AssembleWithoutBC(a_ho, A_lor);
       A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
-                        Operator::DiagonalPolicy::DIAG_KEEP);
+                                            Operator::DiagonalPolicy::DIAG_KEEP);
    }
 
    void DiscreteCurl()
@@ -182,7 +182,7 @@ struct ND_LORBench
 
       lor.AssembleWithoutBC(a_ho, A_lor);
       A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
-                        Operator::DiagonalPolicy::DIAG_KEEP);
+                                            Operator::DiagonalPolicy::DIAG_KEEP);
    }
 
    void DiscreteGradient()
@@ -219,7 +219,7 @@ struct ND_LORBench
    ~ND_LORBench() { delete amg; }
 };
 
-struct LORBench
+struct H1_LORBench
 {
    Mesh mesh;
 
@@ -245,7 +245,7 @@ struct LORBench
    double mdof;
    Vector x, y;
 
-   LORBench(int p, int requested_ndof, int dim, const std::string &name) :
+   H1_LORBench(int p, int requested_ndof, int dim, const std::string &name) :
       mesh(MakeCartesianMesh(p, requested_ndof, dim)),
       fec_ho(p, dim),
       fes_ho(&mesh, &fec_ho),
@@ -283,15 +283,17 @@ struct LORBench
       // warm up
       if (name == "AssembleHO" || name == "ApplyHO") { AssembleHO(); }
       if (name == "ApplyHO") { ApplyHO(); }
-      if (name == "AssembleBatched") { AssembleBatched(); }
+      if (name == "H1AssembleBatched") { H1AssembleBatched(); }
       if (name == "AssembleFull") { AssembleFull(); }
+
       if (name == "AMGSetup" || name == "Vcycle")
       {
-         AssembleBatched();
+         H1AssembleBatched();
          SparseMatrix &A_serial = lor.GetAssembledMatrix();
          row_starts[0] = 0;
          row_starts[1] = A_serial.Height();
-         A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts, &A_serial);
+         A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts,
+                                &A_serial);
          amg.SetOperator(*A);
          amg.SetPrintLevel(0);
       }
@@ -314,11 +316,11 @@ struct LORBench
       a_lor.FormSystemMatrix(ess_dofs, A_lor);
    }
 
-   void AssembleBatched()
+   void H1AssembleBatched()
    {
       NVTX("AssembleBatched");
       MFEM_DEVICE_SYNC;
-      // lor.AssembleSystem(a_ho, ess_dofs);
+      //lor.AssembleSystem(a_ho, ess_dofs);
       lor_b.Assemble(a_ho, ess_dofs, A_lor);
    }
 
@@ -344,11 +346,14 @@ struct LORBench
       amg.Mult(x, y);
    }
 
-   ~LORBench() { delete A; }
+   ~H1_LORBench()
+   {
+      delete A;
+   }
 };
 
 // The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,7,1)
+#define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
 #define LOG_NDOFS bm::CreateDenseRange(7,23,1)
@@ -359,14 +364,14 @@ struct LORBench
 /// Kernels definitions and registrations
 #define Benchmark(Class, Name)\
 static void Name(bm::State &state){\
-   const int p = state.range(0);\
+   const int p = state.range(2);\
    const int log_ndof = state.range(1);\
    const int requested_ndof = pow(2, log_ndof);\
-   const int dim = state.range(2);\
+   const int dim = state.range(0);\
    const std::string name = #Name;\
    if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
-   if (p == 2 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
-   if (p == 3 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
+   if (p == 2 && log_ndof >= 22) { state.SkipWithError("Problem size"); return; }\
+   if (p == 3 && log_ndof >= 22) { state.SkipWithError("Problem size"); return; }\
    if ((name == "ADSApply" || name == "AMSApply") && log_ndof >= 21)\
    { state.SkipWithError("Problem size"); return; }\
    Class lor(p, requested_ndof, dim, name);\
@@ -377,27 +382,32 @@ static void Name(bm::State &state){\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct({P_ORDERS, LOG_NDOFS, DIMS})\
-            -> Unit(bm::kMillisecond)\
-            -> Iterations(10);
+            -> ArgsProduct({DIMS, LOG_NDOFS, P_ORDERS})\
+-> Unit(bm::kMillisecond);
+//  -> Iterations(10);
 
-Benchmark(LORBench, AssembleHO)
-Benchmark(LORBench, AssembleFull)
-Benchmark(LORBench, AssembleBatched)
+// H1
+Benchmark(H1_LORBench, AssembleHO)
+Benchmark(H1_LORBench, AssembleFull)
+Benchmark(H1_LORBench, H1AssembleBatched)
 
-Benchmark(LORBench, ApplyHO)
-Benchmark(LORBench, AMGSetup)
-Benchmark(LORBench, Vcycle)
+#ifdef MFEM_USE_MPI
+Benchmark(H1_LORBench, ApplyHO)
+Benchmark(H1_LORBench, AMGSetup)
+Benchmark(H1_LORBench, Vcycle)
 
+// ND
 Benchmark(ND_LORBench, NDAssembleBatched)
 Benchmark(ND_LORBench, DiscreteGradient)
 Benchmark(ND_LORBench, CoordinateVectors)
 Benchmark(ND_LORBench, VertexCoordinates)
 Benchmark(ND_LORBench, AMSApply)
 
+// RT
 Benchmark(RT_LORBench, RTAssembleBatched)
 Benchmark(RT_LORBench, DiscreteCurl)
 Benchmark(RT_LORBench, ADSApply)
+#endif
 
 int main(int argc, char *argv[])
 {

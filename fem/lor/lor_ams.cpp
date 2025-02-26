@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,9 +12,6 @@
 #include "lor_ams.hpp"
 #include "../../general/forall.hpp"
 #include "../../fem/pbilinearform.hpp"
-
-#define MFEM_NVTX_COLOR DeepSkyBlue
-#include "../../general/nvtx.hpp"
 
 namespace mfem
 {
@@ -139,9 +136,8 @@ void BatchedLOR_AMS::Form3DEdgeToVertex(Array<int> &edge2vert)
    }
 }
 
-void BatchedLOR_AMS::FormGradientMatrixLocal()
+void BatchedLOR_AMS::FormGradientMatrix()
 {
-   NVTX("Discrete Gradient");
    // The gradient matrix maps from LOR vertices to LOR edges. Given an edge
    // (defined by its two vertices) e_i = (v_j1, v_j2), the matrix has nonzeros
    // A(i, j1) = -1 and A(i, j2) = 1, so there are always exactly two nonzeros
@@ -149,14 +145,14 @@ void BatchedLOR_AMS::FormGradientMatrixLocal()
    const int nedge_dof = edge_fes.GetNDofs();
    const int nvert_dof = vert_fes.GetNDofs();
 
+   SparseMatrix G_local;
    G_local.OverrideSize(nedge_dof, nvert_dof);
-   EnsureCapacity(G_local.GetMemoryI(), nedge_dof+1,
-                  Device::GetDeviceMemoryType());
 
+   G_local.GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
    auto I = G_local.WriteI();
-   MFEM_FORALL(i, nedge_dof+1, I[i] = 2*i;);
+   mfem::forall(nedge_dof+1, [=] MFEM_HOST_DEVICE (int i) { I[i] = 2*i; });
 
    // edge2vertex is a mapping of size (2, nedge_per_el), such that with a macro
    // element, edge i (in lexicographic ordering) has vertices (also in
@@ -184,14 +180,14 @@ void BatchedLOR_AMS::FormGradientMatrixLocal()
    const auto e2v = Reshape(edge2vertex.Read(), 2, nedge_per_el);
 
    // Fill J and data
-   EnsureCapacity(G_local.GetMemoryJ(), nnz, Device::GetDeviceMemoryType());
-   EnsureCapacity(G_local.GetMemoryData(), nnz, Device::GetDeviceMemoryType());
+   G_local.GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   G_local.GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
 
    auto J = G_local.WriteJ();
    auto V = G_local.WriteData();
 
    // Loop over Nedelec L-DOFs
-   MFEM_FORALL(i, nedge_dof,
+   mfem::forall(nedge_dof, [=] MFEM_HOST_DEVICE (int i)
    {
       const int sj = indices_e[offsets_e[i]]; // signed
       const int j = (sj >= 0) ? sj : -1 - sj;
@@ -208,11 +204,6 @@ void BatchedLOR_AMS::FormGradientMatrixLocal()
       V[i*2 + 0] = -sgn;
       V[i*2 + 1] = sgn;
    });
-}
-
-void BatchedLOR_AMS::FormGradientMatrix()
-{
-   FormGradientMatrixLocal();
 
    // Create a block diagonal parallel matrix
    OperatorHandle G_diag(Operator::Hypre_ParCSR);
@@ -246,20 +237,18 @@ void BatchedLOR_AMS::FormGradientMatrix()
    }
    G->CopyRowStarts();
    G->CopyColStarts();
-
-   G_local.Clear();
 }
 
 template <typename T>
 static inline const T *HypreRead(const Memory<T> &mem)
 {
-   return mem.Read(GetHypreMemoryClass(), mem.Capacity());
+   return mem.Read(GetHypreForallMemoryClass(), mem.Capacity());
 }
 
 template <typename T>
 static inline T *HypreWrite(Memory<T> &mem)
 {
-   return mem.Write(GetHypreMemoryClass(), mem.Capacity());
+   return mem.Write(GetHypreForallMemoryClass(), mem.Capacity());
 }
 
 void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
@@ -268,13 +257,13 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // vertices of the LOR mesh. The vertex coordinates are already computed in
    // E-vector format and passed in in X_vert.
    //
-   // In this function, we need to convert X_vert (which has the shape (dim,
+   // In this function, we need to convert X_vert (which has the shape (sdim,
    // ndof_per_el, nel_ho)) to T-DOF format.
    //
-   // We place the results in the vector xyz_tvec, which has shape (ntdofs, dim)
+   // We place the results in the vector xyz_tvec, which has shape (ntdofs, sdim)
    // and then make the hypre vectors x, y, and z point to subvectors.
    //
-   // In 2D, z is NULL.
+   // When the space dimension is 2, z is NULL.
 
    // Create the H1 vertex space and get the element restriction
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -286,23 +275,20 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const int nel_ho = vert_fes.GetNE();
    const int ndp1 = order + 1;
    const int ndof_per_el = static_cast<int>(pow(ndp1, dim));
-   const int sdim = dim;
+   const int sdim = vert_fes.GetMesh()->SpaceDimension();
    const int ntdofs = R->Height();
 
-   const MemoryClass mc = GetHypreMemoryClass();
-   bool dev = (mc == MemoryClass::DEVICE);
+   xyz_tvec = new Vector(ntdofs*sdim, GetHypreMemoryType());
 
-   if (xyz_tvec == nullptr) { xyz_tvec = new Vector(ntdofs*dim); }
-
-   auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, dim);
+   auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, sdim);
    const auto xyz_e =
-      Reshape(HypreRead(X_vert.GetMemory()), dim, ndof_per_el, nel_ho);
+      Reshape(HypreRead(X_vert.GetMemory()), sdim, ndof_per_el, nel_ho);
    const auto d_offsets = HypreRead(el_restr->Offsets().GetMemory());
    const auto d_indices = HypreRead(el_restr->Indices().GetMemory());
    const auto ltdof_ldof = HypreRead(R->GetMemoryJ());
 
    // Go from E-vector format directly to T-vector format
-   MFEM_HYPRE_FORALL(i, ntdofs,
+   mfem::hypre_forall(ntdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_offsets[ltdof_ldof[i]];
       for (int c = 0; c < sdim; ++c)
@@ -313,24 +299,18 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    });
 
    // Make x, y, z HypreParVectors point to T-vector data
-   if (x == nullptr)
+   HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
+   HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
+   MPI_Comm comm = vert_fes.GetComm();
+   x = new HypreParVector(comm, glob_size, *xyz_tvec, 0*ntdofs, cols);
+   y = new HypreParVector(comm, glob_size, *xyz_tvec, 1*ntdofs, cols);
+   if (sdim == 3)
    {
-      HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
-      HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
-
-      double *d_x_ptr = xyz_tv + 0*ntdofs;
-      x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
-      double *d_y_ptr = xyz_tv + 1*ntdofs;
-      y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
-      if (dim == 3)
-      {
-         double *d_z_ptr = xyz_tv + 2*ntdofs;
-         z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
-      }
-      else
-      {
-         z = NULL;
-      }
+      z = new HypreParVector(comm, glob_size, *xyz_tvec, 2*ntdofs, cols);
+   }
+   else
+   {
+      z = NULL;
    }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,33 +23,67 @@
 #include <cstdlib>
 
 #include "../general/nvtx.hpp"
+#include "../general/debug.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-Hypre::Hypre()
-{
-#if MFEM_HYPRE_VERSION >= 21900
-   // Initializing hypre
-   HYPRE_Init();
-#endif
+bool Hypre::configure_runtime_policy_from_mfem = true;
+Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
 
-   // Global hypre options that we set by default
-   SetDefaultOptions();
+void Hypre::Init()
+{
+   if (state != State::INITIALIZED)
+   {
+#if MFEM_HYPRE_VERSION >= 21900
+      HYPRE_Init();
+#endif
+      SetDefaultOptions();
+      // Apply the setting of 'configure_runtime_policy_from_mfem' according to
+      // the current configuration of the mfem::Device (HYPRE >= 2.31.0):
+      InitDevice();
+      // Create the singleton Hypre object AFTER initializing HYPRE:
+      Instance();
+   }
+   state = State::INITIALIZED;
+}
+
+void Hypre::InitDevice()
+{
+   // Runtime Memory and Execution policy support was added in 2.26.0 but
+   // choosing to initialize the vendor libraries at runtime was not added until
+   // 2.31.0 so we use that instead
+#if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
+   if (configure_runtime_policy_from_mfem)
+   {
+      MFEM_VERIFY(HYPRE_Initialized(), "HYPRE must be initialized before"
+                  " calling Hypre::InitDevice()");
+      if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
+      {
+         HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+         HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+         HYPRE_DeviceInitialize();
+      }
+      else
+      {
+         HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
+         HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
+      }
+   }
+#endif
 }
 
 void Hypre::Finalize()
 {
-   Hypre &hypre = Instance();
-   if (!hypre.finalized)
+   if (state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.finalized = true;
    }
+   state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()
@@ -64,6 +98,9 @@ void Hypre::SetDefaultOptions()
 #elif defined(HYPRE_USING_HIP)
    // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
    // HYPRE_SetSpGemmUseCusparse(1);
+
+   // Use hypre's SpMV instead of rocSPARSE for performance reasons.
+   HYPRE_SetSpMVUseVendor(0);
 #endif
 #endif
 
@@ -157,7 +194,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
-                               double *data_, HYPRE_BigInt *col,
+                               real_t *data_, HYPRE_BigInt *col,
                                bool is_device_ptr)
    : Vector()
 {
@@ -168,13 +205,13 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
-   double tmp = 0.0;
+   real_t tmp = 0.0;
    hypre_VectorData(x_loc) = &tmp;
 #ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) =
       is_device_ptr ? HYPRE_MEMORY_DEVICE : HYPRE_MEMORY_HOST;
 #else
-   (void)is_device_ptr;
+   MFEM_CONTRACT_VAR(is_device_ptr);
 #endif
    // If hypre_ParVectorLocalVector(x) and &tmp are non-NULL,
    // hypre_ParVectorInitialize(x) does not allocate memory!
@@ -183,6 +220,24 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_VectorData(x_loc) = data_;
    _SetDataAndSize_();
    own_ParVector = 1;
+}
+
+HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               Vector &base, int offset, HYPRE_BigInt *col)
+   : HypreParVector(comm, glob_size, nullptr, col, false)
+{
+   MFEM_ASSERT(CanShallowCopy(base.GetMemory(), GetHypreMemoryClass()),
+               "the MemoryTypes of 'base' are incompatible with Hypre!");
+   MFEM_ASSERT(offset + size <= base.Size(),
+               "the size of 'base' is too small!");
+
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+   hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = GetHypreMemoryLocation();
+#endif
 }
 
 // Call the move constructor on the "compatible" temp vector
@@ -273,7 +328,7 @@ Vector * HypreParVector::GlobalVector() const
    return v;
 }
 
-HypreParVector& HypreParVector::operator=(double d)
+HypreParVector& HypreParVector::operator=(real_t d)
 {
    Vector::operator=(d);
    return *this;
@@ -294,17 +349,18 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 {
-   // If the argument vector owns its data, then the calling vector will as well
-   WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
-   // Either way the argument vector will no longer own its data
+   Vector::operator=(std::move(y));
+   // Self-assignment-safe way to move for 'own_ParVector' and 'x':
+   const auto own_tmp = y.own_ParVector;
    y.own_ParVector = 0;
+   own_ParVector = own_tmp;
+   const auto x_tmp = y.x;
    y.x = nullptr;
-   y.data.Reset();
-   y.size = 0;
+   x = x_tmp;
    return *this;
 }
 
-void HypreParVector::SetData(double *data_)
+void HypreParVector::SetData(real_t *data_)
 {
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
    Vector::SetData(data_);
@@ -314,9 +370,9 @@ void HypreParVector::HypreRead() const
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) =
-      const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
+      const_cast<real_t*>(data.Read(GetHypreMemoryClass(), size));
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
 }
 
@@ -325,7 +381,7 @@ void HypreParVector::HypreReadWrite()
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
 }
 
@@ -334,11 +390,11 @@ void HypreParVector::HypreWrite()
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
 }
 
-void HypreParVector::WrapMemoryRead(const Memory<double> &mem)
+void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 {
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
@@ -346,14 +402,14 @@ void HypreParVector::WrapMemoryRead(const Memory<double> &mem)
    data.Delete();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) =
-      const_cast<double*>(mem.Read(GetHypreMemoryClass(), size));
+      const_cast<real_t*>(mem.Read(GetHypreMemoryClass(), size));
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
    data.MakeAlias(mem, 0, size);
 }
 
-void HypreParVector::WrapMemoryReadWrite(Memory<double> &mem)
+void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 {
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
@@ -362,12 +418,12 @@ void HypreParVector::WrapMemoryReadWrite(Memory<double> &mem)
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
    data.MakeAlias(mem, 0, size);
 }
 
-void HypreParVector::WrapMemoryWrite(Memory<double> &mem)
+void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 {
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
@@ -376,7 +432,7 @@ void HypreParVector::WrapMemoryWrite(Memory<double> &mem)
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
    data.MakeAlias(mem, 0, size);
 }
@@ -386,19 +442,19 @@ HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
-void HypreParVector::Print(const char *fname) const
+void HypreParVector::Print(const std::string &fname) const
 {
-   hypre_ParVectorPrint(x,fname);
+   hypre_ParVectorPrint(x, fname.c_str());
 }
 
-void HypreParVector::Read(MPI_Comm comm, const char *fname)
+void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
 {
    if (own_ParVector)
    {
       hypre_ParVectorDestroy(x);
    }
    data.Delete();
-   x = hypre_ParVectorRead(comm, fname);
+   x = hypre_ParVectorRead(comm, fname.c_str());
    own_ParVector = true;
    _SetDataAndSize_();
 }
@@ -412,45 +468,45 @@ HypreParVector::~HypreParVector()
 }
 
 
-double InnerProduct(HypreParVector *x, HypreParVector *y)
+real_t InnerProduct(HypreParVector *x, HypreParVector *y)
 {
    return hypre_ParVectorInnerProd(*x, *y);
 }
 
-double InnerProduct(HypreParVector &x, HypreParVector &y)
+real_t InnerProduct(HypreParVector &x, HypreParVector &y)
 {
    return hypre_ParVectorInnerProd(x, y);
 }
 
 
-double ParNormlp(const Vector &vec, double p, MPI_Comm comm)
+real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
 {
-   double norm = 0.0;
+   real_t norm = 0.0;
    if (p == 1.0)
    {
-      double loc_norm = vec.Norml1();
-      MPI_Allreduce(&loc_norm, &norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+      real_t loc_norm = vec.Norml1();
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
    }
    if (p == 2.0)
    {
-      double loc_norm = vec*vec;
-      MPI_Allreduce(&loc_norm, &norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+      real_t loc_norm = vec*vec;
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
       norm = sqrt(norm);
    }
    if (p < infinity())
    {
-      double sum = 0.0;
+      real_t sum = 0.0;
       for (int i = 0; i < vec.Size(); i++)
       {
          sum += pow(fabs(vec(i)), p);
       }
-      MPI_Allreduce(&sum, &norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(&sum, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
       norm = pow(norm, 1.0/p);
    }
    else
    {
-      double loc_norm = vec.Normlinf();
-      MPI_Allreduce(&loc_norm, &norm, 1, MPI_DOUBLE, MPI_MAX, comm);
+      real_t loc_norm = vec.Normlinf();
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
    }
    return norm;
 }
@@ -515,7 +571,7 @@ void CopyConvertMemory(Memory<SrcT> &src, MemoryClass dst_mc, Memory<DstT> &dst)
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(src, capacity);
    auto dst_p = mfem::Write(dst, capacity);
-   MFEM_FORALL(i, capacity, dst_p[i] = src_p[i];);
+   mfem::forall(capacity, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 
 
@@ -534,6 +590,34 @@ void HypreParMatrix::Init()
    mem_offd.data.Reset();
 }
 
+#if MFEM_HYPRE_VERSION >= 21800
+inline decltype(hypre_CSRMatrix::memory_location)
+GetHypreParMatrixMemoryLocation(MemoryClass mc)
+{
+   // This method is called by HypreParMatrix::{Read,ReadWrite,Write} (with
+   // MemoryClass argument) and those are private and called only with memory
+   // class mc == Device::GetHostMemoryClass() or mc == GetHypreMemoryClass().
+   // If they need to be called with a different MemoryClass, the logic below
+   // may need to be adjusted.
+   MFEM_ASSERT(mc == Device::GetHostMemoryClass() ||
+               mc == GetHypreMemoryClass(), "invalid MemoryClass!");
+   decltype(hypre_CSRMatrix::memory_location) ml;
+   // Note: Device::GetHostMemoryClass() is always MemoryClass::HOST.
+#if !defined(HYPRE_USING_GPU)
+   // GetHypreMemoryClass() is MemoryClass::HOST.
+   ml = HYPRE_MEMORY_HOST;
+#else
+   // When (MFEM_HYPRE_VERSION < 23100), GetHypreMemoryClass() is one of
+   // MemoryClass::{DEVICE,MANAGED}.
+   // When (MFEM_HYPRE_VERSION >= 23100), GetHypreMemoryClass() is one of
+   // MemoryClass::{HOST,DEVICE,MANAGED}.
+   // In both cases, the logic is the same:
+   ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE;
+#endif
+   return ml;
+}
+#endif // MFEM_HYPRE_VERSION >= 21800
+
 void HypreParMatrix::Read(MemoryClass mc) const
 {
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
@@ -543,13 +627,12 @@ void HypreParMatrix::Read(MemoryClass mc) const
    const int offd_nnz = internal::to_int(offd->num_nonzeros);
    diag->i = const_cast<HYPRE_Int*>(mem_diag.I.Read(mc, num_rows+1));
    diag->j = const_cast<HYPRE_Int*>(mem_diag.J.Read(mc, diag_nnz));
-   diag->data = const_cast<double*>(mem_diag.data.Read(mc, diag_nnz));
+   diag->data = const_cast<real_t*>(mem_diag.data.Read(mc, diag_nnz));
    offd->i = const_cast<HYPRE_Int*>(mem_offd.I.Read(mc, num_rows+1));
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
-   offd->data = const_cast<double*>(mem_offd.data.Read(mc, offd_nnz));
+   offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+   auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -569,8 +652,7 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+   auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -593,8 +675,7 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+   auto ml = GetHypreParMatrixMemoryLocation(mc);
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
 #endif
@@ -649,7 +730,7 @@ signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
    const int nnz = csr->NumNonZeroElems();
    hypre_csr->i = const_cast<HYPRE_Int*>(mem_csr.I.Read(hypre_mc, num_rows+1));
    hypre_csr->j = const_cast<HYPRE_Int*>(mem_csr.J.Read(hypre_mc, nnz));
-   hypre_csr->data = const_cast<double*>(mem_csr.data.Read(hypre_mc, nnz));
+   hypre_csr->data = const_cast<real_t*>(mem_csr.data.Read(hypre_mc, nnz));
 
    MFEM_ASSERT(mem_csr.I.OwnsHostPtr() == mem_csr.J.OwnsHostPtr(),
                "invalid state: host ownership for I and J differ!");
@@ -674,14 +755,14 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
    const int num_rows = bool_csr->Size();
    const int nnz = bool_csr->Size_of_connections();
    mem_csr.data.New(nnz, GetHypreMemoryType());
-   double *data = mfem::HostWrite(mem_csr.data, nnz);
+   real_t *data = mfem::HostWrite(mem_csr.data, nnz);
    for (int i = 0; i < nnz; i++)
    {
       data[i] = 1.0;
    }
    hypre_csr->i = const_cast<HYPRE_Int*>(mem_csr.I.Read(hypre_mc, num_rows+1));
    hypre_csr->j = const_cast<HYPRE_Int*>(mem_csr.J.Read(hypre_mc, nnz));
-   hypre_csr->data = const_cast<double*>(mem_csr.data.Read(hypre_mc, nnz));
+   hypre_csr->data = const_cast<real_t*>(mem_csr.data.Read(hypre_mc, nnz));
 
    MFEM_ASSERT(mem_csr.I.OwnsHostPtr() == mem_csr.J.OwnsHostPtr(),
                "invalid state: host ownership for I and J differ!");
@@ -698,9 +779,88 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(mem_csr.J, nnz);
    auto dst_p = mfem::Write(dst_J, nnz);
-   MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
+   mfem::forall(nnz, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 #endif
+
+// Method called after hypre_CSRMatrixReorder()
+static void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
+{
+   const MemoryClass hypre_mc = GetHypreMemoryClass();
+   const bool data_shallow = CanShallowCopy(csr->GetMemoryData(), hypre_mc);
+
+#if !defined(HYPRE_BIGINT) && defined(MFEM_DEBUG)
+   const bool J_shallow = CanShallowCopy(csr->GetMemoryJ(), hypre_mc);
+   MFEM_ASSERT(J_shallow == data_shallow, "unsupported state");
+#endif
+
+   if (data_shallow)
+   {
+      // I is not modified
+#ifndef HYPRE_BIGINT
+      csr->GetMemoryJ().Sync(mem_csr.J);
+#else
+      // We use nnz = csr->GetMemoryJ().Capacity() which is the same as the
+      // value used in CopyConvertMemory() in CopyCSR().
+      CopyCSR_J(csr->GetMemoryJ().Capacity(), mem_csr, csr->GetMemoryJ());
+#endif
+      csr->GetMemoryData().Sync(mem_csr.data);
+   }
+}
+
+// Method called after hypre_CSRMatrixReorder()
+static void SyncBackBoolCSR(Table *bool_csr, MemoryIJData &mem_csr)
+{
+   const MemoryClass hypre_mc = GetHypreMemoryClass();
+   const bool J_shallow = CanShallowCopy(bool_csr->GetJMemory(), hypre_mc);
+   if (J_shallow)
+   {
+      // I is not modified
+#ifndef HYPRE_BIGINT
+      bool_csr->GetJMemory().Sync(mem_csr.J);
+#else
+      // No need to sync the J array back to the Table
+#endif
+   }
+}
+
+/// @brief Return the size of the partitioning arrays, see @ref
+/// hypre_partitioning_descr.
+static int GetPartitioningArraySize(MPI_Comm comm)
+{
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      return 2;
+   }
+   else
+   {
+      int comm_size;
+      MPI_Comm_size(comm, &comm_size);
+      return comm_size + 1;
+   }
+}
+
+/// @brief Returns true if the row and col arrays are equal (across all MPI
+/// ranks).
+///
+/// Both @a row and @a col are partitioning arrays, whose length is returned by
+/// GetPartitioningArraySize(), see @ref hypre_partitioning_descr.
+static bool RowAndColStartsAreEqual(MPI_Comm comm, HYPRE_BigInt *rows,
+                                    HYPRE_BigInt *cols)
+{
+   const int part_size = GetPartitioningArraySize(comm);
+   bool are_equal = true;
+   for (int i = 0; i < part_size; ++i)
+   {
+      if (rows[i] != cols[i])
+      {
+         are_equal = false;
+         break;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MPI_C_BOOL, MPI_LAND, comm);
+   return are_equal;
+}
 
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
@@ -760,7 +920,7 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
       h_mat->owns_data = 0;
 #if MFEM_HYPRE_VERSION >= 21800
-      h_mat->memory_location = HYPRE_MEMORY_DEVICE;
+      h_mat->memory_location = mfem::GetHypreMemoryLocation();
 #endif
       return 3;
    }
@@ -799,12 +959,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    /* Make sure that the first entry in each row is the diagonal one. */
    HypreReadWrite();
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-   if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
-   {
-      CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
-   }
-#endif
+   SyncBackCSR(diag, mem_diag); // update diag, if needed
 
    hypre_MatvecCommPkgCreate(A);
 }
@@ -839,16 +994,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
-      {
-         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
-      }
-#endif
+      SyncBackCSR(diag, mem_diag); // update diag, if needed
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -894,16 +1044,12 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
-      {
-         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
-      }
-#endif
+      // update diag, if needed
+      if (!own_diag_offd) { SyncBackCSR(diag, mem_diag); }
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -915,8 +1061,8 @@ HypreParMatrix::HypreParMatrix(
    MPI_Comm comm,
    HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols,
    HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
-   HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
-   HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
+   HYPRE_Int *diag_i, HYPRE_Int *diag_j, real_t *diag_data,
+   HYPRE_Int *offd_i, HYPRE_Int *offd_j, real_t *offd_data,
    HYPRE_Int offd_num_cols, HYPRE_BigInt *offd_col_map,
    bool hypre_arrays)
 {
@@ -956,7 +1102,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
@@ -1018,7 +1164,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixDestroy(csr_a);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(new_A));
    }
@@ -1057,14 +1203,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-#ifdef HYPRE_BIGINT
-      // No need to sync the J array back to the Table diag.
-      // CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetJMemory());
-#endif
+      SyncBackBoolCSR(diag, mem_diag); // update diag, if needed
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -1168,18 +1311,17 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
                                HYPRE_BigInt glob_nrows,
                                HYPRE_BigInt glob_ncols,
                                int *I, HYPRE_BigInt *J,
-                               double *data,
+                               real_t *data,
                                HYPRE_BigInt *rows,
                                HYPRE_BigInt *cols)
 {
    Init();
 
    // Determine partitioning size, and my column start and end
-   int part_size;
+   const int part_size = GetPartitioningArraySize(comm);
    HYPRE_BigInt my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
    if (HYPRE_AssumedPartitionCheck())
    {
-      part_size = 2;
       my_col_start = cols[0];
       my_col_end = cols[1];
    }
@@ -1187,15 +1329,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    {
       int myid;
       MPI_Comm_rank(comm, &myid);
-      MPI_Comm_size(comm, &part_size);
-      part_size++;
       my_col_start = cols[myid];
       my_col_end = cols[myid+1];
    }
 
    // Copy in the row and column partitionings
+   const bool rows_eq_cols = RowAndColStartsAreEqual(comm, rows, cols);
    HYPRE_BigInt *row_starts, *col_starts;
-   if (rows == cols)
+   if (rows_eq_cols)
    {
       row_starts = col_starts = mfem_hypre_TAlloc_host(HYPRE_BigInt, part_size);
       for (int i = 0; i < part_size; i++)
@@ -1249,7 +1390,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
 
    HYPRE_Int *diag_i, *diag_j, *offd_i, *offd_j;
    HYPRE_BigInt *offd_col_map;
-   double *diag_data, *offd_data;
+   real_t *diag_data, *offd_data;
    diag_i = A->diag->i;
    diag_j = A->diag->j;
    diag_data = A->diag->data;
@@ -1288,14 +1429,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   // Make sure that the first entry in each row is the diagonal one.
+   if (rows_eq_cols)
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 #if MFEM_HYPRE_VERSION > 22200
    mfem_hypre_TFree_host(row_starts);
-   if (rows != cols)
+   if (!rows_eq_cols)
    {
       mfem_hypre_TFree_host(col_starts);
    }
@@ -1361,8 +1502,11 @@ hypre_ParCSRMatrix* HypreParMatrix::StealData()
    MFEM_ASSERT(ParCSROwner, "");
    hypre_ParCSRMatrix *R = A;
 #ifdef HYPRE_USING_GPU
-   if (diagOwner == -1) { HostReadWrite(); }
-   else { HypreReadWrite(); }
+   if (HypreUsingGPU())
+   {
+      if (diagOwner == -1) { HostReadWrite(); }
+      else { HypreReadWrite(); }
+   }
 #endif
    ParCSROwner = false;
    Destroy();
@@ -1405,16 +1549,7 @@ void HypreParMatrix::CopyRowStarts()
       return;
    }
 
-   int row_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      row_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &row_starts_size);
-      row_starts_size++; // num_proc + 1
-   }
+   const int row_starts_size = GetPartitioningArraySize(hypre_ParCSRMatrixComm(A));
 
    HYPRE_BigInt *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
    HYPRE_BigInt *new_row_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
@@ -1445,16 +1580,7 @@ void HypreParMatrix::CopyColStarts()
       return;
    }
 
-   int col_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      col_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &col_starts_size);
-      col_starts_size++; // num_proc + 1
-   }
+   const int col_starts_size = GetPartitioningArraySize(hypre_ParCSRMatrixComm(A));
 
    HYPRE_BigInt *old_col_starts = hypre_ParCSRMatrixColStarts(A);
    HYPRE_BigInt *new_col_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
@@ -1483,32 +1609,30 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-#ifdef HYPRE_USING_GPU
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-   {
-      MFEM_ASSERT(A->diag->memory_location == HYPRE_MEMORY_DEVICE, "");
-      double *d_diag = diag.Write();
-      const HYPRE_Int *A_diag_i = A->diag->i;
-      const double *A_diag_d = A->diag->data;
-      MFEM_FORALL(i, size, d_diag[i] = A_diag_d[A_diag_i[i]];);
-   }
-   else
+   // Avoid using GetHypreMemoryClass() since it may be MemoryClass::MANAGED and
+   // that may not play well with the memory types used by 'diag'.
+   MemoryClass hypre_mc = GetHypreForallMemoryClass();
+   real_t *diag_hd = diag.GetMemory().Write(hypre_mc, size);
+#if MFEM_HYPRE_VERSION >= 21800
+   MFEM_VERIFY(A->diag->memory_location == GetHypreMemoryLocation(),
+               "unexpected HypreParMatrix memory location!");
 #endif
+   const HYPRE_Int *A_diag_i = A->diag->i;
+   const real_t *A_diag_d = A->diag->data;
+#ifdef MFEM_DEBUG
+   const HYPRE_Int *A_diag_j = A->diag->j;
+#endif
+   mfem::hypre_forall(size, [=] MFEM_HOST_DEVICE (int i)
    {
-      diag.HostWrite();
-      HostRead();
-      for (int j = 0; j < size; j++)
-      {
-         diag(j) = A->diag->data[A->diag->i[j]];
-         MFEM_ASSERT(A->diag->j[A->diag->i[j]] == j,
-                     "the first entry in each row must be the diagonal one");
-      }
-      HypreRead();
-   }
+      diag_hd[i] = A_diag_d[A_diag_i[i]];
+      MFEM_ASSERT_KERNEL(
+         A_diag_j[A_diag_i[i]] == i,
+         "The first entry in each row must be the diagonal one!");
+   });
 }
 
 static void MakeSparseMatrixWrapper(int nrows, int ncols,
-                                    HYPRE_Int *I, HYPRE_Int *J, double *data,
+                                    HYPRE_Int *I, HYPRE_Int *J, real_t *data,
                                     SparseMatrix &wrapper)
 {
 #ifndef HYPRE_BIGINT
@@ -1539,11 +1663,11 @@ static void MakeWrapper(const hypre_CSRMatrix *mat,
    const int nnz = internal::to_int(mat->num_nonzeros);
    const HYPRE_Int *I = mfem::HostRead(mem.I, nrows + 1);
    const HYPRE_Int *J = mfem::HostRead(mem.J, nnz);
-   const double *data = mfem::HostRead(mem.data, nnz);
+   const real_t *data = mfem::HostRead(mem.data, nnz);
    MakeSparseMatrixWrapper(nrows, ncols,
                            const_cast<HYPRE_Int*>(I),
                            const_cast<HYPRE_Int*>(J),
-                           const_cast<double*>(data),
+                           const_cast<real_t*>(data),
                            wrapper);
 }
 
@@ -1626,7 +1750,7 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 
 #if MFEM_HYPRE_VERSION >= 21800
 HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
-                                                 double threshold) const
+                                                 real_t threshold) const
 {
    // hypre_ParCSRMatrixExtractSubmatrixFC works on host only, so we move this
    // matrix to host, temporarily:
@@ -1707,7 +1831,10 @@ void HypreParMatrix::EnsureMultTranspose() const
 #if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
     (MFEM_HYPRE_VERSION > 22500)
 #ifdef HYPRE_USING_GPU
-   hypre_ParCSRMatrixLocalTranspose(A);
+   if (HypreUsingGPU())
+   {
+      hypre_ParCSRMatrixLocalTranspose(A);
+   }
 #endif
 #endif
 }
@@ -1717,22 +1844,25 @@ void HypreParMatrix::ResetTranspose() const
 #if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
     (MFEM_HYPRE_VERSION > 22500)
 #ifdef HYPRE_USING_GPU
-   if (A->diagT)
+   if (HypreUsingGPU())
    {
-      hypre_CSRMatrixDestroy(A->diagT);
-      A->diagT = NULL;
-   }
-   if (A->offdT)
-   {
-      hypre_CSRMatrixDestroy(A->offdT);
-      A->offdT = NULL;
+      if (A->diagT)
+      {
+         hypre_CSRMatrixDestroy(A->diagT);
+         A->diagT = NULL;
+      }
+      if (A->offdT)
+      {
+         hypre_CSRMatrixDestroy(A->offdT);
+         A->offdT = NULL;
+      }
    }
 #endif
 #endif
 }
 
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
-                               double a, double b) const
+                               real_t a, real_t b) const
 {
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR Crimson
@@ -1743,7 +1873,7 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
 }
 
-void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
+void HypreParMatrix::Mult(real_t a, const Vector &x, real_t b, Vector &y) const
 {
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR Crimson
@@ -1804,8 +1934,8 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    if (!yshallow) { y = *Y; }  // Deep copy
 }
 
-void HypreParMatrix::MultTranspose(double a, const Vector &x,
-                                   double b, Vector &y) const
+void HypreParMatrix::MultTranspose(real_t a, const Vector &x,
+                                   real_t b, Vector &y) const
 {
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR Crimson
@@ -1873,14 +2003,14 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 }
 
 HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                               double a, double b) const
+                               real_t a, real_t b) const
 {
    return hypre_ParCSRMatrixMatvec(a, A, (hypre_ParVector *) x, b,
                                    (hypre_ParVector *) y);
 }
 
 HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
-                                        double a, double b) const
+                                        real_t a, real_t b) const
 {
    EnsureMultTranspose();
    x.HypreRead();
@@ -1888,8 +2018,8 @@ HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
 }
 
-void HypreParMatrix::AbsMult(double a, const Vector &x,
-                             double b, Vector &y) const
+void HypreParMatrix::AbsMult(real_t a, const Vector &x,
+                             real_t b, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
@@ -1900,13 +2030,13 @@ void HypreParMatrix::AbsMult(double a, const Vector &x,
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
 
    HostRead();
-   internal::hypre_ParCSRMatrixAbsMatvec(A, a, const_cast<double*>(x_data),
+   internal::hypre_ParCSRMatrixAbsMatvec(A, a, const_cast<real_t*>(x_data),
                                          b, y_data);
    HypreRead();
 }
 
-void HypreParMatrix::AbsMultTranspose(double a, const Vector &x,
-                                      double b, Vector &y) const
+void HypreParMatrix::AbsMultTranspose(real_t a, const Vector &x,
+                                      real_t b, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
@@ -1917,7 +2047,7 @@ void HypreParMatrix::AbsMultTranspose(double a, const Vector &x,
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
 
    HostRead();
-   internal::hypre_ParCSRMatrixAbsMatvecT(A, a, const_cast<double*>(x_data),
+   internal::hypre_ParCSRMatrixAbsMatvecT(A, a, const_cast<real_t*>(x_data),
                                           b, y_data);
    HypreRead();
 }
@@ -2040,12 +2170,12 @@ void HypreParMatrix::ScaleRows(const Vector &diag)
    diag.HostRead();
 
    int size = Height();
-   double     *Adiag_data   = hypre_CSRMatrixData(A->diag);
+   real_t     *Adiag_data   = hypre_CSRMatrixData(A->diag);
    HYPRE_Int  *Adiag_i      = hypre_CSRMatrixI(A->diag);
 
-   double     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
+   real_t     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
    HYPRE_Int  *Aoffd_i      = hypre_CSRMatrixI(A->offd);
-   double val;
+   real_t val;
    HYPRE_Int jj;
    for (int i(0); i < size; ++i)
    {
@@ -2079,13 +2209,13 @@ void HypreParMatrix::InvScaleRows(const Vector &diag)
    diag.HostRead();
 
    int size = Height();
-   double     *Adiag_data   = hypre_CSRMatrixData(A->diag);
+   real_t     *Adiag_data   = hypre_CSRMatrixData(A->diag);
    HYPRE_Int  *Adiag_i      = hypre_CSRMatrixI(A->diag);
 
 
-   double     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
+   real_t     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
    HYPRE_Int  *Aoffd_i      = hypre_CSRMatrixI(A->offd);
-   double val;
+   real_t val;
    HYPRE_Int jj;
    for (int i(0); i < size; ++i)
    {
@@ -2109,7 +2239,7 @@ void HypreParMatrix::InvScaleRows(const Vector &diag)
    HypreRead();
 }
 
-void HypreParMatrix::operator*=(double s)
+void HypreParMatrix::operator*=(real_t s)
 {
    if (hypre_CSRMatrixNumRows(A->diag) != hypre_CSRMatrixNumRows(A->offd))
    {
@@ -2121,14 +2251,14 @@ void HypreParMatrix::operator*=(double s)
    HYPRE_Int size=hypre_CSRMatrixNumRows(A->diag);
    HYPRE_Int jj;
 
-   double     *Adiag_data   = hypre_CSRMatrixData(A->diag);
+   real_t     *Adiag_data   = hypre_CSRMatrixData(A->diag);
    HYPRE_Int  *Adiag_i      = hypre_CSRMatrixI(A->diag);
    for (jj = 0; jj < Adiag_i[size]; ++jj)
    {
       Adiag_data[jj] *= s;
    }
 
-   double     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
+   real_t     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
    HYPRE_Int  *Aoffd_i      = hypre_CSRMatrixI(A->offd);
    for (jj = 0; jj < Aoffd_i[size]; ++jj)
    {
@@ -2152,7 +2282,7 @@ static void get_sorted_rows_cols(const Array<int> &rows_cols,
    if (!sorted) { hypre_sorted.Sort(); }
 }
 
-void HypreParMatrix::Threshold(double threshold)
+void HypreParMatrix::Threshold(real_t threshold)
 {
    int ierr = 0;
 
@@ -2222,13 +2352,8 @@ void HypreParMatrix::Threshold(double threshold)
    A = parcsr_A_ptr;
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-#if MFEM_HYPRE_VERSION <= 22200
-   if (row_starts == col_starts)
-#else
-   if ((row_starts[0] == col_starts[0]) &&
-       (row_starts[1] == col_starts[1]))
-#endif
+   // Make sure that the first entry in each row is the diagonal one.
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
@@ -2237,31 +2362,32 @@ void HypreParMatrix::Threshold(double threshold)
    width = GetNumCols();
 }
 
-void HypreParMatrix::DropSmallEntries(double tol)
+void HypreParMatrix::DropSmallEntries(real_t tol)
 {
    HYPRE_Int old_err = hypre_error_flag;
    hypre_error_flag = 0;
 
 #if MFEM_HYPRE_VERSION < 21400
 
-   double threshold = 0.0;
+   real_t threshold = 0.0;
    if (tol > 0.0)
    {
       HYPRE_Int *diag_I = A->diag->i,    *offd_I = A->offd->i;
-      double    *diag_d = A->diag->data, *offd_d = A->offd->data;
+      real_t    *diag_d = A->diag->data, *offd_d = A->offd->data;
       HYPRE_Int local_num_rows = A->diag->num_rows;
-      double max_l2_row_norm = 0.0;
+      real_t max_l2_row_norm = 0.0;
       Vector row;
       for (HYPRE_Int r = 0; r < local_num_rows; r++)
       {
          row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r]);
-         double l2_row_norm = row.Norml2();
+         real_t l2_row_norm = row.Norml2();
          row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r]);
          l2_row_norm = std::hypot(l2_row_norm, row.Norml2());
          max_l2_row_norm = std::max(max_l2_row_norm, l2_row_norm);
       }
-      double loc_max_l2_row_norm = max_l2_row_norm;
-      MPI_Allreduce(&loc_max_l2_row_norm, &max_l2_row_norm, 1, MPI_DOUBLE,
+      real_t loc_max_l2_row_norm = max_l2_row_norm;
+      MPI_Allreduce(&loc_max_l2_row_norm, &max_l2_row_norm, 1,
+                    MPITypeMap<real_t>::mpi_type,
                     MPI_MAX, A->comm);
       threshold = tol * max_l2_row_norm;
    }
@@ -2348,13 +2474,13 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
 
    HostRead();
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
-   double *data = hypre_CSRMatrixData(A_diag);
+   real_t *data = hypre_CSRMatrixData(A_diag);
    HYPRE_Int *I = hypre_CSRMatrixI(A_diag);
 #ifdef MFEM_DEBUG
    HYPRE_Int    *J   = hypre_CSRMatrixJ(A_diag);
    hypre_CSRMatrix *A_offd = hypre_ParCSRMatrixOffd(A);
    HYPRE_Int *I_offd = hypre_CSRMatrixI(A_offd);
-   double *data_offd = hypre_CSRMatrixData(A_offd);
+   real_t *data_offd = hypre_CSRMatrixData(A_offd);
 #endif
 
    ess_dof_list.HostRead();
@@ -2407,7 +2533,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.GetMemory().Read(
-                              GetHypreMemoryClass(), n_ess_dofs);
+                              GetHypreForallMemoryClass(), n_ess_dofs);
 
    // Start communication to figure out which columns need to be eliminated in
    // the off-diagonal block
@@ -2426,8 +2552,14 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       }
 
       // Which of the local rows are to be eliminated?
-      MFEM_HYPRE_FORALL(i, diag_nrows, eliminate_row[i] = 0; );
-      MFEM_HYPRE_FORALL(i, n_ess_dofs, eliminate_row[ess_dofs_d[i]] = 1; );
+      mfem::hypre_forall(diag_nrows, [=] MFEM_HOST_DEVICE (int i)
+      {
+         eliminate_row[i] = 0;
+      });
+      mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
+      {
+         eliminate_row[ess_dofs_d[i]] = 1;
+      });
 
       // Use a matvec communication pattern to find (in eliminate_col) which of
       // the local offd columns are to be eliminated
@@ -2438,26 +2570,36 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 
       HYPRE_Int *send_map_elmts;
 #if defined(HYPRE_USING_GPU)
-      hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
-      send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
-#else
-      send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
+      if (HypreUsingGPU())
+      {
+         hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
+         send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
+      }
+      else
 #endif
-      MFEM_HYPRE_FORALL(i, int_buf_sz,
+      {
+         send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
+      }
+      mfem::hypre_forall(int_buf_sz, [=] MFEM_HOST_DEVICE (int i)
       {
          int k = send_map_elmts[i];
          int_buf_data[i] = eliminate_row[k];
       });
 
 #if defined(HYPRE_USING_GPU)
-      // Try to use device-aware MPI for the communication if available
-      comm_handle = hypre_ParCSRCommHandleCreate_v2(
-                       11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
-                       HYPRE_MEMORY_DEVICE, eliminate_col);
-#else
-      comm_handle = hypre_ParCSRCommHandleCreate(
-                       11, comm_pkg, int_buf_data, eliminate_col );
+      if (HypreUsingGPU())
+      {
+         // Try to use device-aware MPI for the communication if available
+         comm_handle = hypre_ParCSRCommHandleCreate_v2(
+                          11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
+                          HYPRE_MEMORY_DEVICE, eliminate_col);
+      }
+      else
 #endif
+      {
+         comm_handle = hypre_ParCSRCommHandleCreate(
+                          11, comm_pkg, int_buf_data, eliminate_col );
+      }
    }
 
    // Eliminate rows and columns in the diagonal block
@@ -2466,12 +2608,12 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto J = diag->j;
       auto data = diag->data;
 
-      MFEM_HYPRE_FORALL(i, n_ess_dofs,
+      mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
-         for (int j=I[idof]; j<I[idof+1]; ++j)
+         for (auto j=I[idof]; j<I[idof+1]; ++j)
          {
-            const int jdof = J[j];
+            const auto jdof = J[j];
             if (jdof == idof)
             {
                if (diag_policy == DiagonalPolicy::DIAG_ONE)
@@ -2487,7 +2629,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
             else
             {
                data[j] = 0.0;
-               for (int k=I[jdof]; k<I[jdof+1]; ++k)
+               for (auto k=I[jdof]; k<I[jdof+1]; ++k)
                {
                   if (J[k] == idof)
                   {
@@ -2504,10 +2646,10 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    {
       const auto I = offd->i;
       auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, n_ess_dofs,
+      mfem::hypre_forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
-         for (int j=I[idof]; j<I[idof+1]; ++j)
+         for (auto j=I[idof]; j<I[idof+1]; ++j)
          {
             data[j] = 0.0;
          }
@@ -2525,9 +2667,9 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, nrows_offd,
+      mfem::hypre_forall(nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
-         for (int j=I[i]; j<I[i+1]; ++j)
+         for (auto j=I[i]; j<I[i+1]; ++j)
          {
             data[j] *= 1 - eliminate_col[J[j]];
          }
@@ -2537,48 +2679,38 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    mfem_hypre_TFree(eliminate_col);
 }
 
-void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
+void HypreParMatrix::Print(const std::string &fname, HYPRE_Int offi,
                            HYPRE_Int offj) const
 {
    HostRead();
-   hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
+   hypre_ParCSRMatrixPrintIJ(A, offi, offj, fname.c_str());
    HypreRead();
 }
 
-void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
+   HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_Int base_i, base_j;
-   hypre_ParCSRMatrixReadIJ(comm, fname, &base_i, &base_j, &A);
+   hypre_ParCSRMatrixReadIJ(comm, fname.c_str(), &base_i, &base_j, &A_parcsr);
+
+   WrapHypreParCSRMatrix(A_parcsr, true);
+
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
-void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
    HYPRE_IJMatrix A_ij;
-   HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
+   HYPRE_IJMatrixRead(fname.c_str(), comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
 
    HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
 
-   A = (hypre_ParCSRMatrix*)A_parcsr;
+   WrapHypreParCSRMatrix(A_parcsr, true);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
 void HypreParMatrix::PrintCommPkg(std::ostream &os) const
@@ -2601,10 +2733,10 @@ void HypreParMatrix::PrintCommPkg(std::ostream &os) const
    }
    os << "Rank " << myid << ":\n"
       "   number of sends  = " << comm_pkg->num_sends <<
-      " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
+      " (" << sizeof(real_t)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
       " bytes)\n"
       "   number of recvs  = " << comm_pkg->num_recvs <<
-      " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
+      " (" << sizeof(real_t)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
       " bytes)\n";
    if (myid != nproc-1)
    {
@@ -2684,6 +2816,33 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
    os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
+real_t HypreParMatrix::FNorm() const
+{
+   real_t norm_fro = 0.0;
+   if (A != NULL)
+#if MFEM_HYPRE_VERSION >= 21900
+   {
+      const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      MFEM_VERIFY(ierr == 0, "");
+   }
+#else
+   {
+      // HYPRE_USING_GPU is not defined for
+      // MFEM_HYPRE_VERSION < 22100 and so here it is
+      // guaranteed that the matrix is in "host" memory
+      Vector Avec_diag(A->diag->data, A->diag->num_nonzeros);
+      real_t normsqr_fro = InnerProduct(Avec_diag, Avec_diag);
+      Vector Avec_offd(A->offd->data, A->offd->num_nonzeros);
+      normsqr_fro += InnerProduct(Avec_offd, Avec_offd);
+      MPI_Allreduce(MPI_IN_PLACE, &normsqr_fro, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, hypre_ParCSRMatrixComm(A));
+      norm_fro = sqrt(normsqr_fro);
+   }
+#endif
+   return norm_fro;
+}
+
+
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
    HYPRE_BigInt  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
@@ -2701,7 +2860,7 @@ void HypreParMatrix::Destroy()
    if (A == NULL) { return; }
 
 #ifdef HYPRE_USING_GPU
-   if (ParCSROwner && (diagOwner < 0 || offdOwner < 0))
+   if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
       // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
@@ -2803,8 +2962,8 @@ void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
 
 #if MFEM_HYPRE_VERSION < 21400
 
-HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
-                    double beta,  const HypreParMatrix &B)
+HypreParMatrix *Add(real_t alpha, const HypreParMatrix &A,
+                    real_t beta,  const HypreParMatrix &B)
 {
    hypre_ParCSRMatrix *C_hypre =
       internal::hypre_ParCSRMatrixAdd(const_cast<HypreParMatrix &>(A),
@@ -2831,8 +2990,8 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 
 #else
 
-HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
-                    double beta,  const HypreParMatrix &B)
+HypreParMatrix *Add(real_t alpha, const HypreParMatrix &A,
+                    real_t beta,  const HypreParMatrix &B)
 {
    hypre_ParCSRMatrix *C;
 #if MFEM_HYPRE_VERSION <= 22000
@@ -2865,10 +3024,15 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
 {
    hypre_ParCSRMatrix * ab;
 #ifdef HYPRE_USING_GPU
-   ab = hypre_ParCSRMatMat(*A, *B);
-#else
-   ab = hypre_ParMatmul(*A,*B);
+   if (HypreUsingGPU())
+   {
+      ab = hypre_ParCSRMatMat(*A, *B);
+   }
+   else
 #endif
+   {
+      ab = hypre_ParMatmul(*A,*B);
+   }
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    if (!hypre_ParCSRMatrixCommPkg(ab)) { hypre_MatvecCommPkgCreate(ab); }
@@ -2892,6 +3056,7 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    //        in ex28p.
    // Quick fix: add a diagonal matrix with 0 diagonal.
    // Maybe use hypre_CSRMatrixCheckDiagFirst to see if we need the fix.
+   if (HypreUsingGPU())
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       const bool keepTranspose = false;
@@ -2901,25 +3066,27 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       // alternative:
       // hypre_ParCSRMatrixRAPKT
    }
-#else
-#if MFEM_HYPRE_VERSION <= 22200
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+   else
 #endif
-
-   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
-
-#if MFEM_HYPRE_VERSION <= 22200
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from P (even if it does not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-   if (P_owns_its_col_starts)
    {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+#if MFEM_HYPRE_VERSION <= 22200
+      HYPRE_Int P_owns_its_col_starts =
+         hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+#endif
+
+      hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+
+#if MFEM_HYPRE_VERSION <= 22200
+      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+         from P (even if it does not own them)! */
+      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      if (P_owns_its_col_starts)
+      {
+         hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+      }
+#endif
    }
-#endif
-#endif
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
@@ -2933,36 +3100,39 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
    hypre_ParCSRMatrix * rap;
 
 #ifdef HYPRE_USING_GPU
+   if (HypreUsingGPU())
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       rap = hypre_ParCSRTMatMat(*Rt,Q);
       hypre_ParCSRMatrixDestroy(Q);
    }
-#else
+   else
+#endif
+   {
 #if MFEM_HYPRE_VERSION <= 22200
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
-   HYPRE_Int Rt_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
+      HYPRE_Int P_owns_its_col_starts =
+         hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+      HYPRE_Int Rt_owns_its_col_starts =
+         hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
 #endif
 
-   hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
+      hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
 
 #if MFEM_HYPRE_VERSION <= 22200
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from Rt and P (even if they do not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-   if (P_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
-   }
-   if (Rt_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
-   }
+      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+         from Rt and P (even if they do not own them)! */
+      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      if (P_owns_its_col_starts)
+      {
+         hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+      }
+      if (Rt_owns_its_col_starts)
+      {
+         hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
+      }
 #endif
-#endif
+   }
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
@@ -3006,10 +3176,7 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    for (int i = 0; i < nprocs; ++i)
    {
       globalNum += all_num_loc[i];
-      if (rank == 0)
-      {
-         MFEM_VERIFY(globalNum >= 0, "overflow in global size");
-      }
+      MFEM_VERIFY(globalNum >= 0, "overflow in global size");
       if (i < rank)
       {
          firstLocal += all_num_loc[i];
@@ -3030,8 +3197,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    }
 }
 
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
-                                          Array2D<double> *blockCoeff)
+HypreParMatrix *HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*> &blocks,
+                                         Array2D<real_t> *blockCoeff)
 {
    const int numBlockRows = blocks.NumRows();
    const int numBlockCols = blocks.NumCols();
@@ -3074,9 +3241,6 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             const int nrows = blocks(i,j)->NumRows();
             const int ncols = blocks(i,j)->NumCols();
 
-            MFEM_VERIFY(nrows > 0 &&
-                        ncols > 0, "Invalid block in HypreParMatrixFromBlocks");
-
             if (rowOffsets[i+1] == 0)
             {
                rowOffsets[i+1] = nrows;
@@ -3098,14 +3262,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             }
          }
       }
-
-      MFEM_VERIFY(rowOffsets[i+1] > 0, "Invalid input blocks");
       rowOffsets[i+1] += rowOffsets[i];
    }
 
    for (int j=0; j<numBlockCols; ++j)
    {
-      MFEM_VERIFY(colOffsets[j+1] > 0, "Invalid input blocks");
       colOffsets[j+1] += colOffsets[j];
    }
 
@@ -3182,7 +3343,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
    const int nnz = opI[num_loc_rows];
 
    std::vector<HYPRE_BigInt> opJ(nnz);
-   std::vector<double> data(nnz);
+   std::vector<real_t> data(nnz);
 
    // Loop over all blocks, to set matrix data.
    for (int i = 0; i < numBlockRows; ++i)
@@ -3192,7 +3353,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
          if (csr_blocks(i, j) != NULL)
          {
             const int nrows = csr_blocks(i, j)->num_rows;
-            const double cij = blockCoeff ? (*blockCoeff)(i, j) : 1.0;
+            const real_t cij = blockCoeff ? (*blockCoeff)(i, j) : 1.0;
 #if MFEM_HYPRE_VERSION >= 21600
             const bool usingBigJ = (csr_blocks(i, j)->big_j != NULL);
 #endif
@@ -3274,6 +3435,20 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
    }
 }
 
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
+                                          Array2D<real_t> *blockCoeff)
+{
+   Array2D<const HypreParMatrix*> constBlocks(blocks.NumRows(), blocks.NumCols());
+   for (int i = 0; i < blocks.NumRows(); ++i)
+   {
+      for (int j = 0; j < blocks.NumCols(); ++j)
+      {
+         constBlocks(i, j) = blocks(i, j);
+      }
+   }
+   return HypreParMatrixFromBlocks(constBlocks, blockCoeff);
+}
+
 void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
                  const Array<int> &ess_dof_list,
                  const Vector &X, Vector &B)
@@ -3286,10 +3461,10 @@ void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
 
 int ParCSRRelax_Taubin(hypre_ParCSRMatrix *A, // matrix to relax with
                        hypre_ParVector *f,    // right-hand side
-                       double lambda,
-                       double mu,
+                       real_t lambda,
+                       real_t mu,
                        int N,
-                       double max_eig,
+                       real_t max_eig,
                        hypre_ParVector *u,    // initial/updated approximation
                        hypre_ParVector *r     // another temp vector
                       )
@@ -3297,8 +3472,8 @@ int ParCSRRelax_Taubin(hypre_ParCSRMatrix *A, // matrix to relax with
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
    HYPRE_Int num_rows = hypre_CSRMatrixNumRows(A_diag);
 
-   double *u_data = hypre_VectorData(hypre_ParVectorLocalVector(u));
-   double *r_data = hypre_VectorData(hypre_ParVectorLocalVector(r));
+   real_t *u_data = hypre_VectorData(hypre_ParVectorLocalVector(u));
+   real_t *r_data = hypre_VectorData(hypre_ParVectorLocalVector(r));
 
    for (int i = 0; i < N; i++)
    {
@@ -3306,7 +3481,7 @@ int ParCSRRelax_Taubin(hypre_ParCSRMatrix *A, // matrix to relax with
       hypre_ParVectorCopy(f, r);
       hypre_ParCSRMatrixMatvec(-1.0, A, u, 1.0, r);
 
-      double coef;
+      real_t coef;
       (0 == (i % 2)) ? coef = lambda : coef = mu;
 
       for (HYPRE_Int j = 0; j < num_rows; j++)
@@ -3323,9 +3498,9 @@ int ParCSRRelax_Taubin(hypre_ParCSRMatrix *A, // matrix to relax with
 
 int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
                     hypre_ParVector *f,    // right-hand side
-                    double max_eig,
+                    real_t max_eig,
                     int poly_order,
-                    double* fir_coeffs,
+                    real_t* fir_coeffs,
                     hypre_ParVector *u,    // initial/updated approximation
                     hypre_ParVector *x0,   // temporaries
                     hypre_ParVector *x1,
@@ -3336,12 +3511,12 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
    HYPRE_Int num_rows = hypre_CSRMatrixNumRows(A_diag);
 
-   double *u_data = hypre_VectorData(hypre_ParVectorLocalVector(u));
+   real_t *u_data = hypre_VectorData(hypre_ParVectorLocalVector(u));
 
-   double *x0_data = hypre_VectorData(hypre_ParVectorLocalVector(x0));
-   double *x1_data = hypre_VectorData(hypre_ParVectorLocalVector(x1));
-   double *x2_data = hypre_VectorData(hypre_ParVectorLocalVector(x2));
-   double *x3_data = hypre_VectorData(hypre_ParVectorLocalVector(x3));
+   real_t *x0_data = hypre_VectorData(hypre_ParVectorLocalVector(x0));
+   real_t *x1_data = hypre_VectorData(hypre_ParVectorLocalVector(x1));
+   real_t *x2_data = hypre_VectorData(hypre_ParVectorLocalVector(x2));
+   real_t *x3_data = hypre_VectorData(hypre_ParVectorLocalVector(x3));
 
    hypre_ParVectorCopy(u, x0);
 
@@ -3401,7 +3576,7 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
 
 HypreSmoother::HypreSmoother() : Solver()
 {
-   type = default_type;
+   type = DefaultType();
    relax_times = 1;
    relax_weight = 1.0;
    omega = 1.0;
@@ -3422,9 +3597,9 @@ HypreSmoother::HypreSmoother() : Solver()
 }
 
 HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
-                             int relax_times_, double relax_weight_,
-                             double omega_, int poly_order_,
-                             double poly_fraction_, int eig_est_cg_iter_)
+                             int relax_times_, real_t relax_weight_,
+                             real_t omega_, int poly_order_,
+                             real_t poly_fraction_, int eig_est_cg_iter_)
 {
    type = type_;
    relax_times = relax_times_;
@@ -3451,13 +3626,13 @@ void HypreSmoother::SetType(HypreSmoother::Type type_, int relax_times_)
    relax_times = relax_times_;
 }
 
-void HypreSmoother::SetSOROptions(double relax_weight_, double omega_)
+void HypreSmoother::SetSOROptions(real_t relax_weight_, real_t omega_)
 {
    relax_weight = relax_weight_;
    omega = omega_;
 }
 
-void HypreSmoother::SetPolyOptions(int poly_order_, double poly_fraction_,
+void HypreSmoother::SetPolyOptions(int poly_order_, real_t poly_fraction_,
                                    int eig_est_cg_iter_)
 {
    poly_order = poly_order_;
@@ -3465,7 +3640,7 @@ void HypreSmoother::SetPolyOptions(int poly_order_, double poly_fraction_,
    eig_est_cg_iter = eig_est_cg_iter_;
 }
 
-void HypreSmoother::SetTaubinOptions(double lambda_, double mu_,
+void HypreSmoother::SetTaubinOptions(real_t lambda_, real_t mu_,
                                      int taubin_iter_)
 {
    lambda = lambda_;
@@ -3475,7 +3650,7 @@ void HypreSmoother::SetTaubinOptions(double lambda_, double mu_,
 
 void HypreSmoother::SetWindowByName(const char* name)
 {
-   double a = -1, b, c;
+   real_t a = -1, b, c;
    if (!strcmp(name,"Rectangular")) { a = 1.0,  b = 0.0,  c = 0.0; }
    if (!strcmp(name,"Hanning")) { a = 0.5,  b = 0.5,  c = 0.0; }
    if (!strcmp(name,"Hamming")) { a = 0.54, b = 0.46, c = 0.0; }
@@ -3488,7 +3663,7 @@ void HypreSmoother::SetWindowByName(const char* name)
    SetWindowParameters(a, b, c);
 }
 
-void HypreSmoother::SetWindowParameters(double a, double b, double c)
+void HypreSmoother::SetWindowParameters(real_t a, real_t b, real_t c)
 {
    window_params[0] = a;
    window_params[1] = b;
@@ -3529,7 +3704,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    else if (type == 5)
    {
-      l1_norms = mfem_hypre_CTAlloc(double, height);
+      l1_norms = mfem_hypre_CTAlloc(real_t, height);
       Vector ones(height), diag(l1_norms, height);
       ones = 1.0;
       A->Mult(ones, diag);
@@ -3540,20 +3715,45 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    if (l1_norms && pos_l1_norms)
    {
-#if defined(HYPRE_USING_GPU)
-      double *d_l1_norms = l1_norms;  // avoid *this capture
-      MFEM_GPU_FORALL(i, height,
+      real_t *d_l1_norms = l1_norms;  // avoid *this capture
+      mfem::hypre_forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
          d_l1_norms[i] = std::abs(d_l1_norms[i]);
       });
-#else
-      for (int i = 0; i < height; i++)
-      {
-         l1_norms[i] = std::abs(l1_norms[i]);
-      }
-#endif
    }
 
+#if MFEM_HYPRE_VERSION < 22100
+   // HYPRE_USING_GPU is not defined for these versions of HYPRE
+   switch (type)
+   {
+      case 3:
+      case 6:
+      case 8:
+      case 10:
+      case 13:
+      case 14:
+         Z = new HypreParVector(*A);
+   }
+#elif defined(HYPRE_USING_GPU)
+   if (HypreUsingGPU())
+   {
+      switch (type)
+      {
+         case 0:
+         case 1:
+         case 5:
+         case 7:
+         case 16:
+         case 18:
+         case 30:
+         case 1001:
+         case 1002:
+            break;
+         default:
+            Z = new HypreParVector(*A);
+      }
+   }
+#endif
    if (type == 16)
    {
       poly_scale = 1;
@@ -3607,34 +3807,34 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
 }
 
-void HypreSmoother::SetFIRCoefficients(double max_eig)
+void HypreSmoother::SetFIRCoefficients(real_t max_eig)
 {
    if (fir_coeffs)
    {
       delete [] fir_coeffs;
    }
 
-   fir_coeffs = new double[poly_order+1];
+   fir_coeffs = new real_t[poly_order+1];
 
-   double* window_coeffs = new double[poly_order+1];
-   double* cheby_coeffs = new double[poly_order+1];
+   real_t* window_coeffs = new real_t[poly_order+1];
+   real_t* cheby_coeffs = new real_t[poly_order+1];
 
-   double a = window_params[0];
-   double b = window_params[1];
-   double c = window_params[2];
+   real_t a = window_params[0];
+   real_t b = window_params[1];
+   real_t c = window_params[2];
    for (int i = 0; i <= poly_order; i++)
    {
-      double t = (i*M_PI)/(poly_order+1);
+      real_t t = (i*M_PI)/(poly_order+1);
       window_coeffs[i] = a + b*cos(t) +c*cos(2*t);
    }
 
-   double k_pb = poly_fraction*max_eig;
-   double theta_pb = acos(1.0 -0.5*k_pb);
-   double sigma = 0.0;
+   real_t k_pb = poly_fraction*max_eig;
+   real_t theta_pb = acos(1.0 -0.5*k_pb);
+   real_t sigma = 0.0;
    cheby_coeffs[0] = (theta_pb +sigma)/M_PI;
    for (int i = 1; i <= poly_order; i++)
    {
-      double t = i*(theta_pb+sigma);
+      real_t t = i*(theta_pb+sigma);
       cheby_coeffs[i] = 2.0*sin(t)/(i*M_PI);
    }
 
@@ -3893,7 +4093,10 @@ bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
 void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
 {
    if (setup_called) { return; }
-
+   dbg();
+   sw_setup.Clear();
+   sw_apply.Clear();
+   sw_setup.Start();
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR Indigo
    NVTX("AMG Setup");
@@ -3912,6 +4115,7 @@ void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
    }
    hypre_error_flag = 0;
    setup_called = 1;
+   sw_setup.Stop();
 }
 
 void HypreSolver::Setup(const Vector &b, Vector &x) const
@@ -3960,9 +4164,19 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
+#warning [CGSolver::Mult] MFEM_DEVICE_SYNC
+   static const bool EKS = true;//getenv("EKS") != nullptr;
+   static bool init = true;
+   if (init) { if (EKS) {dbg("EKS");} init = false;}
+
+   if (EKS) { MFEM_DEVICE_SYNC; }
+
+   sw_apply.Start();
    const bool x_shallow = WrapVectors(b, x);
    Mult(*B, *X);
    if (!x_shallow) { x = *X; }  // Deep copy if shallow copy is impossible
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_apply.Stop();
 }
 
 HypreSolver::~HypreSolver()
@@ -4014,12 +4228,12 @@ void HyprePCG::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
-void HyprePCG::SetTol(double tol)
+void HyprePCG::SetTol(real_t tol)
 {
    HYPRE_PCGSetTol(pcg_solver, tol);
 }
 
-void HyprePCG::SetAbsTol(double atol)
+void HyprePCG::SetAbsTol(real_t atol)
 {
    HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
 }
@@ -4049,7 +4263,7 @@ void HyprePCG::SetPreconditioner(HypreSolver &precond_)
                              precond_);
 }
 
-void HyprePCG::SetResidualConvergenceOptions(int res_frequency, double rtol)
+void HyprePCG::SetResidualConvergenceOptions(int res_frequency, real_t rtol)
 {
    HYPRE_PCGSetTwoNorm(pcg_solver, 1);
    if (res_frequency > 0)
@@ -4067,7 +4281,7 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
    int myid;
    HYPRE_Int time_index = 0;
    HYPRE_Int num_iterations;
-   double final_res_norm;
+   real_t final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
@@ -4170,7 +4384,7 @@ void HypreGMRES::SetDefaultOptions()
 {
    int k_dim    = 50;
    int max_iter = 100;
-   double tol   = 1e-6;
+   real_t tol   = 1e-6;
 
    HYPRE_ParCSRGMRESSetKDim(gmres_solver, k_dim);
    HYPRE_ParCSRGMRESSetMaxIter(gmres_solver, max_iter);
@@ -4199,12 +4413,12 @@ void HypreGMRES::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
-void HypreGMRES::SetTol(double tol)
+void HypreGMRES::SetTol(real_t tol)
 {
    HYPRE_GMRESSetTol(gmres_solver, tol);
 }
 
-void HypreGMRES::SetAbsTol(double tol)
+void HypreGMRES::SetAbsTol(real_t tol)
 {
    HYPRE_GMRESSetAbsoluteTol(gmres_solver, tol);
 }
@@ -4244,7 +4458,7 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
    int myid;
    HYPRE_Int time_index = 0;
    HYPRE_Int num_iterations;
-   double final_res_norm;
+   real_t final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
@@ -4342,7 +4556,7 @@ void HypreFGMRES::SetDefaultOptions()
 {
    int k_dim    = 50;
    int max_iter = 100;
-   double tol   = 1e-6;
+   real_t tol   = 1e-6;
 
    HYPRE_ParCSRFlexGMRESSetKDim(fgmres_solver, k_dim);
    HYPRE_ParCSRFlexGMRESSetMaxIter(fgmres_solver, max_iter);
@@ -4371,7 +4585,7 @@ void HypreFGMRES::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
-void HypreFGMRES::SetTol(double tol)
+void HypreFGMRES::SetTol(real_t tol)
 {
    HYPRE_ParCSRFlexGMRESSetTol(fgmres_solver, tol);
 }
@@ -4410,7 +4624,7 @@ void HypreFGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
    int myid;
    HYPRE_Int time_index = 0;
    HYPRE_Int num_iterations;
-   double final_res_norm;
+   real_t final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
@@ -4520,10 +4734,10 @@ HypreParaSails::HypreParaSails(const HypreParMatrix &A) : HypreSolver(&A)
 void HypreParaSails::SetDefaultOptions()
 {
    int    sai_max_levels = 1;
-   double sai_threshold  = 0.1;
-   double sai_filter     = 0.1;
+   real_t sai_threshold  = 0.1;
+   real_t sai_filter     = 0.1;
    int    sai_sym        = 0;
-   double sai_loadbal    = 0.0;
+   real_t sai_loadbal    = 0.0;
    int    sai_reuse      = 0;
    int    sai_logging    = 1;
 
@@ -4589,17 +4803,22 @@ void HypreParaSails::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
-void HypreParaSails::SetParams(double threshold, int max_levels)
+void HypreParaSails::SetParams(real_t threshold, int max_levels)
 {
    HYPRE_ParaSailsSetParams(sai_precond, threshold, max_levels);
 }
 
-void HypreParaSails::SetFilter(double filter)
+void HypreParaSails::SetFilter(real_t filter)
 {
    HYPRE_ParaSailsSetFilter(sai_precond, filter);
 }
 
-void HypreParaSails::SetLoadBal(double loadbal)
+void HypreParaSails::SetSymmetry(int sym)
+{
+   HYPRE_ParaSailsSetSym(sai_precond, sym);
+}
+
+void HypreParaSails::SetLoadBal(real_t loadbal)
 {
    HYPRE_ParaSailsSetLoadbal(sai_precond, loadbal);
 }
@@ -4612,11 +4831,6 @@ void HypreParaSails::SetReuse(int reuse)
 void HypreParaSails::SetLogging(int logging)
 {
    HYPRE_ParaSailsSetLogging(sai_precond, logging);
-}
-
-void HypreParaSails::SetSymmetry(int sym)
-{
-   HYPRE_ParaSailsSetSym(sai_precond, sym);
 }
 
 HypreParaSails::~HypreParaSails()
@@ -4835,41 +5049,49 @@ HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
-#if !defined(HYPRE_USING_GPU)
-   // AMG coarsening options:
-   int coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-   int agg_levels   = 1;    // number of aggressive coarsening levels
-   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
-
    // AMG interpolation options:
-   int interp_type  = 6;    // 6 = extended+i, 0 = classical
-   int Pmax         = 4;    // max number of elements per row in P
+   int coarsen_type, agg_levels, interp_type, Pmax, relax_type, relax_sweeps,
+       print_level, max_levels;
+   real_t theta;
 
-   // AMG relaxation options:
-   int relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
-   int relax_sweeps = 1;    // relaxation sweeps on each level
+   if (!HypreUsingGPU())
+   {
+      // AMG coarsening options:
+      coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+      agg_levels   = 1;    // number of aggressive coarsening levels
+      theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
-   // Additional options:
-   int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
-   int max_levels   = 25;   // max number of levels in AMG hierarchy
-#else
-   // AMG coarsening options:
-   int coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-   int agg_levels   = 0;    // number of aggressive coarsening levels
-   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
+      // AMG interpolation options:
+      interp_type  = 6;    // 6 = extended+i, 0 = classical
+      Pmax         = 4;    // max number of elements per row in P
 
-   // AMG interpolation options:
-   int interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
-   int Pmax         = 4;    // max number of elements per row in P
+      // AMG relaxation options:
+      relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
+      relax_sweeps = 1;    // relaxation sweeps on each level
 
-   // AMG relaxation options:
-   int relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
-   int relax_sweeps = 1;    // relaxation sweeps on each level
+      // Additional options:
+      print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+      max_levels   = 25;   // max number of levels in AMG hierarchy
+   }
+   else
+   {
+      // AMG coarsening options:
+      coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+      agg_levels   = 0;    // number of aggressive coarsening levels
+      theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
-   // Additional options:
-   int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
-   int max_levels   = 25;   // max number of levels in AMG hierarchy
-#endif
+      // AMG interpolation options:
+      interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
+      Pmax         = 4;    // max number of elements per row in P
+
+      // AMG relaxation options:
+      relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
+      relax_sweeps = 1;    // relaxation sweeps on each level
+
+      // Additional options:
+      print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+      max_levels   = 25;   // max number of levels in AMG hierarchy
+   }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
@@ -5006,14 +5228,20 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
       // After the addition of hypre_IntArray, mapping is assumed
       // to be a device pointer. Previously, it was assumed to be
       // a host pointer.
+      HYPRE_Int *mapping = nullptr;
 #if defined(hypre_IntArrayData) && defined(HYPRE_USING_GPU)
-      HYPRE_Int *mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
-      hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
-                    HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
-      mfem_hypre_TFree_host(h_mapping);
-#else
-      HYPRE_Int *mapping = h_mapping;
+      if (HypreUsingGPU())
+      {
+         mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
+         hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
+                       HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+         mfem_hypre_TFree_host(h_mapping);
+      }
+      else
 #endif
+      {
+         mapping = h_mapping;
+      }
 
       // hypre actually deletes the mapping pointer in HYPRE_BoomerAMGDestroy,
       // so we don't need to track it
@@ -5102,10 +5330,14 @@ void HypreBoomerAMG::RecomputeRBMs()
    }
 }
 
-void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
+void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
+                                          bool interp_refine_)
 {
 #ifdef HYPRE_USING_GPU
-   MFEM_ABORT("this method is not supported in hypre built with GPU support");
+   if (HypreUsingGPU())
+   {
+      MFEM_ABORT("this method is not supported in hypre built with GPU support");
+   }
 #endif
 
    // Save the finite element space to support multiple calls to SetOperator()
@@ -5113,7 +5345,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim);
+   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
@@ -5128,7 +5360,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Optionally pre-process the interpolation matrix through iterative weight
    // refinement (this is generally applicable for any system)
-   int interp_refine         = 1;
+   int interp_refine         = interp_refine_;
 
    HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
    HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
@@ -5159,17 +5391,17 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    int interp_type = 100;
    int relax_type = 10;
    int coarsen_type = 6;
-   double strength_tolC = 0.1;
-   double strength_tolR = 0.01;
-   double filter_tolR = 0.0;
-   double filterA_tol = 0.0;
+   real_t strength_tolC = 0.1;
+   real_t strength_tolR = 0.01;
+   real_t filter_tolR = 0.0;
+   real_t filterA_tol = 0.0;
 
    // Set relaxation on specified grid points
-   int ns_down, ns_up, ns_coarse;
+   int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
-      ns_down = prerelax.length();
-      ns_up = postrelax.length();
+      ns_down = static_cast<int>(prerelax.length());
+      ns_up = static_cast<int>(postrelax.length());
       ns_coarse = 1;
 
       // Array to store relaxation scheme and pass to Hypre
@@ -5296,7 +5528,6 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
    MFEM_ASSERT(y != NULL, "");
    int sdim = (z == NULL) ? 2 : 3;
    int cycle_type = 13;
-
    MakeSolver(sdim, cycle_type);
 
    HYPRE_ParVector pz = z ? static_cast<HYPRE_ParVector>(*z) : NULL;
@@ -5304,28 +5535,52 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
    HYPRE_AMSSetDiscreteGradient(ams, *G);
 }
 
+void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
+{
+   ParMesh *pmesh = edge_fespace->GetParMesh();
+   int dim = pmesh->Dimension();
+   int sdim = pmesh->SpaceDimension();
+   int cycle_type = 13;
+
+   const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
+   bool trace_space = dynamic_cast<const ND_Trace_FECollection *>(edge_fec);
+   bool rt_trace_space = dynamic_cast<const RT_Trace_FECollection *>(edge_fec);
+   trace_space = trace_space || rt_trace_space;
+
+   ND_Trace_FECollection *nd_tr_fec = NULL;
+   if (rt_trace_space)
+   {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
+                  "HypreAMS does not support variable order spaces");
+      nd_tr_fec = new ND_Trace_FECollection(edge_fec->GetOrder(), dim);
+      edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
+   }
+
+   int vdim = edge_fespace->FEColl()->GetRangeDim(dim - trace_space);
+
+   MakeSolver(std::max(sdim, vdim), cycle_type);
+   MakeGradientAndInterpolation(edge_fespace, cycle_type);
+
+   if (rt_trace_space)
+   {
+      delete edge_fespace;
+      delete nd_tr_fec;
+   }
+}
+
 void HypreAMS::MakeSolver(int sdim, int cycle_type)
 {
    int rlx_sweeps       = 1;
-   double rlx_weight    = 1.0;
-   double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_GPU)
-   int amg_coarsen_type = 10;
-   int amg_agg_levels   = 1;
-   int amg_rlx_type     = 8;
-   int rlx_type         = 2;
-   double theta         = 0.25;
+   real_t rlx_weight    = 1.0;
+   real_t rlx_omega     = 1.0;
+   const bool hypre_gpu = HypreUsingGPU();
+   int amg_coarsen_type = hypre_gpu ? 8 : 10;
+   int amg_agg_levels   = hypre_gpu ? 0 : 1;
+   int amg_rlx_type     = hypre_gpu ? 18 : 8;
+   int rlx_type         = hypre_gpu ? 1: 2;
+   real_t theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
-#else
-   int amg_coarsen_type = 8;
-   int amg_agg_levels   = 0;
-   int amg_rlx_type     = 18;
-   int rlx_type         = 1;
-   double theta         = 0.25;
-   int amg_interp_type  = 6;
-   int amg_Pmax         = 4;
-#endif
 
    space_dim = sdim;
    ams_cycle_type = cycle_type;
@@ -5337,7 +5592,7 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
    HYPRE_AMSSetCycleType(ams, cycle_type);
    HYPRE_AMSSetPrintLevel(ams, 1);
 
-   // set additional AMS options
+   // Set additional AMS options
    HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
    HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                                theta, amg_interp_type, amg_Pmax);
@@ -5357,39 +5612,20 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
 void HypreAMS::MakeGradientAndInterpolation(
    ParFiniteElementSpace *edge_fespace, int cycle_type)
 {
-   int dim = edge_fespace->GetMesh()->Dimension();
-   int sdim = edge_fespace->GetMesh()->SpaceDimension();
    const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
-
-   bool trace_space, rt_trace_space;
-   ND_Trace_FECollection *nd_tr_fec = NULL;
-   trace_space = dynamic_cast<const ND_Trace_FECollection*>(edge_fec);
-   rt_trace_space = dynamic_cast<const RT_Trace_FECollection*>(edge_fec);
-   trace_space = trace_space || rt_trace_space;
-
-   int p = 1;
-   if (edge_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = edge_fespace->GetFaceOrder(0);
-         if (dim == 2) { p++; }
-      }
-      else
-      {
-         p = edge_fespace->GetElementOrder(0);
-      }
-   }
+   bool trace_space = dynamic_cast<const ND_Trace_FECollection *>(edge_fec);
 
    ParMesh *pmesh = edge_fespace->GetParMesh();
-   if (rt_trace_space)
-   {
-      nd_tr_fec = new ND_Trace_FECollection(p, dim);
-      edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
-   }
+   int dim = pmesh->Dimension();
+   int sdim = pmesh->SpaceDimension();
+   int vdim = edge_fespace->FEColl()->GetRangeDim(dim - trace_space);
 
-   // define the nodal linear finite element space associated with edge_fespace
+   // For dim = 1, ND_FECollection::GetOrder() returns p - 1
+   MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
+               "HypreAMS does not support variable order spaces");
+   int p = edge_fec->GetOrder() + (dim - trace_space == 1 ? 1 : 0);
+
+   // Define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
    if (trace_space)
    {
@@ -5402,13 +5638,32 @@ void HypreAMS::MakeGradientAndInterpolation(
    ParFiniteElementSpace *vert_fespace = new ParFiniteElementSpace(pmesh,
                                                                    vert_fec);
 
-   // generate and set the vertex coordinates
-   if (p == 1 && pmesh->GetNodes() == NULL)
+   // generate and set the discrete gradient
+   ParDiscreteLinearOperator *grad;
+   grad = new ParDiscreteLinearOperator(vert_fespace, edge_fespace);
+   if (trace_space)
+   {
+      grad->AddTraceFaceInterpolator(new GradientInterpolator);
+   }
+   else
+   {
+      grad->AddDomainInterpolator(new GradientInterpolator);
+   }
+   grad->Assemble();
+   grad->Finalize();
+   G = grad->ParallelAssemble();
+   HYPRE_AMSSetDiscreteGradient(ams, *G);
+   delete grad;
+
+   // generate and set the vertex coordinates or Nedelec interpolation matrices
+   x = y = z = NULL;
+   Pi = Pix = Piy = Piz = NULL;
+   if (p == 1 && pmesh->GetNodes() == NULL && vdim <= sdim)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
       ParGridFunction z_coord(vert_fespace);
-      double *coord;
+      real_t *coord;
       for (int i = 0; i < pmesh->GetNV(); i++)
       {
          coord = pmesh -> GetVertex(i);
@@ -5439,34 +5694,9 @@ void HypreAMS::MakeGradientAndInterpolation(
    }
    else
    {
-      x = NULL;
-      y = NULL;
-      z = NULL;
-   }
-
-   // generate and set the discrete gradient
-   ParDiscreteLinearOperator *grad;
-   grad = new ParDiscreteLinearOperator(vert_fespace, edge_fespace);
-   if (trace_space)
-   {
-      grad->AddTraceFaceInterpolator(new GradientInterpolator);
-   }
-   else
-   {
-      grad->AddDomainInterpolator(new GradientInterpolator);
-   }
-   grad->Assemble();
-   grad->Finalize();
-   G = grad->ParallelAssemble();
-   HYPRE_AMSSetDiscreteGradient(ams, *G);
-   delete grad;
-
-   // generate and set the Nedelec interpolation matrices
-   Pi = Pix = Piy = Piz = NULL;
-   if (p > 1 || pmesh->GetNodes() != NULL)
-   {
-      ParFiniteElementSpace *vert_fespace_d
-         = new ParFiniteElementSpace(pmesh, vert_fec, sdim, Ordering::byVDIM);
+      ParFiniteElementSpace *vert_fespace_d =
+         new ParFiniteElementSpace(pmesh, vert_fec, std::max(sdim, vdim),
+                                   Ordering::byVDIM);
 
       ParDiscreteLinearOperator *id_ND;
       id_ND = new ParDiscreteLinearOperator(vert_fespace_d, edge_fespace);
@@ -5490,8 +5720,8 @@ void HypreAMS::MakeGradientAndInterpolation(
          Array2D<HypreParMatrix *> Pi_blocks;
          id_ND->GetParBlocks(Pi_blocks);
          Pix = Pi_blocks(0,0);
-         if (sdim >= 2) { Piy = Pi_blocks(0,1); }
-         if (sdim == 3) { Piz = Pi_blocks(0,2); }
+         if (std::max(sdim, vdim) >= 2) { Piy = Pi_blocks(0,1); }
+         if (std::max(sdim, vdim) == 3) { Piz = Pi_blocks(0,2); }
       }
 
       delete id_ND;
@@ -5507,20 +5737,6 @@ void HypreAMS::MakeGradientAndInterpolation(
 
    delete vert_fespace;
    delete vert_fec;
-
-   if (rt_trace_space)
-   {
-      delete edge_fespace;
-      delete nd_tr_fec;
-   }
-}
-
-void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
-{
-   int cycle_type = 13;
-   int sdim = edge_fespace->GetMesh()->SpaceDimension();
-   MakeSolver(sdim, cycle_type);
-   MakeGradientAndInterpolation(edge_fespace, cycle_type);
 }
 
 void HypreAMS::ResetAMSPrecond()
@@ -5723,25 +5939,16 @@ HypreADS::HypreADS(
 void HypreADS::MakeSolver()
 {
    int rlx_sweeps       = 1;
-   double rlx_weight    = 1.0;
-   double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_GPU)
-   int rlx_type         = 2;
-   int amg_coarsen_type = 10;
-   int amg_agg_levels   = 1;
-   int amg_rlx_type     = 8;
-   double theta         = 0.25;
+   real_t rlx_weight    = 1.0;
+   real_t rlx_omega     = 1.0;
+   const bool hypre_gpu = HypreUsingGPU();
+   int rlx_type         = hypre_gpu ? 1 : 2;
+   int amg_coarsen_type = hypre_gpu ? 8 : 10;
+   int amg_agg_levels   = hypre_gpu ? 0 : 1;
+   int amg_rlx_type     = hypre_gpu ? 18 : 8;
+   real_t theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
-#else
-   int rlx_type         = 1;
-   int amg_coarsen_type = 8;
-   int amg_agg_levels   = 0;
-   int amg_rlx_type     = 18;
-   double theta         = 0.25;
-   int amg_interp_type  = 6;
-   int amg_Pmax         = 4;
-#endif
 
    HYPRE_ADSCreate(&ads);
 
@@ -5769,19 +5976,9 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
-   int p = 1;
-   if (face_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = face_fespace->GetFaceOrder(0) + 1;
-      }
-      else
-      {
-         p = face_fespace->GetElementOrder(0);
-      }
-   }
+
+   MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
+   int p = face_fec->GetOrder();
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
@@ -5808,7 +6005,7 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
       ParGridFunction z_coord(vert_fespace);
-      double *coord;
+      real_t *coord;
       for (int i = 0; i < pmesh->GetNV(); i++)
       {
          coord = pmesh -> GetVertex(i);
@@ -6145,13 +6342,13 @@ HypreLOBPCG::~HypreLOBPCG()
 }
 
 void
-HypreLOBPCG::SetTol(double tol)
+HypreLOBPCG::SetTol(real_t tol)
 {
    HYPRE_LOBPCGSetTol(lobpcg_solver, tol);
 }
 
 void
-HypreLOBPCG::SetRelTol(double rel_tol)
+HypreLOBPCG::SetRelTol(real_t rel_tol)
 {
 #if MFEM_HYPRE_VERSION >= 21101
    HYPRE_LOBPCGSetRTol(lobpcg_solver, rel_tol);
@@ -6227,7 +6424,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    }
 
    // Create a distributed vector without a data array.
-   const bool is_device_ptr = true;
+   const bool is_device_ptr = HypreUsingGPU();
    x = new HypreParVector(comm,glbSize,NULL,part,is_device_ptr);
 
    matvec_fn.MatvecCreate  = this->OperatorMatvecCreate;
@@ -6248,7 +6445,7 @@ HypreLOBPCG::SetMassMatrix(Operator & M)
 }
 
 void
-HypreLOBPCG::GetEigenvalues(Array<double> & eigs) const
+HypreLOBPCG::GetEigenvalues(Array<real_t> & eigs) const
 {
    // Initialize eigenvalues array with marker values
    eigs.SetSize(nev);
@@ -6291,7 +6488,7 @@ HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)
    // Ensure all vectors are in the proper subspace
    if ( subSpaceProj != NULL )
    {
-      HypreParVector y(*x);
+      HypreParVector y = x->CreateCompatibleVector();
       y = multi_vec->GetVector(0);
 
       for (int i=1; i<nev; i++)
@@ -6317,7 +6514,7 @@ HypreLOBPCG::Solve()
 
       if ( subSpaceProj != NULL )
       {
-         HypreParVector y(*x);
+         HypreParVector y = x->CreateCompatibleVector();
          y = multi_vec->GetVector(0);
 
          for (int i=1; i<nev; i++)
@@ -6465,13 +6662,13 @@ HypreAME::SetNumModes(int num_eigs)
 }
 
 void
-HypreAME::SetTol(double tol)
+HypreAME::SetTol(real_t tol)
 {
    HYPRE_AMESetTol(ame_solver, tol);
 }
 
 void
-HypreAME::SetRelTol(double rel_tol)
+HypreAME::SetRelTol(real_t rel_tol)
 {
 #if MFEM_HYPRE_VERSION >= 21101
    HYPRE_AMESetRTol(ame_solver, rel_tol);
@@ -6536,7 +6733,7 @@ HypreAME::Solve()
 }
 
 void
-HypreAME::GetEigenvalues(Array<double> & eigs) const
+HypreAME::GetEigenvalues(Array<real_t> & eigs) const
 {
    // Initialize eigenvalues array with marker values
    eigs.SetSize(nev); eigs = -1.0;

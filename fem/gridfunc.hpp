@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,14 +30,14 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which the grid function lives. Owned if #fec is not NULL.
+   /// FE space on which the grid function lives. Owned if #fec_owned is not NULL.
    FiniteElementSpace *fes;
 
    /** @brief Used when the grid function is read from a file. It can also be
        set explicitly, see MakeOwner().
 
        If not NULL, this pointer is owned by the GridFunction. */
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec_owned;
 
    long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
@@ -46,14 +46,12 @@ protected:
        associated true-dof values - either owned or external. */
    Vector t_vec;
 
-   void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
-
-   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
+   void SaveSTLTri(std::ostream &out, real_t p1[], real_t p2[], real_t p3[]);
 
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
-                                double &integral);
+                                real_t &integral);
 
    // Sum fluxes to vertices and count element contributions
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
@@ -74,16 +72,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; fes_sequence = 0; UseDevice(true); }
+   GridFunction() { fes = NULL; fec_owned = NULL; fes_sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), fes_sequence(orig.fes_sequence)
+      : Vector(orig), fes(orig.fes), fec_owned(NULL), fes_sequence(orig.fes_sequence)
    { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -91,15 +89,15 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data)
+   GridFunction(FiniteElementSpace *f, real_t *data)
       : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /** @brief Construct a GridFunction using previously allocated Vector @a base
        starting at the given offset, @a base_offset. */
    GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
       : Vector(base, base_offset, f->GetVSize())
-   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -118,14 +116,17 @@ public:
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
-   /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
+   /// Make the GridFunction the owner of #fec_owned and #fes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec_owned
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
 
-   FiniteElementCollection *OwnFEC() { return fec; }
+   FiniteElementCollection *OwnFEC() { return fec_owned; }
 
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
    int VectorDim() const;
+
+   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
@@ -152,7 +153,7 @@ public:
    void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
    /// Returns the values in the vertices of i'th element for dimension vdim.
-   void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
+   void GetNodalValues(int i, Array<real_t> &nval, int vdim = 1) const;
 
    /** @name Element index Get Value Methods
 
@@ -168,7 +169,7 @@ public:
    */
    ///@{
    /** Return a scalar value from within the given element. */
-   virtual double GetValue(int i, const IntegrationPoint &ip,
+   virtual real_t GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
    /** Return a vector value from within the given element. */
@@ -219,7 +220,7 @@ public:
    ///@{
    /** Return a scalar value from within the element indicated by the
        ElementTransformation Object. */
-   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+   virtual real_t GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                            int comp = 0, Vector *tr = NULL) const;
 
    /** Return a vector value from within the element indicated by the
@@ -323,25 +324,42 @@ public:
        @param[out] der       The resulting derivative (scalar function). The
                              FiniteElementSpace of this function must be set
                              before the call. */
-   void GetDerivative(int comp, int der_comp, GridFunction &der);
+   void GetDerivative(int comp, int der_comp, GridFunction &der) const;
 
-   double GetDivergence(ElementTransformation &tr) const;
+   real_t GetDivergence(ElementTransformation &tr) const;
 
    void GetCurl(ElementTransformation &tr, Vector &curl) const;
 
+   /** @brief Gradient of a scalar function at a quadrature point.
+
+       @note It is assumed that the IntegrationPoint of interest has been
+       specified by ElementTransformation::SetIntPoint() before calling
+       GetGradient().
+
+       @note Can be used from a ParGridFunction when @a tr is an
+       ElementTransformation of a face-neighbor element and face-neighbor data
+       has been exchanged. */
    void GetGradient(ElementTransformation &tr, Vector &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(ElementTransformation &tr, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(const int elem, const IntegrationRule &ir,
                      DenseMatrix &grad) const
    { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
+   /** @brief Compute the vector gradient with respect to the physical element
+       variable. */
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
 
-   /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
-       where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
+   /** @brief Compute the vector gradient with respect to the reference element
+       variable. */
+   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
+
+   /** Compute $ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) $,
+       where $ \psi_i $ are the basis functions for the FE space of avgs.
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 
@@ -356,7 +374,7 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      const Vector &lo_, const Vector &hi_);
    void ImposeBounds(int i, const Vector &weights,
-                     double min_ = 0.0, double max_ = infinity());
+                     real_t min_ = 0.0, real_t max_ = infinity());
 
    /** On a non-conforming mesh, make sure the function lies in the conforming
        space by multiplying with R and then with P, the conforming restriction
@@ -372,7 +390,8 @@ public:
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). */
+       in each element (not L2 projection). For NURBS spaces these degrees of
+       freedom are not available and L2 projection is resorted to as fallback. */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
@@ -383,7 +402,8 @@ public:
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection).*/
+       in each element (not L2 projection). For NURBS spaces these degrees of
+       freedom are not available and L2 projection is resorted to as fallback. */
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
@@ -428,14 +448,15 @@ protected:
        GetDerivative() method; see its documentation. */
    void AccumulateAndCountDerivativeValues(int comp, int der_comp,
                                            GridFunction &der,
-                                           Array<int> &zones_per_dof);
+                                           Array<int> &zones_per_dof) const;
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
-                                    VectorCoefficient *vcoeff, Array<int> &attr,
+                                    VectorCoefficient *vcoeff,
+                                    const Array<int> &attr,
                                     Array<int> &values_counter);
 
    void AccumulateAndCountBdrTangentValues(VectorCoefficient &vcoeff,
-                                           Array<int> &bdr_attr,
+                                           const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
    // Complete the computation of averages; called e.g. after
@@ -443,10 +464,14 @@ protected:
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
 public:
+   /** @brief For each vdof, counts how many elements contain the vdof,
+       as containment is determined by FiniteElementSpace::GetElementVDofs(). */
+   virtual void CountElementsPerVDof(Array<int> &elem_per_vdof) const;
+
    /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
        the boundary associated with the boundary attributes marked in the
        @a attr array. */
-   void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
+   void ProjectBdrCoefficient(Coefficient &coeff, const Array<int> &attr)
    {
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
@@ -456,75 +481,258 @@ public:
        DOFs on the boundary associated with the boundary attributes marked in
        the @a attr array. */
    virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                                      Array<int> &attr);
+                                      const Array<int> &attr);
 
    /** @brief Project a set of Coefficient%s on the components of the
        GridFunction, modifying only DOFs on the boundary associated with the
        boundary attributed marked in the @a attr array. */
    /** If a Coefficient pointer in the array @a coeff is NULL, that component
        will not be touched. */
-   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[],
+                                      const Array<int> &attr);
 
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
        'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */
    void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
-                                    Array<int> &bdr_attr);
+                                    const Array<int> &bdr_attr);
 
    /** @brief Project the tangential components of the given VectorCoefficient
        on the boundary. Only boundary attributes that are marked in @a bdr_attr
        are projected. Assumes ND-type VectorFE GridFunction. */
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                             Array<int> &bdr_attr);
+                                             const Array<int> &bdr_attr);
 
-
-   virtual double ComputeL2Error(Coefficient *exsol[],
+   /// @brief Returns ||exsol - u_h||_L2 for scalar or vector H1 or L2 elements
+   ///
+   /// @param[in] exsol   Pointer to an array of scalar Coefficient objects,
+   ///                    one for each component of the vector field. The
+   ///                    length of the array should be at least equal to
+   ///                    FiniteElementSpace::GetVDim().
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   /// @param[in] elems   Optional pointer to a marker array, with a length
+   ///                    equal to the number of local elements, indicating
+   ///                    which elements to integrate over. Only those elements
+   ///                    corresponding to non-zero entries in @a elems will
+   ///                    contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
 
-   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
-   virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
+   /// @brief Returns ||grad u_ex - grad u_h||_L2 in element ielem for
+   ///        H1 or L2 elements
+   ///
+   /// @param[in] ielem   Index of the element in which to compute the L2 error.
+   /// @param[in] exgrad  Pointer to a VectorCoefficient object reproducing the
+   ///                    expected gradient of the scalar field, grad u_ex.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
-   /* The @a elems input variable expects a list of markers:
-      an elem marker equal to 1 will compute the L2 error on that element
-      an elem marker equal to 0 will not compute the L2 error on that element */
-   virtual double ComputeL2Error(Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   ///
+   /// @param[in] exsol  Coefficient object reproducing the anticipated values
+   ///                   of the scalar field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const
    { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
 
-   virtual double ComputeL2Error(VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L2 for vector fields
+   ///
+   /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
+   ///                   values of the vector field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
 
-   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
-   virtual double ComputeGradError(VectorCoefficient *exgrad,
+   /// @brief Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   ///
+   /// @param[in] exgrad  Pointer to a VectorCoefficient object reproducing the
+   ///                    expected gradient of the scalar field, grad u_ex.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note This function only computes the error of the gradient in the
+   ///       interior of the elements. In the context of discontinuous
+   ///       Galerkin (DG) methods it may also be desirable to compute the
+   ///       error in the jumps across element interfaces using
+   ///       ComputeDGFaceJumpError().
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
-   virtual double ComputeCurlError(VectorCoefficient *excurl,
+   /// @brief Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   ///
+   /// @param[in] excurl  Pointer to a VectorCoefficient object reproducing the
+   ///                    expected curl of the vector field, curl u_ex.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns ||div u_ex - div u_h||_L2 for RT elements
-   virtual double ComputeDivError(Coefficient *exdiv,
+   /// @brief Returns ||div u_ex - div u_h||_L2 for RT elements
+   ///
+   /// @param[in] exdiv  Pointer to a Coefficient object reproducing the
+   ///                   expected divergence of the vector field, div u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the Face Jumps error for L2 elements. The error can be weighted
-   /// by a constant nu, by nu/h, or nu*p^2/h, depending on the value of
-   /// @a jump_scaling.
-   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+   /// @brief Returns the Face Jumps error for L2 elements.
+   ///
+   /// Computes:
+   ///   $$\sqrt{\sum_{f\in faces}\int_f js(f) ell(f)
+   ///                                   (2 u_{ex} - u_1 - u_2)^2}$$
+   ///
+   /// Where js[f] is the jump_scaling evaluated on the face f and ell is the
+   /// average of ell_coef evaluated in the two elements sharing the face f.
+   ///
+   /// @param[in] exsol         Pointer to a Coefficient object reproducing the
+   ///                          anticipated values of the scalar field, u_ex.
+   /// @param[in] ell_coeff     Pointer to a Coefficient object used to compute
+   ///                          the averaged value ell in the above integral.
+   /// @param[in] jump_scaling  Can be configured to provide scaling by
+   ///                          nu, nu/h, or nu*p^2/h
+   /// @param[in] irs           Optional pointer to an array of custom
+   ///                          integration rules e.g. higher order than the
+   ///                          default rules. If present the array will be
+   ///                          indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of faces.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
                                          class JumpScaling jump_scaling,
                                          const IntegrationRule *irs[] = NULL)
    const;
 
-   /// Returns the Face Jumps error for L2 elements, with 1/h scaling.
+   /// @brief Returns the Face Jumps error for L2 elements, with 1/h scaling.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @deprecated See @ref ComputeDGFaceJumpError(Coefficient *exsol,
+   ///                                      Coefficient *ell_coeff,
+   ///                                      class JumpScaling jump_scaling,
+   ///                                      const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
    MFEM_DEPRECATED
-   double ComputeDGFaceJumpError(Coefficient *exsol,
+   real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
-                                 double Nu,
+                                 real_t Nu,
                                  const IntegrationRule *irs[] = NULL) const;
 
    /** This method is kept for backward compatibility.
@@ -533,117 +741,714 @@ public:
        depending on norm_type = 1, 2, 3. Additional arguments for the DG face
        jumps norm: ell_coeff: mesh-depended coefficient (weight) Nu: scalar
        constant weight */
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                 Coefficient *ell_coef, double Nu,
+   virtual real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, real_t Nu,
                                  int norm_type) const;
 
-   /// Returns the error measured in H1-norm for H1 elements or in "broken"
-   /// H1-norm for L2 elements
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   /// @brief Returns the error measured in H1-norm for H1 or L2 elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its gradient
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla u_h\|_{L^2}$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] exgrad  VectorCoefficient object reproducing the anticipated
+   ///                    values of the gradient of the scalar field, du_ex.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note For L2 elements this returns what could be called a "broken"
+   ///       H1-norm.
+   virtual real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the error measured in H(div)-norm for RT elements
-   virtual double ComputeHDivError(VectorCoefficient *exsol,
+   /// @brief Returns the error measured in H(div)-norm for RT elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its
+   /// divergence
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla\cdot u_h\|_{L^2}$$
+   ///
+   /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
+   ///                   values of the vector field, u_ex.
+   /// @param[in] exdiv  VectorCoefficient object reproducing the anticipated
+   ///                   values of the divergence of the vector field, du_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the error measured in H(curl)-norm for ND elements
-   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+   /// @brief Returns the error measured in H(curl)-norm for ND elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its curl
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla\times u_h\|_{L^2}$$
+   ///
+   /// @param[in] exsol   VectorCoefficient object reproducing the anticipated
+   ///                    values of the vector field, u_ex.
+   /// @param[in] excurl  VectorCoefficient object reproducing the anticipated
+   ///                    values of the curl of the vector field, du_ex.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeMaxError(Coefficient &exsol,
+   /// @brief Returns Max|u_ex - u_h| error for H1 or L2 elements
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   virtual real_t ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
-   virtual double ComputeMaxError(Coefficient *exsol[],
+   /// @brief Returns Max|u_ex - u_h| error for scalar or vector fields
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// Computes:
+   ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
+   ///
+   /// Where
+   ///    $$scalar\_error = max_{d=0\ldots vdim}|u_{ex}[d] - u_h[d]|$$
+   ///
+   /// @param[in] exsol  Pointer to an array of scalar Coefficient objects,
+   ///                   one for each component of the vector field. The
+   ///                   length of the array should be at least equal to
+   ///                   FiniteElementSpace::GetVDim().
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   ///
+   /// @note This implementation of the max error of a vector field computes
+   ///       the max norm over vector components rather than the magnitude of
+   ///       the vector.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   virtual real_t ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeMaxError(VectorCoefficient &exsol,
+   /// @brief Returns Max|u_ex - u_h| error for vector fields
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// Computes:
+   ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note Computes the maximum magnitude of the difference vector not the
+   ///       component-wise maximum difference of the vector fields.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   virtual real_t ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
-   virtual double ComputeL1Error(Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   virtual real_t ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   virtual double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// @param[in] exsol   Pointer to an array of Coefficient objects
+   ///                    reproducing the anticipated values of the scalar
+   ///                    field, u_ex. Only the first entry of this array will
+   ///                    be accessed.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeW11Error internally. See the ComputeW11Error
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @warning While this function is nominally equivalent to ComputeLpError,
+   ///          with appropriate arguments, the returned errors may differ
+   ///          noticeably because ComputeLpError uses a higher order
+   ///          integration rule by default.
+   ///
+   /// @deprecated See @ref ComputeL1Error(Coefficient &exsol,
+   ///                              const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
+   MFEM_DEPRECATED
+   virtual real_t ComputeL1Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL) const
+   { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
+
+   /// @brief Returns $W^1_1$ norm (or portions thereof) for H1 or L2 elements
+   ///
+   /// Computes for norm_type == 1 the $L^1$ norm of $u$:
+   ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// Computes for norm_type == 2 the $L^1$ semi-norm of $\nabla u$:
+   ///    $$(\sum_{elems} \int_{elem} |du_{ex} - \nabla u_h|$$
+   ///
+   /// Computes for norm_type == 3 the $W^1_1$ norm of $u$:
+   ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h| + |du_{ex} - \nabla u_h|$$
+   ///
+   /// @param[in] exsol     Pointer to Coefficient object reproducing the
+   ///                      anticipated values of the scalar field, u_ex.
+   /// @param[in] exgrad    Pointer to VectorCoefficient object reproducing the
+   ///                      anticipated values of the gradient of the scalar
+   ///                      field, du_ex.
+   /// @param[in] norm_type Integer value of 1, 2, or 3 indicating the type of
+   ///                      norm to compute (see above).
+   /// @param[in] elems     Optional pointer to a marker array, with a length
+   ///                      equal to the number of local elements, indicating
+   ///                      which elements to integrate over. Only those
+   ///                      elements corresponding to non-zero entries in
+   ///                      @a elems will contribute to the computed $W^1_1$
+   ///                      error.
+   /// @param[in] irs       Optional pointer to an array of custom integration
+   ///                      rules e.g. higher order than the default rules. If
+   ///                      present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                   int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeL1Error(VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L1 for vector fields
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
+   ///                      values of the vector field, u_ex.
+   /// @param[in] irs       Optional pointer to an array of custom integration
+   ///                      rules e.g. higher order than the default rules. If
+   ///                      present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   virtual real_t ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   /* The @a elems input variable expects a list of markers:
-    an elem marker equal to 1 will compute the L2 error on that element
-    an elem marker equal to 0 will not compute the L2 error on that element */
-   virtual double ComputeLpError(const double p, Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_Lp for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$(\sum_{elems} \int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
+   ///
+   /// @param[in] p       Real value indicating the exponent of the $L^p$ norm.
+   ///                    To avoid domain errors p should have a positive value,
+   ///                    either finite or infinite.
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] weight  Optional pointer to a Coefficient object reproducing
+   ///                    a weighting function, w.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   /// @param[in] elems   Optional pointer to a marker array, with a length
+   ///                    equal to the number of local elements, indicating
+   ///                    which elements to integrate over. Only those elements
+   ///                    corresponding to non-zero entries in @a elems will
+   ///                    contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeLpError(const real_t p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
 
-   /** Compute the Lp error in each element of the mesh and store the results in
-       the Vector @a error. The result should be of length number of elements,
-       for example an L2 GridFunction of order zero using map type VALUE. */
-   virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_Lp elementwise for H1 or L2 elements
+   ///
+   /// Compute the Lp error in each element of the mesh and store the results in
+   /// the Vector @a error. The result should be of length number of elements,
+   /// for example an L2 GridFunction of order zero using map type @ref
+   /// map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
+   ///
+   /// @param[in] p          Real value indicating the exponent of the $L^p$
+   ///                       norm. To avoid domain errors p should have a
+   ///                       positive value, either finite or infinite.
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^p$ errors
+   /// @param[in] weight     Optional pointer to a Coefficient object
+   ///                       reproducing a weighting function, w.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual void ComputeElementLpErrors(const real_t p, Coefficient &exsol,
                                        Vector &error,
                                        Coefficient *weight = NULL,
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^1$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL1Errors(Coefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^2$ error in each element of the mesh and store the results
+   /// in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} |u_{ex} - u_h|^2)^{1/2}$$
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL2Errors(Coefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
 
+   /// @brief Returns Max|u_ex - u_h| elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^\infty$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
+   ///                       errors
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementMaxErrors(Coefficient &exsol,
                                         Vector &error,
                                         const IntegrationRule *irs[] = NULL
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
 
-   /** When given a vector weight, compute the pointwise (scalar) error as the
-       dot product of the vector error with the vector weight. Otherwise, the
-       scalar error is the l_2 norm of the vector error. */
-   virtual double ComputeLpError(const double p, VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_Lp for vector fields
+   ///
+   /// When given a vector weight, compute the pointwise (scalar) error as the
+   /// dot product of the vector error with the vector weight. Otherwise, the
+   /// scalar error is the l_2 norm of the vector error.
+   ///
+   /// Computes:
+   ///    $$(\sum_{elems} \int_{elem} w \, |scalar\_error|^p)^{1/p}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
+   /// or
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] p         Real value indicating the exponent of the $L^p$
+   ///                      norm. To avoid domain errors p should have a
+   ///                      positive value, either finite or infinite.
+   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
+   ///                      values of the vector field, u_ex.
+   /// @param[in] weight    Optional pointer to a Coefficient object reproducing
+   ///                      a weighting function, w.
+   /// @param[in] v_weight  Optional pointer to a VectorCoefficient object
+   ///                      reproducing a weighting vector as shown above.
+   /// @param[in] irs       Optional pointer to an array of custom integration
+   ///                      rules e.g. higher order than the default rules. If
+   ///                      present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /** Compute the Lp error in each element of the mesh and store the results in
-       the Vector @ error. The result should be of length number of elements,
-       for example an L2 GridFunction of order zero using map type VALUE. */
-   virtual void ComputeElementLpErrors(const double p, VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_Lp elementwise for vector fields
+   ///
+   /// Compute the $L^p$ error in each element of the mesh and store the results
+   /// in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} w \, |scalar\_error|^p)^{1/p}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
+   /// or
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] p          Real value indicating the exponent of the $L^p$
+   ///                       norm. To avoid domain errors p should have a
+   ///                       positive value, either finite or infinite.
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^p$ errors
+   /// @param[in] weight     Optional pointer to a Coefficient object
+   ///                       reproducing a weighting function, w.
+   /// @param[in] v_weight   Optional pointer to a VectorCoefficient object
+   ///                       reproducing a weighting vector as shown above.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual void ComputeElementLpErrors(const real_t p, VectorCoefficient &exsol,
                                        Vector &error,
                                        Coefficient *weight = NULL,
                                        VectorCoefficient *v_weight = NULL,
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 elementwise for vector fields
+   ///
+   /// Compute the $L^1$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$\int_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 elementwise for vector fields
+   ///
+   /// Compute the $L^2$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} |scalar\_error|^2)^{1/2}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
 
+   /// @brief Returns Max|u_ex - u_h| elementwise for vector fields
+   ///
+   /// Compute the $L^\infty$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$max_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
+   ///                       errors
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
+   ///
+   /// @note Computes the maximum magnitude of the difference vector not the
+   ///       component-wise maximum difference of the vector fields.
    virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
                                         Vector &error,
                                         const IntegrationRule *irs[] = NULL
@@ -655,7 +1460,7 @@ public:
                             bool wcoef = true, int subdomain = -1);
 
    /// Redefine '=' for GridFunction = constant.
-   GridFunction &operator=(double value);
+   GridFunction &operator=(real_t value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
@@ -664,6 +1469,10 @@ public:
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
    virtual void Update();
+
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
 
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
@@ -679,7 +1488,7 @@ public:
    /** This method changes the FiniteElementSpace associated with the
        GridFunction and sets the pointer @a v as external data in the
        GridFunction. */
-   virtual void MakeRef(FiniteElementSpace *f, double *v);
+   virtual void MakeRef(FiniteElementSpace *f, real_t *v);
 
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
@@ -697,7 +1506,7 @@ public:
          method MakeRef() is called with the same arguments.
        - Otherwise, the method SetSpace() is called with argument @a f.
        - The internal true-dof vector is set to reference @a tv. */
-   void MakeTRef(FiniteElementSpace *f, double *tv);
+   void MakeTRef(FiniteElementSpace *f, real_t *tv);
 
    /** @brief Associate a new FiniteElementSpace and new true-dof data with the
        GridFunction. */
@@ -753,14 +1562,14 @@ public:
       P_SQUARED_OVER_H
    };
 private:
-   double nu;
+   real_t nu;
    JumpScalingType type;
 public:
-   JumpScaling(double nu_=1.0, JumpScalingType type_=CONSTANT)
+   JumpScaling(real_t nu_=1.0, JumpScalingType type_=CONSTANT)
       : nu(nu_), type(type_) { }
-   double Eval(double h, int p) const
+   real_t Eval(real_t h, int p) const
    {
-      double val = nu;
+      real_t val = nu;
       if (type != CONSTANT) { val /= h; }
       if (type == P_SQUARED_OVER_H) { val *= p*p; }
       return val;
@@ -771,7 +1580,7 @@ public:
 std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf);
 
 
-double ZZErrorEstimator(BilinearFormIntegrator &blfi,
+real_t ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux,
                         Vector &error_estimates,
@@ -789,7 +1598,7 @@ void TensorProductLegendre(int dim,                      // input
                            const Vector &xmax,           // input
                            const Vector &xmin,           // input
                            Vector &poly,                 // output
-                           double angle=0.0,             // input (optional)
+                           real_t angle=0.0,             // input (optional)
                            const Vector *midpoint=NULL); // input (optional)
 
 /// Defines the bounding box for the face patches used by NewZZErorrEstimator
@@ -812,7 +1621,7 @@ void BoundingBox(const Array<int> &face_patch, // input
                  int order,                    // input
                  Vector &xmin,                 // output
                  Vector &xmax,                 // output
-                 double &angle,                // output
+                 real_t &angle,                // output
                  Vector &midpoint,             // output
                  int iface=-1);                // input (optional)
 
@@ -824,15 +1633,15 @@ void BoundingBox(const Array<int> &face_patch, // input
  *     element faces are used. These face patches always consist of two elements
  *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
  */
-double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+real_t LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                           GridFunction &u,                      // input
                           Vector &error_estimates,              // output
                           bool subdomain_reconstruction = true, // input (optional)
                           bool with_coeff = false,              // input (optional)
-                          double tichonov_coeff = 0.0);         // input (optional)
+                          real_t tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.
-double ComputeElementLpDistance(double p, int i,
+real_t ComputeElementLpDistance(real_t p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
 
 
@@ -846,7 +1655,7 @@ private:
 public:
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
       : n(n_), mesh_in(m), sol_in(s) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
    virtual ~ExtrudeCoefficient() { }
 };
 

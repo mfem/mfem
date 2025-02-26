@@ -23,6 +23,15 @@
 #include "globals.hpp"
 #include "backends.hpp"
 
+#if 1
+
+#warning no NVTX
+namespace mfem { struct Nvtx { Nvtx(const char*) {} }; }
+#define NVTX(...)
+#define MFEM_NVTX NVTX()
+
+#else
+
 #if defined(MFEM_USE_CUDA) //||1
 #include <cuda.h>
 #include <nvToolsExt.h>
@@ -308,5 +317,7 @@ private:
 #define MFEM_NVTX NVTX()
 
 } // namespace mfem
+
+#endif // NO NVTX
 
 #endif // MFEM_NVVP_HPP

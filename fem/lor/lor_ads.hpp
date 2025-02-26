@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,9 +36,7 @@ protected:
    ND_FECollection edge_fec; ///< The associated Nedelec collection.
    ParFiniteElementSpace edge_fes; ///< The associated Nedelec space.
    BatchedLOR_AMS ams; ///< The associated AMS object.
-   HypreParMatrix *C = nullptr; ///< The discrete curl matrix.
-
-   SparseMatrix C_local;
+   HypreParMatrix *C; ///< The discrete curl matrix.
 
    /// Form the local elementwise discrete curl matrix.
    void Form3DFaceToEdge(Array<int> &face2edge);
@@ -62,13 +60,10 @@ public:
    /// Return the associated BatchedLOR_AMS object.
    BatchedLOR_AMS &GetAMS() { return ams; }
 
-   // The following should be protected, but contain MFEM_FORALL kernels
+   // The following should be protected, but contain mfem::forall kernels
 
    /// Form the discrete curl matrix (not part of the public API).
    void FormCurlMatrix();
-
-   void FormCurlMatrixLocal();
-
    ~BatchedLOR_ADS();
 };
 

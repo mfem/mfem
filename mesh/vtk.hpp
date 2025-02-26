@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,9 @@
 
 #ifndef MFEM_VTK
 #define MFEM_VTK
+
+#include <cstdint>
+#include <string>
 
 #include "../fem/geom.hpp"
 #include "../general/binaryio.hpp"
@@ -182,6 +185,10 @@ void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
 /// @sa WriteVTKEncodedCompressed.
 void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
                                  int compression_level);
+
+/// @brief Returns a string defining the component labels for vector-valued data
+/// arrays for use in XML VTU files.
+std::string VTKComponentLabels(int vdim);
 
 } // namespace mfem
 
