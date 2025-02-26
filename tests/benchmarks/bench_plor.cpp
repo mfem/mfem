@@ -16,9 +16,6 @@
 #include "fem/lor/lor.hpp"
 #include "fem/lor/lor_batched.hpp"
 
-#define MFEM_NVTX_COLOR Lime
-#include "general/nvtx.hpp"
-
 #define MFEM_DEBUG_COLOR 206
 #include "general/debug.hpp"
 
@@ -288,7 +285,7 @@ static void pLOR(bm::State &state)
 {
    const int order = state.range(1);
    const int log_ndof = state.range(0);
-   const int requested_ndof = pow(2, log_ndof);
+   const int requested_ndof = static_cast<int>(pow(2, log_ndof));
 
    PLOR_Solvers_Bench plor(order, requested_ndof);
 
@@ -377,7 +374,7 @@ BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   // Hypre::Init();
+   Hypre::Init();
 
    bm::Initialize(&argc, argv);
    if (bmi::global_context != nullptr)
@@ -397,12 +394,7 @@ int main(int argc, char *argv[])
    Device device(config_device.c_str(), dev);
    if (Mpi::Root()) { device.Print(); }
 
-   Hypre::Init(); // after device selection
-
    dbg("[MPI] %d/%d @ device #%d", 1+mpi_rank, mpi_size, dev);
-
-   static hypre_Handle *hypre_h = hypre_HandleCreate();
-   (void) hypre_h;
 
    bm::ConsoleReporter CR;
    if (Mpi::Root()) { bm::RunSpecifiedBenchmarks(&CR); }
