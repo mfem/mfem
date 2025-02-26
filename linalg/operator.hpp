@@ -269,10 +269,6 @@ public:
        `A(X)=[Rout (*this) Pin](X)`. */
    void FormDiscreteOperator(Operator* &A);
 
-   /// Prints operator to stream os.
-   virtual void Print(std::ostream & os, int width_ = 4) const
-   { mfem_error("Operator::Print() is not overridden!"); }
-
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n, int m = 0) const;
 
