@@ -93,6 +93,7 @@ struct Kernel: public KernelMesh
          a.AddBdrFaceIntegrator(
             new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
          a.Assemble();
+         x = 0.0;
          a.Mult(x, y);
          MFEM_DEVICE_SYNC;
       }
