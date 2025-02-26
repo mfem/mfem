@@ -198,7 +198,7 @@ struct PLOR_Solvers_Bench
       sw_setup_LOR.Stop();
 
       dbg("AMG SETUP");
-      solv_lor->GetSolver().SetPrintLevel(1);
+      solv_lor->GetSolver().SetPrintLevel(0);
       MFEM_DEVICE_SYNC;
       sw_setup_AMG.Start();
       solv_lor->GetSolver().Setup(B, X);
