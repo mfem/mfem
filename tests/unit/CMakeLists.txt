@@ -65,6 +65,7 @@ set(UNIT_TESTS_SRCS
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
+  fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_build_dof_to_arrays.cpp
   fem/test_calccurlshape.cpp
