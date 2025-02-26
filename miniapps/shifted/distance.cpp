@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@
 // point source), or any Coefficient (for the case of a level set). The output
 // is a GridFunction that can be scalar (representing the scalar distance), or a
 // vector (its magnitude is the distance, and its direction is the starting
-// direction of the shortest path). The miniapp supports 2 solvers:
+// direction of the shortest path). The miniapp supports 3 solvers:
 //
 // 1. Heat solver:
 //    K. Crane, C. Weischedel, M. Weischedel
@@ -29,7 +29,12 @@
 // 2. p-Laplacian solver:
 //    A. Belyaev, P. Fayolle
 //    On Variational and PDE-based Distance Function Approximations,
-//    Computer Graphics Forum, 34: 104-118, 2015
+//    Computer Graphics Forum, 34: 104-118, 2015, Section 7.
+//
+// 3. Rvachev normalization solver: same paper as p-Laplacian, Section 6.
+//    This solver is computationally cheap, but is accurate for distance
+//    approximations only near the zero level set.
+//
 //
 // The solution of the p-Laplacian solver approaches the signed distance when
 // p->\infinity. Therefore, increasing p will improve the computed distance and,
@@ -66,76 +71,102 @@
 //   Problem 0: point source.
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
-//   Problem 1: zero level set: circle / sphere at the center of the mesh
+//   Problem 1: zero level set: ball at the center of the domain - the exact
+// + distance is known, the code computes global and local errors.
+//     mpirun -np 4 distance -m ../../data/inline-segment.mesh -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh   -rs 3 -o 2 -t 1.0 -p 1
-//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -p 1 -s 1
+//     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 1 -o 2 -p 1 -s 1
 //
 //   Problem 2: zero level set: perturbed sine
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
 //     mpirun -np 4 distance -m ../../data/amr-quad.mesh    -rs 3 -o 2 -t 1.0 -p 2
 //
 //   Problem 3: level set: Gyroid
-//      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
-//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3
+//     mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
+//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3 -s 2
 //
 //   Problem 4: level set: Union of doughnut and swiss cheese shapes
-//      mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
+//     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
 
 #include <fstream>
 #include <iostream>
 #include "../common/mfem-common.hpp"
-#include "dist_solver.hpp"
 #include "sbm_aux.hpp"
 
 using namespace std;
 using namespace mfem;
+using namespace common;
 
-double sine_ls(const Vector &x)
+real_t sine_ls(const Vector &x)
 {
-   const double sine = 0.25 * std::sin(4 * M_PI * x(0)) +
+   const real_t sine = 0.25 * std::sin(4 * M_PI * x(0)) +
                        0.05 * std::sin(16 * M_PI * x(0));
    return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
-double sphere_ls(const Vector &x)
+const real_t radius = 0.4;
+
+real_t sphere_ls(const Vector &x)
 {
    const int dim = x.Size();
-   if (dim == 2)
-   {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      return (r >= 0.4) ? -1.0 : 1.0;
-   }
-   else if (dim == 3)
-   {
-      const double xc = x(0) - 0.0, yc = x(1) - 0.0, zc = x(2) - 0.0;
-      const double r = sqrt(xc*xc + yc*yc + zc*zc);
-      return (r >= 0.8) ? -1.0 : 1.0;
-   }
-   else
-   {
-      return (x(0) >= 0.5) ? -1.0 : 1.0;
-   }
+   const real_t xc = x(0) - 0.5;
+   const real_t yc = (dim > 1) ? x(1) - 0.5 : 0.0;
+   const real_t zc = (dim > 2) ? x(2) - 0.5 : 0.0;
+   const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
+
+   return (r >= radius) ? -1.0 : 1.0;
 }
 
-double Gyroid(const Vector &xx)
+real_t exact_dist_sphere(const Vector &x)
 {
-   const double period = 2.0 * M_PI;
-   double x=xx[0]*period;
-   double y=xx[1]*period;
-   double z=0.0;
-   if (xx.Size()==3)
+   const int dim = x.Size();
+   const real_t xc = x(0) - 0.5;
+   const real_t yc = (dim > 1) ? x(1) - 0.5 : 0.0;
+   const real_t zc = (dim > 2) ? x(2) - 0.5 : 0.0;
+   const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
+
+   return fabs(r - radius);
+}
+
+class ExactDistSphereLoc : public Coefficient
+{
+private:
+   ParGridFunction &dist;
+   const real_t dx;
+
+public:
+   ExactDistSphereLoc(ParGridFunction &d)
+      : dist(d), dx(dist.ParFESpace()->GetParMesh()->GetElementSize(0)) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      z=xx[2]*period;
+      Vector pos(T.GetDimension());
+      T.Transform(ip, pos);
+      pos -= 0.5;
+      const real_t r = sqrt(pos * pos);
+
+      // One zone length in every direction.
+      if (fabs(r - radius) < dx) { return fabs(r - radius); }
+      else                       { return dist.GetValue(T, ip); }
    }
+};
+
+
+real_t Gyroid(const Vector &xx)
+{
+   const real_t period = 2.0 * M_PI;
+   real_t x = xx[0]*period;
+   real_t y = xx[1]*period;
+   real_t z = (xx.Size()==3) ? xx[2]*period : 0.0;
+
    return std::sin(x)*std::cos(y) +
           std::sin(y)*std::cos(z) +
           std::sin(z)*std::cos(x);
 }
 
-double Sph(const mfem::Vector &xx)
+real_t Sph(const mfem::Vector &xx)
 {
-   double R=0.4;
+   real_t R=0.4;
    mfem::Vector lvec(3);
    lvec=0.0;
    for (int i=0; i<xx.Size(); i++)
@@ -151,7 +182,7 @@ void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
    vals.SetSize(xx.Size());
    vals=0.0;
 
-   double pp=4*M_PI;
+   real_t pp=4*M_PI;
 
    mfem::Vector lvec(3);
    lvec=0.0;
@@ -183,8 +214,9 @@ int main(int argc, char *argv[])
    int problem = 1;
    int rs_levels = 2;
    int order = 2;
-   double t_param = 1.0;
+   real_t t_param = 1.0;
    const char *device_config = "cpu";
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -193,7 +225,8 @@ int main(int argc, char *argv[])
    args.AddOption(&solver_type, "-s", "--solver",
                   "Solver type:\n\t"
                   "0: Heat\n\t"
-                  "1: P-Laplacian");
+                  "1: P-Laplacian\n\t"
+                  "2: Rvachev scaling");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type:\n\t"
                   "0: Point source\n\t"
@@ -213,6 +246,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -267,7 +301,7 @@ int main(int argc, char *argv[])
    }
    else { MFEM_ABORT("Unrecognized -problem option."); }
 
-   const double dx = AvgElementSize(pmesh);
+   const real_t dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
@@ -284,11 +318,14 @@ int main(int argc, char *argv[])
    {
       const int p = 10;
       const int newton_iter = 50;
-      auto ds = new PLapDistanceSolver(p, newton_iter);
-      dist_solver = ds;
+      dist_solver = new PLapDistanceSolver(p, newton_iter);
+   }
+   else if (solver_type == 2)
+   {
+      dist_solver = new NormalizationDistanceSolver;
    }
    else { MFEM_ABORT("Wrong solver option."); }
-   dist_solver->print_level = 1;
+   dist_solver->print_level.FirstAndLast().Summary();
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
@@ -299,7 +336,10 @@ int main(int argc, char *argv[])
    ParGridFunction filt_gf(&pfes_s);
    if (problem != 0)
    {
-      PDEFilter filter(pmesh, 1.0 * dx);
+      real_t filter_weight = dx;
+      // The normalization-based solver needs a more diffused input.
+      if (solver_type == 2) { filter_weight *= 4.0; }
+      PDEFilter filter(pmesh, filter_weight);
       filter.Filter(*ls_coeff, filt_gf);
    }
    else { filt_gf.ProjectCoefficient(*ls_coeff); }
@@ -314,7 +354,6 @@ int main(int argc, char *argv[])
    {
       int size = 500;
       char vishost[] = "localhost";
-      int  visport   = 19916;
 
       socketstream sol_sock_w;
       common::VisualizeField(sol_sock_w, vishost, visport, filt_gf,
@@ -345,12 +384,33 @@ int main(int argc, char *argv[])
    dacol.Save();
 
    ConstantCoefficient zero(0.0);
-   const double s_norm  = distance_s.ComputeL2Error(zero),
+   const real_t s_norm  = distance_s.ComputeL2Error(zero),
                 v_norm  = distance_v.ComputeL2Error(zero);
    if (myid == 0)
    {
       cout << fixed << setprecision(10) << "Norms: "
-           << s_norm << " " << v_norm << std::endl;
+           << s_norm << " " << v_norm << endl;
+   }
+
+   if (problem == 1)
+   {
+      FunctionCoefficient exact_dist_coeff(exact_dist_sphere);
+      const real_t error_l1 = distance_s.ComputeL1Error(exact_dist_coeff),
+                   error_li = distance_s.ComputeMaxError(exact_dist_coeff);
+      if (myid == 0)
+      {
+         cout << "Global L1 error:   " << error_l1 << endl
+              << "Global Linf error: " << error_li << endl;
+      }
+
+      ExactDistSphereLoc exact_dist_coeff_loc(distance_s);
+      const real_t error_l1_loc = distance_s.ComputeL1Error(exact_dist_coeff_loc),
+                   error_li_loc = distance_s.ComputeMaxError(exact_dist_coeff_loc);
+      if (myid == 0)
+      {
+         cout << "Local  L1 error:   " << error_l1_loc << endl
+              << "Local  Linf error: " << error_li_loc << endl;
+      }
    }
 
    delete dist_solver;

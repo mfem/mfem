@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,6 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
-     face_nbr_el_to_face(NULL),
      glob_elem_offset(-1),
      glob_offset_sequence(-1),
      gtopo(pmesh.gtopo)
@@ -104,30 +103,32 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
    return *this;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
+ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
                  int part_method)
-   : face_nbr_el_to_face(NULL)
-   , glob_elem_offset(-1)
+   : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
-   int *partitioning = NULL;
-   Array<bool> activeBdrElem;
-
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   Array<int> partitioning;
+   Array<bool> activeBdrElem;
+
+   if (partitioning_)
+   {
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
+   }
+
    if (mesh.Nonconforming())
    {
-      if (partitioning_)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning_);
+
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
-      if (!partitioning)
-      {
-         partitioning = new int[mesh.GetNE()];
+         partitioning.SetSize(mesh.GetNE());
          for (int i = 0; i < mesh.GetNE(); i++)
          {
             partitioning[i] = pncmesh->InitialPartition(i);
@@ -147,6 +148,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      // Copy attribute and bdr_attribute names
+      mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
+
       GenerateNCFaceInfo();
    }
    else // mesh.Conforming()
@@ -156,13 +161,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       ncmesh = pncmesh = NULL;
 
-      if (partitioning_)
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      else
-      {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         // Mesh::GeneratePartitioning always uses new[] to allocate the,
+         // partitioning, so we need to tell the memory manager to free it with
+         // delete[] (even if a different host memory type has been selected).
+         constexpr MemoryType mt = MemoryType::HOST;
+         partitioning.MakeRef(mesh.GeneratePartitioning(NRanks, part_method),
+                              mesh.GetNE(), mt, true);
       }
 
       // re-enumerate the partitions to better map to actual processor
@@ -183,12 +189,16 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      // Copy attribute and bdr_attribute names
+      mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
+
       NumOfEdges = NumOfFaces = 0;
 
       if (Dim > 1)
       {
          el_to_edge = new Table;
-         NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge);
       }
 
       STable3D *faces_tbl = NULL;
@@ -198,6 +208,19 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
 
       GenerateFaces();
+
+      // Make sure the be_to_face array is initialized.
+      // In 2D, it will be set in the above call to Mesh::GetElementToEdgeTable.
+      // In 3D, it will be set in GetElementToFaceTable.
+      // In 1D, we need to set it manually.
+      if (Dim == 1)
+      {
+         be_to_face.SetSize(NumOfBdrElements);
+         for (int i = 0; i < NumOfBdrElements; ++i)
+         {
+            be_to_face[i] = boundary[i]->GetVertices()[0];
+         }
+      }
 
       ListOfIntegerSets  groups;
       {
@@ -237,9 +260,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // build svert_lvert mapping
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
       delete vert_element;
-
-      SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
 
    if (mesh.NURBSext)
@@ -288,11 +308,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // set meaningful values to 'vertices' even though we have Nodes,
       // for compatibility (e.g., Mesh::GetVertex())
       SetVerticesFromNodes(Nodes);
-   }
-
-   if (partitioning != partitioning_)
-   {
-      delete [] partitioning;
    }
 
    have_face_nbr_data = false;
@@ -350,11 +365,8 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
 int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
                                 const Array<int>& vert_global_local)
 {
-   int nelems = 0;
-   for (int i = 0; i < mesh.GetNE(); i++)
-   {
-      if (partitioning[i] == MyRank) { nelems++; }
-   }
+   const int nelems = std::count_if(partitioning,
+   partitioning + mesh.GetNE(), [this](int i) { return i == MyRank;});
 
    elements.SetSize(nelems);
 
@@ -373,7 +385,7 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
          {
             v[j] = vert_global_local[v[j]];
          }
-         element_counter++;
+         ++element_counter;
       }
    }
 
@@ -386,7 +398,6 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 Table*& edge_element)
 {
    int nbdry = 0;
-
    if (mesh.NURBSext)
    {
       activeBdrElem.SetSize(mesh.GetNBE());
@@ -437,7 +448,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
 
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrElementFaceIndex(i);
          int el1 = edge_element->GetRow(edge)[0];
          if (partitioning[el1] == MyRank)
          {
@@ -453,7 +464,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
       boundary.SetSize(nbdry);
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrElementFaceIndex(i);
          int el1 = edge_element->GetRow(edge)[0];
          if (partitioning[el1] == MyRank)
          {
@@ -718,7 +729,7 @@ void ParMesh::BuildVertexGroup(int ngroups, const Table &vert_element)
 }
 
 void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                                   const Mesh& mesh, int *partitioning,
+                                   const Mesh& mesh, const int *partitioning,
                                    const STable3D *faces_tbl,
                                    const Array<int> &face_group,
                                    const Array<int> &vert_global_local)
@@ -854,7 +865,6 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
    , MyRank(pncmesh.MyRank)
-   , face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(MyComm)
@@ -906,7 +916,7 @@ void ParMesh::FinalizeParTopo()
    sface_lface.SetSize(nst + shared_quads.Size());
    if (sface_lface.Size())
    {
-      STable3D *faces_tbl = GetFacesTable();
+      auto faces_tbl = std::unique_ptr<STable3D>(GetFacesTable());
       for (int st = 0; st < nst; st++)
       {
          const int *v = shared_trias[st].v;
@@ -917,13 +927,12 @@ void ParMesh::FinalizeParTopo()
          const int *v = shared_quads[sq].v;
          sface_lface[nst+sq] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
       }
-      delete faces_tbl;
    }
 }
 
-ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : face_nbr_el_to_face(NULL)
-   , glob_elem_offset(-1)
+ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine, int generate_edges,
+                 bool fix_orientation)
+   : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
@@ -934,9 +943,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    have_face_nbr_data = false;
    pncmesh = NULL;
 
-   const int gen_edges = 1;
-
-   Load(input, gen_edges, refine, true);
+   Load(input, generate_edges, refine, fix_orientation);
 }
 
 void ParMesh::Load(istream &input, int generate_edges, int refine,
@@ -1134,7 +1141,7 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
    MyComm = orig_mesh.GetComm();
    NRanks = orig_mesh.GetNRanks();
    MyRank = orig_mesh.GetMyRank();
-   face_nbr_el_to_face = NULL;
+   face_nbr_el_to_face = nullptr;
    glob_elem_offset = -1;
    glob_offset_sequence = -1;
    gtopo = orig_mesh.gtopo;
@@ -1516,6 +1523,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+   // 'mesh_geoms' is local, so there's no need to save and restore it.
 
    Mesh::Finalize(refine, fix_orientation);
 
@@ -1604,7 +1612,7 @@ bool ParMesh::HasBoundaryElements() const
    return (maxNumOfBdrElements > 0);
 }
 
-void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
+void ParMesh::GroupEdge(int group, int i, int &edge, int &o) const
 {
    int sedge = group_sedge.GetRow(group-1)[i];
    edge = sedge_ledge[sedge];
@@ -1612,7 +1620,7 @@ void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
    o = (v[0] < v[1]) ? (+1) : (-1);
 }
 
-void ParMesh::GroupTriangle(int group, int i, int &face, int &o)
+void ParMesh::GroupTriangle(int group, int i, int &face, int &o) const
 {
    int stria = group_stria.GetRow(group-1)[i];
    face = sface_lface[stria];
@@ -1623,7 +1631,7 @@ void ParMesh::GroupTriangle(int group, int i, int &face, int &o)
    o = GetTriOrientation(faces[face]->GetVertices(), shared_trias[stria].v);
 }
 
-void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o)
+void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o) const
 {
    int squad = group_squad.GetRow(group-1)[i];
    face = sface_lface[shared_trias.Size()+squad];
@@ -1634,28 +1642,110 @@ void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o)
    o = GetQuadOrientation(faces[face]->GetVertices(), shared_quads[squad].v);
 }
 
-void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
+void ParMesh::GetSharedEdgeCommunicator(int ordering,
+                                        GroupCommunicator& sedge_comm) const
+{
+   Table &gr_sedge = sedge_comm.GroupLDofTable();
+   gr_sedge.SetDims(GetNGroups(), shared_edges.Size());
+   gr_sedge.GetI()[0] = 0;
+   for (int gr = 1; gr <= GetNGroups(); gr++)
+   {
+      gr_sedge.GetI()[gr] = group_sedge.GetI()[gr-1];
+   }
+   for (int k = 0; k < shared_edges.Size(); k++)
+   {
+      if (ordering == 1)
+      {
+         gr_sedge.GetJ()[k] =k;
+      }
+      else
+      {
+         gr_sedge.GetJ()[k] = group_sedge.GetJ()[k];
+      }
+   }
+   sedge_comm.Finalize();
+}
+
+void ParMesh::GetSharedVertexCommunicator(int ordering,
+                                          GroupCommunicator& svert_comm) const
+{
+   Table &gr_svert = svert_comm.GroupLDofTable();
+   gr_svert.SetDims(GetNGroups(), svert_lvert.Size());
+   gr_svert.GetI()[0] = 0;
+   for (int gr = 1; gr <= GetNGroups(); gr++)
+   {
+      gr_svert.GetI()[gr] = group_svert.GetI()[gr-1];
+   }
+   for (int k = 0; k < svert_lvert.Size(); k++)
+   {
+      if (ordering == 1)
+      {
+         gr_svert.GetJ()[k] = k;
+      }
+      else
+      {
+         gr_svert.GetJ()[k] = group_svert.GetJ()[k];
+      }
+   }
+   svert_comm.Finalize();
+}
+
+void ParMesh::GetSharedQuadCommunicator(int ordering,
+                                        GroupCommunicator& squad_comm) const
+{
+   Table &gr_squad = squad_comm.GroupLDofTable();
+   gr_squad.SetDims(GetNGroups(), shared_quads.Size());
+   gr_squad.GetI()[0] = 0;
+   for (int gr = 1; gr <= GetNGroups(); gr++)
+   {
+      gr_squad.GetI()[gr] = group_squad.GetI()[gr-1];
+   }
+   for (int k = 0; k < shared_quads.Size(); k++)
+   {
+      if (ordering == 1)
+      {
+         gr_squad.GetJ()[k] = k;
+      }
+      else
+      {
+         gr_squad.GetJ()[k] = group_squad.GetJ()[k];
+      }
+   }
+   squad_comm.Finalize();
+}
+
+void ParMesh::GetSharedTriCommunicator(int ordering,
+                                       GroupCommunicator& stria_comm) const
+{
+   Table &gr_stria = stria_comm.GroupLDofTable();
+   gr_stria.SetDims(GetNGroups(), shared_trias.Size());
+   gr_stria.GetI()[0] = 0;
+   for (int gr = 1; gr <= GetNGroups(); gr++)
+   {
+      gr_stria.GetI()[gr] = group_stria.GetI()[gr-1];
+   }
+   for (int k = 0; k < shared_trias.Size(); k++)
+   {
+      if (ordering == 1)
+      {
+         gr_stria.GetJ()[k] = k;
+      }
+      else
+      {
+         gr_stria.GetJ()[k] = group_stria.GetJ()[k];
+      }
+   }
+   stria_comm.Finalize();
+}
+
+void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    Array<int> order;
    GetEdgeOrdering(v_to_v, order); // local edge ordering
 
    // create a GroupCommunicator on the shared edges
    GroupCommunicator sedge_comm(gtopo);
-   {
-      // initialize sedge_comm
-      Table &gr_sedge = sedge_comm.GroupLDofTable(); // differs from group_sedge
-      gr_sedge.SetDims(GetNGroups(), shared_edges.Size());
-      gr_sedge.GetI()[0] = 0;
-      for (int gr = 1; gr <= GetNGroups(); gr++)
-      {
-         gr_sedge.GetI()[gr] = group_sedge.GetI()[gr-1];
-      }
-      for (int k = 0; k < shared_edges.Size(); k++)
-      {
-         gr_sedge.GetJ()[k] = group_sedge.GetJ()[k];
-      }
-      sedge_comm.Finalize();
-   }
+   GetSharedEdgeCommunicator(0, sedge_comm);
 
    Array<int> sedge_ord(shared_edges.Size());
    Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
@@ -1698,7 +1788,7 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 
 #ifdef MFEM_DEBUG
    {
-      Array<Pair<int, double> > ilen_len(order.Size());
+      Array<Pair<int, real_t> > ilen_len(order.Size());
 
       for (int i = 0; i < NumOfVertices; i++)
       {
@@ -1710,9 +1800,9 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
          }
       }
 
-      SortPairs<int, double>(ilen_len, order.Size());
+      SortPairs<int, real_t>(ilen_len, order.Size());
 
-      double d_max = 0.;
+      real_t d_max = 0.;
       for (int i = 1; i < order.Size(); i++)
       {
          d_max = std::max(d_max, ilen_len[i-1].two-ilen_len[i].two);
@@ -1724,8 +1814,9 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
                 << endl;
 #else
       // Debug message just from rank 0.
-      double glob_d_max;
-      MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
+      real_t glob_d_max;
+      MPI_Reduce(&d_max, &glob_d_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+                 MyComm);
       if (MyRank == 0)
       {
          mfem::out << "glob_d_max = " << glob_d_max << endl;
@@ -1891,65 +1982,6 @@ void ParMesh::GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
    }
 }
 
-void ParMesh::GetFaceNbrElementTransformation(
-   int i, IsoparametricTransformation *ElTr)
-{
-   DenseMatrix &pointmat = ElTr->GetPointMat();
-   Element *elem = face_nbr_elements[i];
-
-   ElTr->Attribute = elem->GetAttribute();
-   ElTr->ElementNo = NumOfElements + i;
-   ElTr->ElementType = ElementTransformation::ELEMENT;
-   ElTr->mesh = this;
-   ElTr->Reset();
-
-   if (Nodes == NULL)
-   {
-      const int nv = elem->GetNVertices();
-      const int *v = elem->GetVertices();
-
-      pointmat.SetSize(spaceDim, nv);
-      for (int k = 0; k < spaceDim; k++)
-      {
-         for (int j = 0; j < nv; j++)
-         {
-            pointmat(k, j) = face_nbr_vertices[v[j]](k);
-         }
-      }
-
-      ElTr->SetFE(GetTransformationFEforElementType(elem->GetType()));
-   }
-   else
-   {
-      Array<int> vdofs;
-      ParGridFunction *pNodes = dynamic_cast<ParGridFunction *>(Nodes);
-      if (pNodes)
-      {
-         pNodes->ParFESpace()->GetFaceNbrElementVDofs(i, vdofs);
-         int n = vdofs.Size()/spaceDim;
-         pointmat.SetSize(spaceDim, n);
-         for (int k = 0; k < spaceDim; k++)
-         {
-            for (int j = 0; j < n; j++)
-            {
-               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
-            }
-         }
-
-         ElTr->SetFE(pNodes->ParFESpace()->GetFaceNbrFE(i));
-      }
-      else
-      {
-         MFEM_ABORT("Nodes are not ParGridFunction!");
-      }
-   }
-}
-
-double ParMesh::GetFaceNbrElementSize(int i, int type)
-{
-   return GetElementSize(GetFaceNbrElementTransformation(i), type);
-}
-
 void ParMesh::DeleteFaceNbrData()
 {
    if (!have_face_nbr_data)
@@ -1973,6 +2005,7 @@ void ParMesh::DeleteFaceNbrData()
 
 void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
@@ -1993,6 +2026,7 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 
 void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
+   DeleteFaceNbrData();
    ParFiniteElementSpace *npfes = dynamic_cast<ParFiniteElementSpace*>(nfes);
    if (npfes)
    {
@@ -2006,6 +2040,7 @@ void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void ParMesh::SetNodalFESpace(ParFiniteElementSpace *npfes)
 {
+   DeleteFaceNbrData();
    ParGridFunction *nodes = new ParGridFunction(npfes);
    SetNodalGridFunction(nodes, true);
 }
@@ -2014,19 +2049,17 @@ void ParMesh::EnsureParNodes()
 {
    if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
    {
+      DeleteFaceNbrData();
       ParFiniteElementSpace *pfes =
          new ParFiniteElementSpace(*Nodes->FESpace(), *this);
       ParGridFunction *new_nodes = new ParGridFunction(pfes);
-
       *new_nodes = *Nodes;
-
       if (Nodes->OwnFEC())
       {
          new_nodes->MakeOwner(Nodes->OwnFEC());
          Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
          delete Nodes->FESpace();
       }
-
       delete Nodes;
       Nodes = new_nodes;
    }
@@ -2041,7 +2074,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    if (Nonconforming())
    {
-      // with ParNCMesh we can set up face neighbors without communication
+      // With ParNCMesh we can set up face neighbors mostly without communication.
       pncmesh->GetFaceNeighbors(*this);
       have_face_nbr_data = true;
 
@@ -2110,7 +2143,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    if (Dim == 3)
    {
-      GetFaceNbrElementToFaceTable();
+      BuildFaceNbrElementToFaceTable();
    }
 
    if (del_tables) { delete gr_sface; }
@@ -2375,8 +2408,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
    // convert the element data into face_nbr_elements
    face_nbr_elements.SetSize(face_nbr_elements_offset[num_face_nbrs]);
-   face_nbr_el_ori.Clear();
-   face_nbr_el_ori.SetSize(face_nbr_elements_offset[num_face_nbrs], 6);
+   face_nbr_el_ori.reset(new Table(face_nbr_elements_offset[num_face_nbrs], 6));
    while (true)
    {
       int fn;
@@ -2407,7 +2439,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          if (Dim == 3)
          {
             int nf = el->GetNFaces();
-            int * fn_ori = face_nbr_el_ori.GetRow(elem_off);
+            int * fn_ori = face_nbr_el_ori->GetRow(elem_off);
             for (int j = 0; j < nf; j++)
             {
                fn_ori[j] = recv_elemdata[j];
@@ -2417,7 +2449,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          face_nbr_elements[elem_off++] = el;
       }
    }
-   face_nbr_el_ori.Finalize();
+   face_nbr_el_ori->Finalize();
 
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
 
@@ -2554,12 +2586,12 @@ void ParMesh::ExchangeFaceNbrNodes()
 
          MPI_Isend(send_vertices[send_face_nbr_vertices.GetI()[fn]](),
                    3*send_face_nbr_vertices.RowSize(fn),
-                   MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
+                   MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &send_requests[fn]);
 
          MPI_Irecv(face_nbr_vertices[face_nbr_vertices_offset[fn]](),
                    3*(face_nbr_vertices_offset[fn+1] -
                       face_nbr_vertices_offset[fn]),
-                   MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
+                   MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &recv_requests[fn]);
       }
 
       MPI_Waitall(num_face_nbrs, recv_requests, statuses);
@@ -2607,6 +2639,20 @@ STable3D *ParMesh::GetSharedFacesTable()
             }
             break;
          }
+         case Element::PYRAMID:
+         {
+            for (int j = 0; j < 1; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               sfaces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+            }
+            for (int j = 1; j < 5; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               sfaces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]);
+            }
+            break;
+         }
          case Element::HEXAHEDRON:
          {
             // find the face by the vertices with the smallest 3 numbers
@@ -2625,136 +2671,118 @@ STable3D *ParMesh::GetSharedFacesTable()
    return sfaces_tbl;
 }
 
-STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
+template <int N>
+void
+ParMesh::AddTriFaces(const Array<int> &elem_vertices,
+                     const std::unique_ptr<STable3D> &faces,
+                     const std::unique_ptr<STable3D> &shared_faces,
+                     int elem, int start, int end, const int fverts[][N])
 {
-   int i, *v;
-   STable3D * faces_tbl = GetFacesTable();
-   STable3D * sfaces_tbl = GetSharedFacesTable();
+   for (int i = start; i < end; ++i)
+   {
+      // Reference face vertices.
+      const auto fv = fverts[i];
+      // Element specific face vertices.
+      const Vert3 elem_fv(elem_vertices[fv[0]], elem_vertices[fv[1]],
+                          elem_vertices[fv[2]]);
 
-   if (face_nbr_el_to_face != NULL)
-   {
-      delete face_nbr_el_to_face;
+      // Check amongst the faces of elements local to this rank for this set of vertices
+      const int lf = faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]);
+
+      // If the face wasn't found amonst processor local elements, search the
+      // ghosts for this set of vertices.
+      const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1],
+                                                  elem_fv.v[2]) : -1;
+      // If find local face -> use that
+      //    else if find shared face -> shift and use that
+      //       else no face found -> set to -1
+      const int face_to_add = lf < 0 ? (sf >= 0 ? sf + NumOfFaces : -1) : lf;
+
+      MFEM_ASSERT(sf >= 0 ||
+                  lf >= 0, "Face must be from a local or a face neighbor element");
+
+      // Add this discovered face to the list of faces of this face neighbor element
+      face_nbr_el_to_face->Push(elem, face_to_add);
    }
-   face_nbr_el_to_face = new Table(face_nbr_elements.Size(), 6);
-   for (i = 0; i < face_nbr_elements.Size(); i++)
+}
+
+void ParMesh::BuildFaceNbrElementToFaceTable()
+{
+   const auto faces = std::unique_ptr<STable3D>(GetFacesTable());
+   const auto shared_faces = std::unique_ptr<STable3D>(GetSharedFacesTable());
+
+   face_nbr_el_to_face.reset(new Table(face_nbr_elements.Size(), 6));
+
+   Array<int> v;
+
+   // Helper for adding quadrilateral faces.
+   auto add_quad_faces = [&faces, &shared_faces, &v, this]
+                         (int elem, int start, int end, const int fverts[][4])
    {
-      v = face_nbr_elements[i]->GetVertices();
+      for (int i = start; i < end; ++i)
+      {
+         const int * const fv = fverts[i];
+         int k = 0;
+         int max = v[fv[0]];
+
+         if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
+         if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
+         if (max < v[fv[3]]) { k = 3; }
+
+         int v0 = -1, v1 = -1, v2 = -1;
+         switch (k)
+         {
+            case 0:
+               v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
+               break;
+            case 1:
+               v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
+               break;
+            case 2:
+               v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
+               break;
+            case 3:
+               v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
+               break;
+         }
+         int lf = faces->Index(v0, v1, v2);
+         if (lf < 0)
+         {
+            lf = shared_faces->Index(v0, v1, v2);
+            if (lf >= 0)
+            {
+               lf += NumOfFaces;
+            }
+         }
+         face_nbr_el_to_face->Push(elem, lf);
+      }
+   };
+
+   for (int i = 0; i < face_nbr_elements.Size(); i++)
+   {
+      face_nbr_elements[i]->GetVertices(v);
       switch (face_nbr_elements[i]->GetType())
       {
          case Element::TETRAHEDRON:
          {
-            for (int j = 0; j < 4; j++)
-            {
-               const int *fv = tet_t::FaceVert[j];
-               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            AddTriFaces(v, faces, shared_faces, i, 0, 4, tet_t::FaceVert);
             break;
          }
          case Element::WEDGE:
          {
-            for (int j = 0; j < 2; j++)
-            {
-               const int *fv = pri_t::FaceVert[j];
-               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
-            for (int j = 2; j < 5; j++)
-            {
-               const int *fv = pri_t::FaceVert[j];
-               int k = 0;
-               int max = v[fv[0]];
-
-               if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
-               if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
-               if (max < v[fv[3]]) { k = 3; }
-
-               int v0 = -1, v1 = -1, v2 = -1;
-               switch (k)
-               {
-                  case 0:
-                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 1:
-                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 2:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
-                     break;
-                  case 3:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
-                     break;
-               }
-               int lf = faces_tbl->Index(v0, v1, v2);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v0, v1, v2);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            AddTriFaces(v, faces, shared_faces, i, 0, 2, pri_t::FaceVert);
+            add_quad_faces(i, 2, 5, pri_t::FaceVert);
+            break;
+         }
+         case Element::PYRAMID:
+         {
+            add_quad_faces(i, 0, 1, pyr_t::FaceVert);
+            AddTriFaces(v, faces, shared_faces, i, 1, 5, pyr_t::FaceVert);
             break;
          }
          case Element::HEXAHEDRON:
          {
-            // find the face by the vertices with the smallest 3 numbers
-            // z = 0, y = 0, x = 1, y = 1, x = 0, z = 1
-            for (int j = 0; j < 6; j++)
-            {
-               const int *fv = hex_t::FaceVert[j];
-               int k = 0;
-               int max = v[fv[0]];
-
-               if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
-               if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
-               if (max < v[fv[3]]) { k = 3; }
-
-               int v0 = -1, v1 = -1, v2 = -1;
-               switch (k)
-               {
-                  case 0:
-                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 1:
-                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 2:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
-                     break;
-                  case 3:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
-                     break;
-               }
-               int lf = faces_tbl->Index(v0, v1, v2);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v0, v1, v2);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            add_quad_faces(i, 0, 6, hex_t::FaceVert);
             break;
          }
          default:
@@ -2762,14 +2790,6 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
       }
    }
    face_nbr_el_to_face->Finalize();
-
-   delete sfaces_tbl;
-   if (ret_ftbl)
-   {
-      return faces_tbl;
-   }
-   delete faces_tbl;
-   return NULL;
 }
 
 int ParMesh::GetFaceNbrRank(int fn) const
@@ -2790,33 +2810,28 @@ int ParMesh::GetFaceNbrRank(int fn) const
 }
 
 void
-ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
+ParMesh::GetFaceNbrElementFaces(int i, Array<int> &faces,
+                                Array<int> &orientations) const
 {
-   int n, j;
    int el_nbr = i - GetNE();
-   if (face_nbr_el_to_face)
+   if (face_nbr_el_to_face != nullptr && el_nbr < face_nbr_el_to_face->Size())
    {
-      face_nbr_el_to_face->GetRow(el_nbr, fcs);
+      face_nbr_el_to_face->GetRow(el_nbr, faces);
    }
    else
    {
       MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
-                 "face_nbr_el_to_face not generated.");
+                 "face_nbr_el_to_face not generated correctly.");
    }
-   if (el_nbr < face_nbr_el_ori.Size())
+
+   if (face_nbr_el_ori != nullptr && el_nbr < face_nbr_el_ori->Size())
    {
-      const int * row = face_nbr_el_ori.GetRow(el_nbr);
-      n = fcs.Size();
-      cor.SetSize(n);
-      for (j=0; j<n; j++)
-      {
-         cor[j] = row[j];
-      }
+      face_nbr_el_ori->GetRow(el_nbr, orientations);
    }
    else
    {
       MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
-                 "face_nbr_el_to_face not generated.");
+                 "face_nbr_el_ori not generated correctly.");
    }
 }
 
@@ -2878,86 +2893,83 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-void ParMesh::GetGhostFaceTransformation(
-   FaceElementTransformations* FETr, Element::Type face_type,
-   Geometry::Type face_geom)
+FaceElementTransformations *ParMesh::GetFaceElementTransformations(int FaceNo,
+                                                                   int mask)
 {
-   // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FETr->GetPointMat();
-   FETr->Reset();
-   if (Nodes == NULL)
-   {
-      FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FETr->SetFE(GetTransformationFEforElementType(face_type));
-   }
-   else
-   {
-      const FiniteElement* face_el =
-         Nodes->FESpace()->GetTraceElement(FETr->Elem1No, face_geom);
-      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
-                  "Mesh requires nodal Finite Element.");
-
-#if 0 // TODO: handle the case of non-interpolatory Nodes
-      DenseMatrix I;
-      face_el->Project(Transformation.GetFE(), FETr->Loc1.Transf, I);
-      MultABt(Transformation.GetPointMat(), I, pm_face);
-#else
-      IntegrationRule eir(face_el->GetDof());
-      FETr->Loc1.Transform(face_el->GetNodes(), eir);
-      Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
-#endif
-      FETr->SetFE(face_el);
-   }
+   GetFaceElementTransformations(FaceNo, FaceElemTr, Transformation,
+                                 Transformation2, mask);
+   return &FaceElemTr;
 }
 
-FaceElementTransformations *ParMesh::GetFaceElementTransformations(
-   int FaceNo,
-   int mask)
+void ParMesh::GetFaceElementTransformations(int FaceNo,
+                                            FaceElementTransformations &FElTr,
+                                            IsoparametricTransformation &ElTr1,
+                                            IsoparametricTransformation &ElTr2,
+                                            int mask) const
 {
    if (FaceNo < GetNumFaces())
    {
-      return Mesh::GetFaceElementTransformations(FaceNo, mask);
+      Mesh::GetFaceElementTransformations(FaceNo, FElTr, ElTr1, ElTr2, mask);
    }
    else
    {
       const bool fill2 = mask & 10; // Elem2 and/or Loc2
-      return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
+      GetSharedFaceTransformationsByLocalIndex(FaceNo, FElTr, ElTr1, ElTr2,
+                                               fill2);
    }
 }
 
-FaceElementTransformations *ParMesh::
-GetSharedFaceTransformations(int sf, bool fill2)
+FaceElementTransformations *ParMesh::GetSharedFaceTransformations(int sf,
+                                                                  bool fill2)
 {
-   int FaceNo = GetSharedFace(sf);
-
-   return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
+   GetSharedFaceTransformations(sf, FaceElemTr, Transformation,
+                                Transformation2, fill2);
+   return &FaceElemTr;
 }
 
-FaceElementTransformations *ParMesh::
-GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
+void ParMesh::GetSharedFaceTransformations(int sf,
+                                           FaceElementTransformations &FElTr,
+                                           IsoparametricTransformation &ElTr1,
+                                           IsoparametricTransformation &ElTr2,
+                                           bool fill2) const
 {
-   FaceInfo &face_info = faces_info[FaceNo];
+   int FaceNo = GetSharedFace(sf);
+   GetSharedFaceTransformationsByLocalIndex(FaceNo, FElTr, ElTr1, ElTr2, fill2);
+}
+
+FaceElementTransformations *
+ParMesh::GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
+{
+   GetSharedFaceTransformationsByLocalIndex(FaceNo, FaceElemTr, Transformation,
+                                            Transformation2, fill2);
+   return &FaceElemTr;
+}
+
+void ParMesh::GetSharedFaceTransformationsByLocalIndex(
+   int FaceNo, FaceElementTransformations &FElTr,
+   IsoparametricTransformation &ElTr1, IsoparametricTransformation &ElTr2,
+   bool fill2) const
+{
+   const FaceInfo &face_info = faces_info[FaceNo];
    MFEM_VERIFY(face_info.Elem2Inf >= 0, "The face must be shared.");
 
    bool is_slave = Nonconforming() && IsSlaveFace(face_info);
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
 
    int mask = 0;
-   FaceElemTr.SetConfigurationMask(0);
-   FaceElemTr.Elem1 = NULL;
-   FaceElemTr.Elem2 = NULL;
+   FElTr.SetConfigurationMask(0);
+   FElTr.Elem1 = NULL;
+   FElTr.Elem2 = NULL;
 
-   NCFaceInfo* nc_info = NULL;
-   if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
-
-   int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
+   int local_face =
+      is_ghost ? nc_faces_info[face_info.NCFace].MasterFace : FaceNo;
    Element::Type  face_type = GetFaceElementType(local_face);
-   Geometry::Type face_geom = GetFaceGeometryType(local_face);
+   Geometry::Type face_geom = GetFaceGeometry(local_face);
 
    // setup the transformation for the first element
-   FaceElemTr.Elem1No = face_info.Elem1No;
-   GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
-   FaceElemTr.Elem1 = &Transformation;
+   FElTr.Elem1No = face_info.Elem1No;
+   GetElementTransformation(FElTr.Elem1No, &ElTr1);
+   FElTr.Elem1 = &ElTr1;
    mask |= FaceElementTransformations::HAVE_ELEM1;
 
    // setup the transformation for the second (neighbor) element
@@ -2965,42 +2977,42 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
    if (fill2)
    {
       Elem2NbrNo = -1 - face_info.Elem2No;
-      // Store the "shifted index" for element 2 in FaceElemTr.Elem2No.
+      // Store the "shifted index" for element 2 in FElTr.Elem2No.
       // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
-      // and `FaceElemTr.Elem2No` will be offset by the number of (local)
+      // and `FElTr.Elem2No` will be offset by the number of (local)
       // elements in the mesh.
-      FaceElemTr.Elem2No = NumOfElements + Elem2NbrNo;
-      GetFaceNbrElementTransformation(Elem2NbrNo, &Transformation2);
-      FaceElemTr.Elem2 = &Transformation2;
+      FElTr.Elem2No = NumOfElements + Elem2NbrNo;
+      GetFaceNbrElementTransformation(Elem2NbrNo, ElTr2);
+      FElTr.Elem2 = &ElTr2;
       mask |= FaceElementTransformations::HAVE_ELEM2;
    }
    else
    {
-      FaceElemTr.Elem2No = -1;
+      FElTr.Elem2No = -1;
    }
 
    // setup the face transformation if the face is not a ghost
    if (!is_ghost)
    {
-      GetFaceTransformation(FaceNo, &FaceElemTr);
-      // NOTE: The above call overwrites FaceElemTr.Loc1
+      GetFaceTransformation(FaceNo, &FElTr);
+      // NOTE: The above call overwrites FElTr.Loc1
       mask |= FaceElementTransformations::HAVE_FACE;
    }
    else
    {
-      FaceElemTr.SetGeometryType(face_geom);
+      FElTr.SetGeometryType(face_geom);
    }
 
    // setup Loc1 & Loc2
    int elem_type = GetElementType(face_info.Elem1No);
-   GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc1.Transf,
+   GetLocalFaceTransformation(face_type, elem_type, FElTr.Loc1.Transf,
                               face_info.Elem1Inf);
    mask |= FaceElementTransformations::HAVE_LOC1;
 
    if (fill2)
    {
       elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
-      GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc2.Transf,
+      GetLocalFaceTransformation(face_type, elem_type, FElTr.Loc2.Transf,
                                  face_info.Elem2Inf);
       mask |= FaceElementTransformations::HAVE_LOC2;
    }
@@ -3011,35 +3023,130 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
       if (is_ghost || fill2)
       {
          // is_ghost -> modify side 1, otherwise -> modify side 2:
-         ApplyLocalSlaveTransformation(FaceElemTr, face_info, is_ghost);
+         ApplyLocalSlaveTransformation(FElTr, face_info, is_ghost);
       }
    }
 
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      GetGhostFaceTransformation(FElTr, face_type, face_geom);
       mask |= FaceElementTransformations::HAVE_FACE;
    }
 
-   FaceElemTr.SetConfigurationMask(mask);
+   FElTr.SetConfigurationMask(mask);
 
    // This check can be useful for internal debugging, however it will fail on
    // periodic boundary faces, so we keep it disabled in general.
 #if 0
 #ifdef MFEM_DEBUG
-   double dist = FaceElemTr.CheckConsistency();
+   real_t dist = FElTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
                 << ", dist = " << dist << ", rank = " << MyRank << '\n';
-      FaceElemTr.CheckConsistency(1); // print coordinates
+      FElTr.CheckConsistency(1); // print coordinates
       MFEM_ABORT("internal error");
    }
 #endif
 #endif
+}
 
-   return &FaceElemTr;
+void ParMesh::GetGhostFaceTransformation(
+   FaceElementTransformations &FElTr, Element::Type face_type,
+   Geometry::Type face_geom) const
+{
+   // calculate composition of FElTr.Loc1 and FElTr.Elem1
+   DenseMatrix &face_pm = FElTr.GetPointMat();
+   FElTr.Reset();
+   if (Nodes == NULL)
+   {
+      FElTr.Elem1->Transform(FElTr.Loc1.Transf.GetPointMat(), face_pm);
+      FElTr.SetFE(GetTransformationFEforElementType(face_type));
+   }
+   else
+   {
+      const FiniteElement* face_el =
+         Nodes->FESpace()->GetTraceElement(FElTr.Elem1No, face_geom);
+      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                  "Mesh requires nodal Finite Element.");
+
+#if 0 // TODO: handle the case of non-interpolatory Nodes
+      DenseMatrix I;
+      face_el->Project(Transformation.GetFE(), FElTr.Loc1.Transf, I);
+      MultABt(Transformation.GetPointMat(), I, pm_face);
+#else
+      IntegrationRule eir(face_el->GetDof());
+      FElTr.Loc1.Transform(face_el->GetNodes(), eir);
+      Nodes->GetVectorValues(*FElTr.Elem1, eir, face_pm);
+#endif
+      FElTr.SetFE(face_el);
+   }
+}
+
+ElementTransformation *ParMesh::GetFaceNbrElementTransformation(int FaceNo)
+{
+   GetFaceNbrElementTransformation(FaceNo, Transformation);
+   return &Transformation;
+}
+
+void ParMesh::GetFaceNbrElementTransformation(
+   int FaceNo, IsoparametricTransformation &ElTr) const
+{
+   DenseMatrix &pointmat = ElTr.GetPointMat();
+   Element *elem = face_nbr_elements[FaceNo];
+
+   ElTr.Attribute = elem->GetAttribute();
+   ElTr.ElementNo = NumOfElements + FaceNo;
+   ElTr.ElementType = ElementTransformation::ELEMENT;
+   ElTr.mesh = this;
+   ElTr.Reset();
+
+   if (Nodes == NULL)
+   {
+      const int nv = elem->GetNVertices();
+      const int *v = elem->GetVertices();
+
+      pointmat.SetSize(spaceDim, nv);
+      for (int k = 0; k < spaceDim; k++)
+      {
+         for (int j = 0; j < nv; j++)
+         {
+            pointmat(k, j) = face_nbr_vertices[v[j]](k);
+         }
+      }
+
+      ElTr.SetFE(GetTransformationFEforElementType(elem->GetType()));
+   }
+   else
+   {
+      Array<int> vdofs;
+      ParGridFunction *pNodes = dynamic_cast<ParGridFunction *>(Nodes);
+      if (pNodes)
+      {
+         pNodes->ParFESpace()->GetFaceNbrElementVDofs(FaceNo, vdofs);
+         int n = vdofs.Size()/spaceDim;
+         pointmat.SetSize(spaceDim, n);
+         for (int k = 0; k < spaceDim; k++)
+         {
+            for (int j = 0; j < n; j++)
+            {
+               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
+            }
+         }
+
+         ElTr.SetFE(pNodes->ParFESpace()->GetFaceNbrFE(FaceNo));
+      }
+      else
+      {
+         MFEM_ABORT("Nodes are not ParGridFunction!");
+      }
+   }
+}
+
+real_t ParMesh::GetFaceNbrElementSize(int i, int type)
+{
+   return GetElementSize(GetFaceNbrElementTransformation(i), type);
 }
 
 int ParMesh::GetNSharedFaces() const
@@ -3076,7 +3183,7 @@ int ParMesh::GetSharedFace(int sface) const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      int csize = (int) shared.conforming.Size();
+      int csize = shared.conforming.Size();
       return sface < csize
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
@@ -3085,8 +3192,7 @@ int ParMesh::GetSharedFace(int sface) const
 
 int ParMesh::GetNFbyType(FaceType type) const
 {
-   MFEM_VERIFY(have_face_nbr_data,
-               "ExchangeFaceNbrData() should be called before using GetNFbyType");
+   const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
    return Mesh::GetNFbyType(type);
 }
 
@@ -3135,38 +3241,21 @@ void ParMesh::ReorientTetMesh()
 
    // create a GroupCommunicator over shared vertices
    GroupCommunicator svert_comm(gtopo);
-   {
-      // initialize svert_comm
-      Table &gr_svert = svert_comm.GroupLDofTable();
-      // gr_svert differs from group_svert - the latter does not store gr. 0
-      gr_svert.SetDims(GetNGroups(), svert_lvert.Size());
-      gr_svert.GetI()[0] = 0;
-      for (int gr = 1; gr <= GetNGroups(); gr++)
-      {
-         gr_svert.GetI()[gr] = group_svert.GetI()[gr-1];
-      }
-      for (int k = 0; k < svert_lvert.Size(); k++)
-      {
-         gr_svert.GetJ()[k] = group_svert.GetJ()[k];
-      }
-      svert_comm.Finalize();
-   }
+   GetSharedVertexCommunicator(0, svert_comm);
 
    // communicate the local index of each shared vertex from the group master to
    // other ranks in the group
    Array<int> svert_master_rank(svert_lvert.Size());
    Array<int> svert_master_index(svert_lvert);
+   for (int i = 0; i < group_svert.Size(); i++)
    {
-      for (int i = 0; i < group_svert.Size(); i++)
+      int rank = gtopo.GetGroupMasterRank(i+1);
+      for (int j = 0; j < group_svert.RowSize(i); j++)
       {
-         int rank = gtopo.GetGroupMasterRank(i+1);
-         for (int j = 0; j < group_svert.RowSize(i); j++)
-         {
-            svert_master_rank[group_svert.GetRow(i)[j]] = rank;
-         }
+         svert_master_rank[group_svert.GetRow(i)[j]] = rank;
       }
-      svert_comm.Bcast(svert_master_index);
    }
+   svert_comm.Bcast(svert_master_index);
 
    // the pairs (master rank, master local index) define a globally consistent
    // vertex ordering
@@ -3232,22 +3321,8 @@ void ParMesh::ReorientTetMesh()
    {
       // create a GroupCommunicator on the shared triangles
       GroupCommunicator stria_comm(gtopo);
-      {
-         // initialize stria_comm
-         Table &gr_stria = stria_comm.GroupLDofTable();
-         // gr_stria differs from group_stria - the latter does not store gr. 0
-         gr_stria.SetDims(GetNGroups(), shared_trias.Size());
-         gr_stria.GetI()[0] = 0;
-         for (int gr = 1; gr <= GetNGroups(); gr++)
-         {
-            gr_stria.GetI()[gr] = group_stria.GetI()[gr-1];
-         }
-         for (int k = 0; k < shared_trias.Size(); k++)
-         {
-            gr_stria.GetJ()[k] = group_stria.GetJ()[k];
-         }
-         stria_comm.Finalize();
-      }
+      GetSharedTriCommunicator(0, stria_comm);
+
       Array<int> stria_flag(shared_trias.Size());
       for (int i = 0; i < stria_flag.Size(); i++)
       {
@@ -3291,7 +3366,7 @@ void ParMesh::ReorientTetMesh()
       GenerateFaces();
       if (el_to_edge)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
       }
    }
    else
@@ -3526,7 +3601,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 6. Update element-to-edge relations.
       if (el_to_edge != NULL)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
       }
    } //  'if (Dim == 3)'
 
@@ -3688,7 +3763,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
                         need_refinement = 1;
                         middle[ii] = NumOfVertices++;
-                        for (int c = 0; c < 2; c++)
+                        for (int c = 0; c < spaceDim; c++)
                         {
                            V(c) = 0.5 * (vertices[v[0]](c) + vertices[v[1]](c));
                         }
@@ -3764,7 +3839,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       if (el_to_edge != NULL)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
          GenerateFaces();
       }
    } //  'if (Dim == 2)'
@@ -3792,7 +3867,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
-      static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
+      static real_t seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
       CoarseFineTr.point_matrices[Geometry::SEGMENT].
       UseExternalData(seg_children, 1, 2, 3);
 
@@ -3826,6 +3901,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                  "serial Mesh)");
    }
 
+   ResetLazyData();
+
    DeleteFaceNbrData();
 
    // NOTE: no check of !refinements.Size(), in parallel we would have to reduce
@@ -3846,6 +3923,10 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
+
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
    Mesh::Swap(*pmesh2, false);
@@ -3862,8 +3943,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    UpdateNodes();
 }
 
-bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
-                                        double threshold, int nc_limit, int op)
+bool ParMesh::NonconformingDerefinement(Array<real_t> &elem_error,
+                                        real_t threshold, int nc_limit, int op)
 {
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
@@ -3884,7 +3965,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      double error =
+      real_t error =
          AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
 
       if (error < threshold) { derefs.Append(i); }
@@ -3903,6 +3984,10 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
 
    attributes.Copy(mesh2->attributes);
    bdr_attributes.Copy(mesh2->bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(mesh2->attribute_sets);
+   bdr_attribute_sets.Copy(mesh2->bdr_attribute_sets);
 
    Mesh::Swap(*mesh2, false);
    delete mesh2;
@@ -3954,6 +4039,10 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
 
    Mesh::Swap(*pmesh2, false);
    delete pmesh2;
@@ -4458,7 +4547,7 @@ void ParMesh::UniformRefinement3D()
 
    DSTable v_to_v(NumOfVertices);
    GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetFacesTable();
+   auto faces_tbl = std::unique_ptr<STable3D>(GetFacesTable());
 
    // call Mesh::UniformRefinement3D_base so that it won't update the nodes
    Array<int> f2qf;
@@ -4473,12 +4562,19 @@ void ParMesh::UniformRefinement3D()
    // update the groups
    UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl,
                          f2qf.Size() ? &f2qf : NULL);
-   delete faces_tbl;
 
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement()
+void ParMesh::NURBSUniformRefinement(int rf, real_t tol)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
 {
    if (MyRank == 0)
    {
@@ -4701,14 +4797,14 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &os) const
+void ParMesh::Print(std::ostream &os, const std::string &comments) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
    if (NURBSext)
    {
-      Printer(os); // does not print shared boundary
+      Printer(os, "", comments); // does not print shared boundary
       return;
    }
 
@@ -4746,11 +4842,16 @@ void ParMesh::Print(std::ostream &os) const
       }
    }
 
-   os << "MFEM mesh v1.0\n";
+   const bool set_names = attribute_sets.SetsExist() ||
+                          bdr_attribute_sets.SetsExist();
+
+   os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
+
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
    // optional
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
@@ -4765,6 +4866,12 @@ void ParMesh::Print(std::ostream &os) const
    for (int i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], os);
+   }
+
+   if (set_names)
+   {
+      os << "\nattribute_sets\n";
+      attribute_sets.Print(os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4795,6 +4902,13 @@ void ParMesh::Print(std::ostream &os) const
          PrintElement(faces[(*s2l_face)[i]], os);
       }
    }
+
+   if (set_names)
+   {
+      os << "\nbdr_attribute_sets\n";
+      bdr_attribute_sets.Print(os);
+   }
+
    os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
@@ -4815,9 +4929,14 @@ void ParMesh::Print(std::ostream &os) const
       os << "\nnodes\n";
       Nodes->Save(os);
    }
+
+   if (set_names)
+   {
+      os << "\nmfem_mesh_end" << endl;
+   }
 }
 
-void ParMesh::Save(const char *fname, int precision) const
+void ParMesh::Save(const std::string &fname, int precision) const
 {
    ostringstream fname_with_suffix;
    fname_with_suffix << fname << "." << setfill('0') << setw(6) << MyRank;
@@ -4845,21 +4964,23 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
-void ParMesh::PrintAsOne(std::ostream &os) const
+void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 {
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
    MPI_Status status;
-   Array<double> vert;
+   Array<real_t> vert;
    Array<int> ints;
 
    if (MyRank == 0)
    {
       os << "MFEM mesh v1.0\n";
 
+      if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
       // optional
       os <<
-         "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+         "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
          "# POINT       = 0\n"
          "# SEGMENT     = 1\n"
          "# TRIANGLE    = 2\n"
@@ -5094,7 +5215,8 @@ void ParMesh::PrintAsOne(std::ostream &os) const
             vert.SetSize(nv*spaceDim);
             if (nv)
             {
-               MPI_Recv(&vert[0], nv*spaceDim, MPI_DOUBLE, p, 449, MyComm, &status);
+               MPI_Recv(&vert[0], nv*spaceDim, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
+                        &status);
             }
             for (i = 0; i < nv; i++)
             {
@@ -5121,7 +5243,8 @@ void ParMesh::PrintAsOne(std::ostream &os) const
          }
          if (NumOfVertices)
          {
-            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPI_DOUBLE, 0, 449, MyComm);
+            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPITypeMap<real_t>::mpi_type, 0, 449,
+                     MyComm);
          }
       }
    }
@@ -5154,13 +5277,13 @@ void ParMesh::PrintAsOne(std::ostream &os) const
    }
 }
 
-void ParMesh::PrintAsSerial(std::ostream &os) const
+void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
 {
    int save_rank = 0;
    Mesh serialmesh = GetSerialMesh(save_rank);
    if (MyRank == save_rank)
    {
-      serialmesh.Printer(os);
+      serialmesh.Printer(os, "", comments);
    }
    MPI_Barrier(MyComm);
 }
@@ -5203,7 +5326,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
 
    int n_send_recv;
    MPI_Status status;
-   Array<double> vert;
+   Array<real_t> vert;
    Array<int> ints, dofs;
 
    // First set the connectivity of serial mesh using the True Dofs from
@@ -5258,7 +5381,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       for (int e = 0; e < NumOfElements; e++)
       {
          const int attr = elements[e]->GetAttribute();
-         const int geom_type = elements[e]->GetGeometryType();;
+         const int geom_type = elements[e]->GetGeometryType();
          ints.Append(attr);
          ints.Append(geom_type);
          pfespace_linear.GetElementDofs(e, dofs);
@@ -5386,8 +5509,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
             serialmesh.GetElementVertices(elem_count++, ints_serial);
             for (int i = 0; i < ints.Size(); i++)
             {
-               const double *vdata = GetVertex(ints[i]);
-               double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
+               const real_t *vdata = GetVertex(ints[i]);
+               real_t *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vdata_serial[d] = vdata[d];
@@ -5403,7 +5526,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
          vert.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MyComm, &status);
+            MPI_Recv(&vert[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
+                     &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
@@ -5418,7 +5542,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
                serialmesh.GetElementVertices(elem_count++, ints_serial);
                for (int j = 0; j < ints_serial.Size(); j++)
                {
-                  double *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
+                  real_t *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
                   for (int d = 0; d < spaceDim; d++)
                   {
                      vdata_serial[d] = vert[i++];
@@ -5462,7 +5586,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
             GetElementVertices(e, ints);
             for (int i = 0; i < ints.Size(); i++)
             {
-               const double *vdata = GetVertex(ints[i]);
+               const real_t *vdata = GetVertex(ints[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vert.Append(vdata[d]);
@@ -5472,7 +5596,8 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MyComm);
+         MPI_Send(&vert[0], n_send_recv, MPITypeMap<real_t>::mpi_type, save_rank, 449,
+                  MyComm);
       }
    }
 
@@ -5480,7 +5605,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
    return serialmesh;
 }
 
-void ParMesh::SaveAsOne(const char *fname, int precision) const
+void ParMesh::SaveAsOne(const std::string &fname, int precision) const
 {
    ofstream ofs;
    if (MyRank == 0)
@@ -5499,7 +5624,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, nv, ne, p;
       const int *ind, *v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       if (MyRank == 0)
@@ -5521,7 +5646,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                for (j = 0; j < Dim; j++)
@@ -5625,7 +5751,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE,
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type,
                   0, 445, MyComm);
          // elements
          ne = NumOfElements;
@@ -5674,7 +5800,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, nv, ne, p;
       const int *ind, *v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       int TG_nv, TG_ne, TG_nbe;
@@ -5704,7 +5830,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                os << i+1 << " 0.0 " << vert[Dim*i] << " " << vert[Dim*i+1]
@@ -5805,7 +5932,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE, 0, 445, MyComm);
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type, 0, 445,
+                  MyComm);
          // elements
          MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 444, MyComm);
          MPI_Send(&NumOfElements, 1, MPI_INT, 0, 446, MyComm);
@@ -5849,7 +5977,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
       int i, j, k, attr, nv, ne, p;
       Array<int> v;
       MPI_Status status;
-      Array<double> vert;
+      Array<real_t> vert;
       Array<int> ints;
 
       if (MyRank == 0)
@@ -5953,7 +6081,8 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
-            MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
+            MPI_Recv(&vert[0], Dim*nv, MPITypeMap<real_t>::mpi_type, p, 445, MyComm,
+                     &status);
             for (i = 0; i < nv; i++)
             {
                for (j = 0; j < Dim; j++)
@@ -6015,7 +6144,7 @@ void ParMesh::PrintAsOneXG(std::ostream &os)
             {
                vert[Dim*i+j] = vertices[i](j);
             }
-         MPI_Send(&vert[0], Dim*NumOfVertices, MPI_DOUBLE,
+         MPI_Send(&vert[0], Dim*NumOfVertices, MPITypeMap<real_t>::mpi_type,
                   0, 445, MyComm);
       }
    }
@@ -6033,28 +6162,36 @@ void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
    gp_min.SetSize(sdim);
    gp_max.SetSize(sdim);
 
-   MPI_Allreduce(p_min.GetData(), gp_min, sdim, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(p_max.GetData(), gp_max, sdim, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim,
+                 MPITypeMap<real_t>::mpi_type,
+                 MPI_MIN, MyComm);
+   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim,
+                 MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, MyComm);
 }
 
-void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
-                                 double &gk_min, double &gk_max)
+void ParMesh::GetCharacteristics(real_t &gh_min, real_t &gh_max,
+                                 real_t &gk_min, real_t &gk_max)
 {
-   double h_min, h_max, kappa_min, kappa_max;
+   real_t h_min, h_max, kappa_min, kappa_max;
 
    this->Mesh::GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
-   MPI_Allreduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
-   MPI_Allreduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(&h_min, &gh_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MyComm);
+   MPI_Allreduce(&h_max, &gh_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MyComm);
+   MPI_Allreduce(&kappa_min, &gk_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MyComm);
+   MPI_Allreduce(&kappa_max, &gk_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MyComm);
 }
 
 void ParMesh::PrintInfo(std::ostream &os)
 {
    int i;
    DenseMatrix J(Dim);
-   double h_min, h_max, kappa_min, kappa_max, h, kappa;
+   real_t h_min, h_max, kappa_min, kappa_max, h, kappa;
 
    if (MyRank == 0)
    {
@@ -6064,7 +6201,7 @@ void ParMesh::PrintInfo(std::ostream &os)
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
-      h = pow(fabs(J.Weight()), 1.0/double(Dim));
+      h = pow(fabs(J.Weight()), 1.0/real_t(Dim));
       kappa = (Dim == spaceDim) ?
               J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1) : -1.0;
       if (i == 0)
@@ -6081,11 +6218,15 @@ void ParMesh::PrintInfo(std::ostream &os)
       }
    }
 
-   double gh_min, gh_max, gk_min, gk_max;
-   MPI_Reduce(&h_min, &gh_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&h_max, &gh_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
-   MPI_Reduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
+   real_t gh_min, gh_max, gk_min, gk_max;
+   MPI_Reduce(&h_min, &gh_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, 0,
+              MyComm);
+   MPI_Reduce(&h_max, &gh_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+              MyComm);
+   MPI_Reduce(&kappa_min, &gk_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, 0,
+              MyComm);
+   MPI_Reduce(&kappa_max, &gk_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
+              MyComm);
 
    // TODO: collect and print stats by geometry
 
@@ -6169,26 +6310,26 @@ long long ParMesh::ReduceInt(int value) const
    return global;
 }
 
-void ParMesh::ParPrint(ostream &os) const
+void ParMesh::ParPrint(ostream &os, const std::string &comments) const
 {
    if (NURBSext)
    {
       // TODO: NURBS meshes.
-      Print(os); // use the serial MFEM v1.0 format for now
+      Print(os, comments); // use the serial MFEM v1.0 format for now
       return;
    }
 
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(os);
+      Printer(os, "", comments);
       return;
    }
 
-   // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
+   // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
-   Printer(os, "mfem_serial_mesh_end");
+   Printer(os, "mfem_serial_mesh_end", comments);
 
    // write out group topology info.
    gtopo.Save(os);
@@ -6202,6 +6343,7 @@ void ParMesh::ParPrint(ostream &os) const
    {
       os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
@@ -6368,7 +6510,7 @@ static void PrintVertex(const Vertex &v, int space_dim, ostream &os)
    }
 }
 
-void ParMesh::PrintSharedEntities(const char *fname_prefix) const
+void ParMesh::PrintSharedEntities(const std::string &fname_prefix) const
 {
    stringstream out_name;
    out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank
@@ -6536,6 +6678,122 @@ void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
    }
 }
 
+void ParMesh::GetExteriorFaceMarker(Array<int> & face_marker) const
+{
+   const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
+
+   Mesh::GetExteriorFaceMarker(face_marker);
+}
+
+void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> ext_face_marker;
+   GetExteriorFaceMarker(ext_face_marker);
+
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
+
+   // Identify attributes which contain local interior faces and those which
+   // contain local exterior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      if (bdr_marker[bea-1] != 0)
+      {
+         const int f = be_to_face[be];
+
+         if (ext_face_marker[f] > 0)
+         {
+            exterior_bdr[bea-1] = true;
+         }
+         else
+         {
+            interior_bdr[bea-1] = true;
+         }
+      }
+   }
+
+   Array<bool> glb_interior_bdr(bdr_attributes.Max()); glb_interior_bdr = false;
+   Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
+
+   MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+
+   // Unmark attributes which are currently marked, contain interior faces,
+   // and satisfy the appropriate exclusivity requirement.
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (bdr_marker[b] != 0 && glb_interior_bdr[b])
+      {
+         if (!excl || !glb_exterior_bdr[b])
+         {
+            bdr_marker[b] = 0;
+         }
+      }
+   }
+}
+
+void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> ext_face_marker;
+   GetExteriorFaceMarker(ext_face_marker);
+
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
+
+   // Identify boundary attributes containing local exterior faces and those
+   // containing local interior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      const int f = be_to_face[be];
+
+      if (ext_face_marker[f] > 0)
+      {
+         exterior_bdr[bea-1] = true;
+      }
+      else
+      {
+         interior_bdr[bea-1] = true;
+      }
+   }
+
+   Array<bool> glb_interior_bdr(bdr_attributes.Max()); glb_interior_bdr = false;
+   Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
+
+   MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+
+   // Mark the attributes which are currently unmarked, containing exterior
+   // faces, and satisfying the necessary exclusivity requirements.
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (bdr_marker[b] == 0 && glb_exterior_bdr[b])
+      {
+         if (!excl || !glb_interior_bdr[b])
+         {
+            bdr_marker[b] = 1;
+         }
+      }
+   }
+}
+
 void ParMesh::Swap(ParMesh &other)
 {
    Mesh::Swap(other, true);
@@ -6570,6 +6828,8 @@ void ParMesh::Swap(ParMesh &other)
    mfem::Swap(face_nbr_vertices, other.face_nbr_vertices);
    mfem::Swap(send_face_nbr_elements, other.send_face_nbr_elements);
    mfem::Swap(send_face_nbr_vertices, other.send_face_nbr_vertices);
+   std::swap(face_nbr_el_ori, other.face_nbr_el_ori);
+   std::swap(face_nbr_el_to_face, other.face_nbr_el_to_face);
 
    // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
    mfem::Swap(pncmesh, other.pncmesh);
@@ -6590,8 +6850,7 @@ void ParMesh::Destroy()
    }
    shared_edges.DeleteAll();
 
-   delete face_nbr_el_to_face;
-   face_nbr_el_to_face = NULL;
+   face_nbr_el_to_face = nullptr;
 }
 
 ParMesh::~ParMesh()

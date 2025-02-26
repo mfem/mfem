@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,13 +10,15 @@
 // CONTRIBUTING.md for details.
 
 #include "qspace.hpp"
+#include "qfunction.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
 
 QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
                                          const IntegrationRule &ir)
-   : mesh(mesh_)
+   : mesh(mesh_), order(ir.GetOrder())
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -33,6 +35,63 @@ void QuadratureSpaceBase::ConstructIntRules(int dim)
    {
       int_rule[geom] = &IntRules.Get(geom, order);
    }
+}
+
+namespace
+{
+
+void ScaleByQuadratureWeights(Vector &weights, const IntegrationRule &ir)
+{
+   const int N = weights.Size();
+   const int n = ir.Size();
+   real_t *d_weights = weights.ReadWrite();
+   const real_t *d_w = ir.GetWeights().Read();
+
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_weights[i] *= d_w[i%n];
+   });
+}
+
+} // anonymous namespace
+
+void QuadratureSpaceBase::ConstructWeights() const
+{
+   // First get the Jacobian determinants (without the quadrature weight
+   // contributions). We also store the pointer to the Vector object, so that
+   // we know when the cached weights are invalidated.
+   nodes_sequence = mesh.GetNodesSequence();
+   weights = GetGeometricFactorWeights();
+
+   // Then scale by the quadrature weights.
+   const IntegrationRule &ir = GetIntRule(0);
+   ScaleByQuadratureWeights(weights, ir);
+}
+
+const Vector &QuadratureSpaceBase::GetWeights() const
+{
+   if (GetNE() == 0) { return weights; }
+   if (weights.Size() == 0 || nodes_sequence != mesh.GetNodesSequence())
+   {
+      ConstructWeights();
+   }
+   return weights;
+}
+
+real_t QuadratureSpaceBase::Integrate(Coefficient &coeff) const
+{
+   QuadratureFunction qf(const_cast<QuadratureSpaceBase*>(this));
+   coeff.Project(qf);
+   return qf.Integrate();
+}
+
+void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
+                                    Vector &integrals) const
+{
+   const int vdim = coeff.GetVDim();
+   QuadratureFunction qf(const_cast<QuadratureSpaceBase*>(this), vdim);
+   coeff.Project(qf);
+   qf.Integrate(integrals);
 }
 
 void QuadratureSpace::ConstructOffsets()
@@ -80,9 +139,9 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
 }
 
 QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
-   : QuadratureSpaceBase(mesh_, mesh_.GetElementGeometry(0), ir)
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalElementGeometry(), ir)
 {
-   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) == 1,
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) <= 1,
                "Constructor not valid for mixed meshes");
    ConstructOffsets();
 }
@@ -92,6 +151,17 @@ void QuadratureSpace::Save(std::ostream &os) const
    os << "QuadratureSpace\n"
       << "Type: default_quadrature\n"
       << "Order: " << order << '\n';
+}
+
+const Vector &QuadratureSpace::GetGeometricFactorWeights() const
+{
+   auto flags = GeometricFactors::DETERMINANTS;
+   // TODO: assumes only one integration rule. This should be fixed once
+   // Mesh::GetGeometricFactors acceps a QuadratureSpace instead of
+   // IntegrationRule.
+   const IntegrationRule &ir = GetIntRule(0);
+   auto *geom = mesh.GetGeometricFactors(ir, flags);
+   return geom->detJ;
 }
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
@@ -105,11 +175,11 @@ FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
                                          FaceType face_type_)
-   : QuadratureSpaceBase(mesh_, mesh_.GetFaceGeometry(0), ir),
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalFaceGeometry(), ir),
      face_type(face_type_),
      num_faces(mesh.GetNFbyType(face_type))
 {
-   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) == 1,
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) <= 1,
                "Constructor not valid for mixed meshes");
    ConstructOffsets();
 }
@@ -128,6 +198,7 @@ void FaceQuadratureSpace::ConstructOffsets()
          continue;
       }
       face_indices[f_idx] = i;
+      face_indices_inv[i] = f_idx;
       offsets[f_idx] = offset;
       Geometry::Type geom = mesh.GetFaceGeometry(i);
       MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
@@ -161,11 +232,44 @@ int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
    }
 }
 
+int FaceQuadratureSpace::GetEntityIndex(const ElementTransformation &T) const
+{
+   auto get_face_index = [this](const int idx)
+   {
+      const auto it = face_indices_inv.find(idx);
+      if (it == face_indices_inv.end()) { return -1; }
+      else { return it->second; }
+   };
+
+   switch (T.ElementType)
+   {
+      case ElementTransformation::FACE:
+         return get_face_index(T.ElementNo);
+      case ElementTransformation::BDR_ELEMENT:
+      case ElementTransformation::BDR_FACE:
+         return get_face_index(mesh.GetBdrElementFaceIndex(T.ElementNo));
+      default:
+         MFEM_ABORT("Invalid element type.");
+         return -1;
+   }
+}
+
 void FaceQuadratureSpace::Save(std::ostream &os) const
 {
    os << "FaceQuadratureSpace\n"
       << "Type: default_quadrature\n"
       << "Order: " << order << '\n';
+}
+
+const Vector &FaceQuadratureSpace::GetGeometricFactorWeights() const
+{
+   auto flags = FaceGeometricFactors::DETERMINANTS;
+   // TODO: assumes only one integration rule. This should be fixed once
+   // Mesh::GetFaceGeometricFactors acceps a QuadratureSpace instead of
+   // IntegrationRule.
+   const IntegrationRule &ir = GetIntRule(0);
+   auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);
+   return geom->detJ;
 }
 
 } // namespace mfem

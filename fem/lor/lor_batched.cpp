@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,10 +14,6 @@
 #include "../../general/forall.hpp"
 #include <climits>
 #include "../pbilinearform.hpp"
-
-#include "../../general/nvtx.hpp"
-
-#include "../../general/debug.hpp"
 
 // Specializations
 #include "lor_h1.hpp"
@@ -74,18 +70,14 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 }
 
 void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
-                                                  Vector &X_vert,
-                                                  Vector *evec)
+                                                  Vector &X_vert)
 {
-#undef MFEM_NVTX_COLOR
-#define MFEM_NVTX_COLOR DeepSkyBlue
-   NVTX("LOR Coordinates");
-
    Mesh &mesh_ho = *fes_ho.GetMesh();
    mesh_ho.EnsureNodes();
 
    // Get nodal points at the LOR vertices
    const int dim = mesh_ho.Dimension();
+   const int sdim = mesh_ho.SpaceDimension();
    const int nel_ho = mesh_ho.GetNE();
    const int order = fes_ho.GetMaxElementOrder();
    const int nd1d = order + 1;
@@ -96,33 +88,18 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    const Operator *nodal_restriction =
       nodal_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
-   Vector *tmp_evec = nullptr;
-   Vector *nodal_evec;
-
-   if (evec)
-   {
-      nodal_evec = evec;
-      nodal_evec->SetSize(nodal_restriction->Height());
-   }
-   else
-   {
-      tmp_evec = new Vector(nodal_restriction->Height());
-      nodal_evec = tmp_evec;
-   }
-
    // Map from nodal L-vector to E-vector
-   nodal_restriction->Mult(*nodal_gf, *nodal_evec);
+   Vector nodal_evec(nodal_restriction->Height());
+   nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
    IntegrationRule ir = GetCollocatedIntRule(fes_ho);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
-   X_vert.SetSize(dim*ndof_per_el*nel_ho);
+   X_vert.SetSize(sdim*ndof_per_el*nel_ho);
    const QuadratureInterpolator *quad_interp =
       nodal_fes->GetQuadratureInterpolator(ir);
    quad_interp->SetOutputLayout(QVectorLayout::byVDIM);
-   quad_interp->Values(*nodal_evec, X_vert);
-
-   delete tmp_evec;
+   quad_interp->Values(nodal_evec, X_vert);
 }
 
 // The following two functions (GetMinElt and GetAndIncrementNnzIndex) are
@@ -163,7 +140,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    const int nvdof = fes_ho.GetVSize();
 
-   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
+   const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
@@ -184,8 +161,8 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    auto I = A.WriteI();
 
-   MFEM_FORALL(ii, nvdof + 1, I[ii] = 0;);
-   MFEM_FORALL(i, ndof_per_el*nel_ho,
+   mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int ii) { I[ii] = 0; });
+   mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
    {
       const int ii_el = i%ndof_per_el;
       const int iel_ho = i/ndof_per_el;
@@ -253,7 +230,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
 {
    const int nvdof = fes_ho.GetVSize();
-   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
+   const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
@@ -282,12 +259,12 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    // Copy A.I into I, use it as a temporary buffer
    {
       const auto I2 = A.ReadI();
-      MFEM_FORALL(i, nvdof + 1, I[i] = I2[i];);
+      mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i) { I[i] = I2[i]; });
    }
 
    static constexpr int Max = 16;
 
-   MFEM_FORALL(i, ndof_per_el*nel_ho,
+   mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
    {
       const int ii_el = i%ndof_per_el;
       const int iel_ho = i/ndof_per_el;
@@ -342,7 +319,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
             if (iel_ho == min_e) // add the nnz only once
             {
-               double val = 0.0;
+               real_t val = 0.0;
                for (int k = 0; k < i_ne; k++)
                {
                   const int iel_ho_2 = i_elts[k];
@@ -396,12 +373,45 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 
    A_mat->OverrideSize(nvdof, nvdof);
 
-   EnsureCapacity(A_mat->GetMemoryI(), nvdof+1, Device::GetDeviceMemoryType());
+   A_mat->GetMemoryI().New(nvdof+1, Device::GetDeviceMemoryType());
    int nnz = FillI(*A_mat);
 
-   EnsureCapacity(A_mat->GetMemoryJ(), nnz, Device::GetDeviceMemoryType());
-   EnsureCapacity(A_mat->GetMemoryData(), nnz, Device::GetDeviceMemoryType());
+   A_mat->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   A_mat->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
    FillJAndData(*A_mat);
+}
+
+template <int ORDER, int SDIM, typename LOR_KERNEL>
+static void Assemble_(LOR_KERNEL &kernel, int dim)
+{
+   if (dim == 2) { kernel.template Assemble2D<ORDER,SDIM>(); }
+   else if (dim == 3) { kernel.template Assemble3D<ORDER>(); }
+   else { MFEM_ABORT("Unsupported dimension"); }
+}
+
+template <int ORDER, typename LOR_KERNEL>
+static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim)
+{
+   if (sdim == 2) { Assemble_<ORDER,2>(kernel, dim); }
+   else if (sdim == 3) { Assemble_<ORDER,3>(kernel, dim); }
+   else { MFEM_ABORT("Unsupported space dimension."); }
+}
+
+template <typename LOR_KERNEL>
+static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim, int order)
+{
+   switch (order)
+   {
+      case 1: Assemble_<1>(kernel, dim, sdim); break;
+      case 2: Assemble_<2>(kernel, dim, sdim); break;
+      case 3: Assemble_<3>(kernel, dim, sdim); break;
+      case 4: Assemble_<4>(kernel, dim, sdim); break;
+      case 5: Assemble_<5>(kernel, dim, sdim); break;
+      case 6: Assemble_<6>(kernel, dim, sdim); break;
+      case 7: Assemble_<7>(kernel, dim, sdim); break;
+      case 8: Assemble_<8>(kernel, dim, sdim); break;
+      default: MFEM_ABORT("No kernel order " << order << "!");
+   }
 }
 
 template <typename LOR_KERNEL>
@@ -410,38 +420,10 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
    LOR_KERNEL kernel(a, fes_ho, X_vert, sparse_ij, sparse_mapping);
 
    const int dim = fes_ho.GetMesh()->Dimension();
+   const int sdim = fes_ho.GetMesh()->SpaceDimension();
    const int order = fes_ho.GetMaxElementOrder();
 
-   if (dim == 2)
-   {
-      switch (order)
-      {
-         case 1: kernel.template Assemble2D<1>(); break;
-         case 2: kernel.template Assemble2D<2>(); break;
-         case 3: kernel.template Assemble2D<3>(); break;
-         case 4: kernel.template Assemble2D<4>(); break;
-         case 5: kernel.template Assemble2D<5>(); break;
-         case 6: kernel.template Assemble2D<6>(); break;
-         case 7: kernel.template Assemble2D<7>(); break;
-         case 8: kernel.template Assemble2D<8>(); break;
-         default: MFEM_ABORT("No kernel order " << order << "!");
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (order)
-      {
-         case 1: kernel.template Assemble3D<1>(); break;
-         case 2: kernel.template Assemble3D<2>(); break;
-         case 3: kernel.template Assemble3D<3>(); break;
-         case 4: kernel.template Assemble3D<4>(); break;
-         case 5: kernel.template Assemble3D<5>(); break;
-         case 6: kernel.template Assemble3D<6>(); break;
-         case 7: kernel.template Assemble3D<7>(); break;
-         case 8: kernel.template Assemble3D<8>(); break;
-         default: MFEM_ABORT("No kernel order " << order << "!");
-      }
-   }
+   Assemble_(kernel, dim, sdim, order);
 }
 
 void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
@@ -478,40 +460,23 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
 void BatchedLORAssembly::ParAssemble(
    BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
-   dbg("AssembleWithoutBC");
    // Assemble the system matrix local to this partition
-   MFEM_DEVICE_SYNC;
-   sw_LOR.Start();
+   OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
-   MFEM_DEVICE_SYNC;
-   sw_LOR.Stop();
 
    ParBilinearForm *pa =
       dynamic_cast<ParBilinearForm*>(&a);
 
-   dbg("ParallelRAP");
-   MFEM_DEVICE_SYNC;
-   sw_RAP.Start();
    pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
-   MFEM_DEVICE_SYNC;
-   sw_RAP.Stop();
 
-   dbg("EliminateBC");
-   MFEM_DEVICE_SYNC;
-   sw_BC.Start();
    A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
                                        Operator::DiagonalPolicy::DIAG_ONE);
-   MFEM_DEVICE_SYNC;
-   sw_BC.Stop();
 }
 #endif
 
 void BatchedLORAssembly::Assemble(
    BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A)
 {
-#undef MFEM_NVTX_COLOR
-#define MFEM_NVTX_COLOR NavyBlue
-   NVTX("LOR Assemble");
 #ifdef MFEM_USE_MPI
    if (dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
    {
@@ -519,35 +484,23 @@ void BatchedLORAssembly::Assemble(
    }
 #endif
 
-   MFEM_DEVICE_SYNC;
-   sw_LOR.Start();
    AssembleWithoutBC(a, A);
-   MFEM_DEVICE_SYNC;
-   sw_LOR.Stop();
-
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
-   MFEM_DEVICE_SYNC;
-   sw_BC.Start();
    A_mat->EliminateBC(ess_dofs,
                       Operator::DiagonalPolicy::DIAG_KEEP);
-   MFEM_DEVICE_SYNC;
-   sw_BC.Stop();
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    : fes_ho(fes_ho_)
 {
-   sw_LOR.Clear();
-   sw_RAP.Clear();
-   sw_BC.Clear();
    FormLORVertexCoordinates(fes_ho, X_vert);
 }
 
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
 {
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const Geometry::Type geom = fes.GetMesh()->GetElementGeometry(0);
+   const Geometry::Type geom = fes.GetMesh()->GetTypicalElementGeometry();
    const int nd1d = fes.GetMaxElementOrder() + 1;
    return irs.Get(geom, 2*nd1d - 3);
 }

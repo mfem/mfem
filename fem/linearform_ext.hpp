@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,19 +25,22 @@ class LinearForm;
 class LinearFormExtension
 {
    /// Attributes of all mesh elements.
-   Array<int> attributes;
+   Array<int> attributes, bdr_attributes;
 
    /// Temporary markers for device kernels.
-   Array<int> markers;
+   Array<int> markers, bdr_markers;
 
    /// Linear form from which this extension depends. Not owned.
    LinearForm *lf;
 
    /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
-   const Operator *elem_restrict_lex; // Not owned
+   const ElementRestrictionOperator *elem_restrict_lex; // Not owned
+
+   /// Operator that converts L-vectors to boundary E-vectors.
+   const FaceRestriction *bdr_restrict_lex; // Not owned
 
    /// Internal E-vectors.
-   mutable Vector b;
+   mutable Vector b, bdr_b;
 
 public:
 

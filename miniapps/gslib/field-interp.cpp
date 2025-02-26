@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,9 +26,11 @@
 //
 // Sample runs:
 //   field-interp
+//   field-interp -o 1
 //   field-interp -fts 3 -ft 0
 //   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
-//   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1
+//   field-interp -m1 triple-pt-1.mesh -m2 triple-pt-2.mesh -ft 1
+//   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1 -fts 0
 
 #include "mfem.hpp"
 #include <fstream>
@@ -57,12 +59,14 @@ int main (int argc, char *argv[])
    const char *src_mesh_file = "../meshing/square01.mesh";
    const char *tar_mesh_file = "../../data/inline-tri.mesh";
    const char *src_sltn_file = "must_be_provided_by_the_user.gf";
-   int src_fieldtype  = 0;
-   int src_ncomp      = 1;
-   int ref_levels     = 0;
-   int fieldtype      = -1;
-   int order          = 3;
-   bool visualization = true;
+   int src_fieldtype   = 0;
+   int src_ncomp       = 1;
+   int src_gf_ordering = 0;
+   int ref_levels      = 0;
+   int fieldtype       = -1;
+   int order           = 3;
+   bool visualization  = true;
+   int visport         = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -78,6 +82,8 @@ int main (int argc, char *argv[])
                   "0 - H1 (default), 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&src_ncomp, "-nc", "--ncomp",
                   "Number of components for H1 or L2 GridFunctions.");
+   args.AddOption(&src_gf_ordering, "-gfo", "--gfo",
+                  "Node ordering: 0 (byNodes) or 1 (byVDim)");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
    args.AddOption(&fieldtype, "-ft", "--field-type",
@@ -88,6 +94,7 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -95,6 +102,12 @@ int main (int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // If a gridfunction is specified, set src_fieldtype to -1
+   if (strcmp(src_sltn_file, "must_be_provided_by_the_user.gf") != 0)
+   {
+      src_fieldtype = -1;
+   }
 
    // Input meshes.
    Mesh mesh_1(src_mesh_file, 1, 1, false);
@@ -127,6 +140,7 @@ int main (int argc, char *argv[])
       ifstream mat_stream_1(src_sltn_file);
       func_source = new GridFunction(&mesh_1, mat_stream_1);
       src_vdim = func_source->FESpace()->GetVDim();
+      src_fes = func_source->FESpace();
    }
    else if (src_fieldtype == 0)
    {
@@ -155,7 +169,10 @@ int main (int argc, char *argv[])
 
    if (src_fieldtype > -1)
    {
-      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp);
+      MFEM_VERIFY(src_gf_ordering >= 0 && src_gf_ordering <= 1,
+                  " Source grid function ordering must be 0 (byNodes)"
+                  " or 1 (byVDIM.");
+      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp, src_gf_ordering);
       func_source = new GridFunction(src_fes);
       // Project the grid function using VectorFunctionCoefficient.
       VectorFunctionCoefficient F(src_vdim, vector_func);
@@ -166,7 +183,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout1;
       sout1.open(vishost, visport);
       if (!sout1)
@@ -186,7 +202,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   const Geometry::Type gt = mesh_2.GetNodalFESpace()->GetFE(0)->GetGeomType();
+   const Geometry::Type gt = mesh_2.GetTypicalElementGeometry();
    MFEM_VERIFY(gt != Geometry::PRISM, "Wedge elements are not currently "
                "supported.");
    MFEM_VERIFY(mesh_2.GetNumGeometries(mesh_2.Dimension()) == 1, "Mixed meshes"
@@ -245,18 +261,21 @@ int main (int argc, char *argv[])
       MFEM_ABORT("GridFunction type not supported.");
    }
    std::cout << "Target FE collection: " << tar_fec->Name() << std::endl;
-   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim);
+   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim,
+                                    src_fes->GetOrdering());
    GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
-             nsp = tar_fes->GetFE(0)->GetNodes().GetNPoints(),
+             nsp = tar_fes->GetTypicalFE()->GetNodes().GetNPoints(),
              tar_ncomp = func_target.VectorDim();
 
    // Generate list of points where the grid function will be evaluated.
    Vector vxyz;
+   int point_ordering;
    if (fieldtype == 0 && order == mesh_poly_deg)
    {
       vxyz = *mesh_2.GetNodes();
+      point_ordering = mesh_2.GetNodes()->FESpace()->GetOrdering();
    }
    else
    {
@@ -280,6 +299,7 @@ int main (int argc, char *argv[])
          pos.GetRow(1, rowy);
          if (dim == 3) { pos.GetRow(2, rowz); }
       }
+      point_ordering = Ordering::byNODES;
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
@@ -287,7 +307,7 @@ int main (int argc, char *argv[])
    Vector interp_vals(nodes_cnt*tar_ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   finder.Interpolate(vxyz, *func_source, interp_vals);
+   finder.Interpolate(vxyz, *func_source, interp_vals, point_ordering);
 
    // Project the interpolated values to the target FiniteElementSpace.
    if (fieldtype <= 1) // H1 or L2
@@ -311,7 +331,9 @@ int main (int argc, char *argv[])
                for (int d = 0; d < tar_ncomp; d++)
                {
                   // Arrange values byNodes
-                  elem_dof_vals(j+d*nsp) = interp_vals(d*nsp*NE + i*nsp + j);
+                  int idx = src_fes->GetOrdering() == Ordering::byNODES ?
+                            d*nsp*NE + i*nsp + j : i*nsp*dim + d + j*dim;
+                  elem_dof_vals(j + d*nsp) = interp_vals(idx);
                }
             }
             func_target.SetSubVector(vdofs, elem_dof_vals);
@@ -333,7 +355,9 @@ int main (int argc, char *argv[])
             for (int d = 0; d < tar_ncomp; d++)
             {
                // Arrange values byVDim
-               elem_dof_vals(j*tar_ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
+               int idx = src_fes->GetOrdering() == Ordering::byNODES ?
+                         d*nsp*NE + i*nsp + j : i*nsp*dim + d + j*dim;
+               elem_dof_vals(j*tar_ncomp+d) = interp_vals(idx);
             }
          }
          tar_fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
@@ -347,7 +371,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout1;
       sout1.open(vishost, visport);
       if (!sout1)
@@ -379,9 +402,16 @@ int main (int argc, char *argv[])
    finder.FreeData();
 
    // Delete remaining memory.
-   delete func_source;
-   delete src_fes;
-   delete src_fec;
+   if (func_source->OwnFEC())
+   {
+      delete func_source;
+   }
+   else
+   {
+      delete func_source;
+      delete src_fes;
+      delete src_fec;
+   }
    delete tar_fes;
    delete tar_fec;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -98,7 +98,7 @@ void BatchedLOR_ADS::FormCurlMatrixLocal()
    // Each row always has four nonzeros
    const int nnz = 4*nedge_dof;
    auto I = C_local.WriteI();
-   MFEM_FORALL(i, nedge_dof+1, I[i] = 4*i;);
+   mfem::forall(nedge_dof+1, [=] MFEM_HOST_DEVICE (int i) { I[i] = 4*i; });
 
    // face2edge is a mapping of size (4, nface_per_el), such that with a macro
    // element, face i (in lexicographic ordering) has four edges given by the
@@ -131,7 +131,7 @@ void BatchedLOR_ADS::FormCurlMatrixLocal()
    auto V = C_local.WriteData();
 
    // Loop over Raviart-Thomas L-DOFs
-   MFEM_FORALL(i, nface_dof,
+   mfem::forall(nface_dof, [=] MFEM_HOST_DEVICE (int i)
    {
       const int sj = indices_f[offsets_f[i]]; // signed
       const int j = (sj >= 0) ? sj : -1 - sj;

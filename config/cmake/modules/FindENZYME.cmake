@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,7 +19,7 @@ if(EXISTS "${ENZYME_DIR}/ClangEnzyme-${ENZYME_VERSION}.so")
   # Set ENZYME_FOUND
   set(ENZYME_FOUND TRUE CACHE BOOL "ENZYME was found." FORCE)
 
-  # Set CXX flags to accomodate the Enzyme Clang plugin
+  # Set CXX flags to accommodate the Enzyme Clang plugin
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -load -Xclang ${ENZYME_DIR}/ClangEnzyme-${ENZYME_VERSION}.so -mllvm -enzyme-loose-types=1")
   set(MFEM_USE_ENZYME YES)
 else()

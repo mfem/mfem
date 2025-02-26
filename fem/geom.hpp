@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,7 @@ namespace mfem
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
     Geometry::PYRAMID - w/ vert. (0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1)
 */
-class Geometry
+class MFEM_EXPORT Geometry
 {
 public:
    enum Type
@@ -43,7 +43,7 @@ public:
    static const int MaxDim = 3;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
-   static const double Volume[NumGeom];
+   static const real_t Volume[NumGeom];
    static const int Dimension[NumGeom];
    static const int DimStart[MaxDim+2]; // including MaxDim+1
    static const int NumVerts[NumGeom];
@@ -65,10 +65,10 @@ public:
 
    /** @brief Return an IntegrationRule consisting of all vertices of the given
        Geometry::Type, @a GeomType. */
-   const IntegrationRule *GetVertices(int GeomType);
+   const IntegrationRule *GetVertices(int GeomType) const;
 
    /// Return the center of the given Geometry::Type, @a GeomType.
-   const IntegrationPoint &GetCenter(int GeomType)
+   const IntegrationPoint &GetCenter(int GeomType) const
    { return GeomCenter[GeomType]; }
 
    /// Get a random point in the reference element specified by @a GeomType.
@@ -79,7 +79,7 @@ public:
    static bool CheckPoint(int GeomType, const IntegrationPoint &ip);
    /** @brief Check if the given point is inside the given reference element.
        Overload for fuzzy tolerance. */
-   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, double eps);
+   static bool CheckPoint(int GeomType, const IntegrationPoint &ip, real_t eps);
 
    /// Project a point @a end, onto the given Geometry::Type, @a GeomType.
    /** Check if the @a end point is inside the reference element, if not
@@ -97,9 +97,9 @@ public:
 
    const DenseMatrix &GetGeomToPerfGeomJac(int GeomType) const
    { return *GeomToPerfGeomJac[GeomType]; }
-   DenseMatrix *GetPerfGeomToGeomJac(int GeomType)
+   const DenseMatrix *GetPerfGeomToGeomJac(int GeomType) const
    { return PerfGeomToGeomJac[GeomType]; }
-   void GetPerfPointMat(int GeomType, DenseMatrix &pm);
+   void GetPerfPointMat(int GeomType, DenseMatrix &pm) const;
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
 
@@ -122,11 +122,18 @@ public:
       }
    }
 
+   /// Return the inverse of the given orientation for the specified geometry type.
+   static int GetInverseOrientation(Type geom_type, int orientation);
+
    /// Return the number of boundary "faces" of a given Geometry::Type.
-   int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
+   int NumBdr(int GeomType) const { return NumBdrArray[GeomType]; }
 };
 
-template <> struct Geometry::Constants<Geometry::POINT>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::POINT>
 {
    static const int Dimension = 0;
    static const int NumVert = 1;
@@ -136,7 +143,11 @@ template <> struct Geometry::Constants<Geometry::POINT>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::SEGMENT>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::SEGMENT>
 {
    static const int Dimension = 1;
    static const int NumVert = 2;
@@ -148,7 +159,11 @@ template <> struct Geometry::Constants<Geometry::SEGMENT>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::TRIANGLE>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::TRIANGLE>
 {
    static const int Dimension = 2;
    static const int NumVert = 3;
@@ -174,7 +189,11 @@ template <> struct Geometry::Constants<Geometry::TRIANGLE>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::SQUARE>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::SQUARE>
 {
    static const int Dimension = 2;
    static const int NumVert = 4;
@@ -194,7 +213,11 @@ template <> struct Geometry::Constants<Geometry::SQUARE>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::TETRAHEDRON>
 {
    static const int Dimension = 3;
    static const int NumVert = 4;
@@ -216,7 +239,11 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::CUBE>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::CUBE>
 {
    static const int Dimension = 3;
    static const int NumVert = 8;
@@ -234,7 +261,11 @@ template <> struct Geometry::Constants<Geometry::CUBE>
    };
 };
 
-template <> struct Geometry::Constants<Geometry::PRISM>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::PRISM>
 {
    static const int Dimension = 3;
    static const int NumVert = 6;
@@ -252,7 +283,11 @@ template <> struct Geometry::Constants<Geometry::PRISM>
    };
 };
 
-template <> struct Geometry::Constants<Geometry::PYRAMID>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::PYRAMID>
 {
    static const int Dimension = 3;
    static const int NumVert = 5;
@@ -272,7 +307,7 @@ template <> struct Geometry::Constants<Geometry::PYRAMID>
 
 // Defined in fe.cpp to ensure construction after 'mfem::TriangleFE' and
 // `mfem::TetrahedronFE`.
-extern Geometry Geometries;
+extern MFEM_EXPORT Geometry Geometries;
 
 
 class RefinedGeometry
@@ -285,27 +320,27 @@ public:
    int Type;
 
    RefinedGeometry(int NPts, int NRefG, int NRefE, int NBdrE = 0) :
-      RefPts(NPts), RefGeoms(NRefG), RefEdges(NRefE), NumBdrEdges(NBdrE) { }
+      RefPts(NPts), RefGeoms(NRefG), RefEdges(NRefE), NumBdrEdges(NBdrE) {}
 };
 
 class GeometryRefiner
 {
 private:
-   int type; // Quadrature1D type (ClosedUniform is default)
+   int Type; // Quadrature1D type (ClosedUniform is default)
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 
-   RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times, int ETimes,
-                                int Type);
-   IntegrationRule *FindInIntPts(Geometry::Type Geom, int NPts);
+   RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times,
+                                int ETimes) const;
+   IntegrationRule *FindInIntPts(Geometry::Type Geom, int NPts) const;
 
 public:
-   GeometryRefiner();
+   GeometryRefiner(int t = Quadrature1D::ClosedUniform) : Type(t) {}
 
    /// Set the Quadrature1D type of points to use for subdivision.
-   void SetType(const int t) { type = t; }
+   void SetType(int t) { Type = t; }
    /// Get the Quadrature1D type of points used for subdivision.
-   int GetType() const { return type; }
+   int GetType() const { return Type; }
 
    RefinedGeometry *Refine(Geometry::Type Geom, int Times, int ETimes = 1);
 
@@ -313,15 +348,15 @@ public:
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
 
    /// Get the Refinement level based on number of points
-   virtual int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
+   static int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
 
    /// Get the Refinement level based on number of elements
-   virtual int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
+   static int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
 
    ~GeometryRefiner();
 };
 
-extern GeometryRefiner GlobGeometryRefiner;
+extern MFEM_EXPORT GeometryRefiner GlobGeometryRefiner;
 
 }
 

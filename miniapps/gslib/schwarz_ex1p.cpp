@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,6 +93,7 @@ int main(int argc, char *argv[])
    rp_levels                 = 0;
    np_list                   = 0;
    double rel_tol            = 1.e-8;
+   int visport               = 19916;
    int nmeshes               = 3;
 
    OptionsParser args(argc, argv);
@@ -130,7 +131,7 @@ int main(int argc, char *argv[])
                   "number of meshes");
    args.AddOption(&rel_tol, "-rt", "--relative tolerance",
                   "Tolerance for Schwarz iteration convergence criterion.");
-
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -362,7 +363,7 @@ int main(int argc, char *argv[])
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
    {
-      ParLinearForm *b = new ParLinearForm(fespace);
+      b = new ParLinearForm(fespace);
       b->AddDomainIntegrator(new DomainLFIntegrator(one));
       b->Assemble();
 
@@ -423,7 +424,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

@@ -1,0 +1,94 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+stages:
+  - setup
+  - allocate_resource
+  - build_and_test
+  - release_resource_and_report
+
+# Allocate
+allocate_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_ruby
+  stage: allocate_resource
+  script:
+    - echo ${ALLOC_NAME}
+    - salloc --exclusive --nodes=1 --reservation=ci --time=60 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+
+# GitLab jobs for the Ruby machine at LLNL
+debug_ser_gcc_10:
+  variables:
+    SPEC: "%gcc@10.3.1 +debug~mpi"
+  extends: .build_and_test_on_ruby
+
+debug_par_gcc_10:
+  variables:
+    SPEC: "%gcc@10.3.1 +debug+mpi"
+  extends: .build_and_test_on_ruby
+
+opt_ser_gcc_10:
+  variables:
+    SPEC: "%gcc@10.3.1 ~mpi"
+  extends: .build_and_test_on_ruby
+
+opt_par_gcc_10:
+  variables:
+    SPEC: "%gcc@10.3.1"
+  extends: .build_and_test_on_ruby
+
+opt_par_gcc_10_sundials:
+  variables:
+    SPEC: "%gcc@10.3.1 +sundials"
+  extends: .build_and_test_on_ruby
+
+opt_par_gcc_10_petsc:
+  variables:
+    SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
+  extends: .build_and_test_on_ruby
+
+opt_par_gcc_10_pumi:
+  variables:
+    SPEC: "%gcc@10.3.1 +pumi"
+  extends: .build_and_test_on_ruby
+
+# Release
+release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_ruby
+  stage: release_resource_and_report
+  script:
+    - echo ${ALLOC_NAME}
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - echo ${JOBID}
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+
+# Jobs report
+report_job_success:
+  stage: release_resource_and_report
+  extends:
+    - .on_ruby
+    - .report_job_success
+
+report_job_failure:
+  stage: release_resource_and_report
+  extends:
+    - .on_ruby
+    - .report_job_failure
+
+include:
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/ruby-config.yml
+  - local: .gitlab/configs/setup-build-and-test.yml
+  - local: .gitlab/configs/report-build-and-test.yml

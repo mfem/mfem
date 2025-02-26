@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -297,6 +297,71 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       delete C;
 
       REQUIRE(error < tol );
+   }
+
+   Vector y1(A->Height());
+   Vector y2(Amono->Height());
+   SECTION("Check PartMult")
+   {
+      Array<int> rows{{10,39,509,289,1112,1321,927}};
+      x.Randomize();
+      y1.Randomize();
+      y2 = y1;
+      A->PartMult(rows,x,y1);
+      Amono->PartMult(rows,x,y2);
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Check PartAddMult")
+   {
+      Array<int> rows{{8,92,591,203,1094,1211,927}};
+      x.Randomize();
+      y1.Randomize();
+      y2 = y1;
+      A->PartAddMult(rows,x,y1);
+      Amono->PartAddMult(rows,x,y2);
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Check EliminateRowCols")
+   {
+      Array<int> rows{{18,72,1342,951,423,877,1234}};
+      BlockMatrix Ae(offsets); Ae.owns_blocks = 1;
+
+      // Make sure the matrix is symmetric
+      BlockMatrix * At = Transpose(*A);
+      BlockMatrix * AtA = Mult(*At,*A);
+      delete At;
+
+      for (int i = 0; i<Ae.NumRowBlocks(); i++)
+      {
+         int h = offsets[i+1] - offsets[i];
+         for (int j = 0; j<Ae.NumColBlocks(); j++)
+         {
+            int w = offsets[j+1] - offsets[j];
+            Ae.SetBlock(i,j,new SparseMatrix(h, w));
+         }
+      }
+      AtA->EliminateRowCols(rows,&Ae,mfem::Operator::DIAG_ONE);
+
+      SparseMatrix *At_mono = Transpose(*Amono);
+      SparseMatrix *AtA_mono = Mult(*At_mono, *Amono);
+      delete At_mono;
+      SparseMatrix AtAmono_e(offsets.Last());
+
+      for (int i = 0; i<rows.Size(); i++)
+      {
+         AtA_mono->EliminateRowCol(rows[i],AtAmono_e,mfem::Operator::DIAG_ONE);
+      }
+
+      SparseMatrix * diff = AtA->CreateMonolithic();
+      diff->Add(-1.0, *AtA_mono);
+      REQUIRE(diff->MaxNorm() == MFEM_Approx(0.0));
+      delete AtA_mono;
+      delete AtA;
+      delete diff;
    }
 
    delete A;

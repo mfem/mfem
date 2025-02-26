@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -819,7 +819,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf::Downward verts;
          apf_mesh->getDownward(ent,0,verts);
 
-         int *v, nv = 0;
+         int *v = nullptr, nv = 0;
          apf::Mesh::Type ftype = apf_mesh->getType(ent);
          if (ftype == apf::Mesh::TRIANGLE)
          {
@@ -890,9 +890,9 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
 {
    int spDim = m->SpaceDimension();
    // Note: default BasisType for 'fec' is GaussLobatto.
-   fec = new H1_FECollection(mesh_order, m->Dimension());
+   fec_owned = new H1_FECollection(mesh_order, m->Dimension());
    int ordering = Ordering::byVDIM; // x1y1z1/x2y2z2/...
-   fes = new FiniteElementSpace(m, fec, spDim, ordering);
+   fes = new FiniteElementSpace(m, fec_owned, spDim, ordering);
    int data_size = fes->GetVSize();
 
    // Read PUMI mesh data
@@ -903,7 +903,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    apf::MeshIterator* itr;
 
    // Assume all element type are the same i.e. tetrahedral
-   const FiniteElement* H1_elem = fes->GetFE(0);
+   const FiniteElement* H1_elem = fes->GetTypicalFE();
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
    int nnodes = All_nodes.Size();
 
@@ -1028,9 +1028,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    bel_to_edge = (AdaptedpMesh->bel_to_edge) ?
                  new Table(*(AdaptedpMesh->bel_to_edge)) : NULL;
 
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
-   AdaptedpMesh->be_to_edge.Copy(be_to_edge);
-
    // Duplicate the faces and faces_info.
    faces.SetSize(AdaptedpMesh->faces.Size());
    for (int i = 0; i < faces.Size(); i++)
@@ -1118,6 +1115,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
                                     int elemId)
 {
    int type = apf_mesh->getType(ent);
+   MFEM_CONTRACT_VAR(type);
    MFEM_ASSERT(apf::isSimplex(type),
                "only implemented for simplex entity types");
    // get downward vertices of PUMI element

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL,
    const auto W = Reshape(w_.Read(), DIM,DIM);
    auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -53,8 +53,8 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL,
 
 MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
                            const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
+                           const Array<real_t> &b_,
+                           const Array<real_t> &g_,
                            const DenseMatrix &w_,
                            const Vector &x_,
                            DenseTensor &j_,
@@ -63,7 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
 {
    constexpr int DIM = 3;
 
-   const double detW = w_.Det();
+   const real_t detW = w_.Det();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -73,7 +73,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -81,11 +81,11 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[6][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t BG[2][MQ1*MD1];
+      MFEM_SHARED real_t DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED real_t DDQ[6][MD1*MD1*MQ1];
+      MFEM_SHARED real_t DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED real_t QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -100,11 +100,11 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double Jtr[9];
-               const double *Wid = &W(0,0);
+               real_t Jtr[9];
+               const real_t *Wid = &W(0,0);
                kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,QQQ,Jtr);
-               const double detJ = kernels::Det<3>(Jtr);
-               const double alpha = std::pow(detJ/detW,1./3);
+               const real_t detJ = kernels::Det<3>(Jtr);
+               const real_t alpha = std::pow(detJ/detW,1./3);
                kernels::Set(DIM,DIM,alpha,Wid,&J(0,0,qx,qy,qz,e));
             }
          }
@@ -122,19 +122,17 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
    const Mesh *mesh = fes.GetMesh();
    const int NE = mesh->GetNE();
-   // Quick return for empty processors:
-   if (NE == 0) { return true; }
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    MFEM_VERIFY(fe.GetGeomType() == Geometry::CUBE, "");
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
-   const Array<double> &B = maps.B;
-   const Array<double> &G = maps.G;
+   const Array<real_t> &B = maps.B;
+   const Array<real_t> &G = maps.G;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
    const int id = (D1D << 4 ) | Q1D;

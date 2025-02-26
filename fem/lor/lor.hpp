@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,7 +95,7 @@ protected:
    /// Returns the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
-   /// Construct the LOR space (overriden for serial and parallel versions).
+   /// Construct the LOR space (overridden for serial and parallel versions).
    virtual void FormLORSpace() = 0;
 
    /// Construct the LORBase object for the given FE space and refinement type.

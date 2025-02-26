@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -112,7 +112,7 @@ static void InitBasisImpl(const FiniteElementSpace &fes,
    const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>
                        (&fe) != nullptr;
 
-   // Init or retreive key values
+   // Init or retrieve key values
    if (basis_itr == mfem::internal::ceed_basis_map.end())
    {
       if ( tensor )
@@ -135,7 +135,7 @@ void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &ir,
                Ceed ceed, CeedBasis *basis)
 {
-   const mfem::FiniteElement &fe = *fes.GetFE(0);
+   const mfem::FiniteElement &fe = *fes.GetTypicalFE();
    InitBasisImpl(fes, fe, ir, ceed, basis);
 }
 

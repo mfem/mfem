@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -277,7 +277,7 @@ public:
    // compute weighted mean from a weighted sum
    virtual Float mean(const WeightedSum& sum) const = 0;
 
-   // compute k'th iteration bond for egde of length l and weight w
+   // compute k'th iteration bond for edge of length l and weight w
    virtual Float bond(Float w, Float l, uint k) const = 0;
 
    // compute position that minimizes weighted distance to a point set

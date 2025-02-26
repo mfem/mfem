@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,20 +32,180 @@
 #if defined(MFEM_USE_CUDA) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 4))
 #error MFEM requires SUNDIALS version 5.4.0 or newer when MFEM_USE_CUDA=TRUE!
 #endif
+#if defined(MFEM_USE_HIP) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 7))
+#error MFEM requires SUNDIALS version 5.7.0 or newer when MFEM_USE_HIP=TRUE!
+#endif
+#if defined(MFEM_USE_CUDA) && !defined(SUNDIALS_NVECTOR_CUDA)
+#error MFEM_USE_CUDA=TRUE requires SUNDIALS to be built with CUDA support
+#endif
+#if defined(MFEM_USE_HIP) && !defined(SUNDIALS_NVECTOR_HIP)
+#error MFEM_USE_HIP=TRUE requires SUNDIALS to be built with HIP support
+#endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
 #include <arkode/arkode_arkstep.h>
 #include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
+#if defined(MFEM_USE_CUDA)
+#include <sunmemory/sunmemory_cuda.h>
+#elif defined(MFEM_USE_HIP)
+#include <sunmemory/sunmemory_hip.h>
+#endif
 
 #include <functional>
+
+#define MFEM_SUNDIALS_VERSION \
+   (SUNDIALS_VERSION_MAJOR*10000 + SUNDIALS_VERSION_MINOR*100 + \
+    SUNDIALS_VERSION_PATCH)
+
+#if (SUNDIALS_VERSION_MAJOR < 6)
+
+/// (DEPRECATED) Map SUNDIALS version >= 6 datatypes and constants to
+/// version < 6 for backwards compatibility
+using ARKODE_ERKTableID = int;
+using ARKODE_DIRKTableID = int;
+constexpr ARKODE_ERKTableID ARKODE_ERK_NONE = -1;
+constexpr ARKODE_DIRKTableID ARKODE_DIRK_NONE = -1;
+constexpr ARKODE_ERKTableID ARKODE_FEHLBERG_13_7_8 = FEHLBERG_13_7_8;
+
+/// (DEPRECATED) There is no SUNContext in SUNDIALS version < 6 so set it to
+/// arbitrary type for more compact backwards compatibility
+using SUNContext = void*;
+
+/// 'sunrealtype' was first introduced in v6.0.0
+typedef realtype sunrealtype;
+/// 'sunbooleantype' was first introduced in v6.0.0
+typedef booleantype sunbooleantype;
+
+/// New constant names introduced in v6.0.0
+enum { SUN_PREC_NONE, SUN_PREC_LEFT, SUN_PREC_RIGHT, SUN_PREC_BOTH };
+
+// KIN_ORTH_MGS was introduced in SUNDIALS v6; here, we define it just so that
+// it can be used as the default option in the second parameter of
+// KINSolver::EnableAndersonAcc -- the actual value of the parameter will be
+// ignored when using SUNDIALS < v6.
+#define KIN_ORTH_MGS 0
+
+#endif // #if SUNDIALS_VERSION_MAJOR < 6
+
+#if (SUNDIALS_VERSION_MAJOR < 7)
+
+/** @brief The enum constant SUN_SUCCESS was added in v7 as a replacement of
+    various *_SUCCESS macros that were removed in v7. */
+enum { SUN_SUCCESS = 0 };
+
+#endif // #if SUNDIALS_VERSION_MAJOR < 7
+
 
 namespace mfem
 {
 
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+
 // ---------------------------------------------------------------------------
-// Base class for interfacing with SUNDIALS packages
+// SUNMemory interface class (used when CUDA or HIP is enabled)
 // ---------------------------------------------------------------------------
+class SundialsMemHelper
+{
+   /// The actual SUNDIALS object
+   SUNMemoryHelper h;
+
+public:
+
+   /// Default constructor -- object must be moved to
+   SundialsMemHelper() = default;
+
+   /// Require a SUNContext as an argument (rather than calling Sundials::GetContext)
+   /// to avoid undefined behavior during the construction of the Sundials singleton.
+   SundialsMemHelper(SUNContext context);
+
+   /// Implement move assignment
+   SundialsMemHelper(SundialsMemHelper&& that_helper);
+
+   /// Disable copy construction
+   SundialsMemHelper(const SundialsMemHelper& that_helper) = delete;
+
+   ~SundialsMemHelper() { if (h) { SUNMemoryHelper_Destroy(h); } }
+
+   /// Disable copy assignment
+   SundialsMemHelper& operator=(const SundialsMemHelper&) = delete;
+
+   /// Implement move assignment
+   SundialsMemHelper& operator=(SundialsMemHelper&& rhs);
+
+   /// Typecasting to SUNDIALS' SUNMemoryHelper type
+   operator SUNMemoryHelper() const { return h; }
+
+   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper, SUNMemory* memptr,
+                                      size_t memsize, SUNMemoryType mem_type
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                      , void* queue
+#endif
+                                     );
+
+   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                        , void* queue
+#endif
+                                       );
+
+};
+
+#else // MFEM_USE_CUDA || MFEM_USE_HIP
+
+// ---------------------------------------------------------------------------
+// Dummy SUNMemory interface class (used when CUDA or HIP is not enabled)
+// ---------------------------------------------------------------------------
+class SundialsMemHelper
+{
+public:
+
+   SundialsMemHelper() = default;
+
+   SundialsMemHelper(SUNContext context)
+   {
+      // Do nothing
+   }
+};
+
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
+
+
+/// Singleton class for SUNContext and SundialsMemHelper objects
+class Sundials
+{
+public:
+
+   /// Disable copy construction
+   Sundials(Sundials &other) = delete;
+
+   /// Disable copy assignment
+   void operator=(const Sundials &other) = delete;
+
+   /// Initializes SUNContext and SundialsMemHelper objects. Should be called at
+   /// the beginning of the calling program (after Mpi::Init if applicable)
+   static void Init();
+
+   /// Provides access to the SUNContext object
+   static SUNContext &GetContext();
+
+   /// Provides access to the SundialsMemHelper object
+   static SundialsMemHelper &GetMemHelper();
+
+private:
+   /// Returns a reference to the singleton instance of the class.
+   static Sundials &Instance();
+
+   /// Constructor called by Sundials::Instance (does nothing for version < 6)
+   Sundials();
+
+   /// Destructor called at end of calling program (does nothing for version < 6)
+   ~Sundials();
+
+   SUNContext context;
+   SundialsMemHelper memHelper;
+};
+
 
 /// Vector interface for SUNDIALS N_Vectors.
 class SundialsNVector : public Vector
@@ -105,7 +265,14 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Returns the MPI communicator for the internal N_Vector x.
-   inline MPI_Comm GetComm() const { return *static_cast<MPI_Comm*>(N_VGetCommunicator(x)); }
+   inline MPI_Comm GetComm() const
+   {
+#if SUNDIALS_VERSION_MAJOR < 7
+      return *static_cast<MPI_Comm*>(N_VGetCommunicator(x));
+#else
+      return N_VGetCommunicator(x);
+#endif
+   }
 
    /// Returns the MPI global length for the internal N_Vector x.
    inline long GlobalSize() const { return N_VGetLength(x); }
@@ -168,17 +335,17 @@ public:
 #endif
 
    /// Create a N_Vector.
-   /** @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   /** @param[in] use_device  If true, use the SUNDIALS CUDA or HIP N_Vector. */
    static N_Vector MakeNVector(bool use_device);
 
 #ifdef MFEM_USE_MPI
    /// Create a parallel N_Vector.
    /** @param[in] comm  The MPI communicator to use.
-       @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+       @param[in] use_device  If true, use the SUNDIALS CUDA or HIP N_Vector. */
    static N_Vector MakeNVector(MPI_Comm comm, bool use_device);
 #endif
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    static bool UseManagedMemory()
    {
       return Device::GetDeviceMemoryType() == MemoryType::MANAGED;
@@ -257,24 +424,26 @@ protected:
    int root_components; /// Number of components in gout
 
    /// Wrapper to compute the ODE rhs function.
-   static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+   static int RHS(sunrealtype t, const N_Vector y, N_Vector ydot,
+                  void *user_data);
 
-   /// Setup the linear system \f$ A x = b \f$.
-   static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
-                          booleantype jok, booleantype *jcur,
-                          realtype gamma, void *user_data, N_Vector tmp1,
+   /// Setup the linear system $ A x = b $.
+   static int LinSysSetup(sunrealtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                          sunbooleantype jok, sunbooleantype *jcur,
+                          sunrealtype gamma, void *user_data, N_Vector tmp1,
                           N_Vector tmp2, N_Vector tmp3);
 
-   /// Solve the linear system \f$ A x = b \f$.
+   /// Solve the linear system $ A x = b $.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
-                          N_Vector b, realtype tol);
+                          N_Vector b, sunrealtype tol);
 
    /// Prototype to define root finding for CVODE
-   static int root(realtype t, N_Vector y, realtype *gout, void *user_data);
+   static int root(sunrealtype t, N_Vector y, sunrealtype *gout,
+                   void *user_data);
 
    /// Typedef for root finding functions
-   typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)>
-   RootFunction;
+   typedef std::function<int(sunrealtype t, Vector y, Vector gout,
+                             CVODESolver *)> RootFunction;
 
    /// A class member to facilitate pointing to a user-specified root function
    RootFunction root_func;
@@ -282,7 +451,8 @@ protected:
    /// Typedef declaration for error weight functions
    typedef std::function<int(Vector y, Vector w, CVODESolver*)> EWTFunction;
 
-   /// A class member to facilitate pointing to a user-specified error weight function
+   /** @brief A class member to facilitate pointing to a user-specified error
+       weight function */
    EWTFunction ewt_func;
 
 public:
@@ -316,7 +486,7 @@ public:
        @note If this method is called a second time with a different problem
        size, then any non-default user-set options will be lost and will need
        to be set again. */
-   void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
    /// Integrate the ODE with CVODE using the specified step mode.
    /** @param[in,out] x  On output, the solution vector at the requested output
@@ -327,7 +497,7 @@ public:
        @note On input, the values of @a t and @a dt are used to compute desired
        output time for the integration, tout = @a t + @a dt.
    */
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
    /** @brief Attach the linear system setup and solve methods from the
        TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
@@ -392,14 +562,15 @@ protected:
    int indexB; ///< backward problem index
 
    /// Wrapper to compute the ODE RHS Quadrature function.
-   static int RHSQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
+   static int RHSQ(sunrealtype t, const N_Vector y, N_Vector qdot,
+                   void *user_data);
 
    /// Wrapper to compute the ODE RHS backward function.
-   static int RHSB(realtype t, N_Vector y,
+   static int RHSB(sunrealtype t, N_Vector y,
                    N_Vector yB, N_Vector yBdot, void *user_dataB);
 
    /// Wrapper to compute the ODE RHS Backwards Quadrature function.
-   static int RHSQB(realtype t, N_Vector y, N_Vector yB,
+   static int RHSQB(sunrealtype t, N_Vector y, N_Vector yB,
                     N_Vector qBdot, void *user_dataB);
 
    /// Error control function
@@ -453,7 +624,7 @@ public:
 
        @note On input, the values of t and dt are used to compute desired
        output time for the integration, tout = t + dt. */
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
    /// Solve one adjoint time step
    virtual void StepB(Vector &w, double &t, double &dt);
@@ -515,15 +686,15 @@ public:
    void SetSVtolerancesB(double reltol, Vector abstol);
 
    /// Setup the linear system A x = b
-   static int LinSysSetupB(realtype t, N_Vector y, N_Vector yB, N_Vector fyB,
+   static int LinSysSetupB(sunrealtype t, N_Vector y, N_Vector yB, N_Vector fyB,
                            SUNMatrix A,
-                           booleantype jok, booleantype *jcur,
-                           realtype gamma, void *user_data, N_Vector tmp1,
+                           sunbooleantype jok, sunbooleantype *jcur,
+                           sunrealtype gamma, void *user_data, N_Vector tmp1,
                            N_Vector tmp2, N_Vector tmp3);
 
    /// Solve the linear system A x = b
    static int LinSysSolveB(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
-                           N_Vector b, realtype tol);
+                           N_Vector b, sunrealtype tol);
 
 
    /// Destroy the associated CVODES memory and SUNDIALS objects.
@@ -556,33 +727,35 @@ protected:
        RHS1 is explicit RHS and RHS2 the implicit RHS for IMEX integration. When
        purely implicit or explicit only RHS1 is used. */
    ///@{
-   static int RHS1(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
-   static int RHS2(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+   static int RHS1(sunrealtype t, const N_Vector y, N_Vector ydot,
+                   void *user_data);
+   static int RHS2(sunrealtype t, const N_Vector y, N_Vector ydot,
+                   void *user_data);
    ///@}
 
-   /// Setup the linear system \f$ A x = b \f$.
-   static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
-                          SUNMatrix M, booleantype jok, booleantype *jcur,
-                          realtype gamma, void *user_data, N_Vector tmp1,
+   /// Setup the linear system $ A x = b $.
+   static int LinSysSetup(sunrealtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                          SUNMatrix M, sunbooleantype jok, sunbooleantype *jcur,
+                          sunrealtype gamma, void *user_data, N_Vector tmp1,
                           N_Vector tmp2, N_Vector tmp3);
 
-   /// Solve the linear system \f$ A x = b \f$.
+   /// Solve the linear system $ A x = b $.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
-                          N_Vector b, realtype tol);
+                          N_Vector b, sunrealtype tol);
 
-   /// Setup the linear system \f$ M x = b \f$.
-   static int MassSysSetup(realtype t, SUNMatrix M, void *user_data,
+   /// Setup the linear system $ M x = b $.
+   static int MassSysSetup(sunrealtype t, SUNMatrix M, void *user_data,
                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
 
-   /// Solve the linear system \f$ M x = b \f$.
+   /// Solve the linear system $ M x = b $.
    static int MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
-                           N_Vector b, realtype tol);
+                           N_Vector b, sunrealtype tol);
 
-   /// Compute the matrix-vector product \f$ v = M x \f$.
+   /// Compute the matrix-vector product $ v = M x $.
    static int MassMult1(SUNMatrix M, N_Vector x, N_Vector v);
 
-   /// Compute the matrix-vector product \f$v = M_t x \f$ at time t.
-   static int MassMult2(N_Vector x, N_Vector v, realtype t,
+   /// Compute the matrix-vector product $v = M_t x $ at time t.
+   static int MassMult2(N_Vector x, N_Vector v, sunrealtype t,
                         void* mtimes_data);
 
 public:
@@ -618,7 +791,7 @@ public:
        @note If this method is called a second time with a different problem
        size, then any non-default user-set options will be lost and will need
        to be set again. */
-   void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
    /// Integrate the ODE with ARKode using the specified step mode.
    /**
@@ -630,7 +803,7 @@ public:
        @note On input, the values of @a t and @a dt are used to compute desired
        output time for the integration, tout = @a t + @a dt.
    */
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 
    /** @brief Attach the linear system setup and solve methods from the
        TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
@@ -676,19 +849,19 @@ public:
 
    /// Choose a specific Butcher table for an explicit RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, table_num = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
-   void SetERKTableNum(int table_num);
+       For example, table_id = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
+   void SetERKTableNum(ARKODE_ERKTableID table_id);
 
    /// Choose a specific Butcher table for a diagonally implicit RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, table_num = CASH_5_3_4 is 5-stage 4th order. */
-   void SetIRKTableNum(int table_num);
+       For example, table_id = CASH_5_3_4 is 5-stage 4th order. */
+   void SetIRKTableNum(ARKODE_DIRKTableID table_id);
 
    /// Choose a specific Butcher table for an IMEX RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, etable_num = ARK548L2SA_DIRK_8_4_5 and
-       itable_num = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
-   void SetIMEXTableNum(int etable_num, int itable_num);
+       For example, etable_id = ARK548L2SA_DIRK_8_4_5 and
+       itable_id = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
+   void SetIMEXTableNum(ARKODE_ERKTableID etable_id, ARKODE_DIRKTableID itable_id);
 
    /// Use a fixed time step size (disable temporal adaptivity).
    /** Use of this function is not recommended, since there is no assurance of
@@ -717,26 +890,30 @@ protected:
    bool use_oper_grad;                         ///< use the Jv prod function
    mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
    const Operator *jacobian;                   ///< stores oper->GetGradient()
-   int maa;           ///< number of acceleration vectors
-   bool jfnk = false; ///< enable JFNK
-   Vector wrk;        ///< Work vector needed for the JFNK PC
-   int maxli = 5;     ///< Maximum linear iterations
-   int maxlrs = 0;    ///< Maximum linear solver restarts
+   int aa_n = 0;            ///< number of acceleration vectors
+   int aa_delay;            ///< Anderson Acceleration delay
+   double aa_damping;       ///< Anderson Acceleration damping
+   int aa_orth;             ///< Anderson Acceleration orthogonalization routine
+   double fp_damping = 1.0; ///< Fixed Point or Picard damping parameter
+   bool jfnk = false;       ///< enable JFNK
+   Vector wrk;              ///< Work vector needed for the JFNK PC
+   int maxli = 5;           ///< Maximum linear iterations
+   int maxlrs = 0;          ///< Maximum linear solver restarts
 
-   /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
+   /// Wrapper to compute the nonlinear residual $ F(u) = 0 $.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
 
-   /// Wrapper to compute the Jacobian-vector product \f$ J(u) v = Jv \f$.
+   /// Wrapper to compute the Jacobian-vector product $ J(u) v = Jv $.
    static int GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
-                           booleantype *new_u, void *user_data);
+                           sunbooleantype *new_u, void *user_data);
 
-   /// Setup the linear system \f$ J u = b \f$.
+   /// Setup the linear system $ J u = b $.
    static int LinSysSetup(N_Vector u, N_Vector fu, SUNMatrix J,
                           void *user_data, N_Vector tmp1, N_Vector tmp2);
 
-   /// Solve the linear system \f$ J u = b \f$.
+   /// Solve the linear system $ J u = b $.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
-                          N_Vector b, realtype tol);
+                          N_Vector b, sunrealtype tol);
 
    /// Setup the preconditioner.
    static int PrecSetup(N_Vector uu,
@@ -745,7 +922,7 @@ protected:
                         N_Vector fscale,
                         void *user_data);
 
-   /// Solve the preconditioner equation \f$ Pz = v \f$.
+   /// Solve the preconditioner equation $ Pz = v $.
    static int PrecSolve(N_Vector uu,
                         N_Vector uscale,
                         N_Vector fval,
@@ -783,7 +960,7 @@ public:
    /** @note If this method is called a second time with a different problem
        size, then non-default KINSOL-specific options will be lost and will need
        to be set again. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Set the linear solver for inverting the Jacobian.
    /** @note This function assumes that Operator::GetGradient(const Vector &)
@@ -791,13 +968,13 @@ public:
              SetOperator(const Operator &).
 
              This method must be called after SetOperator(). */
-   virtual void SetSolver(Solver &solver);
+   void SetSolver(Solver &solver) override;
 
    /// Equivalent to SetSolver(solver).
-   virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
+   void SetPreconditioner(Solver &solver) override { SetSolver(solver); }
 
    /// Set KINSOL's scaled step tolerance.
-   /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where
+   /** The default tolerance is $ U^\frac{2}{3} $ , where
        U = machine unit round-off.
        @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
@@ -807,13 +984,22 @@ public:
        @note This method must be called after SetOperator(). */
    void SetMaxSetupCalls(int max_calls);
 
-   /// Set the number of acceleration vectors to use with KIN_FP or KIN_PICARD.
-   /** The default is 0.
-       @ note This method must be called before SetOperator() to set the
-       maximum size of the acceleration space. The value of @a maa can be
-       altered after SetOperator() is called but it can't be higher than initial
-       maximum. */
-   void SetMAA(int maa);
+   /// Enable Anderson Acceleration for KIN_FP or KIN_PICARD.
+   /** @note Has to be called once before SetOperator() in order to set up the
+       maximum subspace size. Subsequent calls need @a n less or equal to the
+       initial subspace size.
+       @param[in] n Anderson Acceleration subspace size
+       @param[in] orth Anderson Acceleration orthogonalization routine
+       @param[in] delay Anderson Acceleration delay
+       @param[in] damping Anderson Acceleration damping parameter valid from 0 <
+       d <= 1.0. Default is 1.0 (no damping) */
+   void EnableAndersonAcc(int n, int orth = KIN_ORTH_MGS, int delay = 0,
+                          double damping = 1.0);
+
+   /// Specifies the value of the damping parameter in the fixed point or Picard
+   /// iteration.
+   /** param[in] damping fixed point iteration or Picard damping parameter */
+   void SetDamping(double damping);
 
    /// Set the Jacobian Free Newton Krylov flag. The default is false.
    /** This flag indicates to use JFNK as the linear solver for KINSOL. This
@@ -834,12 +1020,12 @@ public:
    void SetLSMaxRestarts(int m) { maxlrs = m; }
 
    /// Set the print level for the KINSetPrintLevel function.
-   virtual void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+   void SetPrintLevel(int print_lvl) override { print_level = print_lvl; }
 
    /// This method is not supported and will throw an error.
-   virtual void SetPrintLevel(PrintLevel);
+   void SetPrintLevel(PrintLevel) override;
 
-   /// Solve the nonlinear system \f$ F(x) = 0 \f$.
+   /// Solve the nonlinear system $ F(x) = 0 $.
    /** This method computes the x_scale and fx_scale vectors and calls the
        other Mult(Vector&, Vector&, Vector&) const method. The x_scale vector
        is a vector of ones and values of fx_scale are determined by comparing
@@ -848,9 +1034,9 @@ public:
        @param[in,out] x  On input, initial guess, if @a #iterative_mode = true,
                          otherwise the initial guess is zero; on output, the
                          solution */
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
-   /// Solve the nonlinear system \f$ F(x) = 0 \f$.
+   /// Solve the nonlinear system $ F(x) = 0 $.
    /** Calls KINSol() to solve the nonlinear system. Before calling KINSol(),
        this functions uses the data members inherited from class IterativeSolver
        to set corresponding KINSOL options.

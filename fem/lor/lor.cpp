@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,7 @@ void LORBase::AddIntegrators(BilinearForm &a_from,
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
       (a_to.*add_integrator)(integrator);
-      ir_map[integrator] = integrator->GetIntegrationRule();
+      ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
@@ -56,7 +56,7 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
       {
          (a_to.*add_integrator)(integrator);
       }
-      ir_map[integrator] = integrator->GetIntegrationRule();
+      ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
@@ -471,7 +471,8 @@ void LORDiscretization::FormLORSpace()
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    const int vdim = fes_ho.GetVDim();
-   fes = new FiniteElementSpace(mesh, fec, vdim);
+   const Ordering::Type ordering = fes_ho.GetOrdering();
+   fes = new FiniteElementSpace(mesh, fec, vdim, ordering);
    SetupProlongationAndRestriction();
 }
 
@@ -516,8 +517,8 @@ void ParLORDiscretization::FormLORSpace()
 
    fec = pfes_ho.FEColl()->Clone(GetLOROrder());
    const int vdim = fes_ho.GetVDim();
-   ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec, vdim);
-   fes = pfes;
+   const Ordering::Type ordering = fes_ho.GetOrdering();
+   fes = new ParFiniteElementSpace(pmesh, fec, vdim, ordering);
    SetupProlongationAndRestriction();
 }
 

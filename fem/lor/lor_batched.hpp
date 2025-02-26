@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,11 +53,6 @@ protected:
    /// nonzero).
    Array<int> sparse_mapping;
 
-   OperatorHandle A_local; // Cache this
-
-public:
-   StopWatch sw_LOR, sw_RAP, sw_BC;
-
 public:
    /// Construct the batched assembly object corresponding to @a fes_ho_.
    BatchedLORAssembly(FiniteElementSpace &fes_ho_);
@@ -73,12 +68,12 @@ public:
 
    /// Compute the vertices of the LOR mesh and place the result in @a X_vert.
    static void FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
-                                        Vector &X_vert,
-                                        Vector *evec = nullptr);
+                                        Vector &X_vert);
 
    /// Return the vertices of the LOR mesh in E-vector format
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
+protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
 
@@ -94,7 +89,7 @@ public:
 public:
    /// @name GPU kernel functions
    /// These functions should be considered protected, but they contain
-   /// MFEM_FORALL kernels, and so they must be public (this is a compiler
+   /// mfem::forall kernels, and so they must be public (this is a compiler
    /// limitation).
    ///@{
 
@@ -122,12 +117,12 @@ public:
 /// If the capacity of @a mem is not large enough, delete it and allocate new
 /// memory with size @a capacity.
 template <typename T>
-void EnsureCapacity(Memory<T> &mem, int capacity, MemoryType mt)
+void EnsureCapacity(Memory<T> &mem, int capacity)
 {
    if (mem.Capacity() < capacity)
    {
       mem.Delete();
-      mem.New(capacity, mt);
+      mem.New(capacity, mem.GetMemoryType());
    }
 }
 

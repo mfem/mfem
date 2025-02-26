@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,6 +67,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       REQUIRE( gf.FESpace()->GetVDim() == 1 );
       REQUIRE( gf.Size() == expScalarDofs );
       gf = 0.;
+      gf.HostRead();
 
       // Set the values of the dofs to non-zero values
       mfem::Array<int> dofs;
@@ -80,7 +81,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       }
 
       // Test access to the dof values by getting the value at the elt midpoint
-      double centerValue = gf.GetValue( eltId, Geometries.GetCenter(geom) );
+      real_t centerValue = gf.GetValue( eltId, Geometries.GetCenter(geom) );
       REQUIRE( centerValue > 0. );
       REQUIRE( centerValue < 1. );
    }
@@ -94,6 +95,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       REQUIRE( gf.FESpace()->GetVDim() == vdim );
       REQUIRE( gf.Size() == expScalarDofs * vdim );
       gf = 0.;
+      gf.HostRead();
 
       // Test setting some vector values
       mfem::Array<int> vdofs;
@@ -128,7 +130,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
          const int nv = vertIndices.Size();
          for (int i=0; i < nv; ++i)
          {
-            double* vertPos = mesh.GetVertex(vertIndices[i]);
+            real_t* vertPos = mesh.GetVertex(vertIndices[i]);
 
             for (int j=0; j < vdim; ++j)
             {
@@ -370,7 +372,7 @@ TEST_CASE("Tet mesh with linear grid function",
    mesh.AddVertex(Vertex(1.,1.,1.)());
 
    int idx[4] = {0,1,2,3};
-   mesh.AddElement(new Tetrahedron(idx, attrib));
+   mesh.AddTet(idx, attrib);
 
    mesh.FinalizeMesh();
 
@@ -396,7 +398,6 @@ TEST_CASE("Tet mesh with linear grid function",
       L2_FECollection fec(0,dim);
       testGridFunctions(fec, mesh, 1);
    }
-
 }
 
 TEST_CASE("Prism mesh with linear grid function",
