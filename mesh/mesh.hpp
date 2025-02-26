@@ -2221,11 +2221,8 @@ public:
    /// modified. Since not all such modifications can be tracked by the Mesh
    /// class (e.g. if a user calls GetElement() then changes the element
    /// attribute directly), one needs to account for such changes by calling the
-   /// method ElementAttributesUpdated().
+   /// method SetAttributes().
    const Array<int>& GetElementAttributes() const;
-
-   /// Marks that element attribute data has been updated
-   void ElementAttributesUpdated();
 
    /// @}
 
