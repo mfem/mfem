@@ -421,6 +421,131 @@ public:
 #endif // MFEM_USE_MPFR
 
 
+void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha, const real_t beta, IntegrationRule* ir)
+{
+   /* The np-point Gauss-Jacobi quadrature rule is exact for polynomials of
+      degree 2np - 1 with weight function w(x) = (1-x)^alpha * x^beta. The
+      nodes are the zeros of the Jacobi polynomial P_{np}^{alpha,beta} and
+      the weights are
+
+      w_i = C / [(1 - x_i^2) * P'_{np}^{alpha,beta}(x_i)^2]
+      C = 2^{alpha + beta + 1} * Gamma(np + alpha + 1) * Gamma(np + beta + 1)
+            / [Gamma(np + alpha + beta + 1) * Gamma(np + 1)].
+
+      The nodes are computed via nonlinear solve (Newton's method) with an
+      initial guess corresponding to Gatteschi's asymptotic expansions of the
+      Jacobi polynomial roots [1].
+
+      The current initial guess has been tested and performs well for
+      np <= 200 and -1 <= alpha, beta <= 4. For larger np, it may be necessary
+      utilize different initial guesses in the vicinity of x = -1,+1 [2].
+
+      [1] Gautschi, W., & Giordano, C. (2008). Luigi Gatteschi’s work on
+          asymptotics of special functions and their zeros. Numerical Algorithms,
+          49, 11-31.
+      [2] Hale, N., & Townsend, A. (2013). Fast and accurate computation of
+          Gauss--Legendre and Gauss--Jacobi quadrature nodes and weights.
+          SIAM Journal on Scientific Computing, 35(2), A652-A674.
+   */
+   ir->SetSize(np);
+   ir->SetPointIndices();
+   ir->SetOrder(2*np - 1);
+
+   switch (np)
+   {
+      case 1:
+         real_t x = (beta - alpha) / (alpha + beta + 2);
+         real_t w = pow(2, alpha + beta + 1) * tgamma(alpha + 2) * tgamma(beta + 2) / tgamma(alpha + beta + 2);
+         ir->IntPoint(0).Set1w((beta - alpha) / (alpha + beta + 2), 4.0 * w / ((1.0 - x*x) * (alpha + beta + 2) * (alpha + beta + 2)));
+         return;
+   }
+
+   if (alpha <= -1.0 or beta <= -1.0)
+   {
+      MFEM_ABORT("Gauss-Jacobi quadrature only defined for alpha > -1 and beta > -1");
+   }
+   // Jacobi weight function is undefined whenever alpha <= -1 or beta <= -1
+
+   if (alpha > 4.0 or beta > 4.0)
+   {
+      MFEM_ABORT("Current Gauss-Jacobi quadrature implementation only tested for alpha <= 4 and beta <= 4");
+   }
+   // current asymptotic expansions for initial guess may perform poorly for large alpha, beta
+
+#ifndef MFEM_USE_MPFR
+
+   const int n = np;
+   // common constants for Jacobi polynomials
+   real_t ab = alpha + beta;
+   real_t a2_minus_b2 = (alpha - beta) * (alpha + beta);
+
+   // roots of P^(alpha,beta)_n in the interval [-1,1]
+   for (int i = 1; i <= n; i++)
+   {
+      // rather than using Chebyshev points for initial guess, use Gatteschi's asymptotic expansion for roots of Jacobi
+      // polynomials
+      real_t n_ab_plus_1 = 2 * n + alpha + beta + 1;
+      real_t v = (2 * i + alpha - 0.5) * M_PI / n_ab_plus_1;
+      real_t theta = v + 1.0 / (n_ab_plus_1*n_ab_plus_1) * ((0.25 - alpha*alpha) * 1.0/tan(0.5*v) - (0.25 - beta*beta) * tan(0.5*v));
+      real_t z = cos(theta);
+
+      real_t pp, p1, p1e, dz, xi = 0.;
+      bool done = false;
+      while (1)
+      {
+         real_t p2 = 1;
+         p1 = ((alpha-beta) + (alpha + beta + 2) * z) / 2;
+         for (int j = 1; j <= n-1; j++)
+         {
+            real_t p3 = p2;
+            p2 = p1;
+
+            real_t jx2_ab = 2 * j + ab;
+            real_t an = (jx2_ab) * (jx2_ab + 2);
+            real_t bn = a2_minus_b2;
+            real_t cn = 2 * (j + alpha) * (j + beta) * (jx2_ab + 2) / (jx2_ab + 1);
+
+            real_t D = (jx2_ab + 1) / (2 * (j + 1) * (j + ab + 1) * (jx2_ab));
+            p1 = ((an * z + bn) * p2 - cn * p3) * D;
+         }
+         // p1 is Jacobi polynomial
+         pp = n * (alpha - beta - (2 * n + ab) * z) * p1 + 2 * (n + alpha) * (n + beta) * p2;
+         pp = pp / ((2 * n + ab) * (1 - z*z));
+         // derivative of the Jacobi polynomial
+         if (done) { break; }
+
+         dz = p1/pp;
+#ifdef MFEM_USE_SINGLE
+         if (std::abs(dz) < 1e-7)
+#elif defined MFEM_USE_DOUBLE
+         if (std::abs(dz) < std::numeric_limits<real_t>::epsilon())
+#else
+         MFEM_ABORT("Floating point type undefined");
+         if (std::abs(dz) < 1e-16)
+#endif
+         {
+            done = true;
+            xi = z - dz;
+         }
+         z -= dz;
+         // update: z = z - dz
+      }
+      real_t c0 = exp(lgamma(n + alpha + 1) - lgamma(n + ab + 1)) * exp(lgamma(n + beta + 1) - lgamma(n + 1));
+      // ratio of gamma functions prone to overflow for large n, so compute logarithms
+      // of Gamma function instead, i.e. Gamma(a)/Gamma(b) = exp(lgamma(a) - lgamma(b))
+      ir->IntPoint(n-i).x = 0.5 * xi + 0.5;
+      ir->IntPoint(n-i).weight = 0.5 * c0 * pow(2.0, ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
+   }
+
+#else // MFEM_USE_MPFR is defined
+
+   MFEM_ABORT("MPFR implemented of Gauss-Jacobi quadrature not defined yet")
+
+#endif // MFEM_USE_MPFR
+
+}
+
+
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
