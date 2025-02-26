@@ -126,7 +126,7 @@ void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    Mesh &mesh = *fespace->GetMesh();
    vdim = fespace->GetVDim();
    MFEM_VERIFY(vdim == mesh.Dimension(), "Vector dimension and geometric dimension must match.");
-   ndofs = fespace->GetTypicalFE()->GetDof();
+   // ndofs = fespace->GetTypicalFE()->GetDof();
 
    numPatches = mesh.NURBSext->GetNP();
    pa_data.resize(numPatches);
@@ -139,7 +139,6 @@ void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
 void ElasticityIntegrator::AssemblePatchPA(const int patch,
                                            const FiniteElementSpace &fes)
 {
-   // TODO
    Mesh *mesh = fes.GetMesh();
    SetupPatchBasisData(mesh, patch);
 
@@ -148,7 +147,6 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
 
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.
-// void AddMultPatchPA3D(const int patch, const Vector &x, Vector &y)
 void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                                             const PatchBasisInfo &pb,
                                             const Vector &x,
@@ -168,14 +166,14 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 
-   // First 9 entries are J^{-T}; last three are W*detJ, lambda, mu
+   // Quadrature data. First 9 entries are J^{-T}
+   // Last three entries are W*detJ, lambda, mu
    const auto qd = Reshape(pa_data.HostRead(), NQ, 12);
 
    // grad(c,d,qx,qy,qz): derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
    Vector gradv(vdim*vdim*NQ);
    gradv = 0.0;
    auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
-   // TODO: Make this method explicitly 3D
    Vector Sv(vdim*vdim*NQ);
    Sv = 0.0;
    auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
@@ -190,7 +188,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, max_pts_x);
 
    /*
-   2) Compute grad_uhat (reference space) interpolated at quadrature points
+   1) Compute grad_uhat (reference space) interpolated at quadrature points
 
    B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
 
@@ -277,7 +275,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
       }
    }
 
-   // 3) Apply the "D" operator at each quadrature point: D( grad_uhat )
+   // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -334,7 +332,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    } // qz
 
    /*
-   4) Contraction with grad_v (quads -> dofs)
+   3) Contraction with grad_v (quads -> dofs)
 
    S[ij] = [
       s00, s01, s02,
@@ -370,8 +368,6 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    */
 
 
-   // for (int c = 0; c < vdim; ++c)
-   // {
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       sumXYv = 0.0;
@@ -436,7 +432,6 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             {
                for (int c = 0; c < vdim; ++c)
                {
-                  // Y(c,dx,dy,dz) +=
                   Y(dx,dy,dz,c) +=
                      (sumXY(c,0,dx,dy) * wz +
                       sumXY(c,1,dx,dy) * wDz);
@@ -445,7 +440,6 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
          }
       } // dz
    } // qz
-   // }
 
 }
 
@@ -472,8 +466,6 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
    {
       Array<int> vdofs;
       fespace->GetPatchVDofs(p, vdofs);
-
-      // TODO: reorder based on byVDIM or byNODE
 
       x.GetSubVector(vdofs, xp);
       yp.SetSize(vdofs.Size());

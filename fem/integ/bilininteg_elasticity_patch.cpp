@@ -78,7 +78,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
                D(qx,qy,qz,7) = A23 / detJ;
                D(qx,qy,qz,8) = A33 / detJ;
                // store w_detJ
-               // TODO: Small efficiency to multiply by sqrt(W*detJ)?
+               // (A small efficiency may be possible by multiplying J by sqrt(W*detJ))
                D(qx,qy,qz,9) = W(qx,qy,qz) * detJ;
                // Coefficients
                D(qx,qy,qz,10) = C(qx,qy,qz,0); // lambda
@@ -89,7 +89,6 @@ void PatchElasticitySetup3D(const int Q1Dx,
    });
 }
 
-// TODO: maybe move this into a base class?
 void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 {
    // Push patch data to global data structures
@@ -117,7 +116,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    auto coeffs = Reshape(coeffsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], 2);
 
 
-   // TODO: use QuadratureInterpolator instead of ElementTransformation?
    for (int qz=0; qz<Q1D[2]; ++qz)
    {
       for (int qy=0; qy<Q1D[1]; ++qy)
@@ -148,15 +146,13 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       }
    }
 
-   // TODO: Compute coefficient at quadrature points
-   // const FiniteElementSpace *fes = mesh->GetNodalFESpace();
-   // SetUpQuadratureSpaceAndCoefficients(*fes);
-
+   // For reduced rules
    if (unitWeights)
    {
       weightsv = 1.0;
       // MFEM_ABORT("Not implemented yet.");
    }
+
    // Computes values at quadrature points
    PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv, pa_data[patch]);
 

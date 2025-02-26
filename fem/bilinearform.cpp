@@ -834,7 +834,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
 {
    if (ext)
    {
-      mfem::out << "BilinearForm::FormLinearSystem: ext=true" << std::endl;
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }

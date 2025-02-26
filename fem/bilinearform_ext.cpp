@@ -520,7 +520,6 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &X, Vector &B,
                                                int copy_interior)
 {
-   mfem::out << "PABilinearFormExtension::FormLinearSystem" << std::endl;
    Operator *oper;
    Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
    A.Reset(oper); // A will own oper
