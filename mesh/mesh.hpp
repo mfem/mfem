@@ -2213,7 +2213,8 @@ public:
        method does not modify the nodes. */
    void NodesUpdated() { DeleteGeometricFactors(); }
 
-   /// Returns the attributes for all elements in this mesh.
+   /// @brief Returns the attributes for all elements in this mesh.
+   ///
    /// The returned array points to an internal object that may be invalidated
    /// by mesh operations such as refinement or any element attributes are
    /// modified. Since not all such modifications can be tracked by the Mesh
