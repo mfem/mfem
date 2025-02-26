@@ -51,7 +51,7 @@ public:
    virtual void Finalize(int) { }
 
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream & out = mfem::out, int width_ = 4) const;
+   void Print(std::ostream & out = mfem::out, int width_ = 4) const override;
 
    /// Destroys matrix.
    virtual ~Matrix() { }

@@ -142,3 +142,20 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
 }
+
+TEST_CASE("BilinearForm print", "[SparseMatrix]")
+{
+
+   Mesh mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL));
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fec);
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.SetAssemblyLevel(AssemblyLevel::FULL);
+   a.Assemble();
+   a.Finalize(0);
+
+   std::stringstream ss;
+   a.Print(ss);
+   REQUIRE(ss.str().length() > 0);
+}
