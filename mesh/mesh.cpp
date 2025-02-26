@@ -31,6 +31,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -1886,26 +1887,20 @@ void Mesh::ResetLazyData()
 
 void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
 {
-   std::unordered_set<int> attribs;
-
    if (bdr_attrs_changed)
    {
-      bdr_attrs_cache.SetSize(0);
+      bdr_attrs_cache.SetSize(0); // Invalidate the cache
+
+      // Get sorted list of unique boundary element attributes
+      std::set<int> attribs;
       for (int i = 0; i < GetNBE(); i++)
       {
          attribs.emplace(GetBdrAttribute(i));
       }
+
       bdr_attributes.SetSize(attribs.size());
       bdr_attributes.HostWrite();
-      {
-         int i = 0;
-         for (auto v : attribs)
-         {
-            bdr_attributes[i] = v;
-            ++i;
-         }
-      }
-      bdr_attributes.Sort();
+      std::copy(attribs.begin(), attribs.end(), bdr_attributes.begin());
       if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
       {
          MFEM_WARNING("Non-positive attributes on the boundary!");
@@ -1914,26 +1909,15 @@ void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
 
    if (elem_attrs_changed)
    {
-      // now re-compute the attributes cache
+      // Re-compute the attributes cache
       elem_attrs_cache.SetSize(0);
-      attribs.clear();
-      auto &tmp = GetElementAttributes();
-      tmp.HostRead();
-      for (int i = 0; i < tmp.Size(); ++i)
-      {
-         attribs.emplace(tmp[i]);
-      }
+      GetElementAttributes();
+      // Get sorted list of unique element attributes
+      std::set<int> attribs(elem_attrs_cache.begin(), elem_attrs_cache.end());
       attributes.SetSize(attribs.size());
       attributes.HostWrite();
-      {
-         int i = 0;
-         for (auto v : attribs)
-         {
-            attributes[i] = v;
-            ++i;
-         }
-      }
-      attributes.Sort();
+      std::copy(attribs.begin(), attribs.end(), attributes.begin());
+
       if (attributes.Size() > 0 && attributes[0] <= 0)
       {
          MFEM_WARNING("Non-positive attributes in the domain!");
