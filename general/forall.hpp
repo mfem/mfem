@@ -1002,10 +1002,10 @@ template<class B, class R> struct reduction_kernel
 
    MFEM_HOST_DEVICE void operator()(void *b_) const
    {
-      value_type *buffer = reinterpret_cast<value_type *>(b_);
 #if (defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||                      \
     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__))
-      reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
+      value_type *buffer = reinterpret_cast<value_type *>(b_);
+      reducer.SetInitialValue(buffer[MFEM_THREAD_ID(x)]);
       // serial part
       for (int idx = 0; idx < items_per_thread; ++idx)
       {
@@ -1026,7 +1026,7 @@ template<class B, class R> struct reduction_kernel
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
          {
-            reducer.join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
+            reducer.Join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
          }
       }
       if (MFEM_THREAD_ID(x) == 0)
@@ -1035,7 +1035,7 @@ template<class B, class R> struct reduction_kernel
       }
 #else
       // serial host
-      reducer.init_val(work[0]);
+      reducer.SetInitialValue(work[0]);
       for (int i = 0; i < N; ++i)
       {
          body(i, work[0]);
@@ -1119,7 +1119,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       MFEM_DEVICE_SYNC;
       for (int i = 0; i < nblocks; ++i)
       {
-         reducer.join(res, work[i]);
+         reducer.Join(res, work[i]);
       }
       return;
    }
