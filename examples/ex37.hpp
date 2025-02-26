@@ -381,17 +381,18 @@ public:
  *        ∫_Ω ρ dx = θ vol(Ω) as follows:
  *
  *        1. Compute the root of the R → R function
- *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
- *        2. Set ψ ← ψ + c.
+ *            f(μ) = ∫_Ω sigmoid(ψ - αμ) dx - θ vol(Ω)
+ *        2. Set ψ ← ψ - αμ.
  *
  * @param psi a GridFunction to be updated
  * @param target_volume θ vol(Ω)
+ * @param alpha gradient descent step length α
  * @param tol Newton iteration tolerance
  * @param max_its Newton maximum iteration number
  * @return real_t Final volume, ∫_Ω sigmoid(ψ)
  */
-real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
-            int max_its=10)
+real_t proj(GridFunction &psi, real_t target_volume, real_t alpha,
+            real_t tol=1e-12, int max_its=10)
 {
 #ifdef MFEM_USE_MPI
    FiniteElementSpace *fes = psi.FESpace();
@@ -422,7 +423,7 @@ real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
    bool done = false;
    for (int k=0; k<max_its; k++) // Newton iteration
    {
-      int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
+      int_sigmoid_psi->Assemble(); // Recompute f(μ) with updated ψ
       real_t f = int_sigmoid_psi->Sum();
 #ifdef MFEM_USE_MPI
       if (pfes)
@@ -432,8 +433,8 @@ real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
       }
 #endif
       f -= target_volume;
-      int_der_sigmoid_psi->Assemble(); // Recompute df(c) with updated ψ
-      real_t df = int_der_sigmoid_psi->Sum();
+      int_der_sigmoid_psi->Assemble(); // Recompute df(μ) with updated ψ
+      real_t df = -alpha*int_der_sigmoid_psi->Sum();
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
@@ -441,9 +442,9 @@ real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
                        MPI_SUM, MPI_COMM_WORLD);
       }
 #endif
-      const real_t dc = -f/df;
-      psi += dc;
-      if (abs(dc) < tol) { done = true; break; }
+      const real_t dm = -f/df;
+      psi += -alpha*dm;
+      if (abs(-alpha*dm) < tol) { done = true; break; }
    }
    if (!done)
    {

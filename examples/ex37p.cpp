@@ -402,7 +402,7 @@ int main(int argc, char *argv[])
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
-      const real_t material_volume = proj(psi, target_volume);
+      const real_t material_volume = proj(psi, target_volume, alpha);
 
       // Compute ||ρ - ρ_old|| in control fes.
       real_t norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
