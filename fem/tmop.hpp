@@ -2049,10 +2049,10 @@ protected:
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &d, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &x_new,
+   void UpdateAfterMeshPositionChange(const Vector &d,
                                       const FiniteElementSpace &x_fes);
 
    void DisableLimiting()
@@ -2111,7 +2111,7 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
-   void UpdateCoefficientsPA(const Vector &x_loc);
+   void UpdateCoefficientsPA(const Vector &d_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -2302,7 +2302,7 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &pos,
+   void GetSurfaceFittingErrors(const Vector &d,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
    {
@@ -2396,7 +2396,7 @@ public:
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
-   void ComputeUntangleMetricQuantiles(const Vector &x,
+   void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
 };
 

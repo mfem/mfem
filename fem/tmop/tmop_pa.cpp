@@ -182,9 +182,12 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
-   if (periodic) { MFEM_ABORT("periodic not implemented"); }
+   if (periodic) { MFEM_ABORT("periodic not implemented yet"); }
+
+   Vector x_loc(*x_0);
+   x_loc += d_loc;
 
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
