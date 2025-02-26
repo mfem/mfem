@@ -49,7 +49,8 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh &mesh = *fespace->GetMesh();
    vdim = fespace->GetVDim();
-   MFEM_VERIFY(vdim == mesh.Dimension(), "Vector dimension and geometric dimension must match.");
+   MFEM_VERIFY(vdim == mesh.Dimension(),
+               "Vector dimension and geometric dimension must match.");
    ndofs = fespace->GetTypicalFE()->GetDof();
 
    SetUpQuadratureSpaceAndCoefficients(fes);
@@ -125,7 +126,8 @@ void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh &mesh = *fespace->GetMesh();
    vdim = fespace->GetVDim();
-   MFEM_VERIFY(vdim == mesh.Dimension(), "Vector dimension and geometric dimension must match.");
+   MFEM_VERIFY(vdim == mesh.Dimension(),
+               "Vector dimension and geometric dimension must match.");
    // ndofs = fespace->GetTypicalFE()->GetDof();
 
    numPatches = mesh.NURBSext->GetNP();
@@ -376,7 +378,8 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
          sumXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const real_t s[3][3] = {
+            const real_t s[3][3] =
+            {
                { S(0,0,qx,qy,qz), S(0,1,qx,qy,qz), S(0,2,qx,qy,qz) },
                { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
                { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }

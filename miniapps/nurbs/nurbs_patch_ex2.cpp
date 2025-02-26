@@ -106,10 +106,12 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection * fec = nullptr;
    fec = isNURBS ? mesh.GetNodes()->OwnFEC() : new H1_FECollection(1, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec, dim, fes_ordering);
+   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec, dim,
+                                                        fes_ordering);
    // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
    cout << "Finite Element Collection: " << fec->Name() << endl;
-   cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() << endl;
+   cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() <<
+        endl;
    cout << "Number of elements: " << fespace->GetNE() << std::endl;
    if (isNURBS)
    {

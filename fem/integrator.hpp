@@ -136,7 +136,8 @@ struct PatchBasisInfo
    // Total quadrature points / dofs
    int NQ, ND;
 
-   PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch, NURBSMeshRules *patchRules);
+   PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
+                  NURBSMeshRules *patchRules);
 
 };
 }

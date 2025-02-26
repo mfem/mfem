@@ -154,7 +154,8 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    }
 
    // Computes values at quadrature points
-   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv, pa_data[patch]);
+   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv,
+                          pa_data[patch]);
 
    if (integrationMode != PATCHWISE_REDUCED)
    {

@@ -3199,7 +3199,8 @@ public:
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
 
-   void AddMultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb, const Vector &x, Vector &y) const;
+   void AddMultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb,
+                         const Vector &x, Vector &y) const;
 
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 

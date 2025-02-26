@@ -23,14 +23,14 @@ namespace mfem
 
 // Adapted from PADiffusionSetup3D
 void PatchDiffusionSetup3D(const int Q1Dx,
-                  const int Q1Dy,
-                  const int Q1Dz,
-                  const int coeffDim,
-                  const bool symmetric,
-                  const Array<real_t> &w,
-                  const Vector &j,
-                  const Vector &c,
-                  Vector &d)
+                           const int Q1Dy,
+                           const int Q1Dz,
+                           const int coeffDim,
+                           const bool symmetric,
+                           const Array<real_t> &w,
+                           const Vector &j,
+                           const Vector &c,
+                           Vector &d)
 {
    const bool const_c = (c.Size() == 1);
    MFEM_VERIFY(coeffDim < 6 ||
@@ -146,18 +146,18 @@ void PatchDiffusionSetup3D(const int Q1Dx,
 // Compute a reduced integration rule, using NNLSSolver, for DiffusionIntegrator
 // on a NURBS patch with partial assembly.
 void PatchDiffusionGetReducedRule(const int nq, const int nd,
-                    Array2D<real_t> const& B,
-                    Array2D<real_t> const& G,
-                    std::vector<int> minQ,
-                    std::vector<int> maxQ,
-                    std::vector<int> minD,
-                    std::vector<int> maxD,
-                    std::vector<int> minDD,
-                    std::vector<int> maxDD,
-                    const IntegrationRule *ir,
-                    const bool zeroOrder,
-                    std::vector<Vector> & reducedWeights,
-                    std::vector<std::vector<int>> & reducedIDs)
+                                  Array2D<real_t> const& B,
+                                  Array2D<real_t> const& G,
+                                  std::vector<int> minQ,
+                                  std::vector<int> maxQ,
+                                  std::vector<int> minD,
+                                  std::vector<int> maxD,
+                                  std::vector<int> minDD,
+                                  std::vector<int> maxDD,
+                                  const IntegrationRule *ir,
+                                  const bool zeroOrder,
+                                  std::vector<Vector> & reducedWeights,
+                                  std::vector<std::vector<int>> & reducedIDs)
 {
    MFEM_VERIFY(B.NumRows() == nq, "");
    MFEM_VERIFY(B.NumCols() == nd, "");
@@ -435,7 +435,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    }
 
    PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights, jac,
-                coeff, pa_data);
+                         coeff, pa_data);
 
    numPatches = mesh->NURBSext->GetNP();
 
@@ -457,15 +457,15 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       // The reduced rules could be cached to avoid repeated computation, but
       // the cost of this setup seems low.
       PatchDiffusionGetReducedRule(Q1D[d], D1D[d], B[d], G[d],
-                     minQ[d], maxQ[d],
-                     minD[d], maxD[d],
-                     minDD[d], maxDD[d], ir1d[d], true,
-                     rw(0,d,patch), rid(0,d,patch));
+                                   minQ[d], maxQ[d],
+                                   minD[d], maxD[d],
+                                   minDD[d], maxDD[d], ir1d[d], true,
+                                   rw(0,d,patch), rid(0,d,patch));
       PatchDiffusionGetReducedRule(Q1D[d], D1D[d], B[d], G[d],
-                     minQ[d], maxQ[d],
-                     minD[d], maxD[d],
-                     minDD[d], maxDD[d], ir1d[d], false,
-                     rw(1,d,patch), rid(1,d,patch));
+                                   minQ[d], maxQ[d],
+                                   minD[d], maxD[d],
+                                   minDD[d], maxDD[d], ir1d[d], false,
+                                   rw(1,d,patch), rid(1,d,patch));
    }
 }
 
