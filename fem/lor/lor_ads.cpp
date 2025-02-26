@@ -13,9 +13,6 @@
 #include "../../general/forall.hpp"
 #include "../../fem/pbilinearform.hpp"
 
-#define MFEM_NVTX_COLOR DeepSkyBlue
-#include "../../general/nvtx.hpp"
-
 namespace mfem
 {
 
@@ -81,10 +78,8 @@ void BatchedLOR_ADS::Form3DFaceToEdge(Array<int> &face2edge)
    }
 }
 
-void BatchedLOR_ADS::FormCurlMatrixLocal()
+void BatchedLOR_ADS::FormCurlMatrix()
 {
-   NVTX("Discrete Curl");
-
    // The curl matrix maps from LOR edges to LOR faces. Given a quadrilateral
    // face (defined by its four edges) f_i = (e_j1, e_j2, e_j3, e_j4), the
    // matrix has nonzeros A(i, jk), so there are always exactly four nonzeros
@@ -92,9 +87,10 @@ void BatchedLOR_ADS::FormCurlMatrixLocal()
    const int nface_dof = face_fes.GetNDofs();
    const int nedge_dof = edge_fes.GetNDofs();
 
+   SparseMatrix C_local;
    C_local.OverrideSize(nface_dof, nedge_dof);
-   EnsureCapacity(C_local.GetMemoryI(), nedge_dof+1,
-                  Device::GetDeviceMemoryType());
+
+   C_local.GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
    // Each row always has four nonzeros
    const int nnz = 4*nedge_dof;
    auto I = C_local.WriteI();
@@ -124,8 +120,8 @@ void BatchedLOR_ADS::FormCurlMatrixLocal()
    const auto f2e = Reshape(face2edge.Read(), 4, nface_per_el);
 
    // Fill J and data
-   EnsureCapacity(C_local.GetMemoryJ(), nnz, Device::GetDeviceMemoryType());
-   EnsureCapacity(C_local.GetMemoryData(), nnz, Device::GetDeviceMemoryType());
+   C_local.GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   C_local.GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
 
    auto J = C_local.WriteJ();
    auto V = C_local.WriteData();
@@ -150,11 +146,6 @@ void BatchedLOR_ADS::FormCurlMatrixLocal()
          V[i*4 + k] = sgn*sgn_f*sgn_e;
       }
    });
-}
-
-void BatchedLOR_ADS::FormCurlMatrix()
-{
-   FormCurlMatrixLocal();
 
    // Create a block diagonal parallel matrix
    OperatorHandle C_diag(Operator::Hypre_ParCSR);
@@ -188,8 +179,6 @@ void BatchedLOR_ADS::FormCurlMatrix()
    }
    C->CopyRowStarts();
    C->CopyColStarts();
-
-   C_local.Clear();
 }
 
 HypreParMatrix *BatchedLOR_ADS::StealCurlMatrix()

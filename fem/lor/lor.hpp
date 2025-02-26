@@ -130,9 +130,6 @@ public:
    /// Returns the low-order refined finite element space.
    FiniteElementSpace &GetFESpace() const;
 
-   /// Returns the batched LOR discretizations.
-   class BatchedLORAssembly *GetBatchedLOR() const { return batched_lor; }
-
    virtual ~LORBase();
 };
 

@@ -36,9 +36,7 @@ protected:
    ND_FECollection edge_fec; ///< The associated Nedelec collection.
    ParFiniteElementSpace edge_fes; ///< The associated Nedelec space.
    BatchedLOR_AMS ams; ///< The associated AMS object.
-   HypreParMatrix *C = nullptr; ///< The discrete curl matrix.
-
-   SparseMatrix C_local;
+   HypreParMatrix *C; ///< The discrete curl matrix.
 
    /// Form the local elementwise discrete curl matrix.
    void Form3DFaceToEdge(Array<int> &face2edge);
@@ -66,9 +64,6 @@ public:
 
    /// Form the discrete curl matrix (not part of the public API).
    void FormCurlMatrix();
-
-   void FormCurlMatrixLocal();
-
    ~BatchedLOR_ADS();
 };
 

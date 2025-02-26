@@ -365,11 +365,8 @@ FiniteElementSpace &LORBase::GetFESpace() const
 
 void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
-   if (a)
-   {
-      A.Clear();
-      delete a;
-   }
+   A.Clear();
+   delete a;
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       // Skip forming the space
