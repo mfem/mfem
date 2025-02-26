@@ -26,19 +26,19 @@ namespace mfem
 template <typename T1, typename T2>
 bool HasIntegrators(BilinearForm &a)
 {
-   Array<BilinearFormIntegrator *> *integs = a.GetDBFI();
+   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
    if (integs == NULL) { return false; }
    if (integs->Size() == 1)
    {
       BilinearFormIntegrator *i0 = (*integs)[0];
-      if (dynamic_cast<T1 *>(i0) || dynamic_cast<T2 *>(i0)) { return true; }
+      if (dynamic_cast<T1*>(i0) || dynamic_cast<T2*>(i0)) { return true; }
    }
    else if (integs->Size() == 2)
    {
       BilinearFormIntegrator *i0 = (*integs)[0];
       BilinearFormIntegrator *i1 = (*integs)[1];
-      if ((dynamic_cast<T1 *>(i0) && dynamic_cast<T2 *>(i1)) ||
-          (dynamic_cast<T2 *>(i0) && dynamic_cast<T1 *>(i1)))
+      if ((dynamic_cast<T1*>(i0) && dynamic_cast<T2*>(i1)) ||
+          (dynamic_cast<T2*>(i0) && dynamic_cast<T1*>(i1)))
       {
          return true;
       }
@@ -54,26 +54,17 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    // Batched LOR requires all tensor elements
    if (!UsesTensorBasis(*a.FESpace())) { return false; }
 
-   if (dynamic_cast<const H1_FECollection *>(fec))
+   if (dynamic_cast<const H1_FECollection*>(fec))
    {
-      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
-      {
-         return true;
-      }
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
    }
-   else if (dynamic_cast<const ND_FECollection *>(fec))
+   else if (dynamic_cast<const ND_FECollection*>(fec))
    {
-      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
-      {
-         return true;
-      }
+      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a)) { return true; }
    }
-   else if (dynamic_cast<const RT_FECollection *>(fec))
+   else if (dynamic_cast<const RT_FECollection*>(fec))
    {
-      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a))
-      {
-         return true;
-      }
+      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a)) { return true; }
    }
    return false;
 }
@@ -104,7 +95,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    IntegrationRule ir = GetCollocatedIntRule(fes_ho);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
-   X_vert.SetSize(sdim * ndof_per_el * nel_ho);
+   X_vert.SetSize(sdim*ndof_per_el*nel_ho);
    const QuadratureInterpolator *quad_interp =
       nodal_fes->GetQuadratureInterpolator(ir);
    quad_interp->SetOutputLayout(QVectorLayout::byVDIM);
@@ -125,7 +116,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int n_my_elts,
       if (e_i >= min_el) { continue; }
       for (int j = 0; j < n_nbr_elts; j++)
       {
-         if (e_i == nbr_elts[j])
+         if (e_i==nbr_elts[j])
          {
             min_el = e_i; // we already know e_i < min_el
             break;
@@ -137,9 +128,9 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int n_my_elts,
 
 // Returns the index where a non-zero entry should be added and increment the
 // number of non-zeros for the row i_L.
-static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int *I)
+static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 {
-   int ind = AtomicAdd(I[i_L], 1);
+   int ind = AtomicAdd(I[i_L],1);
    return ind;
 }
 
@@ -151,12 +142,12 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
    const int nel_ho = fes_ho.GetNE();
-   const int nnz_per_row = sparse_mapping.Size() / ndof_per_el;
+   const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = fes_ho.GetElementRestriction(ordering);
    const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction *>(op);
+      dynamic_cast<const ElementRestriction*>(op);
    MFEM_VERIFY(el_restr != nullptr, "Bad element restriction");
 
    const Array<int> &el_dof_lex_ = el_restr->GatherMap();
@@ -170,59 +161,56 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    auto I = A.WriteI();
 
-   mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE(int ii) { I[ii] = 0; });
-   mfem::forall(ndof_per_el * nel_ho,
-                [=] MFEM_HOST_DEVICE(int i)
-                {
-                   const int ii_el = i % ndof_per_el;
-                   const int iel_ho = i / ndof_per_el;
-                   const int sii = el_dof_lex(ii_el, iel_ho);
-                   const int ii = (sii >= 0) ? sii : -1 - sii;
-                   // Get number and list of elements containing this DOF
-                   int i_elts[Max];
-                   const int i_offset = K[ii];
-                   const int i_next_offset = K[ii + 1];
-                   const int i_ne = i_next_offset - i_offset;
-                   for (int e_i = 0; e_i < i_ne; ++e_i)
-                   {
-                      const int si_E = dof_glob2loc[i_offset + e_i]; // signed
-                      const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
-                      i_elts[e_i] = i_E / ndof_per_el;
-                   }
-                   for (int j = 0; j < nnz_per_row; ++j)
-                   {
-                      int jj_el = map(j, ii_el);
-                      if (jj_el < 0) { continue; }
-                      // LDOF index of column
-                      const int sjj = el_dof_lex(jj_el, iel_ho); // signed
-                      const int jj = (sjj >= 0) ? sjj : -1 - sjj;
-                      const int j_offset = K[jj];
-                      const int j_next_offset = K[jj + 1];
-                      const int j_ne = j_next_offset - j_offset;
-                      if (i_ne == 1 || j_ne == 1) // no assembly required
-                      {
-                         AtomicAdd(I[ii], 1);
-                      }
-                      else // assembly required
-                      {
-                         int j_elts[Max];
-                         for (int e_j = 0; e_j < j_ne; ++e_j)
-                         {
-                            const int sj_E =
-                               dof_glob2loc[j_offset + e_j]; // signed
-                            const int j_E = (sj_E >= 0) ? sj_E : -1 - sj_E;
-                            const int elt = j_E / ndof_per_el;
-                            j_elts[e_j] = elt;
-                         }
-                         const int min_e =
-                            GetMinElt(i_elts, i_ne, j_elts, j_ne);
-                         if (iel_ho == min_e) // add the nnz only once
-                         {
-                            AtomicAdd(I[ii], 1);
-                         }
-                      }
-                   }
-                });
+   mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int ii) { I[ii] = 0; });
+   mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int ii_el = i%ndof_per_el;
+      const int iel_ho = i/ndof_per_el;
+      const int sii = el_dof_lex(ii_el, iel_ho);
+      const int ii = (sii >= 0) ? sii : -1 -sii;
+      // Get number and list of elements containing this DOF
+      int i_elts[Max];
+      const int i_offset = K[ii];
+      const int i_next_offset = K[ii+1];
+      const int i_ne = i_next_offset - i_offset;
+      for (int e_i = 0; e_i < i_ne; ++e_i)
+      {
+         const int si_E = dof_glob2loc[i_offset+e_i]; // signed
+         const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
+         i_elts[e_i] = i_E/ndof_per_el;
+      }
+      for (int j = 0; j < nnz_per_row; ++j)
+      {
+         int jj_el = map(j, ii_el);
+         if (jj_el < 0) { continue; }
+         // LDOF index of column
+         const int sjj = el_dof_lex(jj_el, iel_ho); // signed
+         const int jj = (sjj >= 0) ? sjj : -1 - sjj;
+         const int j_offset = K[jj];
+         const int j_next_offset = K[jj+1];
+         const int j_ne = j_next_offset - j_offset;
+         if (i_ne == 1 || j_ne == 1) // no assembly required
+         {
+            AtomicAdd(I[ii], 1);
+         }
+         else // assembly required
+         {
+            int j_elts[Max];
+            for (int e_j = 0; e_j < j_ne; ++e_j)
+            {
+               const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
+               const int j_E = (sj_E >= 0) ? sj_E : -1 - sj_E;
+               const int elt = j_E/ndof_per_el;
+               j_elts[e_j] = elt;
+            }
+            const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
+            if (iel_ho == min_e) // add the nnz only once
+            {
+               AtomicAdd(I[ii], 1);
+            }
+         }
+      }
+   });
    // TODO: on device, this is a scan operation
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    auto h_I = A.HostReadWriteI();
@@ -231,7 +219,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
    {
       const int nnz = h_I[i];
       h_I[i] = sum;
-      sum += nnz;
+      sum+=nnz;
    }
    h_I[nvdof] = sum;
 
@@ -244,12 +232,12 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    const int nvdof = fes_ho.GetVSize();
    const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
    const int nel_ho = fes_ho.GetNE();
-   const int nnz_per_row = sparse_mapping.Size() / ndof_per_el;
+   const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = fes_ho.GetElementRestriction(ordering);
    const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction *>(op);
+      dynamic_cast<const ElementRestriction*>(op);
    MFEM_VERIFY(el_restr != nullptr, "Bad element restriction");
 
    const Array<int> &el_dof_lex_ = el_restr->GatherMap();
@@ -271,111 +259,103 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    // Copy A.I into I, use it as a temporary buffer
    {
       const auto I2 = A.ReadI();
-      mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE(int i) { I[i] = I2[i]; });
+      mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i) { I[i] = I2[i]; });
    }
 
    static constexpr int Max = 16;
 
-   mfem::forall(
-      ndof_per_el * nel_ho,
-      [=] MFEM_HOST_DEVICE(int i)
+   mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int ii_el = i%ndof_per_el;
+      const int iel_ho = i/ndof_per_el;
+      // LDOF index of current row
+      const int sii = el_dof_lex(ii_el, iel_ho); // signed
+      const int ii = (sii >= 0) ? sii : -1 - sii;
+      // Get number and list of elements containing this DOF
+      int i_elts[Max];
+      int i_B[Max];
+      const int i_offset = K[ii];
+      const int i_next_offset = K[ii+1];
+      const int i_ne = i_next_offset - i_offset;
+      for (int e_i = 0; e_i < i_ne; ++e_i)
       {
-         const int ii_el = i % ndof_per_el;
-         const int iel_ho = i / ndof_per_el;
-         // LDOF index of current row
-         const int sii = el_dof_lex(ii_el, iel_ho); // signed
-         const int ii = (sii >= 0) ? sii : -1 - sii;
-         // Get number and list of elements containing this DOF
-         int i_elts[Max];
-         int i_B[Max];
-         const int i_offset = K[ii];
-         const int i_next_offset = K[ii + 1];
-         const int i_ne = i_next_offset - i_offset;
-         for (int e_i = 0; e_i < i_ne; ++e_i)
+         const int si_E = dof_glob2loc[i_offset+e_i]; // signed
+         const bool plus = si_E >= 0;
+         const int i_E = plus ? si_E : -1 - si_E;
+         i_elts[e_i] = i_E/ndof_per_el;
+         const int i_Bi = i_E % ndof_per_el;
+         i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
+      }
+      for (int j=0; j<nnz_per_row; ++j)
+      {
+         int jj_el = map(j, ii_el);
+         if (jj_el < 0) { continue; }
+         // LDOF index of column
+         const int sjj = el_dof_lex(jj_el, iel_ho); // signed
+         const int jj = (sjj >= 0) ? sjj : -1 - sjj;
+         const int sgn = ((sjj >=0 && sii >= 0) || (sjj < 0 && sii <0)) ? 1 : -1;
+         const int j_offset = K[jj];
+         const int j_next_offset = K[jj+1];
+         const int j_ne = j_next_offset - j_offset;
+         if (i_ne == 1 || j_ne == 1) // no assembly required
          {
-            const int si_E = dof_glob2loc[i_offset + e_i]; // signed
-            const bool plus = si_E >= 0;
-            const int i_E = plus ? si_E : -1 - si_E;
-            i_elts[e_i] = i_E / ndof_per_el;
-            const int i_Bi = i_E % ndof_per_el;
-            i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
+            const int nnz = GetAndIncrementNnzIndex(ii, I);
+            J[nnz] = jj;
+            AV[nnz] = sgn*V(j, ii_el, iel_ho);
          }
-         for (int j = 0; j < nnz_per_row; ++j)
+         else // assembly required
          {
-            int jj_el = map(j, ii_el);
-            if (jj_el < 0) { continue; }
-            // LDOF index of column
-            const int sjj = el_dof_lex(jj_el, iel_ho); // signed
-            const int jj = (sjj >= 0) ? sjj : -1 - sjj;
-            const int sgn =
-               ((sjj >= 0 && sii >= 0) || (sjj < 0 && sii < 0)) ? 1 : -1;
-            const int j_offset = K[jj];
-            const int j_next_offset = K[jj + 1];
-            const int j_ne = j_next_offset - j_offset;
-            if (i_ne == 1 || j_ne == 1) // no assembly required
+            int j_elts[Max];
+            int j_B[Max];
+            for (int e_j = 0; e_j < j_ne; ++e_j)
             {
-               const int nnz = GetAndIncrementNnzIndex(ii, I);
-               J[nnz] = jj;
-               AV[nnz] = sgn * V(j, ii_el, iel_ho);
+               const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
+               const bool plus = sj_E >= 0;
+               const int j_E = plus ? sj_E : -1 - sj_E;
+               j_elts[e_j] = j_E/ndof_per_el;
+               const int j_Bj = j_E % ndof_per_el;
+               j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
             }
-            else // assembly required
+            const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
+            if (iel_ho == min_e) // add the nnz only once
             {
-               int j_elts[Max];
-               int j_B[Max];
-               for (int e_j = 0; e_j < j_ne; ++e_j)
+               real_t val = 0.0;
+               for (int k = 0; k < i_ne; k++)
                {
-                  const int sj_E = dof_glob2loc[j_offset + e_j]; // signed
-                  const bool plus = sj_E >= 0;
-                  const int j_E = plus ? sj_E : -1 - sj_E;
-                  j_elts[e_j] = j_E / ndof_per_el;
-                  const int j_Bj = j_E % ndof_per_el;
-                  j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
-               }
-               const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
-               if (iel_ho == min_e) // add the nnz only once
-               {
-                  real_t val = 0.0;
-                  for (int k = 0; k < i_ne; k++)
+                  const int iel_ho_2 = i_elts[k];
+                  const int sii_el_2 = i_B[k]; // signed
+                  const int ii_el_2 = (sii_el_2 >= 0) ? sii_el_2 : -1 -sii_el_2;
+                  for (int l = 0; l < j_ne; l++)
                   {
-                     const int iel_ho_2 = i_elts[k];
-                     const int sii_el_2 = i_B[k]; // signed
-                     const int ii_el_2 =
-                        (sii_el_2 >= 0) ? sii_el_2 : -1 - sii_el_2;
-                     for (int l = 0; l < j_ne; l++)
+                     const int jel_ho_2 = j_elts[l];
+                     if (iel_ho_2 == jel_ho_2)
                      {
-                        const int jel_ho_2 = j_elts[l];
-                        if (iel_ho_2 == jel_ho_2)
+                        const int sjj_el_2 = j_B[l]; // signed
+                        const int jj_el_2 = (sjj_el_2 >= 0) ? sjj_el_2 : -1 -sjj_el_2;
+                        const int sgn_2 = ((sjj_el_2 >=0 && sii_el_2 >= 0)
+                                           || (sjj_el_2 < 0 && sii_el_2 <0)) ? 1 : -1;
+                        int j2 = -1;
+                        // find nonzero in matrix of other element
+                        for (int m = 0; m < nnz_per_row; ++m)
                         {
-                           const int sjj_el_2 = j_B[l]; // signed
-                           const int jj_el_2 =
-                              (sjj_el_2 >= 0) ? sjj_el_2 : -1 - sjj_el_2;
-                           const int sgn_2 =
-                              ((sjj_el_2 >= 0 && sii_el_2 >= 0) ||
-                               (sjj_el_2 < 0 && sii_el_2 < 0))
-                                 ? 1
-                                 : -1;
-                           int j2 = -1;
-                           // find nonzero in matrix of other element
-                           for (int m = 0; m < nnz_per_row; ++m)
+                           if (map(m, ii_el_2) == jj_el_2)
                            {
-                              if (map(m, ii_el_2) == jj_el_2)
-                              {
-                                 j2 = m;
-                                 break;
-                              }
+                              j2 = m;
+                              break;
                            }
-                           MFEM_ASSERT_KERNEL(j >= 0, "Can't find nonzero");
-                           val += sgn_2 * V(j2, ii_el_2, iel_ho_2);
                         }
+                        MFEM_ASSERT_KERNEL(j >= 0, "Can't find nonzero");
+                        val += sgn_2*V(j2, ii_el_2, iel_ho_2);
                      }
                   }
-                  const int nnz = GetAndIncrementNnzIndex(ii, I);
-                  J[nnz] = jj;
-                  AV[nnz] = val;
                }
+               const int nnz = GetAndIncrementNnzIndex(ii, I);
+               J[nnz] = jj;
+               AV[nnz] = val;
             }
          }
-      });
+      }
+   });
 }
 
 void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
@@ -393,7 +373,7 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 
    A_mat->OverrideSize(nvdof, nvdof);
 
-   A_mat->GetMemoryI().New(nvdof + 1, Device::GetDeviceMemoryType());
+   A_mat->GetMemoryI().New(nvdof+1, Device::GetDeviceMemoryType());
    int nnz = FillI(*A_mat);
 
    A_mat->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
@@ -404,7 +384,7 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 template <int ORDER, int SDIM, typename LOR_KERNEL>
 static void Assemble_(LOR_KERNEL &kernel, int dim)
 {
-   if (dim == 2) { kernel.template Assemble2D<ORDER, SDIM>(); }
+   if (dim == 2) { kernel.template Assemble2D<ORDER,SDIM>(); }
    else if (dim == 3) { kernel.template Assemble3D<ORDER>(); }
    else { MFEM_ABORT("Unsupported dimension"); }
 }
@@ -412,8 +392,8 @@ static void Assemble_(LOR_KERNEL &kernel, int dim)
 template <int ORDER, typename LOR_KERNEL>
 static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim)
 {
-   if (sdim == 2) { Assemble_<ORDER, 2>(kernel, dim); }
-   else if (sdim == 3) { Assemble_<ORDER, 3>(kernel, dim); }
+   if (sdim == 2) { Assemble_<ORDER,2>(kernel, dim); }
+   else if (sdim == 3) { Assemble_<ORDER,3>(kernel, dim); }
    else { MFEM_ABORT("Unsupported space dimension."); }
 }
 
@@ -422,15 +402,15 @@ static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim, int order)
 {
    switch (order)
    {
-   case 1:  Assemble_<1>(kernel, dim, sdim); break;
-   case 2:  Assemble_<2>(kernel, dim, sdim); break;
-   case 3:  Assemble_<3>(kernel, dim, sdim); break;
-   case 4:  Assemble_<4>(kernel, dim, sdim); break;
-   case 5:  Assemble_<5>(kernel, dim, sdim); break;
-   case 6:  Assemble_<6>(kernel, dim, sdim); break;
-   case 7:  Assemble_<7>(kernel, dim, sdim); break;
-   case 8:  Assemble_<8>(kernel, dim, sdim); break;
-   default: MFEM_ABORT("No kernel order " << order << "!");
+      case 1: Assemble_<1>(kernel, dim, sdim); break;
+      case 2: Assemble_<2>(kernel, dim, sdim); break;
+      case 3: Assemble_<3>(kernel, dim, sdim); break;
+      case 4: Assemble_<4>(kernel, dim, sdim); break;
+      case 5: Assemble_<5>(kernel, dim, sdim); break;
+      case 6: Assemble_<6>(kernel, dim, sdim); break;
+      case 7: Assemble_<7>(kernel, dim, sdim); break;
+      case 8: Assemble_<8>(kernel, dim, sdim); break;
+      default: MFEM_ABORT("No kernel order " << order << "!");
    }
 }
 
@@ -451,21 +431,21 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
    // Assemble the matrix, depending on what the form is.
    // This fills in the arrays sparse_ij and sparse_mapping.
    const FiniteElementCollection *fec = fes_ho.FEColl();
-   if (dynamic_cast<const H1_FECollection *>(fec))
+   if (dynamic_cast<const H1_FECollection*>(fec))
    {
       if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
       {
          AssemblyKernel<BatchedLOR_H1>(a);
       }
    }
-   else if (dynamic_cast<const ND_FECollection *>(fec))
+   else if (dynamic_cast<const ND_FECollection*>(fec))
    {
       if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
       {
          AssemblyKernel<BatchedLOR_ND>(a);
       }
    }
-   else if (dynamic_cast<const RT_FECollection *>(fec))
+   else if (dynamic_cast<const RT_FECollection*>(fec))
    {
       if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a))
       {
@@ -477,15 +457,15 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
 }
 
 #ifdef MFEM_USE_MPI
-void BatchedLORAssembly::ParAssemble(BilinearForm &a,
-                                     const Array<int> &ess_dofs,
-                                     OperatorHandle &A)
+void BatchedLORAssembly::ParAssemble(
+   BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
    // Assemble the system matrix local to this partition
    OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
 
-   ParBilinearForm *pa = dynamic_cast<ParBilinearForm *>(&a);
+   ParBilinearForm *pa =
+      dynamic_cast<ParBilinearForm*>(&a);
 
    pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
 
@@ -494,11 +474,11 @@ void BatchedLORAssembly::ParAssemble(BilinearForm &a,
 }
 #endif
 
-void BatchedLORAssembly::Assemble(BilinearForm &a, const Array<int> ess_dofs,
-                                  OperatorHandle &A)
+void BatchedLORAssembly::Assemble(
+   BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A)
 {
 #ifdef MFEM_USE_MPI
-   if (dynamic_cast<ParFiniteElementSpace *>(&fes_ho))
+   if (dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
    {
       return ParAssemble(a, ess_dofs, A);
    }
@@ -507,11 +487,12 @@ void BatchedLORAssembly::Assemble(BilinearForm &a, const Array<int> ess_dofs,
    AssembleWithoutBC(a, A);
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
-   A_mat->EliminateBC(ess_dofs, Operator::DiagonalPolicy::DIAG_KEEP);
+   A_mat->EliminateBC(ess_dofs,
+                      Operator::DiagonalPolicy::DIAG_KEEP);
 }
 
-BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_):
-   fes_ho(fes_ho_)
+BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
+   : fes_ho(fes_ho_)
 {
    FormLORVertexCoordinates(fes_ho, X_vert);
 }
@@ -521,7 +502,7 @@ IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const Geometry::Type geom = fes.GetMesh()->GetTypicalElementGeometry();
    const int nd1d = fes.GetMaxElementOrder() + 1;
-   return irs.Get(geom, 2 * nd1d - 3);
+   return irs.Get(geom, 2*nd1d - 3);
 }
 
 } // namespace mfem

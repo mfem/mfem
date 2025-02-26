@@ -18,13 +18,14 @@
 namespace mfem
 {
 
-void LORBase::AddIntegrators(BilinearForm &a_from, BilinearForm &a_to,
+void LORBase::AddIntegrators(BilinearForm &a_from,
+                             BilinearForm &a_to,
                              GetIntegratorsFn get_integrators,
                              AddIntegratorFn add_integrator,
                              const IntegrationRule *ir)
 {
-   Array<BilinearFormIntegrator *> *integrators = (a_from.*get_integrators)();
-   for (int i = 0; i < integrators->Size(); ++i)
+   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
+   for (int i=0; i<integrators->Size(); ++i)
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
       (a_to.*add_integrator)(integrator);
@@ -33,22 +34,28 @@ void LORBase::AddIntegrators(BilinearForm &a_from, BilinearForm &a_to,
    }
 }
 
-void LORBase::AddIntegratorsAndMarkers(
-   BilinearForm &a_from, BilinearForm &a_to, GetIntegratorsFn get_integrators,
-   GetMarkersFn get_markers, AddIntegratorMarkersFn add_integrator_marker,
-   AddIntegratorFn add_integrator, const IntegrationRule *ir)
+void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
+                                       BilinearForm &a_to,
+                                       GetIntegratorsFn get_integrators,
+                                       GetMarkersFn get_markers,
+                                       AddIntegratorMarkersFn add_integrator_marker,
+                                       AddIntegratorFn add_integrator,
+                                       const IntegrationRule *ir)
 {
-   Array<BilinearFormIntegrator *> *integrators = (a_from.*get_integrators)();
-   Array<Array<int> *> *markers = (a_from.*get_markers)();
+   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
+   Array<Array<int>*> *markers = (a_from.*get_markers)();
 
-   for (int i = 0; i < integrators->Size(); ++i)
+   for (int i=0; i<integrators->Size(); ++i)
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
       if (*markers[i])
       {
          (a_to.*add_integrator_marker)(integrator, *(*markers[i]));
       }
-      else { (a_to.*add_integrator)(integrator); }
+      else
+      {
+         (a_to.*add_integrator)(integrator);
+      }
       ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
@@ -56,8 +63,8 @@ void LORBase::AddIntegratorsAndMarkers(
 
 void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
 {
-   Array<BilinearFormIntegrator *> *integrators = (a->*get_integrators)();
-   for (int i = 0; i < integrators->Size(); ++i)
+   Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
+   for (int i=0; i<integrators->Size(); ++i)
    {
       ((*integrators)[i])->SetIntRule(ir_map[(*integrators)[i]]);
    }
@@ -66,10 +73,10 @@ void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
 LORBase::FESpaceType LORBase::GetFESpaceType() const
 {
    const FiniteElementCollection *fec_ho = fes_ho.FEColl();
-   if (dynamic_cast<const H1_FECollection *>(fec_ho)) { return H1; }
-   else if (dynamic_cast<const ND_FECollection *>(fec_ho)) { return ND; }
-   else if (dynamic_cast<const RT_FECollection *>(fec_ho)) { return RT; }
-   else if (dynamic_cast<const L2_FECollection *>(fec_ho)) { return L2; }
+   if (dynamic_cast<const H1_FECollection*>(fec_ho)) { return H1; }
+   else if (dynamic_cast<const ND_FECollection*>(fec_ho)) { return ND; }
+   else if (dynamic_cast<const RT_FECollection*>(fec_ho)) { return RT; }
+   else if (dynamic_cast<const L2_FECollection*>(fec_ho)) { return L2; }
    else { MFEM_ABORT("Bad LOR space type."); }
    return INVALID;
 }
@@ -88,7 +95,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    auto get_dof_map = [](FiniteElementSpace &fes_, int i)
    {
       const FiniteElement *fe = fes_.GetFE(i);
-      auto tfe = dynamic_cast<const TensorBasisElement *>(fe);
+      auto tfe = dynamic_cast<const TensorBasisElement*>(fe);
       MFEM_ASSERT(tfe != NULL, "");
       return tfe->GetDofMap();
    };
@@ -103,7 +110,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    perm_.SetSize(fes_lor.GetVSize());
 
    Array<int> vdof_ho, vdof_lor;
-   for (int ilor = 0; ilor < mesh_lor.GetNE(); ++ilor)
+   for (int ilor=0; ilor<mesh_lor.GetNE(); ++ilor)
    {
       int iho = cf_tr.embeddings[ilor].parent;
       int p = fes_ho.GetOrder(iho);
@@ -131,10 +138,8 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
          continue;
       }
 
-      int p1 = p + 1;
-      int ndof_per_dim = (dim == 2) ? p * p1
-                       : type == ND ? p * p1 * p1
-                                    : p * p * p1;
+      int p1 = p+1;
+      int ndof_per_dim = (dim == 2) ? p*p1 : type == ND ? p*p1*p1 : p*p*p1;
 
       const Array<int> &dofmap_ho = get_dof_map(fes_ho, iho);
       const Array<int> &dofmap_lor = get_dof_map(fes_lor, ilor);
@@ -145,23 +150,23 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 
       auto set_perm = [&](int off_lor, int off_ho, int n1, int n2)
       {
-         for (int i1 = 0; i1 < 2; ++i1)
+         for (int i1=0; i1<2; ++i1)
          {
             int m = (dim == 2 || type == RT) ? 1 : 2;
-            for (int i2 = 0; i2 < m; ++i2)
+            for (int i2=0; i2<m; ++i2)
             {
                int i;
-               i = dofmap_lor[off_lor + i1 + i2 * 2];
+               i = dofmap_lor[off_lor + i1 + i2*2];
                int s1 = i < 0 ? -1 : 1;
                int idof_lor = vdof_lor[absdof(i)];
-               i = dofmap_ho[off_ho + i1 * n1 + i2 * n2];
+               i = dofmap_ho[off_ho + i1*n1 + i2*n2];
                int s2 = i < 0 ? -1 : 1;
                int idof_ho = vdof_ho[absdof(i)];
                int s3 = idof_lor < 0 ? -1 : 1;
                int s4 = idof_ho < 0 ? -1 : 1;
-               int s = s1 * s2 * s3 * s4;
+               int s = s1*s2*s3*s4;
                i = absdof(idof_ho);
-               perm_[absdof(idof_lor)] = s < 0 ? -1 - absdof(i) : absdof(i);
+               perm_[absdof(idof_lor)] = s < 0 ? -1-absdof(i) : absdof(i);
             }
          }
       };
@@ -171,31 +176,31 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
       if (type == ND)
       {
          // x
-         offset = off_x + off_y * p + off_z * p * p1;
-         set_perm(0, offset, p, p * p1);
+         offset = off_x + off_y*p + off_z*p*p1;
+         set_perm(0, offset, p, p*p1);
          // y
-         offset = ndof_per_dim + off_x + off_y * (p1) + off_z * p1 * p;
-         set_perm(dim == 2 ? 2 : 4, offset, 1, p * p1);
+         offset = ndof_per_dim + off_x + off_y*(p1) + off_z*p1*p;
+         set_perm(dim == 2 ? 2 : 4, offset, 1, p*p1);
          // z
          if (dim == 3)
          {
-            offset = 2 * ndof_per_dim + off_x + off_y * p1 + off_z * p1 * p1;
-            set_perm(8, offset, 1, p + 1);
+            offset = 2*ndof_per_dim + off_x + off_y*p1 + off_z*p1*p1;
+            set_perm(8, offset, 1, p+1);
          }
       }
       else if (type == RT)
       {
          // x
-         offset = off_x + off_y * p1 + off_z * p * p1;
+         offset = off_x + off_y*p1 + off_z*p*p1;
          set_perm(0, offset, 1, 0);
          // y
-         offset = ndof_per_dim + off_x + off_y * p + off_z * p1 * p;
+         offset = ndof_per_dim + off_x + off_y*p + off_z*p1*p;
          set_perm(2, offset, p, 0);
          // z
          if (dim == 3)
          {
-            offset = 2 * ndof_per_dim + off_x + off_y * p + off_z * p * p;
-            set_perm(4, offset, p * p, 0);
+            offset = 2*ndof_per_dim + off_x + off_y*p + off_z*p*p;
+            set_perm(4, offset, p*p, 0);
          }
       }
    }
@@ -208,28 +213,28 @@ void LORBase::ConstructDofPermutation() const
    {
       // H1 and L2: no permutation necessary, return identity
       perm.SetSize(fes_ho.GetTrueVSize());
-      for (int i = 0; i < perm.Size(); ++i) { perm[i] = i; }
+      for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
       return;
    }
 
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *pfes_ho =
-      dynamic_cast<ParFiniteElementSpace *>(&fes_ho);
-   ParFiniteElementSpace *pfes_lor =
-      dynamic_cast<ParFiniteElementSpace *>(&GetFESpace());
+   ParFiniteElementSpace *pfes_ho
+      = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+   ParFiniteElementSpace *pfes_lor
+      = dynamic_cast<ParFiniteElementSpace*>(&GetFESpace());
    if (pfes_ho && pfes_lor)
    {
       Array<int> l_perm;
       ConstructLocalDofPermutation(l_perm);
       perm.SetSize(pfes_lor->GetTrueVSize());
-      for (int i = 0; i < l_perm.Size(); ++i)
+      for (int i=0; i<l_perm.Size(); ++i)
       {
          int j = l_perm[i];
          int s = j < 0 ? -1 : 1;
          int t_i = pfes_lor->GetLocalTDofNumber(i);
          int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
          // Either t_i and t_j both -1, or both non-negative
-         if ((t_i < 0 && t_j >= 0) || (t_j < 0 && t_i >= 0))
+         if ((t_i < 0 && t_j >=0) || (t_j < 0 && t_i >= 0))
          {
             MFEM_ABORT("Inconsistent DOF numbering");
          }
@@ -276,13 +281,16 @@ void LORBase::SetupProlongationAndRestriction()
       ConstructLocalDofPermutation(p);
       fes->CopyProlongationAndRestriction(fes_ho, &p);
    }
-   else { fes->CopyProlongationAndRestriction(fes_ho, NULL); }
+   else
+   {
+      fes->CopyProlongationAndRestriction(fes_ho, NULL);
+   }
 }
 
 template <typename FEC>
 void CheckScalarBasisType(const FiniteElementSpace &fes)
 {
-   const FEC *fec = dynamic_cast<const FEC *>(fes.FEColl());
+   const FEC *fec = dynamic_cast<const FEC*>(fes.FEColl());
    if (fec)
    {
       int btype = fec->GetBasisType();
@@ -292,8 +300,7 @@ void CheckScalarBasisType(const FiniteElementSpace &fes)
                    << "discretization with basis type\n"
                    << BasisType::Name(btype) << ". "
                    << "The LOR discretization is only spectrally equivalent\n"
-                   << "with Gauss-Lobatto basis.\n"
-                   << std::endl;
+                   << "with Gauss-Lobatto basis.\n" << std::endl;
       }
    }
 }
@@ -301,18 +308,17 @@ void CheckScalarBasisType(const FiniteElementSpace &fes)
 template <typename FEC>
 void CheckVectorBasisType(const FiniteElementSpace &fes)
 {
-   const FEC *fec = dynamic_cast<const FEC *>(fes.FEColl());
+   const FEC *fec = dynamic_cast<const FEC*>(fes.FEColl());
    if (fec)
    {
       int cbtype = fec->GetClosedBasisType();
       int obtype = fec->GetOpenBasisType();
-      if (cbtype != BasisType::GaussLobatto ||
-          obtype != BasisType::IntegratedGLL)
+      if (cbtype != BasisType::GaussLobatto || obtype != BasisType::IntegratedGLL)
       {
          mfem::err << "\nWARNING: Constructing vector low-order refined "
                    << "discretization with basis type \npair ("
-                   << BasisType::Name(cbtype) << ", " << BasisType::Name(obtype)
-                   << "). "
+                   << BasisType::Name(cbtype) << ", "
+                   << BasisType::Name(obtype) << "). "
                    << "The LOR discretization is only spectrally\nequivalent "
                    << "with basis types (Gauss-Lobatto, IntegratedGLL).\n"
                    << std::endl;
@@ -328,8 +334,8 @@ void CheckBasisType(const FiniteElementSpace &fes)
    // L2 is a bit more complicated, for now don't verify basis type
 }
 
-LORBase::LORBase(FiniteElementSpace &fes_ho_, int ref_type_):
-   irs(0, Quadrature1D::GaussLobatto), ref_type(ref_type_), fes_ho(fes_ho_)
+LORBase::LORBase(FiniteElementSpace &fes_ho_, int ref_type_)
+   : irs(0, Quadrature1D::GaussLobatto), ref_type(ref_type_), fes_ho(fes_ho_)
 {
    Mesh &mesh_ = *fes_ho_.GetMesh();
    int dim = mesh_.Dimension();
@@ -338,7 +344,7 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_, int ref_type_):
    if (geoms.Size() == 1 && Geometry::IsTensorProduct(geoms[0]))
    {
       ir_el = &irs.Get(geoms[0], 1);
-      ir_face = &irs.Get(Geometry::TensorProductGeometry(dim - 1), 1);
+      ir_face = &irs.Get(Geometry::TensorProductGeometry(dim-1), 1);
    }
    else
    {
@@ -353,7 +359,7 @@ FiniteElementSpace &LORBase::GetFESpace() const
    // In the case of "batched assembly", the creation of the LOR mesh and
    // space can be completely omitted (for efficiency). In this case, the
    // fes object is NULL, and we need to create it when requested.
-   if (fes == NULL) { const_cast<LORBase *>(this)->FormLORSpace(); }
+   if (fes == NULL) { const_cast<LORBase*>(this)->FormLORSpace(); }
    return *fes;
 }
 
@@ -371,7 +377,10 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
       }
       batched_lor->Assemble(a_ho, ess_dofs, A);
    }
-   else { LegacyAssembleSystem(a_ho, ess_dofs); }
+   else
+   {
+      LegacyAssembleSystem(a_ho, ess_dofs);
+   }
 }
 
 void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
@@ -385,7 +394,7 @@ void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
    // GetFESpace.
    FiniteElementSpace &fes_lor = GetFESpace();
 #ifdef MFEM_USE_MPI
-   if (auto *pfes = dynamic_cast<ParFiniteElementSpace *>(&fes_lor))
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes_lor))
    {
       a = new ParBilinearForm(pfes);
    }
@@ -429,16 +438,16 @@ LORBase::~LORBase()
 
 LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
                                      const Array<int> &ess_tdof_list,
-                                     int ref_type_):
-   LORBase(*a_ho_.FESpace(), ref_type_)
+                                     int ref_type_)
+   : LORBase(*a_ho_.FESpace(), ref_type_)
 {
    CheckBasisType(fes_ho);
    A.SetType(Operator::MFEM_SPARSEMAT);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
-LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho, int ref_type_):
-   LORBase(fes_ho, ref_type_)
+LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
+                                     int ref_type_) : LORBase(fes_ho, ref_type_)
 {
    CheckBasisType(fes_ho);
    A.SetType(Operator::MFEM_SPARSEMAT);
@@ -451,7 +460,7 @@ void LORDiscretization::FormLORSpace()
    // use refinement = element order + 1 (since LOR is p = 0 in this case).
    int increment = (GetFESpaceType() == L2) ? 1 : 0;
    Array<int> refinements(mesh_ho.GetNE());
-   for (int i = 0; i < refinements.Size(); ++i)
+   for (int i=0; i<refinements.Size(); ++i)
    {
       refinements[i] = fes_ho.GetOrder(i) + increment;
    }
@@ -474,8 +483,7 @@ SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 
 ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            const Array<int> &ess_tdof_list,
-                                           int ref_type_):
-   LORBase(*a_ho_.ParFESpace(), ref_type_)
+                                           int ref_type_) : LORBase(*a_ho_.ParFESpace(), ref_type_)
 {
    ParFiniteElementSpace *pfes_ho = a_ho_.ParFESpace();
    if (pfes_ho->GetMyRank() == 0) { CheckBasisType(fes_ho); }
@@ -483,9 +491,8 @@ ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
-ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
-                                           int ref_type_):
-   LORBase(fes_ho, ref_type_)
+ParLORDiscretization::ParLORDiscretization(
+   ParFiniteElementSpace &fes_ho, int ref_type_) : LORBase(fes_ho, ref_type_)
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
    A.SetType(Operator::Hypre_ParCSR);
@@ -493,8 +500,7 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
 
 void ParLORDiscretization::FormLORSpace()
 {
-   ParFiniteElementSpace &pfes_ho =
-      static_cast<ParFiniteElementSpace &>(fes_ho);
+   ParFiniteElementSpace &pfes_ho = static_cast<ParFiniteElementSpace&>(fes_ho);
    // TODO: support variable-order spaces in parallel
    MFEM_VERIFY(!pfes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
@@ -521,7 +527,7 @@ HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 
 ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 {
-   return static_cast<ParFiniteElementSpace &>(GetFESpace());
+   return static_cast<ParFiniteElementSpace&>(GetFESpace());
 }
 
 #endif // MFEM_USE_MPI
