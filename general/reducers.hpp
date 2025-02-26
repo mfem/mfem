@@ -15,22 +15,22 @@
 #include "forall.hpp"
 
 #include <climits>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <type_traits>
 
 namespace mfem
 {
 
-/** @brief pair of values which can be used in device code */
+/// Pair of values which can be used in device code
 template <class A, class B> struct DevicePair
 {
    A first;
    B second;
 };
 
-/** @brief two pairs for the min/max values and their location indices */
+/// Two pairs for the min/max values and their location indices
 template <class A, class B> struct MinMaxLocScalar
 {
    A min_val;
@@ -39,41 +39,41 @@ template <class A, class B> struct MinMaxLocScalar
    B max_loc;
 };
 
-/** @brief a += b */
+/// a += b
 template <class T> struct SumReducer
 {
    using value_type = T;
-   MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
    {
       a += b;
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const { a = T(0); }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = T(0); }
 };
 
-/** @brief a *= b */
+/// a *= b
 template <class T> struct MultReducer
 {
    using value_type = T;
-   MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
    {
       a *= b;
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const { a = T(1); }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = T(1); }
 };
 
-/** @brief a &= b */
+/// a &= b
 template <class T> struct BAndReducer
 {
    static_assert(std::is_integral<T>::value, "Only works for integral types");
    using value_type = T;
-   MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
    {
       a &= b;
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
       // sets all bits, does not work for floating point types
       // bitwise operators are not defined for floating point types anyways
@@ -81,74 +81,80 @@ template <class T> struct BAndReducer
    }
 };
 
-/** @brief a |= b */
+/// @brief a |= b
 template <class T> struct BOrReducer
 {
    static_assert(std::is_integral<T>::value, "Only works for integral types");
    using value_type = T;
-   MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
    {
       a |= b;
    }
 
-   MFEM_HOST_DEVICE void init_val(T &a) const { a = T(0); }
+   static MFEM_HOST_DEVICE void SetInitialValue(T &a) { a = T(0); }
 };
 
-/** @brief a = min(a,b) */
+/// a = min(a,b)
 template <class T> struct MinReducer;
 
-/** @brief a = max(a,b) */
+/// @brief a = max(a,b)
 template <class T> struct MaxReducer;
 
-/** @brief a = minmax(a,b) */
+/// @brief a = minmax(a,b)
 template <class T> struct MinMaxReducer;
 
-/** @brief i = argmin(a[i], a[j]). Note: for ties the returned index can
- * correspond to any min entry, not necesarily the first one. */
+/// @brief i = argmin(a[i], a[j])
+///
+/// Note: for ties the returned index can correspond to any min entry, not
+/// necesarily the first one
 template <class T, class I> struct ArgMinReducer;
 
-/** @brief i = argmax(a[i], a[j]). Note: for ties the returned index can
- * correspond to any min entry, not necesarily the first one. */
+/// @brief i = argmax(a[i], a[j])
+///
+/// Note: for ties the returned index can correspond to any min entry, not
+/// necesarily the first one.
 template <class T, class I> struct ArgMaxReducer;
 
-/** i = argminmax(a[i], a[j]). Note: for ties the returned indices can
- * correspond to any min/max entry, not necesarily the first one. */
+/// @brief i = argminmax(a[i], a[j])
+///
+/// Note: for ties the returned indices can correspond to any min/max entry, not
+/// necesarily the first one.
 template <class T, class I> struct ArgMinMaxReducer;
 
 template <> struct MinReducer<float>
 {
    using value_type = float;
-   MFEM_HOST_DEVICE void join(value_type &a, value_type b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
       a = fmin(a, b);
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const { a = HUGE_VALF; }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = HUGE_VALF; }
 };
 
 template <> struct MinReducer<double>
 {
    using value_type = double;
-   MFEM_HOST_DEVICE void join(value_type &a, value_type b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
       a = fmin(a, b);
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const { a = HUGE_VAL; }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = HUGE_VAL; }
 };
 
 #define MFEM_STAMP_MIN_REDUCER(type, val)                                      \
-   template <> struct MinReducer<type> {                                       \
-      using value_type = type;                                                 \
-      MFEM_HOST_DEVICE void join(value_type &a, value_type b) const {          \
-        if (b < a) {                                                           \
-          a = b;                                                               \
-        }                                                                      \
+  template <> struct MinReducer<type> {                                        \
+    using value_type = type;                                                   \
+    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b) {           \
+      if (b < a) {                                                             \
+        a = b;                                                                 \
       }                                                                        \
-      MFEM_HOST_DEVICE void init_val(value_type &a) const {                    \
-        a = static_cast<type>(val);                                            \
-      }                                                                        \
-   }
+    }                                                                          \
+    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
+      a = static_cast<type>(val);                                              \
+    }                                                                          \
+  }
 
 MFEM_STAMP_MIN_REDUCER(bool, true);
 MFEM_STAMP_MIN_REDUCER(char, CHAR_MAX);
@@ -169,17 +175,17 @@ MFEM_STAMP_MIN_REDUCER(unsigned long long, ULLONG_MAX);
 #undef MFEM_STAMP_MIN_REDUCER
 
 #define MFEM_STAMP_ARGMIN_REDUCER(type, val)                                   \
-   template <class I> struct ArgMinReducer<type, I> {                          \
-      using value_type = DevicePair<type, I>;                                  \
-      MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
-        if (b.first <= a.first) {                                              \
-          a = b;                                                               \
-        }                                                                      \
+  template <class I> struct ArgMinReducer<type, I> {                           \
+    using value_type = DevicePair<type, I>;                                    \
+    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
+      if (b.first <= a.first) {                                                \
+        a = b;                                                                 \
       }                                                                        \
-      MFEM_HOST_DEVICE void init_val(value_type &a) const {                    \
-        a = value_type{static_cast<type>(val), I{0}};                          \
-      }                                                                        \
-   }
+    }                                                                          \
+    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
+      a = value_type{static_cast<type>(val), I{0}};                            \
+    }                                                                          \
+  }
 
 MFEM_STAMP_ARGMIN_REDUCER(bool, true);
 MFEM_STAMP_ARGMIN_REDUCER(char, CHAR_MAX);
@@ -205,37 +211,40 @@ MFEM_STAMP_ARGMIN_REDUCER(double, HUGE_VAL);
 template <> struct MaxReducer<float>
 {
    using value_type = float;
-   MFEM_HOST_DEVICE void join(value_type &a, value_type b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
       a = fmax(a, b);
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const { a = -HUGE_VALF; }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = -HUGE_VALF;
+   }
 };
 
 template <> struct MaxReducer<double>
 {
    using value_type = double;
-   MFEM_HOST_DEVICE void join(value_type &a, value_type b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
       a = fmax(a, b);
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const { a = -HUGE_VAL; }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = -HUGE_VAL; }
 };
 
 #define MFEM_STAMP_MAX_REDUCER(type, val)                                      \
-   template <> struct MaxReducer<type> {                                       \
-      using value_type = type;                                                 \
-      MFEM_HOST_DEVICE void join(value_type &a, value_type b) const {          \
-        if (a < b) {                                                           \
-          a = b;                                                               \
-        }                                                                      \
+  template <> struct MaxReducer<type> {                                        \
+    using value_type = type;                                                   \
+    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b) {           \
+      if (a < b) {                                                             \
+        a = b;                                                                 \
       }                                                                        \
-      MFEM_HOST_DEVICE void init_val(value_type &a) const {                    \
-        a = static_cast<type>(val);                                            \
-      }                                                                        \
-   }
+    }                                                                          \
+    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
+      a = static_cast<type>(val);                                              \
+    }                                                                          \
+  }
 
 MFEM_STAMP_MAX_REDUCER(bool, false);
 MFEM_STAMP_MAX_REDUCER(char, CHAR_MIN);
@@ -256,17 +265,17 @@ MFEM_STAMP_MAX_REDUCER(unsigned long long, 0);
 #undef MFEM_STAMP_MAX_REDUCER
 
 #define MFEM_STAMP_ARGMAX_REDUCER(type, val)                                   \
-   template <class I> struct ArgMaxReducer<type, I> {                          \
-      using value_type = DevicePair<type, I>;                                  \
-      MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
-        if (a.first <= b.first) {                                              \
-          a = b;                                                               \
-        }                                                                      \
+  template <class I> struct ArgMaxReducer<type, I> {                           \
+    using value_type = DevicePair<type, I>;                                    \
+    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
+      if (a.first <= b.first) {                                                \
+        a = b;                                                                 \
       }                                                                        \
-      MFEM_HOST_DEVICE void init_val(value_type &a) const {                    \
-        a = value_type{static_cast<type>(val), I{0}};                          \
-      }                                                                        \
-   }
+    }                                                                          \
+    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
+      a = value_type{static_cast<type>(val), I{0}};                            \
+    }                                                                          \
+  }
 
 MFEM_STAMP_ARGMAX_REDUCER(bool, false);
 MFEM_STAMP_ARGMAX_REDUCER(char, CHAR_MIN);
@@ -292,13 +301,13 @@ MFEM_STAMP_ARGMAX_REDUCER(double, -HUGE_VAL);
 template <> struct MinMaxReducer<float>
 {
    using value_type = DevicePair<float, float>;
-   MFEM_HOST_DEVICE void join(value_type &a, value_type b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
       a.first = fmin(a.first, b.first);
       a.second = fmax(a.second, b.second);
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
       a = value_type{HUGE_VALF, -HUGE_VALF};
    }
@@ -307,35 +316,34 @@ template <> struct MinMaxReducer<float>
 template <> struct MinMaxReducer<double>
 {
    using value_type = DevicePair<double, double>;
-   MFEM_HOST_DEVICE void join(value_type &a, value_type b) const
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
       a.first = fmin(a.first, b.first);
       a.second = fmax(a.second, b.second);
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
       a = value_type{HUGE_VAL, -HUGE_VAL};
    }
 };
 
 #define MFEM_STAMP_MINMAX_REDUCER(type, min_val, max_val)                      \
-   template <> struct MinMaxReducer<type> {                                    \
-      using value_type = DevicePair<type, type>;                               \
-      MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
-        if (b.first < a.first) {                                               \
-          a.first = b.first;                                                   \
-        }                                                                      \
-        if (b.second > a.second) {                                             \
-          a.second = b.second;                                                 \
-        }                                                                      \
+  template <> struct MinMaxReducer<type> {                                     \
+    using value_type = DevicePair<type, type>;                                 \
+    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
+      if (b.first < a.first) {                                                 \
+        a.first = b.first;                                                     \
       }                                                                        \
+      if (b.second > a.second) {                                               \
+        a.second = b.second;                                                   \
+      }                                                                        \
+    }                                                                          \
                                                                                \
-      MFEM_HOST_DEVICE void init_val(value_type &a) const {                    \
-        a = value_type{static_cast<type>(max_val),                             \
-                       static_cast<type>(min_val)};                            \
-      }                                                                        \
-   }
+    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
+      a = value_type{static_cast<type>(max_val), static_cast<type>(min_val)};  \
+    }                                                                          \
+  }
 
 MFEM_STAMP_MINMAX_REDUCER(bool, false, true);
 MFEM_STAMP_MINMAX_REDUCER(char, CHAR_MIN, CHAR_MAX);
@@ -356,24 +364,24 @@ MFEM_STAMP_MINMAX_REDUCER(unsigned long long, 0, ULLONG_MAX);
 #undef MFEM_STAMP_MINMAX_REDUCER
 
 #define MFEM_STAMP_ARGMINMAX_REDUCER(type, min_val_, max_val_)                 \
-   template <class I> struct ArgMinMaxReducer<type, I> {                       \
-      using value_type = MinMaxLocScalar<type, I>;                             \
-      MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
-        if (b.min_val <= a.min_val) {                                          \
-          a.min_val = b.min_val;                                               \
-          a.min_loc = b.min_loc;                                               \
-        }                                                                      \
-        if (b.max_val >= a.max_val) {                                          \
-          a.max_val = b.max_val;                                               \
-          a.max_loc = b.max_loc;                                               \
-        }                                                                      \
+  template <class I> struct ArgMinMaxReducer<type, I> {                        \
+    using value_type = MinMaxLocScalar<type, I>;                               \
+    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
+      if (b.min_val <= a.min_val) {                                            \
+        a.min_val = b.min_val;                                                 \
+        a.min_loc = b.min_loc;                                                 \
       }                                                                        \
+      if (b.max_val >= a.max_val) {                                            \
+        a.max_val = b.max_val;                                                 \
+        a.max_loc = b.max_loc;                                                 \
+      }                                                                        \
+    }                                                                          \
                                                                                \
-      MFEM_HOST_DEVICE void init_val(value_type &a) const {                    \
-        a = value_type{static_cast<type>(max_val_),                            \
-                       static_cast<type>(min_val_), I(0), I(0)};               \
-      }                                                                        \
-   }
+    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
+      a = value_type{static_cast<type>(max_val_), static_cast<type>(min_val_), \
+                     I(0), I(0)};                                              \
+    }                                                                          \
+  }
 
 MFEM_STAMP_ARGMINMAX_REDUCER(bool, false, true);
 MFEM_STAMP_ARGMINMAX_REDUCER(char, CHAR_MIN, CHAR_MAX);

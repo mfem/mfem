@@ -42,7 +42,7 @@ namespace mfem
 struct L2Reducer
 {
    using value_type = DevicePair<real_t, real_t>;
-   MFEM_HOST_DEVICE void join(value_type& a, const value_type &b) const
+   static MFEM_HOST_DEVICE void Join(value_type& a, const value_type &b)
    {
       real_t scale = fmax(a.second, b.second);
       if (scale > 0)
@@ -55,7 +55,7 @@ struct L2Reducer
       }
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
       a.first = 0;
       a.second = 0;
@@ -76,7 +76,7 @@ struct LpReducer
 {
    real_t p;
    using value_type = DevicePair<real_t, real_t>;
-   MFEM_HOST_DEVICE void join(value_type& a, const value_type &b) const
+   MFEM_HOST_DEVICE void Join(value_type& a, const value_type &b) const
    {
       real_t scale = fmax(a.second, b.second);
       if (scale > 0)
@@ -87,7 +87,7 @@ struct LpReducer
       }
    }
 
-   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
       a.first = 0;
       a.second = 0;
