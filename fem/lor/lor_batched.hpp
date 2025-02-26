@@ -54,6 +54,9 @@ protected:
    Array<int> sparse_mapping;
 
 public:
+   StopWatch sw_LOR, sw_RAP, sw_BC;
+
+public:
    /// Construct the batched assembly object corresponding to @a fes_ho_.
    BatchedLORAssembly(FiniteElementSpace &fes_ho_);
 
@@ -77,9 +80,11 @@ protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
 
+public:
    /// Assemble the system without eliminating essential DOFs.
    void AssembleWithoutBC(BilinearForm &a, OperatorHandle &A);
 
+protected:
    /// @brief Fill in @a sparse_ij and @a sparse_mapping using one of the
    /// specialized LOR assembly kernel classes.
    ///

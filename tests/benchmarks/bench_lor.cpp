@@ -87,7 +87,7 @@ struct RT_LORBench
       a_ho.AddDomainIntegrator(new DivDivIntegrator);
 
       if (name == "RTAssembleBatched") { RTAssembleBatched(); }
-      if (name == "DiscreteCurl") { DiscreteCurl(); }
+      if (name == "RTDiscreteCurl") { RTDiscreteCurl(); }
       if (name == "ADSApply")
       {
          amg = new LORSolver<HypreADS>(a_ho, ess_dofs);
@@ -107,7 +107,7 @@ struct RT_LORBench
                                             Operator::DiagonalPolicy::DIAG_KEEP);
    }
 
-   void DiscreteCurl()
+   void RTDiscreteCurl()
    {
       NVTX("DiscreteCurl");
       MFEM_DEVICE_SYNC;
@@ -189,8 +189,8 @@ struct ND_LORBench
    {
       NVTX("DiscreteGradient");
       MFEM_DEVICE_SYNC;
-
-      ams.FormGradientMatrixLocal();
+      MFEM_ABORT("Not available anymore, as part of FormGradientMatrix now!");
+      // ams.FormGradientMatrixLocal();
    }
 
    void CoordinateVectors()
@@ -206,7 +206,8 @@ struct ND_LORBench
       NVTX("VertexCoordinates");
       MFEM_DEVICE_SYNC;
 
-      BatchedLORAssembly::FormLORVertexCoordinates(fes_ho, xvert, &evec);
+      MFEM_ABORT("Not available anymore, API has changed!");
+      // BatchedLORAssembly::FormLORVertexCoordinates(fes_ho, xvert, &evec);
    }
 
    void AMSApply()
@@ -292,8 +293,9 @@ struct H1_LORBench
          SparseMatrix &A_serial = lor.GetAssembledMatrix();
          row_starts[0] = 0;
          row_starts[1] = A_serial.Height();
-         A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts,
-                                &A_serial);
+
+         MFEM_ABORT("Not available anymore, API has changed!");
+         // A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts, &A_serial);
          amg.SetOperator(*A);
          amg.SetPrintLevel(0);
       }
@@ -405,7 +407,7 @@ Benchmark(ND_LORBench, AMSApply)
 
 // RT
 Benchmark(RT_LORBench, RTAssembleBatched)
-Benchmark(RT_LORBench, DiscreteCurl)
+Benchmark(RT_LORBench, RTDiscreteCurl)
 Benchmark(RT_LORBench, ADSApply)
 #endif
 

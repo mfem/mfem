@@ -125,11 +125,11 @@ struct Kernel: public bm::Fixture
    ~Kernel() { assert(ker == nullptr); }
 
    using bm::Fixture::SetUp;
-   void SetUp(const bm::State& state) BENCHMARK_OVERRIDE
+   void SetUp(const bm::State& state) override
    { ker.reset(new TMOP(state.range(1), state.range(0))); }
 
    using bm::Fixture::TearDown;
-   void TearDown(const bm::State &) BENCHMARK_OVERRIDE { ker.reset(); }
+   void TearDown(const bm::State &) override { ker.reset(); }
 };
 
 /**

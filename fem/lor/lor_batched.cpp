@@ -462,15 +462,27 @@ void BatchedLORAssembly::ParAssemble(
 {
    // Assemble the system matrix local to this partition
    OperatorHandle A_local;
+   MFEM_DEVICE_SYNC;
+   sw_LOR.Start();
    AssembleWithoutBC(a, A_local);
+   MFEM_DEVICE_SYNC;
+   sw_LOR.Stop();
 
    ParBilinearForm *pa =
       dynamic_cast<ParBilinearForm*>(&a);
 
+   MFEM_DEVICE_SYNC;
+   sw_RAP.Start();
    pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
+   MFEM_DEVICE_SYNC;
+   sw_RAP.Stop();
 
+   MFEM_DEVICE_SYNC;
+   sw_BC.Start();
    A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
                                        Operator::DiagonalPolicy::DIAG_ONE);
+   MFEM_DEVICE_SYNC;
+   sw_BC.Stop();
 }
 #endif
 
@@ -484,16 +496,28 @@ void BatchedLORAssembly::Assemble(
    }
 #endif
 
+   MFEM_DEVICE_SYNC;
+   sw_LOR.Start();
    AssembleWithoutBC(a, A);
+   MFEM_DEVICE_SYNC;
+   sw_LOR.Stop();
+
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
+   MFEM_DEVICE_SYNC;
+   sw_BC.Start();
    A_mat->EliminateBC(ess_dofs,
                       Operator::DiagonalPolicy::DIAG_KEEP);
+   MFEM_DEVICE_SYNC;
+   sw_BC.Stop();
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    : fes_ho(fes_ho_)
 {
+   sw_LOR.Clear();
+   sw_RAP.Clear();
+   sw_BC.Clear();
    FormLORVertexCoordinates(fes_ho, X_vert);
 }
 
