@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ir_order, "-iro", "--integration-order",
                   "Order of integration rule.");
    args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
-                  "Use byNODES ordering of vector space instead of byVDIM");
+                  "Default ordering is byVDIM");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
    MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
 
-   // 2. Read the serial mesh from the given mesh file.
+   // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    bool isNURBS = mesh.NURBSext;
@@ -93,15 +93,14 @@ int main(int argc, char *argv[])
       mesh.DegreeElevate(nurbs_degree_increase);
    }
 
-   // 4. Refine the serial mesh to increase the resolution.
+   // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
 
    // 5. Define a finite element space on the mesh.
-   // Node ordering is important
-   // Right now, only works with byVDIM
+   // Node ordering is important - right now, only works with byVDIM
    const Ordering::Type fes_ordering =
       reorder_space ? Ordering::byNODES : Ordering::byVDIM;
 
@@ -203,20 +202,18 @@ int main(int argc, char *argv[])
    sw.Start();
 
    // 10. Assemble and solve the linear system
+
    // Define and assemble bilinear form
    cout << "Assembling a ... " << flush;
    BilinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(ei);
-   // a.UseExternalIntegrators();
    a.Assemble();
    cout << "done." << endl;
-
 
    // Define linear system
    cout << "Forming linear system ... " << flush;
    OperatorPtr A;
-   // SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
@@ -247,9 +244,10 @@ int main(int argc, char *argv[])
    solver.SetRelTol(sqrt(1e-8));
    solver.SetAbsTol(sqrt(1e-14));
    solver.SetOperator(*A);
+   // solver.SetPreconditioner(M);
+
    solver.Mult(B, X);
 
-   // solver.SetPreconditioner(M);
    cout << "Done solving system." << endl;
 
    sw.Stop();
@@ -261,7 +259,7 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // Append timings and problem info to file
-   ofstream results_ofs("ex2_timing.csv", ios_base::app);
+   ofstream results_ofs("ex2_results.csv", ios_base::app);
    bool file_exists = results_ofs.tellp() != 0;
    // header
    if (!file_exists)
@@ -325,9 +323,8 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   // delete *mesh;
    delete fespace;
-   // delete patchRule;
+   delete patchRule;
 
    return 0;
 }
