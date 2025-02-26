@@ -560,7 +560,6 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
    const int csz = constraint_list.Size();
-   mfem::out << "csz = " << csz << std::endl;
    auto idx = constraint_list.Read();
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of w

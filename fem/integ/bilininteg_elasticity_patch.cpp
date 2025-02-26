@@ -92,8 +92,6 @@ void PatchElasticitySetup3D(const int Q1Dx,
 // TODO: maybe move this into a base class?
 void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 {
-   mfem::out << "SetupPatchBasisData() " << patch << std::endl;
-
    // Push patch data to global data structures
    PatchBasisInfo pb(vdim, mesh, patch, patchRules);
    pbinfo.push_back(pb);
@@ -103,8 +101,6 @@ void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                                         bool unitWeights)
 {
-   mfem::out << "SetupPatchPA() " << patch << std::endl;
-
    // Quadrature points in each dimension for this patch
    const Array<int>& Q1D = pbinfo[patch].Q1D;
    // Total quadrature points
@@ -135,13 +131,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
             weights[p] = ip.weight;
 
-            mfem::out << "p = " << p << " (" << nq << "); w = " << ip.weight << std::endl;
-
-            // mfem::out << "SetupPatchPA(): patch = " << patch
-            //           << ", e = " << e
-            //           << ", tr.Attribute = " << tr->Attribute
-            //           << ", lambda = " << lambda->Eval(*tr, ip)
-            //           << std::endl;
             coeffs(qx,qy,qz,0) = lambda->Eval(*tr, ip);
             coeffs(qx,qy,qz,1) = mu->Eval(*tr, ip);
 
@@ -153,7 +142,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                for (int j=0; j<vdim; ++j)
                {
                   jac(qx,qy,qz,i,j) = Jp(i,j);
-                  // jac[p + ((i + (j * vdim)) * nq)] = Jp(i,j);
                }
             }
          }
@@ -171,9 +159,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    }
    // Computes values at quadrature points
    PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv, pa_data[patch]);
-
-   mfem::out << "Finished computing D " << patch << std::endl;
-
 
    if (integrationMode != PATCHWISE_REDUCED)
    {

@@ -111,28 +111,17 @@ int main(int argc, char *argv[])
    // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() << endl;
-
-   // Print out some info on the size of spaces
-   // const Operator *G;
-   // G = fespace->GetElementRestriction()
-   // cout << "G : " << G->Height() << " x " << G->Width() << endl;
-
-   cout << "GetNE() = " << fespace->GetNE() << std::endl;
-   cout << "GetVSize() = " << fespace->GetVSize() << std::endl; // Vsize = VDIM * ND
-   cout << "GetNDofs() = " << fespace->GetNDofs() << std::endl;
+   cout << "Number of elements: " << fespace->GetNE() << std::endl;
    if (isNURBS)
    {
-      cout << "GetNP() = " << mesh.NURBSext->GetNP() << std::endl;
+      cout << "Number of patches: " << mesh.NURBSext->GetNP() << std::endl;
    }
-
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   cout << "ess_tdof_list = " << std::endl;
-   ess_tdof_list.Print(cout);
 
    // 7. Set up the linear form b(.)
    VectorArrayCoefficient f(dim);
@@ -149,7 +138,7 @@ int main(int argc, char *argv[])
 
    LinearForm b(fespace);
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-   cout << "RHS ... " << flush;
+   cout << "Assembling RHS ... " << flush;
    b.Assemble();
    cout << "done." << endl;
 
@@ -165,14 +154,12 @@ int main(int argc, char *argv[])
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
-   lambda = 10.0;
-   // lambda(0) = lambda(1)*1;
+   lambda = 1.0;
+   lambda(0) = lambda(1)*50;
    PWConstCoefficient lambda_func(lambda);
-   cout << "lambda = " << endl;
-   lambda.Print(cout);
    Vector mu(mesh.attributes.Max());
-   mu = 10.0;
-   // mu(0) = mu(1)*1;
+   mu = 1.0;
+   mu(0) = mu(1)*50;
    PWConstCoefficient mu_func(mu);
 
    // Bilinear integrator
@@ -187,7 +174,7 @@ int main(int argc, char *argv[])
    if (isNURBS)
    {
       if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
-      cout << "Using ir_order " << ir_order << endl;
+      cout << "Integration rule order: " << ir_order << endl;
 
       patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
       // Loop over patches and set a different rule for each patch.
@@ -212,10 +199,12 @@ int main(int argc, char *argv[])
       ei->SetNURBSPatchIntRule(patchRule);
    }
 
+   StopWatch sw;
+   sw.Start();
 
    // 10. Assemble and solve the linear system
    // Define and assemble bilinear form
-   cout << "Assemble a ... " << flush;
+   cout << "Assembling a ... " << flush;
    BilinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(ei);
@@ -225,12 +214,17 @@ int main(int argc, char *argv[])
 
 
    // Define linear system
-   cout << "Matrix ... " << flush;
+   cout << "Forming linear system ... " << flush;
    OperatorPtr A;
    // SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
+
+   sw.Stop();
+   const real_t timeAssemble = sw.RealTime();
+   sw.Clear();
+   sw.Start();
 
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
@@ -247,21 +241,55 @@ int main(int argc, char *argv[])
    // GMRESSolver solver;
    // solver.SetMaxIter(1000);
    CGSolver solver;
-   solver.SetMaxIter(2000);
+   solver.SetMaxIter(1e5);
 
    solver.SetPrintLevel(1);
-   solver.SetRelTol(sqrt(1e-6));
-   solver.SetAbsTol(sqrt(1e-12));
+   solver.SetRelTol(sqrt(1e-8));
+   solver.SetAbsTol(sqrt(1e-14));
    solver.SetOperator(*A);
    solver.Mult(B, X);
-
 
    // solver.SetPreconditioner(M);
    cout << "Done solving system." << endl;
 
+   sw.Stop();
+   const real_t timeSolve = sw.RealTime();
+   cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
+   cout << "Time to solve: " << timeSolve << " seconds" << endl;
+
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
+   // Append timings and problem info to file
+   ofstream results_ofs("ex2_timing.csv", ios_base::app);
+   bool file_exists = results_ofs.tellp() != 0;
+   // header
+   if (!file_exists)
+   {
+      results_ofs << "int.patch, int.pa, "
+                  << "problem.mesh, problem.refs, problem.degree_inc, problem.ndof, "
+                  << "solver.iter, solver.absnorm, solver.relnorm, solver.converged, "
+                  << "solution.linf, solution.l2, "
+                  << "time.assemble, time.solve, time.total" << endl;
+   }
+
+   results_ofs << patchAssembly << ", "
+               << pa << ", "
+               << mesh_file << ", "
+               << ref_levels << ", "
+               << nurbs_degree_increase << ", "
+               << fespace->GetTrueVSize() << ", "
+               << solver.GetNumIterations() << ", "
+               << solver.GetFinalNorm() << ", "
+               << solver.GetFinalRelNorm() << ", "
+               << solver.GetConverged() << ", "
+               << x.Normlinf() << ", "
+               << x.Norml2() << ", "
+               << timeAssemble << ", "
+               << timeSolve << ", "
+               << (timeAssemble + timeSolve) << endl;
+
+   results_ofs.close();
 
    // 11. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
@@ -289,7 +317,6 @@ int main(int argc, char *argv[])
       // send to socket
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
-      // sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x;
       sol_sock << "window_geometry " << 0 << " " << 0 << " "
