@@ -207,7 +207,7 @@ struct ND_LORBench
       MFEM_DEVICE_SYNC;
 
       MFEM_ABORT("Not available anymore, API has changed!");
-      // BatchedLORAssembly::FormLORVertexCoordinates(fes_ho, xvert, &evec);
+      BatchedLORAssembly::FormLORVertexCoordinates(fes_ho, xvert);
    }
 
    void AMSApply()
