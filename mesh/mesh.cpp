@@ -1835,6 +1835,7 @@ void Mesh::ResetLazyData()
    DeleteGeometricFactors();
    nbInteriorFaces = -1;
    nbBoundaryFaces = -1;
+   ElementAttributesUpdated();
 }
 
 void Mesh::SetAttributes()
@@ -7669,7 +7670,7 @@ void Mesh::SetAttribute(int i, int attr)
   if (elem_attrs_cache.Size() == GetNE())
   {
      // update the existing cache instead of deleting it
-     elem_attrs_cache.HostWrite();
+     elem_attrs_cache.HostReadWrite();
      elem_attrs_cache[i] = attr;
   }
   if (ncmesh) ncmesh->SetAttribute(i, attr);
