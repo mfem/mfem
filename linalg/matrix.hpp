@@ -50,8 +50,8 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int) { }
 
-   /// Prints matrix to stream out.
-   void Print(std::ostream & out = mfem::out, int width_ = 4) const override;
+   /// Prints matrix to stream os.
+   void Print(std::ostream & os = mfem::out, int width_ = 4) const override;
 
    /// Destroys matrix.
    virtual ~Matrix() { }
