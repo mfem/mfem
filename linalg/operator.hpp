@@ -270,7 +270,7 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator to stream out.
-   virtual void Print(std::ostream &out, int width_ = 4) const
+   virtual void Print(std::ostream & out, int width_ = 4) const
    { mfem_error("Operator::Print() is not overridden!"); }
 
    /// Prints operator with input size n and output size m in Matlab format.
