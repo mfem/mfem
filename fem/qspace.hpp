@@ -61,7 +61,7 @@ protected:
    /// Compute the integration weights.
    void ConstructWeights() const;
 
-   /// Gets the offset for a given entity @a idx.
+   /// @brief Gets the offset for a given entity @a idx.
    ///
    /// The quadrature point values for entity i are stored in the indices
    /// between Offset(i) and Offset(i+1)
