@@ -3763,10 +3763,18 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 }
 #endif
 
-void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
+void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d,
                                               real_t &err_avg, real_t &err_max)
 {
    if (periodic) { MFEM_ABORT("periodic not implemented"); }
+
+   Vector pos;
+   if (x_0)
+   {
+      pos = *x_0;
+      pos += d;
+   }
+   else { pos = d; }
 
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
@@ -5290,54 +5298,67 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
    }
 }
 
-void TMOP_Integrator::
-UpdateAfterMeshPositionChange(const Vector &x_new,
-                              const FiniteElementSpace &x_fes)
+void TMOP_Integrator::UpdateAfterMeshPositionChange
+    (const Vector &d, const FiniteElementSpace &x_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
+   if (PA.enabled) { UpdateCoefficientsPA(d); }
 
    Ordering::Type ordering = x_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
-   if (fdflag) { ComputeFDh(x_new, x_fes); }
+   if (fdflag) { ComputeFDh(d, x_fes); }
 
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
    {
-      if (periodic) { MFEM_ABORT("periodic not implemented"); }
+      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-      discr_tc->UpdateTargetSpecification(x_new, true, ordering);
+      Vector x_loc(*x_0);
+      x_loc += d;
+
+      discr_tc->UpdateTargetSpecification(x_loc, true, ordering);
       if (fdflag)
       {
-         discr_tc->UpdateGradientTargetSpecification(x_new, dx, true, ordering);
-         discr_tc->UpdateHessianTargetSpecification(x_new, dx, true, ordering);
+         discr_tc->UpdateGradientTargetSpecification(x_loc, dx, true, ordering);
+         discr_tc->UpdateHessianTargetSpecification(x_loc, dx, true, ordering);
       }
    }
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      if (periodic) { MFEM_ABORT("periodic not implemented"); }
-      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
+      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+      Vector x_loc(*x_0);
+      x_loc += d;
+
+      adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
    }
 
    // Update surf_fit_gf (and optionally its gradients) if surface
    // fitting is enabled.
    if (surf_fit_gf)
    {
-      if (periodic) { MFEM_ABORT("periodic not implemented"); }
-      RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
+      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+      Vector x_loc(*x_0);
+      x_loc += d;
+
+      RemapSurfaceFittingLevelSetAtNodes(x_loc, ordering);
    }
 }
 
-void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &d, const FiniteElementSpace &fes)
 {
-   if (periodic) { MFEM_ABORT("periodic not implemented"); }
+   if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+   Vector x_loc(*x_0);
+   x_loc += d;
 
    if (!fdflag) { return; }
-   ComputeMinJac(x, fes);
+   ComputeMinJac(x_loc, fes);
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
@@ -5499,15 +5520,18 @@ real_t TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
    return max_muT;
 }
 
-void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
-                                                     const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeUntangleMetricQuantiles
+    (const Vector &d, const FiniteElementSpace &fes)
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
 
    if (!wcuo) { return; }
 
-   if (periodic) { MFEM_ABORT("periodic not implemented"); }
+   if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+   Vector x_loc(*x_0);
+   x_loc += d;
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
@@ -5517,7 +5541,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    if (wcuo && wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = ComputeMinDetT(x, fes);
+      real_t min_detT = ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
@@ -5530,7 +5554,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
       if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
    }
 
-   real_t max_muT = ComputeUntanglerMaxMuBarrier(x, fes);
+   real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
    real_t max_muT_all = max_muT;
 #ifdef MFEM_USE_MPI
    if (pfes)

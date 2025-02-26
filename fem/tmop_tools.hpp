@@ -269,7 +269,8 @@ public:
    /// the mesh, and (optionally) on the surface fitting error.
    real_t ComputeScalingFactor(const Vector &d, const Vector &b) const override;
 
-   /// Update (i) discrete functions at new nodal positions, and
+   /// Given the new displacements @a d (tdof Vector), update
+   /// (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
    void ProcessNewState(const Vector &d) const override;
 
