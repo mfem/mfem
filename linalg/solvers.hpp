@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
-#include "general/tic_toc.hpp"
+#include "../general/tic_toc.hpp"
 #include "handle.hpp"
 #include <memory>
 
