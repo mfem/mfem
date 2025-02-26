@@ -143,7 +143,9 @@ TEST_CASE("FormLinearSystem/SolutionScope",
    }
 }
 
-TEST_CASE("BilinearForm print", "[SparseMatrix]")
+TEST_CASE("BilinearForm print",
+          "[SparseMatrix]"
+          "[BilinearForm]")
 {
 
    Mesh mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL));
