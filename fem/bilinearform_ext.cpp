@@ -324,45 +324,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
          bdr_face_dYdn.SetSize(bdr_face_restrict_lex->Height());
       }
 
-      const Mesh &mesh = *trial_fes->GetMesh();
-      // See LinearFormExtension::Update for explanation of f_to_be logic.
-      std::unordered_map<int,int> f_to_be;
-      for (int i = 0; i < mesh.GetNBE(); ++i)
-      {
-         const int f = mesh.GetBdrElementFaceIndex(i);
-         f_to_be[f] = i;
-      }
-      const int nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-      bdr_attributes.SetSize(nf_bdr);
-      int f_ind = 0;
-      int missing_bdr_elems = 0;
-      for (int f = 0; f < mesh.GetNumFaces(); ++f)
-      {
-         if (!mesh.GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
-         {
-            continue;
-         }
-         int attribute = 1; // default value
-         if (f_to_be.find(f) != f_to_be.end())
-         {
-            const int be = f_to_be[f];
-            attribute = mesh.GetBdrAttribute(be);
-         }
-         else
-         {
-            // If a boundary face does not correspond to the a boundary element,
-            // we assign it the default attribute of 1. We also generate a
-            // warning at runtime with the number of such missing elements.
-            ++missing_bdr_elems;
-         }
-         bdr_attributes[f_ind] = attribute;
-         ++f_ind;
-      }
-      if (missing_bdr_elems)
-      {
-         MFEM_WARNING("Missing " << missing_bdr_elems << " boundary elements "
-                      "for boundary faces.");
-      }
+      bdr_attributes = &trial_fes->GetMesh()->GetBdrElementAttributes();
    }
 }
 
@@ -484,7 +446,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       for (int i = 0; i < n_bdr_integs; ++i)
       {
          assemble_diagonal_with_markers(*bdr_integs[i], bdr_markers[i],
-                                        bdr_attributes, bdr_face_Y);
+                                        *bdr_attributes, bdr_face_Y);
       }
       bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_Y, y);
    }
@@ -664,8 +626,8 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          }
          for (int i = 0; i < n_bdr_integs; ++i)
          {
-            AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i], bdr_attributes,
-                               false, bdr_face_Y);
+            AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i],
+                               *bdr_attributes, false, bdr_face_Y);
          }
          for (int i = 0; i < n_bdr_face_integs; ++i)
          {
@@ -673,12 +635,14 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             {
                AddMultNormalDerivativesWithMarkers(
                   *bdr_face_integs[i], bdr_face_X, bdr_face_dXdn,
-                  bdr_face_markers[i], bdr_attributes, bdr_face_Y, bdr_face_dYdn);
+                  bdr_face_markers[i], *bdr_attributes, bdr_face_Y,
+                  bdr_face_dYdn);
             }
             else
             {
-               AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X, bdr_face_markers[i],
-                                  bdr_attributes, false, bdr_face_Y);
+               AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X,
+                                  bdr_face_markers[i], *bdr_attributes, false,
+                                  bdr_face_Y);
             }
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
@@ -748,13 +712,14 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          bdr_face_Y = 0.0;
          for (int i = 0; i < n_bdr_integs; ++i)
          {
-            AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i], bdr_attributes,
-                               true, bdr_face_Y);
+            AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i],
+                               *bdr_attributes, true, bdr_face_Y);
          }
          for (int i = 0; i < n_bdr_face_integs; ++i)
          {
-            AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X, bdr_face_markers[i],
-                               bdr_attributes, true, bdr_face_Y);
+            AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X,
+                               bdr_face_markers[i], *bdr_attributes, true,
+                               bdr_face_Y);
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
       }
