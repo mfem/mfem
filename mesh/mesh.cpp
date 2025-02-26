@@ -934,12 +934,6 @@ const Array<int>& Mesh::GetElementAttributes() const
    return elem_attrs_cache;
 }
 
-void Mesh::ElementAttributesUpdated()
-{
-   // set size to 0 so re-computations can potentially avoid a new allocation
-   elem_attrs_cache.SetSize(0);
-}
-
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -1835,11 +1829,14 @@ void Mesh::ResetLazyData()
    DeleteGeometricFactors();
    nbInteriorFaces = -1;
    nbBoundaryFaces = -1;
-   ElementAttributesUpdated();
+   SetAttributes();
 }
 
 void Mesh::SetAttributes()
 {
+   // set size to 0 so re-computations can potentially avoid a new allocation
+   elem_attrs_cache.SetSize(0);
+
    std::unordered_set<int> attribs;
 
    for (int i = 0; i < GetNBE(); i++)
@@ -1862,10 +1859,7 @@ void Mesh::SetAttributes()
       MFEM_WARNING("Non-positive attributes on the boundary!");
    }
 
-   // assume that attributes have been modified
-   ElementAttributesUpdated();
-
-   // since we're already reading all the attributes, might as well just update the cache
+   // now re-compute the attributes cache
    {
       attribs.clear();
       auto &tmp = GetElementAttributes();
