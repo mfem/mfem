@@ -705,6 +705,13 @@ public:
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
+   /// Prints operator to stream out.
+   void Print(std::ostream &out, int width_ = 4) const override
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      mat->Print(out, width_);
+   }
+
    /** @brief Sets Operator::DiagonalPolicy used upon construction of the
        linear system.
        Policies include:
@@ -1193,6 +1200,13 @@ public:
 
    /// Read-only access to the associated test FiniteElementSpace.
    const FiniteElementSpace *TestFESpace() const { return test_fes; }
+
+   /// Prints operator to stream out.
+   void Print(std::ostream &out, int width_ = 4) const override
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      mat->Print(out, width_);
+   }
 
    /** @brief Deletes internal matrices, bilinear integrators, and the
        BilinearFormExtension */
