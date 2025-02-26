@@ -1839,16 +1839,23 @@ void Mesh::ResetLazyData()
 
 void Mesh::SetAttributes()
 {
-   Array<int> attribs;
+   std::unordered_set<int> attribs;
 
-   attribs.SetSize(GetNBE());
-   for (int i = 0; i < attribs.Size(); i++)
+   for (int i = 0; i < GetNBE(); i++)
    {
-      attribs[i] = GetBdrAttribute(i);
+      attribs.emplace(GetBdrAttribute(i));
    }
-   attribs.Sort();
-   attribs.Unique();
-   attribs.Copy(bdr_attributes);
+   bdr_attributes.SetSize(attribs.size());
+   bdr_attributes.HostWrite();
+   {
+      int i = 0;
+      for (auto v : attribs)
+      {
+         bdr_attributes[i] = v;
+         ++i;
+      }
+   }
+   bdr_attributes.Sort();
    if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
    {
       MFEM_WARNING("Non-positive attributes on the boundary!");
@@ -1858,11 +1865,26 @@ void Mesh::SetAttributes()
    ElementAttributesUpdated();
 
    // since we're already reading all the attributes, might as well just update the cache
-   attribs = GetElementAttributes();
-
-   attribs.Sort();
-   attribs.Unique();
-   attribs.Copy(attributes);
+   {
+      attribs.clear();
+      auto &tmp = GetElementAttributes();
+      tmp.HostRead();
+      for (int i = 0; i < tmp.Size(); ++i)
+      {
+         attribs.emplace(tmp[i]);
+      }
+      attributes.SetSize(attribs.size());
+      attributes.HostWrite();
+      {
+         int i = 0;
+         for (auto v : attribs)
+         {
+            attributes[i] = v;
+            ++i;
+         }
+      }
+      attributes.Sort();
+   }
    if (attributes.Size() > 0 && attributes[0] <= 0)
    {
       MFEM_WARNING("Non-positive attributes in the domain!");
