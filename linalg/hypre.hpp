@@ -2032,7 +2032,7 @@ public:
     A. Knyazev, M. Argentati, I. Lashuk, and E. Ovtchinnikov, SISC, 29(5),
     2224-2239, 2007.
 */
-class HypreLOBPCG
+class HypreLOBPCG : public EigenSolver
 {
 private:
    MPI_Comm comm;
@@ -2135,6 +2135,7 @@ public:
    void SetPreconditioner(Solver & precond);
    void SetOperator(Operator & A);
    void SetMassMatrix(Operator & M);
+   void SetOperators(Operator &A, Operator &M);
    void SetSubSpaceProjector(Operator & proj) { subSpaceProj = &proj; }
 
    /// Solve the eigenproblem
@@ -2145,6 +2146,9 @@ public:
 
    /// Extract a single eigenvector
    const HypreParVector & GetEigenvector(unsigned int i) const;
+
+   /// Extract a single eigenvector
+   void GetEigenvector(int i, Vector & vector);
 
    /// Transfer ownership of the converged eigenvectors
    HypreParVector ** StealEigenvectors() { return multi_vec->StealVectors(); }

@@ -33,17 +33,23 @@ void MFEMInitializeSlepc(int*,char***);
 void MFEMInitializeSlepc(int*,char***,const char[],const char[]);
 void MFEMFinalizeSlepc();
 
-class SlepcEigenSolver
+class SlepcEigenSolver : public EigenSolver
 {
 private:
    /// Boolean to handle SetFromOptions calls
    mutable bool clcustom;
+
+   /// Number of desired eigenmodes
+   int nev;
 
    /// SLEPc linear eigensolver object
    slepc::EPS eps;
 
    /// Real and imaginary part of eigenvector
    mutable PetscParVector *VR, *VC;
+
+   std::unique_ptr<mfem::PetscParMatrix> petscMatA = nullptr;
+   std::unique_ptr<mfem::PetscParMatrix> petscMatM = nullptr;
 
 public:
    /// Constructors
@@ -70,6 +76,32 @@ public:
 
    /// Set operators for generalized eigenvalue problem
    void SetOperators(const PetscParMatrix &op, const PetscParMatrix &opB);
+
+   void SetOperator(Operator &A)
+   {
+      petscMatA = std::make_unique<mfem::PetscParMatrix>
+                  (dynamic_cast<HypreParMatrix*>(&A));
+      SetOperator(*petscMatA);
+   };
+
+   void SetOperator(Operator &A, Operator &M)
+   {
+      petscMatA = std::make_unique<mfem::PetscParMatrix>
+                  (dynamic_cast<HypreParMatrix*>(&A));
+      petscMatM = std::make_unique<mfem::PetscParMatrix>
+                  (dynamic_cast<HypreParMatrix*>(&M));
+      SetOperators(*petscMatA, *petscMatM);
+   };
+
+   void SetPreconditioner( Solver & /*precond*/) {  };
+
+   void GetEigenvalues(mfem::Array<real_t> & eigen_vals) const
+   {
+      for (int ik=0; ik<nev; ik++ )
+      {
+         GetEigenvalue(static_cast<unsigned int>(ik), eigen_vals[ik]);
+      }
+   };
 
    /// Customize object with options set
    void Customize(bool customize = true) const;

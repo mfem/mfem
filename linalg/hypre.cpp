@@ -6408,6 +6408,13 @@ HypreLOBPCG::SetMassMatrix(Operator & M)
 }
 
 void
+HypreLOBPCG::SetOperators(Operator &A, Operator &M)
+{
+   SetOperator(A);
+   SetMassMatrix(M);
+}
+
+void
 HypreLOBPCG::GetEigenvalues(Array<real_t> & eigs) const
 {
    // Initialize eigenvalues array with marker values
@@ -6424,6 +6431,12 @@ HypreLOBPCG::GetEigenvector(unsigned int i) const
 {
    return multi_vec->GetVector(i);
 }
+
+void HypreLOBPCG::GetEigenvector(int i, Vector & vector)
+{
+   const HypreParVector & eigenvec = GetEigenvector(i);
+   vector = eigenvec;
+};
 
 void
 HypreLOBPCG::SetInitialVectors(int num_vecs, HypreParVector ** vecs)

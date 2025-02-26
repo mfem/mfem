@@ -103,6 +103,36 @@ void SlepcEigenSolver::SetOperators(const PetscParMatrix &op,
    VC = new PetscParVector(op, true, false);
 }
 
+
+void SlepcEigenSolver::SetOperator(Operator &A)
+{
+   petscMatA = std::make_unique<mfem::PetscParMatrix>
+               (dynamic_cast<HypreParMatrix*>(&A));
+   SetOperator(*petscMatA);
+};
+
+voidSlepcEigenSolver::SetOperator(Operator &A, Operator &M)
+{
+   petscMatA = std::make_unique<mfem::PetscParMatrix>
+               (dynamic_cast<HypreParMatrix*>(&A));
+   petscMatM = std::make_unique<mfem::PetscParMatrix>
+               (dynamic_cast<HypreParMatrix*>(&M));
+   SetOperators(*petscMatA, *petscMatM);
+};
+
+void SlepcEigenSolver::SetPreconditioner( Solver & /*precond*/)
+{
+   // do nothing
+};
+
+void SlepcEigenSolver::GetEigenvalues(mfem::Array<real_t> & eigen_vals)
+{
+   for (int ik=0; ik<nev; ik++ )
+   {
+      GetEigenvalue(static_cast<unsigned int>(ik), eigen_vals[ik]);
+   }
+};
+
 void SlepcEigenSolver::SetTol(real_t tol)
 {
    PetscInt max_its;
@@ -123,6 +153,7 @@ void SlepcEigenSolver::SetMaxIter(int max_its)
 
 void SlepcEigenSolver::SetNumModes(int num_eigs)
 {
+   nev = num_eigs;
    ierr = EPSSetDimensions(eps,num_eigs,PETSC_DECIDE,PETSC_DECIDE);
    PCHKERRQ(eps,ierr);
 }

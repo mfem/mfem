@@ -1142,6 +1142,29 @@ public:
                                     int seed = 12345);
 };
 
+class EigenSolver
+{
+public:
+
+   EigenSolver()
+   {}
+
+   virtual ~EigenSolver() {};
+
+   /// Solve the eigenproblem
+   virtual void Solve() = 0;
+   virtual void SetNumModes(int num_eigs) = 0;
+   virtual void SetOperator(Operator &A) = 0;
+   virtual void SetOperators(Operator &A, Operator &M) = 0;
+   virtual void SetPreconditioner(Solver &precond) = 0;
+
+   /// Collect the converged eigenvalues
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const = 0;
+
+   /// Extract a single eigenvector
+   virtual void GetEigenvector(int i, Vector & vector) = 0;
+};
+
 }
 
 #endif
