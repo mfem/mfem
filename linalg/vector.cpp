@@ -105,130 +105,6 @@ static Array<DevicePair<real_t, real_t>> &Lpvector_workspace()
    static Array<DevicePair<real_t, real_t>> instance;
    return instance;
 }
-
-static real_t devVectorMin(int size, const real_t *m_data)
-{
-   real_t res = infinity();
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
-   MinReducer<real_t> {}, true, vector_workspace());
-   return res;
-}
-
-static real_t devVectorMax(int size, const real_t *m_data)
-{
-   real_t res = -infinity();
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
-   MaxReducer<real_t> {}, true, vector_workspace());
-   return res;
-}
-
-static real_t devVectorLinf(int size, const real_t *m_data)
-{
-   real_t res = 0;
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, fabs(m_data[i])); },
-   MaxReducer<real_t> {}, true, vector_workspace());
-   return res;
-}
-
-static real_t devVectorL1(int size, const real_t *m_data)
-{
-   real_t res = 0;
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
-   SumReducer<real_t> {}, true, vector_workspace());
-   return res;
-}
-
-static real_t devVectorL2(int size, const real_t *m_data)
-{
-   using value_type = DevicePair<real_t, real_t>;
-   value_type res;
-   res.first = 0;
-   res.second = 0;
-   // first compute sum (|m_data|/scale)^2
-   reduce(
-      size, res,
-      [=] MFEM_HOST_DEVICE(int i, value_type &r)
-   {
-      real_t n = fabs(m_data[i]);
-      if (n > 0)
-      {
-         if (r.second <= n)
-         {
-            real_t arg = r.second / n;
-            r.first = r.first * (arg * arg) + 1;
-            r.second = n;
-         }
-         else
-         {
-            real_t arg = n / r.second;
-            r.first += arg * arg;
-         }
-      }
-   },
-   L2Reducer{}, true, Lpvector_workspace());
-   // final answer
-   return res.second * sqrt(res.first);
-}
-
-static real_t devVectorLp(int size, real_t p, const real_t *m_data)
-{
-   using value_type = DevicePair<real_t, real_t>;
-   value_type res;
-   res.first = 0;
-   res.second = 0;
-   // first compute sum (|m_data|/scale)^p
-   reduce(
-      size, res,
-      [=] MFEM_HOST_DEVICE(int i, value_type &r)
-   {
-      real_t n = fabs(m_data[i]);
-      if (n > 0)
-      {
-         if (r.second <= n)
-         {
-            real_t arg = r.second / n;
-            r.first = r.first * pow(arg, p) + 1;
-            r.second = n;
-         }
-         else
-         {
-            real_t arg = n / r.second;
-            r.first += pow(arg, p);
-         }
-      }
-   },
-   LpReducer{p}, true, Lpvector_workspace());
-   // final answer
-   return res.second * pow(res.first, 1.0 / p);
-}
-
-static real_t devVectorSum(int size, const real_t *m_data)
-{
-   real_t res = 0;
-   reduce(
-   size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
-   SumReducer<real_t> {}, true, vector_workspace());
-   return res;
-}
-
-static real_t devVectorDot(int size, const real_t *m_data,
-                           const real_t *v_data)
-{
-   real_t res = 0;
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i] * v_data[i]; },
-   SumReducer<real_t> {}, true, vector_workspace());
-   return res;
-}
 #endif
 
 Vector::Vector(const Vector &v)
@@ -1065,16 +941,38 @@ real_t Vector::Norml2() const
 
    if (UseDevice())
    {
-#ifdef MFEM_USE_CUDA
-      if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         return devVectorL2(size, Read());
-      }
-#endif
-#ifdef MFEM_USE_HIP
-      if (Device::Allows(Backend::HIP_MASK))
-      {
-         return devVectorL2(size, Read());
+         auto m_data = Read();
+         using value_type = DevicePair<real_t, real_t>;
+         value_type res;
+         res.first = 0;
+         res.second = 0;
+         // first compute sum (|m_data|/scale)^2
+         reduce(
+            size, res,
+            [=] MFEM_HOST_DEVICE(int i, value_type &r)
+         {
+            real_t n = fabs(m_data[i]);
+            if (n > 0)
+            {
+               if (r.second <= n)
+               {
+                  real_t arg = r.second / n;
+                  r.first = r.first * (arg * arg) + 1;
+                  r.second = n;
+               }
+               else
+               {
+                  real_t arg = n / r.second;
+                  r.first += arg * arg;
+               }
+            }
+         },
+         L2Reducer{}, true, Lpvector_workspace());
+         // final answer
+         return res.second * sqrt(res.first);
       }
 #endif
    }
@@ -1092,21 +990,22 @@ real_t Vector::Normlinf() const
    if (size == 0) { return 0; }
 
    const bool use_dev = UseDevice();
-   auto m_data = Read(use_dev);
 
    if (!use_dev) { goto vector_linf_cpu; }
 
-#ifdef MFEM_USE_CUDA
-   if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      return devVectorLinf(size, m_data);
-   }
-#endif
-
-#ifdef MFEM_USE_HIP
-   if (Device::Allows(Backend::HIP_MASK))
-   {
-      return devVectorLinf(size, m_data);
+      auto m_data = Read();
+      real_t res = 0;
+      reduce(
+         size, res,
+         [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      {
+         r = fmax(r, fabs(m_data[i]));
+      },
+      MaxReducer<real_t> {}, true, vector_workspace());
+      return res;
    }
 #endif
 
@@ -1127,10 +1026,11 @@ real_t Vector::Normlinf() const
    }
 
 vector_linf_cpu:
+   HostRead();
    real_t maximum = fabs(data[0]);
    for (int i = 1; i < size; i++)
    {
-      maximum = fmax(maximum, fabs(m_data[i]));
+      maximum = fmax(maximum, fabs(data[i]));
    }
    return maximum;
 }
@@ -1141,16 +1041,16 @@ real_t Vector::Norml1() const
 
    if (UseDevice())
    {
-#ifdef MFEM_USE_CUDA
-      if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         return devVectorL1(size, Read());
-      }
-#endif
-#ifdef MFEM_USE_HIP
-      if (Device::Allows(Backend::HIP_MASK))
-      {
-         return devVectorL1(size, Read());
+         auto m_data = Read();
+         real_t res = 0;
+         reduce(
+            size, res,
+         [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
+         SumReducer<real_t> {}, true, vector_workspace());
+         return res;
       }
 #endif
       if (Device::Allows(Backend::DEBUG_DEVICE))
@@ -1204,16 +1104,38 @@ real_t Vector::Normlp(real_t p) const
 
       if (UseDevice())
       {
-#ifdef MFEM_USE_CUDA
-         if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+         if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
          {
-            return devVectorLp(size, p, Read());
-         }
-#endif
-#ifdef MFEM_USE_HIP
-         if (Device::Allows(Backend::HIP_MASK))
-         {
-            return devVectorLp(size, p, Read());
+            auto m_data = Read();
+            using value_type = DevicePair<real_t, real_t>;
+            value_type res;
+            res.first = 0;
+            res.second = 0;
+            // first compute sum (|m_data|/scale)^p
+            reduce(
+               size, res,
+               [=] MFEM_HOST_DEVICE(int i, value_type &r)
+            {
+               real_t n = fabs(m_data[i]);
+               if (n > 0)
+               {
+                  if (r.second <= n)
+                  {
+                     real_t arg = r.second / n;
+                     r.first = r.first * pow(arg, p) + 1;
+                     r.second = n;
+                  }
+                  else
+                  {
+                     real_t arg = n / r.second;
+                     r.first += pow(arg, p);
+                  }
+               }
+            },
+            LpReducer{p}, true, Lpvector_workspace());
+            // final answer
+            return res.second * pow(res.first, 1.0 / p);
          }
 #endif
       }
@@ -1270,17 +1192,18 @@ real_t Vector::operator*(const Vector &v) const
    }
 #endif
 
-#ifdef MFEM_USE_CUDA
-   if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      return devVectorDot(size, m_data, v_data);
-   }
-#endif
-
-#ifdef MFEM_USE_HIP
-   if (Device::Allows(Backend::HIP_MASK))
-   {
-      return devVectorDot(size, m_data, v_data);
+      real_t res = 0;
+      reduce(
+         size, res,
+         [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      {
+         r += m_data[i] * v_data[i];
+      },
+      SumReducer<real_t> {}, true, vector_workspace());
+      return res;
    }
 #endif
 
@@ -1357,17 +1280,16 @@ real_t Vector::Min() const
    }
 #endif
 
-#ifdef MFEM_USE_CUDA
-   if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      return devVectorMin(size, m_data);
-   }
-#endif
-
-#ifdef MFEM_USE_HIP
-   if (Device::Allows(Backend::HIP_MASK))
-   {
-      return devVectorMin(size, m_data);
+      auto m_data = Read();
+      real_t res = infinity();
+      reduce(
+         size, res,
+      [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
+      MinReducer<real_t> {}, true, vector_workspace());
+      return res;
    }
 #endif
 
@@ -1425,17 +1347,16 @@ real_t Vector::Max() const
    }
 #endif
 
-#ifdef MFEM_USE_CUDA
-   if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      return devVectorMax(size, m_data);
-   }
-#endif
-
-#ifdef MFEM_USE_HIP
-   if (Device::Allows(Backend::HIP_MASK))
-   {
-      return devVectorMax(size, m_data);
+      auto m_data = Read();
+      real_t res = -infinity();
+      reduce(
+         size, res,
+      [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
+      MaxReducer<real_t> {}, true, vector_workspace());
+      return res;
    }
 #endif
 
@@ -1483,16 +1404,16 @@ real_t Vector::Sum() const
 
    if (UseDevice())
    {
-#ifdef MFEM_USE_CUDA
-      if (Device::Allows(Backend::CUDA_MASK))
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         return devVectorSum(size, Read());
-      }
-#endif
-#ifdef MFEM_USE_HIP
-      if (Device::Allows(Backend::HIP_MASK))
-      {
-         return devVectorSum(size, Read());
+         auto m_data = Read();
+         real_t res = 0;
+         reduce(
+            size, res,
+         [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
+         SumReducer<real_t> {}, true, vector_workspace());
+         return res;
       }
 #endif
       if (Device::Allows(Backend::DEBUG_DEVICE))
