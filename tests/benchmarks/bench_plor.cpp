@@ -162,6 +162,8 @@ struct PLOR_Solvers_Bench
    void Setup()
    {
       dbg();
+      x.Randomize(); // force random init
+
       x.ProjectCoefficient(u_coeff);
       fes.GetBoundaryTrueDofs(ess_dofs);
 
@@ -242,7 +244,6 @@ struct PLOR_Solvers_Bench
 
    BatchedLORAssembly *GetBatchedLOR() const
    {
-      dbg();
       return solv_lor->GetLOR().GetBatchedLOR();
    }
 
@@ -294,7 +295,7 @@ static void pLOR(bm::State &state)
    const int nranks = Mpi::WorldSize();
 
    dbg("log_ndof:%d order:%d ndofs:%d nranks:%d", log_ndof, order, ndofs, nranks);
-   dbg("%d >? %d", ndofs, nranks*MAX_NDOFS);
+   // dbg("%d >? %d", ndofs, nranks*MAX_NDOFS);
    // const bool skip = ndofs > (nranks*MAX_NDOFS);
    // if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
 
