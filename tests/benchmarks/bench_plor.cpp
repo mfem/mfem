@@ -396,6 +396,7 @@ int main(int argc, char *argv[])
    const int dev = mpi_rank % config_ndev;
 
    Device device(config_device.c_str(), dev);
+   device.SetGPUAwareMPI();
    if (Mpi::Root()) { device.Print(); }
 
    dbg("[MPI] %d/%d @ device #%d", 1+mpi_rank, mpi_size, dev);
