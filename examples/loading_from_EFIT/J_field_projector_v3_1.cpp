@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    Mesh mesh(mesh_file, 1, 1);
+   // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
    ifstream temp_log("./B_perp.gf");

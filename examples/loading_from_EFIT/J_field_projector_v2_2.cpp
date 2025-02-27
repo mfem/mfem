@@ -10,9 +10,10 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = false;
+   bool mixed_bilinear_form = true;
 
    Mesh mesh(mesh_file, 1, 1);
+   // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
    ifstream temp_log("./B_tor.gf");
