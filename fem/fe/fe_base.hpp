@@ -795,8 +795,7 @@ public:
        elements. */
    const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
 
-   void ReorderToLexicographic(int ncomp, const Vector &dofs,
-                               Vector &dofs_lex) const;
+   void ReorderNativeToLex(int ncomp, Vector &dofs) const;
    void ReorderLexToNative(int ncomp, Vector &dofs) const;
 };
 

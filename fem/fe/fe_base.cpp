@@ -973,12 +973,11 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
-void NodalFiniteElement::ReorderToLexicographic(int ncomp, const Vector &dofs,
-                                                Vector &dofs_lex) const
+void NodalFiniteElement::ReorderNativeToLex(int ncomp, Vector &dofs) const
 {
    MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
 
-   dofs_lex.SetSize(ncomp * dof);
+   Vector dofs_lex(ncomp * dof);
    for (int i = 0; i < dof; i++)
    {
       for (int c = 0; c < ncomp; c++)
@@ -986,6 +985,7 @@ void NodalFiniteElement::ReorderToLexicographic(int ncomp, const Vector &dofs,
          dofs_lex(c*dof + i) = dofs(c*dof + lex_ordering[i]);
       }
    }
+   dofs = dofs_lex;
 }
 
 void NodalFiniteElement::ReorderLexToNative(int ncomp,
