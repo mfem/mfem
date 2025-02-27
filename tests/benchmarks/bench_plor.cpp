@@ -167,6 +167,7 @@ struct PLOR_Solvers_Bench
 
       dbg("Assembling b");
       b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
+      b.UseFastAssembly(true);
       b.Assemble();
 
       dbg("Setting a");
@@ -272,14 +273,14 @@ struct PLOR_Solvers_Bench
 // [0] Requested log_ndof
 // 30 max: 1076.88M NDOFs @ 1024 GPU on Lassen
 // #define LOG_NDOFS bm::CreateDenseRange(23,30,1)
-#define LOG_NDOFS bm::CreateDenseRange(8,12,1)
+#define LOG_NDOFS bm::CreateDenseRange(23,30,1)
 
 // Maximum number of dofs per rank
 #define MAX_NDOFS 7*1024*1024
 
 // [1] The different orders the tests can run
-// #define P_ORDERS {6}
-#define P_ORDERS bm::CreateDenseRange(1,2,1)
+#define P_ORDERS {6}
+// #define P_ORDERS bm::CreateDenseRange(1,2,1)
 
 static void pLOR(bm::State &state)
 {
@@ -294,8 +295,8 @@ static void pLOR(bm::State &state)
 
    dbg("log_ndof:%d order:%d ndofs:%d nranks:%d", log_ndof, order, ndofs, nranks);
    dbg("%d >? %d", ndofs, nranks*MAX_NDOFS);
-   const bool skip = ndofs > (nranks*MAX_NDOFS);
-   if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
+   // const bool skip = ndofs > (nranks*MAX_NDOFS);
+   // if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
 
    plor.Setup();
 
@@ -368,8 +369,10 @@ static void pLOR(bm::State &state)
    dbg("done");
 }
 
-BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
-->ArgsProduct( {LOG_NDOFS, P_ORDERS} )->Iterations(10);
+// BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
+// ->ArgsProduct( {LOG_NDOFS, P_ORDERS} )->Iterations(10);
+
+BENCHMARK(pLOR)->Unit(bm::kSecond)->ArgsProduct( {LOG_NDOFS, P_ORDERS} );
 
 int main(int argc, char *argv[])
 {
