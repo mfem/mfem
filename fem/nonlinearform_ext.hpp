@@ -92,9 +92,9 @@ protected:
    mutable Vector xe, ye;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
+   const ElementDofOrdering edf;
    const Operator *elemR; // not owned
    mutable PAGradient paGrad;
-   const ElementDofOrdering edf;
 
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf, const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
@@ -103,12 +103,12 @@ public:
    /** This method must be called before the first call to Mult(), when the mesh
        coordinates are changed, or some coefficients in the integrators need to
        be re-evaluated (this is NonlinearFormIntegrator-dependent). */
-   void Assemble();
+   void Assemble() override;
 
    /// Perform the action of the PANonlinearFormExtension.
    /** Both the input, @a x, and output, @a y, vectors are L-vectors, i.e.
        GridFunction-size vectors. */
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Return the gradient as an L-to-L Operator. The input @a x must be
        an L-vector (i.e. GridFunction-size vector). */
@@ -117,7 +117,7 @@ public:
        The returned gradient Operator defines the virtual method GetProlongation
        which enables support for the method FormSystemOperator to define the
        matrix-free global true-dof gradient with imposed boundary conditions. */
-   virtual Operator &GetGradient(const Vector &x) const;
+   virtual Operator &GetGradient(const Vector &x) const override;
 
    /// Compute the local (to the MPI rank) energy of the L-vector state @a x.
    real_t GetGridFunctionEnergy(const Vector &x) const override;
@@ -194,7 +194,7 @@ public:
        The returned gradient Operator defines the virtual method GetProlongation
        which enables support for the method FormSystemOperator to define the
        matrix-free global true-dof gradient with imposed boundary conditions. */
-   virtual Operator &GetGradient(const Vector &x) const;
+   virtual Operator &GetGradient(const Vector &x) const override;
    ~EANonlinearFormExtension();
 };
 
@@ -251,7 +251,7 @@ public:
        The returned gradient Operator defines the virtual method GetProlongation
        which enables support for the method FormSystemOperator to define the
        matrix-free global true-dof gradient with imposed boundary conditions. */
-   virtual Operator &GetGradient(const Vector &x) const;
+   virtual Operator &GetGradient(const Vector &x) const override;
 
 };
 

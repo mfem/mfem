@@ -28,9 +28,9 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf, con
    NonlinearFormExtension(nlf),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
+   edf(edf_),
    elemR(fes.GetElementRestriction(edf)),
-   paGrad(*this),
-   edf(edf_)
+   paGrad(*this)
 {
    if (!DeviceCanUseCeed())
    {
@@ -141,7 +141,7 @@ void PANonlinearFormExtension::PAGradient::Update()
 }
 
 EANonlinearFormExtension::EANonlinearFormExtension(const NonlinearForm *nlf, const ElementDofOrdering edf_):
-  PANonlinearFormExtension(nlf, edf), eaGrad(*this)
+  PANonlinearFormExtension(nlf, edf_), eaGrad(*this)
 {
    ne = fes.GetMesh()->GetNE();
    elemDofs = fes.GetFE(0)->GetDof() * fes.GetFE(0)->GetDim();
@@ -241,7 +241,7 @@ Operator &EANonlinearFormExtension::GetGradient(const Vector &x) const
 }
 
 FANonlinearFormExtension::FANonlinearFormExtension(const NonlinearForm *nlf, const ElementDofOrdering edf_):
-   EANonlinearFormExtension(nlf, edf), faGrad(*this)
+   EANonlinearFormExtension(nlf, edf_), faGrad(*this)
 { }
 
 FANonlinearFormExtension::FAGradient::FAGradient(const FANonlinearFormExtension &e):
