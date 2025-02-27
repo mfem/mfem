@@ -51,8 +51,8 @@ const IntegrationRule* Integrator::GetIntegrationRule(
 
 PatchBasisInfo::PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
                                NURBSMeshRules *patchRules)
-   : patch(patch), B(vdim), G(vdim), ir1d(vdim), Q1D(vdim), D1D(vdim),
-     minD(vdim), maxD(vdim), minQ(vdim), maxQ(vdim), minDD(vdim), maxDD(vdim)
+   : patch(patch), vdim(vdim), B(vdim), G(vdim), ir1d(vdim), Q1D(vdim), D1D(vdim),
+     minD(vdim), maxD(vdim), minQ(vdim), maxQ(vdim), minDD(vdim), maxDD(vdim), accsize(vdim)
 {
    Array<const KnotVector*> pkv;
    mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
@@ -133,6 +133,12 @@ PatchBasisInfo::PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
          const int qmax = maxD[d][i];
          maxDD[d][i] = maxQ[d][qmax];
       }
+   }
+
+   // Size of accumulator (max qpts/dofs in each dimension)
+   for (int i=0; i<vdim; ++i)
+   {
+      accsize[i] = std::max(Q1D[i], D1D[i]);
    }
 
    // Total quadrature points

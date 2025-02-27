@@ -117,6 +117,7 @@ protected:
 struct PatchBasisInfo
 {
    unsigned int patch;
+   int vdim;
    // 1D shape functions [vdim x Q1D x D1D]
    std::vector<Array2D<real_t>> B;
    // Derivatives of 1D shape functions [vdim x Q1D x D1D]
@@ -133,6 +134,8 @@ struct PatchBasisInfo
    std::vector<std::vector<int>> maxQ;
    std::vector<std::vector<int>> minDD;
    std::vector<std::vector<int>> maxDD;
+   // Size of accumulator (max qpts/dofs in each dimension)
+   std::vector<int> accsize;
    // Total quadrature points / dofs
    int NQ, ND;
 

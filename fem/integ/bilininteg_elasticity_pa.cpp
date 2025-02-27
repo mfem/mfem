@@ -14,6 +14,7 @@
 #include "../qfunction.hpp"
 #include "../../mesh/nurbs.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
+#include "fem/integrator.hpp"
 #include "linalg/dtensor.hpp"
 using mfem::internal::tensor;
 using mfem::internal::make_tensor;
@@ -147,6 +148,118 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
+/**
+ * 1) Compute grad_uhat (reference space) interpolated at quadrature points
+ *
+ * B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
+ *
+ * Variables:
+ * - c  = component
+ * - d  = derivative
+ * - dx, dy, dz = degrees of freedom (DOF) indices
+ * - qx, qy, qz = quadrature indices
+ *
+ * Tensor product shape functions:
+ * phi[dx,dy,dz](qx,qy,qz) = phix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
+ *
+ * Gradient of shape functions:
+ * grad_phi[dx,dy,dz](qx,qy,qz) = [
+ *    dphix[dx](qx) * phiy[dy](qy)  * phiz[dz](qz),
+ *    phix[dx](qx)  * dphiy[dy](qy) * phiz[dz](qz),
+ *    phix[dx](qx)  * phiy[dy](qy)  * dphiz[dz](qz)
+ * ]
+ *
+ * Computation of grad_uhat[c,0] (sum factorization):
+ * grad_uhat[c,0](qx,qy,qz)
+ *    = \sum_{dx,dy,dz} U[c][dx,dy,dz] * grad_phi[dx,dy,dz][0](qx,qy,qz)
+ *    = \sum_{dx,dy,dz} U[c][dx,dy,dz] * dphix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
+ *    = \sum_{dz} phiz[dz](qz)
+ *       \sum_{dy} phiy[dy](qy)
+ *          \sum_{dx} U[c][dx,dy,dz] * dphix[dx](qx)
+ *
+ * Because a nurbs patch is "sparse" compared to an element in terms of shape
+ * function support - we can further optimize the computation by restricting
+ * interpolation to only the qudrature points supported in each dimension.
+ */
+void PatchInterpolateGradient(const PatchBasisInfo &pb,
+                              Vector &sumXYv,
+                              Vector &sumXv,
+                              const Vector &Uv,
+                              Vector &graduv)
+{
+   // Unpack
+   const int vdim = pb.vdim;
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const std::vector<std::vector<int>> minD = pb.minD;
+   const std::vector<std::vector<int>> maxD = pb.maxD;
+   const std::vector<int> acc = pb.accsize;
+   const int NQ = pb.NQ;
+
+   // Shape as tensors
+   auto U = Reshape(Uv.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, acc[0], acc[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, acc[0]);
+   for (int dz = 0; dz < D1D[2]; ++dz)
+   {
+      sumXYv = 0.0;
+      for (int dy = 0; dy < D1D[1]; ++dy)
+      {
+         sumXv = 0.0;
+         for (int dx = 0; dx < D1D[0]; ++dx)
+         {
+            for (int c = 0; c < vdim; ++c)
+            {
+               const real_t u = U(dx,dy,dz,c);
+               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               {
+                  sumX(c,0,qx) += u * B[0](qx,dx);
+                  sumX(c,1,qx) += u * G[0](qx,dx);
+               }
+            }
+         } // dx
+         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         {
+            const real_t wy  = B[1](qy,dy);
+            const real_t wDy = G[1](qy,dy);
+            for (int c = 0; c < vdim; ++c)
+            {
+               // This full range of qx values is generally necessary.
+               for (int qx = 0; qx < Q1D[0]; ++qx)
+               {
+                  const real_t wx  = sumX(c,0,qx);
+                  const real_t wDx = sumX(c,1,qx);
+                  sumXY(c,0,qx,qy) += wDx * wy;
+                  sumXY(c,1,qx,qy) += wx  * wDy;
+                  sumXY(c,2,qx,qy) += wx  * wy;
+               } // qx
+            } // c
+         } // qy
+      } // dy
+
+      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      {
+         const real_t wz  = B[2](qz,dz);
+         const real_t wDz = G[2](qz,dz);
+         for (int c = 0; c < vdim; ++c)
+         {
+            for (int qy = 0; qy < Q1D[1]; ++qy)
+            {
+               for (int qx = 0; qx < Q1D[0]; ++qx)
+               {
+                  gradu(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
+                  gradu(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
+                  gradu(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
+               }
+            } // qy
+         } // c
+      } // qz
+   } // dz
+}
+
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.
 void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
@@ -189,93 +302,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, max_pts_x, max_pts_y);
    auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, max_pts_x);
 
-   /*
-   1) Compute grad_uhat (reference space) interpolated at quadrature points
-
-   B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
-
-   Variables:
-   - c  = component
-   - d  = derivative
-   - dx, dy, dz = degrees of freedom (DOF) indices
-   - qx, qy, qz = quadrature indices
-
-   Tensor product shape functions:
-   phi[dx,dy,dz](qx,qy,qz) = phix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
-
-   Gradient of shape functions:
-   grad_phi[dx,dy,dz](qx,qy,qz) = [
-      dphix[dx](qx) * phiy[dy](qy)  * phiz[dz](qz),
-      phix[dx](qx)  * dphiy[dy](qy) * phiz[dz](qz),
-      phix[dx](qx)  * phiy[dy](qy)  * dphiz[dz](qz)
-   ]
-
-   Computation of grad_uhat[c,0] (sum factorization):
-   grad_uhat[c,0](qx,qy,qz)
-      = \sum_{dx,dy,dz} U[c][dx,dy,dz] * grad_phi[dx,dy,dz][0](qx,qy,qz)
-      = \sum_{dx,dy,dz} U[c][dx,dy,dz] * dphix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
-      = \sum_{dz} phiz[dz](qz)
-         \sum_{dy} phiy[dy](qy)
-            \sum_{dx} U[c][dx,dy,dz] * dphix[dx](qx)
-
-   Because a nurbs patch is "sparse" compared to an element in terms of shape
-   function support - we can further optimize the computation by restricting
-   interpolation to only the qudrature points supported in each dimension.
-   */
-   for (int dz = 0; dz < D1D[2]; ++dz)
-   {
-      sumXYv = 0.0;
-      for (int dy = 0; dy < D1D[1]; ++dy)
-      {
-         sumXv = 0.0;
-         for (int dx = 0; dx < D1D[0]; ++dx)
-         {
-            for (int c = 0; c < vdim; ++c)
-            {
-               const real_t U = X(dx,dy,dz,c);
-               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
-               {
-                  sumX(c,0,qx) += U * B[0](qx,dx);
-                  sumX(c,1,qx) += U * G[0](qx,dx);
-               }
-            }
-         }
-         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
-         {
-            const real_t wy  = B[1](qy,dy);
-            const real_t wDy = G[1](qy,dy);
-            for (int c = 0; c < vdim; ++c)
-            {
-               // This full range of qx values is generally necessary.
-               for (int qx = 0; qx < Q1D[0]; ++qx)
-               {
-                  const real_t wx  = sumX(c,0,qx);
-                  const real_t wDx = sumX(c,1,qx);
-                  sumXY(c,0,qx,qy) += wDx * wy;
-                  sumXY(c,1,qx,qy) += wx  * wDy;
-                  sumXY(c,2,qx,qy) += wx  * wy;
-               }
-            }
-         }
-      }
-      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
-      {
-         const real_t wz  = B[2](qz,dz);
-         const real_t wDz = G[2](qz,dz);
-         for (int c = 0; c < vdim; ++c)
-         {
-            for (int qy = 0; qy < Q1D[1]; ++qy)
-            {
-               for (int qx = 0; qx < Q1D[0]; ++qx)
-               {
-                  grad(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
-                  grad(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
-                  grad(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
-               }
-            }
-         }
-      }
-   }
+   PatchInterpolateGradient(pb, sumXYv, sumXv, x, gradv);
 
    // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
    for (int qz = 0; qz < Q1D[2]; ++qz)
