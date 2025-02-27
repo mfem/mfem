@@ -273,11 +273,10 @@ struct PLOR_Solvers_Bench
 
 // [0] Requested log_ndof
 // 30 max: 1076.88M NDOFs @ 1024 GPU on Lassen
-// #define LOG_NDOFS bm::CreateDenseRange(23,30,1)
-#define LOG_NDOFS bm::CreateDenseRange(23,30,1)
+#define LOG_NDOFS bm::CreateDenseRange(31,33,1)
 
 // Maximum number of dofs per rank
-#define MAX_NDOFS 7*1024*1024
+// #define MAX_NDOFS 7*1024*1024
 
 // [1] The different orders the tests can run
 #define P_ORDERS {6}
@@ -370,10 +369,10 @@ static void pLOR(bm::State &state)
    dbg("done");
 }
 
-// BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
-// ->ArgsProduct( {LOG_NDOFS, P_ORDERS} )->Iterations(10);
+BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
+->ArgsProduct( {LOG_NDOFS, P_ORDERS} )->Iterations(10);
 
-BENCHMARK(pLOR)->Unit(bm::kSecond)->ArgsProduct( {LOG_NDOFS, P_ORDERS} );
+// BENCHMARK(pLOR)->Unit(bm::kSecond)->ArgsProduct( {LOG_NDOFS, P_ORDERS} );
 
 int main(int argc, char *argv[])
 {
