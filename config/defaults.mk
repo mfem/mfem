@@ -542,9 +542,6 @@ ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
 ALGOIM_LIB = $(BLITZ_LIB)
 
 # BENCHMARK library configuration
-ifeq ($(MFEM_USE_BENCHMARK),YES)
-   BASE_FLAGS = -std=c++14
-endif
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
 BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
 BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread
@@ -618,8 +615,8 @@ ENZYME_VERSION ?= 14
 ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
 ENZYME_LIB = ""
 
-# SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
-ifneq ($(filter YES,$(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
+# Google Benchmark, SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
+ifneq ($(filter YES,$(MFEM_USE_BENCHMARK) $(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
     BASE_FLAGS = -std=c++14
 endif
 # Ginkgo requires C++17:
