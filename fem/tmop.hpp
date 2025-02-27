@@ -2053,7 +2053,7 @@ protected:
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &d,
-                                      const FiniteElementSpace &x_fes);
+                                      const FiniteElementSpace &d_fes);
 
    void DisableLimiting()
    {

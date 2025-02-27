@@ -5299,28 +5299,29 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 }
 
 void TMOP_Integrator::UpdateAfterMeshPositionChange
-    (const Vector &d, const FiniteElementSpace &x_fes)
+    (const Vector &d, const FiniteElementSpace &d_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
    if (PA.enabled) { UpdateCoefficientsPA(d); }
 
-   Ordering::Type ordering = x_fes.GetOrdering();
+   Ordering::Type ordering = d_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
-   if (fdflag) { ComputeFDh(d, x_fes); }
+   if (fdflag) { ComputeFDh(d, d_fes); }
 
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
    {
-      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
-
       Vector x_loc(*x_0);
-      x_loc += d;
+      GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
+      d_loc = d;
+      GetPeriodicPositions(*x_0, d_loc, x_loc);
 
       discr_tc->UpdateTargetSpecification(x_loc, true, ordering);
       if (fdflag)
       {
+         if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
          discr_tc->UpdateGradientTargetSpecification(x_loc, dx, true, ordering);
          discr_tc->UpdateHessianTargetSpecification(x_loc, dx, true, ordering);
       }

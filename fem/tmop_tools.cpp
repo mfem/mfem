@@ -704,9 +704,7 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
       const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
       if (Pd) { Pd->Mult(d, d_loc); }
       else    { d_loc = d; }
-      GridFunction d_loc_l2(fes_mesh_nodes);
-      d_loc_l2.ProjectGridFunction(d_loc);
-      x += d_loc_l2;
+      GetPeriodicPositions(x_0, d_loc, x);
    }
    else { x += d; }
 
@@ -891,16 +889,16 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
    }
    else { d_loc = d; }
 
-   const FiniteElementSpace *x_fes = nlf->FESpace();
+   const FiniteElementSpace *d_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->UpdateAfterMeshPositionChange(d_loc, *x_fes);
+         ti->UpdateAfterMeshPositionChange(d_loc, *d_fes);
          if (compute_metric_quantile_flag)
          {
-            ti->ComputeUntangleMetricQuantiles(d_loc, *x_fes);
+            ti->ComputeUntangleMetricQuantiles(d_loc, *d_fes);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -909,10 +907,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->UpdateAfterMeshPositionChange(d_loc, *x_fes);
+            ati[j]->UpdateAfterMeshPositionChange(d_loc, *d_fes);
             if (compute_metric_quantile_flag)
             {
-               ati[j]->ComputeUntangleMetricQuantiles(d_loc, *x_fes);
+               ati[j]->ComputeUntangleMetricQuantiles(d_loc, *d_fes);
             }
          }
       }
@@ -1083,9 +1081,9 @@ void GetPeriodicDisplacement(const GridFunction &x, const GridFunction &x_0,
    GridFunction d_l2(x);
    d_l2 -= x_0;
 
+   Vector d_el;
    for (int i = 0; i < fes_h1.GetNE(); i++)
    {
-      Vector d_el;
       d_l2.GetElementDofValues(i, d_el);
       auto h1_el = dynamic_cast<const NodalFiniteElement *>(fes_h1.GetFE(i));
       h1_el->ReorderLexToNative(fes_h1.GetVDim(), d_el);
@@ -1094,6 +1092,29 @@ void GetPeriodicDisplacement(const GridFunction &x, const GridFunction &x_0,
       d.SetSubVector(vdofs_h1, d_el);
    }
    d.SetFromTrueVector();
+}
+
+void GetPeriodicPositions(const GridFunction &x_0, const GridFunction &d,
+                             Vector &x)
+{
+   auto fes_h1 = *d.FESpace();
+   const int NE = fes_h1.GetNE(), dim = fes_h1.GetVDim();
+   const int s  = x.Size() / NE / dim;
+
+   Vector d_el;
+   for (int i = 0; i < NE; i++)
+   {
+      d.GetElementDofValues(i, d_el);
+      auto h1_el = dynamic_cast<const NodalFiniteElement *>(fes_h1.GetFE(i));
+      h1_el->ReorderNativeToLex(fes_h1.GetVDim(), d_el);
+      for (int j = 0; j < s; j++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            x(c*NE*s + i*s + j) = x_0(c*NE*s + i*s + j) + d_el(c*s + j);
+         }
+      }
+   }
 }
 
 }
