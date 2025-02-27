@@ -1200,6 +1200,7 @@ int main (int argc, char *argv[])
                           mesh_poly_deg, h_metric_id,
                           n_hr_iter, n_h_iter);
    hr_solver.AddGridFunctionForUpdate(&x0);
+   hr_solver.AddFESpaceForUpdate(&pfes_h1);
    if (adapt_lim_const > 0.)
    {
       hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);

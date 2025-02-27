@@ -5376,7 +5376,7 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 {
    fdflag = true;
    const FiniteElementSpace *fes = x.FESpace();
-   ComputeFDh(x,*fes);
+
    if (discr_tc)
    {
 #ifdef MFEM_USE_GSLIB
@@ -5398,7 +5398,7 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 {
    fdflag = true;
    const ParFiniteElementSpace *pfes = x.ParFESpace();
-   ComputeFDh(x,*pfes);
+
    if (discr_tc)
    {
 #ifdef MFEM_USE_GSLIB
@@ -5530,8 +5530,12 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles
 
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-   Vector x_loc(*x_0);
-   x_loc += d;
+   Vector x_loc(d.Size());
+   if (x_0)
+   {
+      add(*x_0, d, x_loc);
+   }
+   else { x_loc = d; }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
