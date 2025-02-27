@@ -39,7 +39,7 @@ template <class A, class B> struct MinMaxLocScalar
    B max_loc;
 };
 
-/// a += b
+/// @brief a += b
 template <class T> struct SumReducer
 {
    using value_type = T;
@@ -51,7 +51,7 @@ template <class T> struct SumReducer
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = T(0); }
 };
 
-/// a *= b
+/// @brief a *= b
 template <class T> struct MultReducer
 {
    using value_type = T;
@@ -63,7 +63,7 @@ template <class T> struct MultReducer
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = T(1); }
 };
 
-/// a &= b
+/// @brief a &= b
 template <class T> struct BAndReducer
 {
    static_assert(std::is_integral<T>::value, "Only works for integral types");
@@ -94,32 +94,27 @@ template <class T> struct BOrReducer
    static MFEM_HOST_DEVICE void SetInitialValue(T &a) { a = T(0); }
 };
 
-/// a = min(a,b)
-template <class T> struct MinReducer;
+/// @brief a = min(a,b)
+template <class T> struct MinReducer
+{
+   using value_type = T;
 
-/// @brief a = max(a,b)
-template <class T> struct MaxReducer;
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
+   {
+      if (b < a)
+      {
+         a = b;
+      }
+   }
 
-/// @brief a = minmax(a,b)
-template <class T> struct MinMaxReducer;
-
-/// @brief i = argmin(a[i], a[j])
-///
-/// Note: for ties the returned index can correspond to any min entry, not
-/// necesarily the first one
-template <class T, class I> struct ArgMinReducer;
-
-/// @brief i = argmax(a[i], a[j])
-///
-/// Note: for ties the returned index can correspond to any min entry, not
-/// necesarily the first one.
-template <class T, class I> struct ArgMaxReducer;
-
-/// @brief i = argminmax(a[i], a[j])
-///
-/// Note: for ties the returned indices can correspond to any min/max entry, not
-/// necesarily the first one.
-template <class T, class I> struct ArgMinMaxReducer;
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      // Cuda complains about calling host-only constexpr functions in device
+      // code without --expt-relaxed-constexpr, wrap into integral_constant to
+      // get around this
+      a = std::integral_constant<T, std::numeric_limits<T>::max()>::value;
+   }
+};
 
 template <> struct MinReducer<float>
 {
@@ -143,70 +138,25 @@ template <> struct MinReducer<double>
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = HUGE_VAL; }
 };
 
-#define MFEM_STAMP_MIN_REDUCER(type, val)                                      \
-  template <> struct MinReducer<type> {                                        \
-    using value_type = type;                                                   \
-    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b) {           \
-      if (b < a) {                                                             \
-        a = b;                                                                 \
-      }                                                                        \
-    }                                                                          \
-    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
-      a = static_cast<type>(val);                                              \
-    }                                                                          \
-  }
-
-MFEM_STAMP_MIN_REDUCER(bool, true);
-MFEM_STAMP_MIN_REDUCER(char, CHAR_MAX);
-MFEM_STAMP_MIN_REDUCER(signed char, SCHAR_MAX);
-MFEM_STAMP_MIN_REDUCER(unsigned char, UCHAR_MAX);
-MFEM_STAMP_MIN_REDUCER(wchar_t, WCHAR_MAX);
-MFEM_STAMP_MIN_REDUCER(char16_t, UINT_LEAST16_MAX);
-MFEM_STAMP_MIN_REDUCER(char32_t, UINT_LEAST32_MAX);
-MFEM_STAMP_MIN_REDUCER(short, SHRT_MAX);
-MFEM_STAMP_MIN_REDUCER(unsigned short, USHRT_MAX);
-MFEM_STAMP_MIN_REDUCER(int, INT_MAX);
-MFEM_STAMP_MIN_REDUCER(unsigned int, UINT_MAX);
-MFEM_STAMP_MIN_REDUCER(long, LONG_MAX);
-MFEM_STAMP_MIN_REDUCER(unsigned long, ULONG_MAX);
-MFEM_STAMP_MIN_REDUCER(long long, LLONG_MAX);
-MFEM_STAMP_MIN_REDUCER(unsigned long long, ULLONG_MAX);
-
-#undef MFEM_STAMP_MIN_REDUCER
-
-#define MFEM_STAMP_ARGMIN_REDUCER(type, val)                                   \
-  template <class I> struct ArgMinReducer<type, I> {                           \
-    using value_type = DevicePair<type, I>;                                    \
-    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
-      if (b.first <= a.first) {                                                \
-        a = b;                                                                 \
-      }                                                                        \
-    }                                                                          \
-    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
-      a = value_type{static_cast<type>(val), I{0}};                            \
-    }                                                                          \
-  }
-
-MFEM_STAMP_ARGMIN_REDUCER(bool, true);
-MFEM_STAMP_ARGMIN_REDUCER(char, CHAR_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(signed char, SCHAR_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(unsigned char, UCHAR_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(wchar_t, WCHAR_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(char16_t, UINT_LEAST16_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(char32_t, UINT_LEAST32_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(short, SHRT_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(unsigned short, USHRT_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(int, INT_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(unsigned int, UINT_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(long, LONG_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(unsigned long, ULONG_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(long long, LLONG_MAX);
-MFEM_STAMP_ARGMIN_REDUCER(unsigned long long, ULLONG_MAX);
-// also use this for floats and doubles since we need the index as well
-MFEM_STAMP_ARGMIN_REDUCER(float, HUGE_VALF);
-MFEM_STAMP_ARGMIN_REDUCER(double, HUGE_VAL);
-
-#undef MFEM_STAMP_ARGMIN_REDUCER
+/// @brief a = max(a,b)
+template <class T> struct MaxReducer
+{
+   using value_type = T;
+   static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
+   {
+      if (a < b)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      // Cuda complains about calling host-only constexpr functions in device
+      // code without --expt-relaxed-constexpr, wrap into integral_constant to
+      // get around this
+      a = std::integral_constant<T, std::numeric_limits<T>::min()>::value;
+   }
+};
 
 template <> struct MaxReducer<float>
 {
@@ -233,70 +183,33 @@ template <> struct MaxReducer<double>
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = -HUGE_VAL; }
 };
 
-#define MFEM_STAMP_MAX_REDUCER(type, val)                                      \
-  template <> struct MaxReducer<type> {                                        \
-    using value_type = type;                                                   \
-    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b) {           \
-      if (a < b) {                                                             \
-        a = b;                                                                 \
-      }                                                                        \
-    }                                                                          \
-    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
-      a = static_cast<type>(val);                                              \
-    }                                                                          \
-  }
+/// @brief a = minmax(a,b)
+template <class T> struct MinMaxReducer
+{
+   using value_type = DevicePair<T, T>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.first < a.first)
+      {
+         a.first = b.first;
+      }
+      if (b.second > a.second)
+      {
+         a.second = b.second;
+      }
+   }
 
-MFEM_STAMP_MAX_REDUCER(bool, false);
-MFEM_STAMP_MAX_REDUCER(char, CHAR_MIN);
-MFEM_STAMP_MAX_REDUCER(signed char, SCHAR_MIN);
-MFEM_STAMP_MAX_REDUCER(unsigned char, 0);
-MFEM_STAMP_MAX_REDUCER(wchar_t, WCHAR_MIN);
-MFEM_STAMP_MAX_REDUCER(char16_t, 0);
-MFEM_STAMP_MAX_REDUCER(char32_t, 0);
-MFEM_STAMP_MAX_REDUCER(short, SHRT_MIN);
-MFEM_STAMP_MAX_REDUCER(unsigned short, 0);
-MFEM_STAMP_MAX_REDUCER(int, INT_MIN);
-MFEM_STAMP_MAX_REDUCER(unsigned int, 0);
-MFEM_STAMP_MAX_REDUCER(long, LONG_MIN);
-MFEM_STAMP_MAX_REDUCER(unsigned long, 0);
-MFEM_STAMP_MAX_REDUCER(long long, LLONG_MIN);
-MFEM_STAMP_MAX_REDUCER(unsigned long long, 0);
-
-#undef MFEM_STAMP_MAX_REDUCER
-
-#define MFEM_STAMP_ARGMAX_REDUCER(type, val)                                   \
-  template <class I> struct ArgMaxReducer<type, I> {                           \
-    using value_type = DevicePair<type, I>;                                    \
-    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
-      if (a.first <= b.first) {                                                \
-        a = b;                                                                 \
-      }                                                                        \
-    }                                                                          \
-    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
-      a = value_type{static_cast<type>(val), I{0}};                            \
-    }                                                                          \
-  }
-
-MFEM_STAMP_ARGMAX_REDUCER(bool, false);
-MFEM_STAMP_ARGMAX_REDUCER(char, CHAR_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(signed char, SCHAR_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(unsigned char, 0);
-MFEM_STAMP_ARGMAX_REDUCER(wchar_t, WCHAR_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(char16_t, 0);
-MFEM_STAMP_ARGMAX_REDUCER(char32_t, 0);
-MFEM_STAMP_ARGMAX_REDUCER(short, SHRT_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(unsigned short, 0);
-MFEM_STAMP_ARGMAX_REDUCER(int, INT_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(unsigned int, 0);
-MFEM_STAMP_ARGMAX_REDUCER(long, LONG_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(unsigned long, 0);
-MFEM_STAMP_ARGMAX_REDUCER(long long, LLONG_MIN);
-MFEM_STAMP_ARGMAX_REDUCER(unsigned long long, 0);
-// also use this for floats and doubles since we need the index as well
-MFEM_STAMP_ARGMAX_REDUCER(float, -HUGE_VALF);
-MFEM_STAMP_ARGMAX_REDUCER(double, -HUGE_VAL);
-
-#undef MFEM_STAMP_ARGMAX_REDUCER
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      // Cuda complains about calling host-only constexpr functions in device
+      // code without --expt-relaxed-constexpr, wrap into integral_constant to
+      // get around this
+      a = value_type
+      {
+         std::integral_constant<T, std::numeric_limits<T>::max()>::value,
+         std::integral_constant<T, std::numeric_limits<T>::min()>::value};
+   }
+};
 
 template <> struct MinMaxReducer<float>
 {
@@ -328,80 +241,195 @@ template <> struct MinMaxReducer<double>
    }
 };
 
-#define MFEM_STAMP_MINMAX_REDUCER(type, min_val, max_val)                      \
-  template <> struct MinMaxReducer<type> {                                     \
-    using value_type = DevicePair<type, type>;                                 \
-    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
-      if (b.first < a.first) {                                                 \
-        a.first = b.first;                                                     \
-      }                                                                        \
-      if (b.second > a.second) {                                               \
-        a.second = b.second;                                                   \
-      }                                                                        \
-    }                                                                          \
-                                                                               \
-    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
-      a = value_type{static_cast<type>(max_val), static_cast<type>(min_val)};  \
-    }                                                                          \
-  }
+/// @brief i = argmin(a[i], a[j])
+///
+/// Note: for ties the returned index can correspond to any min entry, not
+/// necesarily the first one
+template <class T, class I> struct ArgMinReducer
+{
+   using value_type = DevicePair<T, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.first <= a.first)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      // Cuda complains about calling host-only constexpr functions in device
+      // code without --expt-relaxed-constexpr, wrap into integral_constant to
+      // get around this
+      a = value_type
+      {
+         std::integral_constant<T, std::numeric_limits<T>::max()>::value, I{0}};
+   }
+};
 
-MFEM_STAMP_MINMAX_REDUCER(bool, false, true);
-MFEM_STAMP_MINMAX_REDUCER(char, CHAR_MIN, CHAR_MAX);
-MFEM_STAMP_MINMAX_REDUCER(signed char, SCHAR_MIN, SCHAR_MAX);
-MFEM_STAMP_MINMAX_REDUCER(unsigned char, 0, UCHAR_MAX);
-MFEM_STAMP_MINMAX_REDUCER(wchar_t, WCHAR_MIN, WCHAR_MAX);
-MFEM_STAMP_MINMAX_REDUCER(char16_t, 0, UINT_LEAST16_MAX);
-MFEM_STAMP_MINMAX_REDUCER(char32_t, 0, UINT_LEAST32_MAX);
-MFEM_STAMP_MINMAX_REDUCER(short, SHRT_MIN, SHRT_MAX);
-MFEM_STAMP_MINMAX_REDUCER(unsigned short, 0, USHRT_MAX);
-MFEM_STAMP_MINMAX_REDUCER(int, INT_MIN, INT_MAX);
-MFEM_STAMP_MINMAX_REDUCER(unsigned int, 0, UINT_MAX);
-MFEM_STAMP_MINMAX_REDUCER(long, LONG_MIN, LONG_MAX);
-MFEM_STAMP_MINMAX_REDUCER(unsigned long, 0, ULONG_MAX);
-MFEM_STAMP_MINMAX_REDUCER(long long, LLONG_MIN, LLONG_MAX);
-MFEM_STAMP_MINMAX_REDUCER(unsigned long long, 0, ULLONG_MAX);
+template <class I> struct ArgMinReducer<float, I>
+{
+   using value_type = DevicePair<float, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.first <= a.first)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = value_type{HUGE_VALF, I{0}};
+   }
+};
 
-#undef MFEM_STAMP_MINMAX_REDUCER
+template <class I> struct ArgMinReducer<double, I>
+{
+   using value_type = DevicePair<double, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.first <= a.first)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = value_type{HUGE_VAL, I{0}};
+   }
+};
 
-#define MFEM_STAMP_ARGMINMAX_REDUCER(type, min_val_, max_val_)                 \
-  template <class I> struct ArgMinMaxReducer<type, I> {                        \
-    using value_type = MinMaxLocScalar<type, I>;                               \
-    static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b) {    \
-      if (b.min_val <= a.min_val) {                                            \
-        a.min_val = b.min_val;                                                 \
-        a.min_loc = b.min_loc;                                                 \
-      }                                                                        \
-      if (b.max_val >= a.max_val) {                                            \
-        a.max_val = b.max_val;                                                 \
-        a.max_loc = b.max_loc;                                                 \
-      }                                                                        \
-    }                                                                          \
-                                                                               \
-    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) {              \
-      a = value_type{static_cast<type>(max_val_), static_cast<type>(min_val_), \
-                     I(0), I(0)};                                              \
-    }                                                                          \
-  }
+/// @brief i = argmax(a[i], a[j])
+///
+/// Note: for ties the returned index can correspond to any min entry, not
+/// necesarily the first one.
+template <class T, class I> struct ArgMaxReducer
+{
+   using value_type = DevicePair<T, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (a.first <= b.first)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      // Cuda complains about calling host-only constexpr functions in device
+      // code without --expt-relaxed-constexpr, wrap into integral_constant to
+      // get around this
+      a = value_type
+      {
+         std::integral_constant<T, std::numeric_limits<T>::max()>::value, I{0}};
+   }
+};
 
-MFEM_STAMP_ARGMINMAX_REDUCER(bool, false, true);
-MFEM_STAMP_ARGMINMAX_REDUCER(char, CHAR_MIN, CHAR_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(signed char, SCHAR_MIN, SCHAR_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(unsigned char, 0, UCHAR_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(wchar_t, WCHAR_MIN, WCHAR_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(char16_t, 0, UINT_LEAST16_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(char32_t, 0, UINT_LEAST32_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(short, SHRT_MIN, SHRT_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(unsigned short, 0, USHRT_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(int, INT_MIN, INT_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(unsigned int, 0, UINT_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(long, LONG_MIN, LONG_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(unsigned long, 0, ULONG_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(long long, LLONG_MIN, LLONG_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(unsigned long long, 0, ULLONG_MAX);
-MFEM_STAMP_ARGMINMAX_REDUCER(float, -HUGE_VALF, HUGE_VALF);
-MFEM_STAMP_ARGMINMAX_REDUCER(double, -HUGE_VAL, HUGE_VAL);
+template <class I> struct ArgMaxReducer<float, I>
+{
+   using value_type = DevicePair<float, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (a.first <= b.first)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = value_type{-HUGE_VALF, I{0}};
+   }
+};
 
-#undef MFEM_STAMP_ARGMINMAX_REDUCER
+template <class I> struct ArgMaxReducer<double, I>
+{
+   using value_type = DevicePair<double, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (a.first <= b.first)
+      {
+         a = b;
+      }
+   }
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = value_type{-HUGE_VAL, I{0}};
+   }
+};
+
+template <class T, class I> struct ArgMinMaxReducer
+{
+   using value_type = MinMaxLocScalar<T, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.min_val <= a.min_val)
+      {
+         a.min_val = b.min_val;
+         a.min_loc = b.min_loc;
+      }
+      if (b.max_val >= a.max_val)
+      {
+         a.max_val = b.max_val;
+         a.max_loc = b.max_loc;
+      }
+   }
+
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      // Cuda complains about calling host-only constexpr functions in device
+      // code without --expt-relaxed-constexpr, wrap into integral_constant to
+      // get around this
+      a = value_type
+      {
+         std::integral_constant<T, std::numeric_limits<T>::max()>::value,
+         std::integral_constant<T, std::numeric_limits<T>::min()>::value, I(0),
+         I(0)};
+   }
+};
+
+template <class I> struct ArgMinMaxReducer<float, I>
+{
+   using value_type = MinMaxLocScalar<float, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.min_val <= a.min_val)
+      {
+         a.min_val = b.min_val;
+         a.min_loc = b.min_loc;
+      }
+      if (b.max_val >= a.max_val)
+      {
+         a.max_val = b.max_val;
+         a.max_loc = b.max_loc;
+      }
+   }
+
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = value_type{HUGE_VALF, -HUGE_VALF, I(0), I(0)};
+   }
+};
+
+template <class I> struct ArgMinMaxReducer<double, I>
+{
+   using value_type = MinMaxLocScalar<double, I>;
+   static MFEM_HOST_DEVICE void Join(value_type &a, const value_type &b)
+   {
+      if (b.min_val <= a.min_val)
+      {
+         a.min_val = b.min_val;
+         a.min_loc = b.min_loc;
+      }
+      if (b.max_val >= a.max_val)
+      {
+         a.max_val = b.max_val;
+         a.max_loc = b.max_loc;
+      }
+   }
+
+   static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
+   {
+      a = value_type{HUGE_VAL, -HUGE_VAL, I(0), I(0)};
+   }
+};
 
 } // namespace mfem
 
