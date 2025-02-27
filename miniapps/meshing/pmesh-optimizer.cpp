@@ -348,10 +348,10 @@ int main (int argc, char *argv[])
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   // Define a finite element space on the mesh. Here we use vector finite
+   // elements which are tensor products of quadratic finite elements. The
+   // number of components in the vector finite element space is specified by
+   // the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -363,22 +363,22 @@ int main (int argc, char *argv[])
    auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
                                              mesh_node_ordering);
 
-   // 5. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the mesh curved based on the above finite element space. This
+   // means that we define the mesh elements through a fespace-based
+   // transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other degrees of freedom in the finite
+   // element space) as a finite element grid function in fespace. Note that
+   // changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   // 8. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
+   // Define a vector representing the minimal local mesh size in the mesh
+   // nodes. We index the nodes using the scalar version of the degrees of
+   // freedom in pfespace. Note: this is partition-dependent.
    //
-   //    In addition, compute average mesh size and total volume.
+   // In addition, compute average mesh size and total volume.
    Vector h0(pfespace->GetNDofs());
    h0 = infinity();
    real_t vol_loc = 0.0;
@@ -401,10 +401,10 @@ int main (int argc, char *argv[])
    const real_t small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in pfespace.
+   // We define a random grid function of fespace and make sure that it is
+   // zero on the boundary and its values are locally of the order of h0.
+   // The latter is based on the DofToVDof() method which maps the scalar to
+   // the vector degrees of freedom in pfespace.
    if (jitter > 0.0)
    {
       ParGridFunction rdm(pfespace);
@@ -435,9 +435,9 @@ int main (int argc, char *argv[])
    x.SetTrueVector();
    x.SetFromTrueVector();
 
-   // 10. Save the starting (prior to the optimization) mesh to a file. This
-   //     output can be viewed later using GLVis: "glvis -m perturbed -np
-   //     num_mpi_tasks".
+   // Save the starting (prior to the optimization) mesh to a file. This
+   // output can be viewed later using GLVis: "glvis -m perturbed -np
+   // num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -908,12 +908,12 @@ int main (int argc, char *argv[])
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
-   // 13. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights.  Note that there are
-   //     no command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
+   // Setup the final NonlinearForm (which defines the integral of interest,
+   // its first and second derivatives). Here we can use a combination of
+   // metrics, i.e., optimize the sum of two integrals, where both are
+   // scaled by used-defined space-dependent weights.  Note that there are
+   // no command-line options for the weights and the type of the second
+   // metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *metric_coeff1 = NULL;
@@ -1027,10 +1027,10 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
-   // 14. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node.  Attribute dim+1 corresponds to
-   //     an entirely fixed node.
+   // Fix all boundary nodes, or fix only a given component depending on the
+   // boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
+   // fixed x/y/z components of the node.  Attribute dim+1 corresponds to
+   // an entirely fixed node.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -1181,8 +1181,8 @@ int main (int argc, char *argv[])
    }
    hr_solver.Mult();
 
-   // 16. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh to a file. This output can be viewed later
+   // using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
