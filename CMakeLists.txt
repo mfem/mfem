@@ -681,6 +681,11 @@ endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
+if(MFEM_USE_PROTEUS)
+  find_package(proteus REQUIRED CONFIG HINTS ${proteus_DIR})
+  add_proteus(mfem)
+endif()
+
 # If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
 # inside the build directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))

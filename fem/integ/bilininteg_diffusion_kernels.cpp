@@ -118,19 +118,23 @@ void PADiffusionSetup2D<2>(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D, symmetric ? 3 : 4, NE);
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-   {
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            const real_t J11 = J(qx,qy,0,0,e);
-            const real_t J21 = J(qx,qy,1,0,e);
-            const real_t J12 = J(qx,qy,0,1,e);
-            const real_t J22 = J(qx,qy,1,1,e);
-            const real_t w_detJ = W(qx,qy) / ((J11*J22)-(J21*J12));
-            if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
-            {
+   mfem::forall_2D(
+       NE, Q1D, Q1D,
+       proteus::register_lambda([=,
+         Q1D = proteus::jit_variable(Q1D),
+         coeffDim = proteus::jit_variable(coeffDim),
+         symmetric=proteus::jit_variable(symmetric),
+         const_c=proteus::jit_variable(const_c)
+         ] MFEM_HOST_DEVICE(int e) {
+         MFEM_FOREACH_THREAD(qx, x, Q1D) {
+           MFEM_FOREACH_THREAD(qy, y, Q1D) {
+             const real_t J11 = J(qx, qy, 0, 0, e);
+             const real_t J21 = J(qx, qy, 1, 0, e);
+             const real_t J12 = J(qx, qy, 0, 1, e);
+             const real_t J22 = J(qx, qy, 1, 1, e);
+             const real_t w_detJ = W(qx, qy) / ((J11 * J22) - (J21 * J12));
+             if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
+             {
                // First compute entries of R = MJ^{-T}, without det J factor.
                const real_t M11 = C(0,qx,qy,e);
                const real_t M12 = C(1,qx,qy,e);
@@ -160,10 +164,10 @@ void PADiffusionSetup2D<2>(const int Q1D,
                D(qx,qy,0,e) =  w_detJ * (C2*J12*J12 + C1*J22*J22); // 1,1
                D(qx,qy,1,e) = -w_detJ * (C2*J12*J11 + C1*J22*J21); // 1,2
                D(qx,qy,2,e) =  w_detJ * (C2*J11*J11 + C1*J21*J21); // 2,2
-            }
+             }
+           }
          }
-      }
-   });
+       }));
 }
 
 template<>

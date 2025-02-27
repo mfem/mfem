@@ -19,6 +19,7 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#include <proteus/JitInterface.hpp>
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>
 #endif
@@ -580,6 +581,7 @@ struct CuWrap<3>
 #ifdef MFEM_USE_HIP
 
 template <typename BODY> __global__ static
+__attribute__((annotate("jit", 1)))
 void HipKernel1D(const int N, BODY body)
 {
    const int k = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
@@ -588,6 +590,7 @@ void HipKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
+__attribute__((annotate("jit", 1)))
 void HipKernel2D(const int N, BODY body)
 {
    const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
@@ -596,6 +599,7 @@ void HipKernel2D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
+__attribute__((annotate("jit", 1)))
 void HipKernel3D(const int N, BODY body)
 {
    for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
