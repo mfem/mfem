@@ -786,111 +786,6 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
    ForallWrap<3>(true, N, body, X, Y, Z, G);
 }
 
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-namespace internal
-{
-template <class lambda> __global__ void forall_smem_impl(lambda body)
-{
-   extern MFEM_SHARED void* buffer[];
-   body(buffer);
-}
-}
-#endif
-
-/**
- * @brief Wrapper for launching a kernel with dynamic shared memory.
- * @a nx number of x blocks
- * @a ny number of y blocks
- * @a nz number of z blocks
- * @a bx x block width
- * @a by y block width
- * @a bz z block width
- * @a smem_bytes amount of dynamic shared memory in bytes
- * @a h_body host body
- * @a d_body device body
- * @tparam T pointer type for dynamic shared memory buffer
- */
-template <class h_lambda, class d_lambda>
-inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
-                        int bz, int smem_bytes, h_lambda &&h_body,
-                        d_lambda &&d_body, const char* label=nullptr)
-{
-   MFEM_CONTRACT_VAR(nx);
-   MFEM_CONTRACT_VAR(ny);
-   MFEM_CONTRACT_VAR(nz);
-   MFEM_CONTRACT_VAR(bx);
-   MFEM_CONTRACT_VAR(by);
-   MFEM_CONTRACT_VAR(bz);
-   MFEM_CONTRACT_VAR(d_body);
-   if (!use_dev)
-   {
-      goto backend_cpu;
-   }
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   if (Device::Allows(Backend::RAJA_CUDA))
-   {
-      RAJA::launch<cuda_launch_policy>(
-         RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
-                            smem_bytes),
-         label,
-         [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
-      {
-         d_body(ctx.shared_mem_ptr);
-      });
-      return;
-   }
-#endif
-
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
-   if (Device::Allows(Backend::RAJA_HIP))
-   {
-      RAJA::launch<hip_launch_policy>(
-         RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
-                            smem_bytes),
-         label,
-         [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
-      {
-         d_body(ctx.shared_mem_ptr);
-      });
-      return;
-   }
-#endif
-
-#ifdef MFEM_USE_CUDA
-   if (Device::Allows(Backend::CUDA))
-   {
-      internal::
-      forall_smem_impl<<<dim3(nx, ny, nz), dim3(bx, by, bz), smem_bytes>>>(
-         std::forward<d_lambda>(d_body));
-      return;
-   }
-#endif
-
-#ifdef MFEM_USE_HIP
-   if (Device::Allows(Backend::HIP))
-   {
-      auto launcher =
-         internal::forall_smem_impl<typename std::decay<d_lambda>::type>;
-      hipLaunchKernelGGL(launcher, dim3(nx, ny, nz), dim3(bx, by, bz),
-                         smem_bytes, nullptr, std::forward<d_lambda>(d_body));
-      return;
-   }
-#endif
-
-backend_cpu:
-   // CPU fallback
-   h_body(get_host_smem(smem_bytes));
-}
-
-template <class lambda>
-inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
-                        int bz, int smem_bytes, lambda &&body,
-                        const char *label = nullptr)
-{
-   forall_smem(use_dev, nx, ny, nz, bx, by, bz, smem_bytes,
-               std::forward<lambda>(body), std::forward<lambda>(body), label);
-}
-
 #ifdef MFEM_USE_MPI
 
 // Function mfem::hypre_forall_cpu() similar to mfem::forall, but it always
@@ -969,20 +864,20 @@ namespace internal
  */
 template<class B, class R> struct reduction_kernel
 {
-   /** @brief value type body and reducer operate on. */
+   /// value type body and reducer operate on.
    using value_type = typename R::value_type;
-   /** @brief workspace for the intermediate reduction results */
+   /// workspace for the intermediate reduction results
    mutable value_type *work;
    B body;
    R reducer;
-   /** @brief Length of sequence to reduce over. */
+   /// Length of sequence to reduce over.
    int N;
-   /** @brief How many items is each thread responsible for during the serial phase */
+   /// How many items is each thread responsible for during the serial phase
    int items_per_thread;
 
    constexpr static MFEM_HOST_DEVICE int max_blocksize() { return 256; }
 
-   /** helper for computing the reduction block size */
+   /// helper for computing the reduction block size
    static int block_log2(unsigned N)
    {
 #if defined(__GNUC__) or defined(__clang__)
@@ -1000,11 +895,9 @@ template<class B, class R> struct reduction_kernel
 #endif
    }
 
-   MFEM_HOST_DEVICE void operator()(void *b_) const
+   MFEM_HOST_DEVICE void operator()(int idx) const
    {
-#if (defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||                      \
-    (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__))
-      value_type *buffer = reinterpret_cast<value_type *>(b_);
+      MFEM_SHARED value_type buffer[max_blocksize()];
       reducer.SetInitialValue(buffer[MFEM_THREAD_ID(x)]);
       // serial part
       for (int idx = 0; idx < items_per_thread; ++idx)
@@ -1031,16 +924,8 @@ template<class B, class R> struct reduction_kernel
       }
       if (MFEM_THREAD_ID(x) == 0)
       {
-         work[MFEM_BLOCK_ID(x)] = buffer[0];
+         work[idx] = buffer[0];
       }
-#else
-      // serial host
-      reducer.SetInitialValue(work[0]);
-      for (int i = 0; i < N; ++i)
-      {
-         body(i, work[0]);
-      }
-#endif
    }
 };
 }
@@ -1080,15 +965,11 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       int block_size = std::min<int>(red_type::max_blocksize(),
                                      1ll << red_type::block_log2(N));
 
-      int num_mp;
+      int num_mp = Device::NumMultiprocessors(Device::GetId());
 #if defined(MFEM_USE_CUDA)
-      cudaDeviceGetAttribute(&num_mp, cudaDevAttrMultiProcessorCount,
-                             Device::GetId());
       // good value of mp_sat found experimentally on Lassen
       constexpr int mp_sat = 8;
 #elif defined(MFEM_USE_HIP)
-      hipDeviceGetAttribute(&num_mp, hipDeviceAttributeMultiprocessorCount,
-                            Device::GetId());
       // good value of mp_sat found experimentally on Tuolumne
       constexpr int mp_sat = 4;
 #else
@@ -1101,8 +982,6 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       int items_per_thread =
          (N + block_size * nblocks - 1) / (block_size * nblocks);
 
-      int smem_bytes = sizeof(T) * block_size;
-
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
       auto mt = workspace.GetMemory().GetMemoryType();
@@ -1113,8 +992,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       workspace.SetSize(nblocks, mt);
       auto work = workspace.HostWrite();
       red.work = work;
-      forall_smem(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
-                  std::move(red), "mfem::reduce");
+      forall_2D(nblocks, block_size, 1, std::move(red));
       // wait for results
       MFEM_DEVICE_SYNC;
       for (int i = 0; i < nblocks; ++i)
