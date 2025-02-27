@@ -895,7 +895,7 @@ template<class B, class R> struct reduction_kernel
 #endif
    }
 
-   MFEM_HOST_DEVICE void operator()(int idx) const
+   MFEM_HOST_DEVICE void operator()(int work_idx) const
    {
       MFEM_SHARED value_type buffer[max_blocksize()];
       reducer.SetInitialValue(buffer[MFEM_THREAD_ID(x)]);
@@ -903,7 +903,7 @@ template<class B, class R> struct reduction_kernel
       for (int idx = 0; idx < items_per_thread; ++idx)
       {
          int i = MFEM_THREAD_ID(x) +
-                 (idx + MFEM_BLOCK_ID(x) * items_per_thread) * MFEM_THREAD_SIZE(x);
+                 (idx + work_idx * items_per_thread) * MFEM_THREAD_SIZE(x);
          if (i < N)
          {
             body(i, buffer[MFEM_THREAD_ID(x)]);
@@ -924,7 +924,7 @@ template<class B, class R> struct reduction_kernel
       }
       if (MFEM_THREAD_ID(x) == 0)
       {
-         work[idx] = buffer[0];
+         work[work_idx] = buffer[0];
       }
    }
 };
