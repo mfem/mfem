@@ -90,8 +90,9 @@ endif()
 # Ginkgo requires C++17:
 if ((MFEM_USE_GINKGO) AND ("${CMAKE_CXX_STANDARD}" LESS "17"))
   set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use." FORCE)
-# SUNDIALS, STRUMPACK, Tribol, RAJA and Umpire require C++14:
-elseif ((MFEM_USE_SUNDIALS OR
+# Google Benchmark, SUNDIALS, STRUMPACK, Tribol, RAJA and Umpire require C++14:
+elseif ((MFEM_USE_BENCHMARK OR
+         MFEM_USE_SUNDIALS OR
          MFEM_USE_STRUMPACK OR
          MFEM_USE_TRIBOL OR
          MFEM_USE_RAJA OR
@@ -746,11 +747,17 @@ if (MFEM_ENABLE_TESTING)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
 
-  # Create a target for all benchmarks and, optionally, enable it.
-  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
-  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
-                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
-  add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+  if (MFEM_USE_BENCHMARK)
+    # Create a target for all benchmarks and, optionally, enable it.
+    set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+    add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                    ${MFEM_ENABLE_BENCHMARKS})
+    if (MFEM_ENABLE_BENCHMARKS)
+      add_subdirectory(tests/benchmarks) #install benchmarks if enabled
+    else()
+      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+    endif()
+  endif()
 endif()
 
 # Define a target that all examples and miniapps will depend on.
