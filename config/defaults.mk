@@ -145,6 +145,7 @@ MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
 MFEM_USE_GNUTLS        = NO
+MFEM_USE_HDF5          = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
