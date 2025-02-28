@@ -181,21 +181,22 @@ void GridFunction::Update()
    if (fes->LastUpdatePRef())
    {
       UpdatePRef();
-      return;
-   }
-
-   const Operator *T = fes->GetUpdateOperator();
-   if (T)
-   {
-      Vector old_data;
-      old_data.Swap(*this);
-      SetSize(T->Height());
-      UseDevice(true);
-      T->Mult(old_data, *this);
    }
    else
    {
-      SetSize(fes->GetVSize());
+      const Operator *T = fes->GetUpdateOperator();
+      if (T)
+      {
+         Vector old_data;
+         old_data.Swap(*this);
+         SetSize(T->Height());
+         UseDevice(true);
+         T->Mult(old_data, *this);
+      }
+      else
+      {
+         SetSize(fes->GetVSize());
+      }
    }
 
    if (t_vec.Size() > 0) { SetTrueVector(); }

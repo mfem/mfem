@@ -467,6 +467,9 @@ protected:
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
+   /// P-refinement version of Update().
+   void UpdatePRef();
+
 public:
    /** @brief For each vdof, counts how many elements contain the vdof,
        as containment is determined by FiniteElementSpace::GetElementVDofs(). */
@@ -1473,8 +1476,6 @@ public:
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
    virtual void Update();
-
-   void UpdatePRef();
 
    /** Return update counter, similar to Mesh::GetSequence(). Used to
        check if it is up to date with the space. */
