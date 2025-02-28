@@ -626,6 +626,7 @@ int main (int argc, char *argv[])
   double ls_energy_fac  = 1.1;
   bool   bndr_fix       = true;
   bool   filter         = false;
+  int    physics = 0;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -690,6 +691,10 @@ int main (int argc, char *argv[])
                   "Use vector helmholtz filter.");
     args.AddOption(&filterRadius, "-frad", "--frad",
                     "Filter radius");
+    args.AddOption(&physics, "-ph", "--physics",
+                    "Physics");
+
+                    
 
    args.Parse();
    if (!args.Good())
@@ -1000,9 +1005,37 @@ if (myid == 0) {
 
   VectorCoefficient *loadFuncGrad = new VectorFunctionCoefficient(dim,
                                                               trueLoadFuncGrad);
+  VectorCoefficient *trueSolutionGrad =
+                          new VectorFunctionCoefficient(dim, trueSolGradFunc);
+  MatrixCoefficient *trueSolutionHess = new
+                                MatrixFunctionCoefficient(dim,trueHessianFunc);
+  VectorCoefficient *trueSolutionHessV =
+                          new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
+  PhysicsSolverBase * solver = nullptr;
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
-  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC, loadFuncGrad);
-  // Elasticity_Solver solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
+  Coefficient *QCoef = new FunctionCoefficient(loadFunc);
+
+  mfem::VectorArrayCoefficient tractionLoad(PMesh->SpaceDimension());
+  tractionLoad.Set(0, new mfem::ConstantCoefficient(1.0));
+  tractionLoad.Set(1, new mfem::ConstantCoefficient(0.0));
+
+  if( physics ==0)
+  {
+    Diffusion_Solver * diffsolver = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC, loadFuncGrad);
+    diffsolver->SetManufacturedSolution(QCoef);
+    diffsolver->setTrueSolGradCoeff(trueSolutionGrad);
+
+    solver = diffsolver;
+  }
+  else if(physics ==1)
+  {
+    //Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
+    Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, essentialBC, mesh_poly_deg);
+    elasticitysolver->SetLoad(&tractionLoad);
+
+    solver = elasticitysolver;
+  }
+
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
@@ -1020,14 +1053,6 @@ if (myid == 0) {
     filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
   }
 
-  Coefficient *QCoef = new FunctionCoefficient(loadFunc);
-  solver.SetManufacturedSolution(QCoef);
-  VectorCoefficient *trueSolutionGrad =
-                          new VectorFunctionCoefficient(dim, trueSolGradFunc);
-  MatrixCoefficient *trueSolutionHess = new
-                                MatrixFunctionCoefficient(dim,trueHessianFunc);
-  VectorCoefficient *trueSolutionHessV =
-                          new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
   QoIEvaluator.setTrueSolCoeff( trueSolution );
   if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
@@ -1035,7 +1060,6 @@ if (myid == 0) {
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order2);
   x_gf.ProjectCoefficient(*trueSolution);
-  solver.setTrueSolGradCoeff(trueSolutionGrad);
 
 
   Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
@@ -1052,7 +1076,7 @@ if (myid == 0) {
   paraview_dc.SetHighOrderOutput(true);
 
   //
-  ParGridFunction & discretSol = solver.GetSolution();
+  ParGridFunction & discretSol = solver->GetSolution();
   discretSol.ProjectCoefficient(*trueSolution);
   if (visualization)
   {
@@ -1061,9 +1085,9 @@ if (myid == 0) {
                             "Initial Projected Solution", 0, 0, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
   }
   {
-    solver.SetDesignVarFromUpdatedLocations(x);
-    solver.FSolve();
-  ParGridFunction & discretSol = solver.GetSolution();
+    solver->SetDesignVarFromUpdatedLocations(x);
+    solver->FSolve();
+    ParGridFunction & discretSol = solver->GetSolution();
     if (visualization)
     {
         socketstream vis;
@@ -1079,7 +1103,7 @@ if (myid == 0) {
   x.SetTrueVector();
 
   VisItDataCollection *visdc = new VisItDataCollection("tmop-pde", PMesh);
-  visdc->RegisterField("solution", &(solver.GetSolution()));
+  visdc->RegisterField("solution", &(solver->GetSolution()));
   visdc->SetCycle(0);
   visdc->SetTime(0.0);
   visdc->Save();
@@ -1111,7 +1135,7 @@ if (myid == 0) {
     if (weight_1 > 0.0)
     {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
-      tmma->SetDiffusionSolver(&solver);
+      tmma->SetDiffusionSolver(reinterpret_cast<Diffusion_Solver*>(solver));       // TODO change to base class
       tmma->SetQoIWeight(weight_1);
       tmma->SetVectorHelmholtzFilter(filterSolver);
     }
@@ -1180,9 +1204,9 @@ if (myid == 0) {
     }
 
 
-    solver.SetDesignVarFromUpdatedLocations(x);
-    solver.FSolve();
-    ParGridFunction & discretSol = solver.GetSolution();
+    solver->SetDesignVarFromUpdatedLocations(x);
+    solver->FSolve();
+    ParGridFunction & discretSol = solver->GetSolution();
     if (visualization)
     {
         socketstream vis;
@@ -1238,10 +1262,10 @@ if (myid == 0) {
       filterSolver->FSolve();
       ParGridFunction & filteredDesign = filterSolver->GetSolution();
 
-      solver.SetDesign( filteredDesign );
-      solver.FSolve();
+      solver->SetDesign( filteredDesign );
+      solver->FSolve();
 
-      ParGridFunction & discretSol = solver.GetSolution();
+      ParGridFunction & discretSol = solver->GetSolution();
 
       QoIEvaluator.SetDesign( filteredDesign );
       MeshQualityEvaluator.SetDesign( filteredDesign );
@@ -1261,9 +1285,9 @@ if (myid == 0) {
       ParLinearForm * dQdxExpl = QoIEvaluator.GetDQDx();
       ParLinearForm * dMeshQdxExpl = MeshQualityEvaluator.GetDQDx();
 
-      solver.ASolve( *dQdu );
+      solver->ASolve( *dQdu );
 
-      ParLinearForm * dQdxImpl = solver.GetImplicitDqDx();
+      ParLinearForm * dQdxImpl = solver->GetImplicitDqDx();
 
       ParLinearForm dQdx(pfespace); dQdx = 0.0;
       ParLinearForm dQdx_physics(pfespace); dQdx_physics = 0.0;
@@ -1623,6 +1647,7 @@ if (myid == 0) {
     }
   }
 
+  delete solver;
   delete PMesh;
 
   return 0;
