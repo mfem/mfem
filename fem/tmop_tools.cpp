@@ -357,6 +357,11 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 #endif
    m->SetNodes(nodes0);
 
+   if (m->GetNodes()->FESpace()->IsDGSpace())
+   {
+      MFEM_ABORT("InterpolatorFP is not supported for periodic meshes yet.");
+   }
+
    const real_t rel_bbox_el = 0.1;
    const real_t newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
