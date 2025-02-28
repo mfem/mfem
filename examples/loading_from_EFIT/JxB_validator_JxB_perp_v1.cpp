@@ -1,7 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "JxB_vec_coeffs_v0.hpp"
+#include "JxB_vec_coeffs.hpp"
 
 using namespace std;
 using namespace mfem;
