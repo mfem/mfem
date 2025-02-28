@@ -1409,7 +1409,7 @@ void QuantityOfInterest::UpdateMesh(Vector const &U)
   coord_fes_->GetParMesh()->DeleteGeometricFactors();
 }
 
-void Diffusion_Solver::UpdateMesh(Vector const &U)
+void PhysicsSolverBase::UpdateMesh(Vector const &U)
 {
   Vector Xi = X0_;
   Xi += U;
@@ -1862,8 +1862,8 @@ void Diffusion_Solver::FSolve()
   ConstantCoefficient wCoef(1e5);
   ProductCoefficient  truesolWCoef(wCoef,*trueSolCoeff);
 
-  ParBilinearForm kForm(temp_fes_);
-  ParLinearForm QForm(temp_fes_);
+  ParBilinearForm kForm(physics_fes_);
+  ParLinearForm QForm(physics_fes_);
   kForm.AddDomainIntegrator(new DiffusionIntegrator(kCoef));
 
   QForm.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_, 22,22));
@@ -1894,7 +1894,7 @@ void Diffusion_Solver::FSolve()
   HypreBoomerAMG amg(A);
   amg.SetPrintLevel(0);
 
-  CGSolver cg(temp_fes_->GetParMesh()->GetComm());
+  CGSolver cg(physics_fes_->GetParMesh()->GetComm());
   cg.SetRelTol(1e-12);
   cg.SetMaxIter(5000);
   cg.SetPreconditioner(amg);
@@ -1911,10 +1911,10 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     // the nodal coordinates will default to the initial mesh
     this->UpdateMesh(designVar);
 
-    ParGridFunction adj_sol(temp_fes_);
-    ParGridFunction dQdu(temp_fes_);
+    ParGridFunction adj_sol(physics_fes_);
+    ParGridFunction dQdu(physics_fes_);
     adj_sol = 0.0;
-    ParGridFunction rhs_gf(temp_fes_);
+    ParGridFunction rhs_gf(physics_fes_);
     rhs_gf = 1.0;
     rhs_gf.ExchangeFaceNbrData();
     rhs_gf.SetTrueVector();
@@ -1924,10 +1924,10 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     bool visualization = false;
     ParGridFunction tempgf(coord_fes_);
     tempgf = 0.0;
-    // VisItDataCollection vis_dc("Adjoint", temp_fes_->GetParMesh());
-    // vis_dc.SetLevelsOfDetail(temp_fes_->GetMaxElementOrder()-1);
-    ParaViewDataCollection vis_dc("Adjoint", temp_fes_->GetParMesh());
-    vis_dc.SetLevelsOfDetail(temp_fes_->GetMaxElementOrder());
+    // VisItDataCollection vis_dc("Adjoint", physics_fes_->GetParMesh());
+    // vis_dc.SetLevelsOfDetail(physics_fes_->GetMaxElementOrder()-1);
+    ParaViewDataCollection vis_dc("Adjoint", physics_fes_->GetParMesh());
+    vis_dc.SetLevelsOfDetail(physics_fes_->GetMaxElementOrder());
     vis_dc.SetHighOrderOutput(true);
     if (visualization)
     {
@@ -1965,7 +1965,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     ConstantCoefficient wCoef(1e5);
     ProductCoefficient  truesolWCoef(wCoef,*trueSolCoeff);
 
-    ParBilinearForm kForm(temp_fes_);
+    ParBilinearForm kForm(physics_fes_);
     kForm.AddDomainIntegrator(new DiffusionIntegrator(kCoef));
     if(weakBC_)
     {
@@ -1984,7 +1984,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     HypreBoomerAMG amg(*tTransOp);
     amg.SetPrintLevel(0);
 
-    CGSolver cg(temp_fes_->GetParMesh()->GetComm());
+    CGSolver cg(physics_fes_->GetParMesh()->GetComm());
     cg.SetRelTol(1e-12);
     cg.SetMaxIter(5000);
     cg.SetPreconditioner(amg);
@@ -2027,7 +2027,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
       // lfi->SetLoadGrad(&trueloadgradgf_coeff_);
     }
     IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-    lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
+    lfi->SetIntRule(&IntRulesGLL.Get(physics_fes_->GetFE(0)->GetGeomType(), 24));
     RHS_sensitivity.AddDomainIntegrator(lfi);
     RHS_sensitivity.Assemble();
 
@@ -2185,8 +2185,8 @@ void Elasticity_Solver::FSolve()
   ::mfem::ConstantCoefficient firstLameCoef(1.0);
   ::mfem::ConstantCoefficient secondLameCoef(0.0);
 
-  ParBilinearForm a(u_fes_);
-  ParLinearForm b(u_fes_);
+  ParBilinearForm a(physics_fes_);
+  ParLinearForm b(physics_fes_);
   a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
   b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*QCoef_));
 
@@ -2204,7 +2204,7 @@ void Elasticity_Solver::FSolve()
   HypreBoomerAMG amg(A);
   amg.SetPrintLevel(0);
 
-  CGSolver cg(u_fes_->GetParMesh()->GetComm());
+  CGSolver cg(physics_fes_->GetParMesh()->GetComm());
   cg.SetRelTol(1e-10);
   cg.SetMaxIter(500);
   cg.SetPreconditioner(amg);
@@ -2225,12 +2225,12 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     ::mfem::ConstantCoefficient firstLameCoef(1.0);
     ::mfem::ConstantCoefficient secondLameCoef(0.0);
 
-    ParBilinearForm a(u_fes_);
+    ParBilinearForm a(physics_fes_);
     a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
     a.Assemble();
 
     // solve adjoint problem
-    ParGridFunction adj_sol(u_fes_);
+    ParGridFunction adj_sol(physics_fes_);
     adj_sol = 0.0;
 
     HypreParMatrix A;
@@ -2240,7 +2240,7 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     HypreBoomerAMG amg(A);
     amg.SetPrintLevel(0);
 
-    CGSolver cg(u_fes_->GetParMesh()->GetComm());
+    CGSolver cg(physics_fes_->GetParMesh()->GetComm());
     cg.SetRelTol(1e-10);
     cg.SetMaxIter(500);
     cg.SetPreconditioner(amg);
@@ -2263,15 +2263,6 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);
     dQdx_->Add( 1.0, RHS_sensitivity);
-}
-
-void Elasticity_Solver::UpdateMesh(Vector const &U)
-{
-  Vector Xi = X0_;
-  Xi += U;
-  coord_fes_->GetParMesh()->SetNodes(Xi);
-
-  coord_fes_->GetParMesh()->DeleteGeometricFactors();
 }
 
 }

@@ -1066,38 +1066,122 @@ private:
     int quad_order;
 };
 
-class Diffusion_Solver
+class PhysicsSolverBase
 {
-public:
-    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
+  public:
+    PhysicsSolverBase( mfem::ParMesh* mesh_, int order_)
     {
-        weakBC_ = weakBC;
         pmesh=mesh_;
         int dim=pmesh->Dimension();
 
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
-        sol.SetSize(temp_fes_->GetTrueVSize()); sol=0.0;
-        rhs.SetSize(temp_fes_->GetTrueVSize()); rhs=0.0;
-        adj.SetSize(temp_fes_->GetTrueVSize()); adj=0.0;
-
-        solgf.SetSpace(temp_fes_);
-        adjgf.SetSpace(temp_fes_);
-
-        dQdu_ = new mfem::ParLinearForm(temp_fes_);
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
 
         SetLinearSolver();
+    };
+
+    virtual ~PhysicsSolverBase()
+    {
+        delete physics_fes_;
+        delete coord_fes_;
+        delete fec;
+
+        delete dQdu_;
+        delete dQdx_;
+    };
+
+    void UpdateMesh(mfem::Vector const &U);
+
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=2000)
+    {
+        linear_rtol=rtol;
+        linear_atol=atol;
+        linear_iter=miter;
+    }
+
+    virtual void FSolve() = 0;
+
+    virtual void ASolve( mfem::Vector & rhs ) = 0;
+
+    void SetDesign( mfem::Vector & design)
+    {
+        designVar = design;
+    };
+
+    void SetDesignVarFromUpdatedLocations( mfem::Vector & design)
+    {
+        designVar = design;
+        designVar -= X0_;
+    };
+
+    /// Returns the solution
+    mfem::ParGridFunction& GetSolution(){return solgf;}
+
+    /// Returns the solution vector.
+    mfem::Vector& GetSol(){return sol;}
+
+    /// Returns the adjoint solution vector.
+    mfem::Vector& GetAdj(){return adj;}
+
+    mfem::ParLinearForm * GetImplicitDqDx(){ return dQdx_; };
+
+  protected:
+    mfem::ParMesh* pmesh;
+
+    mfem::Vector X0_;
+    mfem::Vector designVar;
+
+    mfem::FiniteElementCollection *fec;
+    mfem::ParFiniteElementSpace	  *physics_fes_;
+    mfem::ParFiniteElementSpace	  *coord_fes_;
+
+    //solution true vector
+    mfem::Vector sol;
+    mfem::Vector adj;
+    mfem::Vector rhs;
+    mfem::ParGridFunction solgf;
+    mfem::ParGridFunction adjgf;
+    mfem::ParGridFunction bcGridFunc_;
+
+    mfem::ParLinearForm * dQdu_;
+    mfem::ParLinearForm * dQdx_;
+
+        //Linear solver parameters
+    double linear_rtol;
+    double linear_atol;
+    int linear_iter;
+
+    int print_level = 1;
+};
+
+class Diffusion_Solver : public PhysicsSolverBase
+{
+public:
+    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
+    : PhysicsSolverBase(mesh_, order_)
+    {
+        weakBC_ = weakBC;
+
+        physics_fes_ = new ParFiniteElementSpace(pmesh,fec);
+
+        sol.SetSize(physics_fes_->GetTrueVSize()); sol=0.0;
+        rhs.SetSize(physics_fes_->GetTrueVSize()); rhs=0.0;
+        adj.SetSize(physics_fes_->GetTrueVSize()); adj=0.0;
+
+        solgf.SetSpace(physics_fes_);
+        adjgf.SetSpace(physics_fes_);
+
+        dQdu_ = new mfem::ParLinearForm(physics_fes_);  
 
         // store list of essential dofs
         int maxAttribute = pmesh->bdr_attributes.Max();
         ::mfem::Array<int> bdr_attr_is_ess(maxAttribute);
         ess_tdof_list_.DeleteAll();
-        ::mfem::Vector ess_bc(temp_fes_->GetTrueVSize());
+        ::mfem::Vector ess_bc(physics_fes_->GetTrueVSize());
         ess_bc = 0.0;
 
         // loop over input attribute, value pairs
@@ -1109,7 +1193,7 @@ public:
             bdr_attr_is_ess = 0;
             bdr_attr_is_ess[attribute - 1] = 1; // mfem attributes 1-indexed, arrays 0-indexed
             ::mfem::Array<int> temp_tdofs;
-            temp_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, temp_tdofs);
+            physics_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, temp_tdofs);
 
             // append to global dof list
             ess_tdof_list_.Append(temp_tdofs);
@@ -1118,7 +1202,7 @@ public:
             double value = bc.second;
             ess_bc.SetSubVector(temp_tdofs, value);
         }
-        bcGridFunc_.SetSpace(temp_fes_);
+        bcGridFunc_.SetSpace(physics_fes_);
         bcGridFunc_.SetFromTrueDofs(ess_bc);
 
         ess_bdr_attr.SetSize(maxAttribute);
@@ -1131,7 +1215,7 @@ public:
         if (truesolfunc)
         {
           bcGridFunc_ = 0.0;
-          GridFunction bdrsol(temp_fes_);
+          GridFunction bdrsol(physics_fes_);
           bdrsol.ProjectBdrCoefficient(*truesolfunc, ess_bdr_attr);
           solgf.ProjectBdrCoefficient(*truesolfunc, ess_bdr_attr);
           bcGridFunc_ = bdrsol;
@@ -1147,43 +1231,12 @@ public:
     }
 
     ~Diffusion_Solver(){
-        delete temp_fes_;
-        delete coord_fes_;
-        delete fec;
-
-        delete dQdu_;
-        delete dQdx_;
-    }
-
-    void UpdateMesh(mfem::Vector const &U);
-
-    double Eval_QoI();
-
-    void Eval_QoI_Grad();
-
-    /// Set the Linear Solver
-    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=2000)
-    {
-        linear_rtol=rtol;
-        linear_atol=atol;
-        linear_iter=miter;
     }
 
     /// Solves the forward problem.
-    void FSolve();
+    void FSolve() override ;
 
-    void ASolve( mfem::Vector & rhs );
-
-    void SetDesign( mfem::Vector & design)
-    {
-        designVar = design;
-    };
-
-    void SetDesignVarFromUpdatedLocations( mfem::Vector & design)
-    {
-        designVar = design;
-        designVar -= X0_;
-    };
+    void ASolve( mfem::Vector & rhs ) override ;
 
     void SetManufacturedSolution( mfem::Coefficient * QCoef )
     {
@@ -1192,47 +1245,11 @@ public:
 
     void setTrueSolGradCoeff( mfem::VectorCoefficient * trueSolutionGradCoef ){ trueSolutionGradCoef_ = trueSolutionGradCoef; };
 
-    /// Returns the solution
-    mfem::ParGridFunction& GetSolution(){return solgf;}
-
-    /// Returns the solution vector.
-    mfem::Vector& GetSol(){return sol;}
-
-    /// Returns the adjoint solution vector.
-    mfem::Vector& GetAdj(){return adj;}
-
-    mfem::ParLinearForm * GetImplicitDqDx(){ return dQdx_; };
-
 private:
-    mfem::ParMesh* pmesh;
-
-    mfem::Vector X0_;
-    mfem::Vector designVar;
-
-    //solution true vector
-    mfem::Vector sol;
-    mfem::Vector adj;
-    mfem::Vector rhs;
-    mfem::ParGridFunction solgf;
-    mfem::ParGridFunction adjgf;
-    mfem::ParGridFunction bcGridFunc_;
-
-    mfem::ParLinearForm * dQdu_;
-    mfem::ParLinearForm * dQdx_;
-
-    mfem::FiniteElementCollection *fec;
-    mfem::ParFiniteElementSpace	  *temp_fes_;
-    mfem::ParFiniteElementSpace	  *coord_fes_;
 
     mfem::Coefficient *trueSolCoeff = nullptr;
     Array<int> ess_bdr_attr;
 
-    //Linear solver parameters
-    double linear_rtol;
-    double linear_atol;
-    int linear_iter;
-
-    int print_level = 1;
     int pdc_cycle = 0;
 
     // holds NBC in coefficient form
@@ -1247,41 +1264,32 @@ private:
     mfem::ParGridFunction trueloadgradgf_;
     mfem::VectorGridFunctionCoefficient trueloadgradgf_coeff_;
 
-
     bool weakBC_ = false;
 };
 
-class Elasticity_Solver
+class Elasticity_Solver : public PhysicsSolverBase
 {
 public:
     Elasticity_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_)
+    : PhysicsSolverBase( mesh_, order_ )
     {
-        pmesh=mesh_;
         int dim=pmesh->Dimension();
+        physics_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
-        pmesh->GetNodes(X0_);
+        sol.SetSize(physics_fes_->GetTrueVSize()); sol=0.0;
+        rhs.SetSize(physics_fes_->GetTrueVSize()); rhs=0.0;
+        adj.SetSize(physics_fes_->GetTrueVSize()); adj=0.0;
 
-        fec = new H1_FECollection(order_,dim);
-        u_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
-        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
+        solgf.SetSpace(physics_fes_);
+        adjgf.SetSpace(physics_fes_);
 
-        sol.SetSize(u_fes_->GetTrueVSize()); sol=0.0;
-        rhs.SetSize(u_fes_->GetTrueVSize()); rhs=0.0;
-        adj.SetSize(u_fes_->GetTrueVSize()); adj=0.0;
-
-        solgf.SetSpace(u_fes_);
-        adjgf.SetSpace(u_fes_);
-
-        dQdu_ = new mfem::ParLinearForm(u_fes_);
-        dQdx_ = new mfem::ParLinearForm(coord_fes_);
-
-        SetLinearSolver();
+        dQdu_ = new mfem::ParLinearForm(physics_fes_);
 
         // store list of essential dofs
         int maxAttribute = pmesh->bdr_attributes.Max();
         ::mfem::Array<int> bdr_attr_is_ess(maxAttribute);
         ess_tdof_list_.DeleteAll();
-        ::mfem::Vector ess_bc(u_fes_->GetTrueVSize());
+        ::mfem::Vector ess_bc(physics_fes_->GetTrueVSize());
         ess_bc = 0.0;
 
         // loop over input attribute, value pairs
@@ -1293,7 +1301,7 @@ public:
             bdr_attr_is_ess = 0;
             bdr_attr_is_ess[attribute - 1] = 1; // mfem attributes 1-indexed, arrays 0-indexed
             ::mfem::Array<int> u_tdofs;
-            u_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, u_tdofs);
+            physics_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, u_tdofs);
 
             // append to global dof list
             ess_tdof_list_.Append(u_tdofs);
@@ -1302,92 +1310,24 @@ public:
             double value = bc.second;
             ess_bc.SetSubVector(u_tdofs, value);
         }
-        bcGridFunc_.SetSpace(u_fes_);
+        bcGridFunc_.SetSpace(physics_fes_);
         bcGridFunc_.SetFromTrueDofs(ess_bc);
     }
 
     ~Elasticity_Solver(){
-        delete u_fes_;
-        delete coord_fes_;
-        delete fec;
-
-        delete dQdu_;
-        delete dQdx_;
-    }
-
-    void UpdateMesh(mfem::Vector const &U);
-
-    double Eval_QoI();
-
-    void Eval_QoI_Grad();
-
-    /// Set the Linear Solver
-    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=2000)
-    {
-        linear_rtol=rtol;
-        linear_atol=atol;
-        linear_iter=miter;
     }
 
     /// Solves the forward problem.
-    void FSolve();
+    void FSolve() override ;
 
-    void ASolve( mfem::Vector & rhs );
-
-    void SetDesign( mfem::Vector & design)
-    {
-        designVar = design;
-    };
-
-    void SetDesignVarFromUpdatedLocations( mfem::Vector & design)
-    {
-        designVar = design;
-        designVar -= X0_;
-    };
+    void ASolve( mfem::Vector & rhs ) override ;
 
     void SetLoad( mfem::VectorCoefficient * QCoef )
     {
       QCoef_ = QCoef;
     }
 
-    /// Returns the solution
-    mfem::ParGridFunction& GetSolution(){return solgf;}
-
-    /// Returns the solution vector.
-    mfem::Vector& GetSol(){return sol;}
-
-    /// Returns the adjoint solution vector.
-    mfem::Vector& GetAdj(){return adj;}
-
-    mfem::ParLinearForm * GetImplicitDqDx(){ return dQdx_; };
-
 private:
-    mfem::ParMesh* pmesh;
-
-    mfem::Vector X0_;
-    mfem::Vector designVar;
-
-    //solution true vector
-    mfem::Vector sol;
-    mfem::Vector adj;
-    mfem::Vector rhs;
-    mfem::ParGridFunction solgf;
-    mfem::ParGridFunction adjgf;
-    mfem::ParGridFunction bcGridFunc_;
-
-    mfem::ParLinearForm * dQdu_;
-    mfem::ParLinearForm * dQdx_;
-
-    mfem::FiniteElementCollection *fec;
-    mfem::ParFiniteElementSpace	  *u_fes_;
-    mfem::ParFiniteElementSpace	  *coord_fes_;
-
-    //Linear solver parameters
-    double linear_rtol;
-    double linear_atol;
-    int linear_iter;
-
-    int print_level = 1;
 
     // holds NBC in coefficient form
     std::map<int, mfem::Coefficient*> ncc;
