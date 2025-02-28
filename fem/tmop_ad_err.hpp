@@ -1011,6 +1011,7 @@ public:
     void setTrueSolGradCoeff( mfem::VectorCoefficient * trueSolutionGrad ){ trueSolutionGrad_ = trueSolutionGrad; };
     void setTrueSolHessCoeff( mfem::MatrixCoefficient * trueSolutionHess ){ trueSolutionHess_ = trueSolutionHess; };
     void setTrueSolHessCoeff( mfem::VectorCoefficient * trueSolutionHessV ){ trueSolutionHessV_ = trueSolutionHessV; };
+    void setTractionCoeff( mfem::VectorCoefficient * tractionLoad ){ tractionLoad_ = tractionLoad; }
     void SetDesign( mfem::Vector & design){ designVar = design; };
     void SetNodes( mfem::Vector & coords){ X0_ = coords; };
     void SetDesignVarFromUpdatedLocations( mfem::Vector & design)

@@ -1012,8 +1012,11 @@ if (myid == 0) {
   VectorCoefficient *trueSolutionHessV =
                           new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
   PhysicsSolverBase * solver = nullptr;
+  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
+  NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
+
 
   mfem::VectorArrayCoefficient tractionLoad(PMesh->SpaceDimension());
   tractionLoad.Set(0, new mfem::ConstantCoefficient(1.0));
@@ -1026,6 +1029,12 @@ if (myid == 0) {
     diffsolver->setTrueSolGradCoeff(trueSolutionGrad);
 
     solver = diffsolver;
+
+    QoIEvaluator.setTrueSolCoeff( trueSolution );
+    if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
+    QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
+    QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
+    QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
   }
   else if(physics ==1)
   {
@@ -1034,10 +1043,9 @@ if (myid == 0) {
     elasticitysolver->SetLoad(&tractionLoad);
 
     solver = elasticitysolver;
-  }
 
-  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
-  NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
+    QoIEvaluator.setTractionCoeff(&tractionLoad);
+  }
 
   //std::vector<std::pair<int, double>> essentialBC_filter(0);
   FunctionCoefficient leftrightwalls(&tanh_left_right_walls);
@@ -1053,14 +1061,8 @@ if (myid == 0) {
     filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
   }
 
-  QoIEvaluator.setTrueSolCoeff( trueSolution );
-  if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
-  QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
-  QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
-  QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order2);
   x_gf.ProjectCoefficient(*trueSolution);
-
 
   Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
   Diffusion_Solver solver_FD2(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
