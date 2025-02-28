@@ -1252,6 +1252,154 @@ void ElasticityStiffnessShapeSensitivityIntegrator::AssembleRHSElementVect(const
     }
 }
 
+ElasticityTractionIntegrator::ElasticityTractionIntegrator(mfem::VectorCoefficient &f, int oa, int ob)
+    : f_(&f), oa_(oa), ob_(ob)
+{}
+
+void ElasticityTractionIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
+        mfem::Vector &elvect)
+{
+    // grab sizes
+    int dof = el.GetDof();
+    int vdim = f_->GetVDim();
+
+    // initialize storage
+    mfem::Vector                        N(dof);
+    mfem::DenseMatrix               Kr_IN(vdim*dof, vdim);
+    mfem::Vector                        f(vdim);
+    mfem::Vector                  Kr_IN_f(vdim*dof);
+
+    // identity tensor
+    mfem::DenseMatrix I;
+    IdentityMatrix(vdim, I);
+
+    // output vector
+    elvect.SetSize(vdim*dof);
+    elvect = 0.0;
+
+    // set integration rule
+    const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), oa_*el.GetOrder()+ob_);
+
+    // loop over integration points
+    for (int i = 0; i < ir->GetNPoints(); i++)
+    {
+        // set integration point
+        const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+        T.SetIntPoint(&ip);
+
+        // compute weight
+        double w = ip.weight * T.Weight();
+
+        // evaluate shape functions
+        el.CalcShape(ip, N);
+
+        // compute kronecker
+        mfem::DenseMatrix matN(N.GetData(), dof, 1);
+        KroneckerProduct(I, matN, Kr_IN);
+
+        // operator on traction vector
+        f_->Eval(f, T, ip);
+        Kr_IN.Mult(f, Kr_IN_f);
+
+        // add integration point's contribution
+        elvect.Add(w, Kr_IN_f);
+    }
+}
+
+ElasticityTractionShapeSensitivityIntegrator::ElasticityTractionShapeSensitivityIntegrator(
+    mfem::VectorCoefficient &f, const mfem::ParGridFunction &u_adjoint, int oa, int ob)
+    : f_(&f), u_adjoint_(&u_adjoint), oa_(oa), ob_(ob)
+{}
+
+void ElasticityTractionShapeSensitivityIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el,
+        mfem::ElementTransformation &T,
+        mfem::Vector &elvect)
+{
+    // grab sizes
+    int dof = el.GetDof();
+    int dim = el.GetDim();
+    int vdim = f_->GetVDim();
+
+    // initialize storage
+    mfem::DenseMatrix              dX_dXk(vdim, dof);
+    mfem::DenseMatrix              dJ_dXk(vdim, dim);
+    mfem::Vector                        N(dof);
+    mfem::DenseMatrix                  dN(dof, dim);
+    mfem::DenseMatrix               Kr_IN(vdim*dof, vdim);
+    mfem::Vector                        f(vdim);
+    mfem::Vector                  Kr_IN_f(vdim*dof);
+    mfem::Vector                   dp_dXk(vdim*dof);
+
+    mfem::Vector               ue_adjoint(vdim*dof);
+    mfem::Array<int> vdofs;
+    u_adjoint_->ParFESpace()->GetBdrElementVDofs(T.ElementNo, vdofs);
+    u_adjoint_->GetSubVector(vdofs, ue_adjoint);
+
+    // identity tensor
+    mfem::DenseMatrix I;
+    IdentityMatrix(vdim, I);
+
+    // output vector
+    elvect.SetSize(vdim*dof);
+    elvect = 0.0;
+
+    // set integration rule
+    const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), oa_*el.GetOrder()+ob_);
+
+    // loop over nodal coordinates (X_k)
+    for (int m=0; m<vdim; m++)
+    {
+        for (int n=0; n<dof; n++)
+        {
+            dX_dXk = 0.0;
+            dX_dXk(m, n) = 1.0;
+
+            dp_dXk = 0.0;
+            // loop over integration points
+            for (int i = 0; i < ir->GetNPoints(); i++)
+            {
+                // set integration point
+                const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+                T.SetIntPoint(&ip);
+
+                // evaluate shape functions and their derivatives
+                el.CalcShape(ip, N);
+                el.CalcDShape(ip, dN);
+
+                // compute inverse transpose of J^T J
+                mfem::DenseMatrix J = T.Jacobian();
+                mfem::DenseMatrix JtJ_invT(J.NumCols());
+                mfem::MultAtB(J, J, JtJ_invT);
+                JtJ_invT.Invert(); JtJ_invT.Transpose();
+
+                // compute derivative of Jacobian w.r.t. nodal coordinate
+                mfem::Mult(dX_dXk, dN, dJ_dXk);
+
+                // compute derivative of 0.5 J^T J
+                mfem::DenseMatrix dJtJ_dXk(dim, dim);
+                mfem::MultAtB(dJ_dXk, J, dJtJ_dXk);
+                dJtJ_dXk.Symmetrize();
+
+                // compute derivative of integration weight
+                double dw_dXk = ip.weight * T.Weight() * MatrixInnerProduct(JtJ_invT, dJtJ_dXk);
+
+                // compute kronecker
+                mfem::DenseMatrix matN(N.GetData(), dof, 1);
+                KroneckerProduct(I, matN, Kr_IN);
+
+                // operator on traction vector
+                f_->Eval(f, T, ip);
+                Kr_IN.Mult(f, Kr_IN_f);
+
+                // add integration point's derivative contribution
+                dp_dXk.Add(dw_dXk, Kr_IN_f);
+            }
+            elvect(n+m*dof) += InnerProduct(ue_adjoint, dp_dXk);
+        }
+    }
+}
+
+
 void QuantityOfInterest::UpdateMesh(Vector const &U)
 {
   Vector Xi = X0_;
@@ -1371,8 +1519,20 @@ double QuantityOfInterest::EvalQoI()
 
       ErrorCoefficient_ = std::make_shared<H1Error_QoI>(ErrorCoefficient_T1_, ErrorCoefficient_T2_);
       break;
+    case 7:
+      // do nothing for now
+      break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
+  }
+
+  if(qoiType_ == QoIType::STRUC_COMPLIANCE)
+  {
+    ::mfem::ParLinearForm loadForm(coord_fes_);
+    loadForm.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*tractionLoad_, 12, 12));
+    loadForm.Assemble();
+
+    return loadForm(solgf_);
   }
 
   ParGridFunction ErrorGF = ParGridFunction(temp_fes_);
@@ -1383,7 +1543,6 @@ double QuantityOfInterest::EvalQoI()
   // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
   lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 12));
-
 
   lfi->SetGLLVec(gllvec_);
   lfi->SetNqptsPerEl(nqptsperel);
@@ -1499,6 +1658,9 @@ void QuantityOfInterest::EvalQoIGrad()
        ErrorCoefficient_T2_ = new H1SemiError_QoI(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
        // ErrorCoefficient_T2_ = new H1SemiError_QoI(&solgf_, trueSolutionGrad_, trueSolutionHess_);
       ErrorCoefficient_ = std::make_shared<H1Error_QoI>(ErrorCoefficient_T1_, ErrorCoefficient_T2_);
+      break;
+    case 7:
+      // do nothing for now
       break;
     default:
       std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
@@ -1634,6 +1796,23 @@ void QuantityOfInterest::EvalQoIGrad()
 
     }
 
+  }
+  else if(qoiType_ == QoIType::STRUC_COMPLIANCE)
+  {
+    {
+      ::mfem::ParLinearForm u_gradForm(coord_fes_);
+      u_gradForm.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*tractionLoad_, 12, 12));
+      u_gradForm.Assemble();
+      *dQdu_ = 0.0;
+      dQdu_->Add(1.0, u_gradForm);
+    }
+    {
+      ::mfem::ParLinearForm ud_gradForm(coord_fes_);
+      ud_gradForm.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*tractionLoad_, solgf_, 12, 12));
+      ud_gradForm.Assemble();
+      *dQdx_ = 0.0;
+      dQdx_->Add(1.0, ud_gradForm);
+    }
   }
   else
   {
@@ -2009,9 +2188,7 @@ void Elasticity_Solver::FSolve()
   ParBilinearForm a(u_fes_);
   ParLinearForm b(u_fes_);
   a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
-
-
-  //b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*f_));
+  b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*QCoef_));
 
   a.Assemble();
   b.Assemble();
@@ -2080,6 +2257,7 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     LHS_sensitivity.Assemble();
 
     ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
+    RHS_sensitivity.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*QCoef_, adj_sol, 12,12));
     RHS_sensitivity.Assemble();
 
     *dQdx_ = 0.0;

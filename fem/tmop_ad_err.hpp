@@ -50,7 +50,8 @@ enum QoIType
   AVG_ERROR,
   ENERGY,
   GZZ_ERROR,
-  H1_ERROR
+  H1_ERROR,
+  STRUC_COMPLIANCE
 };
 
 class QoIBaseCoefficient : public mfem::Coefficient {
@@ -935,6 +936,29 @@ private:
     const mfem::ParGridFunction *u_adjoint_;
 };
 
+class ElasticityTractionIntegrator : public mfem::LinearFormIntegrator
+{
+public:
+    ElasticityTractionIntegrator(mfem::VectorCoefficient &f, int oa=2, int ob=2);
+    void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+private:
+    mfem::VectorCoefficient *f_;
+    int oa_, ob_;
+};
+
+class ElasticityTractionShapeSensitivityIntegrator : public mfem::LinearFormIntegrator
+{
+public:
+    ElasticityTractionShapeSensitivityIntegrator(mfem::VectorCoefficient &f,
+            const mfem::ParGridFunction &u_adjoint, int oa=2, int ob=2);
+    void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+private:
+    mfem::VectorCoefficient *f_;
+    const mfem::ParGridFunction *u_adjoint_;
+    int oa_, ob_;
+};
+
+
 class QuantityOfInterest
 {
 public:
@@ -1008,6 +1032,8 @@ private:
     mfem::VectorCoefficient * trueSolutionGrad_ = nullptr;
     mfem::MatrixCoefficient * trueSolutionHess_ = nullptr;
     mfem::VectorCoefficient * trueSolutionHessV_ = nullptr;
+
+    mfem::VectorCoefficient * tractionLoad_ = nullptr;
 
     mfem::ParMesh* pmesh;
     enum QoIType qoiType_;
@@ -1319,7 +1345,7 @@ public:
         designVar -= X0_;
     };
 
-    void SetManufacturedSolution( mfem::VectorCoefficient * QCoef )
+    void SetLoad( mfem::VectorCoefficient * QCoef )
     {
       QCoef_ = QCoef;
     }
