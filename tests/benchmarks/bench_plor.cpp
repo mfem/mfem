@@ -36,22 +36,22 @@ static int config_cg_max_iter = 32;
 namespace analytics
 {
 
-static constexpr double pi = M_PI, pi2 = M_PI*M_PI;
+static constexpr real_t pi = M_PI, pi2 = M_PI*M_PI;
 
 // Exact solution for definite Helmholtz problem with RHS corresponding to f
 // defined below.
-double u(const Vector &xvec)
+real_t u(const Vector &xvec)
 {
    int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
+   real_t x = pi*xvec[0], y = pi*xvec[1];
    if (dim == 2) { return sin(x)*sin(y); }
-   else { double z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
+   else { real_t z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
 }
 
-double f(const Vector &xvec)
+real_t f(const Vector &xvec)
 {
    int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
+   real_t x = pi*xvec[0], y = pi*xvec[1];
 
    if (dim == 2)
    {
@@ -59,7 +59,7 @@ double f(const Vector &xvec)
    }
    else // dim == 3
    {
-      double z = pi*xvec[2];
+      real_t z = pi*xvec[2];
       return sin(x)*sin(y)*sin(z) + 3*pi2*sin(x)*sin(y)*sin(z);
    }
 }
@@ -127,7 +127,7 @@ struct PLOR_Solvers_Bench
    ParGridFunction x;
    ParBilinearForm a;
    ParLinearForm b;
-   const HYPRE_Int ndofs, global_ne;
+   const HYPRE_BigInt ndofs, global_ne;
    Vector X, B;
    OperatorHandle A;
    LORSolver<HypreBoomerAMG> *solv_lor = nullptr;
@@ -248,27 +248,27 @@ struct PLOR_Solvers_Bench
    }
 
    /// Setup
-   double T_OUTER_ALL_Setup() { return sw_setup.RealTime(); }
-   double T_OUTER_0_PA_Setup() { return sw_setup_PA.RealTime(); }
-   double T_OUTER_1_LOR_Setup() { return sw_setup_LOR.RealTime(); }
-   double T_OUTER_2_AMG_Setup() { return sw_setup_AMG.RealTime(); }
+   real_t T_OUTER_ALL_Setup() { return sw_setup.RealTime(); }
+   real_t T_OUTER_0_PA_Setup() { return sw_setup_PA.RealTime(); }
+   real_t T_OUTER_1_LOR_Setup() { return sw_setup_LOR.RealTime(); }
+   real_t T_OUTER_2_AMG_Setup() { return sw_setup_AMG.RealTime(); }
 
-   double T_INNER_LOR_Setup() { return GetBatchedLOR()->sw_LOR.RealTime(); }
-   double T_INNER_RAP_Setup() { return GetBatchedLOR()->sw_RAP.RealTime(); }
-   double T_INNER_BC_Setup() { return GetBatchedLOR()->sw_BC.RealTime(); }
+   real_t T_INNER_LOR_Setup() { return GetBatchedLOR()->sw_LOR.RealTime(); }
+   real_t T_INNER_RAP_Setup() { return GetBatchedLOR()->sw_RAP.RealTime(); }
+   real_t T_INNER_BC_Setup() { return GetBatchedLOR()->sw_BC.RealTime(); }
 
-   double T_INNER_AMG_Setup() { return solv_lor->GetSolver().sw_setup.RealTime(); }
+   real_t T_INNER_AMG_Setup() { return solv_lor->GetSolver().sw_setup.RealTime(); }
 
    /// Solve/Apply
-   double T_OUTER_ALL_Solve() { return sw_solve.RealTime(); }
+   real_t T_OUTER_ALL_Solve() { return sw_solve.RealTime(); }
 
-   double T_INNER_CG_Axpy() { return cg.SwAxpy().RealTime(); }
-   double T_INNER_CG_Oper() { return cg.SwOper().RealTime(); }
-   double T_INNER_CG_Prec() { return cg.SwPrec().RealTime(); }
-   double T_INNER_CG_pDot() { return cg.SwPdot().RealTime(); }
+   real_t T_INNER_CG_Axpy() { return cg.SwAxpy().RealTime(); }
+   real_t T_INNER_CG_Oper() { return cg.SwOper().RealTime(); }
+   real_t T_INNER_CG_Prec() { return cg.SwPrec().RealTime(); }
+   real_t T_INNER_CG_pDot() { return cg.SwPdot().RealTime(); }
 
-   double T_INNER_AMG_Apply() { return solv_lor->GetSolver().sw_apply.RealTime(); }
-   double T_INNER_PA_Apply() { return a.SwApplyPA().RealTime(); }
+   real_t T_INNER_AMG_Apply() { return solv_lor->GetSolver().sw_apply.RealTime(); }
+   real_t T_INNER_PA_Apply() { return a.SwApplyPA().RealTime(); }
 };
 
 // [0] Requested log_ndof
@@ -276,7 +276,7 @@ struct PLOR_Solvers_Bench
 #define LOG_NDOFS bm::CreateDenseRange(31,33,1)
 
 // Maximum number of dofs per rank
-// #define MAX_NDOFS 7*1024*1024
+#define MAX_NDOFS 16*1024*1024
 
 // [1] The different orders the tests can run
 #define P_ORDERS {6}
@@ -290,7 +290,7 @@ static void pLOR(bm::State &state)
 
    PLOR_Solvers_Bench plor(order, requested_ndof);
 
-   const int ndofs = plor.ndofs;
+   const HYPRE_BigInt ndofs = plor.ndofs;
    const int nranks = Mpi::WorldSize();
 
    dbg("log_ndof:%d order:%d ndofs:%d nranks:%d", log_ndof, order, ndofs, nranks);
@@ -309,12 +309,12 @@ static void pLOR(bm::State &state)
    state.counters["ORDER"] = bm::Counter(order);
 
    /// OUTER SETUP = OUTER(PA + LOR + AMG)
-   const double setup = plor.T_OUTER_ALL_Setup();
-   const double setup_pa = plor.T_OUTER_0_PA_Setup();
-   const double setup_lor = plor.T_OUTER_1_LOR_Setup();
-   const double setup_amg = plor.T_OUTER_2_AMG_Setup();
-   const double setup_pa_lor_amg = setup_pa + setup_lor + setup_amg;
-   const double setup_delta = fabs(setup - setup_pa_lor_amg);
+   const auto setup = plor.T_OUTER_ALL_Setup();
+   const auto setup_pa = plor.T_OUTER_0_PA_Setup();
+   const auto setup_lor = plor.T_OUTER_1_LOR_Setup();
+   const auto setup_amg = plor.T_OUTER_2_AMG_Setup();
+   const auto setup_pa_lor_amg = setup_pa + setup_lor + setup_amg;
+   const auto setup_delta = fabs(setup - setup_pa_lor_amg);
    dbg("[setup:outer] %f = pa:%f + lor:%f + amg:%f = %f",
        setup, setup_pa, setup_lor, setup_amg, setup_pa_lor_amg);
    dbg("\033[%dm[setup:outer] delta %f", setup_delta < 1e-3 ? 32:31, setup_delta);
@@ -324,11 +324,11 @@ static void pLOR(bm::State &state)
    state.counters["Setup_HO"] = bm::Counter(setup_pa);
 
    /// OUTER LOR = INNER(LOR + RAP + BC) + eps
-   const double s_i_rap = plor.T_INNER_RAP_Setup();
-   const double s_i_lor = plor.T_INNER_LOR_Setup();
-   const double s_i_bc = plor.T_INNER_BC_Setup();
-   const double s_i_lor_rap_bc = s_i_lor + s_i_rap +  s_i_bc;
-   const double s_i_delta = fabs(setup_lor - s_i_lor_rap_bc);
+   const auto s_i_rap = plor.T_INNER_RAP_Setup();
+   const auto s_i_lor = plor.T_INNER_LOR_Setup();
+   const auto s_i_bc = plor.T_INNER_BC_Setup();
+   const auto s_i_lor_rap_bc = s_i_lor + s_i_rap +  s_i_bc;
+   const auto s_i_delta = fabs(setup_lor - s_i_lor_rap_bc);
    dbg("[setup:inner] %f = lor:%f + rap:%f + bc:%f = %f + eps",
        setup_lor, s_i_lor, s_i_rap, s_i_bc, s_i_lor_rap_bc);
    dbg("\033[%dm[setup:inner] s_i_delta %f",
@@ -339,14 +339,14 @@ static void pLOR(bm::State &state)
 
    /// OUTER SOLVE = INNER( AXPY + PA(Oper) + AMG(Prec) + pDot)
    /// R*PA*P == Oper, AMG == Prec
-   const double solve = plor.T_OUTER_ALL_Solve();
+   const auto solve = plor.T_OUTER_ALL_Solve();
 
-   const double solve_axpy = plor.cg.SwAxpy().RealTime();
-   const double solve_oper = plor.cg.SwOper().RealTime();
-   const double solve_prec = plor.cg.SwPrec().RealTime();
-   const double solve_pdot = plor.cg.SwPdot().RealTime();
-   const double solve_sum = solve_axpy + solve_oper + solve_prec + solve_pdot;
-   const double solve_delta = fabs(solve - solve_sum);
+   const auto solve_axpy = plor.cg.SwAxpy().RealTime();
+   const auto solve_oper = plor.cg.SwOper().RealTime();
+   const auto solve_prec = plor.cg.SwPrec().RealTime();
+   const auto solve_pdot = plor.cg.SwPdot().RealTime();
+   const auto solve_sum = solve_axpy + solve_oper + solve_prec + solve_pdot;
+   const auto solve_delta = fabs(solve - solve_sum);
    dbg("\033[33m[apply] %f = axpy:%f + oper:%f + prec:%f + dot:%f = %f + eps",
        solve, solve_axpy, solve_oper, solve_prec, solve_pdot, solve_sum);
    dbg("\033[%dm[apply] a_cg_delta %f",
@@ -354,15 +354,15 @@ static void pLOR(bm::State &state)
 
    // we don't measure the R.PA.P, just PA
 
-   const double a_i_amg = plor.T_INNER_AMG_Apply();
+   const auto a_i_amg = plor.T_INNER_AMG_Apply();
    dbg("[apply] AMG == Prec: %f = %f", a_i_amg, solve_prec);
-   const double a_amg_prec_delta = fabs(a_i_amg - solve_prec);
+   const auto a_amg_prec_delta = fabs(a_i_amg - solve_prec);
    dbg("\033[%dm[apply] a_amg_prec_delta %f",
        a_amg_prec_delta < 1e-1 ? 32:31, a_amg_prec_delta);
 
    bm::Counter::Flags kAvg = bm::Counter::kAvgIterations;
-   const double tm_solve_amg = plor.T_INNER_AMG_Apply();
-   const double tm_solve_ho = solve - tm_solve_amg;
+   const auto tm_solve_amg = plor.T_INNER_AMG_Apply();
+   const auto tm_solve_ho = solve - tm_solve_amg;
    state.counters["Solve"] = bm::Counter(solve, kAvg);
    state.counters["Solve_AMG"] = bm::Counter(tm_solve_amg, kAvg);
    state.counters["Solve_HO"] = bm::Counter(tm_solve_ho, kAvg);

@@ -6,9 +6,13 @@
 # Also ignore OS-specific files like .DS_Store on Mac
 # ------------------------------------------------------------------------------
 
+# Output and error files
+*.org
+*.err
+*.out
+
 # Object and library files
 *.o
-*.org
 *.core
 *.o.tmp
 /libmfem.*
