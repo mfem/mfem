@@ -922,6 +922,62 @@ Vector TMOPNewtonSolver::GetProlongedVector(const Vector &x) const
    return x_loc;
 }
 
+Vector TMOPNewtonSolver::GetRestrictionTransposeVector(const Vector &xt) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   Vector x_loc;
+   const FiniteElementSpace *x_fes = nullptr;
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *pnlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+
+      x_fes = pnlf->ParFESpace();
+      const Operator *Rt = x_fes->GetRestrictionTransposeOperator();
+      x_loc.SetSize(Rt->Height());
+      Rt->Mult(xt, x_loc);
+#endif
+   }
+   else
+   {
+      x_loc = xt;
+   }
+   return x_loc;
+}
+
+Vector TMOPNewtonSolver::GetProlongedTransposeVector(const Vector &x) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   Vector x_loc;
+   const FiniteElementSpace *x_fes = nullptr;
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *pnlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+
+      x_fes = pnlf->ParFESpace();
+      x_loc.SetSize(x_fes->GetTrueVSize());
+      x_fes->GetProlongationMatrix()->MultTranspose(x, x_loc);
+#endif
+   }
+   else
+   {
+      x_fes = nlf->FESpace();
+      const Operator *P = nlf->GetProlongation();
+      if (P)
+      {
+         x_loc.SetSize(P->Width());
+         P->MultTranspose(x,x_loc);
+      }
+      else { x_loc = x; }
+   }
+   return x_loc;
+}
+
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
                                        const FiniteElementSpace &fes) const
 {
@@ -1015,7 +1071,6 @@ void TMOP_MMA::Mult(Vector &x)
       oper->Mult(x, r);
       if (qoi)
       {
-         // std::cout << "Including qoi\n";
          ldx = GetProlongedVector(dx);
          ds->SetDesign(ldx);
          ds->FSolve();
@@ -1119,6 +1174,385 @@ void TMOP_MMA::Mult(Vector &x)
    {
       out << "TMOP MMA: No convergence!\n";
    }
+}
+
+
+void TMOP_MMA::MultFilter(Vector &x)
+{
+   int it;
+   real_t norm0, norm, norm_goal;
+   Vector conDummy(1);  conDummy= -0.1;
+   Vector  congradDummy(x.Size());
+   congradDummy = 1.0;
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(true_dofs.Size(), "Set TMOP_MMA true dofs to limit displacement");
+   MFEM_VERIFY((qoi && ds) || (!ds && !qoi), "Either set both QoI and DS or neither");
+   ProcessNewState(x);
+   Vector x_orig = x;
+   Vector x_old  = x;
+   Vector dx(x.Size());
+   dx = 0.0;
+   double deps = 1e-8;
+
+   Vector xxmin = dx;
+   Vector xxmax = dx;
+   xxmin -= dlower; // dlower = 0.1
+   xxmax += dupper; // dupper = 0.1
+   for (int i = 0; i < true_dofs.Size(); i++)
+   {
+      if (true_dofs[i] == 1.0)
+      {
+         xxmin[i] = -deps;
+         xxmax[i] = deps;
+      }
+   }
+   Vector xorig = x;
+   // oper->Mult(x, r);
+
+   ParLinearForm * dQdu = NULL;
+   ParLinearForm * dQdxExpl = NULL;
+   ParLinearForm * dQdxImpl = NULL;
+   ParFiniteElementSpace *pfespace = NULL;
+   Vector ldx, fldx;
+   Vector fdx(xorig.Size());
+   fdx = 0.0;
+   ldx = GetProlongedVector(dx);
+   int cycle_count = 1;
+   filter->setLoadGridFunction(ldx);
+   filter->FSolve();
+   fldx = filter->GetSolutionVec();
+   fdx = filter->GetSolutionTVec();
+
+   for (it = 0; it < max_iter; it++)
+   {
+      oper->Mult(x, r); // x must be x_orig + filtered * dx i.e. x_orig + fdx
+      if (qoi)
+      {
+         fldx = GetProlongedVector(fdx);
+         ds->SetDesign(fldx);
+         ds->FSolve();
+         ParGridFunction & discretSol = ds->GetSolution();
+         qoi->SetDesign(fldx);
+         qoi->SetDiscreteSol( discretSol );
+         qoi->EvalQoIGrad();
+         dQdu = qoi->GetDQDu();
+         dQdxExpl = qoi->GetDQDx();
+         ds->ASolve( *dQdu );
+         dQdxImpl = ds->GetImplicitDqDx();
+         const ParNonlinearForm *pnlf =
+            dynamic_cast<const ParNonlinearForm *>(oper);
+         MFEM_VERIFY(pnlf != NULL, "Invalid Operator subclass.");
+         pfespace = pnlf->ParFESpace();
+
+         ParLinearForm dQdx(pfespace); dQdx = 0.0;
+         dQdx.Add(weight, *dQdxExpl);
+         dQdx.Add(weight, *dQdxImpl);
+         HypreParVector *truedQdx = dQdx.ParallelAssemble();
+         r += *truedQdx;
+
+         Vector lr = GetRestrictionTransposeVector(r);
+         filter->ASolve(lr);
+         Vector lr_new = filter->GetImplicitDqDxVec(); // this is an l-vector
+         r = GetProlongedTransposeVector(lr_new);
+      }
+      // r.Print();
+      norm = Norm(r);
+      if (it == 0) { norm0 = norm; }
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
+      if (print_options.first_and_last || print_options.iterations)
+      {
+         out << "TMOP-MMA iteration " <<  it
+                   << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            out << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         out << '\n';
+      }
+
+      {
+         xxmin=dx;
+         xxmax=dx;
+         if (it < 3)
+         {
+          xxmin-=1.0*dlower;
+          xxmax+=1.0*dupper;
+         }
+         else
+         {
+          xxmin-=dlower;
+          xxmax+=dupper;
+         }
+         for(int li=0;li<true_dofs.Size();li++)
+         {
+            if( true_dofs[li] ==1.0)
+            {
+               xxmin[li] = -deps;
+               xxmax[li] = deps;
+            }
+         }
+      }
+      Vector dx_old = dx;
+      x_old = x;
+      Update(it, r, conDummy, congradDummy, xxmin,xxmax, dx);
+
+      // ldx = GetProlongedVector(dx);
+      // filter->setLoadGridFunction(ldx);
+      // filter->FSolve();
+      // fdx = filter->GetSolutionTVec();
+      // total displacement with respect to initial mesh
+
+      const real_t c_scale = ComputeScalingFactor2Filter(xorig, dx, x_old, fdx);
+
+      if (c_scale > 0.0)
+      {
+         add(x_orig, fdx, x); // x = x_orig + fdx
+      }
+      else if (c_scale == 0.0)
+      {
+         converged = false;
+         break;
+      }
+
+      ProcessNewState(x);
+      if (dc && pmesh && it % ofq == 0)
+      {
+         pmesh->GetNodes()->SetFromTrueDofs(x);
+         pmesh->GetNodes()->SetFromTrueVector();
+         dc->SetCycle(cycle_count++);
+         dc->SetTime(cycle_count*1.0);
+         dc->Save();
+      }
+
+      norm = Norm(r);
+   }
+
+   final_iter = it;
+   final_norm = norm;
+
+   if (print_options.summary || (!converged && print_options.warnings) ||
+       print_options.first_and_last)
+   {
+      out << "TMOP MMA: Number of iterations: " << final_iter << '\n'
+                << "   ||r|| = " << final_norm << '\n';
+   }
+   if (print_options.summary || (!converged && print_options.warnings))
+   {
+      out << "TMOP MMA: No convergence!\n";
+   }
+}
+
+real_t TMOP_MMA::ComputeScalingFactor2Filter(const Vector &x_orig,
+                                             const Vector &dx,
+                                             const Vector &x_old,
+                                             Vector &fdx) const
+{
+   Vector ldx, fldx;
+
+   Vector dx_inc_uf = x_orig;// unfiltered dx increment = x_orig+dx-x_old;
+   dx_inc_uf += dx;
+   dx_inc_uf -= x_old;
+   Vector x(x_orig.Size());
+
+   Vector dx_old = x_old;
+   dx_old -= x_orig;
+
+   const FiniteElementSpace *fes = NULL;
+   ParLinearForm * dQdu = NULL;
+   ParLinearForm * dQdxExpl = NULL;
+   ParLinearForm * dQdxImpl = NULL;
+   ParFiniteElementSpace *pfespace = NULL;
+   real_t energy_in = 0.0;
+   Vector x_out_loc = x_old;
+   #ifdef MFEM_USE_MPI
+   const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+   MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
+   if (parallel)
+   {
+      fes = p_nlf->FESpace();
+      energy_in = p_nlf->GetEnergy(x_old);
+   }
+   #endif
+   const bool serial = !parallel;
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   MFEM_VERIFY(!(serial && nlf == NULL), "Invalid Operator subclass.");
+   if (serial)
+      {
+      MFEM_ABORT("not supported in serial yet.");
+      fes = nlf->FESpace();
+      energy_in = nlf->GetEnergy(x_old);
+   }
+
+   real_t scale = 1.0;
+
+   // Check if the starting mesh (given by x) is inverted. Note that x hasn't
+   // been modified by the Newton update yet.
+   x_out_loc = GetProlongedVector(x_old);
+   const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   MFEM_VERIFY(min_detT_in > 0, "Inverted meshes not supported yet\n");
+   const bool untangling = false;
+
+   Vector x_out(x_orig.Size());
+   bool x_out_ok = false;
+   real_t energy_out = 0.0, min_detT_out;
+   if (qoi)
+   {
+      ds->SetDesignVarFromUpdatedLocations(x_out_loc);
+      ds->FSolve();
+      ParGridFunction & discretSol = ds->GetSolution();
+      qoi->SetDesignVarFromUpdatedLocations(x_out_loc);
+      qoi->SetDiscreteSol( discretSol );
+      energy_in += weight*qoi->EvalQoI();
+   }
+   const real_t norm_in = Norm(r); // r is already set out in MMA::MultFilter()
+
+   const real_t detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   compute_metric_quantile_flag = false;
+
+   Vector dxc(dx.Size());
+
+   // Perform the line search.
+   for (int i = 0; i < 12; i++)
+   {
+      // compute dxc at this step
+      dxc = dx_inc_uf;
+      dxc *= scale;
+      // add to it previous dx so that we have dxc with respect to original mesh
+      dxc += dx_old;
+
+      ldx = GetProlongedVector(dxc);
+      filter->setLoadGridFunction(ldx);
+      filter->FSolve();
+      fdx = filter->GetSolutionTVec();
+
+      // Update the mesh and get the L-vector in x_out_loc.
+      add(x_orig, fdx, x_out);
+      x_out_loc = GetProlongedVector(x_out);
+      // Check the changes in detJ.
+      min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      if (untangling == false && min_detT_out <= min_detJ_limit)
+      {
+      // No untangling, and detJ got negative (or small) -- no good.
+         if (print_options.iterations)
+         {
+         out << "Scale = " << scale << " Neg det(J) found.\n";
+         }
+         scale *= detJ_factor; continue;
+      }
+
+      // Skip the energy and residual checks when we're untangling. The
+      // untangling metrics change their denominators, which can affect the
+      // energy and residual, so their increase/decrease is not relevant.
+      if (untangling) { x_out_ok = true; break; }
+
+      // Check the changes in total energy.
+      ProcessNewState(x_out);
+
+      // Ensure sufficient decrease in fitting error if we are trying to
+      // converge based on error.
+
+      HypreParVector *truedQdx;
+      if (serial)
+      {
+         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      }
+      #ifdef MFEM_USE_MPI
+      else
+      {
+         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+         if (qoi)
+         {
+            ds->SetDesignVarFromUpdatedLocations(x_out_loc);
+            ds->FSolve();
+            ParGridFunction & discretSol = ds->GetSolution();
+            qoi->SetDesignVarFromUpdatedLocations(x_out_loc);
+            qoi->SetDiscreteSol( discretSol );
+            energy_out += weight*qoi->EvalQoI();
+
+            qoi->EvalQoIGrad();
+            dQdu = qoi->GetDQDu();
+            dQdxExpl = qoi->GetDQDx();
+            ds->ASolve( *dQdu );
+            dQdxImpl = ds->GetImplicitDqDx();
+            const ParNonlinearForm *pnlf =
+            dynamic_cast<const ParNonlinearForm *>(oper);
+            MFEM_VERIFY(pnlf != NULL, "Invalid Operator subclass.");
+            pfespace = pnlf->ParFESpace();
+
+            ParLinearForm dQdx(pfespace); dQdx = 0.0;
+            dQdx.Add(weight, *dQdxExpl);
+            dQdx.Add(weight, *dQdxImpl);
+            truedQdx = dQdx.ParallelAssemble();
+         }
+      }
+      #endif
+      if (energy_out > energy_in + (ls_energy_fac-1.0)*fabs(energy_in) ||
+          std::isnan(energy_out) != 0)
+      {
+         if (print_options.iterations)
+         {
+         out << "Scale = " << scale << " Increasing energy: "
+         << energy_in << " --> " << energy_out << '\n';
+         }
+         scale *= 0.1; continue;
+      }
+
+      // Check the changes in the Newton residual.
+      oper->Mult(x_out, r);
+      if (qoi)
+      {
+         r += *truedQdx;
+         Vector lr = GetRestrictionTransposeVector(r);
+         filter->ASolve(lr);
+         Vector lr_new = filter->GetImplicitDqDxVec(); // this is an l-vector
+         r = GetProlongedTransposeVector(lr_new);
+      }
+      real_t norm_out = Norm(r);
+
+      if (norm_out > ls_norm_fac*norm_in)
+      {
+         if (print_options.iterations)
+         {
+            out << "Scale = " << scale << " Norm increased: "
+            << norm_in << " --> " << norm_out << '\n';
+         }
+         scale *= 0.1; continue;
+      }
+      else {
+         // if (print_options.iterations)
+         // {
+         //    out << "Scale = " << scale << " Norm decreased: "
+         //             << norm_in << " --> " << norm_out << '\n';
+         // }
+         x_out_ok = true; break;
+      }
+      } // end line search
+
+
+      if (print_options.summary || print_options.iterations ||
+      print_options.first_and_last)
+      {
+         if (untangling)
+         {
+            out << "Min det(T) change: "
+            << min_detT_in << " -> " << min_detT_out
+            << " with " << scale << " scaling.\n";
+         }
+         else
+         {
+            out << "Energy decrease: "
+            << energy_in << " --> " << energy_out << " or "
+            << (energy_in - energy_out) / energy_in * 100.0
+            << "% with " << scale << " scaling.\n";
+         }
+   }
+
+   if (x_out_ok == false) { scale = 0.0; }
+
+   if (surf_fit_scale_factor > 0.0) { surf_fit_coeff_update = true; }
+   compute_metric_quantile_flag = true;
+
+   return scale;
 }
 
 real_t TMOP_MMA::GetEnergy(const Vector &x, bool include_qoi)

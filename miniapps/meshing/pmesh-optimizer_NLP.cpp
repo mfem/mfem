@@ -50,6 +50,32 @@
 // h1 error
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 1000 -ft 1 --qtype 1 -w1 2e2 -w2 8e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
 
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e5 -w2 1e-2 -rs 3 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
+
+
+/*******************************/
+// Presentation runs below:
+
+// zz 2nd order - shock wave around corner - with filter
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
+// average error - 2nd order - shock wave around corner
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005
+// same but with simplices
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -m square01-tri.mesh
+// l2 with wave around center - linear
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 400 -ft 1 --qtype 0 -w1 2e4 -w2 1e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
+// h1 with wave around center - linear
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 200 -ft 1 --qtype 1 -w1 2e2 -w2 15e-1 -m uare01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
+
+// inclined wave with avg error
+//  make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.0-lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005
+
+// zz for wave around center
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 500 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 1 -vis -weakbc -filter -frad 0.05
+
+// avg error - inclined wave + analytic orientation
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 2e3 -w2 5e-1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "linalg/dual.hpp"
@@ -217,6 +243,17 @@ auto func_3( std::vector<type>& x ) -> type
     // auto dx = xv-0.5;
     // auto dx = xv - 0.5-0.2*(yv-0.5);
     return atan(alpha*dx);
+}
+
+double tanh_left_right_walls(const Vector &x)
+{
+  double xv = x(0);
+  double yv = x(1);
+  double beta = 20.0;
+  double betay = 50.0;
+  double yscale = 0.5*(std::tanh(betay*(yv-.2))-std::tanh(betay*(yv-0.8)));
+  double xscale = 0.5*(std::tanh(beta*(xv-.2))-std::tanh(beta*(xv-0.8)));
+  return xscale;
 }
 
 class OSCoefficient : public TMOPMatrixCoefficient
@@ -576,6 +613,7 @@ int main (int argc, char *argv[])
   int metric_id   = 2;
   int target_id   = 1;
   int quad_order  = 8;
+  int quad_order2 = 8;
   srand(9898975);
   bool visualization = false;
   double filterRadius = 0.000;
@@ -587,6 +625,7 @@ int main (int argc, char *argv[])
   double ls_norm_fac    = 1.2;
   double ls_energy_fac  = 1.1;
   bool   bndr_fix       = true;
+  bool   filter         = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -608,6 +647,8 @@ int main (int argc, char *argv[])
                 "5: Ideal shape, given size (in physical space)");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
+  args.AddOption(&quad_order2, "-qo2", "--quad_order2",
+                  "Order of the quadrature rule for sensitivities.");
    args.AddOption(&method, "-met", "--method",
                   "0(Defaults to TMOP_MMA), 1 - MS");
    args.AddOption(&max_ch, "-ch", "--max-ch",
@@ -644,6 +685,11 @@ int main (int argc, char *argv[])
     args.AddOption(&weakBC, "-weakbc", "--weakbc",
                   "-no-weakbc", "--no-weakbc",
                   "Enable/disable weak boundary condition.");
+    args.AddOption(&filter, "-filter", "--filter",
+                  "-no-filter", "--no-filter",
+                  "Use vector helmholtz filter.");
+    args.AddOption(&filterRadius, "-frad", "--frad",
+                    "Filter radius");
 
    args.Parse();
    if (!args.Good())
@@ -825,7 +871,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          // gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
       else if (attribute == 2 || attribute == 4) // zero out in x
@@ -833,7 +879,7 @@ int main (int argc, char *argv[])
         for (int j = 0; j < nd; j++)
         {
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          // gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
         }
       }
     }
@@ -886,7 +932,6 @@ int main (int argc, char *argv[])
   const int nbattr = PMesh->bdr_attributes.Max();
   std::vector<std::pair<int, double>> essentialBC(nbattr);
   std::vector<std::pair<int, int>> essentialBCfilter(nbattr);
-  //std::vector<std::pair<int, double>> essentialBC(2);
   for (int i = 0; i < nbattr; i++)
   {
     essentialBC[i] = {i+1, 0};
@@ -898,6 +943,11 @@ int main (int argc, char *argv[])
     essentialBCfilter[1] = {2, 0};
     essentialBCfilter[2] = {3, 1};
     essentialBCfilter[3] = {4, 0};
+  }
+  else
+  {
+    essentialBCfilter[0] = {1, 0};
+    essentialBCfilter[1] = {2, 1};
   }
 
   const IntegrationRule &ir =
@@ -957,7 +1007,18 @@ if (myid == 0) {
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
   //std::vector<std::pair<int, double>> essentialBC_filter(0);
-  VectorHelmholtz filterSolver(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+  FunctionCoefficient leftrightwalls(&tanh_left_right_walls);
+  ProductCoefficient filterRadiusCoeff(filterRadius, leftrightwalls);
+  VectorHelmholtz *filterSolver;
+  if (metric_id == 107)
+  {
+    // filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, &filterRadiusCoeff, mesh_poly_deg);
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+  }
+  else
+  {
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+  }
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
@@ -972,7 +1033,7 @@ if (myid == 0) {
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
   QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
-  QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
+  QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order2);
   x_gf.ProjectCoefficient(*trueSolution);
   solver.setTrueSolGradCoeff(trueSolutionGrad);
 
@@ -1052,6 +1113,7 @@ if (myid == 0) {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
       tmma->SetDiffusionSolver(&solver);
       tmma->SetQoIWeight(weight_1);
+      tmma->SetVectorHelmholtzFilter(filterSolver);
     }
 
     // Set min jac
@@ -1074,7 +1136,14 @@ if (myid == 0) {
       tmma->SetDataCollectionObjectandMesh(visdc, PMesh, save_freq);
     }
     tmma->SetMaxIter(max_it);
-    tmma->Mult(x.GetTrueVector());
+    if (filter)
+    {
+      tmma->MultFilter(x.GetTrueVector());
+    }
+    else
+    {
+      tmma->Mult(x.GetTrueVector());
+    }
     x.SetFromTrueVector();
     if (!save_after_every_iteration)
     {
@@ -1165,9 +1234,9 @@ if (myid == 0) {
     int cycle_count = 1;
     for(int i=1;i<max_it;i++)
     {
-      filterSolver.setLoadGridFunction(gridfuncOptVar);
-      filterSolver.FSolve();
-      ParGridFunction & filteredDesign = filterSolver.GetSolution();
+      filterSolver->setLoadGridFunction(gridfuncOptVar);
+      filterSolver->FSolve();
+      ParGridFunction & filteredDesign = filterSolver->GetSolution();
 
       solver.SetDesign( filteredDesign );
       solver.FSolve();
@@ -1209,10 +1278,12 @@ if (myid == 0) {
       HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
       mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
-      filterSolver.ASolve(dQdx_filtered);
-      ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
+      std::cout << dQdx_filtered.Norml2() << " k101-filt1\n";
+      filterSolver->ASolve(dQdx_filtered);
+      ParLinearForm * dQdxImplfilter = filterSolver->GetImplicitDqDx();
 
       dQdx.Add(1.0, *dQdxImplfilter);
+      std::cout << dQdxImplfilter->Norml2() << " k101-filt2\n";
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
 
@@ -1494,7 +1565,6 @@ if (myid == 0) {
       }
 
 
-
       x_gf.ProjectCoefficient(*trueSolution);
       //ParGridFunction objGradGF(pfespace); objGradGF = objgrad;
       paraview_dc.SetCycle(i);
@@ -1522,7 +1592,9 @@ if (myid == 0) {
       mmaPetsc->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
   #else
       mfem:Vector conDummy(1);  conDummy= -0.1;
+      std::cout << trueOptvar.Norml2() << " k10-dxpre\n";
       mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
+      std::cout << trueOptvar.Norml2() << " k10-dxpost\n";
   #endif
 
       gridfuncOptVar.SetFromTrueVector();
