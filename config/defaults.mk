@@ -552,6 +552,9 @@ ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
 ALGOIM_LIB = $(BLITZ_LIB)
 
 # BENCHMARK library configuration
+ifeq ($(MFEM_USE_BENCHMARK),YES)
+   BASE_FLAGS = -std=c++14
+endif
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
 BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
 BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread

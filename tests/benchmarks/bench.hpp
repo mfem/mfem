@@ -28,14 +28,14 @@ namespace internal
 {
 extern std::map<std::string, std::string> *global_context;
 
-template<typename T>
+template <typename T>
 void FindInContext(const char *context, T &config)
 {
    const auto found = bmi::global_context->find(context);
    if (found != bmi::global_context->end()) { config = found->second; }
 }
 
-void FindInContext(const char *context, const char* &config)
+void FindInContext(const char *context, const char *&config)
 {
    const auto found = bmi::global_context->find(context);
    if (found != bmi::global_context->end()) { config = found->second.c_str(); }
@@ -45,14 +45,18 @@ void FindInContext(const char *context, bool &config)
 {
    const auto found = bmi::global_context->find(context);
    if (found != bmi::global_context->end())
-   { config = !strncmp(found->second.c_str(),"true",4); }
+   {
+      config = !strncmp(found->second.c_str(), "true", 4);
+   }
 }
 
 void FindInContext(const char *context, int &config)
 {
    const auto found = bmi::global_context->find(context);
    if (found != bmi::global_context->end())
-   { config = std::stoi(found->second.c_str()); }
+   {
+      config = std::stoi(found->second.c_str());
+   }
 }
 
 } // namespace internal
@@ -63,7 +67,7 @@ void FindInContext(const char *context, int &config)
 namespace mfem
 {
 
-template<class T>
+template <class T>
 typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
 almost_equal(T x, T y, T tolerance = 1e-14)
 {
@@ -71,11 +75,11 @@ almost_equal(T x, T y, T tolerance = 1e-14)
    constexpr T min = std::numeric_limits<T>::min();
    constexpr T eps = std::numeric_limits<T>::epsilon();
    const T min_abs = std::min(std::abs(x), std::abs(y));
-   if (std::abs(min_abs)==0.0) { return neg < eps; }
-   return (neg/std::max(min, min_abs)) < tolerance;
+   if (std::abs(min_abs) == 0.0) { return neg < eps; }
+   return (neg / std::max(min, min_abs)) < tolerance;
 }
 
-constexpr std::size_t KB = (1<<10);
+constexpr std::size_t KB = (1 << 10);
 
 #ifdef MFEM_USE_BENCHMARK
 
@@ -83,30 +87,28 @@ constexpr std::size_t KB = (1<<10);
 class Reporter : public benchmark::BenchmarkReporter
 {
    const int width, precision;
+
 public:
-   explicit Reporter(int width = 48, int precision = 2) :
-      width(width), precision(precision) { }
+   explicit Reporter(int width = 48, int precision = 2):
+      width(width), precision(precision)
+   {
+   }
 
    // platform information
-   bool ReportContext(const Context& context)
-   { return PrintBasicContext(&mfem::err, context), true; }
-
-   void ReportRuns(const std::vector<Run>& reports)
+   bool ReportContext(const Context &context) override
    {
-      for (const auto& run : reports)
+      return PrintBasicContext(&mfem::err, context), true;
+   }
+
+   void ReportRuns(const std::vector<Run> &reports) override
+   {
+      for (const auto &run : reports)
       {
-         // MFEM_VERIFY(!run.error_occurred, run.error_message.c_str());
-         // const double real_time = run.GetAdjustedRealTime();
-         const double cpu_time = run.GetAdjustedCPUTime();
-         const char* timeLabel = GetTimeUnitString(run.time_unit);
-         mfem::out << std::left
-                   << std::fixed
-                   << std::setprecision(precision)
-                   << std::setw(width) << run.benchmark_name().c_str()
-                   // << " " << real_time
-                   << " " << cpu_time
-                   << " " << timeLabel
-                   << std::endl;
+         const auto cpu_time = run.GetAdjustedCPUTime();
+         const char *timeLabel = GetTimeUnitString(run.time_unit);
+         mfem::out << std::left << std::fixed << std::setprecision(precision)
+                   << std::setw(width) << run.benchmark_name().c_str() << " "
+                   << cpu_time << " " << timeLabel << std::endl;
       }
    }
 };
@@ -116,9 +118,9 @@ struct NoReporter : public ::benchmark::BenchmarkReporter
 {
    explicit NoReporter() {}
    bool ReportContext(const Context &) { return true; }
-   void ReportRuns(const std::vector<Run> &) { }
-   //operator NoReporter*() { return this; }
-   //void Finalize() {}
+   void ReportRuns(const std::vector<Run> &) {}
+   // operator NoReporter*() { return this; }
+   // void Finalize() {}
 };
 
 } // namespace mfem
