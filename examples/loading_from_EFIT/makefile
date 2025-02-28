@@ -20,9 +20,12 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = mesh_maker mesh_loader B_field_projector_v0_2 B_field_projector_v1_2  J_field_projector_v2_2 J_field_projector_v3_1 JxB_validator_v4_1
-PAR_EXAMPLES = 
+# Find all source files that match our naming patterns
+SEQ_SOURCES := $(wildcard mesh_*.cpp B_*.cpp J_*.cpp JxB_*.cpp)
+# Create executable names by removing .cpp extension
+SEQ_EXAMPLES := $(SEQ_SOURCES:.cpp=)
 
+PAR_EXAMPLES = 
 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)

@@ -180,3 +180,27 @@ public:
       return r * (flip_sign ? -1 : 1);
    }
 };
+
+/// @brief Return $r^2$
+class RSquareGridFunctionCoefficient : public Coefficient
+{
+private:
+   bool flip_sign;
+public:
+   int counter = 0;
+   RSquareGridFunctionCoefficient(bool flip_sign = false)
+       : Coefficient(), flip_sign(flip_sign)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      return r * r * (flip_sign ? -1 : 1);
+   }
+};
