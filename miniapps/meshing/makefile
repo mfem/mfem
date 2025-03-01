@@ -26,8 +26,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
-	ref321 mesh-quality
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position
+	ref321 mesh-quality hpref_serial
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position hpref
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -99,6 +99,10 @@ pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 reflector-test-seq: reflector
 	@$(call mfem-test-file,$<,, Meshing miniapp,reflected.mesh)
+hpref_serial-test-seq: hpref_serial
+	@$(call mfem-test,$<,, Serial hp-refinement)
+hpref-test-par: hpref
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel hp-refinement)
 ref321-test-seq: ref321
 	@$(call mfem-test-file,$<,, Meshing miniapp,ref321.mesh)
 
@@ -119,7 +123,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer reflector ref321
-	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc
+	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc hpref hpref_serial
 	rm -f minimal-surface pminimal-surface mesh-quality fit-node-position
 	rm -rf *.dSYM *.TVD.*breakpoints
 
@@ -129,3 +133,4 @@ clean-exec:
 	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
 	@rm -f optimized* perturbed* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
+	@rm -f mesh.* order.* sol.* refined.mesh

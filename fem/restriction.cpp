@@ -37,6 +37,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      gather_map(ne*dof)
 {
    // Assuming all finite elements are the same.
+   MFEM_VERIFY(!f.IsVariableOrder(), "Variable-order spaces are not supported");
+
    height = vdim*ne*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
