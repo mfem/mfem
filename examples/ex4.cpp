@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool hybridization = false;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
@@ -83,18 +84,14 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
    kappa = freq * M_PI;
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
@@ -166,6 +163,7 @@ int main(int argc, char *argv[])
    Coefficient *beta  = new ConstantCoefficient(1.0);
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
