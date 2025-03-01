@@ -380,7 +380,8 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    bm::Initialize(&argc, argv);
-   if (bmi::global_context != nullptr)
+   auto global_context = bmi::GetGlobalContext();
+   if (global_context != nullptr)
    {
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
