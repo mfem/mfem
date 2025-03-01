@@ -1638,17 +1638,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
       if (ParallelU() || cR)
       {
          BlockVector yb(y, darcy_offsets);
-
-         if (darcy_toffsets.Size() == 0)
-         {
-            darcy_toffsets.SetSize(3);
-            darcy_toffsets[0] = 0;
-            darcy_toffsets[1] = fes->GetTrueVSize();
-            darcy_toffsets[2] = fes_p->GetTrueVSize();
-            darcy_toffsets.PartialSum();
-         }
-
-         BlockVector yb_t(y_t,darcy_toffsets);
+         BlockVector yb_t(y_t, darcy_toffsets);
 
          if (!ParallelU())
          {
@@ -1719,6 +1709,10 @@ void DarcyHybridization::Finalize()
             }
          }
       }
+
+#ifdef MFEM_USE_MPI
+      pOp.Reset(new ParOperator(*this));
+#endif //MFEM_USE_MPI
    }
 
    bfin = true;
@@ -1779,6 +1773,14 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       bu(vdof) = xu(vdof);//<--can be arbitrary as it is ignored
    }
 }
+
+#ifdef MFEM_USE_MPI
+void DarcyHybridization::ParallelEliminateTDofsInRHS(
+   const Array<int> &tdofs_flux, const BlockVector &X, BlockVector &B)
+{
+
+}
+#endif //MFEM_USE_MPI
 
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                                    const Vector &bp_l, const BlockVector &x_l,
@@ -2228,6 +2230,31 @@ void DarcyHybridization::AssembleHDGGrad(
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
+   if (IsNonlinear())
+   {
+      //store RHS for Mult
+      if (!darcy_offsets.Size())
+      {
+         darcy_offsets.SetSize(3);
+         darcy_offsets[0] = 0;
+         darcy_offsets[1] = fes->GetVSize();
+         darcy_offsets[2] = fes_p->GetVSize();
+         darcy_offsets.PartialSum();
+      }
+      if (!darcy_toffsets.Size())
+      {
+         darcy_toffsets.SetSize(3);
+         darcy_toffsets[0] = 0;
+         darcy_toffsets[1] = fes->GetTrueVSize();
+         darcy_toffsets[2] = fes_p->GetTrueVSize();
+         darcy_toffsets.PartialSum();
+
+         darcy_rhs.Update(darcy_toffsets);
+      }
+      darcy_rhs = b_t;
+      return;
+   }
+
    Vector bu;
 
    if (!ParallelU())
@@ -2268,23 +2295,6 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    {
       b_r.SetSize(c_fes->GetVSize());
       b_r = 0.;
-   }
-   if (IsNonlinear())
-   {
-      //store RHS for Mult
-      if (!darcy_offsets.Size())
-      {
-         darcy_offsets.SetSize(3);
-         darcy_offsets[0] = 0;
-         darcy_offsets[1] = fes->GetVSize();
-         darcy_offsets[2] = fes_p->GetVSize();
-         darcy_offsets.PartialSum();
-
-         darcy_rhs.Update(darcy_offsets);
-      }
-      darcy_rhs.GetBlock(0) = bu;
-      darcy_rhs.GetBlock(1) = bp;
-      return;
    }
 
    const int NE = fes->GetNE();
@@ -2580,6 +2590,48 @@ void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
    //note that rhs is not used, it is only a dummy
    dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
 }
+
+#ifdef MFEM_USE_MPI
+void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(dh.bfin, "DarcyHybridization must be finalized");
+
+   if (dh.pH.Ptr())
+   {
+      dh.pH->Mult(x, y);
+      return;
+   }
+
+   dh.ParMultNL(MultNlMode::Mult, dh.darcy_rhs, x, y);
+}
+Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
+{
+   MFEM_VERIFY(dh.bfin, "DarcyHybridization must be finalized");
+
+   if (dh.pH.Ptr()) { return *dh.pH.Ptr(); }
+
+   if (!dh.Df_data) { dh.AllocD(); }// D is resetted in ConstructGrad()
+   if (!dh.E_data || !dh.G_data) { dh.AllocEG(); }// E and G are rewritten
+   if (!dh.H_data) { dh.AllocH(); }
+   else if (dh.c_nlfi_p || dh.c_nlfi)
+   {
+      // H is resetted here for additive double side integration
+      memset(dh.H_data, 0, dh.H_offsets.Last() * sizeof(real_t));
+   }
+
+   Vector y;//dummy
+   dh.ParMultNL(MultNlMode::Grad, dh.darcy_rhs, x, y);
+
+   pGrad.Reset(new ParGradient(dh));
+   return *pGrad;
+}
+
+void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
+{
+   //note that rhs is not used, it is only a dummy
+   dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+}
+#endif // MFEM_USE_MPI
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
    const DarcyHybridization &dh_, int el_, const BlockVector &trps_,

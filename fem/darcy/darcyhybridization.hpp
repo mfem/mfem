@@ -106,7 +106,6 @@ private:
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
-   mutable OperatorHandle pGrad;
 
    friend class Gradient;
    class Gradient : public Operator
@@ -118,6 +117,33 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override;
    };
+   mutable OperatorHandle pGrad;
+
+#ifdef MFEM_USE_MPI
+   friend class ParOperator;
+   class ParOperator : public Operator
+   {
+      const DarcyHybridization &dh;
+      mutable OperatorHandle pGrad;
+   public:
+      ParOperator(const DarcyHybridization &dh)
+         : Operator(dh.c_fes->GetTrueVSize()), dh(dh) { }
+
+      void Mult(const Vector &x, Vector &y) const override;
+      Operator& GetGradient(const Vector &x) const override;
+   };
+   mutable OperatorHandle pOp;
+
+   class ParGradient : public Operator
+   {
+      const DarcyHybridization &dh;
+   public:
+      ParGradient(const DarcyHybridization &dh)
+         : Operator(dh.Width()), dh(dh) { }
+
+      void Mult(const Vector &x, Vector &y) const override;
+   };
+#endif //MFEM_USE_MPI
 
    enum class LocalOpType { FluxNL, PotNL, FullNL };
    LocalOpType lop_type{LocalOpType::FullNL};
@@ -442,12 +468,15 @@ public:
                             const BlockVector &x, BlockVector &b);
 
 #ifdef MFEM_USE_MPI
+   /// Return the parallel hybridized operator.
+   void GetParallelOperator(OperatorHandle &H_h) const { H_h = pOp; }
+
    /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
        @a b; @a tdofs_flux is a list of true DOFs (non-directional, i.e. >= 0).
        */
    virtual void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
                                             const BlockVector &X, BlockVector &B);
-#endif
+#endif //MFEM_USE_MPI
 
    void ReduceRHS(const Vector &b, Vector &b_r) const override
    { MFEM_ABORT("Use BlockVector version instead"); }
