@@ -395,8 +395,9 @@ int main(int argc, char *argv[])
    const int dev = mpi_rank % config_ndev;
 
    Device device(config_device.c_str(), dev);
-   device.SetGPUAwareMPI();
+   device.SetGPUAwareMPI(true);
    if (Mpi::Root()) { device.Print(); }
+   MFEM_VERIFY(getenv("MPICH_GPU_SUPPORT_ENABLED"), "!MPICH_GPU_SUPPORT_ENABLED");
 
    dbg("[MPI] %d/%d @ device #%d", 1+mpi_rank, mpi_size, dev);
 
