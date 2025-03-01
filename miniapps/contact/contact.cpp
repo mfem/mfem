@@ -8,6 +8,15 @@
 // mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -nonlin
 // mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -lin
 
+
+// Checkpoints
+// To output checkpoints
+// mpirun -np 4 ./contact -ls 6 -sr 0 -testno 4 -nsteps 4 -omaxit 20 -out -checkpoint
+
+// To restart from a checkpoint
+// mpirun -np 4 ./contact -ls 6 -sr 0 -testno 4 -nsteps 4 -omaxit 20 -out -restart -rfile checkpoints/test4/ref0/step2
+
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -15,6 +24,92 @@
 
 using namespace std;
 using namespace mfem;
+
+int ExtractStepNumber(const char *filename)
+{
+   const char *step_pos = strstr(filename, "step"); // Find "step"
+   if (!step_pos) return -1; // Return -1 if "step" is not found
+
+   return std::atoi(step_pos + 4); // Convert characters after "step" to an integer
+}
+
+void SaveState(ParGridFunction &x_gf, int step, const std::string & checkpoint_dir)
+{
+   std::string gf_filename = checkpoint_dir + "/step" 
+                                            + std::to_string(step) 
+                                            + ".gf";
+   std::string mesh_filename = checkpoint_dir + "/step" + std::to_string(step) 
+                                                    + ".mesh";
+   ParMesh * pmesh = x_gf.ParFESpace()->GetParMesh();
+   // std::ofstream mesh_state_file(mesh_filename);
+   // pmesh->PrintAsSerial(mesh_state_file);   
+   // x_gf.SaveAsSerial(gf_filename.c_str());
+
+   int myid = Mpi::WorldRank();
+   ofstream meshofs(MakeParFilename(mesh_filename,myid));
+   meshofs.precision(16);
+   pmesh->ParPrint(meshofs);
+   if (Mpi::Root())
+   {
+      mfem::out << "Saved mesh to " << mesh_filename.c_str() << std::endl;
+   }
+
+   ofstream gfofs(MakeParFilename(gf_filename,myid));
+   gfofs.precision(16);
+   x_gf.Save(gfofs);
+
+   if (Mpi::Root())
+   {
+      mfem::out << "Saved gf to " << gf_filename.c_str() << std::endl;
+   }
+}
+
+void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf, int & step, int & testNo)
+{
+   std::ostringstream mesh_file, gf_file;
+   mesh_file << state_file << ".mesh";
+   gf_file << state_file << ".gf";
+
+   int myid = Mpi::WorldRank();
+   // Mesh *mesh = nullptr;
+   // // Step 1: Root process reads the serial mesh
+   // ifstream mesh_input(mesh_file.str().c_str());
+   // MFEM_VERIFY(mesh_input, "Error: Could not open mesh file " << mesh_file.str() << endl);
+   // mesh = new Mesh(mesh_input, 1, 1); // Load mesh with all attributes
+   // ExtractTestAndStep(state_file,testNo,step);
+   // if (myid == 0)
+   // {
+   //    mfem::out << "Loaded serial mesh: " << mesh_file.str() << std::endl;
+   //    mfem::out << "Test No = " << testNo << endl;
+   //    mfem::out << "Step No = " << step << endl;
+   // }
+
+   // int num_procs = Mpi::WorldSize();
+   // int * partitioning = mesh->GeneratePartitioning(num_procs);
+   // pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,partitioning);
+
+   // std::filebuf fb;
+   // fb.open(gf_file.str().c_str(),std::ios::in);
+   // std::istream is(&fb);
+   // GridFunction * gf = new GridFunction(mesh,is);
+   // x_gf = new ParGridFunction(pmesh,gf,partitioning);
+   // delete gf;
+   // delete mesh;
+   // delete partitioning;
+
+   step = ExtractStepNumber(state_file);
+   string meshname(MakeParFilename(mesh_file.str().c_str(), myid));
+   ifstream meshifs(meshname);
+   MFEM_VERIFY(meshifs.good(), "Checkpoint file " << meshname << " not found.");
+   pmesh = new ParMesh(MPI_COMM_WORLD, meshifs);
+
+   string gfname(MakeParFilename(gf_file.str().c_str(), myid));
+   ifstream gfifs(gfname);
+   MFEM_VERIFY(gfifs.good(), "Checkpoint file " << gfname << " not found.");
+   x_gf = new ParGridFunction(pmesh, gfifs);
+}
+
+
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
 {
@@ -39,7 +134,8 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
 
-void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, const std::vector<Array<int>> & iters)
+void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, 
+   const std::vector<Array<int>> & iters, int no_contact_iter)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -69,6 +165,8 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
       }
       outputfile << endl;
    }
+
+   outputfile << "AMG No Contact CG Iterations: " << no_contact_iter << endl;
    outputfile.close();   
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
@@ -99,9 +197,14 @@ int main(int argc, char *argv[])
    bool doublepass = false;
    bool dynamicsolver = false;
    bool nonlinear = false;
-   bool bound_constraints = true;
+   bool bound_constraints = false;
    bool qp = true;
    bool monitor = false;
+   bool restart = false;
+   const char * restart_file = "";
+   bool checkpoint = false;
+   
+
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&testNo, "-testno", "--test-number",
@@ -168,7 +271,14 @@ int main(int argc, char *argv[])
                   "Enable or disable output to files.");          
    args.AddOption(&monitor, "-monitor", "--monitor", "-no-monitor",
                   "--no-monitor",
-                  "Enable or disable internal solution monitoring with paraview.");                                  
+                  "Enable or disable internal solution monitoring with paraview.");            
+   args.AddOption(&restart, "-restart", "--restart", "-no-restart",
+                     "--no-restart", "Enable or disable restarting from a saved state.");
+   args.AddOption(&restart_file, "-rfile", "--restart-file",
+                     "File to restart from (required if -restart is set).");
+   args.AddOption(&checkpoint, "-checkpoint", "--checkpoint",
+                  "-no-checkpoint","--no-checkpoint",
+                  "Enable/disable checkpoints.");
    args.Parse();
    if (!args.Good())
    {
@@ -190,69 +300,83 @@ int main(int argc, char *argv[])
 
    const char *mesh_file = nullptr;
 
-   switch (testNo)
+   int istep=0;   
+   ParGridFunction * restart_gf=nullptr;
+   ParMesh * pmesh = nullptr;
+   if (restart)
    {
-      case -1:
-         mesh_file = "meshes/two-block.mesh";
-         break;
-      case 0:
-      case 1:
-      case 2:
-      case 3:
+      LoadState(restart_file, pmesh, restart_gf, istep, testNo);
+      if (!pmesh)
       {
-         MFEM_ABORT("Problem not implemented yet");
-         break;
+         mfem::out << "Pmesh pointer is null" << endl;
       }
-      case 4:
-         mesh_file = "meshes/Test4.mesh";
-         break;
-      case 40:
-         mesh_file = "meshes/Test40.mesh";
-         break;   
-      case 41:
-         mesh_file = "meshes/Test41.mesh";
-         break;
-      case 42:
-         mesh_file = "meshes/Test42.mesh";
-         break;         
-      case 43:
-         mesh_file = "meshes/Test43.mesh";
-         break;       
-      case 44:
-         mesh_file = "meshes/Test44.mesh";
-         break;                         
-      case 5:
-         mesh_file = "meshes/Test5.mesh";
-         break;
-      case 51:
-         mesh_file = "meshes/Test51.mesh";
-         break;
-      case 6:
-         mesh_file = "meshes/Test6.mesh";
-         break;
-      case 61:
-         // Something wrong with this mesh
-         mesh_file = "meshes/Test61.mesh";
-         break;
-      case 62:
-         mesh_file = "meshes/Test62.mesh";
-         break;         
-      default:
-         MFEM_ABORT("Should be unreachable");
-         break;
    }
-
-   Mesh mesh(mesh_file,1);
-   for (int i = 0; i<sref; i++)
+   else
    {
-      mesh.UniformRefinement();
-   }
+      switch (testNo)
+      {
+         case -1:
+            mesh_file = "meshes/two-block.mesh";
+            break;
+         case 0:
+         case 1:
+         case 2:
+         case 3:
+         {
+            MFEM_ABORT("Problem not implemented yet");
+            break;
+         }
+         case 4:
+            mesh_file = "meshes/Test4.mesh";
+            break;
+         case 40:
+            mesh_file = "meshes/Test40.mesh";
+            break;   
+         case 41:
+            mesh_file = "meshes/Test41.mesh";
+            break;
+         case 42:
+            mesh_file = "meshes/Test42.mesh";
+            break;         
+         case 43:
+            mesh_file = "meshes/Test43.mesh";
+            break;       
+         case 44:
+            mesh_file = "meshes/Test44.mesh";
+            break;                         
+         case 5:
+            mesh_file = "meshes/Test5.mesh";
+            break;
+         case 51:
+            mesh_file = "meshes/Test51.mesh";
+            break;
+         case 6:
+            mesh_file = "meshes/Test6.mesh";
+            break;
+         case 61:
+            // Something wrong with this mesh
+            mesh_file = "meshes/Test61.mesh";
+            break;
+         case 62:
+            mesh_file = "meshes/Test62.mesh";
+            break;         
+         default:
+            MFEM_ABORT("Should be unreachable");
+            break;
+      }
 
-   ParMesh pmesh(MPI_COMM_WORLD,mesh);
-   mesh.Clear();
-   for (int i = 0; i<pref; i++)
-   {
-      pmesh.UniformRefinement();
+      Mesh mesh(mesh_file,1);
+      for (int i = 0; i<sref; i++)
+      {
+         mesh.UniformRefinement();
+      }
+
+      pmesh = new ParMesh(MPI_COMM_WORLD,mesh);
+      mesh.Clear();
+      for (int i = 0; i<pref; i++)
+      {
+         pmesh->UniformRefinement();
+      }
    }
 
    Array<int> ess_bdr_attr;
@@ -280,9 +404,8 @@ int main(int argc, char *argv[])
       ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
    }
    
-  
-   Vector E(pmesh.attributes.Max());
-   Vector nu(pmesh.attributes.Max());
+   Vector E(pmesh->attributes.Max());
+   Vector nu(pmesh->attributes.Max());
 
    if (testNo == -1 )
    {
@@ -303,12 +426,12 @@ int main(int argc, char *argv[])
    }
 
 
-   ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E,nu,nonlinear);
+   ElasticityOperator prob(pmesh, ess_bdr_attr,ess_bdr_attr_comp, E,nu,nonlinear);
 
-   int dim = pmesh.Dimension();
+   int dim = pmesh->Dimension();
    Vector ess_values(dim);
    int essbdr_attr;
-   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
 
    ess_values = 0.0;
 
@@ -384,13 +507,20 @@ int main(int argc, char *argv[])
       mfem::out << "Global number of dofs = " << gndofs << endl;
       mfem::out << "--------------------------------------" << endl;
    }
-   ParGridFunction x_gf(fes); x_gf = 0.0;
-   ParGridFunction xnew(fes); xnew = 0.0;
-   ParaViewDataCollection * paraview_dc = nullptr;
-   ParMesh pmesh_copy(pmesh);
+   ParGridFunction x_gf(fes); 
+   ParMesh pmesh_copy(*pmesh);
    ParFiniteElementSpace fes_copy(*fes,pmesh_copy);
-   ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = 0.0;
-
+   ParGridFunction xcopy_gf(&fes_copy); 
+   if (restart)
+   {
+      x_gf = *restart_gf;
+   }
+   else
+   {
+      x_gf = 0.0;
+   }
+   xcopy_gf = x_gf;
+   ParaViewDataCollection * paraview_dc = nullptr;
 
    ParGridFunction xBC(fes); xBC = 0.0;
    
@@ -421,9 +551,13 @@ int main(int argc, char *argv[])
    }
    ParGridFunction ref_coords(prob.GetFESpace()); 
    ParGridFunction new_coords(prob.GetFESpace()); 
-   pmesh.GetNodes(new_coords);
-   pmesh.GetNodes(ref_coords);
+
+   pmesh->GetNodes(new_coords);
+   pmesh->GetNodes(ref_coords);
    
+   add(ref_coords,x_gf,new_coords);
+
+
    // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
    Vector xrefbc(x_gf.GetTrueVector().Size()); xrefbc = 0.0;
@@ -439,16 +573,14 @@ int main(int argc, char *argv[])
    double eps_min = 1.e-4;
 
 
-
-
    //double p = 20.0;
    double p = 40.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
    int total_steps = nsteps + msteps;
    Vector DCvals;
-   
-   for (int i = 0; i<total_steps; i++)
+   int ibegin = (restart) ? istep+1 : 0;
+   for (int i = ibegin; i<total_steps; i++)
    {
       if (testNo == 6)
       {
@@ -539,7 +671,7 @@ int main(int argc, char *argv[])
          eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
          // update eps and set parameters
          // could we do something more conservative here...
-	 for (int j = 0; j < eps.Size(); j++)
+	      for (int j = 0; j < eps.Size(); j++)
          {
             eps(j) = max(eps_min, eps(j));
          }
@@ -555,51 +687,9 @@ int main(int argc, char *argv[])
       }
 
 
-
-
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
-      
-      HypreParMatrix * P = contact.GetRestrictionToContactDofs();
-      
-      Vector tone(fes->GetTrueVSize()); tone = 1.0;
-      ParGridFunction one_gf(fes); 
-      one_gf.SetFromTrueDofs(tone);
-      // visualize one_gf to check if the restriction is correct
-      socketstream sol_sock_one;
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int visport = 19916;
-         sol_sock_one.open(vishost, visport);
-         sol_sock_one.precision(8);
-         sol_sock_one << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << pmesh << one_gf << flush;
-      }
-      mfem::out << "tone norm = " << tone.Norml2() << endl;
-      mfem::out << "P->Height() = " << P->Height() << endl;
-      mfem::out << "P->Width() = " << P->Width() << endl;
-      Vector tcontact(P->Width());
-
-      P->MultTranspose(tone, tcontact);
-      tone = 0.0;
-      P->Mult(tcontact, tone);
-
-      mfem::out << "tone norm = " << tone.Norml2() << endl;
-
-      one_gf = 0.0;
-      one_gf.SetFromTrueDofs(tone);
-      socketstream sol_sock_two;
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int visport = 19916;
-         sol_sock_two.open(vishost, visport);
-         sol_sock_two.precision(8);
-         sol_sock_two << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << pmesh << one_gf << flush;
-      }
       
       int numconstr = contact.GetGlobalNumConstraints();
       ParInteriorPointSolver optimizer(&contact);
@@ -640,6 +730,32 @@ int main(int argc, char *argv[])
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
       int gndofs = prob.GetGlobalNumDofs();
+
+
+                     // Hypotherical AMG solver in the absense of contact for each time step
+               // This is only for the linear case
+      int amgcg_iter = -1;
+      
+      if (i == total_steps-1 && !nonlinear)
+      {
+         const HypreParMatrix * A = contact.GetElasticityOperator()->GetOperator();
+         Vector rand_x(x0.Size()); rand_x.Randomize();
+         Vector rand_y(x0.Size()); rand_y.Randomize();
+         HypreBoomerAMG amg(*A);
+         amg.SetSystemsOptions(3);
+         amg.SetPrintLevel(0);
+         amg.SetRelaxType(relax_type);
+         amg.SetMaxIter(1);
+         CGSolver amgcg(MPI_COMM_WORLD);
+         amgcg.SetPrintLevel(3);
+         amgcg.SetMaxIter(5000);
+         amgcg.SetRelTol(linsolverrtol);
+         amgcg.SetAbsTol(linsolveratol);
+         amgcg.SetOperator(*A);
+         amgcg.SetPreconditioner(amg);
+         amgcg.Mult(rand_y,rand_x);
+         amgcg_iter = amgcg.GetNumIterations();
+      }       
       if (Mpi::Root())
       {
          mfem::out << endl;
@@ -681,13 +797,14 @@ int main(int argc, char *argv[])
                std::cerr << "Warning: Failed to create ParaView output directory.\n";
             }                        
             ostringstream file_name;
-	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-step-" << i; 
+	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
             OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
             if (i == nsteps-1)
             {
                ostringstream final_file_name;
-               final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-final"; 
-               OutputFinalData(final_file_name, Einitial, Efinal, gndofs, numconstr, CGiter);
+               final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-final";
+               OutputFinalData(final_file_name, Einitial, Efinal, 
+                  gndofs, numconstr, CGiter, amgcg_iter);
             }
          }
       }
@@ -704,6 +821,19 @@ int main(int argc, char *argv[])
          paraview_dc->Save();
       }
 
+
+      if (checkpoint)
+      {
+         std::string checkpoint_dir = "checkpoints/test" + std::to_string(testNo) + "/ref"
+         + std::to_string(sref+pref);
+         std::string mkdir_command = "mkdir -p " + checkpoint_dir;
+         int ret = system(mkdir_command.c_str());
+         if (ret != 0)
+         {
+            std::cerr << "Warning: Failed to create ParaView output directory.\n";
+         }      
+         SaveState(x_gf,i,checkpoint_dir);
+      }
       if (visualization)
       {
         sol_sock << "parallel " << num_procs << " " << myid << "\n"
@@ -711,7 +841,7 @@ int main(int argc, char *argv[])
       
         if (i == total_steps - 1)
         {
-           pmesh.MoveNodes(x_gf);
+           pmesh->MoveNodes(x_gf);
            char vishost[] = "localhost";
            int  visport   = 19916;
            socketstream sol_sock1(vishost, visport);
@@ -720,6 +850,8 @@ int main(int argc, char *argv[])
            sol_sock1 << "solution\n" << pmesh << x_gf << flush;
         }
       }
+
+
       if (i == total_steps-1) break;
       prob.UpdateRHS();
    }

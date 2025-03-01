@@ -5602,6 +5602,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
    }
 
    MPI_Barrier(MyComm);
+   serialmesh.SetAttributes();
    return serialmesh;
 }
 

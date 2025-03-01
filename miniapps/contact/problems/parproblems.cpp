@@ -647,7 +647,7 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    // Initialize Tribol contact library
    tribol::initialize(pmesh->Dimension(), pmesh->GetComm());
 
-   tribol::parameters_t::getInstance().gap_separation_ratio = 2;
+   tribol::parameters_t::getInstance().gap_separation_ratio = 8;
 
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
