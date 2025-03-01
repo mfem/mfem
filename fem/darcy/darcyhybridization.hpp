@@ -38,7 +38,10 @@ public:
 
 private:
    FiniteElementSpace *fes_p;
-   BilinearFormIntegrator *c_bfi_p{};
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes, *pfes_p, *c_pfes;
+#endif
+   BilinearFormIntegrator *c_bfi_p {};
    NonlinearFormIntegrator *c_nlfi_p{};
    BlockNonlinearFormIntegrator *c_nlfi{};
    NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
@@ -99,7 +102,7 @@ private:
    mutable Array<int> H_offsets;
    mutable real_t *H_data{};
 
-   mutable Array<int> darcy_offsets;
+   mutable Array<int> darcy_offsets, darcy_toffsets;
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
@@ -193,6 +196,15 @@ private:
    };
 
    bool IsNonlinear() const { return c_nlfi || c_nlfi_p || m_nlfi || m_nlfi_u || m_nlfi_p; }
+#ifdef MFEM_USE_MPI
+   bool ParallelU() const { return pfes != NULL; }
+   bool ParallelP() const { return pfes_p != NULL; }
+   bool ParallelC() const { return c_pfes != NULL; }
+#else
+   bool ParallelU() const { return false; }
+   bool ParallelP() const { return false; }
+   bool ParallelC() const { return false; }
+#endif
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
@@ -204,8 +216,13 @@ private:
    void AllocEG() const;
    void AllocH() const;
    enum class MultNlMode { Mult, Sol, Grad, GradMult };
+   void MultNL(MultNlMode mode, const Vector &bu, const Vector &bp,
+               const Vector &x, Vector &y) const;
    void MultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
-               Vector &y) const;
+               Vector &y) const
+   { MultNL(mode, b.GetBlock(0), b.GetBlock(1), x, y); }
+   void ParMultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
+                  Vector &y) const;
    void InvertA();
    void InvertD();
    void ComputeH();
@@ -423,6 +440,14 @@ public:
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b);
+
+#ifdef MFEM_USE_MPI
+   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
+       @a b; @a tdofs_flux is a list of true DOFs (non-directional, i.e. >= 0).
+       */
+   virtual void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
+                                            const BlockVector &X, BlockVector &B);
+#endif
 
    void ReduceRHS(const Vector &b, Vector &b_r) const override
    { MFEM_ABORT("Use BlockVector version instead"); }
