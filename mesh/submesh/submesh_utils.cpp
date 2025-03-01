@@ -367,9 +367,9 @@ void AddBoundaryElements(SubMeshT &mesh,
          {
             const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
             const int submeshFaceIdx =
-                mesh.Dimension() == 3 ?
-                mesh.GetSubMeshFaceFromParent(parentFaceIdx) :
-                mesh.GetSubMeshEdgeFromParent(parentFaceIdx);
+               mesh.Dimension() == 3 ?
+               mesh.GetSubMeshFaceFromParent(parentFaceIdx) :
+               mesh.GetSubMeshEdgeFromParent(parentFaceIdx);
 
             if (submeshFaceIdx == -1) { continue; }
             if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary())
