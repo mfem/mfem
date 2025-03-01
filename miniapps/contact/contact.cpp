@@ -847,7 +847,7 @@ int main(int argc, char *argv[])
            socketstream sol_sock1(vishost, visport);
            sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
            sol_sock1.precision(8);
-           sol_sock1 << "solution\n" << pmesh << x_gf << flush;
+           sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
         }
       }
 
@@ -857,5 +857,7 @@ int main(int argc, char *argv[])
    }
 
    if (paraview_dc) delete paraview_dc;
+   if (restart_gf) delete restart_gf;
+   delete pmesh;
    return 0;
 }
