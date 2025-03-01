@@ -666,7 +666,7 @@ protected:
 
    /** @brief Set the weights in this object to values from active elements in
        @a num_pieces meshes in @a mesh_array. */
-   void MergeWeights(Mesh *mesh_array[], int num_pieces);
+   void MergeWeights(const Mesh * const mesh_array[], int num_pieces);
 
    /// Set @a patch_to_el.
    void SetPatchToElements();
@@ -696,7 +696,7 @@ public:
                   Mode mode = Mode::H_1);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
 
-   NURBSExtension(Mesh *mesh_array[], int num_pieces);
+   NURBSExtension(const Mesh * const mesh_array[], int num_pieces);
 
    NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
 
@@ -712,8 +712,8 @@ public:
 
    /** @brief Set the DOFs of @a merged to values from active elements in
        @a num_pieces of Gridfunctions @a gf_array. */
-   void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
-                           GridFunction &merged);
+   void MergeGridFunctions(const GridFunction * const gf_array[],
+                           int num_pieces, GridFunction &merged);
 
    /// Destroy a NURBSExtension.
    virtual ~NURBSExtension();
