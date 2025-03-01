@@ -50,17 +50,19 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
-   mfem::Vector z(y.Size());
-   Mult(x, z);
-   y.Add(a, z);
+   z_am.SetSize(y.Size());
+   z_am.UseDevice(true);
+   Mult(x, z_am);
+   y.Add(a, z_am);
 }
 
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const real_t a) const
 {
-   mfem::Vector z(y.Size());
-   MultTranspose(x, z);
-   y.Add(a, z);
+   z_am.SetSize(y.Size());
+   z_am.UseDevice(true);
+   MultTranspose(x, z_am);
+   y.Add(a, z_am);
 }
 
 void Operator::ArrayMult(const Array<const Vector *> &X,
