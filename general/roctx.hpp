@@ -42,7 +42,7 @@ public:
    {
       if (!RoctxConfig::Enabled()) { return; }
       roctxRangePush(message.c_str());
-      std::cout << "ROCTX: " << message << '\n';
+      mfem::out << "ROCTX: " << message << '\n';
    }
 
    Roctx(const std::string &filename,
@@ -64,7 +64,7 @@ public:
                                  + function + "]";
       if (!message.empty()) { full_message += " " + message; }
       roctxRangePush(message.c_str());
-      std::cout << message << '\n';
+      mfem::out << message << '\n';
    }
 
    ~Roctx()
@@ -77,7 +77,7 @@ public:
          roctxRangePop();
       }
       roctxRangePop();
-      std::cout << "pop\n";
+      mfem::out << "pop\n";
    }
 };
 
