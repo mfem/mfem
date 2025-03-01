@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 #include <cstdint>
+#include <memory>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
