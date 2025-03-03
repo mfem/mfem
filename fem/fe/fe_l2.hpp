@@ -184,7 +184,14 @@ public:
                    DenseMatrix &dshape) const override;
 };
 
-/// Arbitrary order L2 elements in 3D on a pyramid
+/** Arbitrary order L2 basis functions defined on pyramid-shaped elements
+
+  This implementation is closely based on the finite elements
+  described in section 9.4 of the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes"
+  by Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+ */
 class L2_FuentesPyramidElement
    : public NodalFiniteElement, public FuentesPyramid
 {
