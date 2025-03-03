@@ -82,7 +82,6 @@ protected:
    struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;                   // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
-   Array<int> gsl_steps;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
    bool setupflag;              // flag to indicate if gslib data has been setup
@@ -143,13 +142,13 @@ protected:
    void FindPointsLocal3(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
                          Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
-                         Vector &gsl_dist_l, int npt, Array<int> *steps);
+                         Vector &gsl_dist_l, int npt);
 
    // FindPoints locally on device for 2D.
    void FindPointsLocal2(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
                          Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
-                         Vector &gsl_dist_l, int npt, Array<int> *steps);
+                         Vector &gsl_dist_l, int npt);
 
    // Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
@@ -171,11 +170,9 @@ protected:
 
    /** Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
-       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. Optional
-       @a track_steps used to find solution.  */
+       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
    void FindPointsOnDevice(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES,
-                           bool track_steps = false);
+                           int point_pos_ordering = Ordering::byNODES);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in_evec E-vector of gridfunction to be interpolated.
@@ -228,8 +225,6 @@ public:
        #gsl_mfem_elem   Element ids corresponding to MFEM-mesh where the points
                         were found. #gsl_mfem_elem != #gsl_elem for simplices
                         Defaults to 0 for points that were not found.
-       #gsl_steps       Optional number of steps for the local solve to find a
-                        solution if @a track_steps is set (only for device solves)
        #gsl_ref         Reference coordinates of the found point.
                         Ordered by vdim (XYZ,XYZ,XYZ...). Defaults to -1 for
                         points that were not found. Note: the gslib reference
@@ -239,13 +234,12 @@ public:
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
    void FindPoints(const Vector &point_pos,
-                   int point_pos_ordering = Ordering::byNODES,
-                   bool track_steps = false);
+                   int point_pos_ordering = Ordering::byNODES);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES,
                    const double bb_t = 0.1, const double newt_tol = 1.0e-12,
-                   const int npt_max = 256, bool track_steps = false);
+                   const int npt_max = 256);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in    Function values that will be interpolated on the
@@ -295,10 +289,6 @@ public:
        Note that in parallel, this must be called before MPI_Finalize(), as it
        calls MPI_Comm_free() for internal gslib communicators. */
    virtual void FreeData();
-
-   /// Return number of steps to find a solution, if enabled/any. Only valid if
-   /// corresponding code is inside (0) or boundary (1).
-   virtual const Array<int> &GetSteps() const { return gsl_steps; }
 
    /// Return code for each point searched by FindPoints: inside element (0), on
    /// element boundary (1), or not found (2).
