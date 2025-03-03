@@ -29,16 +29,11 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
+   // A. compute B_tor_r
    // make a grid function with the H1 space
    GridFunction B_tor_r(&fespace);
    cout << B_tor_r.FESpace()->GetTrueVSize() << endl;
    B_tor_r = 0.0;
-   // make a grid function with the H1 space
-   GridFunction JxB(&fespace);
-   cout << JxB.FESpace()->GetTrueVSize() << endl;
-   JxB = 0.0;
-
-   // A. compute B_tor_r
 
    {
       BilinearForm b_bi(&fespace);
@@ -73,7 +68,13 @@ int main(int argc, char *argv[])
       B_tor_r.SetFromTrueDofs(X);
    }
 
-   { // B. compute JxB
+   // B. compute JxB
+   // make a grid function with the H1 space
+   GridFunction JxB_perp(&fespace);
+   cout << JxB_perp.FESpace()->GetTrueVSize() << endl;
+   JxB_perp = 0.0;
+
+   {
       // 1.a make the RHS bilinear form
       MixedBilinearForm b_bi(B_tor_r.FESpace(), &fespace);
       VectorGridFunctionCoefficient B_perp_coeff(&B_perp);
@@ -100,10 +101,10 @@ int main(int argc, char *argv[])
       M_solver.SetPrintLevel(1);
       M_solver.SetOperator(a.SpMat());
 
-      Vector X(JxB.Size());
+      Vector X(JxB_perp.Size());
       X = 0.0;
       M_solver.Mult(b, X);
-      JxB.SetFromTrueDofs(X);
+      JxB_perp.SetFromTrueDofs(X);
    }
 
    if (visualization)
@@ -113,25 +114,25 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << JxB << flush;
+               << mesh << JxB_perp << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_perp", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB", &JxB);
+      paraview_dc.RegisterField("JxB_perp", &JxB_perp);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("JxB.gf");
+   ofstream sol_ofs("JxB_perp.gf");
    sol_ofs.precision(8);
-   JxB.Save(sol_ofs);
+   JxB_perp.Save(sol_ofs);
 
    return 0;
 }
