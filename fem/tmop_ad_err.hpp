@@ -962,7 +962,7 @@ private:
 class QuantityOfInterest
 {
 public:
-    QuantityOfInterest(mfem::ParMesh* mesh_, enum QoIType qoiType, int order_)
+    QuantityOfInterest(mfem::ParMesh* mesh_, enum QoIType qoiType, int order_,int physicsdim = 1)
     : pmesh(mesh_), qoiType_(qoiType)
     {
         int dim=pmesh->Dimension();
@@ -970,7 +970,7 @@ public:
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
+        temp_fes_ = new ParFiniteElementSpace(pmesh,fec,physicsdim);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
         hess_fes_ = new ParFiniteElementSpace(pmesh,fec,dim*dim);
 
@@ -978,13 +978,16 @@ public:
 
         dQdu_ = new mfem::ParLinearForm(temp_fes_);
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
-
+       
+        if(physicsdim ==1)
+        {
         true_solgf_.SetSpace(temp_fes_);
         true_solgradgf_.SetSpace(coord_fes_);
         true_solhessgf_.SetSpace(hess_fes_);
         true_solgf_coeff_.SetGridFunction(&true_solgf_);
         true_solgradgf_coeff_.SetGridFunction(&true_solgradgf_);
         true_solhessgf_coeff_.SetGridFunction(&true_solhessgf_);
+        }
 
         // debug_pdc = new ParaViewDataCollection("DebugQoI", temp_fes_->GetParMesh());
         // debug_pdc->SetLevelsOfDetail(1);

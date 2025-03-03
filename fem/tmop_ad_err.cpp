@@ -2182,8 +2182,8 @@ void Elasticity_Solver::FSolve()
   Array<int> ess_tdof_list(ess_tdof_list_);
 
   // make coefficients of the linear elastic properties
-  ::mfem::ConstantCoefficient firstLameCoef(1.0);
-  ::mfem::ConstantCoefficient secondLameCoef(0.0);
+  ::mfem::ConstantCoefficient firstLameCoef(0.0);
+  ::mfem::ConstantCoefficient secondLameCoef(1.0);
 
   ParBilinearForm a(physics_fes_);
   ParLinearForm b(physics_fes_);
@@ -2222,8 +2222,8 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     Array<int> ess_tdof_list(ess_tdof_list_);
 
     // make coefficients of the linear elastic properties
-    ::mfem::ConstantCoefficient firstLameCoef(1.0);
-    ::mfem::ConstantCoefficient secondLameCoef(0.0);
+    ::mfem::ConstantCoefficient firstLameCoef(0.0);
+    ::mfem::ConstantCoefficient secondLameCoef(1.0);
 
     ParBilinearForm a(physics_fes_);
     a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
