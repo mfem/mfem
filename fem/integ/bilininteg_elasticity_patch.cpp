@@ -28,13 +28,13 @@ void PatchElasticitySetup3D(const int Q1Dx,
                             const Vector &c,
                             Vector &d)
 {
-   // computes [J^{-T}(xq), W(xq)*det(J(xq)), lambda(xq), mu(xq)] at quadrature points
+   // computes [J^{-T}(xq), lambda(xq)*W(xq)*det(J(xq)), mu(xq)*W(xq)*det(J(xq))] at quadrature points
    const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
    const auto C = Reshape(c.Read(), Q1Dx,Q1Dy,Q1Dz,2);
    // nq * [9 (J^{-T}) + 1 (WdetJ) + 1 (lambda) + 1 (mu)]
-   d.SetSize(Q1Dx * Q1Dy * Q1Dz * 12);
-   auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 12);
+   d.SetSize(Q1Dx * Q1Dy * Q1Dz * 11);
+   auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 11);
    const int NE = 1;  // TODO: MFEM_FORALL_3D without e?
    MFEM_FORALL_3D(e, NE, Q1Dx, Q1Dy, Q1Dz,
    {
@@ -56,6 +56,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
                const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                /* */               J21 * (J12 * J33 - J32 * J13) +
                /* */               J31 * (J12 * J23 - J22 * J13);
+               const real_t wdetj = W(qx,qy,qz) * detJ;
                // adj(J)
                const real_t A11 = (J22 * J33) - (J23 * J32);
                const real_t A12 = (J32 * J13) - (J12 * J33);
@@ -77,12 +78,9 @@ void PatchElasticitySetup3D(const int Q1Dx,
                D(qx,qy,qz,6) = A13 / detJ;
                D(qx,qy,qz,7) = A23 / detJ;
                D(qx,qy,qz,8) = A33 / detJ;
-               // store w_detJ
-               // (A small efficiency may be possible by multiplying J by sqrt(W*detJ))
-               D(qx,qy,qz,9) = W(qx,qy,qz) * detJ;
                // Coefficients
-               D(qx,qy,qz,10) = C(qx,qy,qz,0); // lambda
-               D(qx,qy,qz,11) = C(qx,qy,qz,1); // mu
+               D(qx,qy,qz,9) = C(qx,qy,qz,0) * wdetj; // lambda * w * detj
+               D(qx,qy,qz,10) = C(qx,qy,qz,1) * wdetj; // mu * w * detj
             }
          }
       }
