@@ -149,6 +149,14 @@ public:
                    DenseMatrix &dshape) const override;
 };
 
+/** Arbitrary order H1 basis functions defined on pyramid-shaped elements
+
+  This implementation is closely based on the finite elements
+  described in section 9.1 of the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes"
+  by Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+ */
 class H1_FuentesPyramidElement
    : public NodalFiniteElement, public FuentesPyramid
 {
@@ -182,6 +190,13 @@ public:
    real_t GetZetaMax() const { return zmax; }
 };
 
+/** Arbitrary order H1 basis functions defined on pyramid-shaped elements
+
+  This implementation is based on the finite elements described in the
+  2010 paper "Higher-Order Finite Elements for Hybrid Meshes Using New
+  Nodal Pyramidal Elements" by Morgane Bergot, Gary Cohen, and Marc
+  Durufle, see https://hal.archives-ouvertes.fr/hal-00454261.
+ */
 class H1_BergotPyramidElement : public NodalFiniteElement
 {
 private:

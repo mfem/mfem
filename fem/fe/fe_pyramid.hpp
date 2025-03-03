@@ -17,6 +17,18 @@
 namespace mfem
 {
 
+/** Base class for arbitrary order basis functions on pyramid-shaped elements
+
+  This base class provides a common class to store temporary vectors,
+  matrices, and tensors computed by various functions defined on
+  pyramid-shaped elements.
+
+  The function names defined here are chosen to reflect, as closely as
+  possible, those used in the paper "Orientation embedded high order
+  shape functions for the exact sequence elements of all shapes" by
+  Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+*/
 class FuentesPyramid
 {
 private:
