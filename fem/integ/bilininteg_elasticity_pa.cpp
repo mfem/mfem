@@ -16,6 +16,7 @@
 #include "bilininteg_elasticity_kernels.hpp"
 #include "fem/integrator.hpp"
 #include "linalg/dtensor.hpp"
+#include "linalg/tensor.hpp"
 using mfem::internal::tensor;
 using mfem::internal::make_tensor;
 
@@ -193,6 +194,12 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
    const Array<int>& D1D = pb.D1D;
    const std::vector<Array2D<real_t>>& B = pb.B;
    const std::vector<Array2D<real_t>>& G = pb.G;
+   // minD/maxD are maps from 1D dof index -> 1D quadrature index
+   // For component c and dof index d, [minD[c][d], maxD[c][d]] are
+   // the min/max quadrature indices supported by the shape function
+   // B_{cd}. Because shape functions on patches don't necessarily
+   // support the whole domain, these maps are used to eliminate
+   // unnecessary interpolations.
    const std::vector<std::vector<int>> minD = pb.minD;
    const std::vector<std::vector<int>> maxD = pb.maxD;
    const std::vector<int> acc = pb.accsize;
@@ -260,51 +267,22 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
    } // dz
 }
 
-// This version uses full 1D quadrature rules, taking into account the
-// minimum interaction between basis functions and integration points.
-void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
-                                            const PatchBasisInfo &pb,
-                                            const Vector &x,
-                                            Vector &y) const
+/**
+ * Transforms grad_u into physical space, computes stress, then transforms back to reference space
+ */
+void PatchApplyKernel(const Vector &pa_data,
+                      const PatchBasisInfo &pb,
+                      DeviceTensor<5, real_t> &grad,
+                      DeviceTensor<5, real_t> &S)
 {
    // Unpack patch basis info
+   const int vdim = pb.vdim;
    const Array<int>& Q1D = pb.Q1D;
-   const Array<int>& D1D = pb.D1D;
-   const std::vector<Array2D<real_t>>& B = pb.B;
-   const std::vector<Array2D<real_t>>& G = pb.G;
-   const std::vector<std::vector<int>> minD = pb.minD;
-   const std::vector<std::vector<int>> maxD = pb.maxD;
-   const std::vector<std::vector<int>> minQ = pb.minQ;
-   const std::vector<std::vector<int>> maxQ = pb.maxQ;
    const int NQ = pb.NQ;
-
-   auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
-   auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
-
-   // Quadrature data. First 9 entries are J^{-T}
-   // Last three entries are W*detJ, lambda, mu
+   // Quadrature data. 12 values per quadrature point.
+   // First 9 entries are J^{-T}; then W*detJ, lambda, and mu
    const auto qd = Reshape(pa_data.HostRead(), NQ, 12);
 
-   // grad(c,d,qx,qy,qz): derivative of u_c w.r.t. d evaluated at (qx,qy,qz)
-   Vector gradv(vdim*vdim*NQ);
-   gradv = 0.0;
-   auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
-   Vector Sv(vdim*vdim*NQ);
-   Sv = 0.0;
-   auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
-
-   // Accumulators; these are shared between grad_u interpolation and grad_v_T
-   // application, so their size is the max of qpts/dofs
-   const int max_pts_x = std::max(Q1D[0], D1D[0]);
-   const int max_pts_y = std::max(Q1D[1], D1D[1]);
-   Vector sumXYv(vdim*vdim*max_pts_x*max_pts_y);
-   Vector sumXv(vdim*vdim*max_pts_x);
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, max_pts_x, max_pts_y);
-   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, max_pts_x);
-
-   PatchInterpolateGradient(pb, sumXYv, sumXv, x, gradv);
-
-   // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -325,7 +303,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             const real_t lambda  = qd(q,10);
             const real_t mu      = qd(q,11);
 
-            // grad_u = J^{-T} * grad_uhat
+            // grad_u = grad_uhat * J^{-1}
             for (int c = 0; c < vdim; ++c)
             {
                const real_t grad0 = grad(c,0,qx,qy,qz);
@@ -359,6 +337,108 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
          } // qx
       } // qy
    } // qz
+}
+
+// This version uses full 1D quadrature rules, taking into account the
+// minimum interaction between basis functions and integration points.
+void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
+                                            const PatchBasisInfo &pb,
+                                            const Vector &x,
+                                            Vector &y) const
+{
+   // Unpack patch basis info
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const std::vector<std::vector<int>> minD = pb.minD;
+   const std::vector<std::vector<int>> maxD = pb.maxD;
+   const std::vector<std::vector<int>> minQ = pb.minQ;
+   const std::vector<std::vector<int>> maxQ = pb.maxQ;
+   const int NQ = pb.NQ;
+
+   auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
+   auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
+
+   // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
+   Vector gradv(vdim*vdim*NQ);
+   gradv = 0.0;
+   auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   // S[i,j,q] = D( grad_u )
+   //          = stress[i,j,q] * J^{-T}[q]
+   Vector Sv(vdim*vdim*NQ);
+   Sv = 0.0;
+   auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+
+   // Accumulators; these are shared between grad_u interpolation and grad_v_T
+   // application, so their size is the max of qpts/dofs
+   const int max_pts_x = std::max(Q1D[0], D1D[0]);
+   const int max_pts_y = std::max(Q1D[1], D1D[1]);
+   Vector sumXYv(vdim*vdim*max_pts_x*max_pts_y);
+   Vector sumXv(vdim*vdim*max_pts_x);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, max_pts_x, max_pts_y);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, max_pts_x);
+
+   // grad ( B[j,q,d], G[j,q,d], U[i,j,d] )
+   // Interpolate U at dofs to grad_u in reference quadrature space
+   PatchInterpolateGradient(pb, sumXYv, sumXv, x, gradv);
+
+   // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
+   PatchApplyKernel(pa_data, pb, grad, S);
+   // for (int qz = 0; qz < Q1D[2]; ++qz)
+   // {
+   //    for (int qy = 0; qy < Q1D[1]; ++qy)
+   //    {
+   //       for (int qx = 0; qx < Q1D[0]; ++qx)
+   //       {
+   //          const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+   //          const real_t Jinvt00 = qd(q,0);
+   //          const real_t Jinvt01 = qd(q,1);
+   //          const real_t Jinvt02 = qd(q,2);
+   //          const real_t Jinvt10 = qd(q,3);
+   //          const real_t Jinvt11 = qd(q,4);
+   //          const real_t Jinvt12 = qd(q,5);
+   //          const real_t Jinvt20 = qd(q,6);
+   //          const real_t Jinvt21 = qd(q,7);
+   //          const real_t Jinvt22 = qd(q,8);
+   //          const real_t wdetj   = qd(q,9);
+   //          const real_t lambda  = qd(q,10);
+   //          const real_t mu      = qd(q,11);
+
+   //          // grad_u = J^{-T} * grad_uhat
+   //          for (int c = 0; c < vdim; ++c)
+   //          {
+   //             const real_t grad0 = grad(c,0,qx,qy,qz);
+   //             const real_t grad1 = grad(c,1,qx,qy,qz);
+   //             const real_t grad2 = grad(c,2,qx,qy,qz);
+   //             grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt01*grad1)+(Jinvt02*grad2);
+   //             grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
+   //             grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
+   //          }
+
+   //          // Compute stress tensor
+   //          // [s00, s11, s22, s12, s02, s01]
+   //          const real_t div = grad(0,0,qx,qy,qz) + grad(1,1,qx,qy,qz) + grad(2,2,qx,qy,qz);
+   //          const real_t sigma00 = (lambda*div + 2.0*mu*grad(0,0,qx,qy,qz)) * wdetj;
+   //          const real_t sigma11 = (lambda*div + 2.0*mu*grad(1,1,qx,qy,qz)) * wdetj;
+   //          const real_t sigma22 = (lambda*div + 2.0*mu*grad(2,2,qx,qy,qz)) * wdetj;
+   //          const real_t sigma12 = mu * (grad(1,2,qx,qy,qz) + grad(2,1,qx,qy,qz)) * wdetj;
+   //          const real_t sigma02 = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz)) * wdetj;
+   //          const real_t sigma01 = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz)) * wdetj;
+
+   //          // S = sigma * J^{-T}
+   //          S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
+   //          S(0,1,qx,qy,qz) = Jinvt01*sigma00 + Jinvt11*sigma01 + Jinvt21*sigma02;
+   //          S(0,2,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
+   //          S(1,0,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
+   //          S(1,1,qx,qy,qz) = Jinvt01*sigma01 + Jinvt11*sigma11 + Jinvt21*sigma12;
+   //          S(1,2,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
+   //          S(2,0,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
+   //          S(2,1,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
+   //          S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
+   //       } // qx
+   //    } // qy
+   // } // qz
 
    /*
    3) Contraction with grad_v (quads -> dofs)
