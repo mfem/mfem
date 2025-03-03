@@ -1327,7 +1327,6 @@ if (myid == 0) {
     int cycle_count = 1;
     for(int i=1;i<max_it;i++)
     {
-      
       filterSolver->setLoadGridFunction(gridfuncOptVar);
       filterSolver->FSolve();
       ParGridFunction & filteredDesign = filterSolver->GetSolution();
