@@ -52,6 +52,9 @@
 
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e5 -w2 1e-2 -rs 3 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
 
+// elasticity runs / maximize comliance
+
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 1000 -w1 -1e2 -w2 1e-2 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.01 -m SquareFrame.mesh -ph 1
 
 /*******************************/
 // Presentation runs below:
@@ -477,9 +480,9 @@ double loadFunc(const Vector & x)
   else if (ftype == 9)
   {
     double val = 0.0;
-    if(x[0]>0.99)
+    if(x[0]>0.99 && x[1]>0.2)
     {
-      val = 1.0;
+      val = -1.0;
     }
     return val;
   }
@@ -932,6 +935,22 @@ int main (int argc, char *argv[])
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
+      // if (attribute == 1 ||
+      //     attribute == 3 ) // zero out motion in y
+      // {
+      //   for (int j = 0; j < nd; j++)
+      //   {
+      //     gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+      //   }
+      // }
+      // else if (attribute == 2 ||
+      //     attribute == 4 ) // zero out in x
+      // {
+      //   for (int j = 0; j < nd; j++)
+      //   {
+      //     gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+      //   }
+      // }
     }
   }
   else
@@ -1084,8 +1103,8 @@ if (myid == 0) {
 
 
   mfem::VectorArrayCoefficient tractionLoad(PMesh->SpaceDimension());
-  tractionLoad.Set(0, QCoef);
-  tractionLoad.Set(1, new mfem::ConstantCoefficient(0.0));
+  tractionLoad.Set(1, QCoef);
+  tractionLoad.Set(0, new mfem::ConstantCoefficient(0.0));
 
   if( physics ==0)
   {
