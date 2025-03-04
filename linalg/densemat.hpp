@@ -100,6 +100,7 @@ public:
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
+   int TotalSize() const { return Width()*Height(); }
 
    /// Change the size of the DenseMatrix to s x s.
    void SetSize(int s) { SetSize(s, s); }

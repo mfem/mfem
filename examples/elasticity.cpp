@@ -209,6 +209,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec_dc = new L2_FECollection(order-1, dim);
    FiniteElementSpace *fespace_dc = new FiniteElementSpace(mesh, fec_dc);
    GridFunction stress_gf(fespace_dc);
+   GridFunction trace_strain(fespace_dc);
 
    FiniteElementCollection *fec_dc2 = new L2_FECollection(0, dim);
    FiniteElementSpace *fespace_dc2 = new FiniteElementSpace(mesh, fec_dc2);
@@ -234,6 +235,8 @@ int main(int argc, char *argv[])
       DenseMatrix dshape(nd, dim);
       Vector elvec(nd2);
       elvec = 0.0;
+      Vector elvec2(nd2);
+      elvec2 = 0.0;
       for (int q = 0; q < ir->GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir->IntPoint(q);
@@ -289,11 +292,16 @@ int main(int argc, char *argv[])
          // Store the computed stress in the DG GridFunction.
          fe2->CalcShape(ip, shape);
          elvec.Add(ip.weight*sigma_vm, shape);
+         elvec2.Add(ip.weight*trace, shape);
       }
       fespace_dc->GetElementDofs(i, dofs);
       stress_gf.AddElementVector(dofs, elvec);
+      trace_strain.AddElementVector(dofs, elvec2);
       stress_gf2(i) = elvec.Sum();
    }
+
+   ConstantCoefficient zero(0.0);
+   std::cout << stress_gf2.ComputeL2Error(zero) << " k10l2\n";
 
    // 14. Save the stress field.
    {
@@ -325,6 +333,20 @@ int main(int argc, char *argv[])
       sock << "window_title 'Elasticity: Von Mises Stress (element-total)'\n"
            << "window_geometry "
            << 940 << " " << 0 << " " << 400 << " " << 400 << "\n"
+           << "keys jRmclA" << endl;
+   }
+
+
+   if (visualization)
+   {
+      osockstream sock(19916, "localhost");
+      sock << "solution\n";
+      mesh->Print(sock);
+      trace_strain.Save(sock);
+      sock.send();
+      sock << "window_title 'Elasticity: Trace strain'\n"
+           << "window_geometry "
+           << 470 << " " << 500 << " " << 400 << " " << 400 << "\n"
            << "keys jRmclA" << endl;
    }
 
