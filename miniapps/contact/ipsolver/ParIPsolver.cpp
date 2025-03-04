@@ -746,7 +746,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          chrono.Start();
          //Xhat.GetBlock(0).Randomize();
          Xhat.GetBlock(0) = 0.;
-	 AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
          //if (monitor) 
          //{  
@@ -774,6 +774,28 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          }
          MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
          cgnum_iterations.Append(n);
+
+         // CGsolver for no-contact   
+         if (no_contact_solve)
+         {
+            HypreBoomerAMG prec(*Huu);
+            prec.SetSystemsOptions(3,false);
+            prec.SetRelaxType(relax_type);
+            CGSolver cgsolver(MPI_COMM_WORLD);
+            cgsolver.SetRelTol(linSolveRelTol);
+            cgsolver.SetMaxIter(500);
+            cgsolver.SetPrintLevel(3);
+            cgsolver.SetOperator(*Huu);
+            cgsolver.SetPreconditioner(prec);
+            Vector X(Huu->Height()); X.Randomize();
+            Vector B(Huu->Height()); B.Randomize();
+	         cgsolver.Mult(B,X);
+            int m = cgsolver.GetNumIterations();
+            cgnum_iterations_nocontact.Append(m);
+            no_contact_solve = false;
+         }
+
+
       }
       else // if linsolver == 3 or 4
       {

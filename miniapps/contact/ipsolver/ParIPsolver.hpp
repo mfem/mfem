@@ -66,6 +66,7 @@ protected:
     Array<double> dmaxmin_ratio;
     Array<double> jtdj_ratio;
     Array<double> Adiag_ratio;
+    bool no_contact_solve = false;
     Array<int> cgnum_iterations_nocontact;
     ParFiniteElementSpace *pfes = nullptr;
     
@@ -128,6 +129,7 @@ public:
     bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat, const Vector &l, const BlockVector & b, const double & delta);
     void EnableMonitor() { monitor = true;}
     void DisableMonitor() { monitor = false;}
+    void EnableNoContactSolve() {no_contact_solve = true;}
     virtual ~ParInteriorPointSolver();
 };
 

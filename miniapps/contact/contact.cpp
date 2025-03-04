@@ -135,7 +135,7 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
 }
 
 void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, 
-   const std::vector<Array<int>> & iters, int no_contact_iter)
+   const std::vector<Array<int>> & iters, const Array<int> & no_contact_iter)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -166,7 +166,16 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
       outputfile << endl;
    }
 
-   outputfile << "AMG No Contact CG Iterations: " << no_contact_iter << endl;
+   outputfile << "AMG No Contact CG Iterations: " << endl;
+   for (int j = 0; j < no_contact_iter.Size(); j++)
+   {
+      outputfile << no_contact_iter[j] ;
+      if (j < no_contact_iter.Size()-1)
+      {
+         outputfile << ", ";
+      }
+   }
+   outputfile << endl;
    outputfile.close();   
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
@@ -580,6 +589,7 @@ int main(int argc, char *argv[])
    int total_steps = nsteps + msteps;
    Vector DCvals;
    int ibegin = (restart) ? istep+1 : 0;
+   Array<int> NoContactCGiterations;
    for (int i = ibegin; i<total_steps; i++)
    {
       if (testNo == 6)
@@ -686,7 +696,6 @@ int main(int argc, char *argv[])
          }
       }
 
-
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
@@ -718,10 +727,13 @@ int main(int argc, char *argv[])
       x0.Set(1.0, xrefbc);
       Vector xf(ndofs); xf = 0.0;
 
+      int amgcg_iter = -1;
+      optimizer.EnableNoContactSolve();
       optimizer.Mult(x0, xf);
+
+
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
-
 
       int eval_err;
       double Einitial = contact.E(x0, eval_err);
@@ -732,30 +744,10 @@ int main(int argc, char *argv[])
       int gndofs = prob.GetGlobalNumDofs();
 
 
-                     // Hypotherical AMG solver in the absense of contact for each time step
-               // This is only for the linear case
-      int amgcg_iter = -1;
-      
-      if (i == total_steps-1 && !nonlinear)
-      {
-         const HypreParMatrix * A = contact.GetElasticityOperator()->GetOperator();
-         Vector rand_x(x0.Size()); rand_x.Randomize();
-         Vector rand_y(x0.Size()); rand_y.Randomize();
-         HypreBoomerAMG amg(*A);
-         amg.SetSystemsOptions(3);
-         amg.SetPrintLevel(0);
-         amg.SetRelaxType(relax_type);
-         amg.SetMaxIter(1);
-         CGSolver amgcg(MPI_COMM_WORLD);
-         amgcg.SetPrintLevel(3);
-         amgcg.SetMaxIter(5000);
-         amgcg.SetRelTol(linsolverrtol);
-         amgcg.SetAbsTol(linsolveratol);
-         amgcg.SetOperator(*A);
-         amgcg.SetPreconditioner(amg);
-         amgcg.Mult(rand_y,rand_x);
-         amgcg_iter = amgcg.GetNumIterations();
-      }       
+      // Hypotherical AMG solver in the absense of contact for each time step
+      // This is only for the linear case
+      NoContactCGiterations.Append(optimizer.GetCGNoContactIterNumbers()[0]);
+
       if (Mpi::Root())
       {
          mfem::out << endl;
@@ -766,6 +758,7 @@ int main(int argc, char *argv[])
          mfem::out << " Global number of contact dofs   = " << gncols << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
+         mfem::out << " No Contact CG Solver iterations = " << optimizer.GetCGNoContactIterNumbers()[0] << endl;
          if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6 || linsolver == 7)
          {
             mfem::out << " CG iteration numbers            = " ;
@@ -774,6 +767,7 @@ int main(int argc, char *argv[])
                std::cout << " " << std::setw(7) << CGiterations[i] << " |";
             }
             std::cout << std::endl;
+     
             mfem::out << " D Max / Min Ratios              = " ;
             std::ios oldState(nullptr);
             oldState.copyfmt(std::cout);
@@ -799,12 +793,12 @@ int main(int argc, char *argv[])
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
             OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
-            if (i == nsteps-1)
+            if (i == total_steps-1)
             {
                ostringstream final_file_name;
                final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-final";
                OutputFinalData(final_file_name, Einitial, Efinal, 
-                  gndofs, numconstr, CGiter, amgcg_iter);
+                  gndofs, numconstr, CGiter, NoContactCGiterations);
             }
          }
       }
