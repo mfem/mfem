@@ -474,6 +474,15 @@ double loadFunc(const Vector & x)
     double val = M_PI*M_PI * std::sin( M_PI *x[0] );
     return val;
   }
+  else if (ftype == 9)
+  {
+    double val = 0.0;
+    if(x[0]>0.99)
+    {
+      val = 1.0;
+    }
+    return val;
+  }
   return 0.0;
 };
 
@@ -626,6 +635,8 @@ int main (int argc, char *argv[])
   double ls_energy_fac  = 1.1;
   bool   bndr_fix       = true;
   bool   filter         = false;
+  int    physics = 0;
+  int physicsdim = 1;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -690,6 +701,10 @@ int main (int argc, char *argv[])
                   "Use vector helmholtz filter.");
     args.AddOption(&filterRadius, "-frad", "--frad",
                     "Filter radius");
+    args.AddOption(&physics, "-ph", "--physics",
+                    "Physics");
+
+                    
 
    args.Parse();
    if (!args.Good())
@@ -738,6 +753,12 @@ int main (int argc, char *argv[])
   auto PMesh = new ParMesh(MPI_COMM_WORLD, *des_mesh);
 
   int dim = PMesh->SpaceDimension();
+
+  if( physics ==1)
+  {
+    physicsdim = dim;
+  }
+
 
   // -----------------------
   // Remaining mesh settings
@@ -886,6 +907,35 @@ int main (int argc, char *argv[])
       }
     }
   }
+  else if(physics ==1)
+  {
+    for (int i = 0; i < PMesh->GetNBE(); i++)
+    {
+      Element * tEle = PMesh->GetBdrElement(i);
+      int attribute = tEle->GetAttribute();
+      pfespace->GetBdrElementVDofs(i, vdofs);
+      const int nd = pfespace->GetBE(i)->GetDof();
+
+      if (attribute == 1 ||
+          attribute == 3 ||
+          attribute == 5 ) // zero out motion in y
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+        }
+      }
+      else if (attribute == 2 ||
+          attribute == 4 ||
+          attribute == 6 ) // zero out in x
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+        }
+      }
+    }
+  }
   else
   {
     for (int i = 0; i < PMesh->GetNBE(); i++)
@@ -934,9 +984,17 @@ int main (int argc, char *argv[])
   const int nbattr = PMesh->bdr_attributes.Max();
   std::vector<std::pair<int, double>> essentialBC(nbattr);
   std::vector<std::pair<int, int>> essentialBCfilter(nbattr);
-  for (int i = 0; i < nbattr; i++)
+  if( physics ==1 )
   {
-    essentialBC[i] = {i+1, 0};
+    essentialBC.resize(1);
+    essentialBC[0] = {4, 0};
+  }
+  else
+  {
+    for (int i = 0; i < nbattr; i++)
+    {
+      essentialBC[i] = {i+1, 0};
+    }
   }
 
   if (strcmp(mesh_file, "null.mesh") == 0)
@@ -945,6 +1003,15 @@ int main (int argc, char *argv[])
     essentialBCfilter[1] = {2, 0};
     essentialBCfilter[2] = {3, 1};
     essentialBCfilter[3] = {4, 0};
+  }
+  else if( physics ==1 )
+  {
+    essentialBCfilter[0] = {1, 1};
+    essentialBCfilter[1] = {2, 0};
+    essentialBCfilter[2] = {3, 1};
+    essentialBCfilter[3] = {4, 0};
+    essentialBCfilter[4] = {5, 1};
+    essentialBCfilter[5] = {6, 0};
   }
   else
   {
@@ -995,6 +1062,9 @@ if (myid == 0) {
   case 6:
     std::cout<<" L2+H1"<<std::endl;;
     break;
+  case 7:
+    std::cout<<" Struct Compliance"<<std::endl;;
+    break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType << std::endl;
   }
@@ -1002,11 +1072,47 @@ if (myid == 0) {
 
   VectorCoefficient *loadFuncGrad = new VectorFunctionCoefficient(dim,
                                                               trueLoadFuncGrad);
-  Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
-  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC, loadFuncGrad);
-  // Elasticity_Solver solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
-  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
+  VectorCoefficient *trueSolutionGrad =
+                          new VectorFunctionCoefficient(dim, trueSolGradFunc);
+  MatrixCoefficient *trueSolutionHess = new
+                                MatrixFunctionCoefficient(dim,trueHessianFunc);
+  VectorCoefficient *trueSolutionHessV =
+                          new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
+  PhysicsSolverBase * solver = nullptr;
+  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg,physicsdim);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
+  Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
+  Coefficient *QCoef = new FunctionCoefficient(loadFunc);
+
+
+  mfem::VectorArrayCoefficient tractionLoad(PMesh->SpaceDimension());
+  tractionLoad.Set(0, QCoef);
+  tractionLoad.Set(1, new mfem::ConstantCoefficient(0.0));
+
+  if( physics ==0)
+  {
+    Diffusion_Solver * diffsolver = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC, loadFuncGrad);
+    diffsolver->SetManufacturedSolution(QCoef);
+    diffsolver->setTrueSolGradCoeff(trueSolutionGrad);
+
+    solver = diffsolver;
+
+    QoIEvaluator.setTrueSolCoeff( trueSolution );
+    if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
+    QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
+    QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
+    QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
+  }
+  else if(physics ==1)
+  {
+    //Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
+    Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, essentialBC, mesh_poly_deg);
+    elasticitysolver->SetLoad(&tractionLoad);
+
+    solver = elasticitysolver;
+
+    QoIEvaluator.setTractionCoeff(&tractionLoad);
+  }
 
   //std::vector<std::pair<int, double>> essentialBC_filter(0);
   FunctionCoefficient leftrightwalls(&tanh_left_right_walls);
@@ -1022,23 +1128,8 @@ if (myid == 0) {
     filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
   }
 
-  Coefficient *QCoef = new FunctionCoefficient(loadFunc);
-  solver.SetManufacturedSolution(QCoef);
-  VectorCoefficient *trueSolutionGrad =
-                          new VectorFunctionCoefficient(dim, trueSolGradFunc);
-  MatrixCoefficient *trueSolutionHess = new
-                                MatrixFunctionCoefficient(dim,trueHessianFunc);
-  VectorCoefficient *trueSolutionHessV =
-                          new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
-  QoIEvaluator.setTrueSolCoeff( trueSolution );
-  if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
-  QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
-  QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
-  QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order2);
   x_gf.ProjectCoefficient(*trueSolution);
-  solver.setTrueSolGradCoeff(trueSolutionGrad);
-
 
   Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
   Diffusion_Solver solver_FD2(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
@@ -1054,7 +1145,7 @@ if (myid == 0) {
   paraview_dc.SetHighOrderOutput(true);
 
   //
-  ParGridFunction & discretSol = solver.GetSolution();
+  ParGridFunction & discretSol = solver->GetSolution();
   discretSol.ProjectCoefficient(*trueSolution);
   if (visualization)
   {
@@ -1063,9 +1154,9 @@ if (myid == 0) {
                             "Initial Projected Solution", 0, 0, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
   }
   {
-    solver.SetDesignVarFromUpdatedLocations(x);
-    solver.FSolve();
-  ParGridFunction & discretSol = solver.GetSolution();
+    solver->SetDesignVarFromUpdatedLocations(x);
+    solver->FSolve();
+    ParGridFunction & discretSol = solver->GetSolution();
     if (visualization)
     {
         socketstream vis;
@@ -1074,14 +1165,12 @@ if (myid == 0) {
     }
   }
 
-  auto init_l2_error = discretSol.ComputeL2Error(*trueSolution);
-  auto init_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
-  auto init_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+
 
   x.SetTrueVector();
 
   VisItDataCollection *visdc = new VisItDataCollection("tmop-pde", PMesh);
-  visdc->RegisterField("solution", &(solver.GetSolution()));
+  visdc->RegisterField("solution", &(solver->GetSolution()));
   visdc->SetCycle(0);
   visdc->SetTime(0.0);
   visdc->Save();
@@ -1090,6 +1179,10 @@ if (myid == 0) {
 
   if (method == 0)
   {
+    auto init_l2_error = discretSol.ComputeL2Error(*trueSolution);
+    auto init_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
+    auto init_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+
     ParNonlinearForm a(pfespace);
     a.AddDomainIntegrator(tmop_integ);
     {
@@ -1113,7 +1206,7 @@ if (myid == 0) {
     if (weight_1 > 0.0)
     {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
-      tmma->SetDiffusionSolver(&solver);
+      tmma->SetDiffusionSolver(reinterpret_cast<Diffusion_Solver*>(solver));       // TODO change to base class
       tmma->SetQoIWeight(weight_1);
       tmma->SetVectorHelmholtzFilter(filterSolver);
     }
@@ -1182,9 +1275,9 @@ if (myid == 0) {
     }
 
 
-    solver.SetDesignVarFromUpdatedLocations(x);
-    solver.FSolve();
-    ParGridFunction & discretSol = solver.GetSolution();
+    solver->SetDesignVarFromUpdatedLocations(x);
+    solver->FSolve();
+    ParGridFunction & discretSol = solver->GetSolution();
     if (visualization)
     {
         socketstream vis;
@@ -1240,10 +1333,10 @@ if (myid == 0) {
       filterSolver->FSolve();
       ParGridFunction & filteredDesign = filterSolver->GetSolution();
 
-      solver.SetDesign( filteredDesign );
-      solver.FSolve();
+      solver->SetDesign( filteredDesign );
+      solver->FSolve();
 
-      ParGridFunction & discretSol = solver.GetSolution();
+      ParGridFunction & discretSol = solver->GetSolution();
 
       QoIEvaluator.SetDesign( filteredDesign );
       MeshQualityEvaluator.SetDesign( filteredDesign );
@@ -1263,9 +1356,9 @@ if (myid == 0) {
       ParLinearForm * dQdxExpl = QoIEvaluator.GetDQDx();
       ParLinearForm * dMeshQdxExpl = MeshQualityEvaluator.GetDQDx();
 
-      solver.ASolve( *dQdu );
+      solver->ASolve( *dQdu );
 
-      ParLinearForm * dQdxImpl = solver.GetImplicitDqDx();
+      ParLinearForm * dQdxImpl = solver->GetImplicitDqDx();
 
       ParLinearForm dQdx(pfespace); dQdx = 0.0;
       ParLinearForm dQdx_physics(pfespace); dQdx_physics = 0.0;
@@ -1280,12 +1373,12 @@ if (myid == 0) {
       HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
       mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
-      std::cout << dQdx_filtered.Norml2() << " k101-filt1\n";
+      //std::cout << dQdx_filtered.Norml2() << " k101-filt1\n";
       filterSolver->ASolve(dQdx_filtered);
       ParLinearForm * dQdxImplfilter = filterSolver->GetImplicitDqDx();
 
       dQdx.Add(1.0, *dQdxImplfilter);
-      std::cout << dQdxImplfilter->Norml2() << " k101-filt2\n";
+      //std::cout << dQdxImplfilter->Norml2() << " k101-filt2\n";
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
 
@@ -1573,8 +1666,8 @@ if (myid == 0) {
       paraview_dc.SetTime(i*1.0);
       //paraview_dc.RegisterField("ObjGrad",&objGradGF);
       paraview_dc.RegisterField("SolutionD",&discretSol   );
-      paraview_dc.RegisterField("Solution",&x_gf);
-      paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
+      //paraview_dc.RegisterField("Solution",&x_gf);
+      //paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
       paraview_dc.Save();
 
       double localGradNormSquared = std::pow(objgrad.Norml2(), 2);
@@ -1594,9 +1687,9 @@ if (myid == 0) {
       mmaPetsc->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
   #else
       mfem:Vector conDummy(1);  conDummy= -0.1;
-      std::cout << trueOptvar.Norml2() << " k10-dxpre\n";
+      //std::cout << trueOptvar.Norml2() << " k10-dxpre\n";
       mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
-      std::cout << trueOptvar.Norml2() << " k10-dxpost\n";
+      //std::cout << trueOptvar.Norml2() << " k10-dxpost\n";
   #endif
 
       gridfuncOptVar.SetFromTrueVector();
@@ -1625,6 +1718,7 @@ if (myid == 0) {
     }
   }
 
+  delete solver;
   delete PMesh;
 
   return 0;
