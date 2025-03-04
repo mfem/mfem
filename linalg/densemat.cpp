@@ -124,6 +124,7 @@ const real_t &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const real_t *x, real_t *y) const
 {
+   HostRead();
    kernels::Mult(height, width, Data(), x, y);
 }
 
@@ -131,6 +132,7 @@ void DenseMatrix::Mult(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
 
+   y.HostReadWrite();
    Mult(x, y.GetData());
 }
 
@@ -138,6 +140,7 @@ void DenseMatrix::Mult(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
 
+   x.HostRead();
    Mult(x.GetData(), y);
 }
 
@@ -146,6 +149,8 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
+   x.HostRead();
+   y.HostReadWrite();
    Mult(x.GetData(), y.GetData());
 }
 
@@ -166,6 +171,7 @@ real_t DenseMatrix::operator *(const DenseMatrix &m) const
 
 void DenseMatrix::MultTranspose(const real_t *x, real_t *y) const
 {
+   HostRead();
    real_t *d_col = Data();
    for (int col = 0; col < width; col++)
    {
@@ -183,6 +189,7 @@ void DenseMatrix::MultTranspose(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
 
+   y.HostReadWrite();
    MultTranspose(x, y.GetData());
 }
 
@@ -190,6 +197,7 @@ void DenseMatrix::MultTranspose(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
 
+   x.HostRead();
    MultTranspose(x.GetData(), y);
 }
 
@@ -198,6 +206,8 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
+   x.HostRead();
+   y.HostReadWrite();
    MultTranspose(x.GetData(), y.GetData());
 }
 
@@ -253,6 +263,9 @@ void DenseMatrix::AddMult_a(real_t a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
+   HostRead();
+   x.HostRead();
+   y.HostReadWrite();
    const real_t *xp = x.GetData(), *d_col = data;
    real_t *yp = y.GetData();
    for (int col = 0; col < width; col++)
