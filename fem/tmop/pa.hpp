@@ -48,7 +48,8 @@ struct TMOP_PA_Metric_3D
    static constexpr int DIM = 3;
    using Args = kernels::InvariantsEvaluator3D::Buffers;
 
-   // virtual MFEM_HOST_DEVICE void EvalW(const real_t *) = 0;
+   virtual MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
+                                         const real_t *w) = 0;
 
    virtual MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[DIM * DIM],
                                        const real_t *w,

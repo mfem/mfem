@@ -24,17 +24,12 @@ class TMOPEnergyPA2D
    real_t energy;
 
 public:
-   TMOPEnergyPA2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x),
-      energy(std::nan("1")) {}
+   TMOPEnergyPA2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x) {}
 
    int Ndof() const { return ti->PA.maps->ndof; }
    int Nqpt() const { return ti->PA.maps->nqpt; }
 
-   real_t Energy() const
-   {
-      assert(!std::isnan(energy));
-      return energy;
-   }
+   real_t Energy() const { return energy; }
 
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
    static void Mult(TMOPEnergyPA2D &ker)
@@ -104,43 +99,6 @@ public:
                // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                real_t Jpt[4];
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
-
-               // metric->EvalW(Jpt);
-               // kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
-
-               // auto EvalW_01 = [&]() { return ie.Get_I1(); };
-
-               // auto EvalW_02 = [&]() { return 0.5 * ie.Get_I1b() - 1.0; };
-
-               // auto EvalW_07 = [&]()
-               // { return ie.Get_I1() * (1.0 + 1.0 / ie.Get_I2()) - 4.0; };
-
-               // auto EvalW_56 = [&]()
-               // {
-               //    const real_t I2b = ie.Get_I2b();
-               //    return 0.5 * (I2b + 1.0 / I2b) - 1.0;
-               // };
-
-               // auto EvalW_77 = [&]()
-               // {
-               //    const real_t I2b = ie.Get_I2b();
-               //    return 0.5 * (I2b * I2b + 1. / (I2b * I2b) - 2.);
-               // };
-
-               // auto EvalW_80 = [&](const real_t *w)
-               // { return w[0] * EvalW_02() + w[1] * EvalW_77(); };
-
-               // auto EvalW_94 = [&](const real_t *w)
-               // { return w[0] * EvalW_02() + w[1] * EvalW_56(); };
-
-               // const real_t EvalW = mid == 1  ? EvalW_01()
-               //                      : mid == 2  ? EvalW_02()
-               //                      : mid == 7  ? EvalW_07()
-               //                      : mid == 56 ? EvalW_56()
-               //                      : mid == 77 ? EvalW_77()
-               //                      : mid == 80 ? EvalW_80(metric_data)
-               //                      : mid == 94 ? EvalW_94(metric_data)
-               //                      : 0.0;
 
                const real_t EvalW = METRIC{}.EvalW(Jpt, metric_data);
 

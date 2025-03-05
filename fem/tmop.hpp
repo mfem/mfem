@@ -1887,6 +1887,7 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
    friend class TMOPEnergyPA2D;
+   friend class TMOPEnergyPA3D;
    friend class TMOPSetupGradPA2D;
    friend class TMOPSetupGradPA3D;
    friend class TMOPAddMultPA2D;

@@ -10,16 +10,17 @@
 // CONTRIBUTING.md for details.
 
 #include "../pa.hpp"
-#include "../../tmop.hpp"
-#include "../../kernels.hpp"
-#include "../../../general/forall.hpp"
-#include "../../../linalg/kernels.hpp"
-#include "../../../linalg/dinvariants.hpp"
+#include "energy3.hpp"
+// #include "../../tmop.hpp"
+// #include "../../kernels.hpp"
+// #include "../../../general/forall.hpp"
+// #include "../../../linalg/kernels.hpp"
+// #include "../../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+/*template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_3D(const real_t metric_normal,
                       const real_t *w,
                       const bool const_m0,
@@ -168,6 +169,25 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
                        mn, w, const_m0, MC, M, NE, J, W, B, G, X, E, d, q, 4);
 
    return PA.E * PA.O;
+}*/
+
+real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
+{
+   const int mid = metric->Id();
+
+   TMOPEnergyPA3D ker(this, x);
+
+   if (mid == 302) { tmop::Kernel<302>(ker); return ker.Energy(); }
+   if (mid == 303) { tmop::Kernel<303>(ker); return ker.Energy(); }
+   if (mid == 315) { tmop::Kernel<315>(ker); return ker.Energy(); }
+   if (mid == 318) { tmop::Kernel<318>(ker); return ker.Energy(); }
+   if (mid == 321) { tmop::Kernel<321>(ker); return ker.Energy(); }
+   if (mid == 332) { tmop::Kernel<332>(ker); return ker.Energy(); }
+   if (mid == 338) { tmop::Kernel<338>(ker); return ker.Energy(); }
+
+   MFEM_ABORT("Unsupported TMOP metric " << mid);
+   return std::nan("");
 }
+
 
 } // namespace mfem

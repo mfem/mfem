@@ -11,6 +11,7 @@
 
 #include "../pa.hpp"
 #include "../mult/mult3.hpp"
+#include "../tools/energy3.hpp"
 #include "../assemble/grad3.hpp"
 
 namespace mfem
@@ -18,6 +19,18 @@ namespace mfem
 
 struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
 {
+   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
+                                 const real_t *w) override
+   {
+      real_t B[9];
+      MFEM_CONTRACT_VAR(w);
+      kernels::InvariantsEvaluator3D ie(Args().J(Jpt).B(B));
+      const real_t eval_w_302 = ie.Get_I1b() * ie.Get_I2b() / 9. - 1.;
+      const real_t I3 = ie.Get_I3();
+      const real_t eval_w_318 = 0.5 * (I3 + 1.0 / I3) - 1.0;
+      return w[0] * eval_w_302 + w[1] * eval_w_318;
+   }
+
    MFEM_HOST_DEVICE
    void EvalP(const real_t (&Jpt)[9], const real_t *w, real_t (&P)[9]) override
    {
@@ -99,13 +112,10 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
 };
 
 using metric_t = TMOP_PA_Metric_338;
-using mult_t = TMOPAddMultPA3D;
-using setup_t = TMOPSetupGradPA3D;
-
-using setup = tmop::func_t<setup_t>;
-using mult = tmop::func_t<mult_t>;
 
 // TMOP PA Setup, metric: 338
+using setup_t = TMOPSetupGradPA3D;
+using setup = tmop::func_t<setup_t>;
 MFEM_REGISTER_KERNELS(S338, setup, (int, int));
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S338);
 
@@ -124,6 +134,8 @@ void tmop::Kernel<338>(setup_t &ker)
 }
 
 // TMOP PA Mult, metric: 338
+using mult_t = TMOPAddMultPA3D;
+using mult = tmop::func_t<mult_t>;
 MFEM_REGISTER_KERNELS(K338, mult, (int, int));
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K338);
 
@@ -139,6 +151,26 @@ template <>
 void tmop::Kernel<338>(mult_t &ker)
 {
    K338::Run(ker.Ndof(), ker.Nqpt(), ker);
+}
+
+// TMOP PA Energy, metric: 338
+using energy_t = TMOPEnergyPA3D;
+using energy = tmop::func_t<energy_t>;
+MFEM_REGISTER_KERNELS(E338, energy, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(E338);
+
+template <int D, int Q>
+energy E338::Kernel()
+{
+   return energy_t::Mult<metric_t, D, Q>;
+}
+
+energy E338::Fallback(int, int) { return energy_t::Mult<metric_t>; }
+
+template <>
+void tmop::Kernel<338>(energy_t &ker)
+{
+   E338::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 } // namespace mfem

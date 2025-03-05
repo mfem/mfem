@@ -11,8 +11,8 @@
 
 #include "../pa.hpp"
 #include "../mult/mult2.hpp"
-#include "../assemble/grad2.hpp"
 #include "../tools/energy2.hpp"
+#include "../assemble/grad2.hpp"
 
 namespace mfem
 {

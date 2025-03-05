@@ -11,6 +11,7 @@
 
 #include "../pa.hpp"
 #include "../mult/mult3.hpp"
+#include "../tools/energy3.hpp"
 #include "../assemble/grad3.hpp"
 
 namespace mfem
@@ -18,6 +19,17 @@ namespace mfem
 
 struct TMOP_PA_Metric_318 : TMOP_PA_Metric_3D
 {
+   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
+                                 const real_t *w) override
+   {
+      real_t B[9];
+      MFEM_CONTRACT_VAR(w);
+      kernels::InvariantsEvaluator3D ie(Args().J(Jpt).B(B));
+      //  0.5 * (I3 + 1/I3) - 1.
+      const real_t I3 = ie.Get_I3();
+      return 0.5 * (I3 + 1.0 / I3) - 1.0;
+   }
+
    // P_318 = (I3b - 1/I3b^3)*dI3b.
    // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
    MFEM_HOST_DEVICE
@@ -73,14 +85,12 @@ struct TMOP_PA_Metric_318 : TMOP_PA_Metric_3D
       }
    }
 };
-using metric_t = TMOP_PA_Metric_318;
-using mult_t = TMOPAddMultPA3D;
-using setup_t = TMOPSetupGradPA3D;
 
-using setup = tmop::func_t<setup_t>;
-using mult = tmop::func_t<mult_t>;
+using metric_t = TMOP_PA_Metric_318;
 
 // TMOP PA Setup, metric: 318
+using setup_t = TMOPSetupGradPA3D;
+using setup = tmop::func_t<setup_t>;
 MFEM_REGISTER_KERNELS(S318, setup, (int, int));
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S318);
 
@@ -99,6 +109,8 @@ void tmop::Kernel<318>(setup_t &ker)
 }
 
 // TMOP PA Mult, metric: 318
+using mult_t = TMOPAddMultPA3D;
+using mult = tmop::func_t<mult_t>;
 MFEM_REGISTER_KERNELS(K318, mult, (int, int));
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K318);
 
@@ -114,6 +126,26 @@ template <>
 void tmop::Kernel<318>(mult_t &ker)
 {
    K318::Run(ker.Ndof(), ker.Nqpt(), ker);
+}
+
+// TMOP PA Energy, metric: 318
+using energy_t = TMOPEnergyPA3D;
+using energy = tmop::func_t<energy_t>;
+MFEM_REGISTER_KERNELS(E318, energy, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(E318);
+
+template <int D, int Q>
+energy E318::Kernel()
+{
+   return energy_t::Mult<metric_t, D, Q>;
+}
+
+energy E318::Fallback(int, int) { return energy_t::Mult<metric_t>; }
+
+template <>
+void tmop::Kernel<318>(energy_t &ker)
+{
+   E318::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 } // namespace mfem

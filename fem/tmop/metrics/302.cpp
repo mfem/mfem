@@ -11,6 +11,7 @@
 
 #include "../pa.hpp"
 #include "../mult/mult3.hpp"
+#include "../tools/energy3.hpp"
 #include "../assemble/grad3.hpp"
 
 namespace mfem
@@ -18,6 +19,16 @@ namespace mfem
 
 struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
 {
+   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
+                                 const real_t *w) override
+   {
+      real_t B[9];
+      MFEM_CONTRACT_VAR(w);
+      kernels::InvariantsEvaluator3D ie(Args().J(Jpt).B(B));
+      // I1b * I2b / 9 - 1
+      return ie.Get_I1b() * ie.Get_I2b() / 9. - 1.;
+   }
+
    MFEM_HOST_DEVICE
    void EvalP(const real_t (&Jpt)[9], const real_t *w, real_t (&P)[9]) override
    {
@@ -90,13 +101,10 @@ struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
 };
 
 using metric_t = TMOP_PA_Metric_302;
-using mult_t = TMOPAddMultPA3D;
-using setup_t = TMOPSetupGradPA3D;
-
-using setup = tmop::func_t<setup_t>;
-using mult = tmop::func_t<mult_t>;
 
 // TMOP PA Setup, metric: 302
+using setup_t = TMOPSetupGradPA3D;
+using setup = tmop::func_t<setup_t>;
 MFEM_REGISTER_KERNELS(S302, setup, (int, int));
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S302);
 
@@ -115,6 +123,8 @@ void tmop::Kernel<302>(setup_t &ker)
 }
 
 // TMOP PA Mult, metric: 302
+using mult_t = TMOPAddMultPA3D;
+using mult = tmop::func_t<mult_t>;
 MFEM_REGISTER_KERNELS(K302, mult, (int, int));
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K302);
 
@@ -130,6 +140,26 @@ template <>
 void tmop::Kernel<302>(mult_t &ker)
 {
    K302::Run(ker.Ndof(), ker.Nqpt(), ker);
+}
+
+// TMOP PA Energy, metric: 302
+using energy_t = TMOPEnergyPA3D;
+using energy = tmop::func_t<energy_t>;
+MFEM_REGISTER_KERNELS(E302, energy, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(E302);
+
+template <int D, int Q>
+energy E302::Kernel()
+{
+   return energy_t::Mult<metric_t, D, Q>;
+}
+
+energy E302::Fallback(int, int) { return energy_t::Mult<metric_t>; }
+
+template <>
+void tmop::Kernel<302>(energy_t &ker)
+{
+   E302::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 } // namespace mfem
