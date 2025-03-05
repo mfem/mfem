@@ -25,7 +25,7 @@ void computeCrossB0transpose(const Vector& x, DenseMatrix& CrossB0);
 void computeOmega(const Vector& x, DenseMatrix& omega);
 
 
-/* ******************************************************************
+/*******************************************************************
 * Alfven time-dependent non-linear operator. Explicit interface 
 * solves the following system of ODEs:
 *
@@ -54,6 +54,7 @@ public:
   void UpdateMatrices(const Vector& u) const;
   void UpdateLinearSolver(double dt, const Vector& u);
   void FormBlockSystem(int mode, double dt=0) const;
+  void MassMult(const Vector& u, Vector& v);
 
   // getters / setters
   std::shared_ptr<BlockOperator> get_system() { return system_; }
@@ -89,7 +90,7 @@ private:
 };
 
 
-/* ******************************************************************
+/*******************************************************************
 * Alfven operator constructor
 ****************************************************************** */
 AlfvenOperator::AlfvenOperator(std::shared_ptr<ParFiniteElementSpace>& vspace,
@@ -108,12 +109,12 @@ AlfvenOperator::AlfvenOperator(std::shared_ptr<ParFiniteElementSpace>& vspace,
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Alfven operator API for explicit time integration
 ****************************************************************** */
 void AlfvenOperator::Mult(const Vector& u, Vector& du_dt) const
 {
-  std::cout << "Updating mats explicit mult\n";
+  // Update nonlinear operators
   UpdateMatrices(u);
   FormBlockSystem(1);
 
@@ -162,51 +163,71 @@ void AlfvenOperator::Mult(const Vector& u, Vector& du_dt) const
   }
 }
 
-
-/* ******************************************************************
+/*******************************************************************
 * Alfven operator API for implicit time integration
 ****************************************************************** */
 void AlfvenOperator::ImplicitSolve(const double dt, const Vector& u, Vector& du_dt)
 {
-  UpdateMatrices(u);
-  FormBlockSystem(2, dt);
-  UpdateLinearSolver(dt, u);
+  // Here we use Picard iterations to solve a nonlinear equation
+  // for the Runge-Kutta stage vector k,
+  //
+  //    M*k = N(u+dt*k)                     (1)
+  //
+  // for nonlinear operator N. We assume N can be written as
+  //
+  //    N(u+dt*k) := L[u+dt*k](u+dt*k) + f(t)
+  //
+  // where L is a matrix-valued operator evaluated at u+dt*k and f(t)
+  // a (potentially zero) time-dependent forcing vector. (1) can be
+  // rewritten as a fixed-point equation
+  //
+  //    x = (M - dt*L[x])^{-1} (Mu + f)     (2)
+  //
+  // where x := u + dt*k, which can be solved using a Picard iteration,
+  // where a function G(x) = x is solved via iterations x_{k+1} = G(x_k).
+  //
+  //    Note, system_ = M + dtK
 
-  // Solve du_dt = M^{-1}*[-K(u + dt * du/dt)] for du/dt, where K is linearized 
-  // operator and u = (V, B).
-  Vector z(u);
-  system_->Mult(u, z);
+  double tol = 1e-6;
+  int maxiter = 100;
 
-  // subtruct: z := z - M u
-  Vector v(u);
+  // Right-hand side for nonlinear iteration
+  Vector z(u);   // Vector for right-hand side
+  Vector temp(u);   // Vector to measure error
+  MassMult(u, z);   // NOTE : Add forcing function here if one exists
+  du_dt = u;        // Set u as initial guess for x (2)
+  temp = u;
+  double error = 1;
+  int iter = 0;
+  while (error > tol) {
+    iter ++;
+    UpdateMatrices(du_dt);         // Update linearized nonlinear operator L[x]
+    FormBlockSystem(2, dt);        // Form matrix (M - dt*L[x])
+    UpdateLinearSolver(dt, du_dt); // Construct preconditioner
+    gmres_->Mult(z, du_dt);        // Solve linearized system
+    temp -= du_dt;                 // Measure error
+    error = std::sqrt(InnerProduct(MPI_COMM_WORLD, temp, temp));
+    temp = du_dt;
+    itrs2_ = gmres_->GetNumIterations();
+    if (myid_ == 0) {
+      std::cout << "  Picard iteration " << iter << ", error = " <<
+        std::setprecision(5) << error << ", gmres iterations: " << itrs2_ << std::endl;
+    }
 
-  Vector u0(u.GetData(), ntv_);
-  Vector u1(u.GetData() + ntv_, ntb_);
-
-  Vector v0(v.GetData(), ntv_);
-  Vector v1(v.GetData() + ntv_, ntb_);
-
-  Vector z0(z.GetData(), ntv_);
-  Vector z1(z.GetData() + ntv_, ntb_);
-
-  M00_->Mult(u0, v0);  
-  M11_->Mult(u1, v1);  
-
-  z0 -= v0;
-  z1 -= v1;
-
-  z /= dt; 
-  z.Neg();
-  gmres_->Mult(z, du_dt);
-
-  itrs2_ = gmres_->GetNumIterations();
-  if (myid_ == 0) {
-    std::cout << "  gmres solver: " << itrs2_ << std::endl;
+    if (iter >= maxiter) {
+      mfem_warning("Nonlinear iteration did not converge!");
+      break;
+    }
   }
+
+  // Above we solved for x = u + dt*k, where k is the desired update
+  // Map du_dt -> k.
+  du_dt -= u;
+  du_dt /= dt;
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Define 2x2 block system
 ****************************************************************** */
 void AlfvenOperator::Init(double eta)
@@ -259,8 +280,21 @@ void AlfvenOperator::Init(double eta)
   delete form11s;
 }
 
+/*******************************************************************
+* Apply mass matrices on both spaces, v = Mu, where u,v are block vectors
+****************************************************************** */
+void AlfvenOperator::MassMult(const Vector& u, Vector& v)
+{
+  Vector u0(u.GetData(), ntv_);
+  Vector u1(u.GetData() + ntv_, ntb_);
+  Vector v0(v.GetData(), ntv_);
+  Vector v1(v.GetData() + ntv_, ntb_);
 
-/* ******************************************************************
+  M00_->Mult(u0, v0);  
+  M11_->Mult(u1, v1);  
+}
+
+/*******************************************************************
 * Update matrices using the previous time-step solution
 ****************************************************************** */
 void AlfvenOperator::UpdateMatrices(const Vector& u) const
@@ -288,7 +322,7 @@ void AlfvenOperator::UpdateMatrices(const Vector& u) const
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Update solver and preconditioner using the previous solution
 ****************************************************************** */
 void AlfvenOperator::UpdateLinearSolver(double dt, const Vector& u)
@@ -336,7 +370,7 @@ void AlfvenOperator::UpdateLinearSolver(double dt, const Vector& u)
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Form block system from elemental matrices
 * mode:
 *   0 : Qi's hardcoded implicit solver, requires dt
@@ -377,7 +411,7 @@ void AlfvenOperator::FormBlockSystem(int mode, double dt) const
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Alfven linearized system
 ****************************************************************** */
 int main(int argc, char *argv[])
@@ -489,23 +523,6 @@ int main(int argc, char *argv[])
   VectorFunctionCoefficient Bcoeff(dim, computeB0);
   B0.ProjectCoefficient(Bcoeff);
 
-  // compute RHS for GMRES solve (OBSOLETE)
-  /*
-  VectorConstantCoefficient zero(Vector({ 0.0, 0.0, 0.0 }));
-  ParLinearForm *form0(new ParLinearForm);
-  form0->Update(vspace.get(), rhs.GetBlock(0), 0);
-  form0->AddDomainIntegrator(new VectorFEDomainLFIntegrator(zero));
-  form0->Assemble();
-  form0->ParallelAssemble(trueRhs.GetBlock(0));
- 
-  VectorFunctionCoefficient func(3, computeB0);
-  ParLinearForm *form1(new ParLinearForm);
-  form1->Update(bspace.get(), rhs.GetBlock(1), 0);
-  form1->AddDomainIntegrator(new VectorFEDomainLFIntegrator(func));
-  form1->Assemble();
-  form1->ParallelAssemble(trueRhs.GetBlock(1));
-  */
-
   // explicit time-stepping
   ODESolver *ode_solver;
   switch (ode_solver_type) {
@@ -597,7 +614,7 @@ int main(int argc, char *argv[])
 
     nloop++;
   }
-  if (myid == 0) std::cout << "SUMULATION SUCCESSFUL\n";
+  if (myid == 0) std::cout << "SIMULATION SUCCESSFUL\n";
 
   delete rt_coll;
   delete nd_coll;
@@ -607,7 +624,7 @@ int main(int argc, char *argv[])
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Compute B0
 ****************************************************************** */
 void computeB0(const Vector& x, Vector& B0)
@@ -620,7 +637,7 @@ void computeB0(const Vector& x, Vector& B0)
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * Compute V0
 ****************************************************************** */
 void computeV0(const Vector& x, Vector& V0)
@@ -631,7 +648,7 @@ void computeV0(const Vector& x, Vector& V0)
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * OBSOLETE. Compute tensor T in T w = (w x B0) or its transpose
 ****************************************************************** */
 void computeCrossB0(const Vector& x, DenseMatrix& crossB0)
@@ -665,7 +682,7 @@ void computeCrossB0transpose(const Vector& x, DenseMatrix& crossB0)
 }
 
 
-/* ******************************************************************
+/*******************************************************************
 * OBSOLETE. Compute Omega = |B0|^2 I - B0 B0^T
 ****************************************************************** */
 void computeOmega(const Vector& x, DenseMatrix& omega)
