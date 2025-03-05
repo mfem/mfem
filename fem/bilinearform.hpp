@@ -706,7 +706,7 @@ public:
    const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Prints operator to stream os.
-   void Print(std::ostream & os, int width_ = 4) const override
+   void Print(std::ostream & os = mfem::out, int width_ = 4) const override
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       mat->Print(os, width_);
@@ -1202,7 +1202,7 @@ public:
    const FiniteElementSpace *TestFESpace() const { return test_fes; }
 
    /// Prints operator to stream os.
-   void Print(std::ostream & os, int width_ = 4) const override
+   void Print(std::ostream & os = mfem::out, int width_ = 4) const override
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       mat->Print(os, width_);

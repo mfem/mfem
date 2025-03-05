@@ -148,7 +148,7 @@ TEST_CASE("BilinearForm print",
           "[BilinearForm]")
 {
 
-   Mesh mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL));
+   Mesh mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL));
    H1_FECollection fec(1, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
    BilinearForm a(&fespace);
