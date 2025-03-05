@@ -18,28 +18,27 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_C0_3D(const int NE,
                               const ConstDeviceMatrix &b,
                               const DeviceTensor<6, const real_t> &H0,
                               const DeviceTensor<5, const real_t> &X,
                               DeviceTensor<5> &Y,
                               const int d1d,
-                              const int q1d,
-                              const int max)
+                              const int q1d)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED real_t B[MQ1 * MD1];
-
       MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
       MFEM_SHARED real_t DDQ[3][MD1 * MD1 * MQ1];
       MFEM_SHARED real_t DQQ[3][MD1 * MQ1 * MQ1];
@@ -100,7 +99,7 @@ void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
    const auto X = Reshape(R.Read(), d, d, d, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, d, DIM, NE);
 
-   TMOPMultGradCoefKernels3D::Run(d, q, NE, B, H0, X, Y, d, q, 4);
+   TMOPMultGradCoefKernels3D::Run(d, q, NE, B, H0, X, Y, d, q);
 }
 
 } // namespace mfem

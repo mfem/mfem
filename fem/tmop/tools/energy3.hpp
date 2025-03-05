@@ -31,14 +31,18 @@ public:
 
    real_t Energy() const { return energy; }
 
-   template <typename METRIC, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+   template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPEnergyPA3D &ker)
    {
       constexpr int DIM = 3;
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
-      const int NE = ti->PA.ne, d = ker.Ndof(), q = ker.Nqpt();
-      const int Q1D = T_Q1D ? T_Q1D : q;
+      const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ker.Nqpt();
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
       Array<real_t> mp;
       if (auto metric = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
@@ -51,21 +55,19 @@ public:
       const bool const_m0 = mc.Size() == 1;
       const auto MC = const_m0
                       ? Reshape(mc.Read(), 1, 1, 1, 1)
-                      : Reshape(mc.Read(), q, q, q, NE);
+                      : Reshape(mc.Read(), Q1D, Q1D, Q1D, NE);
 
-      const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-      const auto B = Reshape(ti->PA.maps->B.Read(), q, d);
-      const auto G = Reshape(ti->PA.maps->G.Read(), q, d);
-      const auto W = Reshape(ti->PA.ir->GetWeights().Read(), q, q, q);
-      const auto X = Reshape(ker.x.Read(), d, d, d, DIM, NE);
-      auto E = Reshape(ti->PA.E.Write(), q, q, q, NE);
+      const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+      const auto B = Reshape(ti->PA.maps->B.Read(), Q1D, D1D);
+      const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
+      const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
+      const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
+      auto E = Reshape(ti->PA.E.Write(), Q1D, Q1D, Q1D, NE);
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         const int D1D = T_D1D ? T_D1D : q;
-         const int Q1D = T_Q1D ? T_Q1D : q;
-         constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-         constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+         constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
          MFEM_SHARED real_t BG[2][MQ1 * MD1];
          MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];

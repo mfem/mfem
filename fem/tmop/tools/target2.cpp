@@ -44,7 +44,7 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
    });
 }
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_TcIdealShapeGivenSize_2D(const int NE,
                                    const real_t detW,
                                    const ConstDeviceMatrix &B,
@@ -53,21 +53,19 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
                                    const DeviceTensor<4, const real_t> &X,
                                    DeviceTensor<5> &J,
                                    const int d1d,
-                                   const int q1d,
-                                   const int max)
+                                   const int q1d)
 {
    constexpr int NBZ = 1;
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-      constexpr int NBZ = 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int DIM = 2, NBZ = 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED real_t BG[2][MQ1 * MD1];
       MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
@@ -152,7 +150,7 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
          const auto X = Reshape(x.Read(), d, d, DIM, NE);
 
-         TMOPTcIdealShapeGivenSize2D::Run(d, q, NE, detW, B, G, W, X, J, d, q, 4);
+         TMOPTcIdealShapeGivenSize2D::Run(d, q, NE, detW, B, G, W, X, J, d, q);
          return true;
       }
       case GIVEN_SHAPE_AND_SIZE: return false;

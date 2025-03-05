@@ -19,24 +19,24 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_MinDetJpr_3D(const int NE,
                        const ConstDeviceMatrix &B,
                        const ConstDeviceMatrix &G,
                        const DeviceTensor<5, const real_t> &X,
                        DeviceTensor<4> &E,
                        const int d1d,
-                       const int q1d,
-                       const int max)
+                       const int q1d)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED real_t BG[2][MQ1 * MD1];
       MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
@@ -92,7 +92,7 @@ real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    e.UseDevice(true);
    auto E = Reshape(e.Write(), q, q, q, NE);
 
-   TMOPMinDetJpr3D::Run(d,q, NE, B, G, XE, E, d, q, 4);
+   TMOPMinDetJpr3D::Run(d,q, NE, B, G, XE, E, d, q);
 
    return e.Min();
 }

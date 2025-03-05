@@ -31,12 +31,18 @@ public:
 
    int Nqpt() const { return ti->PA.maps->nqpt; }
 
-   template <typename METRIC, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+   template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPSetupGradPA3D &ker)
    {
-      const mfem::TMOP_Integrator *ti = ker.ti;
       constexpr int DIM = 3;
+      const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
+      const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
       Array<real_t> mp;
       if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
@@ -45,18 +51,13 @@ public:
       }
       const real_t *w = mp.Read();
 
-      const int d = ti->PA.maps->ndof, q = ti->PA.maps->nqpt;
+      const auto B = Reshape(ti->PA.maps->B.Read(), Q1D, D1D);
+      const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
+      const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
+      const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+      const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
+      auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
-      const int NE = ti->PA.ne;
-
-      const auto B = Reshape(ti->PA.maps->B.Read(), q, d);
-      const auto G = Reshape(ti->PA.maps->G.Read(), q, d);
-      const auto W = Reshape(ti->PA.ir->GetWeights().Read(), q, q, q);
-      const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-      const auto X = Reshape(ker.x.Read(), d, d, d, DIM, NE);
-      auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, q, q, q, NE);
-
-      const int Q1D = T_Q1D ? T_Q1D : q;
 
       const bool const_m0 = ti->PA.MC.Size() == 1;
       const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
@@ -64,10 +65,10 @@ public:
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         const int D1D = T_D1D ? T_D1D : d;
-         const int Q1D = T_Q1D ? T_Q1D : q;
-         constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-         constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+         const int D1D = T_D1D ? T_D1D : d1d;
+         const int Q1D = T_Q1D ? T_Q1D : q1d;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+         constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
          MFEM_SHARED real_t s_BG[2][MQ1 * MD1];
          MFEM_SHARED real_t s_DDD[3][MD1 * MD1 * MD1];

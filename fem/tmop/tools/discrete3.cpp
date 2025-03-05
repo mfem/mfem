@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_DatcSize_3D(const int NE,
                       const int ncomp,
                       const int sizeidx,
@@ -28,13 +28,13 @@ void TMOP_DatcSize_3D(const int NE,
                       const DeviceTensor<5, const real_t> &X,
                       DeviceTensor<6> &J,
                       const int d1d = 0,
-                      const int q1d = 0,
-                      const int max = 4)
+                      const int q1d = 0)
 {
    MFEM_VERIFY(ncomp == 1, "");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
    MFEM_VERIFY(sizeidx == 0, "");
@@ -43,10 +43,8 @@ void TMOP_DatcSize_3D(const int NE,
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
       MFEM_SHARED real_t sB[MQ1 * MD1];
@@ -182,7 +180,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
 
    TMOPDatcSize::Run(d, q,
-                     NE, ncomp, sizeidx, min_size, nc_red, W, B, X, J, d, q, 4);
+                     NE, ncomp, sizeidx, min_size, nc_red, W, B, X, J, d, q);
 
 }
 

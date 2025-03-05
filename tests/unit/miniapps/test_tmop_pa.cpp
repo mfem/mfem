@@ -861,6 +861,15 @@ static void tmop_tests(int id = 0, bool all = false)
 
    const real_t jitter = 1. / (M_PI * M_PI);
 
+   Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL_HO")
+          .MESH("../../data/star.mesh")
+          .REFINE(1)
+          .POR({ 5 })
+          .QOR({ 8 })
+          .TID({ 1 })
+          .MID({ 2 }))
+   .Run(id, all);
+
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL")
           .MESH("../../data/star.mesh")
           .REFINE(1)

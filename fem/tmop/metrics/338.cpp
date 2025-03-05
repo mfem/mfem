@@ -111,66 +111,12 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
    }
 };
 
-using metric_t = TMOP_PA_Metric_338;
+using metric = TMOP_PA_Metric_338;
 
-// TMOP PA Setup, metric: 338
-using setup_t = TMOPSetupGradPA3D;
-using setup = tmop::func_t<setup_t>;
-MFEM_REGISTER_KERNELS(S338, setup, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S338);
+using setup = TMOPSetupGradPA3D;
+using energy = TMOPEnergyPA3D;
+using mult = TMOPAddMultPA3D;
 
-template <int D, int Q>
-setup S338::Kernel()
-{
-   return setup_t::Mult<metric_t, D, Q>;
-}
-
-setup S338::Fallback(int, int) { return setup_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<338>(setup_t &ker)
-{
-   S338::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
-
-// TMOP PA Mult, metric: 338
-using mult_t = TMOPAddMultPA3D;
-using mult = tmop::func_t<mult_t>;
-MFEM_REGISTER_KERNELS(K338, mult, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K338);
-
-template <int D, int Q>
-mult K338::Kernel()
-{
-   return mult_t::Mult<metric_t, D, Q>;
-}
-
-mult K338::Fallback(int, int) { return mult_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<338>(mult_t &ker)
-{
-   K338::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
-
-// TMOP PA Energy, metric: 338
-using energy_t = TMOPEnergyPA3D;
-using energy = tmop::func_t<energy_t>;
-MFEM_REGISTER_KERNELS(E338, energy, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(E338);
-
-template <int D, int Q>
-energy E338::Kernel()
-{
-   return energy_t::Mult<metric_t, D, Q>;
-}
-
-energy E338::Fallback(int, int) { return energy_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<338>(energy_t &ker)
-{
-   E338::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
+MFEM_TMOP_REGISTER_METRIC(metric, setup, energy, mult, 338);
 
 } // namespace mfem

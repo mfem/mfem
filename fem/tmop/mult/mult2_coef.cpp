@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
                           const ConstDeviceCube &LD,
                           const bool const_c0,
@@ -33,19 +33,19 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
                           DeviceTensor<4> &Y,
                           const bool exp_lim,
                           const int d1d,
-                          const int q1d,
-                          const int max)
+                          const int q1d)
 {
    constexpr int NBZ = 1;
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED real_t B[MQ1 * MD1];
       MFEM_SHARED real_t BLD[MQ1 * MD1];
@@ -155,7 +155,7 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
    const bool exp_lim = (el) ? true : false;
 
    TMOPMultCoefKernels::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X,
-                            Y, exp_lim, d, q, 4);
+                            Y, exp_lim, d, q);
 }
 
 } // namespace mfem

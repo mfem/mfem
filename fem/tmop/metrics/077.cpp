@@ -71,68 +71,12 @@ struct TMOP_PA_Metric_077 : TMOP_PA_Metric_2D
    }
 };
 
-using metric_t = TMOP_PA_Metric_077;
-using mult_t = TMOPAddMultPA2D;
-using setup_t = TMOPSetupGradPA2D;
+using metric = TMOP_PA_Metric_077;
 
-using setup = tmop::func_t<setup_t>;
-using mult = tmop::func_t<mult_t>;
+using setup = TMOPSetupGradPA2D;
+using energy = TMOPEnergyPA2D;
+using mult = TMOPAddMultPA2D;
 
-// TMOP PA Setup, metric: 077
-MFEM_REGISTER_KERNELS(S077, setup, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S077);
-
-template <int D, int Q>
-setup S077::Kernel()
-{
-   return setup_t::Mult<metric_t, D, Q>;
-}
-
-setup S077::Fallback(int, int) { return setup_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<77>(setup_t &ker)
-{
-   S077::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
-
-// TMOP PA Mult, metric: 077
-MFEM_REGISTER_KERNELS(K077, mult, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K077);
-
-template <int D, int Q>
-mult K077::Kernel()
-{
-   return mult_t::Mult<metric_t, D, Q>;
-}
-
-mult K077::Fallback(int, int) { return mult_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<77>(mult_t &ker)
-{
-   K077::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
-
-// TMOP PA Energy, metric: 077
-using energy_t = TMOPEnergyPA2D;
-using energy = tmop::func_t<energy_t>;
-
-MFEM_REGISTER_KERNELS(E077, energy, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(E077);
-
-template <int D, int Q>
-energy E077::Kernel()
-{
-   return energy_t::Mult<metric_t, D, Q>;
-}
-
-energy E077::Fallback(int, int) { return energy_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<77>(energy_t &ker)
-{
-   E077::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
+MFEM_TMOP_REGISTER_METRIC(metric, setup, energy, mult, 77);
 
 } // namespace mfem

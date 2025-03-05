@@ -19,7 +19,8 @@ namespace mfem
 
 struct TMOP_PA_Metric_002 : TMOP_PA_Metric_2D
 {
-   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4], const real_t *w) override
+   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4],
+                                 const real_t *w) override
    {
       MFEM_CONTRACT_VAR(w);
       kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
@@ -36,12 +37,8 @@ struct TMOP_PA_Metric_002 : TMOP_PA_Metric_2D
    }
 
    MFEM_HOST_DEVICE
-   void AssembleH(const int qx,
-                  const int qy,
-                  const int e,
-                  const real_t weight,
-                  const real_t (&Jpt)[4],
-                  const real_t *w,
+   void AssembleH(const int qx, const int qy, const int e, const real_t weight,
+                  const real_t (&Jpt)[4], const real_t *w,
                   const DeviceTensor<7> &H) override
    {
       MFEM_CONTRACT_VAR(w);
@@ -68,69 +65,12 @@ struct TMOP_PA_Metric_002 : TMOP_PA_Metric_2D
    }
 };
 
-using metric_t = TMOP_PA_Metric_002;
+using metric = TMOP_PA_Metric_002;
 
-// TMOP PA Setup, metric: 002
-using setup_t = TMOPSetupGradPA2D;
-using setup = tmop::func_t<setup_t>;
+using setup = TMOPSetupGradPA2D;
+using energy = TMOPEnergyPA2D;
+using mult = TMOPAddMultPA2D;
 
-MFEM_REGISTER_KERNELS(S002, setup, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S002);
-
-template <int D, int Q>
-setup S002::Kernel()
-{
-   return setup_t::Mult<metric_t, D, Q>;
-}
-
-setup S002::Fallback(int, int) { return setup_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<2>(setup_t &ker)
-{
-   S002::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
-
-// TMOP PA Mult, metric: 002
-using mult_t = TMOPAddMultPA2D;
-using mult = tmop::func_t<mult_t>;
-
-MFEM_REGISTER_KERNELS(K002, mult, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K002);
-
-template <int D, int Q>
-mult K002::Kernel()
-{
-   return mult_t::Mult<metric_t, D, Q>;
-}
-
-mult K002::Fallback(int, int) { return mult_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<2>(mult_t &ker)
-{
-   K002::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
-
-// TMOP PA Energy, metric: 002
-using energy_t = TMOPEnergyPA2D;
-using energy = tmop::func_t<energy_t>;
-
-MFEM_REGISTER_KERNELS(E002, energy, (int, int));
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(E002);
-
-template <int D, int Q>
-energy E002::Kernel()
-{
-   return energy_t::Mult<metric_t, D, Q>;
-}
-
-energy E002::Fallback(int, int) { return energy_t::Mult<metric_t>; }
-
-template <>
-void tmop::Kernel<2>(energy_t &ker)
-{
-   E002::Run(ker.Ndof(), ker.Nqpt(), ker);
-}
+MFEM_TMOP_REGISTER_METRIC(metric, setup, energy, mult, 2);
 
 } // namespace mfem

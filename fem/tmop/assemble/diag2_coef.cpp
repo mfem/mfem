@@ -16,21 +16,22 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
                                    const ConstDeviceMatrix &B,
                                    const DeviceTensor<5, const real_t> &H0,
                                    DeviceTensor<4> &D,
                                    const int d1d,
-                                   const int q1d,
-                                   const int max)
+                                   const int q1d)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -85,7 +86,7 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
-   TMOPAssembleDiagonalCoefKernels::Run(d, q, NE, B, H0, D, d, q, 4);
+   TMOPAssembleDiagonalCoefKernels::Run(d, q, NE, B, H0, D, d, q);
 }
 
 } // namespace mfem

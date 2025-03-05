@@ -32,14 +32,11 @@ struct TMOP_PA_Metric_2D
                                        const real_t *w,
                                        real_t (&P)[DIM * DIM]) = 0;
 
-   virtual MFEM_HOST_DEVICE void AssembleH(const int qx,
-                                           const int qy,
-                                           const int e,
-                                           const real_t weight,
+   virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
+                                           const int e, const real_t weight,
                                            const real_t (&Jpt)[DIM * DIM],
                                            const real_t *w,
                                            const DeviceTensor<7> &H) = 0;
-
 };
 
 /// Abstract base class for the 3D metric TMOP PA kernels.
@@ -56,15 +53,9 @@ struct TMOP_PA_Metric_3D
                                        real_t (&P)[DIM * DIM]) = 0;
 
    virtual MFEM_HOST_DEVICE void
-   AssembleH(const int qx,
-             const int qy,
-             const int qz,
-             const int e,
-             const real_t weight,
-             real_t *Jrt,
-             real_t *Jpr,
-             const real_t (&Jpt)[DIM * DIM],
-             const real_t *w,
+   AssembleH(const int qx, const int qy, const int qz, const int e,
+             const real_t weight, real_t *Jrt, real_t *Jpr,
+             const real_t (&Jpt)[DIM * DIM], const real_t *w,
              const DeviceTensor<5 + DIM> &H) const = 0;
 };
 
@@ -77,23 +68,16 @@ using func_t = void (*)(T &);
 template <int Metric, typename Ker>
 void Kernel(Ker &);
 
-#define MFEM_TMOP_REGISTER_KERNELS(Name, Ker)                           \
-   using Ker##_t = decltype(&Ker<>);                                    \
-   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));                    \
-   template <int D, int Q> Ker##_t Name::Kernel() { return Ker<D, Q>; } \
+// Two templated arguments: T_D1D, T_Q1D
+#define MFEM_TMOP_REGISTER_KERNELS(Name, Ker)         \
+   using Ker##_t = decltype(&Ker<>);                  \
+   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));  \
+   template <int D, int Q>                            \
+   Ker##_t Name::Kernel()                             \
+   {                                                  \
+      return Ker<D, Q>;                               \
+   }                                                  \
    Ker##_t Name::Fallback(int, int) { return Ker<>; }
-
-#define MFEM_TMOP_REGISTER_KERNELS_1(Name, Ker)               \
-   using Ker##_t = decltype(&Ker<>);                          \
-   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int));               \
-   template <int Q> Ker##_t Name::Kernel() { return Ker<Q>; } \
-   Ker##_t Name::Fallback(int) { return Ker<>; }
-
-#define MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name) \
-namespace { static bool k##Name { (tmop::KernelSpecializations<Name>(), true)}; }
-
-#define MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(Name) \
-namespace { static bool k##Name { (tmop::KernelSpecializations1<Name>(), true)}; }
 
 template <typename Kernel>
 int KernelSpecializations()
@@ -118,6 +102,23 @@ int KernelSpecializations()
    return 0;
 }
 
+#define MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name)                        \
+   namespace                                                           \
+   {                                                                   \
+   static bool k##Name{ (tmop::KernelSpecializations<Name>(), true) }; \
+   }
+
+// A single templated argument: T_Q1D
+#define MFEM_TMOP_REGISTER_KERNELS_1(Name, Ker)  \
+   using Ker##_t = decltype(&Ker<>);             \
+   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int));  \
+   template <int Q>                              \
+   Ker##_t Name::Kernel()                        \
+   {                                             \
+      return Ker<Q>;                             \
+   }                                             \
+   Ker##_t Name::Fallback(int) { return Ker<>; }
+
 template <typename Kernel>
 int KernelSpecializations1()
 {
@@ -128,6 +129,34 @@ int KernelSpecializations1()
    Kernel::template Specialization<6>::Add();
    return 0;
 }
+
+#define MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(Name)                       \
+   namespace                                                            \
+   {                                                                    \
+   static bool k##Name{ (tmop::KernelSpecializations1<Name>(), true) }; \
+   }
+
+// Register kernel instances for a given metric, setup, energy, and mult
+#define MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, Metric, Name)               \
+   using Name##_t = tmop::func_t<Name>;                                   \
+   MFEM_REGISTER_KERNELS(Name##_##i, Name##_t, (int, int));               \
+   MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name##_##i);                         \
+   template <int D, int Q>                                                \
+   Name##_t Name##_##i::Kernel()                                          \
+   {                                                                      \
+      return Name::Mult<Metric, D, Q>;                                    \
+   }                                                                      \
+   Name##_t Name##_##i::Fallback(int, int) { return Name::Mult<Metric>; } \
+   template <>                                                            \
+   void tmop::Kernel<i>(Name & ker)                                       \
+   {                                                                      \
+      Name##_##i::Run(ker.Ndof(), ker.Nqpt(), ker);                       \
+   }
+
+#define MFEM_TMOP_REGISTER_METRIC(metric, setup, energy, mult, i) \
+   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, energy)          \
+   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, setup)           \
+   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, mult)
 
 } // namespace tmop
 
