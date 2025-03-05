@@ -131,7 +131,6 @@ set(SRCS
   tmop/assemble/grad3.cpp
   tmop/metrics/001.cpp
   tmop/metrics/002.cpp
-  tmop/metrics/002.cpp
   tmop/metrics/007.cpp
   tmop/metrics/056.cpp
   tmop/metrics/077.cpp
@@ -269,6 +268,7 @@ set(HDRS
   tmop/assemble/grad2.hpp
   tmop/mult/mult2.hpp
   tmop/mult/mult3.hpp
+  tmop/tools/energy2.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp

@@ -25,6 +25,9 @@ struct TMOP_PA_Metric_2D
    static constexpr int DIM = 2;
    using Args = kernels::InvariantsEvaluator2D::Buffers;
 
+   virtual MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
+                                         const real_t *w) = 0;
+
    virtual MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[DIM * DIM],
                                        const real_t *w,
                                        real_t (&P)[DIM * DIM]) = 0;
@@ -36,6 +39,7 @@ struct TMOP_PA_Metric_2D
                                            const real_t (&Jpt)[DIM * DIM],
                                            const real_t *w,
                                            const DeviceTensor<7> &H) = 0;
+
 };
 
 /// Abstract base class for the 3D metric TMOP PA kernels.
@@ -43,6 +47,8 @@ struct TMOP_PA_Metric_3D
 {
    static constexpr int DIM = 3;
    using Args = kernels::InvariantsEvaluator3D::Buffers;
+
+   // virtual MFEM_HOST_DEVICE void EvalW(const real_t *) = 0;
 
    virtual MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[DIM * DIM],
                                        const real_t *w,

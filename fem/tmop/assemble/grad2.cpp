@@ -14,11 +14,12 @@
 
 namespace mfem
 {
+
 void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 {
    const int mid = metric->Id();
 
-   TMOPSetup2D ker(this, x);
+   TMOPSetupGradPA2D ker(this, x);
 
    if (mid == 1) { return tmop::Kernel<1>(ker); }
    if (mid == 2) { return tmop::Kernel<2>(ker); }

@@ -10,16 +10,17 @@
 // CONTRIBUTING.md for details.
 
 #include "../pa.hpp"
-#include "../../tmop.hpp"
-#include "../../kernels.hpp"
-#include "../../../general/forall.hpp"
-#include "../../../linalg/kernels.hpp"
-#include "../../../linalg/dinvariants.hpp"
+#include "energy2.hpp"
+// #include "../../tmop.hpp"
+// #include "../../kernels.hpp"
+// #include "../../../general/forall.hpp"
+// #include "../../../linalg/kernels.hpp"
+// #include "../../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+/*template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_2D(const real_t metric_normal,
                       const bool const_m0,
                       const ConstDeviceCube &MC,
@@ -125,12 +126,12 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
          }
       }
    });
-}
+}*/
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPEnergyPA2D, TMOP_EnergyPA_2D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPEnergyPA2D);
+// MFEM_TMOP_REGISTER_KERNELS(TMOPEnergyPA2D, TMOP_EnergyPA_2D);
+// MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPEnergyPA2D);
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
+/*real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 {
    constexpr int DIM = 2;
    const real_t mn = metric_normal;
@@ -160,6 +161,25 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
                        mn, const_m0, MC, metric_data, MId, NE, J, W, B, G, X, E,
                        d, q, 4);
    return PA.E * PA.O;
+}
+*/
+
+real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
+{
+   const int mid = metric->Id();
+
+   TMOPEnergyPA2D ker(this, x);
+
+   if (mid == 1) { tmop::Kernel<1>(ker); return ker.Energy(); }
+   if (mid == 2) { tmop::Kernel<2>(ker); return ker.Energy(); }
+   if (mid == 7) { tmop::Kernel<7>(ker); return ker.Energy(); }
+   if (mid == 56) { tmop::Kernel<56>(ker); return ker.Energy(); }
+   if (mid == 77) { tmop::Kernel<77>(ker); return ker.Energy(); }
+   if (mid == 80) { tmop::Kernel<80>(ker); return ker.Energy(); }
+   if (mid == 94) { tmop::Kernel<94>(ker); return ker.Energy(); }
+
+   MFEM_ABORT("Unsupported TMOP metric " << mid);
+   return std::nan("");
 }
 
 } // namespace mfem
