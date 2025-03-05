@@ -34,10 +34,24 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
    static void Mult(TMOPEnergyPA2D &ker)
    {
-      const mfem::TMOP_Integrator *ti = ker.ti;
       constexpr int DIM = 2, NBZ = 1;
+      const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d = ker.Ndof(), q = ti->PA.maps->nqpt;
+      const int Q1D = T_Q1D ? T_Q1D : q;
+
+      Array<real_t> mp;
+      if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
+      {
+         m->GetWeights(mp);
+      }
+      const auto *w = mp.Read();
+
+      const Vector &mc = ti->PA.MC;
+      const bool const_m0 = mc.Size() == 1;
+      const auto MC = const_m0
+                      ? Reshape(mc.Read(), 1, 1, 1)
+                      : Reshape(mc.Read(), q, q, NE);
 
       const auto B = Reshape(ti->PA.maps->B.Read(), q, d);
       const auto G = Reshape(ti->PA.maps->G.Read(), q, d);
@@ -46,27 +60,13 @@ public:
       const auto X = Reshape(ker.x.Read(), d, d, DIM, NE);
       auto E = Reshape(ti->PA.E.Write(), q, q, NE);
 
-      Array<real_t> mp;
-      if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
-      {
-         m->GetWeights(mp);
-      }
-      const auto *metric_data = mp.Read();
-
-      const int Q1D = T_Q1D ? T_Q1D : q;
-
-      const Vector &mc_ = ti->PA.MC;
-      const bool const_m0 = mc_.Size() == 1;
-      const auto MC = const_m0 ? Reshape(mc_.Read(), 1, 1, 1)
-                      : Reshape(mc_.Read(), Q1D, Q1D, NE);
-
       mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int NBZ = 1;
-         constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-         constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
          const int D1D = T_D1D ? T_D1D : q;
          const int Q1D = T_Q1D ? T_Q1D : q;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+         constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
          MFEM_SHARED real_t BG[2][MQ1 * MD1];
          MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
@@ -85,7 +85,9 @@ public:
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);
-               const real_t m_coef = const_m0 ? MC(0, 0, 0) : MC(qx, qy, e);
+               const real_t m_coef = const_m0
+                                     ? MC(0, 0, 0)
+                                     : MC(qx, qy, e);
                const real_t weight = metric_normal * m_coef * W(qx, qy) * detJtr;
 
                // Jrt = Jtr^{-1}
@@ -100,7 +102,7 @@ public:
                real_t Jpt[4];
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
-               const real_t EvalW = METRIC{}.EvalW(Jpt, metric_data);
+               const real_t EvalW = METRIC{}.EvalW(Jpt, w);
 
                E(qx, qy, e) = weight * EvalW;
             }
