@@ -1886,6 +1886,12 @@ class TMOP_Integrator : public NonlinearFormIntegrator
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
+   friend class TMOPEnergyPA2D;
+   friend class TMOPEnergyPA3D;
+   friend class TMOPSetupGradPA2D;
+   friend class TMOPSetupGradPA3D;
+   friend class TMOPAddMultPA2D;
+   friend class TMOPAddMultPA3D;
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
