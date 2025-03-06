@@ -493,7 +493,7 @@ public:
    /** P-refine and update the space. If @a want_transfer, also maintain the old
        space and a transfer operator accessible by GetPrefUpdateOperator(). */
    void PRefineAndUpdate(const Array<pRefinement> & refs,
-                         bool want_transfer = false) override;
+                         bool want_transfer = true) override;
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override
