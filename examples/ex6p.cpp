@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
       //     still represent the same function as before refinement.
       if (pRefine)
       {
-         fespace.PRefineAndUpdate(prefinements, true);
+         fespace.PRefineAndUpdate(prefinements);
       }
       else
       {

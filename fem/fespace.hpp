@@ -1461,7 +1461,7 @@ public:
    /** P-refine and update the space. If @a want_transfer, also maintain the old
        space and a transfer operator accessible by GetPrefUpdateOperator(). */
    virtual void PRefineAndUpdate(const Array<pRefinement> & refs,
-                                 bool want_transfer = false);
+                                 bool want_transfer = true);
 
    /// Return true iff p-refinement is supported in this space.
    bool PRefinementSupported();
