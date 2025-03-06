@@ -14,6 +14,7 @@ struct MomentumRefStateQFunction
    auto operator()(
       const tensor<real_t, dim, dim> &dudxi,
       const tensor<real_t, dim, dim> &J,
+      const tensor<real_t, 10> &internal_state,
       const double &w) const
    {
       auto invJ = inv(J);
@@ -49,6 +50,7 @@ class ElasticityOperator : public Operator
 {
    static constexpr int Displacement = 0;
    static constexpr int Coordinates = 1;
+   static constexpr int InternalState = 2;
 
 public:
    class ElasticityJacobianPreconditioner : public Solver
@@ -101,7 +103,7 @@ public:
 
          auto mesh_nodes = static_cast<ParGridFunction*>
                            (elasticity->displacement_fes.GetParMesh()->GetNodes());
-         momentum_du = elasticity->momentum->GetDerivative(Displacement, {&u}, {mesh_nodes});
+         momentum_du = elasticity->momentum->GetDerivative(Displacement, {&u}, {mesh_nodes, &elasticity->internal_state});
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -125,12 +127,14 @@ public:
 
    ElasticityOperator(ParFiniteElementSpace &displacement_fes,
                       Array<int> &vel_ess_tdofs,
-                      const IntegrationRule &displacement_ir) :
+                      const IntegrationRule &displacement_ir,
+                      ParametricFunction &internal_state) :
       Operator(displacement_fes.GetTrueVSize()),
       density(1.0e3),
       displacement_ess_tdof(vel_ess_tdofs),
       displacement_fes(displacement_fes),
       displacement_ir(displacement_ir),
+      internal_state(internal_state),
       body_force(displacement_fes.GetTrueVSize())
    {
       auto mesh = displacement_fes.GetParMesh();
@@ -145,14 +149,15 @@ public:
 
          auto parameters = std::vector
          {
-            FieldDescriptor{Coordinates, &mesh_fes}
+            FieldDescriptor{Coordinates, &mesh_fes},
+            FieldDescriptor{InternalState, &internal_state.space}
          };
 
          momentum =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
          // momentum->DisableTensorProductStructure();
 
-         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, Weight{}};
+         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
          mfem::tuple outputs{Gradient<Displacement>{}};
 
          using Material = StVenantKirchhoff;
@@ -182,7 +187,7 @@ public:
 
    void Mult(const Vector &displacement, Vector &r) const override
    {
-      momentum->SetParameters({mesh_nodes});
+      momentum->SetParameters({mesh_nodes, &internal_state});
       momentum->Mult(displacement, r);
       r -= body_force;
       r.SetSubVector(displacement_ess_tdof, 0.0);
@@ -209,6 +214,8 @@ public:
 
    ParFiniteElementSpace &displacement_fes;
    IntegrationRule displacement_ir;
+
+   ParametricFunction& internal_state;
 
    mutable std::shared_ptr<ElasticityJacobianOperator> jacobian_operator;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
@@ -278,6 +285,13 @@ int main(int argc, char* argv[])
    const IntegrationRule &displacement_ir =
       IntRules.Get(displacement_fes.GetFE(0)->GetGeomType(),
                    2 * ir_order + displacement_fes.GetFE(0)->GetOrder());
+   
+   constexpr int n_internal_state_variables = 10;
+   ParametricSpace internal_state_space(dim, n_internal_state_variables, displacement_ir.GetNPoints(),
+      n_internal_state_variables*displacement_ir.GetNPoints()*mesh_beam.GetNE());
+
+   ParametricFunction internal_state(internal_state_space);
+   internal_state = 0.0;
 
    Array<int> bdr_attr_is_ess(mesh_beam.bdr_attributes.Max());
    out << bdr_attr_is_ess.Size() << "\n";
@@ -293,7 +307,7 @@ int main(int argc, char* argv[])
    u = 0.0;
 
    ElasticityOperator elasticity(displacement_fes, displacement_ess_tdof,
-                                 displacement_ir);
+                                 displacement_ir, internal_state);
 
    ElasticityOperator::ElasticityJacobianPreconditioner prec;
 
