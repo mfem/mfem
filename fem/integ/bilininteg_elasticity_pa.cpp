@@ -544,4 +544,14 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
    }
 }
 
+
+void ElasticityIntegrator::AssembleDiagonalNURBSPA(Vector &diag)
+{
+   mfem::out << "assemble diagonal NURBS PA" << std::endl;
+   MFEM_VERIFY(false, "Not implemented");
+   // q_vec->SetVDim(vdim*vdim*vdim*vdim);
+   // internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
+   //                                        *geom, *maps, *q_vec, diag);
+}
+
 } // namespace mfem

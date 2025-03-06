@@ -225,13 +225,15 @@ int main(int argc, char *argv[])
    sw.Clear();
    sw.Start();
 
+   cout << "Getting diagonal ... " << endl;
+   OperatorJacobiSmoother M(a, ess_tdof_list);
+
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
    // GSSmoother M(A);
    // GSSmoother M((SparseMatrix&)(*A));
    // PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
 
-   // OperatorJacobiSmoother M(a, ess_tdof_list);
    // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
    // CG(*A, B, X, 1, 10, 1e-8, 1e-10);
 

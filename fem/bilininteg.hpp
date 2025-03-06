@@ -64,6 +64,8 @@ public:
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
 
+   virtual void AssembleDiagonalNURBSPA(Vector &diag);
+
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -3190,6 +3192,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+
+   void AssembleDiagonalNURBSPA(Vector &diag) override;
 
    void AssembleDiagonalPA(Vector &diag) override;
 

@@ -58,6 +58,12 @@ void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleDiagonalNURBSPA(Vector &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalNURBSPA(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
@@ -888,6 +894,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
 {
+   mfem::out << "DiffusionIntegrator::AssembleElementMatrix" << std::endl;
    int nd = el.GetDof();
    dim = el.GetDim();
    int spaceDim = Trans.GetSpaceDim();

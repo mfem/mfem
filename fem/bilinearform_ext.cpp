@@ -417,7 +417,17 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
                                              const Array<int> &attributes,
                                              Vector &d)
    {
-      integ.AssembleDiagonalPA(d);
+      if (integ.Patchwise())
+      {
+         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
+                     "Requires a NURBS FE space");
+         integ.AssembleDiagonalNURBSPA(d);
+      }
+      else
+      {
+         integ.AssembleDiagonalPA(d);
+      }
+
       if (markers)
       {
          const int ne = attributes.Size();
