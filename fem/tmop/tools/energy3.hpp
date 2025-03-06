@@ -53,8 +53,7 @@ public:
 
       const Vector &mc = ti->PA.MC;
       const bool const_m0 = mc.Size() == 1;
-      const auto MC = const_m0
-                      ? Reshape(mc.Read(), 1, 1, 1, 1)
+      const auto MC = const_m0 ? Reshape(mc.Read(), 1, 1, 1, 1)
                       : Reshape(mc.Read(), Q1D, Q1D, Q1D, NE);
 
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
@@ -64,23 +63,24 @@ public:
       const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
       auto E = Reshape(ti->PA.E.Write(), Q1D, Q1D, Q1D, NE);
 
-      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_3D(
+         NE, Q1D, Q1D, Q1D,
+         [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+         constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
          MFEM_SHARED real_t BG[2][MQ1 * MD1];
-         MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
-         MFEM_SHARED real_t DDQ[6][MD1 * MD1 * MQ1];
-         MFEM_SHARED real_t DQQ[9][MD1 * MQ1 * MQ1];
-         MFEM_SHARED real_t QQQ[9][MQ1 * MQ1 * MQ1];
+         MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
+         MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
 
-         kernels::internal::LoadX<MD1>(e, D1D, X, DDD);
+         kernels::internal::LoadX_v<MDQ>(e, D1D, X, sm0);
          kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
 
-         kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, BG, DDD, DDQ);
-         kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, BG, DDQ, DQQ);
-         kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, BG, DQQ, QQQ);
+         kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+         kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
 
          MFEM_FOREACH_THREAD(qz, z, Q1D)
          {
@@ -90,9 +90,8 @@ public:
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJtr = kernels::Det<3>(Jtr);
-                  const real_t m_coef = const_m0
-                                        ? MC(0, 0, 0, 0)
-                                        : MC(qx, qy, qz, e);
+                  const real_t m_coef =
+                     const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
                   const real_t weight =
                      metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
@@ -102,7 +101,8 @@ public:
 
                   // Jpr = X^t.DSh
                   real_t Jpr[9];
-                  kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, QQQ, Jpr);
+                  kernels::internal::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1,
+                                                   Jpr);
 
                   // Jpt = X^t.DS = (X^t.DSh).Jrt = Jpr.Jrt
                   real_t Jpt[9];

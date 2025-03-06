@@ -236,16 +236,12 @@ void DGMassBasis3D(const int e,
 
    kernels::internal::LoadB<MD1,MD1>(D1D,D1D,b,sB);
 
-   ConstDeviceMatrix B(sB, D1D,D1D);
-   DeviceCube DDD(sm0, MD1,MD1,MD1);
-   DeviceCube DDQ(sm1, MD1,MD1,MD1);
-   DeviceCube DQQ(sm0, MD1,MD1,MD1);
+   kernels::internal::LoadX<MD1>(e, D1D, x, sm0);
+   kernels::internal::EvalX<MD1, MD1>(D1D, D1D, sB, sm0, sm1);
+   kernels::internal::EvalY<MD1, MD1>(D1D, D1D, sB, sm1, sm0);
+   kernels::internal::EvalZ<MD1, MD1>(D1D, D1D, sB, sm0, sm1);
    DeviceCube QQQ(sm1, MD1,MD1,MD1);
 
-   kernels::internal::LoadX(e,D1D,x,DDD);
-   kernels::internal::EvalX(D1D,D1D,B,DDD,DDQ);
-   kernels::internal::EvalY(D1D,D1D,B,DDQ,DQQ);
-   kernels::internal::EvalZ(D1D,D1D,B,DQQ,QQQ);
    MFEM_SYNC_THREAD; // sync here to allow in-place evaluation
    MFEM_FOREACH_THREAD(qz,z,D1D)
    {

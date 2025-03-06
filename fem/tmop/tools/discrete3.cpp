@@ -50,21 +50,15 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SHARED real_t sB[MQ1 * MD1];
       MFEM_SHARED real_t sm0[MDQ * MDQ * MDQ];
       MFEM_SHARED real_t sm1[MDQ * MDQ * MDQ];
+      DeviceCube QQQ(sm1, MD1,MD1,MD1);
 
       kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, B, sB);
-
-      ConstDeviceMatrix B(sB, D1D, Q1D);
-      DeviceCube DDD(sm0, MD1, MD1, MD1);
-      DeviceCube DDQ(sm1, MD1, MD1, MQ1);
-      DeviceCube DQQ(sm0, MD1, MQ1, MQ1);
-      DeviceCube QQQ(sm1, MQ1, MQ1, MQ1);
-
-      kernels::internal::LoadX(e, D1D, sizeidx, X, DDD);
+      kernels::internal::LoadX<MDQ>(e, D1D, sizeidx, X, sm0);
 
       real_t min;
       MFEM_SHARED real_t min_size[MFEM_CUDA_BLOCKS];
       DeviceTensor<3, real_t> M((real_t *)(min_size), D1D, D1D, D1D);
-      const DeviceTensor<3, const real_t> D((real_t *)(DDD + sizeidx), D1D, D1D,
+      const DeviceTensor<3, const real_t> D((real_t *)(sm0 + sizeidx), D1D, D1D,
                                             D1D);
       MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
@@ -89,9 +83,9 @@ void TMOP_DatcSize_3D(const int NE,
       }
       min = min_size[0];
       if (input_min_size > 0.) { min = input_min_size; }
-      kernels::internal::EvalX(D1D, Q1D, B, DDD, DDQ);
-      kernels::internal::EvalY(D1D, Q1D, B, DDQ, DQQ);
-      kernels::internal::EvalZ(D1D, Q1D, B, DQQ, QQQ);
+      kernels::internal::EvalX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
+      kernels::internal::EvalY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
+      kernels::internal::EvalZ<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
       MFEM_FOREACH_THREAD(qx, x, Q1D)
       {
          MFEM_FOREACH_THREAD(qy, y, Q1D)

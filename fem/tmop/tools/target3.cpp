@@ -22,15 +22,14 @@ namespace mfem
 {
 
 template <int T_Q1D = 0>
-void TMOP_TcIdealShapeUnitSize_3D(const int NE,
-                                  const ConstDeviceMatrix &W,
-                                  DeviceTensor<6> &J,
-                                  const int q1d = 0)
+void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
+                                  DeviceTensor<6> &J, const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D,
+                   [=] MFEM_HOST_DEVICE(int e)
    {
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy, y, Q1D)
@@ -39,7 +38,8 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qz, z, Q1D)
             {
-               kernels::Set(DIM, DIM, 1.0, &W(0, 0), &J(0, 0, qx, qy, qz, e));
+               kernels::Set(DIM, DIM, 1.0, &W(0, 0),
+                            &J(0, 0, qx, qy, qz, e));
             }
          }
       }
@@ -51,14 +51,12 @@ MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize3D,
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize3D);
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void TMOP_TcIdealShapeGivenSize_3D(const int NE,
-                                   const real_t detW,
+void TMOP_TcIdealShapeGivenSize_3D(const int NE, const real_t detW,
                                    const ConstDeviceMatrix &B,
                                    const ConstDeviceMatrix &G,
                                    const ConstDeviceMatrix &W,
                                    const DeviceTensor<5, const real_t> &X,
-                                   DeviceTensor<6> &J,
-                                   const int d1d,
+                                   DeviceTensor<6> &J, const int d1d,
                                    const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -71,19 +69,18 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
       constexpr int DIM = 3;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
       MFEM_SHARED real_t BG[2][MQ1 * MD1];
-      MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
-      MFEM_SHARED real_t DDQ[6][MD1 * MD1 * MQ1];
-      MFEM_SHARED real_t DQQ[9][MD1 * MQ1 * MQ1];
-      MFEM_SHARED real_t QQQ[9][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
 
-      kernels::internal::LoadX<MD1>(e, D1D, X, DDD);
+      kernels::internal::LoadX_v<MDQ>(e, D1D, X, sm0);
       kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
 
-      kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, BG, DDD, DDQ);
-      kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, BG, DDQ, DQQ);
-      kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, BG, DQQ, QQQ);
+      kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+      kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+      kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
 
       MFEM_FOREACH_THREAD(qz, z, Q1D)
       {
@@ -93,7 +90,7 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
             {
                real_t Jtr[9];
                const real_t *Wid = &W(0, 0);
-               kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, QQQ, Jtr);
+               kernels::internal::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jtr);
                const real_t detJ = kernels::Det<3>(Jtr);
                const real_t alpha = std::pow(detJ / detW, 1. / 3);
                kernels::Set(DIM, DIM, alpha, Wid, &J(0, 0, qx, qy, qz, e));
@@ -109,9 +106,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPTcIdealShapeGivenSize3D);
 
 template <>
 bool TargetConstructor::ComputeAllElementTargets<3>(
-   const FiniteElementSpace &fes,
-   const IntegrationRule &ir,
-   const Vector &,
+   const FiniteElementSpace &fes, const IntegrationRule &ir, const Vector &,
    DenseTensor &Jtr) const
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
