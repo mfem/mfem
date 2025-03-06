@@ -55,6 +55,7 @@
 // elasticity runs / maximize comliance
 
 // make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -m SquareFrame.mesh
 /*******************************/
 // Presentation runs below:
 
@@ -876,7 +877,7 @@ int main (int argc, char *argv[])
   Array<int> vdofs;
 
   // Identify coordinate dofs perpendicular to BE
-  if (strcmp(mesh_file, "null.mesh") == 0)
+  if (strcmp(mesh_file, "null.mesh") == 0 && physics ==0)
   {
     for (int i = 0; i < PMesh->GetNBE(); i++)
     {
@@ -912,38 +913,44 @@ int main (int argc, char *argv[])
       pfespace->GetBdrElementVDofs(i, vdofs);
       const int nd = pfespace->GetBE(i)->GetDof();
 
-      // if (attribute == 1 ||
-      //     attribute == 3 ||
-      //     attribute == 5 ) // zero out motion in y
-      // {
-      //   for (int j = 0; j < nd; j++)
-      //   {
-      //     gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-      //   }
-      // }
-      // else if (attribute == 2 ||
-      //     attribute == 4 ||
-      //     attribute == 6 ) // zero out in x
-      // {
-      //   for (int j = 0; j < nd; j++)
-      //   {
-      //     gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-      //   }
-      // }
-      if (attribute == 1 ||
-          attribute == 3 ) // zero out motion in y
+      if(strcmp(mesh_file, "null.mesh") == 0)
       {
-        for (int j = 0; j < nd; j++)
+        if (attribute == 1 ||
+            attribute == 3 ||
+            attribute == 5 ) // zero out motion in y
         {
-          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          for (int j = 0; j < nd; j++)
+          {
+           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          }
+        }
+        else if (attribute == 2 ||
+            attribute == 4 ||
+            attribute == 6 ) // zero out in x
+        {
+          for (int j = 0; j < nd; j++)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          }
         }
       }
-      else if (attribute == 2 ||
-          attribute == 4 ) // zero out in x
+      else
       {
-        for (int j = 0; j < nd; j++)
+        if (attribute == 1 ||
+            attribute == 3 ) // zero out motion in y
         {
-          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          for (int j = 0; j < nd; j++)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          }
+        }
+        else if (attribute == 2 ||
+            attribute == 4 ) // zero out in x
+        {
+          for (int j = 0; j < nd; j++)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          }
         }
       }
     }
