@@ -12,6 +12,7 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
+#include "../../kernels_sm.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -39,19 +40,18 @@ void TMOP_AddMultGradPA_3D(const int NE,
       constexpr int DIM = 3;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
       MFEM_SHARED real_t BG[2][MQ1 * MD1];
-      MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
-      MFEM_SHARED real_t DDQ[9][MD1 * MD1 * MQ1];
-      MFEM_SHARED real_t DQQ[9][MD1 * MQ1 * MQ1];
-      MFEM_SHARED real_t QQQ[9][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
 
-      kernels::internal::LoadX<MD1>(e, D1D, X, DDD);
+      kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
       kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
 
-      kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, BG, DDD, DDQ);
-      kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, BG, DDQ, DQQ);
-      kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, BG, DQQ, QQQ);
+      kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+      kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+      kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
 
       MFEM_FOREACH_THREAD(qz, z, Q1D)
       {
@@ -67,7 +67,7 @@ void TMOP_AddMultGradPA_3D(const int NE,
 
                // Jpr = X^T.DSh
                real_t Jpr[9];
-               kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, QQQ, Jpr);
+               kernels::internal::sm::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jpr);
 
                // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                real_t Jpt[9];
@@ -95,15 +95,15 @@ void TMOP_AddMultGradPA_3D(const int NE,
                // Y +=  DS . M^t += DSh . (Jrt . M^t)
                real_t A[9];
                kernels::MultABt(3, 3, 3, Jrt, B, A);
-               kernels::internal::PushGrad<MQ1>(Q1D, qx, qy, qz, A, QQQ);
+               kernels::internal::sm::PushGrad<MDQ>(Q1D, qx, qy, qz, A, sm0);
             }
          }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::LoadBGt<MD1, MQ1>(D1D, Q1D, B, G, BG);
-      kernels::internal::GradZt<MD1, MQ1>(D1D, Q1D, BG, QQQ, DQQ);
-      kernels::internal::GradYt<MD1, MQ1>(D1D, Q1D, BG, DQQ, DDQ);
-      kernels::internal::GradXt<MD1, MQ1>(D1D, Q1D, BG, DDQ, Y, e);
+      kernels::internal::sm::GradZt<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+      kernels::internal::sm::GradYt<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+      kernels::internal::sm::GradXt<MD1, MQ1>(D1D, Q1D, BG, sm0, Y, e);
    });
 }
 

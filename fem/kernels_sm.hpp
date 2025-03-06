@@ -258,6 +258,135 @@ MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
    X[2] = Xz(x,y,z);
 }
 
+/// Push 3D Vector Evaluation
+template<int MDQ>
+MFEM_HOST_DEVICE inline void PushEval(const int Q1D,
+                                      const int x, const int y, const int z,
+                                      const real_t (&A)[3],
+                                      real_t (&sm)[3][MDQ*MDQ*MDQ])
+{
+   DeviceCube Xx(sm[0], Q1D, Q1D, Q1D);
+   DeviceCube Xy(sm[1], Q1D, Q1D, Q1D);
+   DeviceCube Xz(sm[2], Q1D, Q1D, Q1D);
+
+   Xx(x,y,z) = A[0];
+   Xy(x,y,z) = A[1];
+   Xz(x,y,z) = A[2];
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Transposed Vector Evaluation, 1/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
+                                    const real_t (&sB)[MQ1*MD1],
+                                    const real_t (&sQQQ)[3][MDQ*MDQ*MDQ],
+                                    real_t (&sDQQ)[3][MDQ*MDQ*MDQ])
+{
+   ConstDeviceMatrix Bt(sB, Q1D, D1D);
+   ConstDeviceCube XxBBB(sQQQ[0], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBBB(sQQQ[1], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBBB(sQQQ[2], Q1D, Q1D, Q1D);
+   DeviceCube XxBB(sDQQ[0], Q1D, Q1D, D1D);
+   DeviceCube XyBB(sDQQ[1], Q1D, Q1D, D1D);
+   DeviceCube XzBB(sDQQ[2], Q1D, Q1D, D1D);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const real_t Btx = Bt(qx,dx);
+               u[0] += XxBBB(qx,qy,qz) * Btx;
+               u[1] += XyBBB(qx,qy,qz) * Btx;
+               u[2] += XzBBB(qx,qy,qz) * Btx;
+            }
+            XxBB(qz,qy,dx) = u[0];
+            XyBB(qz,qy,dx) = u[1];
+            XzBB(qz,qy,dx) = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Vector Evaluation, 2/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
+                                    const real_t (&sB)[MQ1*MD1],
+                                    const real_t (&sDQQ)[3][MDQ*MDQ*MDQ],
+                                    real_t (&sDDQ)[3][MDQ*MDQ*MDQ])
+{
+   ConstDeviceMatrix Bt(sB, Q1D, D1D);
+   ConstDeviceCube XxBB(sDQQ[0], Q1D, Q1D, D1D);
+   ConstDeviceCube XyBB(sDQQ[1], Q1D, Q1D, D1D);
+   ConstDeviceCube XzBB(sDQQ[2], Q1D, Q1D, D1D);
+   DeviceCube XxB(sDDQ[0], Q1D, D1D, D1D);
+   DeviceCube XyB(sDDQ[1], Q1D, D1D, D1D);
+   DeviceCube XzB(sDDQ[2], Q1D, D1D, D1D);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const real_t Bty = Bt(qy,dy);
+               u[0] += XxBB(qz,qy,dx) * Bty;
+               u[1] += XyBB(qz,qy,dx) * Bty;
+               u[2] += XzBB(qz,qy,dx) * Bty;
+
+            }
+            XxB(qz,dy,dx) = u[0];
+            XyB(qz,dy,dx) = u[1];
+            XzB(qz,dy,dx)= u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Vector Evaluation, 3/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
+                                    const real_t (&sB)[MQ1*MD1],
+                                    const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
+                                    const DeviceTensor<5> &Y, // output
+                                    const int e)
+{
+   ConstDeviceMatrix Bt(sB, Q1D, D1D);
+   ConstDeviceCube XxB(sDDQ[0], Q1D, D1D, D1D);
+   ConstDeviceCube XyB(sDDQ[1], Q1D, D1D, D1D);
+   ConstDeviceCube XzB(sDDQ[2], Q1D, D1D, D1D);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const real_t Btz = Bt(qz,dz);
+               u[0] += XxB(qz,dy,dx) * Btz;
+               u[1] += XyB(qz,dy,dx) * Btz;
+               u[2] += XzB(qz,dy,dx) * Btz;
+            }
+            Y(dx,dy,dz,0,e) += u[0];
+            Y(dx,dy,dz,1,e) += u[1];
+            Y(dx,dy,dz,2,e) += u[2];
+         }
+      }
+   }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Vector Gradient, 1/3
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -451,6 +580,261 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
       }
    }
    MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Pull 3D Gradient
+template<int MDQ>
+MFEM_HOST_DEVICE inline void PullGrad(const int Q1D,
+                                      const int x, const int y, const int z,
+                                      const real_t (*sQQQ)[MDQ*MDQ*MDQ],
+                                      real_t *Jpr)
+{
+   ConstDeviceCube XxBBG(sQQQ[0], Q1D, Q1D, Q1D);
+   ConstDeviceCube XxBGB(sQQQ[1], Q1D, Q1D, Q1D);
+   ConstDeviceCube XxGBB(sQQQ[2], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBBG(sQQQ[3], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBGB(sQQQ[4], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyGBB(sQQQ[5], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBBG(sQQQ[6], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBGB(sQQQ[7], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzGBB(sQQQ[8], Q1D, Q1D, Q1D);
+
+   Jpr[0] = XxBBG(x,y,z);
+   Jpr[3] = XxBGB(x,y,z);
+   Jpr[6] = XxGBB(x,y,z);
+   Jpr[1] = XyBBG(x,y,z);
+   Jpr[4] = XyBGB(x,y,z);
+   Jpr[7] = XyGBB(x,y,z);
+   Jpr[2] = XzBBG(x,y,z);
+   Jpr[5] = XzBGB(x,y,z);
+   Jpr[8] = XzGBB(x,y,z);
+}
+
+/// Push 3D Gradient
+template<int MDQ>
+MFEM_HOST_DEVICE inline void PushGrad(const int Q1D,
+                                      const int x, const int y, const int z,
+                                      const real_t *A,
+                                      real_t (&sQQQ)[9][MDQ*MDQ*MDQ])
+{
+   DeviceCube XxBBG(sQQQ[0], Q1D, Q1D, Q1D);
+   DeviceCube XxBGB(sQQQ[1], Q1D, Q1D, Q1D);
+   DeviceCube XxGBB(sQQQ[2], Q1D, Q1D, Q1D);
+   DeviceCube XyBBG(sQQQ[3], Q1D, Q1D, Q1D);
+   DeviceCube XyBGB(sQQQ[4], Q1D, Q1D, Q1D);
+   DeviceCube XyGBB(sQQQ[5], Q1D, Q1D, Q1D);
+   DeviceCube XzBBG(sQQQ[6], Q1D, Q1D, Q1D);
+   DeviceCube XzBGB(sQQQ[7], Q1D, Q1D, Q1D);
+   DeviceCube XzGBB(sQQQ[8], Q1D, Q1D, Q1D);
+
+   XxBBG(x,y,z) = A[0];
+   XxBGB(x,y,z) = A[1];
+   XxGBB(x,y,z) = A[2];
+   XyBBG(x,y,z) = A[3];
+   XyBGB(x,y,z) = A[4];
+   XyGBB(x,y,z) = A[5];
+   XzBBG(x,y,z) = A[6];
+   XzBGB(x,y,z) = A[7];
+   XzGBB(x,y,z) = A[8];
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Transposed Gradient, 1/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
+                                    const real_t (&sBG)[2][MQ1*MD1],
+                                    const real_t (*sQQQ)[MDQ*MDQ*MDQ],
+                                    real_t (*sDQQ)[MDQ*MDQ*MDQ])
+{
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   ConstDeviceCube XxBBG(sQQQ[0], Q1D, Q1D, Q1D);
+   ConstDeviceCube XxBGB(sQQQ[1], Q1D, Q1D, Q1D);
+   ConstDeviceCube XxGBB(sQQQ[2], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBBG(sQQQ[3], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyBGB(sQQQ[4], Q1D, Q1D, Q1D);
+   ConstDeviceCube XyGBB(sQQQ[5], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBBG(sQQQ[6], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzBGB(sQQQ[7], Q1D, Q1D, Q1D);
+   ConstDeviceCube XzGBB(sQQQ[8], Q1D, Q1D, Q1D);
+   DeviceCube XxBB(sDQQ[0], Q1D, Q1D, D1D);
+   DeviceCube XxBG(sDQQ[1], Q1D, Q1D, D1D);
+   DeviceCube XxGB(sDQQ[2], Q1D, Q1D, D1D);
+   DeviceCube XyBB(sDQQ[3], Q1D, Q1D, D1D);
+   DeviceCube XyBG(sDQQ[4], Q1D, Q1D, D1D);
+   DeviceCube XyGB(sDQQ[5], Q1D, Q1D, D1D);
+   DeviceCube XzBB(sDQQ[6], Q1D, Q1D, D1D);
+   DeviceCube XzBG(sDQQ[7], Q1D, Q1D, D1D);
+   DeviceCube XzGB(sDQQ[8], Q1D, Q1D, D1D);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            real_t v[3] = {0.0, 0.0, 0.0};
+            real_t w[3] = {0.0, 0.0, 0.0};
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const real_t Btx = Bt(qx,dx);
+               const real_t Gtx = Gt(qx,dx);
+
+               u[0] += XxBBG(qx,qy,qz) * Gtx;
+               v[0] += XxBGB(qx,qy,qz) * Btx;
+               w[0] += XxGBB(qx,qy,qz) * Btx;
+
+               u[1] += XyBBG(qx,qy,qz) * Gtx;
+               v[1] += XyBGB(qx,qy,qz) * Btx;
+               w[1] += XyGBB(qx,qy,qz) * Btx;
+
+               u[2] += XzBBG(qx,qy,qz) * Gtx;
+               v[2] += XzBGB(qx,qy,qz) * Btx;
+               w[2] += XzGBB(qx,qy,qz) * Btx;
+            }
+            XxBB(qz,qy,dx) = u[0];
+            XxBG(qz,qy,dx) = v[0];
+            XxGB(qz,qy,dx) = w[0];
+
+            XyBB(qz,qy,dx) = u[1];
+            XyBG(qz,qy,dx) = v[1];
+            XyGB(qz,qy,dx) = w[1];
+
+            XzBB(qz,qy,dx) = u[2];
+            XzBG(qz,qy,dx) = v[2];
+            XzGB(qz,qy,dx) = w[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Gradient, 2/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
+                                    const real_t (&sBG)[2][MQ1*MD1],
+                                    const real_t (*sDQQ)[MDQ*MDQ*MDQ],
+                                    real_t (*sDDQ)[MDQ*MDQ*MDQ])
+{
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   ConstDeviceCube XxBB(sDQQ[0], Q1D, Q1D, D1D);
+   ConstDeviceCube XxBG(sDQQ[1], Q1D, Q1D, D1D);
+   ConstDeviceCube XxGB(sDQQ[2], Q1D, Q1D, D1D);
+   ConstDeviceCube XyBB(sDQQ[3], Q1D, Q1D, D1D);
+   ConstDeviceCube XyBG(sDQQ[4], Q1D, Q1D, D1D);
+   ConstDeviceCube XyGB(sDQQ[5], Q1D, Q1D, D1D);
+   ConstDeviceCube XzBB(sDQQ[6], Q1D, Q1D, D1D);
+   ConstDeviceCube XzBG(sDQQ[7], Q1D, Q1D, D1D);
+   ConstDeviceCube XzGB(sDQQ[8], Q1D, Q1D, D1D);
+   DeviceCube XxB(sDDQ[0], Q1D, D1D, D1D);
+   DeviceCube XxG(sDDQ[1], Q1D, D1D, D1D);
+   DeviceCube XyB(sDDQ[2], Q1D, D1D, D1D);
+   DeviceCube XyG(sDDQ[3], Q1D, D1D, D1D);
+   DeviceCube XzB(sDDQ[4], Q1D, D1D, D1D);
+   DeviceCube XzG(sDDQ[5], Q1D, D1D, D1D);
+   DeviceCube XxC(sDDQ[6], Q1D, D1D, D1D);
+   DeviceCube XyC(sDDQ[7], Q1D, D1D, D1D);
+   DeviceCube XzC(sDDQ[8], Q1D, D1D, D1D);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            real_t v[3] = {0.0, 0.0, 0.0};
+            real_t w[3] = {0.0, 0.0, 0.0};
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const real_t Bty = Bt(qy,dy);
+               const real_t Gty = Gt(qy,dy);
+
+               u[0] += XxBB(qz,qy,dx) * Bty;
+               v[0] += XxBG(qz,qy,dx) * Gty;
+               w[0] += XxGB(qz,qy,dx) * Bty;
+
+               u[1] += XyBB(qz,qy,dx) * Bty;
+               v[1] += XyBG(qz,qy,dx) * Gty;
+               w[1] += XyGB(qz,qy,dx) * Bty;
+
+               u[2] += XzBB(qz,qy,dx) * Bty;
+               v[2] += XzBG(qz,qy,dx) * Gty;
+               w[2] += XzGB(qz,qy,dx) * Bty;
+
+            }
+            XxB(qz,dy,dx) = u[0];
+            XxC(qz,dy,dx) = v[0];
+            XxG(qz,dy,dx) = w[0];
+
+            XyB(qz,dy,dx) = u[1];
+            XyC(qz,dy,dx) = v[1];
+            XyG(qz,dy,dx) = w[1];
+
+            XzB(qz,dy,dx) = u[2];
+            XzC(qz,dy,dx) = v[2];
+            XzG(qz,dy,dx) = w[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Gradient, 3/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
+                                    const real_t (&sBG)[2][MQ1*MD1],
+                                    const real_t (*sDDQ)[MDQ*MDQ*MDQ],
+                                    const DeviceTensor<5> &Y, // output
+                                    const int e)
+{
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   ConstDeviceCube XxB(sDDQ[0], Q1D, D1D, D1D);
+   ConstDeviceCube XxG(sDDQ[1], Q1D, D1D, D1D);
+   ConstDeviceCube XyB(sDDQ[2], Q1D, D1D, D1D);
+   ConstDeviceCube XyG(sDDQ[3], Q1D, D1D, D1D);
+   ConstDeviceCube XzB(sDDQ[4], Q1D, D1D, D1D);
+   ConstDeviceCube XzG(sDDQ[5], Q1D, D1D, D1D);
+   ConstDeviceCube XxC(sDDQ[6], Q1D, D1D, D1D);
+   ConstDeviceCube XyC(sDDQ[7], Q1D, D1D, D1D);
+   ConstDeviceCube XzC(sDDQ[8], Q1D, D1D, D1D);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            real_t v[3] = {0.0, 0.0, 0.0};
+            real_t w[3] = {0.0, 0.0, 0.0};
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const real_t Btz = Bt(qz,dz);
+               const real_t Gtz = Gt(qz,dz);
+
+               u[0] += XxB(qz,dy,dx) * Btz;
+               v[0] += XxC(qz,dy,dx) * Btz;
+               w[0] += XxG(qz,dy,dx) * Gtz;
+
+               u[1] += XyB(qz,dy,dx) * Btz;
+               v[1] += XyC(qz,dy,dx)* Btz;
+               w[1] += XyG(qz,dy,dx) * Gtz;
+
+               u[2] += XzB(qz,dy,dx) * Btz;
+               v[2] += XzC(qz,dy,dx) * Btz;
+               w[2] += XzG(qz,dy,dx) * Gtz;
+            }
+            Y(dx,dy,dz,0,e) += u[0] + v[0] + w[0];
+            Y(dx,dy,dz,1,e) += u[1] + v[1] + w[1];
+            Y(dx,dy,dz,2,e) += u[2] + v[2] + w[2];
+         }
+      }
+   }
 }
 
 } // namespace sm

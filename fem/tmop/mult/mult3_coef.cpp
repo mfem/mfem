@@ -12,6 +12,7 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
+#include "../../kernels_sm.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -49,42 +50,33 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
       MFEM_SHARED real_t B[MQ1 * MD1];
       MFEM_SHARED real_t sBLD[MQ1 * MD1];
       kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, bld, sBLD);
-      ConstDeviceMatrix BLD(sBLD, D1D, Q1D);
 
       MFEM_SHARED real_t sm0[MDQ * MDQ * MDQ];
       MFEM_SHARED real_t sm1[MDQ * MDQ * MDQ];
-      DeviceCube DDD(sm0, MD1, MD1, MD1);
-      DeviceCube DDQ(sm1, MD1, MD1, MQ1);
-      DeviceCube DQQ(sm0, MD1, MQ1, MQ1);
-      DeviceCube QQQ(sm1, MQ1, MQ1, MQ1);
 
-      MFEM_SHARED real_t DDD0[3][MD1 * MD1 * MD1];
-      MFEM_SHARED real_t DDQ0[3][MD1 * MD1 * MQ1];
-      MFEM_SHARED real_t DQQ0[3][MD1 * MQ1 * MQ1];
-      MFEM_SHARED real_t QQQ0[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t s00[3][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t s01[3][MDQ * MDQ * MDQ];
 
-      MFEM_SHARED real_t DDD1[3][MD1 * MD1 * MD1];
-      MFEM_SHARED real_t DDQ1[3][MD1 * MD1 * MQ1];
-      MFEM_SHARED real_t DQQ1[3][MD1 * MQ1 * MQ1];
-      MFEM_SHARED real_t QQQ1[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t s10[3][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t s11[3][MDQ * MDQ * MDQ];
 
-      kernels::internal::LoadX(e, D1D, LD, DDD);
-      kernels::internal::LoadX<MD1>(e, D1D, X0, DDD0);
-      kernels::internal::LoadX<MD1>(e, D1D, X1, DDD1);
+      kernels::internal::LoadX<MDQ>(e, D1D, LD, sm0);
+      kernels::internal::LoadX<MDQ>(e, D1D, X0, s00);
+      kernels::internal::LoadX<MDQ>(e, D1D, X1, s10);
 
       kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, b, B);
 
-      kernels::internal::EvalX(D1D, Q1D, BLD, DDD, DDQ);
-      kernels::internal::EvalY(D1D, Q1D, BLD, DDQ, DQQ);
-      kernels::internal::EvalZ(D1D, Q1D, BLD, DQQ, QQQ);
+      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, sBLD, sm0, sm1);
+      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, sBLD, sm1, sm0);
+      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, sBLD, sm0, sm1);
 
-      kernels::internal::EvalX<MD1, MQ1>(D1D, Q1D, B, DDD0, DDQ0);
-      kernels::internal::EvalY<MD1, MQ1>(D1D, Q1D, B, DDQ0, DQQ0);
-      kernels::internal::EvalZ<MD1, MQ1>(D1D, Q1D, B, DQQ0, QQQ0);
+      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, B, s00, s01);
+      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, B, s01, s00);
+      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, B, s00, s01);
 
-      kernels::internal::EvalX<MD1, MQ1>(D1D, Q1D, B, DDD1, DDQ1);
-      kernels::internal::EvalY<MD1, MQ1>(D1D, Q1D, B, DDQ1, DQQ1);
-      kernels::internal::EvalZ<MD1, MQ1>(D1D, Q1D, B, DQQ1, QQQ1);
+      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, B, s10, s11);
+      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, B, s11, s10);
+      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, B, s10, s11);
 
       MFEM_FOREACH_THREAD(qz, z, Q1D)
       {
@@ -99,9 +91,9 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                real_t D, p0[3], p1[3];
                const real_t coeff0 =
                   const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
-               kernels::internal::PullEval(qx, qy, qz, QQQ, D);
-               kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ0, p0);
-               kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ1, p1);
+               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, sm1, D);
+               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, s01, p0);
+               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, s11, p1);
 
                real_t d1[3];
                // Eval_d1 (Quadratic Limiter)
@@ -129,15 +121,15 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                }
 
                kernels::Subtract<3>(w * a, p1, p0, d1);
-               kernels::internal::PushEval<MQ1>(Q1D, qx, qy, qz, d1, QQQ0);
+               kernels::internal::sm::PushEval<MDQ>(Q1D, qx, qy, qz, d1, s00);
             }
          }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::LoadBt<MD1, MQ1>(D1D, Q1D, b, B);
-      kernels::internal::EvalXt<MD1, MQ1>(D1D, Q1D, B, QQQ0, DQQ0);
-      kernels::internal::EvalYt<MD1, MQ1>(D1D, Q1D, B, DQQ0, DDQ0);
-      kernels::internal::EvalZt<MD1, MQ1>(D1D, Q1D, B, DDQ0, Y, e);
+      kernels::internal::sm::EvalXt<MD1, MQ1>(D1D, Q1D, B, s00, s01);
+      kernels::internal::sm::EvalYt<MD1, MQ1>(D1D, Q1D, B, s01, s00);
+      kernels::internal::sm::EvalZt<MD1, MQ1>(D1D, Q1D, B, s00, Y, e);
    });
 }
 

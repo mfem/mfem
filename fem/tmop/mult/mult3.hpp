@@ -11,6 +11,7 @@
 
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
+#include "../../kernels_sm.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -62,7 +63,6 @@ public:
       const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
       auto Y = Reshape(ker.y.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
-
       const bool const_m0 = ti->PA.MC.Size() == 1;
       const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
                       : Reshape(ti->PA.MC.Read(), Q1D, Q1D, Q1D, NE);
@@ -71,19 +71,18 @@ public:
       {
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+         constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
-         MFEM_SHARED real_t s_BG[2][MQ1 * MD1];
-         MFEM_SHARED real_t s_DDD[3][MD1 * MD1 * MD1];
-         MFEM_SHARED real_t s_DDQ[9][MD1 * MD1 * MQ1];
-         MFEM_SHARED real_t s_DQQ[9][MD1 * MQ1 * MQ1];
-         MFEM_SHARED real_t s_QQQ[9][MQ1 * MQ1 * MQ1];
+         MFEM_SHARED real_t BG[2][MQ1 * MD1];
+         MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
+         MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
 
-         kernels::internal::LoadX<MD1>(e, D1D, X, s_DDD);
-         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, s_BG);
+         kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
+         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
 
-         kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, s_BG, s_DDD, s_DDQ);
-         kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, s_BG, s_DDQ, s_DQQ);
-         kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, s_BG, s_DQQ, s_QQQ);
+         kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+         kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
 
          MFEM_FOREACH_THREAD(qz, z, Q1D)
          {
@@ -104,7 +103,7 @@ public:
 
                   // Jpr = X^T.DSh
                   real_t Jpr[9];
-                  kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, s_QQQ, Jpr);
+                  kernels::internal::sm::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jpr);
 
                   // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                   real_t Jpt[9];
@@ -118,15 +117,15 @@ public:
                   // Y += DS . P^t += DSh . (Jrt . P^t)
                   real_t A[9];
                   kernels::MultABt(3, 3, 3, Jrt, P, A);
-                  kernels::internal::PushGrad<MQ1>(Q1D, qx, qy, qz, A, s_QQQ);
+                  kernels::internal::sm::PushGrad<MDQ>(Q1D, qx, qy, qz, A, sm0);
                }
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::LoadBGt<MD1, MQ1>(D1D, Q1D, B, G, s_BG);
-         kernels::internal::GradZt<MD1, MQ1>(D1D, Q1D, s_BG, s_QQQ, s_DQQ);
-         kernels::internal::GradYt<MD1, MQ1>(D1D, Q1D, s_BG, s_DQQ, s_DDQ);
-         kernels::internal::GradXt<MD1, MQ1>(D1D, Q1D, s_BG, s_DDQ, Y, e);
+         kernels::internal::LoadBGt<MD1, MQ1>(D1D, Q1D, B, G, BG);
+         kernels::internal::sm::GradZt<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         kernels::internal::sm::GradYt<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+         kernels::internal::sm::GradXt<MD1, MQ1>(D1D, Q1D, BG, sm0, Y, e);
       });
    }
 };

@@ -12,6 +12,7 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
+#include "../../kernels_sm.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -37,19 +38,18 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
       constexpr int DIM = 3;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
       MFEM_SHARED real_t B[MQ1 * MD1];
-      MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
-      MFEM_SHARED real_t DDQ[3][MD1 * MD1 * MQ1];
-      MFEM_SHARED real_t DQQ[3][MD1 * MQ1 * MQ1];
-      MFEM_SHARED real_t QQQ[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm0[3][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm1[3][MDQ * MDQ * MDQ];
 
-      kernels::internal::LoadX<MD1>(e, D1D, X, DDD);
+      kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
       kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, b, B);
 
-      kernels::internal::EvalX<MD1, MQ1>(D1D, Q1D, B, DDD, DDQ);
-      kernels::internal::EvalY<MD1, MQ1>(D1D, Q1D, B, DDQ, DQQ);
-      kernels::internal::EvalZ<MD1, MQ1>(D1D, Q1D, B, DQQ, QQQ);
+      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, B, sm0, sm1);
+      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, B, sm1, sm0);
+      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, B, sm0, sm1);
 
       MFEM_FOREACH_THREAD(qz, z, Q1D)
       {
@@ -59,7 +59,7 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
             {
                // Xh = X^T . Sh
                real_t Xh[3];
-               kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ, Xh);
+               kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, sm1, Xh);
 
                real_t H_data[9];
                DeviceMatrix H(H_data, 3, 3);
@@ -74,15 +74,15 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
                // p2 = H . Xh
                real_t p2[3];
                kernels::Mult(3, 3, H_data, Xh, p2);
-               kernels::internal::PushEval<MQ1>(Q1D, qx, qy, qz, p2, QQQ);
+               kernels::internal::sm::PushEval<MQ1>(Q1D, qx, qy, qz, p2, sm0);
             }
          }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::LoadBt<MD1, MQ1>(D1D, Q1D, b, B);
-      kernels::internal::EvalXt<MD1, MQ1>(D1D, Q1D, B, QQQ, DQQ);
-      kernels::internal::EvalYt<MD1, MQ1>(D1D, Q1D, B, DQQ, DDQ);
-      kernels::internal::EvalZt<MD1, MQ1>(D1D, Q1D, B, DDQ, Y, e);
+      kernels::internal::sm::EvalXt<MD1, MQ1>(D1D, Q1D, B, sm0, sm1);
+      kernels::internal::sm::EvalYt<MD1, MQ1>(D1D, Q1D, B, sm1, sm0);
+      kernels::internal::sm::EvalZt<MD1, MQ1>(D1D, Q1D, B, sm0, Y, e);
    });
 }
 
