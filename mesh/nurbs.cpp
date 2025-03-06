@@ -129,13 +129,13 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
-void KnotVector::UniformRefinement(Vector &newknots, int rf) const
+void KnotVector::UniformRefinement(Vector &new_knots, int rf) const
 {
    MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
 
    const real_t h = 1.0 / ((real_t) rf);
 
-   newknots.SetSize(NumOfElements * (rf - 1));
+   new_knots.SetSize(NumOfElements * (rf - 1));
    int j = 0;
    for (int i = 0; i < knot.Size()-1; i++)
    {
@@ -143,7 +143,7 @@ void KnotVector::UniformRefinement(Vector &newknots, int rf) const
       {
          for (int m = 1; m < rf; ++m)
          {
-            newknots(j) = ((1.0 - (m * h)) * knot(i)) + (m * h * knot(i+1));
+            new_knots(j) = ((1.0 - (m * h)) * knot(i)) + (m * h * knot(i+1));
             j++;
          }
       }
@@ -241,27 +241,39 @@ Vector KnotVector::GetFineKnots(const int cf) const
    return mfine;
 }
 
-void KnotVector::Refinement(Vector &newknots, int rf) const
+void KnotVector::Refinement(Vector &new_knots, int rf,
+                            const Array<int> *rf_elem) const
 {
    MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
 
    if (spacing)
    {
-      spacing->ScaleParameters(1.0 / ((real_t) rf));
-      spacing->SetSize(rf * NumOfElements);
+      if (rf_elem)
+      {
+         // Note that ScaleParameters is not called here, because
+         // ScalePartition is assumed to have already done that.
+         MFEM_VERIFY(rf_elem->Size() == NumOfElements, "");
+         spacing->SetSize(NumOfElements);
+      }
+      else // Use scalar factor rf
+      {
+         spacing->ScaleParameters(1.0 / ((real_t) rf));
+         spacing->SetSize(rf * NumOfElements);
+      }
+
       Vector s;
       spacing->EvalAll(s);
 
-      newknots.SetSize((rf - 1) * NumOfElements);
+      new_knots.SetSize(s.Size() - NumOfElements);
 
       const real_t k0 = knot(0);
-      const real_t k1 = knot(knot.Size()-1);
+      const real_t k1 = knot(knot.Size() - 1);
 
       Array<int> span0(NumOfElements + 1);
       span0[0] = 0;
 
       int j = 1;
-      for (int i = 0; i < knot.Size()-1; i++)
+      for (int i = 0; i < knot.Size() - 1; i++)
       {
          if (knot(i) != knot(i+1))
          {
@@ -274,6 +286,8 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
 
       real_t s0 = 0.0;
 
+      int os = 0;
+      int os1 = 0;
       for (int i=0; i<NumOfElements; ++i)
       {
          // Note that existing coarse knots are not modified here according to
@@ -284,20 +298,23 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
          // a sufficiently large refinement factor to produce the desired mesh
          // with only one refinement.
 
-         s0 += s[rf*i];
+         const int rf_i = rf_elem ? (*rf_elem)[i] : rf;
+         s0 += s[os];
 
-         for (j=0; j<rf-1; ++j)
+         for (j = 0; j < rf_i - 1; ++j)
          {
-            // Define a new knot between the modified coarse knots
-            newknots(((rf - 1) * i) + j) = ((1.0 - s0) * k0) + (s0 * k1);
-
-            s0 += s[(rf*i) + j + 1];
+            // Define a new knot between the coarse knots
+            new_knots(os1 + j) = ((1.0 - s0) * k0) + (s0 * k1);
+            s0 += s[os + j + 1];
          }
+
+         os += rf_i;
+         os1 += rf_i - 1;
       }
    }
    else
    {
-      UniformRefinement(newknots, rf);
+      UniformRefinement(new_knots, rf);
    }
 }
 
@@ -732,8 +749,7 @@ KnotVector* KnotVector::FullyCoarsen()
    if (spacing)
    {
       kvc->spacing = spacing->Clone();
-      kvc->spacing->SetSize(1);
-      kvc->spacing->ScaleParameters(GetNE());
+      kvc->spacing->FullyCoarsen();
    }
 
    return kvc;
@@ -1042,15 +1058,15 @@ int NURBSPatch::SetLoopDirection(int dir)
 
 void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
 {
-   Vector newknots;
+   Vector new_knots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
       if (rf[dir] != 1)
       {
-         kv[dir]->Refinement(newknots, rf[dir]);
+         kv[dir]->Refinement(new_knots, rf[dir]);
          for (int i=0; i<multiplicity; ++i)
          {
-            KnotInsert(dir, newknots);
+            KnotInsert(dir, new_knots);
          }
       }
    }
@@ -1059,15 +1075,27 @@ void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
 void NURBSPatch::UniformRefinement(std::vector<Array<int>> const& rf,
                                    int multiplicity)
 {
-   Vector newknots;
+   Vector new_knots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      kv[dir]->Refinement(newknots, rf[dir].Sum());
+      if (fullyCoarsened)
+      {
+         // Note that ScalePartition is used to modify the relative number of
+         // elements per piece in a PiecewiseSpacingFunction.
+         kv[dir]->Refinement(new_knots, rf[dir].Sum());
+      }
+      else
+      {
+         kv[dir]->Refinement(new_knots, rf[dir].Sum(), &rf[dir]);
+      }
+
       for (int i=0; i<multiplicity; ++i)
       {
-         KnotInsert(dir, newknots);
+         KnotInsert(dir, new_knots);
       }
    }
+
+   fullyCoarsened = false;
 }
 
 void NURBSPatch::UniformRefinement(int rf)
@@ -2132,6 +2160,8 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
    }
 
    swap(newpatch);
+
+   fullyCoarsened = true;
 }
 
 NURBSExtension::NURBSExtension(const NURBSExtension &orig)
@@ -5225,6 +5255,79 @@ void NURBSExtension::LoadFactorsForKV(const std::string &filename)
    f.close();
 }
 
+int NURBSExtension::AuxiliaryEdgeNE(int aux_edge)
+{
+   const int signedParentEdge = auxEdges[aux_edge].parent;
+   const int ki0 = auxEdges[aux_edge].ki[0];
+   const int ki1raw = auxEdges[aux_edge].ki[1];
+   int ki1 = ki1raw;
+   if (ki1raw == -1)
+   {
+      const bool rev = signedParentEdge < 0;
+      const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
+      ki1 = KnotVec(parentEdge)->GetNE();
+   }
+
+   return ki1 - ki0;
+}
+
+// parentVerts are ordered with ascending knot index in parent edge, with knots
+// from lower edge endpoint vertex to higher.
+void NURBSExtension::SlaveEdgeToParent(int se, int parent, const Array<int> &os,
+                                       const std::vector<int> &parentVerts,
+                                       Array<int> &edges)
+{
+   Array<int> sev(2);
+   if (se < 0) // Auxiliary edge
+   {
+      for (int i=0; i<2; ++i)
+      {
+         sev[i] = auxEdges[-1 - se].v[i];
+      }
+   }
+   else
+   {
+      patchTopo->GetEdgeVertices(se, sev);
+   }
+
+   // Number of slave and auxiliary edges, not mesh edges
+   const int nedge = parentVerts.size() + 1;
+
+   MFEM_VERIFY(parentVerts.size() + 2 == os.Size(), "");
+
+   Array<int> parentEndpoints;
+   patchTopo->GetEdgeVertices(parent, parentEndpoints);
+
+   bool found = false;
+   for (int i=0; i<nedge; ++i)
+   {
+      const bool first = (i == 0);
+      const bool last = (i == nedge - 1);
+      const int v0 = first ? parentEndpoints[0] : parentVerts[i - 1];
+      const int v1 = last ? parentEndpoints[1] : parentVerts[i];
+      if (sev[0] == v0 && sev[1] == v1)
+      {
+         found = true;
+         MFEM_VERIFY(edges.Size() == os[i + 1] - os[i], "");
+         for (int j=0; j<edges.Size(); ++j)
+         {
+            edges[j] = os[i] + j;
+         }
+      }
+      else if (sev[0] == v1 && sev[1] == v0)
+      {
+         found = true;
+         MFEM_VERIFY(edges.Size() == os[i + 1] - os[i], "");
+         for (int j=0; j<edges.Size(); ++j)
+         {
+            edges[j] = os[i + 1] - 1 - j;
+         }
+      }
+   }
+
+   MFEM_VERIFY(found, "");
+}
+
 void NURBSExtension::GetMasterEdgePieceOffsets(int mid, Array<int> &os)
 {
    const int np = masterEdgeSlaves[mid].size();
@@ -5314,6 +5417,7 @@ int NURBSExtension::SetPatchFactors(int p)
          const int nfe = knotVectors[akv]->GetNE();
          const bool fullSize = kvf.size() > 0 && kvf[akv].Size() == nfe;
          const Array<int> rf_i = fullSize ? kvf[akv] : CoarseToFineFactors(kvf[akv]);
+         const bool rev = kv < 0;
 
          if (rf_i.Size() > 0 && rf.Size() == 0)
          {
@@ -5334,7 +5438,6 @@ int NURBSExtension::SetPatchFactors(int p)
                const int e = masterEdgeSlaves[mid][piece];
                const int s = slaveEdges[e];
 
-               int sf = unsetFactor;
                if (s >= 0) // Not an aux edge
                {
                   // TODO: use KnotInd
@@ -5342,45 +5445,64 @@ int NURBSExtension::SetPatchFactors(int p)
                   const int akvs = kvs < 0 ? -1 - kvs : kvs;
                   if (kvf[akvs].Size() > 0)
                   {
-                     // It is possible for a slave edge to have its own slave
-                     // edges, but masterEdgeSlaves[mid] should contain the
-                     // finest slave edges.
                      MFEM_VERIFY(kvf[akvs].Size() == knotVectors[akvs]->GetNE(), "");
 
-                     sf = kvf[akvs][0];
-                     for (int j=1; j<kvf[akvs].Size(); ++j)
+                     // TODO: refactor. Can the slave and aux cases be combined, since they are more similar now?
+                     Array<int> seParentEdges(kvf[akvs].Size());
+                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], seParentEdges);
+
+                     MFEM_VERIFY(seParentEdges.Size() == os[piece + 1] - os[piece], "");
+
+                     for (int j = os[piece]; j < os[piece + 1]; ++j)
                      {
-                        if (sf != kvf[akvs][j])
+                        const int jj = seParentEdges[j - os[piece]];
+                        const int jr = rev ? rf.Size() - 1 - jj : jj;
+                        const int af = kvf[akvs][j - os[piece]];
+                        if (af == unsetFactor) { continue; }
+                        if (rf.Size() == 0)
+                        {
+                           rf.SetSize(os[numPieces]);
+                           rf = unsetFactor;
+                        }
+
+                        if (rf[jr] != unsetFactor && af != rf[jr])
                         {
                            consistent = false;
                         }
+
+                        rf[jr] = af;
                      }
                   }
                }
                else // Aux edge
                {
                   const int ae = -1 - s;
-                  sf = auxef[ae];  // TODO: set factors on all subedges of the aux edge.
-               }
-
-               if (sf != unsetFactor)
-               {
-                  if (rf.Size() == 0)
+                  if (auxef[ae].Size() > 0)
                   {
-                     rf.SetSize(os[numPieces]);
-                     rf = unsetFactor;
-                  }
+                     Array<int> aeParentEdges(auxef[ae].Size());
+                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], aeParentEdges);
 
-                  const bool rev = kv < 0;
-                  for (int j = os[piece]; j < os[piece + 1]; ++j)
-                  {
-                     const int jr = rev ? rf.Size() - 1 - j : j;
-                     if (rf[jr] != sf && rf[jr] != unsetFactor)
+                     MFEM_VERIFY(auxef[ae].Size() == os[piece + 1] - os[piece], "");
+
+                     for (int j = os[piece]; j < os[piece + 1]; ++j)
                      {
-                        consistent = false;
-                     }
+                        const int jj = aeParentEdges[j - os[piece]];
+                        const int jr = rev ? rf.Size() - 1 - jj : jj;
+                        const int af = auxef[ae][j - os[piece]];
+                        if (af == unsetFactor) { continue; }
+                        if (rf.Size() == 0)
+                        {
+                           rf.SetSize(os[numPieces]);
+                           rf = unsetFactor;
+                        }
 
-                     rf[jr] = sf;
+                        if (rf[jr] != unsetFactor && af != rf[jr])
+                        {
+                           consistent = false;
+                        }
+
+                        rf[jr] = af;
+                     }
                   }
                }
             }
@@ -5423,21 +5545,30 @@ int NURBSExtension::SetPatchFactors(int p)
             {
                const int e = masterEdgeSlaves[mid][piece];
                const int s = slaveEdges[e];
-               const int j0 = os[piece];
-               const int j0r = rev ? rf.Size() - 1 - j0 : j0;
-               const int sf = rf[j0r];
-               for (int j = os[piece] + 1; j < os[piece + 1]; ++j)
-               {
-                  const int jr = rev ? rf.Size() - 1 - j : j;
-                  if (sf != rf[jr])
-                  {
-                     consistent = false;
-                  }
-               }
 
                if (s < 0) // Aux edge
                {
-                  auxef[-1 - s] = sf;
+                  const int aux_edge = -1 - s;
+                  if (auxef[aux_edge].Size() == 0)
+                  {
+                     auxef[aux_edge].SetSize(AuxiliaryEdgeNE(aux_edge));
+                     auxef[aux_edge] = unsetFactor;
+                  }
+
+                  Array<int> aeParentEdges(auxef[aux_edge].Size());
+                  SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], aeParentEdges);
+                  for (int j = os[piece]; j < os[piece + 1]; ++j)
+                  {
+                     const int jj = aeParentEdges[j - os[piece]];
+                     const int jr = rev ? rf.Size() - 1 - jj : jj;
+                     if (rf[jr] == unsetFactor) { continue; }
+                     if (auxef[aux_edge][j - os[piece]] != unsetFactor &&
+                         auxef[aux_edge][j - os[piece]] != rf[jr])
+                     {
+                        consistent = false;
+                     }
+                     auxef[aux_edge][j - os[piece]] = rf[jr];
+                  }
                }
                else
                {
@@ -5448,19 +5579,30 @@ int NURBSExtension::SetPatchFactors(int p)
                   if (kvf[akvs].Size() == 0)
                   {
                      kvf[akvs].SetSize(nse);
-                     kvf[akvs] = sf;
+                     MFEM_ABORT("TODO: set from rf");
                   }
                   else
                   {
-                     MFEM_VERIFY(kvf[akvs].Size() == nse, "TODO: redundant?");
-                     for (int j=0; j<nse; ++j)
+                     MFEM_VERIFY(kvf[akvs].Size() == nse, "");
+
+                     // TODO: refactor!
+                     Array<int> seParentEdges(kvf[akvs].Size());
+                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], seParentEdges);
+
+                     MFEM_VERIFY(seParentEdges.Size() == os[piece + 1] - os[piece], "");
+
+                     for (int j = os[piece]; j < os[piece + 1]; ++j)
                      {
-                        if (kvf[akvs][j] != sf && kvf[akvs][j] != unsetFactor)
+                        const int jj = seParentEdges[j - os[piece]];
+                        const int jr = rev ? rf.Size() - 1 - jj : jj;
+                        const int fj = rf[jr];
+                        if (fj == unsetFactor) { continue; }
+                        if (kvf[akvs][j - os[piece]] != unsetFactor && fj != kvf[akvs][j - os[piece]])
                         {
                            consistent = false;
                         }
 
-                        kvf[akvs][j] = sf;
+                        kvf[akvs][j - os[piece]] = fj;
                      }
                   }
                }
@@ -5634,8 +5776,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
    Array<int> patchState(npatchall);
    patchState = 0;
 
-   auxef.SetSize(auxEdges.size());
-   auxef = unsetFactor;
+   auxef.resize(auxEdges.size());
 
    std::set<int> unchanged;
 
@@ -5865,12 +6006,6 @@ void NURBSExtension::UniformRefinement(Array<int> const& rf,
       {
          std::vector<Array<int>> prf(dim);
          Array<KnotVector*> pkv(dim);
-
-         if (p < npatch)
-         {
-            MFEM_VERIFY(dim == patches[p]->origNE.Size(), "");
-         }
-
          Array<int> edges, orient;
          patchTopo->GetElementEdges(p, edges, orient);
 
@@ -5897,20 +6032,8 @@ void NURBSExtension::UniformRefinement(Array<int> const& rf,
          {
             for (int i=0; i<dim; ++i)
             {
-               // Verify that prf[i] is constant
-               bool isConstant = true;
-               const int f0 = prf[i][0];
-               for (int j=1; j<prf[i].Size(); ++j)
-               {
-                  if (f0 != prf[i][j])
-                  {
-                     isConstant = false;
-                  }
-               }
-
-               MFEM_VERIFY(isConstant, "");
-
                // Collapse prf[i] to a single factor
+               MFEM_VERIFY(prf[i].IsConstant(), "");
                prf[i].SetSize(1);
             }
          }

@@ -295,6 +295,9 @@ public:
    /// Does the Array have Size zero.
    bool IsEmpty() const { return Size() == 0; }
 
+   /// Return true if all entries of the array are the same.
+   bool IsConstant() const;
+
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
