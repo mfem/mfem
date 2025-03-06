@@ -60,9 +60,9 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
       MFEM_SHARED real_t s10[3][MDQ * MDQ * MDQ];
       MFEM_SHARED real_t s11[3][MDQ * MDQ * MDQ];
 
-      kernels::internal::LoadX<MDQ>(e, D1D, LD, sm0);
-      kernels::internal::LoadX<MDQ>(e, D1D, X0, s00);
-      kernels::internal::LoadX<MDQ>(e, D1D, X1, s10);
+      kernels::internal::sm::LoadX<MDQ>(e, D1D, LD, sm0);
+      kernels::internal::sm::LoadX<MDQ>(e, D1D, X0, s00);
+      kernels::internal::sm::LoadX<MDQ>(e, D1D, X1, s10);
 
       kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, b, B);
 

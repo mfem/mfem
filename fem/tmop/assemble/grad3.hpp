@@ -72,16 +72,16 @@ public:
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
-         MFEM_SHARED real_t s_BG[2][MQ1 * MD1];
+         MFEM_SHARED real_t sBG[2][MQ1 * MD1];
          MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
          MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
 
          kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
-         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, s_BG);
+         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, sBG);
 
-         kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, s_BG, sm0, sm1);
-         kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, s_BG, sm1, sm0);
-         kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, s_BG, sm0, sm1);
+         kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
+         kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, sBG, sm1, sm0);
+         kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
 
          MFEM_FOREACH_THREAD(qz, z, Q1D)
          {
@@ -102,7 +102,7 @@ public:
 
                   // Jpr = X^T.DSh
                   real_t Jpr[9];
-                  kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, sm1, Jpr);
+                  kernels::internal::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jpr);
 
                   // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
                   real_t Jpt[9];

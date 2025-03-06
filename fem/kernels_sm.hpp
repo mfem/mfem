@@ -50,6 +50,16 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    MFEM_SYNC_THREAD;
 }
 
+/// Load 3D scalar input vector into shared memory, with comp & pointer
+template<int MDQ>
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
+                                   const DeviceTensor<5, const real_t> &x,
+                                   real_t (&sm)[MDQ*MDQ*MDQ])
+{
+   DeviceCube X(sm, D1D, D1D, D1D);
+   mfem::kernels::internal::LoadX(e, D1D, c, x, X);
+}
+
 /// Load 3D vector tensor into shared memory
 template<int MDQ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,

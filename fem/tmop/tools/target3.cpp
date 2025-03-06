@@ -12,6 +12,7 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
+#include "../../kernels_sm.hpp"
 #include "../../gridfunc.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
@@ -71,19 +72,18 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
       constexpr int DIM = 3;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
-      MFEM_SHARED real_t BG[2][MQ1 * MD1];
-      MFEM_SHARED real_t DDD[3][MD1 * MD1 * MD1];
-      MFEM_SHARED real_t DDQ[6][MD1 * MD1 * MQ1];
-      MFEM_SHARED real_t DQQ[9][MD1 * MQ1 * MQ1];
-      MFEM_SHARED real_t QQQ[9][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sBG[2][MQ1 * MD1];
+      MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
 
-      kernels::internal::LoadX<MD1>(e, D1D, X, DDD);
-      kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
+      kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
+      kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, sBG);
 
-      kernels::internal::GradX<MD1, MQ1>(D1D, Q1D, BG, DDD, DDQ);
-      kernels::internal::GradY<MD1, MQ1>(D1D, Q1D, BG, DDQ, DQQ);
-      kernels::internal::GradZ<MD1, MQ1>(D1D, Q1D, BG, DQQ, QQQ);
+      kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
+      kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, sBG, sm1, sm0);
+      kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
 
       MFEM_FOREACH_THREAD(qz, z, Q1D)
       {
@@ -93,7 +93,7 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
             {
                real_t Jtr[9];
                const real_t *Wid = &W(0, 0);
-               kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, QQQ, Jtr);
+               kernels::internal::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jtr);
                const real_t detJ = kernels::Det<3>(Jtr);
                const real_t alpha = std::pow(detJ / detW, 1. / 3);
                kernels::Set(DIM, DIM, alpha, Wid, &J(0, 0, qx, qy, qz, e));
