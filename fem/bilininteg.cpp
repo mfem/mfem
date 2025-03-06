@@ -4304,7 +4304,6 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          trial_face_fe.CalcShape(ip, face_shape);
          Trans.SetIntPoint(&ip);
          CalcOrtho(Trans.Jacobian(), normal);
-         if (normal.Sum() < 0.) { normal.Neg(); }
          // Side 1 finite element shape function
          test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
          face_shape *= ip.weight;
