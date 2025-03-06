@@ -1304,12 +1304,9 @@ void GridFunction::ProjectVectorFieldOn(GridFunction &vec_field, int comp)
       {
          for (int k = 0; k < dof; k++)
          {
-            int ind = new_vdofs[dof*d+k];
-            if (ind < 0)
-            {
-               ind = -1-ind, vals(k, d) = - vals(k, d);
-            }
-            vec_field(ind) += vals(k, d);
+            real_t s;
+            int ind = FiniteElementSpace::DecodeDof(new_vdofs[dof*d+k], s);
+            vec_field(ind) += s * vals(k, d);
             overlap[ind]++;
          }
       }
