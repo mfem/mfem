@@ -41,6 +41,44 @@ void   UnitStrain(int dim, int i, int j, mfem::DenseMatrix &E);
 void   UnitStrain(int dim, int i, int j, mfem::Vector &E);
 void   MatrixConjugationProduct(const mfem::DenseMatrix &A, const mfem::DenseMatrix &B, mfem::DenseMatrix &C);
 
+class StrainEnergyDensityCoefficient : public Coefficient
+{
+protected:
+   Coefficient * lambda=nullptr;
+   Coefficient * mu=nullptr;
+   GridFunction *u = nullptr; // displacement
+   DenseMatrix grad; // auxiliary matrix, used in Eval
+
+public:
+   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
+                                  GridFunction * u_)
+      : lambda(lambda_), mu(mu_),  u(u_)
+   {
+      MFEM_ASSERT(u, "displacement field is not set");
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      real_t L = lambda->Eval(T, ip);
+      real_t M = mu->Eval(T, ip);
+      u->GetVectorGradient(T, grad);
+      real_t div_u = grad.Trace();
+      int dim = T.GetSpaceDim();
+
+      DenseMatrix I;
+      DenseMatrix stress(dim);
+
+      IdentityMatrix(dim, I);
+      I *= L * div_u;
+
+      stress= grad;
+      stress *= 2.0*M;
+      stress += I;
+
+      return MatrixInnerProduct(grad, stress);;
+   }
+};
+
 
 enum QoIType
 {
@@ -962,8 +1000,8 @@ private:
 class QuantityOfInterest
 {
 public:
-    QuantityOfInterest(mfem::ParMesh* mesh_, enum QoIType qoiType, int order_,int physicsdim = 1)
-    : pmesh(mesh_), qoiType_(qoiType)
+    QuantityOfInterest(mfem::ParMesh* mesh_, enum QoIType qoiType, int order_, Array<int> NeumannBdr = {} ,int physicsdim = 1)
+    : pmesh(mesh_), qoiType_(qoiType), bdr(NeumannBdr)
     {
         int dim=pmesh->Dimension();
 
@@ -1068,6 +1106,8 @@ private:
 
     IntegrationRules *irules;
     int quad_order;
+
+    Array<int> bdr;
 };
 
 class PhysicsSolverBase
@@ -1274,8 +1314,8 @@ private:
 class Elasticity_Solver : public PhysicsSolverBase
 {
 public:
-    Elasticity_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_)
-    : PhysicsSolverBase( mesh_, order_ )
+    Elasticity_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, const Array<int> & neumannBdr, int order_)
+    : PhysicsSolverBase( mesh_, order_ ), bdr(neumannBdr)
     {
         int dim=pmesh->Dimension();
         physics_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
@@ -1339,6 +1379,8 @@ private:
     mfem::Array<int> ess_tdof_list_;
 
     mfem::VectorCoefficient * QCoef_ = nullptr;
+
+    Array<int> bdr;
 };
 
 class VectorHelmholtz

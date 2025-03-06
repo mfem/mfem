@@ -1529,7 +1529,7 @@ double QuantityOfInterest::EvalQoI()
   if(qoiType_ == QoIType::STRUC_COMPLIANCE)
   {
     ::mfem::ParLinearForm loadForm(coord_fes_);
-    loadForm.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*tractionLoad_, 12, 12));
+    loadForm.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*tractionLoad_, 12, 12), bdr);
     loadForm.Assemble();
 
     return loadForm(solgf_);
@@ -1801,14 +1801,14 @@ void QuantityOfInterest::EvalQoIGrad()
   {
     {
       ::mfem::ParLinearForm u_gradForm(coord_fes_);
-      u_gradForm.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*tractionLoad_, 12, 12));
+      u_gradForm.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*tractionLoad_, 12, 12), bdr);
       u_gradForm.Assemble();
       *dQdu_ = 0.0;
       dQdu_->Add(1.0, u_gradForm);
     }
     {
       ::mfem::ParLinearForm ud_gradForm(coord_fes_);
-      ud_gradForm.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*tractionLoad_, solgf_, 12, 12));
+      ud_gradForm.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*tractionLoad_, solgf_, 12, 12), bdr);
       ud_gradForm.Assemble();
       *dQdx_ = 0.0;
       dQdx_->Add(1.0, ud_gradForm);
@@ -2174,7 +2174,6 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
     }
 }
 
-
 void Elasticity_Solver::FSolve()
 {
   this->UpdateMesh(designVar);
@@ -2182,13 +2181,15 @@ void Elasticity_Solver::FSolve()
   Array<int> ess_tdof_list(ess_tdof_list_);
 
   // make coefficients of the linear elastic properties
-  ::mfem::ConstantCoefficient firstLameCoef(0.0);
-  ::mfem::ConstantCoefficient secondLameCoef(1.0);
+  ::mfem::ConstantCoefficient firstLameCoef(0.5769230769);
+  ::mfem::ConstantCoefficient secondLameCoef(1.0/2.6);
+
+
 
   ParBilinearForm a(physics_fes_);
   ParLinearForm b(physics_fes_);
   a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
-  b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*QCoef_));
+  b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*QCoef_), bdr);
 
   a.Assemble();
   b.Assemble();
@@ -2222,8 +2223,8 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     Array<int> ess_tdof_list(ess_tdof_list_);
 
     // make coefficients of the linear elastic properties
-    ::mfem::ConstantCoefficient firstLameCoef(0.0);
-    ::mfem::ConstantCoefficient secondLameCoef(1.0);
+    ::mfem::ConstantCoefficient firstLameCoef(0.5769230769);
+    ::mfem::ConstantCoefficient secondLameCoef(1.0/2.6);
 
     ParBilinearForm a(physics_fes_);
     a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
@@ -2257,7 +2258,7 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     LHS_sensitivity.Assemble();
 
     ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
-    RHS_sensitivity.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*QCoef_, adj_sol, 12,12));
+    RHS_sensitivity.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*QCoef_, adj_sol, 12,12), bdr);
     RHS_sensitivity.Assemble();
 
     *dQdx_ = 0.0;
