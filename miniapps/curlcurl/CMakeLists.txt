@@ -21,8 +21,4 @@ if (MFEM_USE_MPI)
       ${CURLCURL_COMMON_FILES}
       LIBRARIES mfem)
 
-  add_mfem_miniapp(nl_alfven_system
-      MAIN nl_alfven_system.cpp
-      ${CURLCURL_COMMON_FILES}
-      LIBRARIES mfem)
 endif ()

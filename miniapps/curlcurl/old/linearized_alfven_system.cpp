@@ -5,18 +5,11 @@
 //
 // Sample run: mpirun -np 4 alfven -dt 0.01 -o 2
 //
-// TODO :
-//  + Change AA class to cal FPMult() rather than Mult, then just
-//  define special FPMult() function in AlfvenOperator class.
-//  + This doesnt work because it is only Operator in AA, need more mods...
-
 
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <utility>
-#include <set>
-#include <deque>
 
 #include "mfem.hpp"
 
@@ -31,392 +24,8 @@ void computeCrossB0(const Vector& x, DenseMatrix& CrossB0);
 void computeCrossB0transpose(const Vector& x, DenseMatrix& CrossB0);
 void computeOmega(const Vector& x, DenseMatrix& omega);
 
-/// Nonlinear Picard fixed-point iteration
-class PicardIteration : public IterativeSolver
-{
-public:
-  PicardIteration() : IterativeSolver() { }
 
-#ifdef MFEM_USE_MPI
-  PicardIteration(MPI_Comm _comm) : IterativeSolver(_comm) { }
-#endif
-
-  void Mult(const Vector &x, Vector &y) const { }
-
-  virtual void SetOperator(const Operator &op)
-  {
-    oper = &op;
-    height = op.Height();
-    width = op.Width();
-    MFEM_ASSERT(height == width, "square Operator is required.");
-  }
-
-  void Solve(Vector &x) const
-  {
-    Vector temp = x;
-    double resid = std::sqrt(InnerProduct(GetComm(), temp, temp));
-    if (print_level == 1) {
-       mfem::out << "  Picard iteration : " << std::setw(3) << 0
-               << "  ||u|| = " << resid << std::endl;
-    }
-    double final_norm = std::max(rel_tol*resid, abs_tol);
-
-    int iter = 0;
-    while (resid > final_norm) {
-      iter ++;
-      oper->Mult(x, x);
-      temp -= x;                 // Measure resid
-      resid = std::sqrt(InnerProduct(GetComm(), temp, temp));
-      temp = x;
-      if (print_level == 1) {
-         mfem::out << "  Picard iteration : " << std::setw(3) << iter
-                 << "  ||G(u) - u|| = " << resid << std::endl;
-      }
-
-      if (iter >= max_iter) {
-        mfem_warning("Nonlinear iteration did not converge!");
-        break;
-      }
-    }
-  }
-};
-
-/// Nonlinear Anderson Acceleration
-class AndersonAcceleration : public IterativeSolver
-{
-protected:
-   int maxVecs; // see SetKDim()
-   int AAstart;
-   bool restart;
-   bool isFixedPointOp;
-   double omega;
-
-   /// Apply fixed-point Mult and compute residual.
-   //  For !isFixedPointOp:
-   //    y <-- G(x) = x + A(x) - b and r <-- G(x) - x = A(x) - b
-   //  For isFixedPointOp:
-   //    y <-- G(x) = A(x) - b and r <-- G(x) - x = A(x) - b - x
-   void FixedPointMult(const Vector &x, Vector &y, Vector &r) const
-   {
-      // Assume Operator represents a fixed-point operator *with
-      // right-hand side*, so we iterate x_{k+1} = M^{-1}G(x_k)
-      oper->Mult(x, y);
-      r = y;
-      r -= x;
-   }
-
-   // Helper function for Anderson Acceleration
-   void QRdelete(std::deque<Vector *> &Q, DenseMatrix &R) const
-   {
-      Vector temp(Q[0]->Size());
-      for (int i=0; i<(maxVecs-1); i++) {
-         double d = sqrt( R(i,i+1)*R(i,i+1) + R(i+1,i+1)*R(i+1,i+1) );
-         double c = R(i,i+1) / d;
-         double s = R(i+1,i+1) / d;
-         R(i,i+1) = d;
-         R(i+1,i+1) = 0;
-
-         if (i < (maxVecs-2)) {
-            for (int j=(i+2); j<maxVecs; j++) {
-               d = c*R(i,j) + s*R(i+1,j);
-               R(i+1,j) = -s*R(i,j) + c*R(i+1,j);
-               R(i,j) = d;
-            }
-         }
-         // temp = c*Q[i] + s*Q[i+1];
-         add(c, *(Q[i]), s, *(Q[i+1]), temp);
-         // Q[i+1] = -s*Q[i] + c*Q[i+1];
-         *(Q[i+1]) *= c;
-         Q[i+1] -> Add(-s, *(Q[i]));
-         *(Q[i]) = temp;
-      }
-      
-      // Shift Q <- Q[:,0:(m-2)], i.e., delete last column of Q
-      delete Q.back();
-      Q.pop_back();
-
-      // Shift columns of R to the left by one, R = R[0:(m−2), 1:(m-1)]
-      for (int j=1; j<maxVecs; j++) {
-         for (int i=0; i<maxVecs; i++) {
-            R(i,j-1) = R(i,j);
-         }
-      }
-   }
-
-public:
-   AndersonAcceleration() : IterativeSolver(), maxVecs(25), AAstart(0),
-    omega(1), restart(false), isFixedPointOp(false) { }
-
-#ifdef MFEM_USE_MPI
-   AndersonAcceleration(MPI_Comm _comm) : IterativeSolver(_comm),
-      maxVecs(25), AAstart(0), omega(1), restart(false),
-      isFixedPointOp(false) { }
-#endif
-
-   /// Maximum number of vectors to store in Krylov-like space
-   void SetKDim(int dim) { maxVecs = dim; }
-
-   /// Number of fixed-point iterations to do before starting AA
-   void SetAAStart(int start_) { AAstart = start_; }
-
-   /// Boolean to restart, that is, erase entire space after maxVecs
-   //  are stored (AAstart=true) or use a sliding space (AAstart=false)
-   //  where one vector is deleted to make room for a new one.
-   void SetRestart(bool restart_) { restart = restart_; }
-
-   /// Set relaxation weight
-   void SetWeight(double omega_) { omega = omega_; }
-
-   void Mult(const Vector &x, Vector &y) const { }
-
-   virtual void SetOperator(const Operator &op)
-   {
-      oper = &op;
-      height = op.Height();
-      width = op.Width();
-      MFEM_ASSERT(height == width, "square Operator is required.");
-   }
-
-   void Solve(Vector &x) const
-   {
-      MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-     
-      int n = width;
-      int numVecs = 0;
-      double resid, norm_df;
-      double min_diag = 1e-13;
-      final_norm = -1;
-
-      // Check vector is initialized, set to zero for
-      // iterative_mode = false
-      if (x.Size() != n) {
-         std::cout << "Warning!!! - AA input vector wrong size!\n";
-      }
-
-      // Storage containers for acceleration
-      std::deque<Vector *> G;
-      std::deque<Vector *> Q;
-      DenseMatrix R(maxVecs);
-      R = 0.0;
-      Vector g_old(n);
-      Vector g_current(n);
-      Vector f_old(n);
-      Vector f_current(n);
-      Vector gamma(maxVecs);
-      Vector rhs(maxVecs);
-      Vector correction;
-      if (omega > 0 && std::abs(omega -  1) > 1e-14) {
-         correction.SetSize(n);
-      }
-      Vector *dg;
-      Vector *df;
-
-      resid = std::sqrt(InnerProduct(GetComm(), x, x));
-      if (print_level == 1) {
-         mfem::out << "  AA iteration : " << std::setw(3) << 0
-                 << "  ||u|| = " << resid << std::endl;
-      }
-      if (final_norm < 0) {
-         final_norm = std::max(rel_tol*resid, abs_tol);
-      }
-
-      // Loop over AA iterations
-      int k;
-      for (k=0; k<max_iter; k++) {
-
-         // Compute g_current = G(x), f_current = G(x) - x
-         this->FixedPointMult(x, g_current, f_current); 
-
-         // Check norm of current approximation to fixed point G(u) = u
-         resid = Norm(f_current);
-         MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
-         if (print_level == 1)
-         {
-            mfem::out << "  AA iteration : " << std::setw(3) << k+1
-                    << "  ||G(u) - u|| = " << resid << std::endl;
-         }
-
-         // Check for convergence
-         if (resid <= final_norm)
-         {
-            final_norm = resid;
-            final_iter = k;
-            converged = 1;
-            goto finish;
-         }
-
-         // Start Anderson Acceleration after AAstart FP iterations
-         if (k > AAstart) {
-            // df = f_current - f_old; 
-            df = new Vector(n);
-            add(1.0, f_current, -1.0, f_old, *df);
-            // dg = g_current - g_old;
-            dg = new Vector(n);
-            add(1.0, g_current, -1.0, g_old, *dg);
-         
-            if (numVecs < maxVecs) {
-               G.push_back(dg);
-            }
-            else {
-               delete G[0];
-               G.pop_front();
-               G.push_back(dg);
-            }
-            numVecs++;
-            dg = NULL;
-         }
-         
-         f_old = f_current;
-         g_old = g_current;
-         
-         // First iteration or initial fixed-point iterations
-         if (numVecs == 0) {
-            x = g_current;
-            continue;
-         }
-
-         // All later iterations: orthogonalize and find best approximation
-         if (numVecs == 1) {
-            norm_df = Norm(*df);
-            MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
-            (*df) /= norm_df;
-            Q.push_back(df);
-            R(0,0) = norm_df;
-            df = NULL;
-         }
-         else {
-            // Remove first column in basis F and R, reorthogonalize
-            if (numVecs > maxVecs) {
-               this->QRdelete(Q, R);
-               numVecs--;
-            }
-            // Compute last column of R
-            for (int i=0; i<(numVecs-1); i++) {
-               R(i,numVecs-1) = Dot(*(Q[i]), *df);
-               // df -= R(i,numVecs-1) * Q[i]
-               df -> Add(-R(i,numVecs-1), *(Q[i]));
-            }
-            norm_df = Norm(*df);
-            MFEM_ASSERT(IsFinite(norm_df), "norm_df = " << norm_df);
-            (*df) /= norm_df;
-            Q.push_back(df);
-            R(numVecs-1, numVecs-1) = norm_df;
-            df = NULL;
-         }
-
-         // Back solve for new weights, R\gamma = Q^T * f_current
-         rhs = 0.0;
-         gamma = 0.0;
-         for (int i=0; i<numVecs; i++) {
-            rhs(i) = Dot(*(Q[i]), f_current);   // Form right hand side
-         }
-         for (int i=(numVecs-1); i>=0; i--) {
-            double temp = rhs(i);
-            for (int j=(i+1); j<numVecs; j++) {
-               temp -= R(i,j)*gamma(j);
-            }
-            if (std::abs(R(i,i)) < min_diag) {
-               gamma(i) = 0.0;
-               std::cout << "Diagonal of R -- " << R(i,i) << " ~ 0.\n";
-            }
-            else {
-               gamma(i) = temp / R(i,i);            
-            }
-         }
-
-         /// DEBUG --> test backsolve
-         Vector test(numVecs);
-         for (int i=0; i<numVecs; i++) {
-            test(i) = 0;
-            for (int j=i; j<numVecs; j++) {
-               test(i) += R(i,j) * gamma(j);
-            }
-            if (std::abs(rhs(i) - test(i)) > 1e-10) {
-               std::cout << "Bad solve! Err = " << rhs(i) - test(i) << "\n";
-            }
-         }
-
-         // Compute updated solution x = g_current − G*\gamma 
-         x = g_current;
-         for (int i=0; i<numVecs; i++) {
-            // x -= gamma(i)*G[i]
-            x.Add(-gamma(i), *(G[i]));
-         }
-
-         // Apply damped iteration for \omega \in (0,1),
-         //   x -= (1−omega) * (f_current − Q*R*gamma);
-         if (omega > 0 && std::abs(omega -  1) > 1e-14) {
-            // Redefine rhs = R*gamma
-            for(int i=0; i<numVecs; i++) {
-               rhs(i) = 0;
-               for (int j=i; j<numVecs; j++) {
-                  rhs(i) += R(i,j)*gamma(j);
-               }
-            }
-            correction = f_current;
-            for (int i=0; i<numVecs; i++) {
-               // correction -= rhs(i)*Q[i]
-               correction.Add(-rhs(i), *(Q[i]));
-            }
-            // x -= (1 - omega) * correction;
-            x.Add( -(1 - omega), correction);
-         }
-
-         // Restart AA minimization by eliminating all vectors but the most recent
-         if (restart && (numVecs == maxVecs)) {
-            for (int i=0; i<(maxVecs-1); i++) {
-               delete G[0];
-               G.pop_front();          
-               delete Q[0];
-               Q.pop_front();
-            }
-            R = 0.0;
-            R(0,0) = norm_df;
-            numVecs = 1;
-            if (print_level == 1)
-            {
-               mfem::out << "Restarting..." << '\n';
-            }
-         }
-      }
-
-      // Compute final residual, save counts for solve
-      this->FixedPointMult(x, g_current, f_current); 
-      resid = Norm(f_current);
-      MFEM_ASSERT(IsFinite(resid), "||G(u) - u|| = " << resid);
-      final_norm = resid;
-      final_iter = max_iter;
-      if (resid <= final_norm) converged = 1;
-      else converged = 0;
-
-   finish:
-      if (print_level == 3)
-      {
-         mfem::out << "  Iteration : " << std::setw(3) << k
-                 << "  ||G(u) - u|| = " << resid << std::endl;
-      }
-      else if (print_level == 2)
-      {
-         mfem::out << "Anderson Acceleration: Number of iterations: " << final_iter << '\n';
-      }
-      if (print_level >= 0 && !converged)
-      {
-         mfem::out << "Anderson Acceleration: No convergence!\n";
-      }
-
-      // Cleanup pointers
-      for (int i=0; i<numVecs; i++) {
-         delete G[0];
-         G.pop_front();          
-         delete Q[0];
-         Q.pop_front();
-      }
-      delete dg;
-      delete df;
-   }
-};
-
-/*******************************************************************
+/* ******************************************************************
 * Alfven time-dependent non-linear operator. Explicit interface 
 * solves the following system of ODEs:
 *
@@ -431,7 +40,6 @@ public:
                  std::shared_ptr<ParFiniteElementSpace>& bspace,
                  Array<int>& ess_tdof_list,
                  double gmres_tol,
-                 int nonlinear_solve,
                  int myid);
   ~AlfvenOperator() {
     // if (A11_) delete A11_;
@@ -444,9 +52,8 @@ public:
   // other member functions
   void Init(double eta);
   void UpdateMatrices(const Vector& u) const;
-  void UpdateLinearSolver(double dt, const Vector& u) const;
+  void UpdateLinearSolver(double dt, const Vector& u);
   void FormBlockSystem(int mode, double dt=0) const;
-  void MassMult(const Vector& u, Vector& v);
 
   // getters / setters
   std::shared_ptr<BlockOperator> get_system() { return system_; }
@@ -459,188 +66,147 @@ public:
 
 private:
   std::shared_ptr<ParFiniteElementSpace> vspace_, bspace_;
-  int ntv_, ntb_, myid_, nonlinear_solve_;
-  bool fixed_point_mult_;
+  int ntv_, ntb_, myid_;
 
   mutable std::shared_ptr<BlockOperator> system_;
   Array<int> block_offsets_, block_true_offsets_; // number of variables + 1
   Array<int>& ess_tdof_list_;
 
   double eta_;
-  mutable double current_dt_;
 
-  std::shared_ptr<HypreParMatrix> M00_, M11_, S11_;
-  mutable std::shared_ptr<HypreParMatrix> P11add_;
+  std::shared_ptr<HypreParMatrix> M00_, M11_, S11_, P11add_;
   mutable std::shared_ptr<HypreParMatrix> A11_, B01_;
   mutable TransposeOperator *B10_;
 
-  mutable std::shared_ptr<GMRESSolver> gmres_; // solver for M u + dt K u, where u = (V, B)
+  std::shared_ptr<GMRESSolver> gmres_; // solver for M u + dt K u, where u = (V, B)
   double gmres_tol_;
-  Vector z_;
 
-  mutable std::shared_ptr<BlockDiagonalPreconditioner> pc_;
-  mutable std::shared_ptr<HypreSolver> inv00_, inv11_;
+  std::shared_ptr<BlockDiagonalPreconditioner> pc_;
+  std::shared_ptr<HypreSolver> inv00_, inv11_;
 
   // statistics
   mutable int itrs0_, itrs1_, itrs2_;
 };
 
 
-/*******************************************************************
+/* ******************************************************************
 * Alfven operator constructor
 ****************************************************************** */
 AlfvenOperator::AlfvenOperator(std::shared_ptr<ParFiniteElementSpace>& vspace,
                                std::shared_ptr<ParFiniteElementSpace>& bspace,
                                Array<int>& ess_tdof_list,
                                double gmres_tol,
-                               int nonlinear_solve,
                                int myid)
   : TimeDependentOperator(vspace->TrueVSize() + bspace->TrueVSize(), 0.0), 
     vspace_(vspace),
     bspace_(bspace),
     ess_tdof_list_(ess_tdof_list),
     gmres_tol_(gmres_tol),
-    nonlinear_solve_(nonlinear_solve),
-    myid_(myid),
-    fixed_point_mult_(false)
+    myid_(myid)
 {
   // A11_ = nullptr; // FIXME (shares ptr?)
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Alfven operator API for explicit time integration
 ****************************************************************** */
 void AlfvenOperator::Mult(const Vector& u, Vector& du_dt) const
 {
-  // Modified mult to specifically use in Anderson Acceleration
-  // Fixed-point solve
-  if (fixed_point_mult_) {
-    UpdateMatrices(u);                  // Update linearized nonlinear operator L[x]
-    FormBlockSystem(2, current_dt_);    // Form matrix (M - dt*L[x])
-    UpdateLinearSolver(current_dt_, u); // Construct preconditioner
-    gmres_->Mult(z_, du_dt);            // Solve linearized system
-    if (myid_ == 0) {
-      std::cout << "\tgmres iterations: " << gmres_->GetNumIterations() << std::endl;
-    }
-  }
-  // Standard Mult as used by, e.g., explicit time integration
-  else {
-    // Update nonlinear operators
-    UpdateMatrices(u);
-    FormBlockSystem(1);
+  std::cout << "Updating mats explicit mult\n";
+  UpdateMatrices(u);
+  FormBlockSystem(1);
 
-    Vector f(u);
-    system_->Mult(u, f); 
+  Vector f(u);
+  system_->Mult(u, f); 
 
-    CGSolver M00_solver(MPI_COMM_WORLD), M11_solver(MPI_COMM_WORLD);
-    HypreSmoother M00_prec, M11_prec;
+  CGSolver M00_solver(MPI_COMM_WORLD), M11_solver(MPI_COMM_WORLD);
+  HypreSmoother M00_prec, M11_prec;
 
-    M00_solver.iterative_mode = false;
-    M00_solver.SetRelTol(1e-6);
-    M00_solver.SetAbsTol(0.0);
-    M00_solver.SetMaxIter(30);
-    M00_solver.SetPrintLevel(0);
+  M00_solver.iterative_mode = false;
+  M00_solver.SetRelTol(1e-6);
+  M00_solver.SetAbsTol(0.0);
+  M00_solver.SetMaxIter(30);
+  M00_solver.SetPrintLevel(0);
 
-    M00_prec.SetType(HypreSmoother::Jacobi);
-    M00_solver.SetPreconditioner(M00_prec);
-    M00_solver.SetOperator(*M00_);
+  M00_prec.SetType(HypreSmoother::Jacobi);
+  M00_solver.SetPreconditioner(M00_prec);
+  M00_solver.SetOperator(*M00_);
 
-    M11_solver.iterative_mode = false;
-    M11_solver.SetRelTol(1e-6);
-    M11_solver.SetAbsTol(0.0);
-    M11_solver.SetMaxIter(30);
-    M11_solver.SetPrintLevel(0);
+  M11_solver.iterative_mode = false;
+  M11_solver.SetRelTol(1e-6);
+  M11_solver.SetAbsTol(0.0);
+  M11_solver.SetMaxIter(30);
+  M11_solver.SetPrintLevel(0);
 
-    M11_prec.SetType(HypreSmoother::Jacobi);
-    M11_solver.SetPreconditioner(M11_prec);
-    M11_solver.SetOperator(*M11_);
+  M11_prec.SetType(HypreSmoother::Jacobi);
+  M11_solver.SetPreconditioner(M11_prec);
+  M11_solver.SetOperator(*M11_);
 
-    Vector v(f.GetData(), ntv_);
-    Vector dv_dt(du_dt.GetData(), ntv_);
-    M00_solver.Mult(v, dv_dt);
-    itrs0_ = M00_solver.GetNumIterations();
+  Vector v(f.GetData(), ntv_);
+  Vector dv_dt(du_dt.GetData(), ntv_);
+  M00_solver.Mult(v, dv_dt);
+  itrs0_ = M00_solver.GetNumIterations();
 
-    Vector b(f.GetData() + ntv_, ntb_);
-    Vector db_dt(du_dt.GetData() + ntv_, ntb_);
-    M11_solver.Mult(b, db_dt);
-    itrs1_ = M11_solver.GetNumIterations();
+  Vector b(f.GetData() + ntv_, ntb_);
+  Vector db_dt(du_dt.GetData() + ntv_, ntb_);
+  M11_solver.Mult(b, db_dt);
+  itrs1_ = M11_solver.GetNumIterations();
 
-    // negate the time rate, see the definition of the block system for 
-    // explicit time integrator
-    du_dt.Neg();
+  // negate the time rate, see the definition of the block system for 
+  // explicit time integrator
+  du_dt.Neg();
 
-    if (myid_ == 0) {
-      std::cout << "  mass matrix solvers: " << itrs0_ << " " << itrs1_ << std::endl;
-    }
+  if (myid_ == 0) {
+    std::cout << "  mass matrix solvers: " << itrs0_ << " " << itrs1_ << std::endl;
   }
 }
 
-/*******************************************************************
+
+/* ******************************************************************
 * Alfven operator API for implicit time integration
 ****************************************************************** */
 void AlfvenOperator::ImplicitSolve(const double dt, const Vector& u, Vector& du_dt)
 {
-  // Here we use Picard iterations to solve a nonlinear equation
-  // for the Runge-Kutta stage vector k,
-  //
-  //    M*k = N(u+dt*k)                     (1)
-  //
-  // for nonlinear operator N. We assume N can be written as
-  //
-  //    N(u+dt*k) := L[u+dt*k](u+dt*k) + f(t)
-  //
-  // where L is a matrix-valued operator evaluated at u+dt*k and f(t)
-  // a (potentially zero) time-dependent forcing vector. (1) can be
-  // rewritten as a fixed-point equation
-  //
-  //    x = (M - dt*L[x])^{-1} (Mu + f)     (2)
-  //
-  // where x := u + dt*k, which can be solved using a Picard iteration,
-  // where a function G(x) = x is solved via iterations x_{k+1} = G(x_k).
-  //
-  //    Note, system_ = M + dtK
+  UpdateMatrices(u);
+  FormBlockSystem(2, dt);
+  UpdateLinearSolver(dt, u);
 
-  double tol = 1e-6;
-  int maxiter = 100;
-  current_dt_ = dt;
+  // Solve du_dt = M^{-1}*[-K(u + dt * du/dt)] for du/dt, where K is linearized 
+  // operator and u = (V, B).
+  Vector z(u);
+  system_->Mult(u, z);
 
-  // Right-hand side for nonlinear iteration
-  z_.SetSize(u.Size());    // Vector for right-hand side
-  MassMult(u, z_);   // NOTE : Add forcing function here if one exists
-  du_dt = u;        // Set u as initial guess for x (2)
+  // subtruct: z := z - M u
+  Vector v(u);
 
-  fixed_point_mult_ = true;
-  if (nonlinear_solve_ == 0) {
-    PicardIteration PI(MPI_COMM_WORLD);
-    PI.SetOperator(*this);
-    PI.SetRelTol(tol);
-    PI.SetMaxIter(maxiter);
-    PI.SetPrintLevel(1);
-    PI.Solve(du_dt);
+  Vector u0(u.GetData(), ntv_);
+  Vector u1(u.GetData() + ntv_, ntb_);
+
+  Vector v0(v.GetData(), ntv_);
+  Vector v1(v.GetData() + ntv_, ntb_);
+
+  Vector z0(z.GetData(), ntv_);
+  Vector z1(z.GetData() + ntv_, ntb_);
+
+  M00_->Mult(u0, v0);  
+  M11_->Mult(u1, v1);  
+
+  z0 -= v0;
+  z1 -= v1;
+
+  z /= dt; 
+  z.Neg();
+  gmres_->Mult(z, du_dt);
+
+  itrs2_ = gmres_->GetNumIterations();
+  if (myid_ == 0) {
+    std::cout << "  gmres solver: " << itrs2_ << std::endl;
   }
-  else {
-    AndersonAcceleration AA(MPI_COMM_WORLD);
-    AA.SetOperator(*this);
-    AA.SetKDim(10);
-    AA.SetRestart(true); // WORKS
-    AA.SetAAStart(0);    // WORKS
-    AA.SetWeight(1.0);   // Not robust but seems to work
-    AA.SetRelTol(tol);
-    AA.SetMaxIter(maxiter);
-    AA.SetPrintLevel(1);
-    AA.Solve(du_dt);
-  }
-  fixed_point_mult_ = false;
-
-  // Above we solved for x = u + dt*k, where k is the desired update
-  // Map du_dt -> k.
-  du_dt -= u;
-  du_dt /= dt;
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Define 2x2 block system
 ****************************************************************** */
 void AlfvenOperator::Init(double eta)
@@ -693,21 +259,8 @@ void AlfvenOperator::Init(double eta)
   delete form11s;
 }
 
-/*******************************************************************
-* Apply mass matrices on both spaces, v = Mu, where u,v are block vectors
-****************************************************************** */
-void AlfvenOperator::MassMult(const Vector& u, Vector& v)
-{
-  Vector u0(u.GetData(), ntv_);
-  Vector u1(u.GetData() + ntv_, ntb_);
-  Vector v0(v.GetData(), ntv_);
-  Vector v1(v.GetData() + ntv_, ntb_);
 
-  M00_->Mult(u0, v0);  
-  M11_->Mult(u1, v1);  
-}
-
-/*******************************************************************
+/* ******************************************************************
 * Update matrices using the previous time-step solution
 ****************************************************************** */
 void AlfvenOperator::UpdateMatrices(const Vector& u) const
@@ -735,10 +288,10 @@ void AlfvenOperator::UpdateMatrices(const Vector& u) const
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Update solver and preconditioner using the previous solution
 ****************************************************************** */
-void AlfvenOperator::UpdateLinearSolver(double dt, const Vector& u) const
+void AlfvenOperator::UpdateLinearSolver(double dt, const Vector& u)
 {
   // update matrices
   ParGridFunction bfun(bspace_.get());
@@ -783,7 +336,7 @@ void AlfvenOperator::UpdateLinearSolver(double dt, const Vector& u) const
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Form block system from elemental matrices
 * mode:
 *   0 : Qi's hardcoded implicit solver, requires dt
@@ -824,7 +377,7 @@ void AlfvenOperator::FormBlockSystem(int mode, double dt) const
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Alfven linearized system
 ****************************************************************** */
 int main(int argc, char *argv[])
@@ -836,7 +389,7 @@ int main(int argc, char *argv[])
 
   // default values for skipped input
   int nz = 3; // 3 is the minimal value for a periodic mesh
-  int dim(3), order(1), refinement(1), ode_solver_type(11), nonlinear_solve(1);
+  int dim(3), order(1), refinement(1), ode_solver_type(11);
   double dt(1.0/64), tfin(1.0), io_freq(0.002), eta(1e-5), gmres_tol(1e-6);
   bool visualization(false);
 
@@ -845,6 +398,7 @@ int main(int argc, char *argv[])
   args.AddOption(&nz, "-nz", "--num-elem", "number of elements.");
   args.AddOption(&order, "-o", "--order", "Finite element order RT(o-1) + ND(o).");
   args.AddOption(&refinement, "-r", "--refinement", "Refinement leveles for parallel mesh.");
+
   args.AddOption(&c0, "-c0", "--c0", "set c0 in the background B.");
   args.AddOption(&dt, "-dt", "--dt", "set dt.");
   args.AddOption(&tfin, "-tfin", "--tfin", "set final time.");
@@ -858,7 +412,6 @@ int main(int argc, char *argv[])
                  "            22 - Implicit Midpoint Method,\n\t"
                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
 
-  args.AddOption(&nonlinear_solve, "-nl-solve", "--nonlinear-solve", "nonlinear solver, Picard=0, AA=1 (default).");
   args.AddOption(&gmres_tol, "-gmres_tol", "--gmres_tol", "set tolerance for linear solver (GMRES).");
 
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis", "--no-visualization", "GLVis visualization.");
@@ -936,6 +489,23 @@ int main(int argc, char *argv[])
   VectorFunctionCoefficient Bcoeff(dim, computeB0);
   B0.ProjectCoefficient(Bcoeff);
 
+  // compute RHS for GMRES solve (OBSOLETE)
+  /*
+  VectorConstantCoefficient zero(Vector({ 0.0, 0.0, 0.0 }));
+  ParLinearForm *form0(new ParLinearForm);
+  form0->Update(vspace.get(), rhs.GetBlock(0), 0);
+  form0->AddDomainIntegrator(new VectorFEDomainLFIntegrator(zero));
+  form0->Assemble();
+  form0->ParallelAssemble(trueRhs.GetBlock(0));
+ 
+  VectorFunctionCoefficient func(3, computeB0);
+  ParLinearForm *form1(new ParLinearForm);
+  form1->Update(bspace.get(), rhs.GetBlock(1), 0);
+  form1->AddDomainIntegrator(new VectorFEDomainLFIntegrator(func));
+  form1->Assemble();
+  form1->ParallelAssemble(trueRhs.GetBlock(1));
+  */
+
   // explicit time-stepping
   ODESolver *ode_solver;
   switch (ode_solver_type) {
@@ -963,8 +533,7 @@ int main(int argc, char *argv[])
   bool implicit = (ode_solver_type < 4 || ode_solver_type > 21) ? true : false;
 
   // initialized block system
-  AlfvenOperator op(vspace, bspace, ess_tdof_list,
-    gmres_tol, nonlinear_solve, myid);
+  AlfvenOperator op(vspace, bspace, ess_tdof_list, gmres_tol, myid);
   op.Init(eta);
   op.SetTime(0.0);
   ode_solver->Init(op);
@@ -1028,7 +597,7 @@ int main(int argc, char *argv[])
 
     nloop++;
   }
-  if (myid == 0) std::cout << "SIMULATION SUCCESSFUL\n";
+  if (myid == 0) std::cout << "SUMULATION SUCCESSFUL\n";
 
   delete rt_coll;
   delete nd_coll;
@@ -1038,7 +607,7 @@ int main(int argc, char *argv[])
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Compute B0
 ****************************************************************** */
 void computeB0(const Vector& x, Vector& B0)
@@ -1051,7 +620,7 @@ void computeB0(const Vector& x, Vector& B0)
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * Compute V0
 ****************************************************************** */
 void computeV0(const Vector& x, Vector& V0)
@@ -1062,7 +631,7 @@ void computeV0(const Vector& x, Vector& V0)
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * OBSOLETE. Compute tensor T in T w = (w x B0) or its transpose
 ****************************************************************** */
 void computeCrossB0(const Vector& x, DenseMatrix& crossB0)
@@ -1096,7 +665,7 @@ void computeCrossB0transpose(const Vector& x, DenseMatrix& crossB0)
 }
 
 
-/*******************************************************************
+/* ******************************************************************
 * OBSOLETE. Compute Omega = |B0|^2 I - B0 B0^T
 ****************************************************************** */
 void computeOmega(const Vector& x, DenseMatrix& omega)
