@@ -5,6 +5,19 @@ using mfem::internal::tensor;
 
 constexpr int DIMENSION = 2;
 
+template <typename T, int dim>
+MFEM_HOST_DEVICE inline
+tensor<T, 3, 3> tensor_to_3D(const tensor<T, dim, dim>& A)
+{
+   tensor<T, 3, 3> A3D{};
+   for (int i = 0; i < dim; i++) {
+      for (int j = 0; j < dim; j++) {
+         A3D[i][j] = A[i][j];
+      }
+   }
+   return A3D;
+}
+
 template <typename Material, int dim = DIMENSION>
 struct MomentumRefStateQFunction
 {
@@ -19,7 +32,9 @@ struct MomentumRefStateQFunction
    {
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
-      auto P = material(dudX);
+      auto dudX3D = tensor_to_3D(dudX);
+      auto P3D = material(dudX3D);
+      auto P = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
       auto JxW = det(J) * w * transpose(invJ);
       return mfem::tuple{P * JxW};
    }
@@ -29,23 +44,20 @@ struct MomentumRefStateQFunction
 
 struct StVenantKirchhoff
 {
-   static constexpr int dim = 2;
-
    MFEM_HOST_DEVICE inline
-   auto operator()(const tensor<real_t, dim, dim> & dudX) const
+   auto operator()(const tensor<real_t, 3, 3> & dudX) const
    {
-      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      constexpr auto I = mfem::internal::IsotropicIdentity<3>();
       const real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
       auto E = 0.5 * (dudX + transpose(dudX) + dot(transpose(dudX), dudX));
       auto S = lambda * tr(E) * I + 2.0 * mu * E;
-      auto F = mfem::internal::IsotropicIdentity<dim>() + dudX;
+      auto F = mfem::internal::IsotropicIdentity<3>() + dudX;
       return dot(F, S);
    }
    
    real_t mu;
    real_t nu;
 };
-
 class ElasticityOperator : public Operator
 {
    static constexpr int Displacement = 0;
