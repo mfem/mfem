@@ -2398,7 +2398,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    }
    else
    {
-      const Operator *tr_P = c_pfes->GetProlongationMatrix();
+      const Operator *tr_P = c_fes->GetProlongationMatrix();
 
       if (b_tr.Size() != tr_P->Width())
       {
