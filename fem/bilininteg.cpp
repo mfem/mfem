@@ -4308,7 +4308,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
          face_shape *= ip.weight;
          //tie braking by global vector [+1,+1]
-         if (normal.Sum() > 0.) { face_shape.Neg(); }
+         //if (normal.Sum() > 0.) { face_shape.Neg(); }
          for (i = 0; i < ndof1; i++)
             for (j = 0; j < face_ndof; j++)
             {
