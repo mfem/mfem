@@ -320,7 +320,6 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
-   static constexpr int Max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
@@ -328,6 +327,10 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
+
+   Array<int> ij_elts(indices.Size() * 2);
+   auto d_ij_elts = Reshape(ij_elts.Write(), indices.Size(), 2);
+
    mfem::forall(vd*all_dofs+1, [=] MFEM_HOST_DEVICE (int i_L)
    {
       I[i_L] = 0;
@@ -337,16 +340,13 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
       const int e = l_dof/elt_dofs;
       const int i = l_dof%elt_dofs;
 
-      int i_elts[Max];
       const int i_gm = e*elt_dofs + i;
       const int i_L = d_gather_map[i_gm];
       const int i_offset = d_offsets[i_L];
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
-      MFEM_ASSERT_KERNEL(
-         i_nbElts <= Max,
-         "The connectivity of this mesh is beyond the max, increase the "
-         "MaxNbNbr variable to comply with your mesh.");
+
+      int *i_elts = &d_ij_elts(i_offset, 0);
       for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
          const int i_E = d_indices[i_offset+e_i];
@@ -359,17 +359,13 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
          const int j_nbElts = j_next_offset - j_offset;
-         MFEM_ASSERT_KERNEL(
-            j_nbElts <= Max,
-            "The connectivity of this mesh is beyond the max, increase the "
-            "MaxNbNbr variable to comply with your mesh.");
          if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
             GetAndIncrementNnzIndex(i_L, I);
          }
          else // assembly required
          {
-            int j_elts[Max];
+            int *j_elts = &d_ij_elts(j_offset, 1);
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
                const int j_E = d_indices[j_offset+e_j];
@@ -402,7 +398,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 void ElementRestriction::FillJAndData(const Vector &ea_data,
                                       SparseMatrix &mat) const
 {
-   static constexpr int Max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
@@ -413,22 +408,23 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
+
+   Array<int> ij_B_el(indices.Size() * 4);
+   auto d_ij_B_el = Reshape(ij_B_el.Write(), indices.Size(), 4);
+
    mfem::forall(ne*elt_dofs, [=] MFEM_HOST_DEVICE (int l_dof)
    {
       const int e = l_dof/elt_dofs;
       const int i = l_dof%elt_dofs;
 
-      int i_elts[Max];
-      int i_B[Max];
       const int i_gm = e*elt_dofs + i;
       const int i_L = d_gather_map[i_gm];
       const int i_offset = d_offsets[i_L];
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
-      MFEM_ASSERT_KERNEL(
-         i_nbElts <= Max,
-         "The connectivity of this mesh is beyond the max, increase the "
-         "MaxNbNbr variable to comply with your mesh.");
+
+      int *i_elts = &d_ij_B_el(i_offset, 0);
+      int *i_B = &d_ij_B_el(i_offset, 1);
       for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
          const int i_E = d_indices[i_offset+e_i];
@@ -450,8 +446,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          }
          else // assembly required
          {
-            int j_elts[Max];
-            int j_B[Max];
+            int *j_elts = &d_ij_B_el(j_offset, 2);
+            int *j_B = &d_ij_B_el(j_offset, 3);
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
                const int j_E = d_indices[j_offset+e_j];
