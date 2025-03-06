@@ -705,28 +705,6 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
             }
          }
       }
-
-      if (trace_face_integs.Size() > 0)
-      {
-         trial_pfes->GetFaceVDofs(T->ElementNo, tr_face_vdofs);
-
-         for (int k = 0; k < trace_face_integs.Size(); k++)
-         {
-            trace_face_integs[k]->
-            AssembleFaceMatrix(*trial_pfes->GetFaceElement(T->ElementNo),
-                               *test_pfes->GetFE(T->Elem1No),
-                               *test_pfes->GetFaceNbrFE(Elem2NbrNo),
-                               *T, elemmat);
-            if (keep_nbr_block)
-            {
-               mat->AddSubMatrix(te_vdofs_all, tr_face_vdofs, elemmat, skip_zeros);
-            }
-            else
-            {
-               mat->AddSubMatrix(te_vdofs1, tr_face_vdofs, elemmat, skip_zeros);
-            }
-         }
-      }
    }
 }
 
