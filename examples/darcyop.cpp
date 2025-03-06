@@ -113,8 +113,8 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
    if (darcy->GetHybridization())
    {
 #ifdef MFEM_USE_MPI
-      prec = new HypreADS(static_cast<ParFiniteElementSpace*>(trace_space));
-      prec_str = "HypreADS";
+      prec = new HypreBoomerAMG();
+      prec_str = "HypreAMG";
 #else
       prec = new GSSmoother();
       prec_str = "GS";

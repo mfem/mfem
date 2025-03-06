@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      trace_coll = new RT_Trace_FECollection(order, dim, 0);
+      trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
@@ -330,20 +330,7 @@ int main(int argc, char *argv[])
    if (hybridization || (reduction && dg))
    {
       // 12. Construct the preconditioner
-      Solver *prec;
-      if (hybridization && dim > 1)
-         if (dim == 2)
-         {
-            prec = new HypreAMS(trace_space);
-         }
-         else
-         {
-            prec = new HypreADS(trace_space);
-         }
-      else
-      {
-         prec = new HypreBoomerAMG();
-      }
+      HypreBoomerAMG prec;
 
       // 13. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
@@ -353,14 +340,12 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetPreconditioner(*prec);
+      solver.SetPreconditioner(prec);
       solver.SetOperator(*pDarcyOp);
       solver.SetPrintLevel(verbose);
 
       solver.Mult(B, X);
       darcy->RecoverFEMSolution(X, rhs, x);
-
-      delete prec;
 
       chrono.Stop();
 
