@@ -4279,7 +4279,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
 
    if (test_fe1.GetRangeType() == FiniteElement::SCALAR)
    {
-      elmat.SetSize((ndof1 + ndof2) * dim, face_ndof);
+      elmat.SetSize(ndof1 + ndof2, face_ndof);
       elmat = 0.0;
 
       const IntegrationRule *ir = IntRule;
@@ -4307,23 +4307,23 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          // Side 1 finite element shape function
          test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
          face_shape *= ip.weight;
-         for (int d = 0; d < dim; d++)
-            for (i = 0; i < ndof1; i++)
-               for (j = 0; j < face_ndof; j++)
-               {
-                  elmat(i+d*ndof1, j) += shape1_n(i) * face_shape(j) * normal(d);
-               }
+         //tie braking by global vector [+1,+1]
+         if (normal.Sum() > 0.) { face_shape.Neg(); }
+         for (i = 0; i < ndof1; i++)
+            for (j = 0; j < face_ndof; j++)
+            {
+               elmat(i, j) += shape1_n(i) * face_shape(j);
+            }
          if (ndof2)
          {
             // Side 2 finite element shape function
             test_fe2.CalcPhysShape(*Trans.Elem2, shape2_n);
             // Subtract contribution from side 2
-            for (int d = 0; d < dim; d++)
-               for (i = 0; i < ndof2; i++)
-                  for (j = 0; j < face_ndof; j++)
-                  {
-                     elmat(ndof1*dim+i+d*ndof2, j) -= shape2_n(i) * face_shape(j) * normal(d);
-                  }
+            for (i = 0; i < ndof2; i++)
+               for (j = 0; j < face_ndof; j++)
+               {
+                  elmat(i, j) -= shape2_n(i) * face_shape(j);
+               }
          }
       }
    }
