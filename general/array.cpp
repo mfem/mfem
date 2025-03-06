@@ -140,6 +140,21 @@ int Array<T>::IsSorted() const
    return 1;
 }
 
+template <class T>
+bool Array<T>::IsConstant() const
+{
+   if (size < 2) { return true; }
+   const T v0 = data[0];
+   for (int i = 1; i < size; i++)
+   {
+      if (data[i] != v0)
+      {
+         return false;
+      }
+   }
+
+   return true;
+}
 
 template <class T>
 void Array2D<T>::Load(const char *filename, int fmt)

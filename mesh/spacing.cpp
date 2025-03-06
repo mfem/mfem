@@ -66,6 +66,13 @@ std::unique_ptr<SpacingFunction> GetSpacingFunction(const SpacingType
                    new PiecewiseSpacingFunction(ipar[0], ipar[1],
                                                 (bool) ipar[2], relN, iparsub,
                                                 dpar));
+      case SpacingType::PARTIAL:
+         MFEM_VERIFY(ipar.Size() >= 8, "Invalid spacing function parameters");
+         ipar.GetSubArray(8, ipar.Size() - 8, iparsub);
+         return std::unique_ptr<SpacingFunction>(
+                   new PartialSpacingFunction(ipar[0], ipar[1], ipar[2],
+                                              ipar[3], ipar[4], iparsub,
+                                              dpar, (SpacingType) ipar[5]));
       default:
          MFEM_ABORT("Unknown spacing type \"" << int(spacingType) << "\"");
          break;
@@ -608,4 +615,83 @@ bool PiecewiseSpacingFunction::Nested() const
    return true;
 }
 
+void PartialSpacingFunction::SetupFull(SpacingType typeFull,
+                                       Array<int> const& ipar,
+                                       Vector const& dpar)
+{
+   fullSpacing = GetSpacingFunction(typeFull, ipar, dpar);
 }
+
+void PartialSpacingFunction::CalculateSpacing()
+{
+   s.SetSize(n);
+
+   if (n == 1)
+   {
+      s[0] = 1.0;
+      fullSpacing->SetSize(1);
+      return;
+   }
+
+   const int ref = n / num_elems;
+   MFEM_VERIFY(ref * num_elems == n, "Invalid number of elements");
+
+   fullSpacing->SetSize(ref * num_elems_full);
+
+   const int os = ref * first_elem;
+   for (int i = 0; i < n; ++i)
+   {
+      s[i] = fullSpacing->Eval(os + i);
+   }
+
+   // Normalize
+   const double d1 = s.Sum();
+   for (int i = 0; i < n; ++i)
+   {
+      s[i] /= d1;
+   }
+}
+
+void PartialSpacingFunction::ScaleParameters(real_t a)
+{
+   fullSpacing->ScaleParameters(a);
+}
+
+void PartialSpacingFunction::Print(std::ostream &os) const
+{
+   os << int(SpacingType::PIECEWISE) << " " << NumIntParameters() << " "
+      << NumDoubleParameters() << " " << n << " " << (int) reverse << "\n"
+      << first_elem << " " << num_elems << " " << num_elems_full << "\n";
+
+   // Write integer parameters for the full spacing.
+   Array<int> ipar;
+   os << int(fullSpacing->GetSpacingType()) << " "
+      << fullSpacing->NumIntParameters() << " "
+      << fullSpacing->NumDoubleParameters();
+
+   fullSpacing->GetIntParameters(ipar);
+
+   for (auto& ip : ipar)
+   {
+      os << " " << ip;
+   }
+
+   os << "\n";
+
+   // Write double parameters for the full spacing.
+   Vector dpar;
+   fullSpacing->GetDoubleParameters(dpar);
+
+   if (dpar.Size() > 0)
+   {
+      os << "\n";
+      for (auto dp : dpar)
+      {
+         os << dp << " ";
+      }
+   }
+
+   os << "\n";
+}
+
+} // namespace mfem

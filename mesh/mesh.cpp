@@ -6042,7 +6042,7 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol, const std::s
 
    if (cf1)
    {
-      NURBSext->UniformRefinement(rf);
+     NURBSext->UniformRefinement(rf, kvf);
    }
    else if (NURBSext->Nonconforming())
    {

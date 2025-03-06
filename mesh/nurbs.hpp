@@ -153,10 +153,11 @@ public:
    void Difference(const KnotVector &kv, Vector &diff) const;
 
    /// Uniformly refine by factor @a rf, by inserting knots in each span.
-   void UniformRefinement(Vector &newknots, int rf) const;
+   void UniformRefinement(Vector &new_knots, int rf) const;
 
    /// Refine with refinement factor @a rf.
-   void Refinement(Vector &newknots, int rf) const;
+   void Refinement(Vector &new_knots, int rf,
+                   const Array<int> *rf_elem = nullptr) const;
 
    /** Returns the coarsening factor needed for non-nested nonuniform spacing
        functions, to result in a single element from which refinement can be
@@ -259,6 +260,9 @@ protected:
    /// Sets dimensions and allocates data, based on KnotVectors.
    /// @a dim is the physical dimension plus 1.
    void init(int dim);
+
+private:
+   bool fullyCoarsened = false;
 
 public:
    /// Copy constructor
@@ -750,6 +754,10 @@ protected:
    void PropagateFactorsForKV(int rf_default);
    int SetPatchFactors(int p);
    void GetMasterEdgePieceOffsets(int mid, Array<int> &os);
+   int AuxiliaryEdgeNE(int aux_edge);
+   void SlaveEdgeToParent(int se, int parent, const Array<int> &os,
+                          const std::vector<int> &parentVerts,
+                          Array<int> &edges);
 
    // Patch --> FE translation functions
 
@@ -1087,9 +1095,7 @@ public:
    static constexpr int unsetFactor = 0;
 
    std::vector<Array<int>> kvf, kvf_coarse;
-
-   // TODO: an auxiliary edge could have multiple factors. Store factors per subedge.
-   Array<int> auxef;
+   std::vector<Array<int>> auxef;
 };
 
 
