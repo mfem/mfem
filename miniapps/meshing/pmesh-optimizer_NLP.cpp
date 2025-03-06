@@ -55,7 +55,10 @@
 // elasticity runs / maximize comliance
 
 // make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1
-// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -m SquareFrame.mesh
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1  pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -m SquareFrame.mesh
+
+// beam case
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e-0 -w2 1e-1 -rs 1 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -beam
 /*******************************/
 // Presentation runs below:
 
@@ -634,8 +637,12 @@ int main (int argc, char *argv[])
   double ls_energy_fac  = 1.1;
   bool   bndr_fix       = true;
   bool   filter         = false;
+  bool   beam_case      = false;
   int    physics = 0;
   int physicsdim = 1;
+  int bcNeuman   = 1;
+  double lx = 1.0;
+  double ly = 1.0;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -702,8 +709,18 @@ int main (int argc, char *argv[])
                     "Filter radius");
     args.AddOption(&physics, "-ph", "--physics",
                     "Physics");
+    args.AddOption(&beam_case, "-beam", "--beam",
+                   "-no-beam", "--no-beam",
+                   "Beam with dmensions 1x0.1");
 
-                    
+    if(beam_case)
+    {
+      bcNeuman = 2;
+      nx = 10;
+      ny = 1;
+      lx = 1.0;
+      ly = 0.1;
+    }
 
    args.Parse();
    if (!args.Good())
@@ -724,7 +741,7 @@ int main (int argc, char *argv[])
   if (strcmp(mesh_file, "null.mesh") == 0)
   {
      des_mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL,
-                                        true, 1.0, 1.0));
+                                        true, lx, ly));
   }
   else
   {
@@ -1090,7 +1107,7 @@ if (myid == 0) {
 }
 
   Array<int> neumannBdr(PMesh->bdr_attributes.Max());
-  neumannBdr = 0; neumannBdr[1] = 1;
+  neumannBdr = 0; neumannBdr[bcNeuman] = 1;
 
   VectorCoefficient *loadFuncGrad = new VectorFunctionCoefficient(dim,
                                                               trueLoadFuncGrad);
