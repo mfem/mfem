@@ -70,9 +70,9 @@ int main(int argc, char *argv[])
 
    // B. compute JxB
    // make a grid function with the H1 space
-   GridFunction JxB_perp(&fespace);
-   cout << JxB_perp.FESpace()->GetTrueVSize() << endl;
-   JxB_perp = 0.0;
+   GridFunction JxB_tor(&fespace);
+   cout << JxB_tor.FESpace()->GetTrueVSize() << endl;
+   JxB_tor = 0.0;
 
    {
       // 1.a make the RHS bilinear form
@@ -101,10 +101,10 @@ int main(int argc, char *argv[])
       M_solver.SetPrintLevel(1);
       M_solver.SetOperator(a.SpMat());
 
-      Vector X(JxB_perp.Size());
+      Vector X(JxB_tor.Size());
       X = 0.0;
       M_solver.Mult(b, X);
-      JxB_perp.SetFromTrueDofs(X);
+      JxB_tor.SetFromTrueDofs(X);
    }
 
    if (visualization)
@@ -114,25 +114,25 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << JxB_perp << flush;
+               << mesh << JxB_tor << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB_perp", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_tor", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB_perp", &JxB_perp);
+      paraview_dc.RegisterField("JxB_tor", &JxB_tor);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("JxB_perp.gf");
+   ofstream sol_ofs("JxB_tor.gf");
    sol_ofs.precision(8);
-   JxB_perp.Save(sol_ofs);
+   JxB_tor.Save(sol_ofs);
 
    return 0;
 }

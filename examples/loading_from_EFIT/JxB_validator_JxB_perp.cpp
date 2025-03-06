@@ -175,30 +175,10 @@ int main(int argc, char *argv[])
       R_Curl_B_perp_B_perp_perp.SetFromTrueDofs(X);
    }
 
-   // E. JxB_tor = B_tor_grad_B_tor_r - R_Curl_B_perp_B_perp_perp
-   GridFunction JxB_tor(&fespace);
-   JxB_tor = B_tor_grad_B_tor_r;
-   JxB_tor -= R_Curl_B_perp_B_perp_perp;
-
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << mesh << B_tor_grad_B_tor_r << flush;
-   }
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << mesh << R_Curl_B_perp_B_perp_perp << flush;
-   }
+   // E. JxB_perp = B_tor_grad_B_tor_r - R_Curl_B_perp_B_perp_perp
+   GridFunction JxB_perp(&fespace);
+   JxB_perp = B_tor_grad_B_tor_r;
+   JxB_perp -= R_Curl_B_perp_B_perp_perp;
 
    if (visualization)
    {
@@ -207,23 +187,23 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << JxB_tor << flush;
+               << mesh << JxB_perp << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB_tor", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_perp", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB_tor", &JxB_tor);
+      paraview_dc.RegisterField("JxB_perp", &JxB_perp);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("JxB_tor.gf");
+   ofstream sol_ofs("JxB_perp.gf");
    sol_ofs.precision(8);
    R_Curl_B_perp.Save(sol_ofs);
 

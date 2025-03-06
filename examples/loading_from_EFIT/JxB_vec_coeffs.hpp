@@ -95,7 +95,7 @@ public:
       Vector B_perp_val;
       B_perp.Eval(B_perp_val, T, ip);
       real_t R_Curl_B_perp_val = R_Curl_B_perp.Eval(T, ip);
-      V[0] = -R_Curl_B_perp_val * B_perp_val[1];
-      V[1] = R_Curl_B_perp_val * B_perp_val[0];
+      V(0) = -R_Curl_B_perp_val * B_perp_val(1);
+      V(1) = R_Curl_B_perp_val * B_perp_val(0);
    }
 };
