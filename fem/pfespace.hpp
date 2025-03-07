@@ -55,14 +55,16 @@ private:
 
    Array<VarOrderDofInfo> var_edge_dofmap, var_face_dofmap;
 
+   /// For each true DOF on edges and faces, store data about the edge or face.
    struct TdofLdofInfo
    {
-      bool set;
-      int minOrder;
-      bool isEdge;
-      int idx;
+      bool set; // Whether the members of this instance are set.
+      int minOrder; // Minimum order for the mesh entity containing this DOF.
+      bool isEdge; // Whether the containing mesh entity is an edge.
+      int idx; // Index of the containing mesh entity in pmesh.
    };
 
+   /// Data for each true DOF on edges and faces.
    Array<TdofLdofInfo> tdof2ldof;
 
    /// The group of each local dof.
@@ -106,7 +108,10 @@ private:
 
    /** Stores the previous ParFiniteElementSpace, before p-refinement, in the
        case that @a PTh is constructed by PRefineAndUpdate(). */
-   std::unique_ptr<ParFiniteElementSpace> pfesPrev;
+   std::unique_ptr<ParFiniteElementSpace> pfes_prev;
+
+   /// Ghost element order data, set by CommunicateGhostOrder().
+   Array<ParNCMesh::VarOrderElemInfo> ghost_orders;
 
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
@@ -123,11 +128,15 @@ private:
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
 
-   void CommunicateGhostOrder(Array<VarOrderElemInfo> & pref_data);
+   /// Set ghost_orders.
+   void CommunicateGhostOrder();
 
+   /// Sets @a tdof2ldof. See documentation of @a tdof2ldof for details.
    void SetTDOF2LDOFinfo(int ntdofs, int vdim_factor, int dof_stride,
                          int allnedofs);
 
+   /** Set the rows of the restriction matrix @a R in a variable-order space,
+       corresponding to true DOFs on edges and faces. */
    void SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
                                        int tdof_stride,
                                        const Array<int> &dof_tdof,
@@ -419,6 +428,8 @@ public:
                              Array<int> &ess_tdof_list,
                              int component = -1) const override;
 
+   /** Helper function for GetEssentialTrueDofs(), in the case of a
+       variable-order H1 space. */
    void GetEssentialTrueDofsVar(const Array<int>
                                 &bdr_attr_is_ess,
                                 const Array<int> &ess_dofs,
@@ -513,14 +524,16 @@ public:
    int TrueVSize() const { return ltdof_size; }
 
 protected:
+   /** Helper function for finalizing intermediate DOFs on edges and faces in a
+       variable-order space, with order strictly between the minimum and
+       maximum. */
    void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
 
    /** Helper function for variable-order spaces, to apply the order on each
        ghost element to its edges and faces. */
    void ApplyGhostElementOrdersToEdgesAndFaces(
       Array<VarOrderBits> &edge_orders,
-      Array<VarOrderBits> &face_orders,
-      const Array<VarOrderElemInfo> * pref_data=nullptr) const override;
+      Array<VarOrderBits> &face_orders) const override;
 
    /** Helper function for variable-order spaces, to apply the lowest order on
        each ghost face to its edges. */

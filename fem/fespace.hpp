@@ -245,13 +245,6 @@ class FiniteElementSpace
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
 
-public:
-   struct VarOrderElemInfo
-   {
-      unsigned int element;  // Element index
-      char order;  // Element order
-   };
-
 protected:
    /// The mesh that FE space lives on (not owned).
    Mesh *mesh;
@@ -287,6 +280,9 @@ protected:
 
    // Temporary data for condensing all DOFs to local DOFs.
    Table loc_var_edge_dofs, loc_var_face_dofs;
+
+   /** Map from all DOFs of all orders on each entity to local DOFs of orders
+       occurring on a local element containing the entity. */
    Array<int> all2local;
 
    /// Bit-mask representing a set of orders needed by an edge/face.
@@ -389,7 +385,10 @@ protected:
 
    void UpdateNURBS();
 
-   void Construct(const Array<VarOrderElemInfo> * pref_data=nullptr);
+   /** Helper function for constructing the data in this class, for initial
+       construction or updates (e.g. h- or p-refinement). */
+   void Construct();
+
    void Destroy();
 
    void ConstructDoFTransArray();
@@ -399,6 +398,8 @@ protected:
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
 
+   /** Get all @a edges and @a faces (in 3D) on boundary elements with attribute
+       marked as essential in @a bdr_attr_is_ess. */
    void GetEssentialBdrEdgesFaces(const Array<int> &bdr_attr_is_ess,
                                   std::set<int> & edges,
                                   std::set<int> & faces) const;
@@ -417,6 +418,7 @@ protected:
        boundary. */
    void BuildNURBSFaceToDofTable() const;
 
+   /// Sets @a all2local. See documentation of @a all2local for details.
    void SetVarOrderLocalDofs();
 
    /// Return the minimum order (least significant bit set) in the bit mask.
@@ -438,13 +440,11 @@ protected:
       Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
       Array<VarOrderBits> &edge_elem_orders,
       Array<VarOrderBits> &face_elem_orders,
-      Array<bool> &skip_edges, Array<bool> &skip_faces,
-      const Array<VarOrderElemInfo> * pref_data=nullptr) const;
+      Array<bool> &skip_edges, Array<bool> &skip_faces) const;
 
    /// Helper function for ParFiniteElementSpace.
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(
-      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
-      const Array<VarOrderElemInfo> * pref_data=nullptr) const;
+      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders) const;
 
    /// Helper function for ParFiniteElementSpace.
    virtual void GhostFaceOrderToEdges(
@@ -1453,9 +1453,10 @@ public:
    virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
                                         OperatorHandle &T) const;
 
-   /** @brief Reflect changes in the mesh: update number of DOFs, etc. Also, calculate
-       GridFunction transformation operator (unless want_transform is false).
-       Safe to call multiple times, does nothing if space already up to date. */
+   /** @brief Reflect changes in the mesh: update number of DOFs, etc. Also,
+       calculate GridFunction transformation operator (unless want_transform is
+       false). Safe to call multiple times, does nothing if space already up to
+       date. */
    virtual void Update(bool want_transform = true);
 
    /** P-refine and update the space. If @a want_transfer, also maintain the old
@@ -1463,7 +1464,9 @@ public:
    virtual void PRefineAndUpdate(const Array<pRefinement> & refs,
                                  bool want_transfer = true);
 
-   /// Return true iff p-refinement is supported in this space.
+   /** Return true iff p-refinement is supported in this space. Current support
+       is only for L2 or H1 spaces on purely quadrilateral or hexahedral
+       meshes. */
    bool PRefinementSupported();
 
    /// Get the GridFunction update operator.
@@ -1472,6 +1475,8 @@ public:
    /// Return the update operator in the given OperatorHandle, @a T.
    void GetUpdateOperator(OperatorHandle &T) { T = Th; }
 
+   /** Returns @a PTh, the transfer operator from the previous space to the
+       current space, after p-refinement. */
    std::shared_ptr<const PRefinementTransferOperator> GetPrefUpdateOperator();
 
    /** @brief Set the ownership of the update operator: if set to false, the

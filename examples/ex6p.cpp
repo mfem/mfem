@@ -3,6 +3,7 @@
 // Compile with: make ex6p
 //
 // Sample runs:  mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -o 2
+//               mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -pref
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2 -h1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -cs
@@ -462,7 +463,6 @@ int main(int argc, char *argv[])
          const int p_elem = fespace.GetElementOrder(e);
          Array<int> dofs;
          l2fespace.GetElementDofs(e, dofs);
-         MFEM_VERIFY(dofs.Size() == 1, "");
          xo[dofs[0]] = p_elem;
       }
 

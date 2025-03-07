@@ -22,7 +22,7 @@
 #include "ncmesh.hpp"
 #include "../general/communication.hpp"
 #include "../general/sort_pairs.hpp"
-#include "../fem/fespace.hpp"  // For VarOrderElemInfo
+#include "../fem/fespace.hpp"
 
 namespace mfem
 {
@@ -253,9 +253,16 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+   // Ghost element indices and their orders, for parallel p-refinement.
+   struct VarOrderElemInfo
+   {
+      unsigned int element; // Element index
+      char order; // Element order
+   };
+
    void CommunicateGhostData(
-      const Array<FiniteElementSpace::VarOrderElemInfo> & sendData,
-      Array<FiniteElementSpace::VarOrderElemInfo> & recvData);
+      const Array<VarOrderElemInfo> & sendData,
+      Array<VarOrderElemInfo> & recvData);
 
    /** For a ghost element with index @a elem, the edge indices are returned in
        @a edges. */
