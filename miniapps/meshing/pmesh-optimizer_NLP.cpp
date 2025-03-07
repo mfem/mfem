@@ -54,8 +54,11 @@
 
 // elasticity runs / maximize comliance
 
-// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 1000 -w1 -1e2 -w2 1e-2 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.01 -m SquareFrame.mesh -ph 1
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1  pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -m SquareFrame.mesh
 
+// beam case
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e-0 -w2 1e-1 -rs 1 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -beam
 /*******************************/
 // Presentation runs below:
 
@@ -479,12 +482,7 @@ double loadFunc(const Vector & x)
   }
   else if (ftype == 9)
   {
-    double val = 0.0;
-    if(x[0]>0.99 && x[1]>0.2)
-    {
-      val = -1.0;
-    }
-    return val;
+    return -1.0;
   }
   return 0.0;
 };
@@ -632,14 +630,19 @@ int main (int argc, char *argv[])
   int method = 0;
   int mesh_poly_deg     = 1;
   int nx                = 4;
+  int ny                = 4;
   const char *mesh_file = "null.mesh";
   bool exactaction      = false;
   double ls_norm_fac    = 1.2;
   double ls_energy_fac  = 1.1;
   bool   bndr_fix       = true;
   bool   filter         = false;
+  bool   beam_case      = false;
   int    physics = 0;
   int physicsdim = 1;
+  int bcNeuman   = 1;
+  double lx = 1.0;
+  double ly = 1.0;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -706,8 +709,18 @@ int main (int argc, char *argv[])
                     "Filter radius");
     args.AddOption(&physics, "-ph", "--physics",
                     "Physics");
+    args.AddOption(&beam_case, "-beam", "--beam",
+                   "-no-beam", "--no-beam",
+                   "Beam with dmensions 1x0.1");
 
-                    
+    if(beam_case)
+    {
+      bcNeuman = 2;
+      nx = 10;
+      ny = 1;
+      lx = 1.0;
+      ly = 0.1;
+    }
 
    args.Parse();
    if (!args.Good())
@@ -727,8 +740,8 @@ int main (int argc, char *argv[])
   Mesh *des_mesh = nullptr;
   if (strcmp(mesh_file, "null.mesh") == 0)
   {
-     des_mesh = new Mesh(Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL,
-                                        true, 1.0, 1.0));
+     des_mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL,
+                                        true, lx, ly));
   }
   else
   {
@@ -883,7 +896,7 @@ int main (int argc, char *argv[])
   Array<int> vdofs;
 
   // Identify coordinate dofs perpendicular to BE
-  if (strcmp(mesh_file, "null.mesh") == 0)
+  if (strcmp(mesh_file, "null.mesh") == 0 && physics ==0)
   {
     for (int i = 0; i < PMesh->GetNBE(); i++)
     {
@@ -919,40 +932,46 @@ int main (int argc, char *argv[])
       pfespace->GetBdrElementVDofs(i, vdofs);
       const int nd = pfespace->GetBE(i)->GetDof();
 
-      if (attribute == 1 ||
-          attribute == 3 ||
-          attribute == 5 ) // zero out motion in y
+      if(strcmp(mesh_file, "null.mesh") == 0)
       {
-        for (int j = 0; j < nd; j++)
+        if (attribute == 1 ||
+            attribute == 3 ||
+            attribute == 5 ) // zero out motion in y
         {
-          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          for (int j = 0; j < nd; j++)
+          {
+           gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          }
+        }
+        else if (attribute == 2 ||
+            attribute == 4 ||
+            attribute == 6 ) // zero out in x
+        {
+          for (int j = 0; j < nd; j++)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          }
         }
       }
-      else if (attribute == 2 ||
-          attribute == 4 ||
-          attribute == 6 ) // zero out in x
+      else
       {
-        for (int j = 0; j < nd; j++)
+        if (attribute == 1 ||
+            attribute == 3 ) // zero out motion in y
         {
-          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          for (int j = 0; j < nd; j++)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+          }
+        }
+        else if (attribute == 2 ||
+            attribute == 4 ) // zero out in x
+        {
+          for (int j = 0; j < nd; j++)
+          {
+            gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+          }
         }
       }
-      // if (attribute == 1 ||
-      //     attribute == 3 ) // zero out motion in y
-      // {
-      //   for (int j = 0; j < nd; j++)
-      //   {
-      //     gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
-      //   }
-      // }
-      // else if (attribute == 2 ||
-      //     attribute == 4 ) // zero out in x
-      // {
-      //   for (int j = 0; j < nd; j++)
-      //   {
-      //     gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
-      //   }
-      // }
     }
   }
   else
@@ -1089,6 +1108,9 @@ if (myid == 0) {
   }
 }
 
+  Array<int> neumannBdr(PMesh->bdr_attributes.Max());
+  neumannBdr = 0; neumannBdr[bcNeuman] = 1;
+
   VectorCoefficient *loadFuncGrad = new VectorFunctionCoefficient(dim,
                                                               trueLoadFuncGrad);
   VectorCoefficient *trueSolutionGrad =
@@ -1098,7 +1120,7 @@ if (myid == 0) {
   VectorCoefficient *trueSolutionHessV =
                           new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
   PhysicsSolverBase * solver = nullptr;
-  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg,physicsdim);
+  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg, neumannBdr, physicsdim);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
@@ -1125,7 +1147,7 @@ if (myid == 0) {
   else if(physics ==1)
   {
     //Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
-    Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, essentialBC, mesh_poly_deg);
+    Elasticity_Solver * elasticitysolver = new Elasticity_Solver(PMesh, essentialBC, neumannBdr, mesh_poly_deg);
     elasticitysolver->SetLoad(&tractionLoad);
 
     solver = elasticitysolver;
@@ -1678,6 +1700,14 @@ if (myid == 0) {
          visdc->Save();
       }
 
+    ::mfem::ConstantCoefficient firstLameCoef(0.5769230769);
+    ::mfem::ConstantCoefficient secondLameCoef(1.0/2.6);
+
+    StrainEnergyDensityCoefficient tStraincoeff(&firstLameCoef, &secondLameCoef, &discretSol);
+
+    ParFiniteElementSpace tspace(PMesh,fec,1);
+    ParGridFunction tGF(&tspace);
+    tGF.ProjectCoefficient(tStraincoeff	); 	
 
       x_gf.ProjectCoefficient(*trueSolution);
       //ParGridFunction objGradGF(pfespace); objGradGF = objgrad;
@@ -1685,6 +1715,7 @@ if (myid == 0) {
       paraview_dc.SetTime(i*1.0);
       //paraview_dc.RegisterField("ObjGrad",&objGradGF);
       paraview_dc.RegisterField("SolutionD",&discretSol   );
+      paraview_dc.RegisterField("StrainEnergyDensity",&tGF);
       //paraview_dc.RegisterField("Solution",&x_gf);
       //paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
       paraview_dc.Save();
