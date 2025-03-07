@@ -187,18 +187,7 @@ int main(int argc, char *argv[])
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
-      if (dim < 3 && mesh.SpaceDimension() < 3)
-      {
-         //When using ND_R1D or ND_R2D elements, embed the 1D/2D mesh in 3D
-         //space using SetCurvature.
-         mfem::Mesh mesh_3d(mesh);
-         mesh_3d.SetCurvature(order,false,3);
-         mesh_3d.Print(mesh_ofs);
-      }
-      else
-      {
-         mesh.Print(mesh_ofs);
-      }
+      mesh.Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       sol.Save(sol_ofs);
