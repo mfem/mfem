@@ -460,11 +460,9 @@ int main(int argc, char* argv[])
    displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
    for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
 
-   // Applied displacement boundary condition
-   constexpr real_t applied_displacement = 0.2;
    ParGridFunction u(&displacement_fes);
    u = 0.0;
-   u.SetSubVector(bc_tdof, applied_displacement);
+   real_t applied_displacement = 0.0;
 
    using Material = J2SmallStrain; // StVenantKirchhoff
    Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 40.0};
@@ -509,28 +507,12 @@ int main(int argc, char* argv[])
    nonlinear_solver->SetSolver(solver);
    nonlinear_solver->SetPrintLevel(1);
 
-   Vector zero, x(displacement_fes.GetTrueVSize());
-   u.GetTrueDofs(x);
 
-   nonlinear_solver->Mult(zero, x);
-
-   u.SetFromTrueDofs(x);
-
-   // update internal variables
-   InternalStateUpdater internal_state_update(displacement_fes, displacement_ir, internal_state, material);
-   Vector q(internal_state_space.GetTotalSize());
-   internal_state_update.Mult(u, q);
-   
-
-   // internal variables for output
+   // variables for output
    QuadratureSpace output_internal_state_space(mesh_beam, displacement_ir);
-   QuadratureFunction output_internal_state(&output_internal_state_space, q.GetData(), material.n_internal_states);
-
-   // Compute reactions
+   QuadratureFunction output_internal_state(&output_internal_state_space, internal_state.GetData(), material.n_internal_states);
    Vector r(displacement_fes.GetTrueVSize());
-   elasticity.Reaction(x, r);
    ParGridFunction reaction(&displacement_fes);
-   reaction.SetFromTrueDofs(r);
 
    ParaViewDataCollection dc("dfem_plasticity", &mesh_beam);
    dc.SetHighOrderOutput(true);
@@ -538,7 +520,38 @@ int main(int argc, char* argv[])
    dc.RegisterField("displacement", &u);
    dc.RegisterField("reaction", &reaction);
    dc.RegisterQField("internal_state", &output_internal_state);
+   dc.SetCycle(0);
    dc.Save();
+
+   InternalStateUpdater internal_state_update(displacement_fes, displacement_ir, internal_state, material);
+   //Vector q(internal_state_space.GetTotalSize());
+   real_t time = 0.0;
+
+   Vector zero, x(displacement_fes.GetTrueVSize());
+
+   for (int cycle = 0; cycle < 5; cycle++) {
+      out << "-------------------------------------------" << std::endl;
+      out << "TIME STEP " << cycle << std::endl;
+
+      time += 1.0;
+      applied_displacement += 0.2;
+      u.SetSubVector(bc_tdof, applied_displacement);
+
+      u.GetTrueDofs(x);
+      nonlinear_solver->Mult(zero, x);
+      u.SetFromTrueDofs(x);
+
+      // update internal variables
+      internal_state_update.Mult(u, internal_state);
+
+      // Compute reactions
+      elasticity.Reaction(x, r);
+      reaction.SetFromTrueDofs(r);
+
+      dc.SetCycle(cycle);
+      dc.SetTime(time);
+      dc.Save();
+   }
 
    return 0;
 }
