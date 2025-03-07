@@ -126,7 +126,7 @@ struct J2SmallStrain {
          s = s - 2.0 * G * delta_eqps * Np;
          plastic_strain += delta_eqps * Np;
          accumulated_plastic_strain += delta_eqps;
-         //out << accumulated_plastic_strain << std::endl;
+         // out << accumulated_plastic_strain << std::endl;
       }
       auto stress = s + p * I;
       auto internal_state_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
@@ -220,10 +220,12 @@ public:
       mutable Vector z;
    };
 
+   template <typename Material>
    ElasticityOperator(ParFiniteElementSpace &displacement_fes,
                       Array<int> &vel_ess_tdofs,
                       const IntegrationRule &displacement_ir,
-                      ParametricFunction &internal_state) :
+                      ParametricFunction &internal_state,
+                      Material material) :
       Operator(displacement_fes.GetTrueVSize()),
       density(1.0e3),
       displacement_ess_tdof(vel_ess_tdofs),
@@ -255,9 +257,6 @@ public:
          mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
          mfem::tuple outputs{Gradient<Displacement>{}};
 
-         using Material = J2SmallStrain;
-         // Material material{.mu = 0.5e6, .nu = 0.4};
-         Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 40.0};
          auto momentum_qf = MomentumRefStateQFunction<Material, DIMENSION> {.material = material};
          auto derivatives = std::integer_sequence<size_t, Displacement> {};
          Array<int> solid_domain_attr(mesh->attributes.Max());
@@ -391,23 +390,16 @@ int main(int argc, char* argv[])
    bdr_attr_is_ess[0] = 1;
    displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 1);
    for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-   out << "essential tdofs = \n";
-   displacement_ess_tdof.Print();
 
    bdr_attr_is_ess = 0;
    bdr_attr_is_ess[3] = 1;
    displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
    for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-   out << "essential tdofs = \n";
-   displacement_ess_tdof.Print();
 
    bdr_attr_is_ess = 0;
    bdr_attr_is_ess[1] = 1;
    displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
    for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-
-   out << "essential tdofs = \n";
-   displacement_ess_tdof.Print();
 
    // Applied displacement boundary condition
    constexpr real_t applied_displacement = 0.2;
@@ -415,8 +407,12 @@ int main(int argc, char* argv[])
    u = 0.0;
    u.SetSubVector(bc_tdof, applied_displacement);
 
+   using Material = J2SmallStrain; // StVenantKirchhoff
+   Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 40.0};
+   // Material material{.mu = 0.5e6, .nu = 0.4};
+
    ElasticityOperator elasticity(displacement_fes, displacement_ess_tdof,
-                                 displacement_ir, internal_state);
+                                 displacement_ir, internal_state, material);
 
    ElasticityOperator::ElasticityJacobianPreconditioner prec;
 
