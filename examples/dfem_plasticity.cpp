@@ -33,7 +33,8 @@ struct InternalStateQFunction
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
-      return get<1>(material(dudX3D, internal_state));
+      auto internal_state_new = get<1>(material(dudX3D, internal_state));
+      return mfem::tuple{internal_state_new};
    }
 
    Material material;
@@ -321,46 +322,65 @@ public:
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
 };
 
-#if 0
+
 class InternalStateUpdater : public Operator
 {
    public:
+
+   static constexpr int Displacement = 0;
+   static constexpr int Coordinates = 1;
+   static constexpr int InternalState = 2;
    
-   InternalStateUpdater::InternalStateUpdater(ParFiniteElementSpace &displacement_fes,
-                                              const IntegrationRule &displacement_ir,
-                                              ParametricFunction &internal_state,
-                                              Material material) :
+   template <typename Material>
+   InternalStateUpdater(ParFiniteElementSpace &displacement_fes,
+                        const IntegrationRule &displacement_ir,
+                        ParametricFunction &internal_state,
+                        Material material) :
       Operator(displacement_fes.GetTrueVSize()),
       displacement_ir(displacement_ir),
-      internal_state(internal_state),
+      internal_state(internal_state)
    {
+      auto mesh = displacement_fes.GetParMesh();
+      mesh_nodes = static_cast<ParGridFunction*>(mesh->GetNodes());
+      ParFiniteElementSpace& mesh_fes = *mesh_nodes->ParFESpace();
+
       auto solutions = std::vector
       {
-         FieldDescriptor{InternalState, &internal_state.space}
+         FieldDescriptor{Displacement, &displacement_fes}
       };
 
       auto parameters = std::vector
       {
          FieldDescriptor{Coordinates, &mesh_fes},
-         FieldDescriptor{Displacement, &displacement_fes}
+         FieldDescriptor{InternalState, &internal_state.space}
       };
 
-      auto mesh = displacement_fes.GetParMesh();
-
-      dop = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+      diff_op = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
       mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
       mfem::tuple outputs{None<InternalState>{}};
 
-
+      auto qfunction = InternalStateQFunction<Material, DIMENSION> {.material = material};
+      // just a placeholder for now. We want vjps wrt both displacement and old internal state eventually
+      auto derivatives = std::integer_sequence<size_t, Displacement> {};
+      Array<int> solid_domain_attr(mesh->attributes.Max());
+      solid_domain_attr[0] = 1;
+      diff_op->AddDomainIntegrator(
+         qfunction, inputs, outputs, displacement_ir, solid_domain_attr, derivatives);
    }
 
+   void Mult(const Vector &displacement, Vector& internal_state_new) const override
+   {
+      diff_op->SetParameters({mesh_nodes, &internal_state});
+      diff_op->Mult(displacement, internal_state_new);
+   }
 
+   ParGridFunction *mesh_nodes;
+   std::shared_ptr<DifferentiableOperator> diff_op;
    IntegrationRule displacement_ir;
-
    ParametricFunction& internal_state;
 };
-#endif
+
 
 int main(int argc, char* argv[])
 {
@@ -496,6 +516,16 @@ int main(int argc, char* argv[])
 
    u.SetFromTrueDofs(x);
 
+   // update internal variables
+   InternalStateUpdater internal_state_update(displacement_fes, displacement_ir, internal_state, material);
+   Vector q(internal_state_space.GetTotalSize());
+   internal_state_update.Mult(u, q);
+   
+
+   // internal variables for output
+   QuadratureSpace output_internal_state_space(mesh_beam, displacement_ir);
+   QuadratureFunction output_internal_state(&output_internal_state_space, q.GetData(), material.n_internal_states);
+
    // Compute reactions
    Vector r(displacement_fes.GetTrueVSize());
    elasticity.Reaction(x, r);
@@ -507,6 +537,7 @@ int main(int argc, char* argv[])
    dc.SetLevelsOfDetail(1);
    dc.RegisterField("displacement", &u);
    dc.RegisterField("reaction", &reaction);
+   dc.RegisterQField("internal_state", &output_internal_state);
    dc.Save();
 
    return 0;
