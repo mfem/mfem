@@ -120,8 +120,8 @@ int main(int argc, char *argv[])
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    if (!pa)
    {
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
-      a.EnableSparseMatrixSorting(Device::IsEnabled());
+      // a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
    DiffusionIntegrator *di = new DiffusionIntegrator(one);
    if (patcha)
@@ -227,7 +227,8 @@ int main(int argc, char *argv[])
                   << "solver.iter, solver.absnorm, solver.relnorm, solver.converged, "
                   << "solution.linf, solution.l2, "
                   << "time.assemble, time.solve, time.total, "
-                  << "dof_per_sec_solve" << endl;
+                  << "dof_per_sec_solve, "
+                  << "dof_per_sec_total" << endl;
    }
 
    results_ofs << test_case << ", "
@@ -243,7 +244,8 @@ int main(int argc, char *argv[])
                << timeAssemble << ", "
                << timeSolve << ", "
                << (timeAssemble + timeSolve) << ", "
-               << fespace->GetTrueVSize() * solver.GetNumIterations() / timeSolve << endl;
+               << fespace->GetTrueVSize() * solver.GetNumIterations() / timeSolve << ", "
+               << fespace->GetTrueVSize() * solver.GetNumIterations() / (timeAssemble + timeSolve) << endl;
 
    results_ofs.close();
 

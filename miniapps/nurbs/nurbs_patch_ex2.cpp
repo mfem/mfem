@@ -110,7 +110,8 @@ int main(int argc, char *argv[])
                                                         fes_ordering);
    // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
    cout << "Finite Element Collection: " << fec->Name() << endl;
-   cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() <<
+   const real_t Ndof = fespace->GetTrueVSize();
+   cout << "Number of finite element unknowns: " << Ndof <<
         endl;
    cout << "Number of elements: " << fespace->GetNE() << std::endl;
    if (isNURBS)
@@ -256,13 +257,21 @@ int main(int argc, char *argv[])
 
    sw.Stop();
    const real_t timeSolve = sw.RealTime();
-   cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
-   cout << "Time to solve: " << timeSolve << " seconds" << endl;
+   const real_t timeTotal = timeAssemble + timeSolve;
 
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // Append timings and problem info to file
+   // Collect results and write to file
+   const int Niter = solver.GetNumIterations();
+   const int dof_per_sec_solve = Ndof * Niter / timeSolve;
+   const int dof_per_sec_total = Ndof * Niter / timeTotal;
+   cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
+   cout << "Time to solve: " << timeSolve << " seconds" << endl;
+   cout << "Total time: " << timeTotal << " seconds" << endl;
+   cout << "Dof/sec (solve): " << dof_per_sec_solve << endl;
+   cout << "Dof/sec (total): " << dof_per_sec_total << endl;
+
    ofstream results_ofs("ex2_results.csv", ios_base::app);
    bool file_exists = results_ofs.tellp() != 0;
    // header
@@ -272,7 +281,9 @@ int main(int argc, char *argv[])
                   << "problem.mesh, problem.refs, problem.degree_inc, problem.ndof, "
                   << "solver.iter, solver.absnorm, solver.relnorm, solver.converged, "
                   << "solution.linf, solution.l2, "
-                  << "time.assemble, time.solve, time.total" << endl;
+                  << "time.assemble, time.solve, time.total, "
+                  << "dof_per_sec_solve, "
+                  << "dof_per_sec_total" << endl;
    }
 
    results_ofs << patchAssembly << ", "
@@ -280,8 +291,8 @@ int main(int argc, char *argv[])
                << mesh_file << ", "
                << ref_levels << ", "
                << nurbs_degree_increase << ", "
-               << fespace->GetTrueVSize() << ", "
-               << solver.GetNumIterations() << ", "
+               << Ndof << ", "
+               << Niter << ", "
                << solver.GetFinalNorm() << ", "
                << solver.GetFinalRelNorm() << ", "
                << solver.GetConverged() << ", "
@@ -289,7 +300,9 @@ int main(int argc, char *argv[])
                << x.Norml2() << ", "
                << timeAssemble << ", "
                << timeSolve << ", "
-               << (timeAssemble + timeSolve) << endl;
+               << timeTotal << ", "
+               << dof_per_sec_solve << ", "
+               << dof_per_sec_total << endl;
 
    results_ofs.close();
 
