@@ -19,6 +19,29 @@ tensor<T, 3, 3> tensor_to_3D(const tensor<T, dim, dim>& A)
 }
 
 template <typename Material, int dim = DIMENSION>
+struct InternalStateQFunction
+{
+   InternalStateQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const tensor<real_t, dim, dim> &dudxi,
+      const tensor<real_t, dim, dim> &J,
+      const tensor<real_t, 10> &internal_state,
+      const double &w) const
+   {
+      auto invJ = inv(J);
+      auto dudX = dudxi * invJ;
+      auto dudX3D = tensor_to_3D(dudX);
+      auto P3D = material.UpdateInternalState(dudX3D, internal_state);
+      auto Q = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
+      return mfem::tuple{Q};
+   }
+
+   Material material;
+};
+
+template <typename Material, int dim = DIMENSION>
 struct MomentumRefStateQFunction
 {
    MomentumRefStateQFunction() = default;
@@ -33,7 +56,7 @@ struct MomentumRefStateQFunction
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
-      auto P3D = material(dudX3D, internal_state);
+      auto P3D = material.UpdateStress(dudX3D, internal_state);
       auto P = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
       auto JxW = det(J) * w * transpose(invJ);
       return mfem::tuple{P * JxW};
@@ -41,6 +64,7 @@ struct MomentumRefStateQFunction
 
    Material material;
 };
+
 
 struct StVenantKirchhoff
 {
@@ -134,10 +158,15 @@ struct J2SmallStrain {
   }
 
   MFEM_HOST_DEVICE inline
-  auto operator()(const tensor<real_t, dim, dim> & du_dX, const tensor<real_t, n_internal_states> & internal_state) const
+  auto UpdateStress(const tensor<real_t, dim, dim> & du_dX, const tensor<real_t, n_internal_states> & internal_state) const
   {
-   auto [stress, internal_state_new] = Update(du_dX, internal_state);
-   return stress;
+   return get<0>(Update(du_dX, internal_state));
+  }
+
+  MFEM_HOST_DEVICE inline
+  auto UpdateInternalState(const tensor<real_t, dim, dim> & du_dX, const tensor<real_t, n_internal_states> & internal_state) const
+  {
+      return get<1>(Update(du_dX, internal_state));
   }
 };
 
@@ -322,6 +351,47 @@ public:
    mutable std::shared_ptr<ElasticityJacobianOperator> jacobian_operator;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
 };
+
+#if 0
+class InternalStateUpdater : public Operator
+{
+   public:
+   
+   InternalStateUpdater::InternalStateUpdater(ParFiniteElementSpace &displacement_fes,
+                                              const IntegrationRule &displacement_ir,
+                                              ParametricFunction &internal_state,
+                                              Material material) :
+      Operator(displacement_fes.GetTrueVSize()),
+      displacement_ir(displacement_ir),
+      internal_state(internal_state),
+   {
+      auto solutions = std::vector
+      {
+         FieldDescriptor{InternalState, &internal_state.space}
+      };
+
+      auto parameters = std::vector
+      {
+         FieldDescriptor{Coordinates, &mesh_fes},
+         FieldDescriptor{Displacement, &displacement_fes}
+      };
+
+      auto mesh = displacement_fes.GetParMesh();
+
+      dop = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+      mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
+      mfem::tuple outputs{None<InternalState>{}};
+
+
+   }
+
+
+   IntegrationRule displacement_ir;
+
+   ParametricFunction& internal_state;
+};
+#endif
 
 int main(int argc, char* argv[])
 {
