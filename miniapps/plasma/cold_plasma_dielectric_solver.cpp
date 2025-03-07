@@ -386,8 +386,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      jiCoef_(NULL),
      rhsrCoef_(NULL),
      rhsiCoef_(NULL),
-     // erCoef_(EReCoef),
-     // eiCoef_(EImCoef),
+     erCoef_(NULL),
+     eiCoef_(NULL),
      derCoef_(NULL),
      deiCoef_(NULL),
      uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
@@ -887,6 +887,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    rhs_->real().Vector::operator=(0.0);
    rhs_->imag().Vector::operator=(0.0);
 
+   /*
    if (vis_u_)
    {
       if (L2FESpace2p_ == NULL)
@@ -900,12 +901,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
       S_ = new ParComplexGridFunction(HDivFESpace2p_);
 
-      erCoef_.SetGridFunction(&e_->real());
-      eiCoef_.SetGridFunction(&e_->imag());
-
-      derCoef_.SetGridFunction(&e_->real());
-      deiCoef_.SetGridFunction(&e_->imag());
    }
+   */
+   HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
+   S_ = new ParComplexGridFunction(HDivFESpace2p_);
+
+   erCoef_.SetGridFunction(&e_->real());
+   eiCoef_.SetGridFunction(&e_->imag());
+
+   derCoef_.SetGridFunction(&e_->real());
+   deiCoef_.SetGridFunction(&e_->imag());
 
    {
       StixCoefBase * s = dynamic_cast<StixCoefBase*>(epsReCoef_);
@@ -950,8 +955,8 @@ CPDSolver::~CPDSolver()
    delete rhsiCoef_;
    delete jrCoef_;
    delete jiCoef_;
-   // delete erCoef_;
-   // delete eiCoef_;
+   //delete erCoef_;
+   //delete eiCoef_;
    delete SReCoef_;
    delete SImCoef_;
    delete DReCoef_;
@@ -2219,13 +2224,13 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Re_J", &j_->real());
       visit_dc.RegisterField("Im_J", &j_->imag());
    }
+   visit_dc.RegisterField("Re_S", &S_->real());
+   visit_dc.RegisterField("Im_S", &S_->imag());
    if ( u_ )
    {
       visit_dc.RegisterField("U", u_);
       visit_dc.RegisterField("U_E", uE_);
       visit_dc.RegisterField("U_B", uB_);
-      visit_dc.RegisterField("Re_S", &S_->real());
-      visit_dc.RegisterField("Im_S", &S_->imag());
       // visit_dc.RegisterField("Im(u)", &u_->imag());
    }
    if ( StixS_ )
@@ -2286,12 +2291,14 @@ CPDSolver::WriteVisItFields(int it)
          j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
       }
       */
+
+      S_->ProjectCoefficient(SrCoef_, SiCoef_);
+
       if ( u_ )
       {
          u_->ProjectCoefficient(uCoef_);
          uE_->ProjectCoefficient(uECoef_);
          uB_->ProjectCoefficient(uBCoef_);
-         S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
       if ( StixS_ )
       {
@@ -2639,7 +2646,7 @@ CPDSolver::DisplayToGLVis()
    }
    */
    Wx = 0; Wy += offy; // next line
-
+   /*
    if ( u_ )
    {
       Wx = 0; Wy += offy; // next line
@@ -2667,6 +2674,7 @@ CPDSolver::DisplayToGLVis()
       VisualizeField(*socks_["Si"], vishost, visport,
                      S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
    }
+   */
    Wx = 0; Wy += offy; // next line
    /*
    if ( k_ )

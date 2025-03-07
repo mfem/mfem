@@ -27,34 +27,37 @@ complex<double> Zfunction(complex<double> xi)
 
 complex<double> first_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
                                      complex<double> vth, double omega,
-                                                   double kparallel)
+                                     double kparallel, double nu)
 {
+   complex<double> comp_val(0.0,1.0);
+
    // n > 0:
-   complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
+   complex<double> Zp = Zfunction((omega*(1.0+comp_val*nu) - w_c)/(kparallel*vth));
 
    // n < 0:
-   complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
+   complex<double> Zm = Zfunction((omega*(1.0+comp_val*nu) + w_c)/(kparallel*vth));
 
    return ((pow(w_p,2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm));
 }
 
 complex<double> second_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
                                       complex<double> vth, double omega,
-                                                   double kparallel, double kperp)
+                                       double kparallel, double nu, double kperp)
 {
+   complex<double> comp_val(0.0,1.0);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
    // n > 0:
-   complex<double> Zp = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
+   complex<double> Zp = Zfunction((omega*(1.0+comp_val*nu) - 2.0*w_c)/(kparallel*vth));
 
    // n < 0:
-   complex<double> Zm = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
+   complex<double> Zm = Zfunction((omega*(1.0+comp_val*nu) + 2.0*w_c)/(kparallel*vth));
    
    return ((pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm));
 }
 
 complex<double> first_harm_kinetic_D(complex<double> w_c, complex<double> w_p, 
                                      complex<double> vth, double omega,
-                                                   double kparallel)
+                                      double kparallel)
 {
    // n > 0:
    complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
@@ -68,14 +71,14 @@ complex<double> first_harm_kinetic_D(complex<double> w_c, complex<double> w_p,
 
 complex<double> second_harm_kinetic_D(complex<double> w_c, complex<double> w_p, 
                                      complex<double> vth, double omega,
-                                                   double kparallel, double kperp)
+                                     double kparallel,double kperp)
 {
-   std::complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
+   complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
    // n > 0:
-   std::complex<double> Zp = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
+   complex<double> Zp = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
 
    // n < 0:
-   std::complex<double> Zm = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
+   complex<double> Zm = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
    
    return ((pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm));
 }
@@ -314,7 +317,8 @@ complex<double> S_cold_plasma(double omega,
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
                  nue;
-   complex<double> collision_correction(1.0, nuei/omega);
+   double LH_nu = 0.0;
+   complex<double> collision_correction(0.0, nuei/omega);
    double nparallel = (3e8*kparallel)/(omega);
    complex<double> comp_val(0.0,1.0);
    double width_coll = 0.1;
@@ -330,7 +334,7 @@ complex<double> S_cold_plasma(double omega,
       double q = charge[i];
       double m = mass[i];
       complex<double> m_eff = m;
-      //if (i == 0) { m_eff = m * collision_correction; }
+      if (i == 0) { m_eff = m * (1.0 + collision_correction); }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       double T = Te;
@@ -347,8 +351,13 @@ complex<double> S_cold_plasma(double omega,
       else
       {
          double kperp = 72.12776;
-         complex<double> first_harm = first_harm_kinetic_S(w_c, w_p, vth, omega, kparallel);
-         complex<double> second_harm = second_harm_kinetic_S(w_c, w_p, vth, omega, kparallel,kperp);
+         double cold_S = 0.5*Rval+0.5*Lval;
+         if (fabs(cold_S) < 1.0)
+         {
+            LH_nu = (nui*exp(-pow(cold_S,2.0)))/omega;
+         }
+         complex<double> first_harm = first_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu);
+         complex<double> second_harm = second_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu, kperp);
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
@@ -440,7 +449,8 @@ complex<double> D_cold_plasma(double omega,
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
                  nue;
-   complex<double> collision_correction(1.0, nuei/omega);
+   double LH_nu = 0.0;
+   complex<double> collision_correction(0.0, nuei/omega);
    double nparallel = (3e8*kparallel)/(omega);
    complex<double> comp_val(0.0,1.0);
    double width_coll = 0.1;
@@ -454,7 +464,7 @@ complex<double> D_cold_plasma(double omega,
       double q = charge[i];
       double m = mass[i];
       complex<double> m_eff = m;
-      //if (i == 0) { m_eff = m * collision_correction; }
+      if (i == 0) { m_eff = m * (1.0 + collision_correction); }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       double T = Te;
@@ -471,7 +481,7 @@ complex<double> D_cold_plasma(double omega,
       {
          double kperp = 72.12776;
          complex<double> first_harm = first_harm_kinetic_D(w_c, w_p, vth, omega, kparallel);
-         complex<double> second_harm = second_harm_kinetic_D(w_c, w_p, vth, omega, kparallel,kperp);
+         complex<double> second_harm = second_harm_kinetic_D(w_c, w_p, vth, omega, kparallel, kperp);
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
@@ -539,7 +549,7 @@ complex<double> P_cold_plasma(double omega,
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
                  nue;
-   complex<double> collision_correction(1.0, nuei/omega);
+   complex<double> collision_correction(0.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -548,14 +558,14 @@ complex<double> P_cold_plasma(double omega,
       double q = charge[i];
       double m = mass[i];
       complex<double> m_eff = m;
-      //if (i == 0) { m_eff = m*collision_correction; }
+      if (i == 0) { m_eff = m*(1.0 + collision_correction); }
       complex<double> w_p = omega_p(n, q, m_eff);
 
       if (i == 0)
       {
          complex<double> vth = vthermal(Te, m_eff);
          complex<double> Z = Zfunction(omega/(kparallel*vth));
-         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2.0*(1.0+(omega/(kparallel*vth))*Z))+complex<double>(0,nuei/omega);
+         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2.0*(1.0+(omega/(kparallel*vth))*Z));
       }
       else { suscept_particle = -1.0*(w_p * w_p) / (omega * omega); }
       val += suscept_particle;
@@ -2239,19 +2249,20 @@ double PlasmaProfile::EvalByType(Type type,
          // SOL:
          else
          {
-            /*
             if (val > 1.0 && sqrt(val) <= psi_Olim)
             {
                pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
-               if (pval < 1e12){pval = 1e12;}
+               //if (pval < 3e18){pval = 1e12;}
             }
             else 
             {
-               pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
-               if (pval < 1e12){pval = 1e12;}
+               pval = 1e12;
+               if (bool_limits == 1)
+               {
+                  pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
+                  //if (pval < 3e18){pval = 1e12;}
+               }
             }
-            */
-            pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
          }
 
          return pval*scale;
@@ -2507,12 +2518,12 @@ double PlasmaProfile::EvalByType(Type type,
          if (val > 1.0 && sqrt(val) <= psi_Olim)
          {
             pval = pmax*exp(-(sqrt(val) - 1.0)/sl1);
-            if (pval < 8e17){pval = 1e12;}
+            if (pval < 2e18){pval = 1e12;}
          }
          else 
          {
             pval = (pmax*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
-            if (pval < 8e17){pval = 1e12;}
+            if (pval < 2e18){pval = 1e12;}
          }
 
          }
@@ -2582,10 +2593,11 @@ double PlasmaProfile::EvalByType(Type type,
          }
          else
          {
+
             if (val > 1.0 && sqrt(val) <= psi_Olim)
             {
                pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
-               if (pval < 5e17){pval = 1e12;}
+               if (pval < 1e18){pval = 1e12;}
             }
             else 
             {
@@ -2593,7 +2605,7 @@ double PlasmaProfile::EvalByType(Type type,
                if (bool_limits == 1)
                {
                   pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
-                  if (pval < 5e17){pval = 1e12;}
+                  if (pval < 2e18){pval = 1e12;}
                }
             }
          }

@@ -628,6 +628,11 @@ int main(int argc, char *argv[])
    double nui = 0;
    double Ti = 0;
 
+   int mdpt = 0;
+   int mtpt = 0;
+   const char *mdpt_data = "ne.gf";
+   const char *mtpt_data = "Te.gf";
+
    PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_sol = PlasmaProfile::CONSTANT;
@@ -735,6 +740,10 @@ int main(int argc, char *argv[])
                   "Thickness of extruded mesh in meters.");
    args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
                   "Thickness of cylindrically extruded mesh in degrees.");
+   args.AddOption(&mdpt, "-mdpt", "--mesh-density-data",
+                  "Indicates the use of input density data.");
+   args.AddOption(&mdpt_data, "-mdpt-data", "--mesh-density-data-values",
+                  "Input density data.");
    args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -809,6 +818,10 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption(&mtpt, "-mtpt", "--mesh-temp-data",
+                  "Indicates the use of input temperature data.");
+   args.AddOption(&mtpt_data, "-mtpt-data", "--mesh-temperature-data-values",
+                  "Input temperature data.");
    args.AddOption(&tpa_vac, "-tpa-vac", "-vac-temp-profile-attr",
                   "Temperature Profile (for ions) in Vacuum");
    args.AddOption((int*)&tpt_vac, "-tp-vac", "--vac-temp-profile",
@@ -1592,6 +1605,7 @@ int main(int argc, char *argv[])
    {
       cout << "Creating plasma profile." << endl;
    }
+
    /*
    if (Mpi::Root())
    {
@@ -1690,6 +1704,21 @@ int main(int argc, char *argv[])
       */
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
+
+   /*
+   if (mdpt == 1)
+   {
+      Mesh *den_mesh = new Mesh(mdpt_mesh, 1, 1);
+      int dim = den_mesh->Dimension();
+      H1_FECollection lin_fec(1, dim);
+      FiniteElementSpace lin_fes(den_mesh, &lin_fec);
+      GridFunction lin_gf(&lin_fes);
+      std::ifstream inputFile(mdpt_data);
+      
+      lin_gf.Load(inputFile);
+      GridFunctionCoefficient rhoCoef(&lin_gf);
+   }
+   */
 
    for (int i=0; i<=numbers.Size(); i++)
    {

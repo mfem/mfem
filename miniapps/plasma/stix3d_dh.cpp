@@ -498,6 +498,10 @@ int main(int argc, char *argv[])
    double nui = 0;
    double Ti = 0;
 
+   int mdpt = 0;
+   const char *mdpt_mesh = "vertices.npy";
+   const char *mdpt_data = "n.npy";
+
    PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_sol = PlasmaProfile::CONSTANT;
@@ -603,8 +607,14 @@ int main(int argc, char *argv[])
                   "Frequency in Hertz (of course...)");
    args.AddOption(&hz, "-mh", "--mesh-height",
                   "Thickness of extruded mesh in meters.");
+   args.AddOption(&mdpt, "-mdpt", "--mesh-density-data",
+                  "Indicates the use of input density data.");
+   args.AddOption(&mdpt_mesh, "-mdpt-mesh", "--mesh-density-data-filename",
+                  "Mesh file of input density data.");
+   args.AddOption(&mdpt_data, "-mdpt-data", "--mesh-density-data-values",
+                  "Input density data.");
    args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
-                  "Thickness of cylindrically extruded mesh in degrees.");
+                  "Thickness of cylindrically extruded mesh in degrees.");   
    args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "

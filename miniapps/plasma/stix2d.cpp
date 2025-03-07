@@ -585,6 +585,9 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type tpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt_vac = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Array<int> dpa_vac;
@@ -593,6 +596,9 @@ int main(int argc, char *argv[])
    Array<int> tpa_vac;
    Array<int> tpa_sol;
    Array<int> tpa_cor;
+   Array<int> nipa_vac;
+   Array<int> nipa_sol;
+   Array<int> nipa_cor;
    Vector dpp_def;
    Vector dpp_vac;
    Vector dpp_sol;
@@ -604,6 +610,9 @@ int main(int argc, char *argv[])
    Vector bpp;
    Vector nepp;
    Vector nipp;
+   Vector nipp_vac;
+   Vector nipp_sol;
+   Vector nipp_cor;
    Vector tipp;
    int nuprof = 0;
    double res_lim = 0.01;
@@ -815,6 +824,48 @@ int main(int argc, char *argv[])
    args.AddOption(&nipp, "-nipp", "--ion-collisions-profile-params",
                   "Ion Collisions Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nipa_vac, "-nipa-vac", "-vac-ni-profile-attr",
+                  "Ion Collisions Profile (for ions) in Vacuum");
+   args.AddOption((int*)&nipt_vac, "-nip-vac", "--vac-ni-profile",
+                  "Ion Collisions Profile Type (for ions) in Vacuum: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp_vac, "-nipp-vac", "--vac-ni-profile-params",
+                  "Ion Collisions Profile Parameters in Vacuum:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nipa_sol, "-nipa-sol", "-sol-ni-profile-attr",
+                  "Ion Collisions Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&nipt_sol, "-nip-sol", "--sol-ni-profile",
+                  "Ion Collisions Profile Type (for ions) in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp_sol, "-nipp-sol", "--sol-ni-profile-params",
+                  "Ion Collisions Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nipa_cor, "-nipa-core", "-core-ni-profile-attr",
+                  "Ion Collisions Profile Core Attributes");
+   args.AddOption((int*)&nipt_cor, "-nip-core", "--core-ni-profile",
+                  "Ion Collisions Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp_cor, "-nipp-core", "--core-ni-profile-params",
+                  "Ion Collisions Profile Parameters in Core region:\n"
+                  "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient, "
@@ -1492,8 +1543,6 @@ int main(int argc, char *argv[])
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
    PlasmaProfile nueCoef(nept, nepp, coord_sys, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp, coord_sys, eqdsk);
-   nui_gf.ProjectCoefficient(nuiCoef);
    PlasmaProfile TiCoef(tipt, tipp, coord_sys, eqdsk);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
@@ -1520,104 +1569,47 @@ int main(int argc, char *argv[])
    {
       cout << "Creating plasma profile." << endl;
    }
-   /*
-   if (Mpi::Root())
-   {
-      cout << "   Setting default temperature profile type " << tpt_def
-           << " with parameters \"";
-      tpp_def.Print(cout);
-   }
-   */
    PlasmaProfile TeCoef(tpt_def, tpp_def, coord_sys, eqdsk);
    if (tpa_vac.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-
-         cout << "   Setting vacuum layer temperature profile type " << tpt_sol
-              << " with parameters \"";
-         tpp_vac.Print(cout);
-         cout << "\" on attributes \"" << tpa_vac << "\".";
-      }
-      */
       TeCoef.SetParams(tpa_vac, tpt_vac, tpp_vac);
    }
    if (tpa_sol.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-
-         cout << "   Setting scrape-off layer temperature profile type " << tpt_sol
-              << " with parameters \"";
-         tpp_sol.Print(cout);
-         cout << "\" on attributes \"" << tpa_sol << "\".";
-      }
-      */
       TeCoef.SetParams(tpa_sol, tpt_sol, tpp_sol);
    }
    if (tpa_cor.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting core temperature profile type " << tpt_cor
-              << " with parameters \"";
-         tpp_cor.Print(cout);
-         cout << "\" on attributes \"" << tpa_cor << "\".";
-      }
-      */
       TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
    }
-   /*
-   if (Mpi::Root())
-   {
-      cout << "   Setting default density profile type " << dpt_def
-           << " with parameters \"";
-      dpp_def.Print(cout);
-   }
-   */
    PlasmaProfile rhoCoef(dpt_def, dpp_def, coord_sys, eqdsk);
    if (dpa_vac.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting vacuum density profile type " << dpt_vac
-              << " with parameters \"";
-         dpp_vac.Print(cout);
-         cout << "\" on attributes \"" << dpa_vac << "\".";
-      }
-      */
       rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
    }
    if (dpa_sol.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting scrape-off layer density profile type " << dpt_sol
-              << " with parameters \"";
-         dpp_sol.Print(cout);
-         cout << "\" on attributes \"" << dpa_sol << "\".";
-      }
-      */
       rhoCoef.SetParams(dpa_sol, dpt_sol, dpp_sol);
    }
    if (dpa_cor.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting core density profile type " << dpt_cor
-              << " with parameters \"";
-         dpp_cor.Print(cout);
-         cout << "\" on attributes \"" << dpa_cor << "\".";
-      }
-      */
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
+   PlasmaProfile nuiCoef(nipt, nipp, coord_sys, eqdsk);
+   if (nipa_vac.Size() > 0)
+   {
+      nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
+   }
+   if (nipa_sol.Size() > 0)
+   {
+      nuiCoef.SetParams(nipa_sol, nipt_sol, nipp_sol);
+   }
+   if (nipa_cor.Size() > 0)
+   {
+      nuiCoef.SetParams(nipa_cor, nipt_cor, nipp_cor);
+   }
+
+   nui_gf.ProjectCoefficient(nuiCoef);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
@@ -2076,6 +2068,7 @@ int main(int argc, char *argv[])
 
       //nue_gf *= 1/omega;
       visit_dc.RegisterField("Collisional Profile", &nue_gf);
+      visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
       visit_dc.RegisterField("B_background", &BField);
 

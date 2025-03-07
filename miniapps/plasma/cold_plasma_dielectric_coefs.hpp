@@ -91,11 +91,11 @@ inline double nu_art(double x)
 
 std::complex<double> first_harm_kinetic_S(std::complex<double> w_c, std::complex<double> w_p, 
                                           std::complex<double> vth, double omega,
-                                                   double kparallel);
+                                                   double kparallel, double nu);
 
 std::complex<double> second_harm_kinetic_S(std::complex<double> w_c, std::complex<double> w_p, 
                                            std::complex<double> vth, double omega,
-                                                   double kparallel, double kperp);
+                                                   double kparallel, double nu, double kperp);
 
 std::complex<double> first_harm_kinetic_D(std::complex<double> w_c, std::complex<double> w_p, 
                                           std::complex<double> vth, double omega,
