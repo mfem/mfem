@@ -33,9 +33,7 @@ struct InternalStateQFunction
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
-      auto P3D = material.UpdateInternalState(dudX3D, internal_state);
-      auto Q = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
-      return mfem::tuple{Q};
+      return get<1>(material(dudX3D, internal_state));
    }
 
    Material material;
@@ -56,7 +54,7 @@ struct MomentumRefStateQFunction
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
-      auto P3D = material.UpdateStress(dudX3D, internal_state);
+      auto [P3D, Qnew] = material(dudX3D, internal_state);
       auto P = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
       auto JxW = det(J) * w * transpose(invJ);
       return mfem::tuple{P * JxW};
@@ -65,23 +63,6 @@ struct MomentumRefStateQFunction
    Material material;
 };
 
-
-struct StVenantKirchhoff
-{
-   MFEM_HOST_DEVICE inline
-   auto operator()(const tensor<real_t, 3, 3> & dudX) const
-   {
-      constexpr auto I = mfem::internal::IsotropicIdentity<3>();
-      const real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
-      auto E = 0.5 * (dudX + transpose(dudX) + dot(transpose(dudX), dudX));
-      auto S = lambda * tr(E) * I + 2.0 * mu * E;
-      auto F = mfem::internal::IsotropicIdentity<3>() + dudX;
-      return dot(F, S);
-   }
-   
-   real_t mu;
-   real_t nu;
-};
 
 struct J2SmallStrain {
   static constexpr int dim = 3;         ///< spatial dimension
@@ -125,7 +106,7 @@ struct J2SmallStrain {
 
   MFEM_HOST_DEVICE inline
   tuple<tensor<real_t, dim, dim>, tensor<real_t, n_internal_states>>
-  Update(const tensor<real_t, dim, dim> & dudX, const tensor<real_t, n_internal_states> & internal_state) const
+  operator()(const tensor<real_t, dim, dim> & dudX, const tensor<real_t, n_internal_states> & internal_state) const
   {
       auto I = mfem::internal::Identity<dim>();
       const real_t K = E / (3.0 * (1.0 - 2.0 * nu));
@@ -155,18 +136,6 @@ struct J2SmallStrain {
       auto stress = s + p * I;
       auto internal_state_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
       return {stress, internal_state_new};
-  }
-
-  MFEM_HOST_DEVICE inline
-  auto UpdateStress(const tensor<real_t, dim, dim> & du_dX, const tensor<real_t, n_internal_states> & internal_state) const
-  {
-   return get<0>(Update(du_dX, internal_state));
-  }
-
-  MFEM_HOST_DEVICE inline
-  auto UpdateInternalState(const tensor<real_t, dim, dim> & du_dX, const tensor<real_t, n_internal_states> & internal_state) const
-  {
-      return get<1>(Update(du_dX, internal_state));
   }
 };
 
