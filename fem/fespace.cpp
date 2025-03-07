@@ -2723,7 +2723,7 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_dof = new Table(GetNF(), face_dof_list);
 }
 
-void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
+void FiniteElementSpace::Construct()
 {
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
@@ -2766,7 +2766,7 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
    {
       // for variable-order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders, edge_elem_orders,
-                            face_elem_orders, skip_edge, skip_face, pref_data);
+                            face_elem_orders, skip_edge, skip_face);
    }
    else if (mixed_faces)
    {
@@ -2988,8 +2988,7 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
 // 0.
 void FiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<VarOrderBits> &edge_orders,
-   Array<VarOrderBits> &face_orders,
-   const Array<VarOrderElemInfo> * pref_data) const
+   Array<VarOrderBits> &face_orders) const
 {
    edge_orders.SetSize(mesh->GetNEdges());
    face_orders.SetSize(mesh->GetNFaces());
@@ -3001,16 +3000,14 @@ void FiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
 void FiniteElementSpace::CalcEdgeFaceVarOrders(
    Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
    Array<VarOrderBits> &edge_elem_orders, Array<VarOrderBits> &face_elem_orders,
-   Array<bool> &skip_edges, Array<bool> &skip_faces,
-   const Array<VarOrderElemInfo> * pref_data) const
+   Array<bool> &skip_edges, Array<bool> &skip_faces) const
 {
-   MFEM_ASSERT(IsVariableOrder() || pref_data, "");
    MFEM_ASSERT(Nonconforming(), "");
 
    const bool localVar = elem_order.Size() == mesh->GetNE();
    const int baseOrder = fec->GetOrder();
 
-   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, pref_data);
+   ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders);
 
    edge_elem_orders.SetSize(mesh->GetNEdges());
    face_elem_orders.SetSize(mesh->GetNFaces());

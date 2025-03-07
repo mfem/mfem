@@ -3130,8 +3130,7 @@ void ParNCMesh::GetGhostElements(Array<int> & gelem)
 
 // Note that this function is modeled after ParNCMesh::Refine().
 void ParNCMesh::CommunicateGhostData(
-   const Array<FiniteElementSpace::VarOrderElemInfo> & sendData,
-   Array<FiniteElementSpace::VarOrderElemInfo> & recvData)
+   const Array<VarOrderElemInfo> & sendData, Array<VarOrderElemInfo> & recvData)
 {
    recvData.SetSize(0);
 

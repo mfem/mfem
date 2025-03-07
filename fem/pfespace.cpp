@@ -133,8 +133,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    CheckNDSTriaDofs();
 }
 
-void ParFiniteElementSpace::CommunicateGhostOrder(
-   Array<VarOrderElemInfo> & pref_data)
+void ParFiniteElementSpace::CommunicateGhostOrder()
 {
    // Variable-order space needs a nontrivial P matrix + also ghost elements
    // in parallel, we thus require the mesh to be NC.
@@ -169,14 +168,14 @@ void ParFiniteElementSpace::CommunicateGhostOrder(
 
    MFEM_ASSERT(mesh->GetNE() == pncmesh->GetNElements(), "");
 
-   Array<VarOrderElemInfo> localOrders(mesh->GetNE());
+   Array<ParNCMesh::VarOrderElemInfo> localOrders(mesh->GetNE());
    for (int i=0; i<mesh->GetNE(); ++i)
    {
-      VarOrderElemInfo order_i{(unsigned int) i, elem_order[i]};
+      ParNCMesh::VarOrderElemInfo order_i{(unsigned int) i, elem_order[i]};
       localOrders[i] = order_i;
    }
 
-   pncmesh->CommunicateGhostData(localOrders, pref_data);
+   pncmesh->CommunicateGhostData(localOrders, ghost_orders);
 }
 
 void ParFiniteElementSpace::Construct()
@@ -3510,8 +3509,6 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
    }
 }
 
-// This function sets rows of the restriction matrix R in a variable-order
-// space, corresponding to true DOFs on edges and faces.
 void ParFiniteElementSpace
 ::SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
                                  int tdof_stride, const Array<int> &dof_tdof,
@@ -4908,10 +4905,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    // In the variable-order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
-   Array<VarOrderElemInfo> pref_data;
-   if (variableOrder) { CommunicateGhostOrder(pref_data); }
+   if (variableOrder) { CommunicateGhostOrder(); }
 
-   FiniteElementSpace::Construct(&pref_data);
+   FiniteElementSpace::Construct();
    Construct();
 
    BuildElementToDofTable();
@@ -4976,12 +4972,12 @@ void ParFiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
 
    if (want_transfer)
    {
-      pfesPrev.reset(new ParFiniteElementSpace(pmesh, fec, vdim, ordering));
+      pfes_prev.reset(new ParFiniteElementSpace(pmesh, fec, vdim, ordering));
       for (int i = 0; i<pmesh->GetNE(); i++)
       {
-         pfesPrev->SetElementOrder(i, GetElementOrder(i));
+         pfes_prev->SetElementOrder(i, GetElementOrder(i));
       }
-      pfesPrev->Update(false);
+      pfes_prev->Update(false);
    }
 
    for (auto ref : refs)
@@ -4993,7 +4989,7 @@ void ParFiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
 
    if (want_transfer)
    {
-      PTh.reset(new PRefinementTransferOperator(*pfesPrev, *this));
+      PTh.reset(new PRefinementTransferOperator(*pfes_prev, *this));
    }
 
    lastUpdatePRef = true;
@@ -5022,15 +5018,13 @@ int ParFiniteElementSpace::GetMaxElementOrder() const
    }
 }
 
-// This function is an extension of FiniteElementSpace::CalcEdgeFaceVarOrders in the
-// parallel case, to use pref_data, on ranks where it is not nullptr.
-// pref_data contains ghost element indices and their orders. The order on each
-// ghost element is applied to the element's edges and faces, in @a edge_orders and
-// @a face_orders.
+// This function is an extension of FiniteElementSpace::CalcEdgeFaceVarOrders in
+// the parallel case, to use ghost_orders, which contains ghost element indices
+// and their orders. The order on each ghost element is applied to the element's
+// edges and faces, in @a edge_orders and @a face_orders.
 void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<VarOrderBits> &edge_orders,
-   Array<VarOrderBits> &face_orders,
-   const Array<VarOrderElemInfo> * pref_data) const
+   Array<VarOrderBits> &face_orders) const
 {
    edge_orders.SetSize(pncmesh->GetNEdges() + pncmesh->GetNGhostEdges());
    face_orders.SetSize(pncmesh->GetNFaces() + pncmesh->GetNGhostFaces());
@@ -5038,11 +5032,11 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    edge_orders = 0;
    face_orders = 0;
 
-   const int npref = pref_data ? pref_data->Size() : 0;
+   const int npref = ghost_orders.Size();
    for (int i=0; i<npref; ++i)
    {
-      const int elem = (*pref_data)[i].element; // Index in NCMesh::elements
-      const int order = (*pref_data)[i].order;
+      const int elem = ghost_orders[i].element; // Index in NCMesh::elements
+      const int order = ghost_orders[i].order;
       const VarOrderBits mask = (VarOrderBits(1) << order);
 
       Array<int> edges;
