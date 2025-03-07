@@ -33,7 +33,7 @@ struct MomentumRefStateQFunction
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
-      auto P3D = material(dudX3D);
+      auto P3D = material(dudX3D, internal_state);
       auto P = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
       auto JxW = det(J) * w * transpose(invJ);
       return mfem::tuple{P * JxW};
@@ -58,6 +58,89 @@ struct StVenantKirchhoff
    real_t mu;
    real_t nu;
 };
+
+struct J2SmallStrain {
+  static constexpr int dim = 3;         ///< spatial dimension
+  static constexpr int n_internal_states = 10;
+  static constexpr double tol = 1e-10;  ///< relative tolerance on residual mag to judge convergence of return map
+
+  real_t E;                 ///< Young's modulus
+  real_t nu;                ///< Poisson's ratio
+  real_t sigma_y;                ///< Yield strength
+  double Hk;                ///< Kinematic hardening modulus
+  double density;           ///< Mass density
+
+  /// @brief variables required to characterize the hysteresis response
+  struct InternalState {
+    tensor<double, dim, dim> plastic_strain;  ///< plastic strain
+    double accumulated_plastic_strain;        ///< uniaxial equivalent plastic strain
+  };
+
+  MFEM_HOST_DEVICE inline
+  InternalState unpack_internal_state(const tensor<real_t, n_internal_states> & packed_state) const
+  {
+      // we could use type punning here to avoid copies
+      auto plastic_strain = mfem::internal::make_tensor<dim, dim>(
+         [&packed_state](int i, int j) { return packed_state[dim*i + j]; });
+      real_t accumulated_plastic_strain = packed_state[n_internal_states - 1];
+      return {plastic_strain, accumulated_plastic_strain};
+  }
+
+  MFEM_HOST_DEVICE inline
+  tensor<real_t, n_internal_states> pack_internal_state(const tensor<real_t, dim, dim> & plastic_strain, real_t accumulated_plastic_strain) const
+  {
+      tensor<real_t, n_internal_states> packed_state{};
+      for (int i = 0, ij = 0; i < dim; i++) {
+         for (int j = 0; j < dim; j++, ij++) {
+            packed_state[ij] = plastic_strain[i][j];
+         }
+      }
+      packed_state[n_internal_states - 1] = accumulated_plastic_strain;
+      return packed_state;
+  }
+
+  MFEM_HOST_DEVICE inline
+  tuple<tensor<real_t, dim, dim>, tensor<real_t, n_internal_states>>
+  Update(const tensor<real_t, dim, dim> & dudX, const tensor<real_t, n_internal_states> & internal_state) const
+  {
+      auto I = mfem::internal::Identity<dim>();
+      const real_t K = E / (3.0 * (1.0 - 2.0 * nu));
+      const real_t G = 0.5 * E / (1.0 + nu);
+
+      auto [plastic_strain, accumulated_plastic_strain] = unpack_internal_state(internal_state);
+
+      // (i) elastic predictor
+      auto el_strain = sym(dudX) - plastic_strain;
+      auto p = K * tr(el_strain);
+      auto s = 2.0 * G * dev(el_strain);
+      auto sigma_b = 2.0 / 3.0 * Hk * plastic_strain;
+      auto eta = s - sigma_b;
+      auto q = sqrt(1.5) * norm(eta);
+      real_t delta_eqps = 0.0;
+
+      // (ii) admissibility
+      if (q > tol * sigma_y) {
+         // (iii) return mapping
+         real_t delta_eqps = (q - sigma_y)/(3*G + Hk);
+         auto Np = 1.5 * eta / q;
+         s = s - 2.0 * G * delta_eqps * Np;
+         plastic_strain += delta_eqps * Np;
+         accumulated_plastic_strain += delta_eqps;
+         //out << accumulated_plastic_strain << std::endl;
+      }
+      auto stress = s + p * I;
+      auto internal_state_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
+      return {stress, internal_state_new};
+  }
+
+  MFEM_HOST_DEVICE inline
+  auto operator()(const tensor<real_t, dim, dim> & du_dX, const tensor<real_t, n_internal_states> & internal_state) const
+  {
+   auto [stress, internal_state_new] = Update(du_dX, internal_state);
+   return stress;
+  }
+};
+
 class ElasticityOperator : public Operator
 {
    static constexpr int Displacement = 0;
@@ -172,8 +255,9 @@ public:
          mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
          mfem::tuple outputs{Gradient<Displacement>{}};
 
-         using Material = StVenantKirchhoff;
-         Material material{.mu = 0.5e6, .nu = 0.4};
+         using Material = J2SmallStrain;
+         // Material material{.mu = 0.5e6, .nu = 0.4};
+         Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 40.0};
          auto momentum_qf = MomentumRefStateQFunction<Material, DIMENSION> {.material = material};
          auto derivatives = std::integer_sequence<size_t, Displacement> {};
          Array<int> solid_domain_attr(mesh->attributes.Max());
@@ -185,7 +269,6 @@ public:
       {
          Vector g(DIMENSION);
          g = 0.0;
-         g(1) = 2.0 * density;
 
          ParLinearForm body_force_lf(&displacement_fes);
          body_force_coef = new VectorConstantCoefficient(g);
@@ -203,6 +286,14 @@ public:
       momentum->Mult(displacement, r);
       r -= body_force;
       r.SetSubVector(displacement_ess_tdof, 0.0);
+   }
+
+   void Reaction(const Vector &displacement, Vector &r) const
+   {
+      momentum->SetParameters({mesh_nodes, &internal_state});
+      momentum->Mult(displacement, r);
+      r -= body_force;
+      r.Neg();
    }
 
    Operator &GetGradient(const Vector &x) const override
@@ -264,22 +355,9 @@ int main(int argc, char* argv[])
    }
 
    out << std::setprecision(8);
-#if 0
-   Mesh mesh_serial = Mesh(mesh_file);
-   MFEM_ASSERT(mesh_serial.Dimension() == dim, "incorrect mesh dimension");
 
-   for (int i = 0; i < refinements; i++)
-   {
-      mesh_serial.UniformRefinement();
-   }
-   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
-
-   mesh.EnsureNodes();
-   mesh_serial.Clear();
-#endif
-
-   Mesh mesh_serial = Mesh::MakeCartesian2D(8, 8, Element::QUADRILATERAL,
-      false, 0.35, 0.02);
+   Mesh mesh_serial = Mesh::MakeCartesian2D(20, 2, Element::QUADRILATERAL,
+      false, 1.0, 0.1);
    mesh_serial.EnsureNodes();
    auto mesh_beam = ParMesh(MPI_COMM_WORLD, mesh_serial);
 
@@ -306,17 +384,36 @@ int main(int argc, char* argv[])
    internal_state = 0.0;
 
    Array<int> bdr_attr_is_ess(mesh_beam.bdr_attributes.Max());
-   out << bdr_attr_is_ess.Size() << "\n";
-   bdr_attr_is_ess = 0;
-   // bdr_attr_is_ess[6] = 1;
-   bdr_attr_is_ess[3] = 1;
    Array<int> displacement_ess_tdof;
-   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, displacement_ess_tdof);
+   Array<int> bc_tdof;
 
+   bdr_attr_is_ess = 0;
+   bdr_attr_is_ess[0] = 1;
+   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 1);
+   for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
+   out << "essential tdofs = \n";
+   displacement_ess_tdof.Print();
+
+   bdr_attr_is_ess = 0;
+   bdr_attr_is_ess[3] = 1;
+   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
+   for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
+   out << "essential tdofs = \n";
+   displacement_ess_tdof.Print();
+
+   bdr_attr_is_ess = 0;
+   bdr_attr_is_ess[1] = 1;
+   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
+   for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
+
+   out << "essential tdofs = \n";
+   displacement_ess_tdof.Print();
+
+   // Applied displacement boundary condition
+   constexpr real_t applied_displacement = 0.2;
    ParGridFunction u(&displacement_fes);
-   // u.Randomize(1234);
-   // u.SetSubVector(displacement_ess_tdofs, 0.0);
    u = 0.0;
+   u.SetSubVector(bc_tdof, applied_displacement);
 
    ElasticityOperator elasticity(displacement_fes, displacement_ess_tdof,
                                  displacement_ir, internal_state);
@@ -325,7 +422,7 @@ int main(int argc, char* argv[])
 
    CGSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);
-   solver.SetRelTol(1e-4);
+   solver.SetRelTol(1e-5);
    // solver.SetKDim(500);
    solver.SetMaxIter(500);
    solver.SetPrintLevel(2);
@@ -352,7 +449,7 @@ int main(int argc, char* argv[])
       MFEM_ABORT("invalid nonlinear solver type");
    }
    nonlinear_solver->SetOperator(elasticity);
-   nonlinear_solver->SetRelTol(1e-6);
+   nonlinear_solver->SetRelTol(1e-10);
    nonlinear_solver->SetMaxIter(50);
    nonlinear_solver->SetSolver(solver);
    nonlinear_solver->SetPrintLevel(1);
@@ -364,49 +461,17 @@ int main(int argc, char* argv[])
 
    u.SetFromTrueDofs(x);
 
-   // Compute Newton residual
+   // Compute reactions
    Vector r(displacement_fes.GetTrueVSize());
-   elasticity.Mult(x, r);
-   r.SetSubVector(displacement_ess_tdof, 0.0);
-   double rnorm = r.Norml2();
-   out << "||F(x) - b||_2 = " << rnorm << "\n";
+   elasticity.Reaction(x, r);
+   ParGridFunction reaction(&displacement_fes);
+   reaction.SetFromTrueDofs(r);
 
-   // Compute CG residual
-   Vector z(displacement_fes.GetTrueVSize());
-   z = x;
-   z.SetSubVector(displacement_ess_tdof, 0.0);
-   elasticity.GetGradient(x).Mult(z, r);
-   r.Neg();
-   r += elasticity.body_force;
-   for (int i = 0; i < displacement_ess_tdof.Size(); i++)
-   {
-      r[displacement_ess_tdof[i]] = x[displacement_ess_tdof[i]];
-   }
-   double cg_rnorm = r.Norml2();
-   out << "||b - Ax||_2 = " << cg_rnorm << "\n";
-   out << "||b||_2 = " << elasticity.body_force.Norml2() << "\n";
-   out << "||b - Ax||_2 / ||b||_2 = " << cg_rnorm / elasticity.body_force.Norml2()
-       << "\n";
-
-   // DenseMatrix points(dim, 1);
-   // Vector pointA(2);
-
-   // pointA(0) = 0.6;
-   // pointA(1) = 0.2;
-
-   // Array<int> elem_ids;
-   // Array<IntegrationPoint> ips;
-   // points.SetCol(0, pointA);
-   // mesh.FindPoints(points, elem_ids, ips);
-   // Vector pA(2);
-   // u.GetVectorValue(elem_ids[0], ips[0], pA);
-
-   // out << "displacement_x = " << pA(0) << "\n";
-   // out << "displacement_y = " << pA(1) << "\n";
-
-   ParaViewDataCollection dc("dfem_elasticity", &mesh_beam);
+   ParaViewDataCollection dc("dfem_plasticity", &mesh_beam);
    dc.SetHighOrderOutput(true);
-   dc.RegisterField("deformation", &u);
+   dc.SetLevelsOfDetail(1);
+   dc.RegisterField("displacement", &u);
+   dc.RegisterField("reaction", &reaction);
    dc.Save();
 
    return 0;
