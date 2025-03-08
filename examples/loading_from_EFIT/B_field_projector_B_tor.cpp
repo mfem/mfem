@@ -22,11 +22,8 @@ int main(int argc, char *argv[])
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   Mesh *new_mesh = new Mesh(Mesh::MakeCartesian2D(256, 512, Element::QUADRILATERAL));
-
-   // translate to 1.0 in x direction
-   new_mesh->Transform([](const Vector &x, Vector &p)
-                       { p[0] = x[0]* ((10.0 - 7.0 / 514) - (3.0 + 7.0 / 514)) + 3.0 + 7.0 / 514; p[1] = x[1]* ((6.0 - 12.0 / 1026) - (-6.0 + 12.0 / 1026)) - 6.0 + 12.0 / 1026; });
+   const char *new_mesh_file = "2d_mesh.mesh";
+   Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    // refine the mesh
    // new_mesh->UniformRefinement();
