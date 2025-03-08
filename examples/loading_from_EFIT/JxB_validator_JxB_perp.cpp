@@ -146,6 +146,7 @@ int main(int argc, char *argv[])
 
    // D. (r Curl B_perp) B_perp^perp
    GridFunction R_Curl_B_perp_B_perp_perp(&fespace);
+   cout << R_Curl_B_perp_B_perp_perp.FESpace()->GetTrueVSize() << endl;
    R_Curl_B_perp_B_perp_perp = 0.0;
    {
       // 1. make the RHS linear form
@@ -205,7 +206,7 @@ int main(int argc, char *argv[])
 
    ofstream sol_ofs("JxB_perp.gf");
    sol_ofs.precision(8);
-   R_Curl_B_perp.Save(sol_ofs);
+   JxB_perp.Save(sol_ofs);
 
    return 0;
 }

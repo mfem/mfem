@@ -19,22 +19,23 @@ handler = Equilibrium_data_handler(data_file_name, option="EFIT",
 
 # add 1 dimension to psi
 psi = handler.psi.reshape(handler.psi.shape[0], handler.psi.shape[1], 1)
-gg = handler.evaluate_g_at_coords(
-    handler.rz_coords).reshape(psi.shape)  # 131841
+gg = handler.evaluate_g_at_coords(handler.rz_coords).reshape(psi.shape)
+p = handler.evaluate_p_at_coords(handler.rz_coords).reshape(psi.shape)
 
 rz_coords = handler.rz_coords
 rz_coords = rz_coords.reshape(psi.shape[0], psi.shape[1], 2)
 
 
 B_vals = handler.B_array
-B_r, B_phi, B_z = B_vals[:, : ,0], B_vals[:, : ,1], B_vals[:, : ,2]
+B_r, B_phi, B_z = B_vals[:, :, 0], B_vals[:, :, 1], B_vals[:, :, 2]
 B_r = B_r.reshape(psi.shape)
 B_phi = B_phi.reshape(psi.shape)
 B_z = B_z.reshape(psi.shape)
 
-# joining psi, gg, B_r, B_phi, B_z, rz_coords
-data = np.concatenate((rz_coords, psi, gg, B_r, B_phi, B_z), axis=-1).T
+# joining psi, gg, p, B_r, B_phi, B_z, rz_coords
+data = np.concatenate((rz_coords, psi, gg, p, B_r, B_phi, B_z), axis=-1).T
 data = data.reshape(data.shape[0], -1)
+
 
 def output_to_mfem(filename, entries):
     header = """FiniteElementSpace
@@ -45,6 +46,8 @@ Ordering: 0
     with open(filename, "w") as f:
         f.write(header+"\n")  # Write the header
         np.savetxt(f, entries, fmt='%f', delimiter='\n')
+
+
 def output_to_mfem_3d(filename, entries, nz=10):
     header = """FiniteElementSpace
 FiniteElementCollection: H1_3D_P1
@@ -56,17 +59,20 @@ Ordering: 0
         f.write(header+"\n")  # Write the header
         np.savetxt(f, entries, fmt='%f', delimiter='\n')
 
+
 output_to_mfem('r.gf', data[0])
 output_to_mfem('z.gf', data[1])
 output_to_mfem('psi.gf', data[2])
 output_to_mfem('gg.gf', data[3])
-output_to_mfem('B_r.gf', data[4])
-output_to_mfem('B_phi.gf', data[5])
-output_to_mfem('B_z.gf', data[6])
+output_to_mfem('p.gf', data[4])
+output_to_mfem('B_r.gf', data[5])
+output_to_mfem('B_phi.gf', data[6])
+output_to_mfem('B_z.gf', data[7])
 output_to_mfem_3d('r_3d.gf', data[0])
 output_to_mfem_3d('z_3d.gf', data[1])
 output_to_mfem_3d('psi_3d.gf', data[2])
 output_to_mfem_3d('gg_3d.gf', data[3])
-output_to_mfem_3d('B_r_3d.gf', data[4])
-output_to_mfem_3d('B_phi_3d.gf', data[5])
-output_to_mfem_3d('B_z_3d.gf', data[6])
+output_to_mfem_3d('p_3d.gf', data[4])
+output_to_mfem_3d('B_r_3d.gf', data[5])
+output_to_mfem_3d('B_phi_3d.gf', data[6])
+output_to_mfem_3d('B_z_3d.gf', data[7])

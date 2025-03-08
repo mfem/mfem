@@ -33,11 +33,11 @@ class RGridFunctionCoefficient : public Coefficient
 {
 private:
    bool flip_sign;
-
+   real_t scale;
 public:
    int counter = 0;
-   RGridFunctionCoefficient(bool flip_sign = false)
-       : Coefficient(), flip_sign(flip_sign)
+   RGridFunctionCoefficient(real_t scale = 1.0, bool flip_sign = false)
+       : Coefficient(), flip_sign(flip_sign), scale(scale)
    {
    }
 
@@ -49,7 +49,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      return r * (flip_sign ? -1 : 1);
+      return r * scale * (flip_sign ? -1 : 1);
    }
 };
 
