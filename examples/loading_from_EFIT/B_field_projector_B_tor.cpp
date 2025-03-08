@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
       // solving <B_tor, v> = <gg/R, v> for all v in L2
 
       // 1. make the linear form
-      BTorFGridFunctionCoefficient f_coef(&gg);
+      FGridFunctionCoefficient f_coef(&gg);
       b.AddDomainIntegrator(new DomainLFIntegrator(f_coef));
       b.Assemble();
    }

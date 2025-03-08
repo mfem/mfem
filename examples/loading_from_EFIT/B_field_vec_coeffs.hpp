@@ -34,7 +34,7 @@ public:
 };
 
 /// @brief Input $f$ and return $f/r$
-class BTorFOverRGridFunctionCoefficient : public Coefficient
+class FOverRGridFunctionCoefficient : public Coefficient
 {
 private:
    const GridFunction *gf;
@@ -44,9 +44,9 @@ public:
    int counter = 0;
 
    // disable default constructor
-   BTorFOverRGridFunctionCoefficient() = delete;
+   FOverRGridFunctionCoefficient() = delete;
 
-   BTorFOverRGridFunctionCoefficient(const GridFunction *gf)
+   FOverRGridFunctionCoefficient(const GridFunction *gf)
        : Coefficient(), gf(gf), finder(gf)
    {
    }
@@ -66,7 +66,7 @@ public:
 };
 
 /// @brief Input $f$ and return $f$
-class BTorFGridFunctionCoefficient : public Coefficient
+class FGridFunctionCoefficient : public Coefficient
 {
 private:
    const GridFunction *gf;
@@ -76,9 +76,9 @@ public:
    int counter = 0;
 
    // disable default constructor
-   BTorFGridFunctionCoefficient() = delete;
+   FGridFunctionCoefficient() = delete;
 
-   BTorFGridFunctionCoefficient(const GridFunction *gf)
+   FGridFunctionCoefficient(const GridFunction *gf)
        : Coefficient(), gf(gf), finder(gf)
    {
    }
@@ -97,7 +97,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi / r n^\perp$ if v is 2D and $\Psi / r$ if v is 1D
-class BPerpPsiOverRGridFunctionCoefficient : public VectorCoefficient
+class PsiOverRGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -107,9 +107,9 @@ private:
 public:
    int counter = 0;
 
-   BPerpPsiOverRGridFunctionCoefficient() = delete;
+   PsiOverRGridFunctionCoefficient() = delete;
 
-   BPerpPsiOverRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   PsiOverRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -143,7 +143,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi / r^2$
-class BPerpPsiOverRSquareGridFunctionCoefficient : public VectorCoefficient
+class PsiOverRSquareGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -153,9 +153,9 @@ private:
 public:
    int counter = 0;
 
-   BPerpPsiOverRSquareGridFunctionCoefficient() = delete;
+   PsiOverRSquareGridFunctionCoefficient() = delete;
 
-   BPerpPsiOverRSquareGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   PsiOverRSquareGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -177,7 +177,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi$
-class BPerpPsiGridFunctionCoefficient : public VectorCoefficient
+class PsiGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -187,9 +187,9 @@ private:
 public:
    int counter = 0;
 
-   BPerpPsiGridFunctionCoefficient() = delete;
+   PsiGridFunctionCoefficient() = delete;
 
-   BPerpPsiGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   PsiGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }

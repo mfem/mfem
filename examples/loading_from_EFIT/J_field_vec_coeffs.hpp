@@ -112,7 +112,7 @@ public:
 };
 
 /// @brief Input $B_tor$ and return $B_tor r n^\perp$ if v is 2D and $B_tor r$ if v is 1D
-class JPerpBRGridFunctionCoefficient : public VectorCoefficient
+class BTorRGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -122,9 +122,9 @@ private:
 public:
    int counter = 0;
 
-   JPerpBRGridFunctionCoefficient() = delete;
+   BTorRGridFunctionCoefficient() = delete;
 
-   JPerpBRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   BTorRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
