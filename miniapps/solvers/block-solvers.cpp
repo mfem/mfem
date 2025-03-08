@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -107,7 +107,7 @@ public:
    const Vector& GetEssentialBC() { return ess_data_; }
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
-   void VisualizeSolution(const Vector &sol, std::string tag);
+   void VisualizeSolution(const Vector &sol, std::string tag, int visport = 19916);
    ParBilinearForm* GetMform() const { return mVarf_; }
    ParMixedBilinearForm* GetBform() const { return bVarf_; }
 };
@@ -168,7 +168,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    bVarf_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    bVarf_->Assemble();
    bVarf_->SpMat() *= -1.0;
-   bVarf_->EliminateTrialDofs(ess_bdr, u_, gform);
+   bVarf_->EliminateTrialEssentialBC(ess_bdr, u_, gform);
    bVarf_->Finalize();
    B_.Reset(bVarf_->ParallelAssemble());
 
@@ -205,7 +205,8 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    mfem::out << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
-void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
+void DarcyProblem::VisualizeSolution(const Vector& sol, string tag,
+                                     int visport)
 {
    int num_procs, myid;
    MPI_Comm_size(mesh_.GetComm(), &num_procs);
@@ -215,7 +216,6 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
    p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
 
    const char vishost[] = "localhost";
-   const int  visport   = 19916;
    socketstream u_sock(vishost, visport);
    u_sock << "parallel " << num_procs << " " << myid << "\n";
    u_sock.precision(8);
@@ -260,6 +260,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    DFSParameters param;
+   int visport = 19916;
    BPSParameters bps_param;
 
    OptionsParser args(argc, argv);
@@ -281,6 +282,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (Mpi::Root()) { args.ParseCheck(); }
 
@@ -417,7 +419,7 @@ int main(int argc, char *argv[])
                    << "'.\nApproximation error is computed in this case!\n\n";
       }
 
-      if (visualization) { darcy.VisualizeSolution(sol, name); }
+      if (visualization) { darcy.VisualizeSolution(sol, name, visport); }
 
    }
 
