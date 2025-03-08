@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,8 @@
 #include "ceed/interface/util.hpp"
 #include "qfunction.hpp"
 #include <memory>
+
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -45,10 +47,10 @@ public:
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes) override;
    /** Used with BilinearFormIntegrators that have different spaces. */
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
    /// Method defining partial assembly on NURBS patches.
    /** The result of the partial assembly is stored internally so that it can be
@@ -74,7 +76,7 @@ public:
 
        This method can be called only after the method AssemblePA() has been
        called. */
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
 
    /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
@@ -101,7 +103,7 @@ public:
    /// Method defining matrix-free assembly.
    /** The result of fully matrix-free assembly is stored internally so that it
        can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -109,7 +111,7 @@ public:
 
        This method can be called only after the method AssembleMF() has been
        called. */
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
+   void AddMultMF(const Vector &x, Vector &y) const override;
 
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
@@ -157,6 +159,13 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
    /** Abstract method used for assembling TraceFaceIntegrators in a
        MixedBilinearForm. */
    virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
@@ -177,28 +186,28 @@ public:
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
    /// efficient.
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect);
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override;
 
    /// @brief Perform the local action of the BilinearFormIntegrator resulting
    /// from a face integral term.
    /// Note that the default implementation in the base class is general but not
    /// efficient.
-   virtual void AssembleFaceVector(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Tr,
-                                   const Vector &elfun, Vector &elvect);
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun, Vector &elvect) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &Tr,
-                                    const Vector &elfun, DenseMatrix &elmat)
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
    { AssembleElementMatrix(el, Tr, elmat); }
 
-   virtual void AssembleFaceGrad(const FiniteElement &el1,
-                                 const FiniteElement &el2,
-                                 FaceElementTransformations &Tr,
-                                 const Vector &elfun, DenseMatrix &elmat)
+   void AssembleFaceGrad(const FiniteElement &el1,
+                         const FiniteElement &el2,
+                         FaceElementTransformations &Tr,
+                         const Vector &elfun, DenseMatrix &elmat) override
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
@@ -316,65 +325,72 @@ public:
    TransposeIntegrator(BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
-   virtual void SetIntRule(const IntegrationRule *ir);
+   void SetIntRule(const IntegrationRule *ir) override;
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
-   virtual void AssemblePA(const FiniteElementSpace& fes)
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   void AssemblePA(const FiniteElementSpace& fes) override
    {
       bfi->AssemblePA(fes);
    }
 
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes)
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override
    {
       bfi->AssemblePA(test_fes, trial_fes); // Reverse test and trial
    }
 
-   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override
    {
       bfi->AssemblePAInteriorFaces(fes);
    }
 
-   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes)
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override
    {
       bfi->AssemblePABoundaryFaces(fes);
    }
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const
+   void AddMultTransposePA(const Vector &x, Vector &y) const override
    {
       bfi->AddMultPA(x, y);
    }
 
-   virtual void AddMultPA(const Vector& x, Vector& y) const
+   void AddMultPA(const Vector& x, Vector& y) const override
    {
       bfi->AddMultTransposePA(x, y);
    }
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
-   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext,
-                                        const bool add);
+   void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                Vector &ea_data_int,
+                                Vector &ea_data_ext,
+                                const bool add) override;
 
-   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr,
-                                        const bool add);
+   void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                Vector &ea_data_bdr,
+                                const bool add) override;
 
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -389,11 +405,11 @@ public:
    LumpedIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
-   virtual void SetIntRule(const IntegrationRule *ir);
+   void SetIntRule(const IntegrationRule *ir) override;
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
 
    virtual ~LumpedIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -409,11 +425,11 @@ public:
    InverseIntegrator(BilinearFormIntegrator *integ, int own_integ = 1)
    { integrator = integ; own_integrator = own_integ; }
 
-   virtual void SetIntRule(const IntegrationRule *ir);
+   void SetIntRule(const IntegrationRule *ir) override;
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
 
    virtual ~InverseIntegrator() { if (own_integrator) { delete integrator; } }
 };
@@ -429,63 +445,63 @@ private:
 public:
    SumIntegrator(int own_integs = 1) { own_integrators = own_integs; }
 
-   virtual void SetIntRule(const IntegrationRule *ir);
+   void SetIntRule(const IntegrationRule *ir) override;
 
    void AddIntegrator(BilinearFormIntegrator *integ)
    { integrators.Append(integ); }
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace& fes);
+   void AssemblePA(const FiniteElementSpace& fes) override;
 
-   virtual void AssembleDiagonalPA(Vector &diag);
+   void AssembleDiagonalPA(Vector &diag) override;
 
-   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultPA(const Vector& x, Vector& y) const;
+   void AddMultPA(const Vector& x, Vector& y) const override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
+   void AddMultMF(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+   void AddMultTransposeMF(const Vector &x, Vector &y) const override;
 
-   virtual void AssembleDiagonalMF(Vector &diag);
+   void AssembleDiagonalMF(Vector &diag) override;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
-   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext,
-                                        const bool add);
+   void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                Vector &ea_data_int,
+                                Vector &ea_data_ext,
+                                const bool add) override;
 
-   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr,
-                                        const bool add);
+   void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                Vector &ea_data_bdr,
+                                const bool add) override;
 
    virtual ~SumIntegrator();
 };
@@ -495,16 +511,15 @@ public:
 class MixedScalarIntegrator: public BilinearFormIntegrator
 {
 public:
-
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    /// Support for use in BilinearForm. Can be used only when appropriate.
-   virtual void AssembleElementMatrix(const FiniteElement &fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    { AssembleElementMatrix2(fe, fe, Trans, elmat); }
 
 protected:
@@ -563,15 +578,15 @@ class MixedVectorIntegrator: public BilinearFormIntegrator
 {
 public:
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    /// Support for use in BilinearForm. Can be used only when appropriate.
-   virtual void AssembleElementMatrix(const FiniteElement &fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    { AssembleElementMatrix2(fe, fe, Trans, elmat); }
 
 protected:
@@ -652,19 +667,19 @@ class MixedScalarVectorIntegrator: public BilinearFormIntegrator
 {
 public:
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    /// Support for use in BilinearForm. Can be used only when appropriate.
    /** Appropriate use cases are classes derived from
        MixedScalarVectorIntegrator where the trial and test spaces can be the
        same. Examples of such classes are: MixedVectorDivergenceIntegrator,
        MixedScalarWeakDivergenceIntegrator, etc. */
-   virtual void AssembleElementMatrix(const FiniteElement &fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    { AssembleElementMatrix2(fe, fe, Trans, elmat); }
 
 protected:
@@ -955,41 +970,41 @@ public:
       : MixedScalarIntegrator(q) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetDim() == 2 && test_fe.GetDim() == 2 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR);
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedScalarCurlIntegrator:  "
              "Trial must be H(Curl) and the test space must be a "
              "scalar field";
    }
 
-   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
-                                          const FiniteElement & test_fe,
-                                          ElementTransformation &Trans)
+   inline int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                  const FiniteElement & test_fe,
+                                  ElementTransformation &Trans) override
    { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
-   inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
-                                      ElementTransformation &Trans,
-                                      Vector & shape)
+   inline void CalcTrialShape(const FiniteElement & trial_fe,
+                              ElementTransformation &Trans,
+                              Vector & shape) override
    {
       DenseMatrix dshape(shape.GetData(), shape.Size(), 1);
       trial_fe.CalcPhysCurlShape(Trans, dshape);
    }
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    // PA extension
    Vector pa_data;
@@ -1871,37 +1886,37 @@ public:
       : MixedVectorIntegrator(mq) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedVectorGradientIntegrator:  "
              "Trial spaces must be $H^1$ and the test space must be a "
              "vector field in 2D or 3D";
    }
 
-   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   inline int GetTrialVDim(const FiniteElement & trial_fe) override
    { return space_dim; }
 
-   inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix & shape)
+   inline void CalcTrialShape(const FiniteElement & trial_fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix & shape) override
    {
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
 
 private:
    DenseMatrix Jinv;
@@ -1929,38 +1944,38 @@ public:
       : MixedVectorIntegrator(mq) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedVectorCurlIntegrator:  "
              "Trial space must be H(Curl) and the test space must be a "
              "vector field in 3D";
    }
 
-   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   inline int GetTrialVDim(const FiniteElement & trial_fe) override
    { return trial_fe.GetCurlDim(); }
 
-   inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix & shape)
+   inline void CalcTrialShape(const FiniteElement & trial_fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix & shape) override
    {
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
 
 private:
    // PA extension
@@ -1988,38 +2003,38 @@ public:
       : MixedVectorIntegrator(mq) {}
 
 protected:
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedVectorWeakCurlIntegrator:  "
              "Trial space must be vector field in 3D and the "
              "test space must be H(Curl)";
    }
 
-   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   inline int GetTestVDim(const FiniteElement & test_fe) override
    { return test_fe.GetCurlDim(); }
 
-   inline virtual void CalcTestShape(const FiniteElement & test_fe,
-                                     ElementTransformation &Trans,
-                                     DenseMatrix & shape)
+   inline void CalcTestShape (const FiniteElement & test_fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix & shape) override
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
 
 private:
    // PA extension
@@ -2106,27 +2121,51 @@ public:
       Q{&q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$ where $Q$
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
+public:
+
+   using ApplyKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                   const Array<real_t>&, const Array<real_t>&,
+                                   const Array<real_t>&,
+                                   const Vector&, const Vector&,
+                                   Vector&, const int, const int);
+
+   using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                      const Array<real_t>&, const Vector&, Vector&,
+                                      const int, const int);
+
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
 protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
@@ -2203,90 +2242,95 @@ private:
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator(const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a vector coefficient q
-   DiffusionIntegrator(VectorCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(VectorCoefficient &q, const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator(MatrixCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(MatrixCoefficient &q, const IntegrationRule *ir = nullptr);
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
    /** Given a trial and test Finite Element computes the element stiffness
        matrix elmat. */
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
-   virtual void AssemblePatchMatrix(const int patch,
-                                    const FiniteElementSpace &fes,
-                                    SparseMatrix*& smat);
+   void AssemblePatchMatrix(const int patch,
+                            const FiniteElementSpace &fes,
+                            SparseMatrix*& smat) override;
 
-   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+   void AssembleNURBSPA(const FiniteElementSpace &fes) override;
 
    void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
 
    /// Perform the local action of the BilinearFormIntegrator
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect);
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override;
 
-   virtual void ComputeElementFlux(const FiniteElement &el,
-                                   ElementTransformation &Trans,
-                                   Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true,
-                                   const IntegrationRule *ir = NULL);
+   void ComputeElementFlux(const FiniteElement &el,
+                           ElementTransformation &Trans,
+                           Vector &u, const FiniteElement &fluxelem,
+                           Vector &flux, bool with_coef = true,
+                           const IntegrationRule *ir = NULL) override;
 
-   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
-                                    ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL);
+   real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
+                            ElementTransformation &Trans,
+                            Vector &flux, Vector *d_energy = NULL) override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes) override;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
-   virtual void AssembleDiagonalPA(Vector &diag);
+   void AssembleDiagonalPA(Vector &diag) override;
 
-   virtual void AssembleDiagonalMF(Vector &diag);
+   void AssembleDiagonalMF(Vector &diag) override;
 
-   virtual void AddMultMF(const Vector&, Vector&) const;
+   void AddMultMF(const Vector&, Vector&) const override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
 
-   virtual void AddMultNURBSPA(const Vector&, Vector&) const;
+   void AddMultNURBSPA(const Vector&, Vector&) const override;
 
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe);
+   }
 };
 
 /** Class for local mass matrix assembling $a(u,v) := (Q u, v)$ */
@@ -2307,50 +2351,78 @@ protected:
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
-   MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
+
+   using ApplyKernelType = void(*)(const int, const Array<real_t>&,
+                                   const Array<real_t>&, const Vector&,
+                                   const Vector&, Vector&, const int, const int);
+
+   using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
+                                       const Vector&, Vector&, const int,
+                                       const int);
+
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+public:
+   MassIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a mass integrator with coefficient q
-   MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
+   MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL);
 
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes) override;
 
-   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+   void AssemblePABoundary(const FiniteElementSpace &fes) override;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
-   virtual void AssembleDiagonalPA(Vector &diag);
+   void AssembleDiagonalPA(Vector &diag) override;
 
-   virtual void AssembleDiagonalMF(Vector &diag);
+   void AssembleDiagonalMF(Vector &diag) override;
 
-   virtual void AddMultMF(const Vector&, Vector&) const;
+   void AddMultMF(const Vector&, Vector&) const override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
 
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 /** Mass integrator $(u, v)$ restricted to the boundary of a domain */
@@ -2360,10 +2432,10 @@ public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 /// $\alpha (Q \cdot \nabla u, v)$
@@ -2388,36 +2460,45 @@ public:
    ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
 
-   virtual void AssembleElementMatrix(const FiniteElement &,
-                                      ElementTransformation &,
-                                      DenseMatrix &);
+   void AssembleElementMatrix(const FiniteElement &,
+                              ElementTransformation &,
+                              DenseMatrix &) override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace&);
+   void AssemblePA(const FiniteElementSpace&) override;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
-   virtual void AssembleDiagonalPA(Vector &diag);
+   void AssembleDiagonalPA(Vector &diag) override;
 
-   virtual void AssembleDiagonalMF(Vector &diag);
+   void AssembleDiagonalMF(Vector &diag) override;
 
-   virtual void AddMultMF(const Vector&, Vector&) const;
+   void AddMultMF(const Vector&, Vector&) const override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &el,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
 
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 // Alias for @ConvectionIntegrator.
@@ -2445,9 +2526,9 @@ private:
 public:
    GroupConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
-   virtual void AssembleElementMatrix(const FiniteElement &,
-                                      ElementTransformation &,
-                                      DenseMatrix &);
+   void AssembleElementMatrix(const FiniteElement &,
+                              ElementTransformation &,
+                              DenseMatrix &) override;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q u, v)$,
@@ -2494,21 +2575,21 @@ public:
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AssembleMF(const FiniteElementSpace &fes);
-   virtual void AssembleDiagonalPA(Vector &diag);
-   virtual void AssembleDiagonalMF(Vector &diag);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleMF(const FiniteElementSpace &fes) override;
+   void AssembleDiagonalPA(Vector &diag) override;
+   void AssembleDiagonalMF(Vector &diag) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultMF(const Vector &x, Vector &y) const override;
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 };
 
 
@@ -2526,11 +2607,11 @@ protected:
    Coefficient *Q;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
 
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -2547,15 +2628,15 @@ private:
 public:
    VectorFEDivergenceIntegrator() { Q = NULL; }
    VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat) { }
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override { }
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
-   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
+   void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag) override;
 };
 
 
@@ -2577,13 +2658,13 @@ private:
 public:
    VectorFEWeakDivergenceIntegrator() { Q = NULL; }
    VectorFEWeakDivergenceIntegrator(Coefficient &q) { Q = &q; }
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat) { }
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override { }
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /** Integrator for $(\mathrm{curl}(u), v)$ for Nedelec and Raviart-Thomas elements. If the trial and
@@ -2603,13 +2684,32 @@ private:
 public:
    VectorFECurlIntegrator() { Q = NULL; }
    VectorFECurlIntegrator(Coefficient &q) { Q = &q; }
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat) { }
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override { }
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+};
+
+/// Integrator for (Q u.n, v.n) for RT elements
+class VectorFEBoundaryFluxIntegrator : public BilinearFormIntegrator
+{
+   Coefficient *Q;
+#ifndef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+#endif
+public:
+   VectorFEBoundaryFluxIntegrator() { Q = NULL; }
+   VectorFEBoundaryFluxIntegrator(Coefficient &q) { Q = &q; }
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /// Class for integrating $ (Q \partial_i(u), v) $ where $u$ and $v$ are scalars
@@ -2625,14 +2725,14 @@ private:
 
 public:
    DerivativeIntegrator(Coefficient &q, int i) : Q(&q), xi(i) { }
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    { AssembleElementMatrix2(el,el,Trans,elmat); }
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /// Integrator for $(\mathrm{curl}(u), \mathrm{curl}(v))$ for Nedelec elements
@@ -2673,29 +2773,29 @@ public:
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
-   virtual void ComputeElementFlux(const FiniteElement &el,
-                                   ElementTransformation &Trans,
-                                   Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef,
-                                   const IntegrationRule *ir = NULL);
+   void ComputeElementFlux(const FiniteElement &el,
+                           ElementTransformation &Trans,
+                           Vector &u, const FiniteElement &fluxelem,
+                           Vector &flux, bool with_coef,
+                           const IntegrationRule *ir = NULL) override;
 
-   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
-                                    ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL);
+   real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
+                            ElementTransformation &Trans,
+                            Vector &flux, Vector *d_energy = NULL) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AssembleDiagonalPA(Vector& diag);
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2718,13 +2818,13 @@ public:
    VectorCurlCurlIntegrator(Coefficient &q) : Q(&q) { }
 
    /// Assemble an element matrix
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
    /// Compute element energy: $ \frac{1}{2} (\mathrm{curl}(u), \mathrm{curl}(u))_E$
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &Tr,
-                                   const Vector &elfun);
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &Tr,
+                           const Vector &elfun) override;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), v)$ where $Q$ is
@@ -2751,10 +2851,10 @@ public:
    MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
    MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /** Integrator for $(Q u, v)$, where $Q$ is an optional coefficient (of type scalar,
@@ -2800,20 +2900,20 @@ public:
    VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
    VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-   virtual void AssembleDiagonalPA(Vector& diag);
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+   void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2849,21 +2949,30 @@ public:
       Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 /// $(Q \nabla \cdot u, \nabla \cdot v)$ for Raviart-Thomas elements
@@ -2873,9 +2982,9 @@ protected:
    Coefficient *Q;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AssembleDiagonalPA(Vector& diag);
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AssembleDiagonalPA(Vector& diag) override;
 
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -2894,31 +3003,29 @@ public:
    DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(&q) { }
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
 
-   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                                       const FiniteElement &test_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Integrator for
-    $$
-      (Q \nabla u, \nabla v) = \sum_i (Q \nabla u_i, \nabla v_i) e_i e_i^{\mathrm{T}}
-    $$
-    for vector FE spaces, where $e_i$ is the unit vector in the $i$-th direction.
-    The resulting local element matrix is square, of size <tt> vdim*dof </tt>,
+/** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$,
+    where $u=(u_1,\dots,u_n)$ and $v=(v_1,\dots,v_n)$, $u_i$ and $v_i$ are
+    defined by scalar FE through standard transformation.
+    See the constructors' documentation for all Coefficient options.
+    The computed local element matrix is square, of size <tt> vdim*dof </tt>,
     where \c vdim is the vector dimension space and \c dof is the local degrees
     of freedom. The integrator is not aware of the true vector dimension and
     must use \c VectorCoefficient, \c MatrixCoefficient, or a caller-specified
     value to determine the vector space. For a scalar coefficient, the caller
     may manually specify the vector dimension or the vector dimension is assumed
-    to be the spatial dimension (i.e. 2-dimension or 3-dimension).
-*/
+    to be the spatial dimension (i.e. 2-dimension or 3-dimension). */
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2990,20 +3097,20 @@ public:
    VectorDiffusionIntegrator(MatrixCoefficient& mq)
       : MQ(&mq), vdim(mq.GetVDim()) { }
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override;
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AssembleMF(const FiniteElementSpace &fes);
-   virtual void AssembleDiagonalPA(Vector &diag);
-   virtual void AssembleDiagonalMF(Vector &diag);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
-   bool SupportsCeed() const { return DeviceCanUseCeed(); }
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleMF(const FiniteElementSpace &fes) override;
+   void AssembleDiagonalPA(Vector &diag) override;
+   void AssembleDiagonalMF(Vector &diag) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultMF(const Vector &x, Vector &y) const override;
+   bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 };
 
 /** Integrator for the linear elasticity form:
@@ -3052,18 +3159,18 @@ public:
    ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
    { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      DenseMatrix &elmat);
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes) override;
 
-   virtual void AssembleDiagonalPA(Vector &diag);
+   void AssembleDiagonalPA(Vector &diag) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
@@ -3074,12 +3181,12 @@ public:
        a FE space with dim*(dim+1)/2 vector components, based on the finite
        element @a fluxelem. The integration rule is taken from @a fluxelem.
        @a ir exists to specific an alternative integration rule. */
-   virtual void ComputeElementFlux(const FiniteElement &el,
-                                   ElementTransformation &Trans,
-                                   Vector &u,
-                                   const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true,
-                                   const IntegrationRule *ir = NULL);
+   void ComputeElementFlux(const FiniteElement &el,
+                           ElementTransformation &Trans,
+                           Vector &u,
+                           const FiniteElement &fluxelem,
+                           Vector &flux, bool with_coef = true,
+                           const IntegrationRule *ir = NULL) override;
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
@@ -3090,9 +3197,9 @@ public:
        symmetric part of the (symmetric) stress tensor. The order of the
        components is: $s_xx, s_yy, s_xy$ in 2D, and $s_xx, s_yy, s_zz, s_xy, s_xz,
        s_yz$ in 3D. */
-   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
-                                    ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL);
+   real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
+                            ElementTransformation &Trans,
+                            Vector &flux, Vector *d_energy = NULL) override;
 };
 
 /// @brief Integrator that computes the PA action of one of the blocks in an
@@ -3117,14 +3224,14 @@ public:
    ElasticityComponentIntegrator(ElasticityIntegrator &parent_, int i_, int j_);
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes) override;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add = true);
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add = true) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 };
 
 /** Integrator for the DG form:
@@ -3168,6 +3275,7 @@ protected:
 
 private:
    Vector shape1, shape2;
+   Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
@@ -3183,30 +3291,40 @@ public:
    { rho = &rho_; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
-   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
-   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
-   virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext,
-                                        const bool add);
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_bdr,
-                                        const bool add);
+   void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
+                                Vector &ea_data_int,
+                                Vector &ea_data_ext,
+                                const bool add) override;
+
+   void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
+                                Vector &ea_data_bdr,
+                                const bool add) override;
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
-                                         FaceElementTransformations &T);
+                                         const FaceElementTransformations &T);
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         const ElementTransformation &T);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
@@ -3295,6 +3413,8 @@ public:
 
    const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
 
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
+
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
@@ -3353,10 +3473,10 @@ public:
                                             real_t e = 1.0);
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 /** Integrator for the DG elasticity form, for the formulations see:
@@ -3430,10 +3550,10 @@ public:
       : lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
 protected:
    Coefficient *lambda, *mu;
@@ -3480,11 +3600,11 @@ private:
 public:
    TraceJumpIntegrator() { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 /** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where
@@ -3499,11 +3619,11 @@ private:
 public:
    NormalTraceJumpIntegrator() { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 /** Integrator for the DPG form:$ \langle v, w \rangle $ over a face (the interface) where
@@ -3534,11 +3654,11 @@ private:
 
 public:
    NormalTraceIntegrator() { }
-   virtual void AssembleTraceFaceMatrix(int ielem,
-                                        const FiniteElement &trial_face_fe,
-                                        const FiniteElement &test_fe,
-                                        FaceElementTransformations &Trans,
-                                        DenseMatrix &elmat);
+   void AssembleTraceFaceMatrix(int ielem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat) override;
 };
 
 
@@ -3601,10 +3721,10 @@ public:
    GradientInterpolator() : dofquad_fe(NULL) { }
    virtual ~GradientInterpolator() { delete dofquad_fe; }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
-                                       const FiniteElement &nd_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat)
+   void AssembleElementMatrix2(const FiniteElement &h1_fe,
+                               const FiniteElement &nd_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
@@ -3614,11 +3734,11 @@ public:
        @param[in] trial_fes   $H^1$ Lagrange space
        @param[in] test_fes    $H(curl$ Nedelec space
     */
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
@@ -3636,27 +3756,48 @@ private:
     the range space. Otherwise, a dof projection matrix is constructed. */
 class IdentityInterpolator : public DiscreteInterpolator
 {
-public:
-   IdentityInterpolator(): dofquad_fe(NULL) { }
+protected:
+   const int vdim;
 
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat)
-   { ran_fe.Project(dom_fe, Trans, elmat); }
+public:
+   /** @brief Construct an identity interpolator.
+
+       @param[in]  vdim_  Vector dimension (number of components) in the domain
+                          and range FE spaces.
+   */
+   IdentityInterpolator(int vdim_ = 1) : vdim(vdim_) { }
+
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
+   {
+      if (vdim == 1)
+      {
+         ran_fe.Project(dom_fe, Trans, elmat);
+         return;
+      }
+      DenseMatrix elmat_block;
+      ran_fe.Project(dom_fe, Trans, elmat_block);
+      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Width());
+      elmat = 0_r;
+      for (int i = 0; i < vdim; i++)
+      {
+         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Width(),
+                            elmat_block);
+      }
+   }
 
    using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-
-   virtual ~IdentityInterpolator() { delete dofquad_fe; }
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement *dofquad_fe;
+   std::unique_ptr<FiniteElement> dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
@@ -3666,16 +3807,26 @@ private:
 };
 
 
+/** @brief Class identical to IdentityInterpolator with the exception that it
+    requires the vector dimension (number of components) to be specified during
+    construction. */
+class VectorIdentityInterpolator : public IdentityInterpolator
+{
+public:
+   VectorIdentityInterpolator(int vdim_) : IdentityInterpolator(vdim_) { }
+};
+
+
 /** Class for constructing the (local) discrete curl matrix which can be used
     as an integrator in a DiscreteLinearOperator object to assemble the global
     discrete curl matrix. */
 class CurlInterpolator : public DiscreteInterpolator
 {
 public:
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat)
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
    { ran_fe.ProjectCurl(dom_fe, Trans, elmat); }
 };
 
@@ -3691,10 +3842,10 @@ public:
 class DivergenceInterpolator : public DiscreteInterpolator
 {
 public:
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat)
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
    { ran_fe.ProjectDiv(dom_fe, Trans, elmat); }
 };
 
@@ -3705,10 +3856,10 @@ public:
 class NormalInterpolator : public DiscreteInterpolator
 {
 public:
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /** Interpolator of a scalar coefficient multiplied by a scalar field onto
@@ -3719,10 +3870,10 @@ class ScalarProductInterpolator : public DiscreteInterpolator
 public:
    ScalarProductInterpolator(Coefficient & sc) : Q(&sc) { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 
 protected:
    Coefficient *Q;
@@ -3737,10 +3888,10 @@ public:
    ScalarVectorProductInterpolator(Coefficient & sc)
       : Q(&sc) { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 protected:
    Coefficient *Q;
 };
@@ -3754,10 +3905,10 @@ public:
    VectorScalarProductInterpolator(VectorCoefficient & vc)
       : VQ(&vc) { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                                       const FiniteElement &ran_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                               const FiniteElement &ran_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 protected:
    VectorCoefficient *VQ;
 };
@@ -3770,10 +3921,10 @@ public:
    ScalarCrossProductInterpolator(VectorCoefficient & vc)
       : VQ(&vc) { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
-                                       const FiniteElement &l2_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                               const FiniteElement &l2_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 protected:
    VectorCoefficient *VQ;
 };
@@ -3787,10 +3938,10 @@ public:
    VectorCrossProductInterpolator(VectorCoefficient & vc)
       : VQ(&vc) { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
-                                       const FiniteElement &rt_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                               const FiniteElement &rt_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 protected:
    VectorCoefficient *VQ;
 };
@@ -3803,10 +3954,10 @@ class VectorInnerProductInterpolator : public DiscreteInterpolator
 public:
    VectorInnerProductInterpolator(VectorCoefficient & vc) : VQ(&vc) { }
 
-   virtual void AssembleElementMatrix2(const FiniteElement &rt_fe,
-                                       const FiniteElement &l2_fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &elmat);
+   void AssembleElementMatrix2(const FiniteElement &rt_fe,
+                               const FiniteElement &l2_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 protected:
    VectorCoefficient *VQ;
 };

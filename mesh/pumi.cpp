@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -903,7 +903,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    apf::MeshIterator* itr;
 
    // Assume all element type are the same i.e. tetrahedral
-   const FiniteElement* H1_elem = fes->GetFE(0);
+   const FiniteElement* H1_elem = fes->GetTypicalFE();
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
    int nnodes = All_nodes.Size();
 

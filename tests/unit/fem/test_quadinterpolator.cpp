@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,15 +83,15 @@ static bool testQuadratureInterpolator(const int dim,
       nodes -= rdm;
    }
 
-   const Geometry::Type GeomType = mesh.GetElementBaseGeometry(0);
+   const Geometry::Type GeomType = mesh.GetTypicalElementGeometry();
    const IntegrationRule &ir = IntRules.Get(GeomType, 2*qpts-1);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
 
    const int NE(mesh.GetNE());
    const int NQ(ir.GetNPoints());
-   const int ND(sfes.GetFE(0)->GetDof());
-   REQUIRE(ND == vfes.GetFE(0)->GetDof());
+   const int ND(sfes.GetTypicalFE()->GetDof());
+   REQUIRE(ND == vfes.GetTypicalFE()->GetDof());
 
    const ElementDofOrdering nat_ordering = ElementDofOrdering::NATIVE;
    const ElementDofOrdering lex_ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -238,7 +238,7 @@ static bool testQuadratureInterpolator(const int dim,
 
 TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
 {
-   SECTION("Tensor and non-tensor")
+   SECTION("H1 tensor elements: compare tensor and non-tensor evaluations")
    {
       const auto dim = GENERATE(1,2,3); // dimension
       const auto p = GENERATE(range(1,7)); // element order, 1 <= p < 7
@@ -250,19 +250,22 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
       testQuadratureInterpolator(dim, p, q, l, nx, ny, nz);
    }
 
-   SECTION("Values and physical derivatives")
+   SECTION("H1 elements: values and physical derivatives")
    {
       const auto mesh_fname = GENERATE(
                                  "../../data/inline-segment.mesh",
                                  "../../data/star.mesh",
                                  "../../data/star-q3.mesh",
+                                 "../../data/square-disc-p2.mesh",
                                  "../../data/fichera.mesh",
                                  "../../data/fichera-q3.mesh",
+                                 "../../data/escher-p2.mesh",
                                  "../../data/diag-segment-2d.mesh", // 1D mesh in 2D
                                  "../../data/diag-segment-3d.mesh", // 1D mesh in 3D
                                  "../../data/star-surf.mesh" // surface mesh
                               );
       const int order = GENERATE(1, 2, 3);
+      CAPTURE(mesh_fname, order);
 
       Mesh mesh = Mesh::LoadFromFile(mesh_fname);
       H1_FECollection fec(order);
@@ -272,7 +275,11 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
       GridFunction gf(&fes);
       gf.Randomize(1);
 
-      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const ElementDofOrdering ordering =
+         (mesh.Dimension() == 1 || mesh.MeshGenerator() == 2) ?
+         ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+      INFO("ordering: " << (ordering == ElementDofOrdering::NATIVE ?
+                            "NATIVE" : "LEXICOGRAPHIC"));
       // Use element restriction to go from L-vector to E-vector
       const Operator *R = fes.GetElementRestriction(ordering);
       Vector e_vec(R->Height());
@@ -283,7 +290,10 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
          fes.GetQuadratureInterpolator(qs);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
 
+      // Compare QuadratureInterpolator::VALUES evaluation vs
+      // GridFunction::GetValue():
       {
+         INFO("evaluation: VALUES");
          QuadratureFunction qf1(qs), qf2(qs);
 
          const int ne = qs.GetNE();
@@ -297,18 +307,23 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
             {
                const IntegrationPoint &ip = ir[iq];
                T.SetIntPoint(&ip);
-               const int iq_p = qs.GetPermutedIndex(iel, iq);
-               values[iq_p] = gf.GetValue(T, ip);
+               values[iq] = gf.GetValue(T, ip);
             }
          }
 
          qi->Values(e_vec, qf2);
 
+         const real_t base_vals_norm = qf1.Normlinf();
+         REQUIRE(base_vals_norm > 0_r);
          qf1 -= qf2;
-         REQUIRE(qf1.Normlinf() == MFEM_Approx(0.0));
+         const real_t rel_error_norm = qf1.Normlinf()/base_vals_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
       }
 
+      // Compare QuadratureInterpolator::PHYSICAL_DERIVATIVES evaluation vs
+      // GridFunction::GetGradient():
       {
+         INFO("evaluation: PHYSICAL_DERIVATIVES");
          const int sdim = mesh.SpaceDimension();
          QuadratureFunction qf1(qs, sdim), qf2(qs, sdim);
 
@@ -324,16 +339,129 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
             {
                const IntegrationPoint &ip = ir[iq];
                T.SetIntPoint(&ip);
-               const int iq_p = qs.GetPermutedIndex(iel, iq);
-               values.GetColumnReference(iq_p, col);
+               values.GetColumnReference(iq, col);
                gf.GetGradient(T, col);
             }
          }
 
          qi->PhysDerivatives(e_vec, qf2);
 
+         const real_t base_phys_der_norm = qf1.Normlinf();
+         REQUIRE(base_phys_der_norm > 0_r);
          qf1 -= qf2;
-         REQUIRE(qf1.Normlinf() == MFEM_Approx(0.0));
+         const real_t rel_error_norm = qf1.Normlinf()/base_phys_der_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
+      }
+   }
+
+   SECTION("H(div) elements: values, phys. values, phys. magnitudes")
+   {
+      // Only quad and hex elements are supported, for now:
+      const auto mesh_fname = GENERATE(
+                                 "../../data/star-q2.mesh",
+                                 "../../data/fichera-q2.mesh"
+                              );
+      const int order = GENERATE(0, 1, 2);
+      CAPTURE(mesh_fname, order);
+
+      Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+      const int dim = mesh.Dimension();
+      RT_FECollection fec(order, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+      QuadratureSpace qs(&mesh, 2*(order+1) + (dim-1));
+
+      GridFunction gf(&fes);
+      gf.Randomize(55370091);
+
+      const ElementDofOrdering ordering =
+         (mesh.Dimension() == 1 || mesh.MeshGenerator() == 2) ?
+         ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+      INFO("ordering: " << (ordering == ElementDofOrdering::NATIVE ?
+                            "NATIVE" : "LEXICOGRAPHIC"));
+      // Use element restriction to go from L-vector to E-vector
+      const Operator *R = fes.GetElementRestriction(ordering);
+      Vector e_vec(R->Height());
+      R->Mult(gf, e_vec);
+
+      // Use quadrature interpolator to go from E-vector to Q-vector
+      const QuadratureInterpolator *qi = fes.GetQuadratureInterpolator(qs);
+      // QuadratureFunctions use byVDIM ordering:
+      qi->SetOutputLayout(QVectorLayout::byVDIM);
+
+      QuadratureFunction qf_base_rv(qs, dim), qf_qi_rv(qs, dim); // ref vals
+      QuadratureFunction qf_base_pv(qs, dim), qf_qi_pv(qs, dim); // phys vals
+      QuadratureFunction qf_base_pm(qs,   1), qf_qi_pm(qs,   1); // phys magn
+
+      const int ne = qs.GetNE();
+      Array<int> vdofs;
+      Vector loc_data;
+      DenseMatrix vshape;
+      DenseMatrix vec_values;
+      Vector mag_values;
+      Vector col;
+      for (int iel = 0; iel < ne; ++iel)
+      {
+         const IntegrationRule &ir = qs.GetIntRule(iel);
+         ElementTransformation &T = *qs.GetTransformation(iel);
+
+         // reference values
+         qf_base_rv.GetValues(iel, vec_values); // dim x nqpts
+         {
+            const FiniteElement &fe = *fes.GetFE(iel);
+            const int dof = fe.GetDof();
+            fes.GetElementVDofs(iel, vdofs);
+            gf.GetSubVector(vdofs, loc_data);
+            vshape.SetSize(dof, dim);
+            const int nip = ir.GetNPoints();
+            vec_values.SetSize(dim, nip);
+            for (int j = 0; j < nip; j++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               T.SetIntPoint(&ip);
+               fe.CalcVShape(ip, vshape);
+               vec_values.GetColumnReference(j, col);
+               vshape.MultTranspose(loc_data, col);
+            }
+         }
+
+         // physical values
+         qf_base_pv.GetValues(iel, vec_values);
+         gf.GetVectorValues(T, ir, vec_values);
+
+         // physical magnitudes
+         qf_base_pm.GetValues(iel, mag_values);
+         vec_values.Norm2(mag_values);
+      }
+
+      Vector empty;
+      qi->Values(e_vec, qf_qi_rv);
+      qi->Mult(e_vec, QuadratureInterpolator::PHYSICAL_VALUES,
+               qf_qi_pv, empty, empty);
+      qi->Mult(e_vec, QuadratureInterpolator::PHYSICAL_MAGNITUDES,
+               qf_qi_pm, empty, empty);
+      {
+         INFO("evaluation: VALUES");
+         const real_t base_norm = qf_base_rv.Normlinf();
+         REQUIRE(base_norm > 0_r);
+         qf_base_rv -= qf_qi_rv;
+         const real_t rel_error_norm = qf_base_rv.Normlinf()/base_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
+      }
+      {
+         INFO("evaluation: PHYSICAL_VALUES");
+         const real_t base_norm = qf_base_pv.Normlinf();
+         REQUIRE(base_norm > 0_r);
+         qf_base_pv -= qf_qi_pv;
+         const real_t rel_error_norm = qf_base_pv.Normlinf()/base_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
+      }
+      {
+         INFO("evaluation: PHYSICAL_MAGNITUDES");
+         const real_t base_norm = qf_base_pm.Normlinf();
+         REQUIRE(base_norm > 0_r);
+         qf_base_pm -= qf_qi_pm;
+         const real_t rel_error_norm = qf_base_pm.Normlinf()/base_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
       }
    }
 }
