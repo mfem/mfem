@@ -9,7 +9,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
-   string mesh_file = "../data/inline-quad.mesh";
+   string mesh_file = "../data/inline-tri.mesh";
    int order = 1;
    int ref = 0;
 
