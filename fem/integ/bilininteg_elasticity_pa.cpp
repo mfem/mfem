@@ -267,14 +267,45 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
    } // dz
 }
 
+
+/**
+ * Transform grad_u from reference to physical space:
+ *    grad_u = grad_uhat * J^{-1}
+ *
+ * Compute stress:
+ *    sigma = lambda*tr(grad_u)*I + mu*(grad_u + grad_u^T)
+ *
+ * lambda and mu have W*detJ factored in
+ *
+ * Transform back to reference space:
+ *    return sigma * J^{-T}
+ */
+template <int dim>
+tensor<mfem::real_t, dim, dim>
+PatchLinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
+                            const real_t lambda,
+                            const real_t mu,
+                            const tensor<mfem::real_t, dim, dim> grad_uhat)
+{
+   // Convert grad_uhat to physical space
+   const auto grad_u = grad_uhat * transpose(Jinvt);
+   // Compute stress
+   constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+   const tensor<mfem::real_t, dim, dim> strain = sym(grad_u);
+   const auto stress = lambda * tr(strain) * I + 2.0 * mu * strain;
+   // Transform back to reference space
+   return stress * Jinvt;
+}
+
 /**
  * Transforms grad_u into physical space, computes stress, then transforms back to reference space
  */
-void PatchApplyKernel(const PatchBasisInfo &pb,
+void PatchApplyKernel3D(const PatchBasisInfo &pb,
                       const Vector &pa_data,
                       DeviceTensor<5, real_t> &grad,
                       DeviceTensor<5, real_t> &S)
 {
+   static constexpr int dim = 3;
    // Unpack patch basis info
    const int vdim = pb.vdim;
    const Array<int>& Q1D = pb.Q1D;
@@ -290,49 +321,21 @@ void PatchApplyKernel(const PatchBasisInfo &pb,
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const real_t Jinvt00 = qd(q,0);
-            const real_t Jinvt01 = qd(q,1);
-            const real_t Jinvt02 = qd(q,2);
-            const real_t Jinvt10 = qd(q,3);
-            const real_t Jinvt11 = qd(q,4);
-            const real_t Jinvt12 = qd(q,5);
-            const real_t Jinvt20 = qd(q,6);
-            const real_t Jinvt21 = qd(q,7);
-            const real_t Jinvt22 = qd(q,8);
             const real_t lambda  = qd(q,9);
             const real_t mu      = qd(q,10);
+            const auto Jinvt = make_tensor<dim, dim>(
+               [&](int i, int j) { return qd(q, i*dim + j); });
+            const auto grad_uhat = make_tensor<dim, dim>(
+               [&](int i, int j) { return grad(i,j,qx,qy,qz); });
+            const auto Sq = PatchLinearElasticityKernel(Jinvt, lambda, mu, grad_uhat);
 
-            // grad_u = grad_uhat * J^{-1}
-            for (int c = 0; c < vdim; ++c)
+            for (int i = 0; i < dim; ++i)
             {
-               const real_t grad0 = grad(c,0,qx,qy,qz);
-               const real_t grad1 = grad(c,1,qx,qy,qz);
-               const real_t grad2 = grad(c,2,qx,qy,qz);
-               grad(c,0,qx,qy,qz) = (Jinvt00*grad0)+(Jinvt01*grad1)+(Jinvt02*grad2);
-               grad(c,1,qx,qy,qz) = (Jinvt10*grad0)+(Jinvt11*grad1)+(Jinvt12*grad2);
-               grad(c,2,qx,qy,qz) = (Jinvt20*grad0)+(Jinvt21*grad1)+(Jinvt22*grad2);
+               for (int j = 0; j < dim; ++j)
+               {
+                  S(i,j,qx,qy,qz) = Sq(i,j);
+               }
             }
-
-            // Compute stress tensor
-            // [s00, s11, s22, s12, s02, s01]
-            const real_t div = grad(0,0,qx,qy,qz) + grad(1,1,qx,qy,qz) + grad(2,2,qx,qy,qz);
-            const real_t sigma00 = (lambda*div + 2.0*mu*grad(0,0,qx,qy,qz));
-            const real_t sigma11 = (lambda*div + 2.0*mu*grad(1,1,qx,qy,qz));
-            const real_t sigma22 = (lambda*div + 2.0*mu*grad(2,2,qx,qy,qz));
-            const real_t sigma12 = mu * (grad(1,2,qx,qy,qz) + grad(2,1,qx,qy,qz));
-            const real_t sigma02 = mu * (grad(0,2,qx,qy,qz) + grad(2,0,qx,qy,qz));
-            const real_t sigma01 = mu * (grad(0,1,qx,qy,qz) + grad(1,0,qx,qy,qz));
-
-            // S = sigma * J^{-T}
-            S(0,0,qx,qy,qz) = Jinvt00*sigma00 + Jinvt10*sigma01 + Jinvt20*sigma02;
-            S(0,1,qx,qy,qz) = Jinvt01*sigma00 + Jinvt11*sigma01 + Jinvt21*sigma02;
-            S(0,2,qx,qy,qz) = Jinvt02*sigma00 + Jinvt12*sigma01 + Jinvt22*sigma02;
-            S(1,0,qx,qy,qz) = Jinvt00*sigma01 + Jinvt10*sigma11 + Jinvt20*sigma12;
-            S(1,1,qx,qy,qz) = Jinvt01*sigma01 + Jinvt11*sigma11 + Jinvt21*sigma12;
-            S(1,2,qx,qy,qz) = Jinvt02*sigma01 + Jinvt12*sigma11 + Jinvt22*sigma12;
-            S(2,0,qx,qy,qz) = Jinvt00*sigma02 + Jinvt10*sigma12 + Jinvt20*sigma22;
-            S(2,1,qx,qy,qz) = Jinvt01*sigma02 + Jinvt11*sigma12 + Jinvt21*sigma22;
-            S(2,2,qx,qy,qz) = Jinvt02*sigma02 + Jinvt12*sigma12 + Jinvt22*sigma22;
          } // qx
       } // qy
    } // qz
@@ -503,7 +506,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    PatchInterpolateGradient(pb, x, sumXYv, sumXv, gradv);
 
    // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
-   PatchApplyKernel(pb, pa_data, grad, S);
+   PatchApplyKernel3D(pb, pa_data, grad, S);
 
    // 3) Apply test function grad_v
    PatchApplyTestFunction(pb, S, sumXYv, sumXv, y);
