@@ -2731,7 +2731,7 @@ BrokenHdivFECollection::BrokenHdivFECollection(
    {
       // TODO: cb_type, ob_type for triangles
       RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
-      RT_dof[Geometry::TRIANGLE] = pp1*pp2;
+      RT_dof[Geometry::TRIANGLE] = pp1*(p+3);
 
       RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
                                                                   ob_type);
