@@ -128,12 +128,14 @@ public:
    }
 };
 
-/// @brief Input $f$ and return $f$
+/// @brief Input $p$ and return $p*r$
 class PRGridFunctionCoefficient : public Coefficient
 {
 private:
    const GridFunction *gf;
    FindPointsGSLIBOneByOne finder;
+   bool flip_sign;
+   real_t scale;
 
 public:
    int counter = 0;
@@ -141,8 +143,8 @@ public:
    // disable default constructor
    PRGridFunctionCoefficient() = delete;
 
-   PRGridFunctionCoefficient(const GridFunction *gf)
-       : Coefficient(), gf(gf), finder(gf)
+   PRGridFunctionCoefficient(const GridFunction *gf, real_t scale = 1.0, bool flip_sign = false)
+       : Coefficient(), gf(gf), finder(gf), flip_sign(flip_sign), scale(scale)
    {
    }
 
@@ -152,9 +154,10 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
+      real_t r = x[0];
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      return interp_val[0];
+      return interp_val[0] * r * scale * (flip_sign ? -1 : 1);
    }
 };
