@@ -31,22 +31,22 @@ int main(int argc, char *argv[])
 
    // A. compute B_tor_r
    // make a grid function with the H1 space
-   GridFunction B_tor_r(&fespace);
+   GridFunction B_tor_r(B_tor.FESpace());
    cout << B_tor_r.FESpace()->GetTrueVSize() << endl;
    B_tor_r = 0.0;
 
    {
-      BilinearForm b_bi(&fespace);
+      BilinearForm b_bi(B_tor.FESpace());
       RSquareGridFunctionCoefficient r_sq_coef;
       b_bi.AddDomainIntegrator(new MassIntegrator(r_sq_coef));
       b_bi.Assemble();
 
       // 1.b form linear form from bilinear form
-      LinearForm b(&fespace);
+      LinearForm b(B_tor.FESpace());
       b_bi.Mult(B_tor, b);
 
       // 2. make the bilinear form
-      BilinearForm a(&fespace);
+      BilinearForm a(B_tor.FESpace());
       RGridFunctionCoefficient r_coef;
       a.AddDomainIntegrator(new MassIntegrator(r_coef));
       a.Assemble();
