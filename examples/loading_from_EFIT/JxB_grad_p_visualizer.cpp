@@ -1,34 +1,39 @@
-#include "JxB_vec_coeffs.hpp" // Include for RGridFunctionCoefficient
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "JxB_vec_coeffs.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
    const char *mesh_file = "2d_mesh.mesh";
    bool visualization = true;
+   bool mixed_bilinear_form = false;
 
-   // Read the mesh
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // Load the pressure solution
    ifstream temp_log("./EFIT_loading/p.gf");
    GridFunction p(&mesh, temp_log);
 
-   temp_log.close();               // Close previous file
-   temp_log.open("./JxB_perp.gf"); // Open new file
-   GridFunction JxB_perp(&mesh, temp_log);
+   cout << "Mesh loaded" << endl;
+
+   const char *new_mesh_file = "2d_mesh.mesh";
+   Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
+
+   // load JxB_perp on the new mesh
+   temp_log.close(); // close the file
+   temp_log.open("./JxB_perp.gf");
+   GridFunction JxB_perp(new_mesh, temp_log);
 
    // Define the vector finite element space for grad p (ND)
    ND_FECollection fec(1, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+   FiniteElementSpace fespace(new_mesh, &fec);
    // Initialize gradient field
    GridFunction grad_p(&fespace);
+   cout << grad_p.FESpace()->GetTrueVSize() << endl;
    grad_p = 0.0;
 
    // compute grad p
@@ -63,7 +68,6 @@ int main(int argc, char *argv[])
       M_solver.Mult(b, X);
       grad_p.SetFromTrueDofs(X);
    }
-
    // mu * grad_p
    GridFunction scaled_grad_p(&fespace);
    scaled_grad_p = 0.0;
@@ -104,7 +108,7 @@ int main(int argc, char *argv[])
    }
    cout << scaled_grad_p.FESpace()->GetTrueVSize() << endl;
    cout << JxB_perp.FESpace()->GetTrueVSize() << endl;
-   scaled_grad_p += JxB_perp;
+   // scaled_grad_p += JxB_perp;
 
    if (visualization)
    {
@@ -113,12 +117,12 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << scaled_grad_p << flush;
+               << *new_mesh << scaled_grad_p << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("scaled_grad_p", &mesh);
+      ParaViewDataCollection paraview_dc("scaled_grad_p", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
@@ -133,5 +137,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    scaled_grad_p.Save(sol_ofs);
 
+   delete new_mesh;
+   
    return 0;
 }
