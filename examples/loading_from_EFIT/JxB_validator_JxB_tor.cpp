@@ -8,10 +8,10 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "2d_mesh.mesh";
    bool visualization = true;
 
-   Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh(new_mesh_file, 1, 1);
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 

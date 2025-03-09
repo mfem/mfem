@@ -8,10 +8,10 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "2d_mesh.mesh";
    bool visualization = true;
 
-   Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh(new_mesh_file, 1, 1);
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
    {
       // 1. make the RHS linear form
       LinearForm b(&fespace);
-      RCurlBPerpBPerpPerpGridFunctionCoefficient r_curl_b_perp_b_perp_perp_coef(&R_Curl_B_perp, &B_perp);
+      RCurlBPerpBPerpPerpVectorGridFunctionCoefficient r_curl_b_perp_b_perp_perp_coef(&R_Curl_B_perp, &B_perp);
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(r_curl_b_perp_b_perp_perp_coef));
       b.Assemble();
 

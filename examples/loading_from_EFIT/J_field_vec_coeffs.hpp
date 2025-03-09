@@ -34,7 +34,7 @@ public:
 };
 
 /// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
-class JPerpBGridFunctionCoefficient : public VectorCoefficient
+class BTorVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -44,9 +44,9 @@ private:
 public:
    int counter = 0;
 
-   JPerpBGridFunctionCoefficient() = delete;
+   BTorVectorGridFunctionCoefficient() = delete;
 
-   JPerpBGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   BTorVectorGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -78,7 +78,7 @@ public:
    }
 };
 /// @brief Input $B_tor$ and return $B_tor/r$
-class JPerpBOverRGridFunctionCoefficient : public VectorCoefficient
+class BTorOverRVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -88,9 +88,9 @@ private:
 public:
    int counter = 0;
 
-   JPerpBOverRGridFunctionCoefficient() = delete;
+   BTorOverRVectorGridFunctionCoefficient() = delete;
 
-   JPerpBOverRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   BTorOverRVectorGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -112,7 +112,7 @@ public:
 };
 
 /// @brief Input $B_tor$ and return $B_tor r n^\perp$ if v is 2D and $B_tor r$ if v is 1D
-class BTorRGridFunctionCoefficient : public VectorCoefficient
+class BTorRVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -122,9 +122,9 @@ private:
 public:
    int counter = 0;
 
-   BTorRGridFunctionCoefficient() = delete;
+   BTorRVectorGridFunctionCoefficient() = delete;
 
-   BTorRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   BTorRVectorGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }

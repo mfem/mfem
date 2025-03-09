@@ -8,12 +8,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "2d_mesh.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = true;
 
-   Mesh mesh(mesh_file, 1, 1);
-   // mesh.UniformRefinement();
+   Mesh mesh(new_mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
    ifstream temp_log("./B_tor.gf");
@@ -38,10 +37,10 @@ int main(int argc, char *argv[])
       // solving (f, J_perp) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
 
       // 1. make the linear form
-      BTorRGridFunctionCoefficient B_tor_r_coef(dim, &B_tor, false);
+      BTorRVectorGridFunctionCoefficient B_tor_r_coef(dim, &B_tor, false);
       b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(B_tor_r_coef));
 
-      BTorRGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
+      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
       b.Assemble();
    }
@@ -60,7 +59,7 @@ int main(int argc, char *argv[])
       // 1.b form linear form from bilinear form
       LinearForm b_li(&fespace);
       b_bi.Mult(B_tor, b_li);
-      BTorRGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
+      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
       b.Assemble();
       b += b_li;
@@ -86,13 +85,6 @@ int main(int argc, char *argv[])
    M_solver.Mult(b, X);
 
    J_perp.SetFromTrueDofs(X);
-
-   // ifstream temp_log2("./EFIT_loading/B_phi.gf");
-   // GridFunction B_B_tor(&mesh, temp_log2);
-
-   // GridFunction J_perp_diff(&fespace);
-   // J_perp_diff = J_perp;
-   // J_perp_diff -= B_B_tor;
 
    if (visualization)
    {
