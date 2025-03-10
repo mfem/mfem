@@ -1,6 +1,5 @@
 #include "mfem.hpp"
-#include "rand_eigensolver.hpp"
-#include "mtop_solvers.hpp"
+#include "stokes_solver.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -79,7 +78,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -102,63 +101,32 @@ int main(int argc, char *argv[])
        std::cout<<pmesh.GetNE()<<std::endl;
    }
 
-   LElasticOperator* le=new LElasticOperator(&pmesh,1);
 
-   mfem::ConstantCoefficient E(1.0);
-   mfem::ConstantCoefficient nu(0.2);
-   mfem::ConstantCoefficient rho(1.0);
+   StokesOperator* sp=new StokesOperator(&pmesh,2);
+   sp->AddVelocityBC(1,4,0.0);
+   sp->AddVelocityBC(2,0,1.0);
 
+   mfem::ConstantCoefficient mu(0.01);
+   sp->SetViscosoty(mu);
+   sp->Assemble();
 
-   le->AddDispBC(1,4,0.0);
-   le->SetMaterial(E,nu);
-   le->SetVolForce(1.0,1.0);
-   le->Assemble();
-   le->FSolve();
-
-   mfem::ParGridFunction disp;
-   le->GetSol(disp);
+   sp->FSolve();
 
    {
-       ParaViewDataCollection paraview_dc("eigp", &pmesh);
+       ParaViewDataCollection paraview_dc("stokes", &pmesh);
        paraview_dc.SetPrefixPath("ParaView");
        paraview_dc.SetLevelsOfDetail(order);
        paraview_dc.SetDataFormat(VTKFormat::BINARY);
        paraview_dc.SetHighOrderOutput(true);
        paraview_dc.SetCycle(0);
        paraview_dc.SetTime(0.0);
-       paraview_dc.RegisterField("disp",&disp);
+       paraview_dc.RegisterField("velo",&(sp->GetVelocity()));
+       paraview_dc.RegisterField("pres",&(sp->GetPressure()));
        paraview_dc.Save();
    }
 
-   delete le;
-
-   FRElasticSolver* fr=new FRElasticSolver(&pmesh,2,0.0);
-   fr->AddDispBC(1,4,0.0);
-   fr->SetMaterial(E,nu);
-   fr->SetDensity(rho);
-   fr->Assemble();
-   fr->AssembleSVD();
-
-   const RandomizedSubspaceIteration* ss=fr->GetEigSolver();
-
-   ParaViewDataCollection paraview_dc("eigt", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.RegisterField("disp",&disp);
-
-   auto eigv=ss->GetModes();
-   fr->GetSol(disp);
-
-   for(int i=0;i<ss->GetNumModes();i++){
-      disp.SetFromTrueDofs(eigv[i]);
-      paraview_dc.SetCycle(i);
-      paraview_dc.SetTime(double(i));
-      paraview_dc.Save();
-   }
-   delete fr;
-
+   delete sp;
    Mpi::Finalize();
    return 0;
 }
+

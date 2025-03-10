@@ -33,6 +33,15 @@ void RandomizedSubspaceIteration::Solve()
         }
     }
 
+    if(ess_tdofs!=nullptr){
+        for(int j=0;j<num_modes;j++){
+            Vector& cv=omega[j];
+            for(int i=0;i<ess_tdofs->Size();i++){
+                cv[(*ess_tdofs)[i]]=0.0;
+            }
+        }
+    }
+
 
     //initialize the modes
     for(int i=0;i<num_modes;i++){
@@ -62,6 +71,7 @@ void RandomizedSubspaceIteration::Solve()
        }
     }
 
+
     for(int it=0;it<iter;it++){
         for(int i=0;i<num_modes;i++){
             if(symmetric){
@@ -89,6 +99,16 @@ void RandomizedSubspaceIteration::Solve()
             }
         }
 
+        //test the product
+        for(int i=0;i<num_modes;i++){
+            for(int j=0;j<num_modes;j++){
+                real_t bb=InnerProduct(comm,omega[i],modes[j]);
+                if(myrank==0){std::cout<<bb<<" ";}
+
+            }
+            if(myrank==0){std::cout<<std::endl;}
+        }
+
 
         for(int i=0;i<num_modes;i++){
             A->Mult(omega[i],modes[i]);
@@ -111,6 +131,8 @@ void RandomizedSubspaceIteration::Solve()
             }
         }
     }
+
+
 }
 
 }

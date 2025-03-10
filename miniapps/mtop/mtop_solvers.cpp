@@ -322,8 +322,8 @@ FRElasticSolver::FRElasticSolver(mfem::ParMesh* mesh_, int vorder, mfem::real_t 
     lrf=nullptr;
     lif=nullptr;
 
-    num_svd_modes=3;
-    num_svd_iter=2;
+    num_svd_modes=5;
+    num_svd_iter=6;
     pop=nullptr;
     ss_solver=nullptr;
 }
@@ -369,10 +369,27 @@ void FRElasticSolver::AssembleSVD()
 
     std::cout<<LElasticOperator::pmesh->GetMyRank()<<"CW="<<hmf->Width()<<" CH="<<hmf->Height()<<std::endl;
 
-    pop=new mfem::ProductOperator(LElasticOperator::ls,hmf.Ptr(),false,false);
+    pop=new LocProductOperator(LElasticOperator::ls,hmf.Ptr());
     ss_solver->SetOperator(*pop);
     ss_solver->SetNumModes(num_svd_modes);
     ss_solver->SetNumIter(num_svd_iter);
+    ss_solver->SetConstrDOFs(LElasticOperator::ess_tdofv);
     ss_solver->Solve();
+
+    auto eigv=ss_solver->GetModes();
+    Vector tmpv; tmpv.SetSize(eigv[0].Size());
+    for(int i=0;i<ss_solver->GetNumModes();i++){
+        pop->MultB(eigv[i],tmpv);
+        for(int j=0;j<ss_solver->GetNumModes();j++){
+             real_t bb=InnerProduct(LElasticOperator::pmesh->GetComm(),tmpv,eigv[j]);
+             if(0==pmesh->GetMyRank()){
+                 std::cout<<bb<<" ";
+             }
+
+        }
+        if(0==pmesh->GetMyRank()){
+            std::cout<<std::endl;
+        }
+    }
 
 }

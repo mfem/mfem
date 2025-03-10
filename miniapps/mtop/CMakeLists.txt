@@ -13,13 +13,15 @@ list(APPEND SEQMTOP_COMMON_SOURCES
 	paramnonlinearform.cpp
         mtop_integrators.cpp
 	rand_eigensolver.cpp
-	mtop_solvers.cpp)
+	mtop_solvers.cpp
+	stokes_solver.cpp)
 
 list(APPEND SEQMTOP_COMMON_HEADERS
 	paramnonlinearform.hpp
         mtop_integrators.hpp
 	rand_eigensolver.hpp
-	mtop_solvers.hpp)
+	mtop_solvers.hpp
+	stokes_solver.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
@@ -59,6 +61,12 @@ add_mfem_miniapp(test_eigp
      MAIN test_eig.cpp
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
+
+add_mfem_miniapp(test_stokes
+     MAIN test_stokes.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 
 
 endif ()

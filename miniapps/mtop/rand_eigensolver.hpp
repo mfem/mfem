@@ -19,6 +19,7 @@ public:
         A=nullptr;
         modes.resize(num_modes);
         symmetric=false;
+        ess_tdofs=nullptr;
     }
 
 #ifdef MFEM_USE_MPI
@@ -29,8 +30,14 @@ public:
         A=nullptr;
         modes.resize(num_modes);
         symmetric=symm;
+        ess_tdofs=nullptr;
     }
 #endif
+
+    void SetConstrDOFs(mfem::Array<int>& ess_tdofs_)
+    {
+        ess_tdofs=&ess_tdofs_;
+    }
 
     void SetNumModes(int num_)
     {
@@ -44,8 +51,18 @@ public:
         }
     }
 
+    int GetNumModes() const
+    {
+        return num_modes;
+    }
+
     void SetNumIter(int it_){
         iter=it_;
+    }
+
+    int GetNumIter() const
+    {
+        return iter;
     }
 
     void SetOperator(const Operator& A_, bool symm=false)
@@ -66,7 +83,7 @@ public:
         }
     }
 
-    std::vector<Vector>& GetModes()
+    const std::vector<Vector>& GetModes() const
     {
         return modes;
     }
@@ -75,6 +92,8 @@ private:
 #ifdef MFEM_USE_MPI
     MPI_Comm comm;
 #endif
+
+    mfem::Array<int>* ess_tdofs;
 
     int num_modes;
     int iter;

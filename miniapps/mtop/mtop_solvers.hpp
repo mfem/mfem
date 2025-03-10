@@ -256,7 +256,9 @@ public:
         delete mf;
         mf=new ParBilinearForm(vfes);
         mf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+        //mf->SetAssemblyLevel(mfem::AssemblyLevel::FULL);
         mf->SetDiagonalPolicy(DIAG_ZERO);
+        //mf->SetDiagonalPolicy(DIAG_ONE);
         mf->AddDomainIntegrator(new MassIntegrator(*rho));
     }
 
@@ -280,6 +282,77 @@ public:
 
     void AssembleSVD();
 
+    const RandomizedSubspaceIteration* GetEigSolver(){
+        return ss_solver;
+    }
+
+
+    /// operator A is considered to be symmetric
+    class LocProductOperator : public Operator
+    {
+        const Operator *A, *B;
+        mutable Vector z;
+
+
+    public:
+        LocProductOperator(const Operator *A, const Operator *B):
+            Operator(A->Height(), B->Width()), A(A), B(B), z(A->Width())
+        {
+            MFEM_VERIFY(A->Width() == B->Height(),
+                        "incompatible Operators: A->Width() = " << A->Width()
+                        << ", B->Height() = " << B->Height());
+        }
+
+        void Mult(const Vector &x, Vector &y) const override
+        {
+
+            B->Mult(x, z);
+            y=0.0;
+            A->Mult(z, y);
+
+
+            /*
+            y=0.0;
+            A->Mult(x, y);
+            */
+
+            /*
+            B->Mult(x,y);
+            */
+        }
+
+        void MultTranspose(const Vector &x, Vector &y) const override
+        {
+
+            z=0.0;
+            A->Mult(x, z);
+            B->MultTranspose(z, y);
+
+            /*
+            y=0.0;
+            A->Mult(x, y);
+            */
+            /*
+            B->Mult(x,y);
+            */
+        }
+
+        void MultB(const Vector &x, Vector &y)
+        {
+            B->Mult(x, y);
+        }
+
+        void MultA(const Vector &x, Vector &y)
+        {
+            y=0.0;
+            A->Mult(x,y);
+        }
+
+        virtual ~LocProductOperator(){
+
+        }
+    };
+
 
 protected:
 
@@ -301,9 +374,8 @@ protected:
 
     int num_svd_modes;
     int num_svd_iter;
-    mfem::ProductOperator* pop;
+    LocProductOperator* pop;
     RandomizedSubspaceIteration* ss_solver; //subspace iteration solver
-
 
 };
 #endif // MTOP_SOLVERS_HPP
