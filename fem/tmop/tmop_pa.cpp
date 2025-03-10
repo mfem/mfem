@@ -184,10 +184,14 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
-   if (periodic) { MFEM_ABORT("periodic not implemented yet"); }
-
    Vector x_loc(*x_0);
-   x_loc += d_loc;
+   if (periodic)
+   {
+      GridFunction dl(const_cast<FiniteElementSpace *>(PA.fes));
+      dl = d_loc;
+      GetPeriodicPositions(*x_0, dl, x_loc);
+   }
+   else { x_loc += d_loc; }
 
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
