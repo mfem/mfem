@@ -409,8 +409,16 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    Vector X, RHS;
    if (trace_space)
    {
+#ifdef MFEM_USE_MPI
+      if (ph)
+      {
+         RHS.SetSize(trace_space->GetTrueVSize());
+         ph->ParallelAssemble(RHS);
+      }
+#else
       X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
       RHS.MakeRef(*h, 0, trace_space->GetVSize());
+#endif
    }
 
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
@@ -526,6 +534,14 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    {
       darcy->RecoverFEMSolution(X, rhs, x);
    }
+
+#ifdef MFEM_USE_MPI
+   if (trace_space)
+   {
+      Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
+      trace_space->GetProlongationMatrix()->Mult(X, x_r);
+   }
+#endif
 
    chrono.Stop();
 
