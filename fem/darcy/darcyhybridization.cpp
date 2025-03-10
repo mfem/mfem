@@ -470,6 +470,10 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    {
       if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
       h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+#ifdef MFEM_USE_MPI
+      // prevent double integration on shared faces
+      if (ftr->Elem2No >= 0 && !save2) { h_elmat *= 0.5; }
+#endif
       H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
    }
 }
