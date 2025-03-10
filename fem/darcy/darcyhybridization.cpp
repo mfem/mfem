@@ -365,7 +365,7 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 
 void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    int face, DenseMatrix &elmat1, DenseMatrix &elmat2, Array<int> &vdofs1,
-   Array<int> &vdofs2)
+   Array<int> &vdofs2, int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe1, *fe2;
@@ -474,12 +474,12 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       // prevent double integration on shared faces
       if (ftr->Elem2No >= 0 && !save2) { h_elmat *= 0.5; }
 #endif
-      H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+      H->AddSubMatrix(c_dofs, c_dofs, h_elmat, skip_zeros);
    }
 }
 
 void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
-   int bface, DenseMatrix &elmat1, Array<int> &vdofs)
+   int bface, DenseMatrix &elmat1, Array<int> &vdofs, int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe;
@@ -542,7 +542,7 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    {
       if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
       h_elmat.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
-      H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+      H->AddSubMatrix(c_dofs, c_dofs, h_elmat, skip_zeros);
    }
 }
 

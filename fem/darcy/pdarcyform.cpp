@@ -603,9 +603,9 @@ void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
    ParMesh *pmesh = pfes_p->GetParMesh();
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
-#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    MFEM_ABORT("Not supported");
-#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    if (hybridization->GetPotConstraintIntegrator())
    {
@@ -614,7 +614,7 @@ void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
       {
          const int f = pmesh->GetSharedFace(i);
          hybridization->ComputeAndAssemblePotFaceMatrix(f, elmat1, elmat2, vdofs1,
-                                                        vdofs2);
+                                                        vdofs2, skip_zeros);
       }
    }
 }

@@ -445,10 +445,10 @@ public:
 
    void ComputeAndAssemblePotFaceMatrix(int face,
                                         DenseMatrix & elmat1, DenseMatrix & elmat2,
-                                        Array<int>& vdofs1, Array<int>& vdofs2);
+                                        Array<int>& vdofs1, Array<int>& vdofs2, int skip_zeros = 1);
 
    void ComputeAndAssemblePotBdrFaceMatrix(int bface, DenseMatrix & elmat,
-                                           Array<int>& vdofs);
+                                           Array<int>& vdofs, int skip_zeros = 1);
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
