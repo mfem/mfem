@@ -1577,7 +1577,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
       const Operator *tr_cP = c_fes->GetConformingProlongation();
       if (!tr_cP)
       {
-         x.SetDataAndSize(x_t.GetData(), x_t.Size());
+         x.MakeRef(const_cast<Vector&>(x_t), 0, x_t.Size());
       }
       else
       {
@@ -1731,6 +1731,9 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 {
    if (IsNonlinear())
    {
+      MFEM_ASSERT(!ParallelU() && !ParallelP(),
+                  "In parallel, use ParallelEliminateTDofsInRHS() instead!");
+
       //save the rhs for initial guess in the iterative local solve
       darcy_u = x.GetBlock(0);
       darcy_p = x.GetBlock(1);
@@ -1784,9 +1787,104 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
 #ifdef MFEM_USE_MPI
 void DarcyHybridization::ParallelEliminateTDofsInRHS(
-   const Array<int> &tdofs_flux, const BlockVector &X, BlockVector &B)
+   const Array<int> &tdofs_flux, const BlockVector &x_t, BlockVector &b_t)
 {
+   if (IsNonlinear())
+   {
+      //save the rhs for initial guess in the iterative local solve
+      darcy_u = x_t.GetBlock(0);
+      darcy_p = x_t.GetBlock(1);
+   }
 
+   Vector xu, bu;
+
+   if (!ParallelU())
+   {
+      const Operator *cP = fes->GetConformingProlongation();
+      if (!cP)
+      {
+         xu.MakeRef(const_cast<Vector&>(x_t.GetBlock(0)), 0, fes->GetVSize());
+      }
+      else
+      {
+         xu.SetSize(cP->Height());
+         cP->Mult(x_t.GetBlock(0), xu);
+      }
+
+      const Operator *cR = fes->GetConformingRestriction();
+      if (!cR)
+      {
+         bu.MakeRef(b_t.GetBlock(0), 0, fes->GetVSize());
+      }
+      else
+      {
+         bu.SetSize(cR->Width());
+         cR->MultTranspose(b_t.GetBlock(0), bu);
+      }
+   }
+   else
+   {
+      xu.SetSize(fes->GetVSize());
+      fes->GetProlongationMatrix()->Mult(x_t.GetBlock(0), xu);
+      bu.SetSize(xu.Size());
+      fes->GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
+   }
+
+   Vector &bp = b_t.GetBlock(1);
+
+   const int NE = fes->GetNE();
+   Vector u_e, bu_e, bp_e;
+   Array<int> u_vdofs, p_dofs, edofs;
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetEDofs(el, edofs);
+      xu.GetSubVector(edofs, u_e);
+      u_e.Neg();
+
+      //bu -= A_e u_e
+      const int a_size = hat_offsets[el+1] - hat_offsets[el];
+      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+
+      bu_e.SetSize(a_size);
+      Ae.Mult(u_e, bu_e);
+
+      fes->GetElementVDofs(el, u_vdofs);
+      bu.AddElementVector(u_vdofs, bu_e);
+
+      //bp -= B_e u_e
+      const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+
+      bp_e.SetSize(d_size);
+      Be.Mult(u_e, bp_e);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_e.Neg();
+      }
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.AddElementVector(p_dofs, bp_e);
+   }
+
+   if (!ParallelU())
+   {
+      const Operator *cP = fes->GetConformingProlongation();
+      if (cP)
+      {
+         cP->MultTranspose(bu, b_t.GetBlock(0));
+      }
+   }
+   else
+   {
+      fes->GetProlongationMatrix()->MultTranspose(bu, b_t.GetBlock(0));
+   }
+
+   for (int tdof : tdofs_flux)
+   {
+      b_t(tdof) = x_t(tdof);//<--can be arbitrary as it is ignored
+   }
 }
 #endif //MFEM_USE_MPI
 
@@ -2464,6 +2562,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
          bu.SetSize(fes->GetVSize());
          cR->MultTranspose(b_t.GetBlock(0), bu);
          u.SetSize(bu.Size());
+         cR->MultTranspose(sol_t.GetBlock(0), u);
       }
    }
    else
@@ -2471,6 +2570,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       bu.SetSize(fes->GetVSize());
       fes->GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
       u.SetSize(bu.Size());
+      fes->GetRestrictionOperator()->MultTranspose(sol_t.GetBlock(0), u);
    }
 
    const Vector &bp = b_t.GetBlock(1);
