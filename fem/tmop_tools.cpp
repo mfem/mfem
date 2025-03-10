@@ -1100,7 +1100,7 @@ void GetPeriodicDisplacement(const GridFunction &x, const GridFunction &x_0,
 }
 
 void GetPeriodicPositions(const GridFunction &x_0, const GridFunction &d,
-                             Vector &x)
+                          Vector &x)
 {
    auto fes_h1 = *d.FESpace();
    const int NE = fes_h1.GetNE(), dim = fes_h1.GetVDim();

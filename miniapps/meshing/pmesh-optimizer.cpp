@@ -343,6 +343,7 @@ int main (int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
+
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -453,13 +454,13 @@ int main (int argc, char *argv[])
          // For H1 the perturbation is controlled by the true nodes.
          x.SetFromTrueVector();
       }
-   }
 
-   if (visualization)
-   {
-      socketstream vis1;
-      common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
-                             300, 600, 300, 300);
+      if (visualization)
+      {
+         socketstream vis1;
+         common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
+                               300, 600, 300, 300);
+      }
    }
 
    // Save the starting (prior to the optimization) mesh to a file. This
