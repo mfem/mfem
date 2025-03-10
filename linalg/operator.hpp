@@ -23,6 +23,13 @@ class RectangularConstrainedOperator;
 /// Abstract operator
 class Operator
 {
+private:
+   /// Auxiliary Vector used by the methods AddMult() and AddMultTranspose().
+   /** @note This Vector is private to prevent derived classes from accidentaly
+       using it in their implementation of Mult() or MultTranspose() which may
+       lead to hard-to-find bugs. */
+   mutable Vector z_am;
+
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
