@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-inline Mesh mesh_2d_orientation(int face_perm_1, int face_perm_2)
+inline Mesh Mesh2D_Orientation(int face_perm_1, int face_perm_2)
 {
    static const int dim = 2;
    static const int nv = 6;
@@ -55,7 +55,7 @@ inline Mesh mesh_2d_orientation(int face_perm_1, int face_perm_2)
    return mesh;
 }
 
-inline void rotate_3d_vertices(int *v, int ref_face, int rot)
+inline void Rotation3DVertices(int *v, int ref_face, int rot)
 {
    std::vector<int> face_1, face_2;
 
@@ -91,7 +91,7 @@ inline void rotate_3d_vertices(int *v, int ref_face, int rot)
    }
 }
 
-inline Mesh mesh_3d_orientation(int face_perm_1, int face_perm_2)
+inline Mesh Mesh3D_Orientation(int face_perm_1, int face_perm_2)
 {
    static const int dim = 3;
    static const int nv = 12;
@@ -133,7 +133,7 @@ inline Mesh mesh_3d_orientation(int face_perm_1, int face_perm_2)
    el[5] = 7;
    el[6] = 10;
    el[7] = 9;
-   rotate_3d_vertices(el, face_perm_1/4, face_perm_1%4);
+   Rotation3DVertices(el, face_perm_1/4, face_perm_1%4);
    mesh.AddHex(el);
 
    el[0] = 1;
@@ -144,11 +144,18 @@ inline Mesh mesh_3d_orientation(int face_perm_1, int face_perm_2)
    el[5] = 8;
    el[6] = 11;
    el[7] = 10;
-   rotate_3d_vertices(el, face_perm_2/4, face_perm_2%4);
+   Rotation3DVertices(el, face_perm_2/4, face_perm_2%4);
    mesh.AddHex(el);
 
    mesh.FinalizeHexMesh(true);
    mesh.GenerateBoundaryElements();
    mesh.Finalize();
    return mesh;
+}
+
+inline Mesh MeshOrientation(int dim, int o1, int o2)
+{
+   if (dim == 2) { return Mesh2D_Orientation(o1, o2); }
+   else if (dim == 3) { return Mesh3D_Orientation(o1, o2); }
+   else { MFEM_ABORT("Unsupported dimension."); }
 }
