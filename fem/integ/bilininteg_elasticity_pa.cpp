@@ -14,6 +14,7 @@
 #include "../qfunction.hpp"
 #include "../../mesh/nurbs.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
+#include "config/config.hpp"
 #include "fem/integrator.hpp"
 #include "linalg/dtensor.hpp"
 #include "linalg/tensor.hpp"
@@ -268,7 +269,7 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
 
 
 /**
- * Transform grad_u from reference to physical space:
+ * Transform grad_uhat (reference) to physical space:
  *    grad_u = grad_uhat * J^{-1}
  *
  * Compute stress:
@@ -281,7 +282,7 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
  */
 template <int dim>
 tensor<mfem::real_t, dim, dim>
-PatchLinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
+LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
                             const real_t lambda,
                             const real_t mu,
                             const tensor<mfem::real_t, dim, dim> grad_uhat)
@@ -326,7 +327,7 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
                [&](int i, int j) { return qd(q, i*dim + j); });
             const auto grad_uhat = make_tensor<dim, dim>(
                [&](int i, int j) { return grad(i,j,qx,qy,qz); });
-            const auto Sq = PatchLinearElasticityKernel(Jinvt, lambda, mu, grad_uhat);
+            const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, grad_uhat);
 
             for (int i = 0; i < dim; ++i)
             {
@@ -545,14 +546,95 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
    }
 }
 
+void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
+                                                   const PatchBasisInfo &pb,
+                                                   Vector &diag) const
+{
+   // MFEM_VERIFY(false, "Not implemented");
+   // Unpack patch basis info
+   const Array<int>& D1D = pb.D1D;
+   const Array<int>& Q1D = pb.Q1D;
+   const int NQ = pb.NQ;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const std::vector<std::vector<int>> minD = pb.minD;
+   const std::vector<std::vector<int>> maxD = pb.maxD;
+
+   const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
+   static constexpr int dim = 3;
+
+   // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
+   Vector grad_uhatv(vdim*vdim*NQ);
+   grad_uhatv = 0.0;
+   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+
+   auto Y = Reshape(diag.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
+
+   for (int dz = 0; dz < D1D[2]; ++dz)
+   {
+      for (int dy = 0; dy < D1D[1]; ++dy)
+      {
+         for (int dx = 0; dx < D1D[0]; ++dx)
+         {
+            for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+            {
+               const real_t Bz = B[2](qz,dz);
+               const real_t Gz = G[2](qz,dz);
+               for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+               {
+                  const real_t By = B[1](qy,dy);
+                  const real_t Gy = G[1](qy,dy);
+                  for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+                  {
+                     const real_t Bx = B[0](qx,dx);
+                     const real_t Gx = G[0](qx,dx);
+                     const real_t grad[3] = {
+                        Gx * By * Bz,
+                        Bx * Gy * Bz,
+                        Bx * By * Gz};
+
+                     const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+                     const real_t lambda  = qd(q,9);
+                     const real_t mu      = qd(q,10);
+                     const auto Jinvt = make_tensor<dim, dim>(
+                        [&](int i, int j) { return qd(q, i*dim + j); });
+                     // As second order tensor: e[i] * grad_phi[j]
+                     const auto grad_phi = make_tensor<dim, dim>(
+                        [&](int i, int j) { return grad[j]; });
+
+                     const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, grad_phi);
+
+                     const auto grad_phiv = make_tensor<dim>(
+                        [&](int i) { return grad[i]; });
+                     const auto Yq = dot(Sq, grad_phiv);
+                     for (int c = 0; c < vdim; ++c)
+                     {
+                        Y(dx,dy,dz,c) += Yq[c];
+                     }
+                  } // qx
+               } // qy
+            } // qz
+         } // dx
+      } // dy
+   } // dz
+}
+
 
 void ElasticityIntegrator::AssembleDiagonalNURBSPA(Vector &diag)
 {
-   mfem::out << "assemble diagonal NURBS PA" << std::endl;
-   MFEM_VERIFY(false, "Not implemented");
-   // q_vec->SetVDim(vdim*vdim*vdim*vdim);
-   // internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
-   //                                        *geom, *maps, *q_vec, diag);
+   Vector diagp;
+
+   for (int p=0; p<numPatches; ++p)
+   {
+      Array<int> vdofs;
+      fespace->GetPatchVDofs(p, vdofs);
+      diagp.SetSize(vdofs.Size());
+      diagp = 0.0;
+
+      AssembleDiagonalPatchPA(pa_data[p], pbinfo[p], diagp);
+
+      diag.AddElementVector(vdofs, diagp);
+   }
 }
 
 } // namespace mfem

@@ -226,8 +226,8 @@ int main(int argc, char *argv[])
    sw.Clear();
    sw.Start();
 
-   // cout << "Getting diagonal ... " << endl;
-   // OperatorJacobiSmoother M(a, ess_tdof_list);
+   cout << "Getting diagonal ... " << endl;
+   OperatorJacobiSmoother M(a, ess_tdof_list);
 
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
    solver.SetRelTol(sqrt(1e-8));
    solver.SetAbsTol(sqrt(1e-14));
    solver.SetOperator(*A);
-   // solver.SetPreconditioner(M);
+   solver.SetPreconditioner(M);
 
    solver.Mult(B, X);
 

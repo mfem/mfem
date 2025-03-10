@@ -450,7 +450,18 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    };
 
    const int iSz = integrators.Size();
-   if (elem_restrict && !DeviceCanUseCeed())
+
+   // Check if any integrators are patchwise
+   bool patchwise = false;
+   for (int i = 0; i < iSz; ++i)
+   {
+      if (integrators[i]->Patchwise())
+      {
+         patchwise = true;
+      }
+   }
+
+   if (elem_restrict && !DeviceCanUseCeed() && !patchwise)
    {
       if (iSz > 0)
       {
