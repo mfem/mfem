@@ -894,7 +894,6 @@ void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
 {
-   mfem::out << "DiffusionIntegrator::AssembleElementMatrix" << std::endl;
    int nd = el.GetDof();
    dim = el.GetDim();
    int spaceDim = Trans.GetSpaceDim();

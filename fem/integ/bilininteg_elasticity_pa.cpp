@@ -186,7 +186,7 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
                               const Vector &Uv,
                               Vector &sumXYv,
                               Vector &sumXv,
-                              Vector &graduv)
+                              DeviceTensor<5, real_t> &grad_uhat)
 {
    // Unpack
    const int vdim = pb.vdim;
@@ -206,8 +206,7 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
    const int NQ = pb.NQ;
 
    // Shape as tensors
-   auto U = Reshape(Uv.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
-   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   const auto U = Reshape(Uv.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
    auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, acc[0], acc[1]);
    auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, acc[0]);
    for (int dz = 0; dz < D1D[2]; ++dz)
@@ -257,9 +256,9 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
             {
                for (int qx = 0; qx < Q1D[0]; ++qx)
                {
-                  gradu(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
-                  gradu(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
-                  gradu(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
+                  grad_uhat(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
+                  grad_uhat(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
+                  grad_uhat(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
                }
             } // qy
          } // c
@@ -486,9 +485,10 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const int NQ = pb.NQ;
 
    // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
-   Vector gradv(vdim*vdim*NQ);
-   gradv = 0.0;
-   auto grad = Reshape(gradv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   Vector grad_uhatv(vdim*vdim*NQ);
+   grad_uhatv = 0.0;
+   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+
    // S[i,j,q] = D( grad_u )
    //          = stress[i,j,q] * J^{-T}[q]
    Vector Sv(vdim*vdim*NQ);
@@ -497,16 +497,14 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
 
    // Accumulators; these are shared between grad_u interpolation and grad_v_T
    // application, so their size is the max of qpts/dofs
-   const int max_pts_x = pb.accsize[0];
-   const int max_pts_y = pb.accsize[1];
-   Vector sumXYv(vdim*vdim*max_pts_x*max_pts_y);
-   Vector sumXv(vdim*vdim*max_pts_x);
+   Vector sumXYv(vdim*vdim*pb.accsize[0]*pb.accsize[1]);
+   Vector sumXv(vdim*vdim*pb.accsize[0]);
 
    // 1) Interpolate U at dofs to grad_u in reference quadrature space
-   PatchInterpolateGradient(pb, x, sumXYv, sumXv, gradv);
+   PatchInterpolateGradient(pb, x, sumXYv, sumXv, grad_uhat);
 
    // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
-   PatchApplyKernel3D(pb, pa_data, grad, S);
+   PatchApplyKernel3D(pb, pa_data, grad_uhat, S);
 
    // 3) Apply test function grad_v
    PatchApplyTestFunction(pb, S, sumXYv, sumXv, y);
