@@ -47,7 +47,7 @@ public:
    /// Sets the property that determines whether the spacing is reversed.
    void SetReverse(bool r) { reverse = r; }
 
-   bool GetReverse() { return reverse; }
+   bool GetReverse() const { return reverse; }
 
    void Flip() { reverse = !reverse; }
 
@@ -692,8 +692,26 @@ public:
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 
    SpacingType GetSpacingType() const override { return SpacingType::PIECEWISE; }
-   int NumIntParameters() const override { return 3 + np; }
-   int NumDoubleParameters() const override { return np - 1; }
+   int NumIntParameters() const override
+   {
+      int count = 3 + np;
+      for (const auto &p : pieces)
+      {
+         // Add three for the type and the integer and double parameter counts.
+         count += p->NumIntParameters() + 3;
+      }
+      return count;
+   }
+
+   int NumDoubleParameters() const override
+   {
+      int count = np - 1;
+      for (const auto &p : pieces)
+      {
+         count += p->NumDoubleParameters();
+      }
+      return count;
+   }
 
    Array<int> RelativePieceSizes() const { return npartition; }
 
@@ -711,17 +729,42 @@ public:
 
    void GetIntParameters(Array<int> & p) const override
    {
-      p.SetSize(3 + np);
+      p.SetSize(NumIntParameters());
       p[0] = n;
       p[1] = np;
       p[2] = (int) reverse;
       for (int i=0; i<np; ++i) { p[3 + i] = npartition[i]; }
+
+      Array<int> ipar;
+      int os = 3 + np;
+      for (int i=0; i<np; ++i)
+      {
+         p[os++] = (int) pieces[i]->GetSpacingType();
+         p[os++] = pieces[i]->NumIntParameters();
+         p[os++] = pieces[i]->NumDoubleParameters();
+
+         pieces[i]->GetIntParameters(ipar);
+         for (auto ip : ipar)
+         {
+            p[os++] = ip;
+         }
+      }
    }
 
    void GetDoubleParameters(Vector & p) const override
    {
-      p.SetSize(np - 1);
-      p = partition;
+      p.SetSize(NumDoubleParameters());
+      for (int i=0; i<partition.Size(); ++i) { p[i] = partition[i]; }
+      int os = partition.Size();
+      Vector dpar;
+      for (int i=0; i<np; ++i)
+      {
+         pieces[i]->GetDoubleParameters(dpar);
+         for (auto dp : dpar)
+         {
+            p[os++] = dp;
+         }
+      }
    }
 
    // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
@@ -748,8 +791,8 @@ public:
                           int rel_num_elems_full,
                           Array<int> const& ipar, Vector const& dpar,
                           SpacingType typeFull)
-      : SpacingFunction(n, r), first_elem(rel_first_elem),
-        num_elems(rel_num_elems), num_elems_full(rel_num_elems_full)
+      : SpacingFunction(n, r), num_elems_full(rel_num_elems_full),
+        num_elems(rel_num_elems), first_elem(rel_first_elem)
    {
       SetupFull(typeFull, ipar, dpar);
       CalculateSpacing();

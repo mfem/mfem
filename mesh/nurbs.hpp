@@ -262,7 +262,7 @@ protected:
    void init(int dim);
 
 private:
-   bool fullyCoarsened = false;
+   bool fully_coarsened = false;
 
 public:
    /// Copy constructor
@@ -783,6 +783,21 @@ protected:
    /// Set @a patch_to_bel.
    void SetPatchToBdrElements();
 
+   void GetMasterEdgeDofs(int edge, const Array<int> &v_offsets,
+                          const Array<int> &e_offsets,
+                          const Array<int> &aux_e_offsets,
+                          Array<int> &dofs) const;
+
+   void GetMasterFaceDofs(bool dof, int face, const Array<int> &v_offsets,
+                          const Array<int> &e_offsets,
+                          const Array<int> &f_offsets,
+                          const Array<int> &aux_e_offsets,
+                          const Array<int> &aux_f_offsets,
+                          Array2D<int> &dofs) const;
+
+   void GetFaceOrdering(int face, int n1, int n2, int v0, int e1, int e2,
+                        Array<int> &perm) const;
+
    /// To be used by ParNURBSExtension constructor(s)
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
@@ -817,6 +832,8 @@ private:
 
    void GetAuxFaceToElementTable(Array2D<int> &auxface2elem);
    void GetPatchSlaveFaceToPatchTable(Array2D<int> &sface2elem);
+
+   void SetDofToPatch();
 
 public:
    /// Copy constructor: deep copy
@@ -1096,6 +1113,7 @@ public:
 
    std::vector<Array<int>> kvf, kvf_coarse;
    std::vector<Array<int>> auxef;
+   Array<int> dof2patch;
 };
 
 
@@ -1204,12 +1222,6 @@ private:
    /** @brief Get the KnotVectors for boundary patch @a bp in @a kv, with
        orientations output in @a okv. */
    void GetBdrPatchKnotVectors(int bp, const KnotVector *kv[], int *okv);
-
-   void GetMasterEdgeDofs(int edge,
-                          const Array<int>& v_offsets,
-                          const Array<int>& e_offsets,
-                          const Array<int>& aux_e_offsets,
-                          Array<int> & dofs);
 
    void SetMasterEdges(bool dof, const KnotVector *kv[] = nullptr);
    void SetMasterFaces(bool dof);

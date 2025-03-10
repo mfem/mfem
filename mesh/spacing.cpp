@@ -478,7 +478,7 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
 
 void PiecewiseSpacingFunction::ScaleParameters(real_t a)
 {
-   for (auto& p : pieces) { p->ScaleParameters(a); }
+   for (auto &p : pieces) { p->ScaleParameters(a); }
 }
 
 void PiecewiseSpacingFunction::Print(std::ostream &os) const
@@ -505,6 +505,8 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
    Array<int> ipar;
    for (auto& p : pieces)
    {
+      MFEM_VERIFY(p->GetSpacingType() != SpacingType::PIECEWISE,
+                  "Piecewise spacings should not be composed");
       os << "\n" << int(p->GetSpacingType()) << " " << p->NumIntParameters()
          << " " << p->NumDoubleParameters();
 
@@ -604,7 +606,7 @@ void PiecewiseSpacingFunction::CalculateSpacing()
 
 bool PiecewiseSpacingFunction::Nested() const
 {
-   for (auto& p : pieces)
+   for (const auto &p : pieces)
    {
       if (!p->Nested())
       {
@@ -659,7 +661,7 @@ void PartialSpacingFunction::ScaleParameters(real_t a)
 
 void PartialSpacingFunction::Print(std::ostream &os) const
 {
-   os << int(SpacingType::PIECEWISE) << " " << NumIntParameters() << " "
+   os << int(SpacingType::PARTIAL) << " " << NumIntParameters() << " "
       << NumDoubleParameters() << " " << n << " " << (int) reverse << "\n"
       << first_elem << " " << num_elems << " " << num_elems_full << "\n";
 
@@ -684,7 +686,6 @@ void PartialSpacingFunction::Print(std::ostream &os) const
 
    if (dpar.Size() > 0)
    {
-      os << "\n";
       for (auto dp : dpar)
       {
          os << dp << " ";

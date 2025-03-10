@@ -1078,7 +1078,7 @@ void NURBSPatch::UniformRefinement(std::vector<Array<int>> const& rf,
    Vector new_knots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      if (fullyCoarsened)
+      if (fully_coarsened)
       {
          // Note that ScalePartition is used to modify the relative number of
          // elements per piece in a PiecewiseSpacingFunction.
@@ -1095,7 +1095,7 @@ void NURBSPatch::UniformRefinement(std::vector<Array<int>> const& rf,
       }
    }
 
-   fullyCoarsened = false;
+   fully_coarsened = false;
 }
 
 void NURBSPatch::UniformRefinement(int rf)
@@ -1111,9 +1111,7 @@ void NURBSPatch::UpdateSpacingPartitions(const Array<KnotVector*> &pkv)
 
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      const bool haveSpacing = (bool) kv[dir]->spacing;
-      MFEM_VERIFY(haveSpacing == (bool) pkv[dir]->spacing, "");
-      if (haveSpacing)
+      if (kv[dir]->spacing && pkv[dir]->spacing)
       {
          PiecewiseSpacingFunction *pws = dynamic_cast<PiecewiseSpacingFunction*>
                                          (kv[dir]->spacing.get());
@@ -2161,7 +2159,7 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
 
    swap(newpatch);
 
-   fullyCoarsened = true;
+   fully_coarsened = true;
 }
 
 NURBSExtension::NURBSExtension(const NURBSExtension &orig)
@@ -3690,10 +3688,10 @@ int GetNCPperEdge(const KnotVector *kv)
 
 void NURBSExtension::GenerateOffsets()
 {
-   int nv = patchTopo->GetNV();
-   int ne = patchTopo->GetNEdges();
-   int nf = patchTopo->GetNFaces();
-   int np = patchTopo->GetNE();
+   const int nv = patchTopo->GetNV();
+   const int ne = patchTopo->GetNEdges();
+   const int nf = patchTopo->GetNFaces();
+   const int np = patchTopo->GetNE();
    int meshCounter, spaceCounter, dim = Dimension();
 
    std::set<int> reversedParents;
@@ -4172,6 +4170,64 @@ void NURBSExtension::GenerateOffsets()
    }
    NumOfVertices = meshCounter;
    NumOfDofs     = spaceCounter;
+
+   SetDofToPatch();
+}
+
+void NURBSExtension::SetDofToPatch()
+{
+   dof2patch.SetSize(NumOfDofs);
+   dof2patch = -1;
+
+   const int dim = Dimension();
+   if (dim == 1) { return; }
+
+   Array<int> edges, faces, orient;
+   const int np = patchTopo->GetNE();
+
+   for (int p = 0; p < np; p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+      for (auto e : edges)
+      {
+         if (masterEdges.count(e) > 0)
+         {
+            Array<int> mdof;
+            GetMasterEdgeDofs(e, v_spaceOffsets, e_spaceOffsets,
+                              aux_e_spaceOffsets, mdof);
+            for (auto dof : mdof)
+            {
+               dof2patch[dof] = p;
+            }
+         }
+      }
+
+      if (dim == 3)
+      {
+         patchTopo->GetElementFaces(p, faces, orient);
+
+         for (auto f : faces)
+         {
+            if (masterFaces.count(f) > 0)
+            {
+               Array2D<int> mdof;
+               GetMasterFaceDofs(true, f,
+                                 v_spaceOffsets,
+                                 e_spaceOffsets,
+                                 f_spaceOffsets,
+                                 aux_e_spaceOffsets,
+                                 aux_f_spaceOffsets,
+                                 mdof);
+
+               for (int j=0; j<mdof.NumCols(); ++j)
+                  for (int k=0; k<mdof.NumRows(); ++k)
+                  {
+                     dof2patch[mdof(k,j)] = p;
+                  }
+            }
+         }
+      }
+   }
 }
 
 void NURBSExtension::CountElements()
@@ -5293,7 +5349,7 @@ void NURBSExtension::SlaveEdgeToParent(int se, int parent, const Array<int> &os,
    // Number of slave and auxiliary edges, not mesh edges
    const int nedge = parentVerts.size() + 1;
 
-   MFEM_VERIFY(parentVerts.size() + 2 == os.Size(), "");
+   MFEM_VERIFY((int) parentVerts.size() + 2 == os.Size(), "");
 
    Array<int> parentEndpoints;
    patchTopo->GetEdgeVertices(parent, parentEndpoints);
@@ -6504,7 +6560,6 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    }
 }
 
-
 void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
 {
    Array<const KnotVector *> kv(2);
@@ -6522,6 +6577,11 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
             const int l = p2g(i,j);
+            if (dof2patch[l] >= 0 && dof2patch[l] != p)
+            {
+               continue;
+            }
+
             for (int d = 0; d < vdim; d++)
             {
                coords(l*vdim + d) = patch(i,j,d)/patch(i,j,vdim);
@@ -6552,6 +6612,11 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
                const int l = p2g(i,j,k);
+               if (dof2patch[l] >= 0 && dof2patch[l] != p)
+               {
+                  continue;
+               }
+
                for (int d = 0; d < vdim; d++)
                {
                   coords(l*vdim + d) = patch(i,j,k,d)/patch(i,j,k,vdim);
