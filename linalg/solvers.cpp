@@ -2344,7 +2344,7 @@ void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
 
 int OptimizationProblem::GetNumConstraints() const
 {
-   return 1;               //Mathias hardcoded to one constraint ->fix
+   return c_e->Size();
 
    int m = 0;
    if (C) { m += C->Height(); }
