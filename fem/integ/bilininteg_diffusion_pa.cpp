@@ -164,6 +164,47 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
+void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      MFEM_ABORT("What to do if Ceed?");
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      Vector abs_pa_data(pa_data);
+      abs_pa_data.PowerAbs(1.0);
+      Array<real_t> absB(maps->B);
+      Array<real_t> absG(maps->G);
+      Array<real_t> absBt(maps->Bt);
+      Array<real_t> absGt(maps->Gt);
+      auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+      absB.Apply(abs_val);
+      absG.Apply(abs_val);
+      absBt.Apply(abs_val);
+      absGt.Apply(abs_val);
+
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                          absB, absG, absBt, absGt,
+                          abs_pa_data, x, y, dofs1D, quad1D);
+   }
+}
+
+void DiffusionIntegrator::AddAbsMultTransposePA(const Vector &x,
+                                                Vector &y) const
+{
+   if (symmetric)
+   {
+      AddAbsMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddAbsMultTransposePA only implemented "
+                 "in the symmetric case.")
+   }
+}
+
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.
 void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
