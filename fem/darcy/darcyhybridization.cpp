@@ -1095,12 +1095,13 @@ void DarcyHybridization::GetCtFaceMatrix(
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
    const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
 
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       Ct.Reset(Ct_data + Ct_offsets[f], f_size_1, c_size);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
       Ct.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_size,
                f_size_2, c_size);
@@ -1108,12 +1109,13 @@ void DarcyHybridization::GetCtFaceMatrix(
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    Array<int> c_dofs;
    c_fes->GetFaceVDofs(f, c_dofs);
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       GetCtSubMatrix(el1, c_dofs, Ct);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       GetCtSubMatrix(el2, c_dofs, Ct);
    }
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
@@ -1128,12 +1130,13 @@ void DarcyHybridization::GetEFaceMatrix(
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
    const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
 
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       E.Reset(E_data + E_offsets[f], d_size_1, c_size);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       E.Reset(E_data + E_offsets[f] + d_size_1*c_size, d_size_2, c_size);
    }
@@ -1148,12 +1151,13 @@ void DarcyHybridization::GetGFaceMatrix(
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
    const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
 
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       G.Reset(G_data + G_offsets[f], c_size, d_size_1);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       G.Reset(G_data + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
    }
