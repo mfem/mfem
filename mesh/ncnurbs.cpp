@@ -755,43 +755,38 @@ void NURBSExtension::GetAuxFaceEdges(int auxFace,
    }
 }
 
-void NURBSPatchMap::GetMasterEdgeDofs(int edge,
-                                      const Array<int>& v_offsets,
-                                      const Array<int>& e_offsets,
-                                      const Array<int>& aux_e_offsets,
-                                      Array<int> & dofs)
+void NURBSExtension::GetMasterEdgeDofs(int edge,
+                                       const Array<int>& v_offsets,
+                                       const Array<int>& e_offsets,
+                                       const Array<int>& aux_e_offsets,
+                                       Array<int> & dofs) const
 {
-   {
-      const bool isMaster = Ext->masterEdges.count(edge) > 0;
-      MFEM_VERIFY(isMaster, "");
-   }
+   MFEM_VERIFY(masterEdges.count(edge) > 0, "Not a master edge");
+   const int mid = masterEdgeToId.at(edge);
 
-   const int mid = Ext->masterEdgeToId.at(edge);
-   MFEM_ASSERT(mid >= 0, "Master edge index not found");
+   MFEM_VERIFY(masterEdgeVerts[mid].size() ==
+               masterEdgeSlaves[mid].size() - 1, "");
 
-   MFEM_VERIFY(Ext->masterEdgeVerts[mid].size() ==
-               Ext->masterEdgeSlaves[mid].size() - 1, "");
-
-   const std::size_t nes = Ext->masterEdgeSlaves[mid].size();
+   const std::size_t nes = masterEdgeSlaves[mid].size();
    for (std::size_t s=0; s<nes; ++s)
    {
-      const int slaveId = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
+      const int slaveId = slaveEdges[masterEdgeSlaves[mid][s]];
 
       Array<int> svert;
       if (slaveId >= 0)
       {
-         Ext->patchTopo->GetEdgeVertices(slaveId, svert);
+         patchTopo->GetEdgeVertices(slaveId, svert);
       }
       else
       {
          // Auxiliary edge
-         Ext->GetAuxEdgeVertices(-1 - slaveId, svert);
+         GetAuxEdgeVertices(-1 - slaveId, svert);
       }
 
       bool reverse = false;
       if (nes > 1)
       {
-         const int mev = Ext->masterEdgeVerts[mid][std::max((int) s - 1,0)];
+         const int mev = masterEdgeVerts[mid][std::max((int) s - 1,0)];
          MFEM_VERIFY(mev == svert[0] || mev == svert[1], "");
          if (s == 0)
          {
@@ -830,10 +825,10 @@ void NURBSPatchMap::GetMasterEdgeDofs(int edge,
 
       dofs.Append(sdofs);
 
-      if (s < Ext->masterEdgeSlaves[mid].size() - 1)
+      if (s < masterEdgeSlaves[mid].size() - 1)
       {
          // Add interior vertex DOF
-         dofs.Append(v_offsets[Ext->masterEdgeVerts[mid][s]]);
+         dofs.Append(v_offsets[masterEdgeVerts[mid][s]]);
       }
    }
 }
@@ -865,7 +860,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
                      "False master edges should have been removed");
 
          Array<int> mdof;
-         GetMasterEdgeDofs(edges[i], v_offsets, e_offsets, aux_e_offsets, mdof);
+         Ext->GetMasterEdgeDofs(edges[i], v_offsets, e_offsets, aux_e_offsets, mdof);
          masterDofs.Append(mdof);
 
          mos += mdof.Size();
@@ -881,7 +876,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
 // of the face should be entity i in the master face ordering.
 // Note that, in the above comments, it is irrelevant whether entities are interior.
 void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
-                                    int e1, int e2, Array<int> & perm)
+                                    int e1, int e2, Array<int> &perm)
 {
    perm.SetSize(n1 * n2);
 
@@ -998,6 +993,124 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
 }
 
+void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
+                                     int e1, int e2, Array<int> & perm) const
+{
+   perm.SetSize(n1 * n2);
+
+   // The ordering of entities in the face is based on the vertices.
+
+   Array<int> faceEdges, ori, evert, e2vert, vert;
+   patchTopo->GetFaceEdges(face, faceEdges, ori);
+   patchTopo->GetFaceVertices(face, vert);
+
+   MFEM_VERIFY(vert.Size() == 4, "");
+   int v0id = -1;
+   for (int i=0; i<4; ++i)
+   {
+      if (vert[i] == v0)
+      {
+         v0id = i;
+      }
+   }
+
+   MFEM_VERIFY(v0id >= 0, "");
+
+   patchTopo->GetEdgeVertices(faceEdges[e1], evert);
+   MFEM_VERIFY(evert[0] == v0 || evert[1] == v0, "");
+
+   bool d[2];
+   d[0] = (evert[0] == v0);
+
+   const int v10 = d[0] ? evert[1] : evert[0];
+
+   // The face has {fn1,fn2} interior entities, with ordering based on `vert`.
+   // Now, we find these sizes, by first finding the edge with vertices [v0, v10].
+   int e0 = -1;
+   for (int i=0; i<4; ++i)
+   {
+      patchTopo->GetEdgeVertices(faceEdges[i], evert);
+      if ((evert[0] == v0 && evert[1] == v10) ||
+          (evert[1] == v0 && evert[0] == v10))
+      {
+         e0 = i;
+      }
+   }
+
+   MFEM_VERIFY(e0 >= 0, "");
+
+   const bool tr = e0 % 2 == 1;  // True means (fn1,fn2) == (n2,n1)
+
+   patchTopo->GetEdgeVertices(faceEdges[e2], evert);
+   MFEM_VERIFY(evert[0] == v10 || evert[1] == v10, "");
+   d[1] = (evert[0] == v10);
+
+   const int v11 = d[1] ? evert[1] : evert[0];
+
+   int v01 = -1;
+   for (int i=0; i<4; ++i)
+   {
+      if (vert[i] != v0 && vert[i] != v10 && vert[i] != v11)
+      {
+         v01 = vert[i];
+      }
+   }
+
+   MFEM_VERIFY(v01 >= 0 && v01 == vert.Sum() - v0 - v10 - v11, "");
+
+   // Translate indices [v0, v10, v11, v01] to pairs of indices in {0,1}.
+   const int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+   int f00[2];
+
+   int allv[4] = {v0, v10, v11, v01};
+   int locv[4];
+   for (int i=0; i<4; ++i)
+   {
+      locv[i] = -1;
+      for (int j=0; j<4; ++j)
+      {
+         if (vert[j] == allv[i])
+         {
+            locv[i] = j;
+         }
+      }
+
+      MFEM_VERIFY(locv[i] >= 0, "");
+   }
+
+   for (int i=0; i<2; ++i)
+   {
+      f00[i] = ipair[locv[0]][i];
+   }
+
+   const int i0 = f00[0];
+   const int j0 = f00[1];
+
+   for (int i=0; i<n1; ++i)
+      for (int j=0; j<n2; ++j)
+      {
+         // Entity perm[i] of the face should be entity i in the master face ordering.
+         // The master face ordering varies faster in the direction from v0 to v10,
+         // and slower in the direction from v10 to v11, or equivalently, from v0 to v01.
+         if (tr)
+         {
+            const int fi = i0 == 0 ? j : n2 - 1 - j;
+            const int fj = j0 == 0 ? i : n1 - 1 - i;
+            const int p = fi + (fj * n2);  // Index in face ordering
+            const int m = i + (j * n1);  // Index in the master face ordering
+            perm[m] = p;
+         }
+         else
+         {
+            const int fi = i0 == 0 ? i : n1 - 1 - i;
+            const int fj = j0 == 0 ? j : n2 - 1 - j;
+            const int p = fi + (fj * n1);  // Index in face ordering
+            const int m = i + (j * n1);  // Index in the master face ordering
+            perm[m] = p;
+         }
+      }
+}
+
 bool ConsistentlySetEntry(int v, int & e)
 {
    const bool consistent = e == -1 || e == v;
@@ -1005,33 +1118,23 @@ bool ConsistentlySetEntry(int v, int & e)
    return consistent;
 }
 
-void ReorderArray2D(bool rev, int i0, int j0, const Array2D<int> & a,
+void ReorderArray2D(int i0, int j0, const Array2D<int> & a,
                     Array2D<int> & b)
 {
-   const int ma = a.NumRows();
-   const int na = a.NumCols();
+   const int m = a.NumRows();
+   const int n = a.NumCols();
 
-   const int mb = rev ? na : ma;
-   const int nb = rev ? ma : na;
+   b.SetSize(m, n);
 
-   b.SetSize(mb, nb);
-
-   if (rev)
+   const int s0 = i0 == 0 ? 1 : -1;
+   const int s1 = j0 == 0 ? 1 : -1;
+   for (int i=0; i<m; ++i)
    {
-      MFEM_ABORT("TODO");
-   }
-   else
-   {
-      const int s0 = i0 == 0 ? 1 : -1;
-      const int s1 = j0 == 0 ? 1 : -1;
-      for (int i=0; i<mb; ++i)
+      const int ia = (i0 * (m - 1)) + (s0 * i);
+      for (int j=0; j<n; ++j)
       {
-         const int ia = (i0 * (ma - 1)) + (s0 * i);
-         for (int j=0; j<nb; ++j)
-         {
-            const int ja = (j0 * (na - 1)) + (s1 * j);
-            b(i, j) = a(ia, ja);
-         }
+         const int ja = (j0 * (n - 1)) + (s1 * j);
+         b(i, j) = a(ia, ja);
       }
    }
 }
@@ -1080,617 +1183,626 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
 
       if (!faceMaster[i]) { continue; }
 
-      const int mid = Ext->masterFaceToId.at(faces[i]);
-      MFEM_ASSERT(mid >= 0, "Master face index not found");
-
-      const bool rev = Ext->masterFaceRev[mid];
-      const int s0i = Ext->masterFaceS0[mid][0];
-      const int s0j = Ext->masterFaceS0[mid][1];
-
-      const int n1orig = Ext->masterFaceSizes[mid][0];
-      const int n2orig = Ext->masterFaceSizes[mid][1];
-
-      // TODO: use a better way to mark master faces without slave faces, instead
-      // of just failing to set Ext->masterFaceSizes[mid].
-      // Skip master faces with no slave faces (only having slave edges).
-      if (n1orig == 0 && n2orig == 0)
+      Array2D<int> mdof;
+      Ext->GetMasterFaceDofs(dof, faces[i],
+                             v_offsets,
+                             e_offsets,
+                             f_offsets,
+                             aux_e_offsets,
+                             aux_f_offsets,
+                             mdof);
+      if (mdof.NumRows() == 0)
       {
          faceMaster[i] = false;
          continue;
       }
 
-      const int n1 = rev ? n2orig : n1orig;
-      const int n2 = rev ? n1orig : n2orig;
-
-      MFEM_VERIFY(n1 > 1 || n2 > 1, "");
-      MFEM_VERIFY(n1 * n2 >= (int) Ext->masterFaceSlaves[mid].size(),
-                  "Inconsistent number of faces");
-
-      MFEM_VERIFY((n1 - 1) * (n2 - 1) >= (int) Ext->masterFaceVerts[mid].size(),
-                  "Inconsistent number of vertices");
-
-      // TODO: define masterFaceSlaveCorners at master face corners omitted from V2K?
-
-      int fcnt = 0;
-      for (auto slaveId : Ext->masterFaceSlaves[mid])
-      {
-         if (slaveId < 0)
+      for (int j=0; j<mdof.NumCols(); ++j)
+         for (int k=0; k<mdof.NumRows(); ++k)
          {
-            // Auxiliary face
-            MFEM_ABORT("TODO: aux face implementation is not done");
+            masterDofs.Append(mdof(k,j));
          }
-         else
-         {
-            fcnt += Ext->slaveFaceNE1[slaveId] * Ext->slaveFaceNE2[slaveId];
-         }
-      }
 
-      MFEM_VERIFY(fcnt == n1 * n2, "");
+      mos += mdof.NumRows() * mdof.NumCols();
+   }  // loop (i) over faces
+}
 
-      MFEM_VERIFY((int) Ext->masterFaceSlaveCorners[mid].size() <= n1*n2, "");
+void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
+                                       const Array<int> &v_offsets,
+                                       const Array<int> &e_offsets,
+                                       const Array<int> &f_offsets,
+                                       const Array<int> &aux_e_offsets,
+                                       const Array<int> &aux_f_offsets,
+                                       Array2D<int> &dofs) const
+{
+   const int mid = masterFaceToId.at(face);
+   const bool rev = masterFaceRev[mid];
+   const int s0i = masterFaceS0[mid][0];
+   const int s0j = masterFaceS0[mid][1];
+   const int n1orig = masterFaceSizes[mid][0];
+   const int n2orig = masterFaceSizes[mid][1];
 
-      // Set an array of vertices or DOFs for the interior of this master face, `faces[i]`.
-      // Set master face entity dimensions.
-      int mnf1, mnf2;
-      Array<int> medges;
+   // TODO: use a better way to mark master faces without slave faces, instead
+   // of just failing to set masterFaceSizes[mid].
+   // Skip master faces with no slave faces (only having slave edges).
+   if (n1orig == 0 && n2orig == 0)
+   {
+      return;
+   }
+
+   const int n1 = rev ? n2orig : n1orig;
+   const int n2 = rev ? n1orig : n2orig;
+
+   MFEM_VERIFY(n1 > 1 || n2 > 1, "");
+   MFEM_VERIFY(n1 * n2 >= (int) masterFaceSlaves[mid].size(),
+               "Inconsistent number of faces");
+
+   MFEM_VERIFY((n1 - 1) * (n2 - 1) >= (int) masterFaceVerts[mid].size(),
+               "Inconsistent number of vertices");
+
+   // TODO: define masterFaceSlaveCorners at master face corners omitted from V2K?
+
+   int fcnt = 0;
+   for (auto slaveId : masterFaceSlaves[mid])
+   {
+      if (slaveId < 0)
       {
-         Array<int> mori;
-         Ext->patchTopo->GetFaceEdges(faces[i], medges, mori);
-      }
-
-      MFEM_ASSERT(medges.Size() == 4, "");
-
-      if (dof)
-      {
-         mnf1 = Ext->KnotVec(medges[0])->GetNCP() - 2;
-         mnf2 = Ext->KnotVec(medges[1])->GetNCP() - 2;
+         // Auxiliary face
+         MFEM_ABORT("TODO: aux face implementation is not done");
       }
       else
       {
-         mnf1 = Ext->KnotVec(medges[0])->GetNE() - 1;
-         mnf2 = Ext->KnotVec(medges[1])->GetNE() - 1;
+         fcnt += slaveFaceNE1[slaveId] * slaveFaceNE2[slaveId];
       }
+   }
 
-      // Set dimensions for a single mesh edge.
-      const int sne1 = (mnf1 - n1 + 1) / n1;
-      const int sne2 = (mnf2 - n2 + 1) / n2;
+   MFEM_VERIFY(fcnt == n1 * n2, "");
 
-      MFEM_ASSERT(sne1 * n1 == mnf1 - n1 + 1, "");
-      MFEM_ASSERT(sne2 * n2 == mnf2 - n2 + 1, "");
+   MFEM_VERIFY((int) masterFaceSlaveCorners[mid].size() <= n1*n2, "");
 
-      Array2D<int> mdof(mnf1, mnf2);
-      mdof = -1;
+   // Set an array of vertices or DOFs for the interior of this master face, `face`.
+   // Set master face entity dimensions.
+   int mnf1, mnf2;
+   Array<int> medges;
+   {
+      Array<int> mori;
+      patchTopo->GetFaceEdges(face, medges, mori);
+   }
 
-      bool consistent = true;
+   MFEM_ASSERT(medges.Size() == 4, "");
 
-      for (std::size_t s=0; s<Ext->masterFaceSlaves[mid].size(); ++s)
+   if (dof)
+   {
+      mnf1 = KnotVec(medges[0])->GetNCP() - 2;
+      mnf2 = KnotVec(medges[1])->GetNCP() - 2;
+   }
+   else
+   {
+      mnf1 = KnotVec(medges[0])->GetNE() - 1;
+      mnf2 = KnotVec(medges[1])->GetNE() - 1;
+   }
+
+   // Set dimensions for a single mesh edge.
+   const int sne1 = (mnf1 - n1 + 1) / n1;
+   const int sne2 = (mnf2 - n2 + 1) / n2;
+
+   MFEM_ASSERT(sne1 * n1 == mnf1 - n1 + 1, "");
+   MFEM_ASSERT(sne2 * n2 == mnf2 - n2 + 1, "");
+
+   Array2D<int> mdof(mnf1, mnf2);
+   mdof = -1;
+
+   bool consistent = true;
+
+   for (std::size_t s=0; s<masterFaceSlaves[mid].size(); ++s)
+   {
+      const int sId = masterFaceSlaves[mid][s];
+      const int slaveId = slaveFaces[sId];
+      const int v0 = masterFaceSlaveCorners[mid][s];
+      const int ori = slaveFaceOri[sId];
+      // ori gives the orientation and index of cv matching the first
+      // vertex of childFace, where cv is the array of slave face
+      // vertices in CCW w.r.t. to the master face.
+
+      const int sI = slaveFaceI[sId];
+      const int sJ = slaveFaceJ[sId];
+      const int ne1 = slaveFaceNE1[sId];
+      const int ne2 = slaveFaceNE2[sId];
+
+      const int fos = slaveId >= 0 ? f_offsets[slaveId] : aux_f_offsets[-1 - slaveId];
+      const int fos1 = slaveId >= 0 ? (slaveId + 1 < f_offsets.Size() ?
+                                       f_offsets[slaveId + 1] : aux_f_offsets[0]) :
+                       aux_f_offsets[-slaveId];
+
+      const int nvs = fos1 - fos;
+
+      if (slaveId < 0)
       {
-         const int sId = Ext->masterFaceSlaves[mid][s];
-         const int slaveId = Ext->slaveFaces[sId];
-         const int v0 = Ext->masterFaceSlaveCorners[mid][s];
-         const int ori = Ext->slaveFaceOri[sId];
-         // ori gives the orientation and index of cv matching the first
-         // vertex of childFace, where cv is the array of slave face
-         // vertices in CCW w.r.t. to the master face.
+         // Auxiliary face
+         const int auxFace = -1 - slaveId;
 
-         const int sI = Ext->slaveFaceI[sId];
-         const int sJ = Ext->slaveFaceJ[sId];
-         const int ne1 = Ext->slaveFaceNE1[sId];
-         const int ne2 = Ext->slaveFaceNE2[sId];
+         // If ori >= 0, then vertex ori of the aux face is closest to vertex 0 of
+         // the parent face. If ori < 0, then the orientations of the aux face and parent face
+         // are reversed.
 
-         const int fos = slaveId >= 0 ? f_offsets[slaveId] : aux_f_offsets[-1 - slaveId];
-         const int fos1 = slaveId >= 0 ? (slaveId + 1 < f_offsets.Size() ?
-                                          f_offsets[slaveId + 1] : aux_f_offsets[0]) :
-                          aux_f_offsets[-slaveId];
+         // TODO: eliminate auxFaceOri? Isn't it always equal to slaveFaceOri[sId]?
+         // Actually, I think auxFaces has ori defined as 0 for its original parent face,
+         // and ori here is slaveFaceOri, which comes from facePairs, which can be
+         // w.r.t. a different parent face. This means auxFaceOri is always 0 and is not
+         // useful, so that only ori should be used.
+         //MFEM_VERIFY(auxFaceOri == ori, "");
 
-         const int nvs = fos1 - fos;
+         // TODO: refactor the duplicated code in this case and the other case, slaveId >= 0.
 
-         if (slaveId < 0)
+         // Set slave face entity dimensions.
+         int nf1, nf2;
+         if (dof)
          {
-            // Auxiliary face
-            const int auxFace = -1 - slaveId;
-
-            // If ori >= 0, then vertex ori of the aux face is closest to vertex 0 of
-            // the parent face. If ori < 0, then the orientations of the aux face and parent face
-            // are reversed.
-
-            // TODO: eliminate auxFaceOri? Isn't it always equal to Ext->slaveFaceOri[sId]?
-            // Actually, I think auxFaces has ori defined as 0 for its original parent face,
-            // and ori here is Ext->slaveFaceOri, which comes from facePairs, which can be
-            // w.r.t. a different parent face. This means auxFaceOri is always 0 and is not
-            // useful, so that only ori should be used.
-            //MFEM_VERIFY(auxFaceOri == ori, "");
-
-            // TODO: refactor the duplicated code in this case and the other case, slaveId >= 0.
-
-            // Set slave face entity dimensions.
-            int nf1, nf2;
-            if (dof)
-            {
-               nf1 = (sne1 * ne1) + ne1 - 1;
-               nf2 = (sne2 * ne2) + ne2 - 1;
-            }
-            else
-            {
-               nf1 = Ext->auxFaces[auxFace].ki1[0] - Ext->auxFaces[auxFace].ki0[0] - 1;
-               nf2 = Ext->auxFaces[auxFace].ki1[1] - Ext->auxFaces[auxFace].ki0[1] - 1;
-            }
-
-            MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
-            MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
-
-            MFEM_VERIFY(nvs == nf1 * nf2, "");
-
-            /*
-               NOTE: When an aux face is first defined, it is constructed
-            with orientation 0 w.r.t. its parent face. However, it can be
-            part of another parent face. In this case, the original aux
-            face index is used, but it is paired with a different parent
-            face, with possibly different orientation w.r.t. that parent
-            face. In NURBSPatchMap::SetMasterFaces, the DOFs are set on
-            the parent face in its knot indices, with an aux face of
-            possibly nonzero orientation. When the orientation is nonzero,
-            the aux face DOFs must be reordered for the parent face, based
-            on orientation.
-             */
-
-            // These offsets are for the interior entities of the face. To get the lower edge, subtract 1.
-            const int os1 = (sI * sne1) + sI;
-            const int os2 = (sJ * sne2) + sJ;
-
-            // TODO: is there a function to permute 2D indices based on orientation? GetShiftedGridPoints2D
-            // TODO: the problem with using GetShiftedGridPoints2D is that we have (nf1, nf2) for the shifted (new)
-            // face, not for the original (old) face.
-            int onf1, onf2;
-            GetInverseShiftedDimensions2D(ori, nf1, nf2, onf1, onf2);
-            for (int k=0; k<onf2; ++k)
-               for (int j=0; j<onf1; ++j)
-               {
-                  int sm, sn, sj, sk;
-                  GetShiftedGridPoints2D(onf1, onf2, j, k, ori, sm, sn, sj, sk);
-                  MFEM_VERIFY(sm == nf1 && sn == nf2, "TODO: remove this?");
-
-                  const int q = j + (k * onf1);
-                  if (!ConsistentlySetEntry(fos + q, mdof(os1 + sj, os2 + sk)))
-                  {
-                     consistent = false;
-                  }
-               }
-
-            // Set entries on edges of this face, if they are interior to the master face.
-            std::vector<bool> edgeBdry(4);
-
-            // Horizontal edges
-            edgeBdry[0] = sJ == 0;
-            edgeBdry[2] = sJ + ne2 == n2;
-
-            // Vertical edges
-            edgeBdry[1] = sI + ne1 == n1;
-            edgeBdry[3] = sI == 0;
-
-            Array<int> faceEdges;
-            Ext->GetAuxFaceEdges(auxFace, faceEdges);
-
-            Array<int> orderedVertices(4);
-            Array<int> perm(4);
-            GetVertexOrdering(ori, perm);
-
-            std::set<int> vbdry;
-
-            int vstart = v0;
-            for (int eidx=0; eidx<4; ++eidx)
-            {
-               orderedVertices[eidx] = vstart;
-               // TODO: eliminate orderedVertices if it is redundant.
-               MFEM_VERIFY(orderedVertices[eidx] == Ext->auxFaces[auxFace].v[perm[eidx]], "");
-
-               const int eperm = ori < 0 ? (perm[eidx] - 1 + 4) % 4 : perm[eidx];
-               const int edge = faceEdges[eperm];
-
-               Array<int> evert;
-
-               if (edge >= 0)
-               {
-                  Ext->patchTopo->GetEdgeVertices(edge, evert);
-               }
-               else
-               {
-                  const int auxEdge = -1 - edge;
-                  Ext->GetAuxEdgeVertices(auxEdge, evert);
-               }
-
-               MFEM_VERIFY(evert[0] == vstart || evert[1] == vstart, "");
-
-               const bool reverse = (vstart == evert[1]);
-               const int vend = evert.Sum() - vstart;
-               vstart = vend;
-
-               // Skip edges on the boundary of the master face.
-               if (edgeBdry[eidx])
-               {
-                  for (auto v : evert)
-                  {
-                     vbdry.insert(v);
-                  }
-
-                  continue;
-               }
-               const bool horizontal = (eidx % 2 == 0);
-               const int nf_e = horizontal ? nf1 : nf2;
-
-               // Edge entities
-               const int eos = edge >= 0 ? e_offsets[edge] : aux_e_offsets[-1 - edge];
-               const int eos1 = edge >= 0 ? ((edge + 1 < e_offsets.Size()) ?
-                                             e_offsets[edge + 1] : aux_e_offsets[0]) : aux_e_offsets[-edge];
-
-               const bool edgeIsMaster = Ext->masterEdges.count(edge) > 0;
-
-               Array<int> edofs;
-               if (edgeIsMaster)
-               {
-                  // This edge is a slave edge and a master edge.
-                  // Instead of getting DOFs from e_offsets, take them
-                  // from the slave edges of this edge.
-                  GetMasterEdgeDofs(edge, v_offsets, e_offsets,
-                                    aux_e_offsets, edofs);
-               }
-               else
-               {
-                  MFEM_VERIFY(eos1 - eos == nf_e, "");
-
-                  edofs.SetSize(nf_e);
-                  for (int j=0; j<nf_e; ++j)
-                  {
-                     edofs[j] = eos + j;
-                  }
-               }
-
-               MFEM_VERIFY(edofs.Size() == nf_e, "");
-
-               for (int j=0; j<nf_e; ++j)
-               {
-                  int m1, m2;
-                  if (eidx == 0)
-                  {
-                     m1 = os1 + j;
-                     m2 = os2 - 1;
-                  }
-                  else if (eidx == 1)
-                  {
-                     m1 = os1 + nf1;
-                     m2 = os2 + j;
-                  }
-                  else if (eidx == 2)
-                  {
-                     m1 = os1 + nf1 - 1 - j;
-                     m2 = os2 + nf2;
-                  }
-                  else
-                  {
-                     m1 = os1 - 1;
-                     m2 = os2 + nf2 - 1 - j;
-                  }
-
-                  if (!ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j]
-                                            : edofs[j], mdof(m1, m2)))
-                  {
-                     consistent = false;
-                  }
-               }
-            }  // eidx
-
-            // Set entries at vertices of this face, if they are interior to the master face.
-            for (int vidx=0; vidx<4; ++vidx)
-            {
-               const int v = orderedVertices[vidx];
-               if (vbdry.count(v) == 0)  // If not on the boundary of the master face.
-               {
-                  int m1, m2;
-                  if (vidx == 0)
-                  {
-                     m1 = os1 - 1;
-                     m2 = os2 - 1;
-                  }
-                  else if (vidx == 1)
-                  {
-                     m1 = os1 + nf1;
-                     m2 = os2 - 1;
-                  }
-                  else if (vidx == 2)
-                  {
-                     m1 = os1 + nf1;
-                     m2 = os2 + nf2;
-                  }
-                  else
-                  {
-                     m1 = os1 - 1;
-                     m2 = os2 + nf2;
-                  }
-
-                  if (!ConsistentlySetEntry(v_offsets[v], mdof(m1, m2)))
-                  {
-                     consistent = false;
-                  }
-               }
-            }  // vidx
+            nf1 = (sne1 * ne1) + ne1 - 1;
+            nf2 = (sne2 * ne2) + ne2 - 1;
          }
          else
          {
-            // Determine which slave face edges are in the first and second
-            // dimensions of the master face, by using ori.
-            int e1 = -1, e2 = -1;
-            {
-               const int aori = ori < 0 ? -1 - ori : ori;
-               if (aori % 2 == 0)
-               {
-                  e1 = 0;
-                  e2 = 1;
-               }
-               else
-               {
-                  e1 = 1;
-                  e2 = 0;
-               }
+            nf1 = auxFaces[auxFace].ki1[0] - auxFaces[auxFace].ki0[0] - 1;
+            nf2 = auxFaces[auxFace].ki1[1] - auxFaces[auxFace].ki0[1] - 1;
+         }
 
-               if (ori < 0)
+         MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
+         MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
+
+         MFEM_VERIFY(nvs == nf1 * nf2, "");
+
+         // NOTE: When an aux face is first defined, it is constructed with
+         // orientation 0 w.r.t. its parent face. However, it can be part of
+         // another parent face. In this case, the original aux face index is
+         // used, but it is paired with a different parent face, with
+         // possibly different orientation w.r.t. that parent face. In
+         // NURBSPatchMap::SetMasterFaces, the DOFs are set on the parent
+         // face in its knot indices, with an aux face of possibly nonzero
+         // orientation. When the orientation is nonzero, the aux face DOFs
+         // must be reordered for the parent face, based on orientation.
+
+         // These offsets are for the interior entities of the face. To get the lower edge, subtract 1.
+         const int os1 = (sI * sne1) + sI;
+         const int os2 = (sJ * sne2) + sJ;
+
+         // TODO: is there a function to permute 2D indices based on orientation? GetShiftedGridPoints2D
+         // TODO: the problem with using GetShiftedGridPoints2D is that we have (nf1, nf2) for the shifted (new)
+         // face, not for the original (old) face.
+         int onf1, onf2;
+         GetInverseShiftedDimensions2D(ori, nf1, nf2, onf1, onf2);
+         for (int k=0; k<onf2; ++k)
+            for (int j=0; j<onf1; ++j)
+            {
+               int sm, sn, sj, sk;
+               GetShiftedGridPoints2D(onf1, onf2, j, k, ori, sm, sn, sj, sk);
+               MFEM_VERIFY(sm == nf1 && sn == nf2, "TODO: remove this?");
+
+               const int q = j + (k * onf1);
+               if (!ConsistentlySetEntry(fos + q, mdof(os1 + sj, os2 + sk)))
                {
-                  // Swap e1, e2
-                  const int sw = e1;
-                  e1 = e2;
-                  e2 = sw;
+                  consistent = false;
                }
             }
 
-            // Now, e1 is one of the two horizontal edges in the master face directions.
-            // If it does not touch v0, then take the other horizontal edge.
-            // Do the same for e2.
+         // Set entries on edges of this face, if they are interior to the master face.
+         std::vector<bool> edgeBdry(4);
 
-            Array<int> sedges;
+         // Horizontal edges
+         edgeBdry[0] = sJ == 0;
+         edgeBdry[2] = sJ + ne2 == n2;
+
+         // Vertical edges
+         edgeBdry[1] = sI + ne1 == n1;
+         edgeBdry[3] = sI == 0;
+
+         Array<int> faceEdges;
+         GetAuxFaceEdges(auxFace, faceEdges);
+
+         Array<int> orderedVertices(4);
+         Array<int> perm(4);
+         GetVertexOrdering(ori, perm);
+
+         std::set<int> vbdry;
+
+         int vstart = v0;
+         for (int eidx=0; eidx<4; ++eidx)
+         {
+            orderedVertices[eidx] = vstart;
+            // TODO: eliminate orderedVertices if it is redundant.
+            MFEM_VERIFY(orderedVertices[eidx] == auxFaces[auxFace].v[perm[eidx]], "");
+
+            const int eperm = ori < 0 ? (perm[eidx] - 1 + 4) % 4 : perm[eidx];
+            const int edge = faceEdges[eperm];
+
+            Array<int> evert;
+
+            if (edge >= 0)
             {
-               Array<int> sori;
-               Ext->patchTopo->GetFaceEdges(slaveId, sedges, sori);
-               MFEM_VERIFY(sedges.Size() == 4, "TODO: remove this obvious check");
-            }
-
-            int v1 = -1;
-            {
-               Array<int> evert;
-               Ext->patchTopo->GetEdgeVertices(sedges[e1], evert);
-               if (evert.Find(v0) == -1)
-               {
-                  e1 += 2;
-                  Ext->patchTopo->GetEdgeVertices(sedges[e1], evert);
-               }
-
-               const int idv0 = evert.Find(v0);
-               MFEM_ASSERT(idv0 >= 0, "");
-               v1 = evert[1 - idv0];
-
-               Ext->patchTopo->GetEdgeVertices(sedges[e2], evert);
-               if (evert.Find(v1) == -1)
-               {
-                  e2 += 2;
-                  Ext->patchTopo->GetEdgeVertices(sedges[e2], evert);
-               }
-
-               MFEM_ASSERT(evert.Find(v1) >= 0, "");
-            }
-
-            // Set slave face entity dimensions.
-            int nf1, nf2;
-            if (dof)
-            {
-               nf1 = Ext->KnotVec(sedges[e1])->GetNCP() - 2;
-               nf2 = Ext->KnotVec(sedges[e2])->GetNCP() - 2;
+               patchTopo->GetEdgeVertices(edge, evert);
             }
             else
             {
-               nf1 = Ext->KnotVec(sedges[e1])->GetNE() - 1;
-               nf2 = Ext->KnotVec(sedges[e2])->GetNE() - 1;
+               const int auxEdge = -1 - edge;
+               GetAuxEdgeVertices(auxEdge, evert);
             }
 
-            MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
-            MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
+            MFEM_VERIFY(evert[0] == vstart || evert[1] == vstart, "");
 
-            MFEM_VERIFY(nvs == nf1 * nf2, "");
+            const bool reverse = (vstart == evert[1]);
+            const int vend = evert.Sum() - vstart;
+            vstart = vend;
 
-            // Find the DOFs of the slave face ordered for the master
-            // face. We know that e1 and e2 are the local indices of
-            // the slave face edges on the bottom and right side, with
-            // respect to the master face directions.
-            Array<int> perm;
-            GetFaceOrdering(slaveId, nf1, nf2, v0, e1, e2, perm);
-
-            // These offsets are for the interior entities of the face.
-            // To get the lower edge, subtract 1.
-            const int os1 = (sI * sne1) + sI;
-            const int os2 = (sJ * sne2) + sJ;
-
-            for (int k=0; k<nf2; ++k)
-               for (int j=0; j<nf1; ++j)
-               {
-                  const int q = j + (k * nf1);
-
-                  if (!ConsistentlySetEntry(fos + perm[q],
-                                            mdof(os1 + j, os2 + k)))
-                  {
-                     consistent = false;
-                  }
-               }
-
-            // Set entries on edges of this face, if they are interior to the master face.
-            std::vector<int> edgeOrder{e1, e2, (e1 + 2) % 4, (e2 + 2) % 4};
-            std::vector<bool> edgeBdry(4);
-
-            // Horizontal edges
-            edgeBdry[0] = sJ == 0;
-            edgeBdry[2] = sJ + ne2 == n2;
-
-            // Vertical edges
-            edgeBdry[1] = sI + ne1 == n1;
-            edgeBdry[3] = sI == 0;
-
-            Array<int> orderedVertices(4);
-
-            std::set<int> vbdry;
-
-            int vstart = v0;
-            for (int eidx=0; eidx<4; ++eidx)
+            // Skip edges on the boundary of the master face.
+            if (edgeBdry[eidx])
             {
-               orderedVertices[eidx] = vstart;
-
-               const int edge = sedges[edgeOrder[eidx]];
-
-               Array<int> evert;
-               Ext->patchTopo->GetEdgeVertices(edge, evert);
-
-               const bool reverse = (vstart == evert[1]);
-
-               const int vend = evert.Sum() - vstart;
-               vstart = vend;
-
-               // Skip edges on the boundary of the master face.
-               if (edgeBdry[eidx])
+               for (auto v : evert)
                {
-                  for (auto v : evert)
-                  {
-                     vbdry.insert(v);
-                  }
-
-                  continue;
+                  vbdry.insert(v);
                }
-               const bool horizontal = (eidx % 2 == 0);
-               const int nf_e = horizontal ? nf1 : nf2;
 
-               // Edge entities
-               const int eos = e_offsets[edge];
-               const int eos1 = (edge + 1 < e_offsets.Size()) ?
-                                e_offsets[edge + 1] : aux_e_offsets[0];
+               continue;
+            }
+            const bool horizontal = (eidx % 2 == 0);
+            const int nf_e = horizontal ? nf1 : nf2;
 
-               const bool edgeIsMaster = Ext->masterEdges.count(edge) > 0;
+            // Edge entities
+            const int eos = edge >= 0 ? e_offsets[edge] : aux_e_offsets[-1 - edge];
+            const int eos1 = edge >= 0 ? ((edge + 1 < e_offsets.Size()) ?
+                                          e_offsets[edge + 1] : aux_e_offsets[0]) : aux_e_offsets[-edge];
 
-               Array<int> edofs;
-               if (edgeIsMaster)
+            const bool edgeIsMaster = masterEdges.count(edge) > 0;
+
+            Array<int> edofs;
+            if (edgeIsMaster)
+            {
+               // This edge is a slave edge and a master edge.
+               // Instead of getting DOFs from e_offsets, take them
+               // from the slave edges of this edge.
+               GetMasterEdgeDofs(edge, v_offsets, e_offsets,
+                                 aux_e_offsets, edofs);
+            }
+            else
+            {
+               MFEM_VERIFY(eos1 - eos == nf_e, "");
+
+               edofs.SetSize(nf_e);
+               for (int j=0; j<nf_e; ++j)
                {
-                  // TODO: shouldn't the DOFs from this master edge be obtainable from SetMasterEdges?
-                  // I guess SetMasterEdges is only for the patch edges, not master edges on the interior
-                  // of a patch face.
-                  // However, can we reuse/refactor code from SetMasterEdges?
-                  GetMasterEdgeDofs(edge, v_offsets, e_offsets, aux_e_offsets, edofs);
+                  edofs[j] = eos + j;
+               }
+            }
+
+            MFEM_VERIFY(edofs.Size() == nf_e, "");
+
+            for (int j=0; j<nf_e; ++j)
+            {
+               int m1, m2;
+               if (eidx == 0)
+               {
+                  m1 = os1 + j;
+                  m2 = os2 - 1;
+               }
+               else if (eidx == 1)
+               {
+                  m1 = os1 + nf1;
+                  m2 = os2 + j;
+               }
+               else if (eidx == 2)
+               {
+                  m1 = os1 + nf1 - 1 - j;
+                  m2 = os2 + nf2;
                }
                else
                {
-                  MFEM_VERIFY(eos1 - eos == nf_e, "");
-
-                  edofs.SetSize(nf_e);
-                  for (int j=0; j<nf_e; ++j)
-                  {
-                     edofs[j] = eos + j;
-                  }
+                  m1 = os1 - 1;
+                  m2 = os2 + nf2 - 1 - j;
                }
 
-               MFEM_VERIFY(edofs.Size() == nf_e, "");
-
-               for (int j=0; j<nf_e; ++j)
+               if (!ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j]
+                                         : edofs[j], mdof(m1, m2)))
                {
-                  int m1, m2;
-                  if (eidx == 0)
-                  {
-                     m1 = os1 + j;
-                     m2 = os2 - 1;
-                  }
-                  else if (eidx == 1)
-                  {
-                     m1 = os1 + nf1;
-                     m2 = os2 + j;
-                  }
-                  else if (eidx == 2)
-                  {
-                     m1 = os1 + nf1 - 1 - j;
-                     m2 = os2 + nf2;
-                  }
-                  else
-                  {
-                     m1 = os1 - 1;
-                     m2 = os2 + nf2 - 1 - j;
-                  }
-
-                  if (!ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j]
-                                            : edofs[j], mdof(m1, m2)))
-                  {
-                     consistent = false;
-                  }
+                  consistent = false;
                }
-            }  // eidx
+            }
+         }  // eidx
 
-            // Set entries at vertices of this face, if they are interior to the master face.
-            for (int vidx=0; vidx<4; ++vidx)
-            {
-               const int v = orderedVertices[vidx];
-               if (vbdry.count(v) == 0)  // If not on the boundary of the master face.
-               {
-                  int m1, m2;
-                  if (vidx == 0)
-                  {
-                     m1 = os1 - 1;
-                     m2 = os2 - 1;
-                  }
-                  else if (vidx == 1)
-                  {
-                     m1 = os1 + nf1;
-                     m2 = os2 - 1;
-                  }
-                  else if (vidx == 2)
-                  {
-                     m1 = os1 + nf1;
-                     m2 = os2 + nf2;
-                  }
-                  else
-                  {
-                     m1 = os1 - 1;
-                     m2 = os2 + nf2;
-                  }
-
-                  if (!ConsistentlySetEntry(v_offsets[v], mdof(m1, m2)))
-                  {
-                     consistent = false;
-                  }
-               }
-            }  // vidx
-         }
-      }  // Loop (s) over slave faces.
-
-      // Let `ori` be the signed shift such that pv[abs1(ori)] is vertex 0 of parentFace,
-      // and the relative direction of the ordering is encoded in the sign.
-      // Here, pv means parent vertices, as ordered in the mesh file.
-      // Then Reorder2D takes `ori` and computes (s0i, s0j) as the
-      // corresponding integer coordinates in {0,1}x{0,1}. Thus reference
-      // vertex (s0i, s0j) of pv (parent vertices in mesh file) is vertex
-      // (0, 0) of parentFace.
-      // Currently, mdof is in the ordering of pv, and the entries are now reordered,
-      // according to parentFace vertex ordering, for appending to masterDofs.
-      // That means the first entry appended to masterDofs should be the entry of
-      // mdof corresponding to (s0i, s0j).
-
-      Array2D<int> mdof_reordered;
-      ReorderArray2D(rev, s0i, s0j, mdof, mdof_reordered);
-
-      bool allset = true;
-      for (int j=0; j<mdof_reordered.NumCols(); ++j)
-         for (int k=0; k<mdof_reordered.NumRows(); ++k)
+         // Set entries at vertices of this face, if they are interior to the master face.
+         for (int vidx=0; vidx<4; ++vidx)
          {
-            if (mdof_reordered(k,j) < 0)
+            const int v = orderedVertices[vidx];
+            if (vbdry.count(v) == 0)  // If not on the boundary of the master face.
             {
-               allset = false;
+               int m1, m2;
+               if (vidx == 0)
+               {
+                  m1 = os1 - 1;
+                  m2 = os2 - 1;
+               }
+               else if (vidx == 1)
+               {
+                  m1 = os1 + nf1;
+                  m2 = os2 - 1;
+               }
+               else if (vidx == 2)
+               {
+                  m1 = os1 + nf1;
+                  m2 = os2 + nf2;
+               }
+               else
+               {
+                  m1 = os1 - 1;
+                  m2 = os2 + nf2;
+               }
+
+               if (!ConsistentlySetEntry(v_offsets[v], mdof(m1, m2)))
+               {
+                  consistent = false;
+               }
+            }
+         }  // vidx
+      }
+      else
+      {
+         // Determine which slave face edges are in the first and second
+         // dimensions of the master face, by using ori.
+         int e1 = -1, e2 = -1;
+         {
+            const int aori = ori < 0 ? -1 - ori : ori;
+            if (aori % 2 == 0)
+            {
+               e1 = 0;
+               e2 = 1;
+            }
+            else
+            {
+               e1 = 1;
+               e2 = 0;
             }
 
-            masterDofs.Append(mdof_reordered(k,j));
+            if (ori < 0)
+            {
+               // Swap e1, e2
+               const int sw = e1;
+               e1 = e2;
+               e2 = sw;
+            }
          }
 
-      MFEM_VERIFY(allset && consistent, "");
+         // Now, e1 is one of the two horizontal edges in the master face directions.
+         // If it does not touch v0, then take the other horizontal edge.
+         // Do the same for e2.
 
-      mos += mnf1 * mnf2;
-   }  // loop (i) over faces
+         Array<int> sedges;
+         {
+            Array<int> sori;
+            patchTopo->GetFaceEdges(slaveId, sedges, sori);
+            MFEM_VERIFY(sedges.Size() == 4, "TODO: remove this obvious check");
+         }
+
+         int v1 = -1;
+         {
+            Array<int> evert;
+            patchTopo->GetEdgeVertices(sedges[e1], evert);
+            if (evert.Find(v0) == -1)
+            {
+               e1 += 2;
+               patchTopo->GetEdgeVertices(sedges[e1], evert);
+            }
+
+            const int idv0 = evert.Find(v0);
+            MFEM_ASSERT(idv0 >= 0, "");
+            v1 = evert[1 - idv0];
+
+            patchTopo->GetEdgeVertices(sedges[e2], evert);
+            if (evert.Find(v1) == -1)
+            {
+               e2 += 2;
+               patchTopo->GetEdgeVertices(sedges[e2], evert);
+            }
+
+            MFEM_ASSERT(evert.Find(v1) >= 0, "");
+         }
+
+         // Set slave face entity dimensions.
+         int nf1, nf2;
+         if (dof)
+         {
+            nf1 = KnotVec(sedges[e1])->GetNCP() - 2;
+            nf2 = KnotVec(sedges[e2])->GetNCP() - 2;
+         }
+         else
+         {
+            nf1 = KnotVec(sedges[e1])->GetNE() - 1;
+            nf2 = KnotVec(sedges[e2])->GetNE() - 1;
+         }
+
+         MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
+         MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
+
+         MFEM_VERIFY(nvs == nf1 * nf2, "");
+
+         // Find the DOFs of the slave face ordered for the master
+         // face. We know that e1 and e2 are the local indices of
+         // the slave face edges on the bottom and right side, with
+         // respect to the master face directions.
+         Array<int> perm;
+         GetFaceOrdering(slaveId, nf1, nf2, v0, e1, e2, perm);
+
+         // These offsets are for the interior entities of the face.
+         // To get the lower edge, subtract 1.
+         const int os1 = (sI * sne1) + sI;
+         const int os2 = (sJ * sne2) + sJ;
+
+         for (int k=0; k<nf2; ++k)
+            for (int j=0; j<nf1; ++j)
+            {
+               const int q = j + (k * nf1);
+
+               if (!ConsistentlySetEntry(fos + perm[q],
+                                         mdof(os1 + j, os2 + k)))
+               {
+                  consistent = false;
+               }
+            }
+
+         // Set entries on edges of this face, if they are interior to the master face.
+         std::vector<int> edgeOrder{e1, e2, (e1 + 2) % 4, (e2 + 2) % 4};
+         std::vector<bool> edgeBdry(4);
+
+         // Horizontal edges
+         edgeBdry[0] = sJ == 0;
+         edgeBdry[2] = sJ + ne2 == n2;
+
+         // Vertical edges
+         edgeBdry[1] = sI + ne1 == n1;
+         edgeBdry[3] = sI == 0;
+
+         Array<int> orderedVertices(4);
+
+         std::set<int> vbdry;
+
+         int vstart = v0;
+         for (int eidx=0; eidx<4; ++eidx)
+         {
+            orderedVertices[eidx] = vstart;
+
+            const int edge = sedges[edgeOrder[eidx]];
+
+            Array<int> evert;
+            patchTopo->GetEdgeVertices(edge, evert);
+
+            const bool reverse = (vstart == evert[1]);
+
+            const int vend = evert.Sum() - vstart;
+            vstart = vend;
+
+            // Skip edges on the boundary of the master face.
+            if (edgeBdry[eidx])
+            {
+               for (auto v : evert)
+               {
+                  vbdry.insert(v);
+               }
+
+               continue;
+            }
+            const bool horizontal = (eidx % 2 == 0);
+            const int nf_e = horizontal ? nf1 : nf2;
+
+            // Edge entities
+            const int eos = e_offsets[edge];
+            const int eos1 = (edge + 1 < e_offsets.Size()) ?
+                             e_offsets[edge + 1] : aux_e_offsets[0];
+
+            const bool edgeIsMaster = masterEdges.count(edge) > 0;
+
+            Array<int> edofs;
+            if (edgeIsMaster)
+            {
+               // TODO: shouldn't the DOFs from this master edge be obtainable from SetMasterEdges?
+               // I guess SetMasterEdges is only for the patch edges, not master edges on the interior
+               // of a patch face.
+               // However, can we reuse/refactor code from SetMasterEdges?
+               GetMasterEdgeDofs(edge, v_offsets, e_offsets, aux_e_offsets, edofs);
+            }
+            else
+            {
+               MFEM_VERIFY(eos1 - eos == nf_e, "");
+
+               edofs.SetSize(nf_e);
+               for (int j=0; j<nf_e; ++j)
+               {
+                  edofs[j] = eos + j;
+               }
+            }
+
+            MFEM_VERIFY(edofs.Size() == nf_e, "");
+
+            for (int j=0; j<nf_e; ++j)
+            {
+               int m1, m2;
+               if (eidx == 0)
+               {
+                  m1 = os1 + j;
+                  m2 = os2 - 1;
+               }
+               else if (eidx == 1)
+               {
+                  m1 = os1 + nf1;
+                  m2 = os2 + j;
+               }
+               else if (eidx == 2)
+               {
+                  m1 = os1 + nf1 - 1 - j;
+                  m2 = os2 + nf2;
+               }
+               else
+               {
+                  m1 = os1 - 1;
+                  m2 = os2 + nf2 - 1 - j;
+               }
+
+               if (!ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j]
+                                         : edofs[j], mdof(m1, m2)))
+               {
+                  consistent = false;
+               }
+            }
+         }  // eidx
+
+         // Set entries at vertices of this face, if they are interior to the master face.
+         for (int vidx=0; vidx<4; ++vidx)
+         {
+            const int v = orderedVertices[vidx];
+            if (vbdry.count(v) == 0)  // If not on the boundary of the master face.
+            {
+               int m1, m2;
+               if (vidx == 0)
+               {
+                  m1 = os1 - 1;
+                  m2 = os2 - 1;
+               }
+               else if (vidx == 1)
+               {
+                  m1 = os1 + nf1;
+                  m2 = os2 - 1;
+               }
+               else if (vidx == 2)
+               {
+                  m1 = os1 + nf1;
+                  m2 = os2 + nf2;
+               }
+               else
+               {
+                  m1 = os1 - 1;
+                  m2 = os2 + nf2;
+               }
+
+               if (!ConsistentlySetEntry(v_offsets[v], mdof(m1, m2)))
+               {
+                  consistent = false;
+               }
+            }
+         }  // vidx
+      }
+   }  // Loop (s) over slave faces.
+
+   // Let `ori` be the signed shift such that pv[abs1(ori)] is vertex 0 of parentFace,
+   // and the relative direction of the ordering is encoded in the sign.
+   // Here, pv means parent vertices, as ordered in the mesh file.
+   // Then Reorder2D takes `ori` and computes (s0i, s0j) as the
+   // corresponding integer coordinates in {0,1}x{0,1}. Thus reference
+   // vertex (s0i, s0j) of pv (parent vertices in mesh file) is vertex
+   // (0, 0) of parentFace.
+   // Currently, mdof is in the ordering of pv, and the entries are now reordered,
+   // according to parentFace vertex ordering, for appending to masterDofs.
+   // That means the first entry appended to masterDofs should be the entry of
+   // mdof corresponding to (s0i, s0j).
+
+   ReorderArray2D(s0i, s0j, mdof, dofs);
+   const bool all_set = dofs.NumRows() * dofs.NumCols() == 0 || dofs.Min() >= 0;
+   MFEM_VERIFY(all_set && consistent, "");
 }
 
 int NURBSPatchMap::GetMasterEdgeDof(const int e, const int i) const
@@ -1742,7 +1854,8 @@ void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
       // TODO: just make parentToKV map to std::array<int,2>?
       parentToKV[parentPair] = std::pair<int, int>(kv, -1);
 
-      if (pv[1] < pv[0])
+      const bool rev = pv[1] < pv[0];
+      if (rev)
       {
          reversedParents.insert(parentEdge);
       }
