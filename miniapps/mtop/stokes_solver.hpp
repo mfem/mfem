@@ -217,7 +217,7 @@ protected:
     mfem::BlockOperator* bop; //tangent operator
     mfem::Solver* pop; //preconditioner
 
-    mfem::MINRESSolver *ls;
+    mfem::IterativeSolver *ls;
 
     void SetEssTDofs(mfem::Vector& bsol, mfem::Array<int>& ess_dofs);
 
@@ -226,6 +226,7 @@ protected:
     void AssemblePrec2();
     void AssemblePrec3();
     void AssemblePrec4();
+    void AssemblePrec5();
     std::unique_ptr<mfem::HypreBoomerAMG> prec1;
     std::unique_ptr<mfem::HypreBoomerAMG> prec2;
 

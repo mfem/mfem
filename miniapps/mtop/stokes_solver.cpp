@@ -350,6 +350,50 @@ void StokesOperator::AssemblePrec3()
 
 }
 
+void StokesOperator::AssemblePrec5()
+{
+    //get the diagonal of A
+    mfem::HypreParVector* Ad = new mfem::HypreParVector(pmesh->GetComm(),
+                                                        A->GetGlobalNumRows(),
+                                                        A->GetRowStarts());
+    A->GetDiag(*Ad);
+
+    //build approximation to the Schur complement
+    std::unique_ptr<mfem::HypreParMatrix> MBt(B->Transpose());
+    MBt->InvScaleRows(*Ad);
+    M=std::unique_ptr<mfem::HypreParMatrix>(mfem::ParMult(B.get(),MBt.get()));
+
+    //prepare the block struture
+    delete pop;
+    mfem::BlockDiagonalPreconditioner* dpop=new mfem::BlockDiagonalPreconditioner(block_true_offsets);
+    dpop->owns_blocks=true;
+
+
+    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
+    prec->SetElasticityOptions(vfes);
+    prec->SetPrintLevel(1);
+    prec->SetOperator(*A);
+
+    ivisc=std::unique_ptr<InverseCoeff>(new InverseCoeff(mu));
+    mf=std::unique_ptr<mfem::ParBilinearForm>(new mfem::ParBilinearForm(pfes));
+    mf->AddDomainIntegrator(new mfem::MassIntegrator(*ivisc));
+    mf->Assemble(0);
+    mf->Finalize();
+
+    M=std::unique_ptr<mfem::HypreParMatrix>(mf->ParallelAssemble());
+    mfem::HypreBoomerAMG* prem=new mfem::HypreBoomerAMG();
+    prem->SetPrintLevel(1);
+    prem->SetOperator(*M);
+
+    dpop->SetDiagonalBlock(0,prec);
+    dpop->SetDiagonalBlock(1,prem);
+
+    pop=dpop;
+
+    delete Ad;
+
+}
+
 
 void StokesOperator::Assemble()
 {
