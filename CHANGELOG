@@ -124,6 +124,10 @@ Miscellaneous
   assembly routines (although the latter is still possible, by leaving the new
   virtual method as its default base implementation of returning `NULL`).
 
+- Changed the name of `IterativeSolverMonitor` to `IterativeSolverController`
+  which now allows for declaring convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
+
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
