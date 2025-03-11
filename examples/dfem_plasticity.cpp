@@ -1,5 +1,7 @@
 #include "dfem/dfem_refactor.hpp"
 
+#include <fstream>
+
 using namespace mfem;
 using mfem::internal::tensor;
 
@@ -33,7 +35,10 @@ struct InternalStateQFunction
       auto invJ = inv(J);
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
-      auto internal_state_new = get<1>(material(dudX3D, internal_state));
+      //auto internal_state_new = get<1>(material(dudX3D, internal_state));
+      auto [stress, internal_state_new] = material(dudX3D, internal_state);
+      real_t vm = sqrt(1.5)*norm(dev(stress));
+      out << vm << " " << internal_state[9] << std::endl;
       return mfem::tuple{internal_state_new};
    }
 
@@ -72,9 +77,10 @@ struct J2SmallStrain {
 
   real_t E;                 ///< Young's modulus
   real_t nu;                ///< Poisson's ratio
-  real_t sigma_y;                ///< Yield strength
-  double Hk;                ///< Kinematic hardening modulus
-  double density;           ///< Mass density
+  real_t sigma_y;           ///< Yield strength
+  real_t Hk;                ///< Kinematic hardening modulus
+  real_t Hi;                ///< Isotropic hardening modulus
+  real_t density;           ///< Mass density
 
   /// @brief variables required to characterize the hysteresis response
   struct InternalState {
@@ -124,12 +130,14 @@ struct J2SmallStrain {
       auto q = sqrt(1.5) * norm(eta);
       real_t delta_eqps = 0.0;
 
+      auto flow_strength = [this](real_t eqps) { return this->sigma_y + this->Hi*eqps; };
+
       // (ii) admissibility
-      if (q > tol * sigma_y) {
+      if ((q - flow_strength(accumulated_plastic_strain))/sigma_y - 1.0 > tol) {
          // (iii) return mapping
-         real_t delta_eqps = (q - sigma_y)/(3*G + Hk);
+         real_t delta_eqps = (q - sigma_y - Hi*accumulated_plastic_strain)/(3*G + Hk + Hi);
          auto Np = 1.5 * eta / q;
-         s = s - 2.0 * G * delta_eqps * Np;
+         s -= 2.0 * G * delta_eqps * Np;
          plastic_strain += delta_eqps * Np;
          accumulated_plastic_strain += delta_eqps;
          // out << accumulated_plastic_strain << std::endl;
@@ -391,7 +399,7 @@ int main(int argc, char* argv[])
    const char* device_config = "cpu";
    const char* mesh_file = "/Users/andrej1/dump/fsi.msh";
    // const char* mesh_file = "../data/ref-square.mesh";
-   int polynomial_order = 2;
+   int polynomial_order = 1;
    int ir_order = 2;
    int refinements = 0;
    int nonlinear_solver_type = 0;
@@ -465,7 +473,7 @@ int main(int argc, char* argv[])
    real_t applied_displacement = 0.0;
 
    using Material = J2SmallStrain; // StVenantKirchhoff
-   Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 40.0};
+   Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 0.0, .Hi = 40.0, .density = 1.0};
    // Material material{.mu = 0.5e6, .nu = 0.4};
 
    ElasticityOperator elasticity(displacement_fes, displacement_ess_tdof,
@@ -475,7 +483,7 @@ int main(int argc, char* argv[])
 
    CGSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);
-   solver.SetRelTol(1e-5);
+   solver.SetRelTol(1e-10);
    // solver.SetKDim(500);
    solver.SetMaxIter(500);
    solver.SetPrintLevel(2);
@@ -502,8 +510,8 @@ int main(int argc, char* argv[])
       MFEM_ABORT("invalid nonlinear solver type");
    }
    nonlinear_solver->SetOperator(elasticity);
-   nonlinear_solver->SetRelTol(1e-10);
-   nonlinear_solver->SetMaxIter(50);
+   nonlinear_solver->SetRelTol(1e-9);
+   nonlinear_solver->SetMaxIter(2);
    nonlinear_solver->SetSolver(solver);
    nonlinear_solver->SetPrintLevel(1);
 
@@ -513,6 +521,7 @@ int main(int argc, char* argv[])
    QuadratureFunction output_internal_state(&output_internal_state_space, internal_state.GetData(), material.n_internal_states);
    Vector r(displacement_fes.GetTrueVSize());
    ParGridFunction reaction(&displacement_fes);
+   Vector end_forces_x(bc_tdof.Size());
 
    ParaViewDataCollection dc("dfem_plasticity", &mesh_beam);
    dc.SetHighOrderOutput(true);
@@ -529,12 +538,13 @@ int main(int argc, char* argv[])
 
    Vector zero, x(displacement_fes.GetTrueVSize());
 
-   for (int cycle = 0; cycle < 5; cycle++) {
+   constexpr int max_cycles = 1;
+   for (int cycle = 1; cycle < max_cycles + 1; cycle++) {
       out << "-------------------------------------------" << std::endl;
       out << "TIME STEP " << cycle << std::endl;
 
       time += 1.0;
-      applied_displacement += 0.2;
+      applied_displacement += 0.3e-3;
       u.SetSubVector(bc_tdof, applied_displacement);
 
       u.GetTrueDofs(x);
@@ -547,6 +557,9 @@ int main(int argc, char* argv[])
       // Compute reactions
       elasticity.Reaction(x, r);
       reaction.SetFromTrueDofs(r);
+      reaction.GetSubVector(bc_tdof, end_forces_x);
+      real_t force = -end_forces_x.Sum();
+      out << "u = " << applied_displacement << ", Force = " << force << std::endl;
 
       dc.SetCycle(cycle);
       dc.SetTime(time);
