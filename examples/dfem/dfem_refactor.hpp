@@ -7,6 +7,7 @@
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
+#include "general/error.hpp"
 
 namespace mfem
 {
@@ -208,6 +209,12 @@ public:
       MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                   derivative_action_callbacks.end(),
                   "no derivative action has been found for ID " << derivative_id);
+
+      MFEM_ASSERT(solutions_l.size() == solutions.size(),
+                  "wrong number of solutions");
+
+      MFEM_ASSERT(parameters_l.size() == parameters.size(),
+                  "wrong number of parameters");
 
       const int derivative_idx = FindIdx(derivative_id, fields);
 
@@ -1201,7 +1208,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             {
                if (input_is_dependent[s])
                {
-                  if (output_to_field[s] == input_to_field[s])
+                  if (output_to_field[0] == input_to_field[s])
                   {
                      same_test_and_trial = true;
                      break;
