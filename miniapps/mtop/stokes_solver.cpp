@@ -311,7 +311,7 @@ void StokesOperator::AssemblePrec3()
     mfem::CGSolver*  ls1=new mfem::CGSolver(pmesh->GetComm());
     ls1->SetAbsTol(linear_atol);
     ls1->SetRelTol(linear_rtol);
-    ls1->SetMaxIter(5);
+    ls1->SetMaxIter(100);
 
     prec1=std::unique_ptr<mfem::HypreBoomerAMG>(new mfem::HypreBoomerAMG());
     //set the rigid body modes
@@ -334,7 +334,7 @@ void StokesOperator::AssemblePrec3()
     mfem::CGSolver*  ls2=new mfem::CGSolver(pmesh->GetComm());
     ls2->SetAbsTol(linear_atol);
     ls2->SetRelTol(linear_rtol);
-    ls2->SetMaxIter(5);
+    ls2->SetMaxIter(100);
 
     prec2=std::unique_ptr<mfem::HypreBoomerAMG>(new mfem::HypreBoomerAMG());
     prec2->SetPrintLevel(1);
@@ -374,13 +374,6 @@ void StokesOperator::AssemblePrec5()
     prec->SetPrintLevel(1);
     prec->SetOperator(*A);
 
-    ivisc=std::unique_ptr<InverseCoeff>(new InverseCoeff(mu));
-    mf=std::unique_ptr<mfem::ParBilinearForm>(new mfem::ParBilinearForm(pfes));
-    mf->AddDomainIntegrator(new mfem::MassIntegrator(*ivisc));
-    mf->Assemble(0);
-    mf->Finalize();
-
-    M=std::unique_ptr<mfem::HypreParMatrix>(mf->ParallelAssemble());
     mfem::HypreBoomerAMG* prem=new mfem::HypreBoomerAMG();
     prem->SetPrintLevel(1);
     prem->SetOperator(*M);
@@ -392,6 +385,27 @@ void StokesOperator::AssemblePrec5()
 
     delete Ad;
 
+}
+
+void StokesOperator::AssemblePrec6()
+{
+    M=std::unique_ptr<mfem::HypreParMatrix>(mfem::ParMult(B.get(),D.get()));
+    LSC* prem=new LSC(*B,*A,*D,*M);
+
+    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
+    prec->SetElasticityOptions(vfes);
+    prec->SetPrintLevel(1);
+    prec->SetOperator(*A);
+
+    //prepare the block struture
+    delete pop;
+    mfem::BlockDiagonalPreconditioner* dpop=new mfem::BlockDiagonalPreconditioner(block_true_offsets);
+    dpop->owns_blocks=true;
+
+    dpop->SetDiagonalBlock(0,prec);
+    dpop->SetDiagonalBlock(1,prem);
+
+    pop=dpop;
 }
 
 
@@ -438,12 +452,15 @@ void StokesOperator::Assemble()
 
    //assemble the preconditioner
    //AssemblePrec1();
-   AssemblePrec2();
+   //AssemblePrec2();
    //AssemblePrec3();
    //AssemblePrec4();
+   //AssemblePrec5();
+   AssemblePrec6();
 
    if(ls==nullptr){
        ls=new mfem::MINRESSolver(pmesh->GetComm());
+       //ls=new mfem::GMRESSolver(pmesh->GetComm());
        ls->SetAbsTol(linear_atol);
        ls->SetRelTol(linear_rtol);
        ls->SetMaxIter(linear_iter);

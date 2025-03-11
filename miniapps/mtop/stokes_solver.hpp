@@ -227,8 +227,77 @@ protected:
     void AssemblePrec3();
     void AssemblePrec4();
     void AssemblePrec5();
+    void AssemblePrec6();
+    void AssemblePrec7();
     std::unique_ptr<mfem::HypreBoomerAMG> prec1;
     std::unique_ptr<mfem::HypreBoomerAMG> prec2;
+
+
+    class LSC:public mfem::Operator
+    {
+    public:
+        LSC(mfem::HypreParMatrix& B_,
+            mfem::HypreParMatrix& A_,
+            mfem::HypreParMatrix& D_,
+            mfem::HypreParMatrix& M_)
+        {
+            B=&B_;
+            A=&A_;
+            D=&D_;
+            M=&M_;
+
+            prec=std::unique_ptr<mfem::HypreBoomerAMG>(new mfem::HypreBoomerAMG());
+            prec->SetOperator(*M);
+            prec->SetPrintLevel(1);
+
+            p.SetSize(M->GetNumCols());
+            u.SetSize(A->GetNumCols());
+            v.SetSize(A->GetNumCols());
+
+            mfem::Operator::width=M->GetNumCols();
+            mfem::Operator::height=M->GetNumCols();
+
+            ls=std::unique_ptr<mfem::IterativeSolver>(new mfem::CGSolver(B->GetComm()));
+            ls->SetOperator(*M);
+            ls->SetPreconditioner(*prec);
+            ls->SetAbsTol(1e-8);
+            ls->SetRelTol(1e-8);
+            ls->SetMaxIter(100);
+            ls->SetPrintLevel(0);
+        }
+
+        virtual
+        ~LSC(){}
+
+        /// Operator application
+        void Mult (const mfem::Vector & x, mfem::Vector & y) const override
+        {
+            prec->Mult(x,p);
+            D->Mult(p,u);
+            A->Mult(u,v);
+            B->Mult(v,p);
+            prec->Mult(p,y);
+        }
+
+        /// Action of the transpose operator
+        void MultTranspose (const mfem::Vector & x, mfem::Vector & y) const override
+        {
+            Mult(x,y);
+        }
+
+    private:
+        mfem::HypreParMatrix *B;
+        mfem::HypreParMatrix *D;
+        mfem::HypreParMatrix *A;
+        mfem::HypreParMatrix *M;
+
+        std::unique_ptr<mfem::HypreBoomerAMG> prec;
+        std::unique_ptr<mfem::IterativeSolver> ls;
+
+        mutable mfem::Vector p;
+        mutable mfem::Vector u;
+        mutable mfem::Vector v;
+    };
 
 
 };
