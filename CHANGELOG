@@ -48,6 +48,10 @@ Discretization improvements
 - Added support for external boundary submeshes with nonconformal mesh
   adaptation.
 
+- Added support for H(div) spaces in class QuadratureInterpolator. For now, only
+  (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
+  are implemented. [PR #4669]
+
 Meshing improvements
 --------------------
 - Added support for nonuniform anisotropic (nonconforming) mesh refinement with
@@ -110,6 +114,10 @@ GPU computing
   transfer operators. New kernels can be offloaded as device kernels. Example
   usage may be found in lor-transfer.cpp in the miniapps/tools/ directory.
 
+- Allow BlockLowerTriangularPreconditioner to run on GPU.
+
+- Use device vectors in GMRES, FGMRES and other iterative methods.
+
 Miscellaneous
 -------------
 - Added support for SUNDIALS v7. See the section "API changes" for some small
@@ -124,12 +132,18 @@ Miscellaneous
   UseSundialsMassLinearSolver methods. This is because enabling a mass matrix
   solver assumes that F(u,k,t) = M k in the associated ODE operator.
 
+- Updated the benchmarks (in tests/benchmarks) to work with the latest Google
+  Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
+  CMake option to just MFEM_ENABLE_BENCHMARKS.
+
 API changes
 -----------
 - In class GridFunction, fec was renamed to fec_owned.
 
 - RiemannSolver was renamed to NumericalFlux (the old name has been deprecated
-  through typedef)
+  through typedef).
+
+- TMOP_Metric_skew2D has been marked as deprecated.
 
 - API changes due to SUNDIALS v7:
   * the SUNDIALS types realtype and booleantype are no longer defined by v7
