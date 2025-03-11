@@ -65,6 +65,14 @@
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
+//   Periodic 2D + adapted discrete size:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
+//   Periodic 3D + adapted discrete size + PA:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-cube.mesh -o 2 -rs 3 -mid 338 -tid 5 -nor -rtol 1e-6 -vl 1 -qo 4 -pa
+//   Periodic 2D NC mesh + adapted discrete size + PA:
+//     (the mesh is in the mfem/data GitHub repository)
+//   * mpirun -np 4 pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
+//
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
@@ -1058,6 +1066,7 @@ int main (int argc, char *argv[])
    // boundary attributes of the given mesh.
    // Attributes 1/2/3 correspond to fixed x/y/z components of the node.
    // Attribute dim+1 corresponds to an entirely fixed node.
+   // All other attributes represent unconstrained boundary nodes.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());

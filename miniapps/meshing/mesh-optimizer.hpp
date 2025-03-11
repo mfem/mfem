@@ -20,9 +20,23 @@ using namespace std;
 
 real_t size_indicator(const Vector &x)
 {
+   // semi-circle
+   const real_t xc = x(0) - 0.0, yc = x(1) - 0.5,
+       zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
+   const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
+   real_t r1 = 0.45; real_t r2 = 0.55; real_t sf=30.0;
+   real_t val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+
+   val = std::max((real_t) 0.,val);
+   val = std::min((real_t) 1.,val);
+   return val;
+}
+
+real_t size_indicator_periodic(const Vector &x)
+{
    // top right
    real_t xc = x(0) - 0.75, yc = x(1) - 0.75,
-          zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
+          zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    real_t r = sqrt(xc*xc + yc*yc + zc*zc);
    real_t r1 = 0.45; real_t r2 = 0.55; real_t sf=30.0;
    real_t val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
@@ -31,7 +45,7 @@ real_t size_indicator(const Vector &x)
 
    // bottom right
    xc = x(0) - 0.75, yc = x(1) + 1.25,
-       zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
+       zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    r = sqrt(xc*xc + yc*yc + zc*zc);
    r1 = 0.45; r2 = 0.55; sf=30.0;
    double val1 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
@@ -39,7 +53,7 @@ real_t size_indicator(const Vector &x)
 
    // top left
    xc = x(0) + 1.25, yc = x(1) - 0.75,
-       zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
+       zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    r = sqrt(xc*xc + yc*yc + zc*zc);
    r1 = 0.45; r2 = 0.55; sf=30.0;
    double val2 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
@@ -47,7 +61,7 @@ real_t size_indicator(const Vector &x)
 
    // bottom left
    xc = x(0) + 1.25, yc = x(1) + 1.25,
-       zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
+       zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    r = sqrt(xc*xc + yc*yc + zc*zc);
    r1 = 0.45; r2 = 0.55; sf=30.0;
    double val3 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
@@ -92,9 +106,19 @@ void calc_mass_volume(const GridFunction &g, real_t &mass, real_t &vol)
 
 void ConstructSizeGF(GridFunction &size)
 {
+   const bool per = size.FESpace()->GetMesh()->GetNodalFESpace()->IsDGSpace();
+
    // Indicator for small (value -> 1) or big (value -> 0) elements.
-   FunctionCoefficient size_ind_coeff(size_indicator);
-   size.ProjectCoefficient(size_ind_coeff);
+   if (per)
+   {
+      FunctionCoefficient size_ind_coeff(size_indicator_periodic);
+      size.ProjectCoefficient(size_ind_coeff);
+   }
+   else
+   {
+      FunctionCoefficient size_ind_coeff(size_indicator);
+      size.ProjectCoefficient(size_ind_coeff);
+   }
 
    // Determine small/big target sizes based on the total number of
    // elements and the volume occupied by small elements.
