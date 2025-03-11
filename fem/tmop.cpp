@@ -3493,11 +3493,6 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
-   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
-   const char* mesh_fe_name =
-      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
-   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
-               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
@@ -3515,11 +3510,6 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
-   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
-   const char* mesh_fe_name =
-      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
-   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
-               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
    delete adapt_lim_gf;
@@ -3542,6 +3532,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
+
+   const bool per = s0.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
    const int dim = s0.FESpace()->GetMesh()->Dimension();
    Mesh *mesh = s0.FESpace()->GetMesh();
@@ -3578,6 +3571,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
                "Incompatible ordering of spaces!");
 
+   const bool per = pos.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
+
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker  = &smarker;
@@ -3597,6 +3593,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
+
+   const bool per = s0.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
    const int dim = s0.FESpace()->GetMesh()->Dimension();
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
@@ -3703,6 +3702,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
 
+   const bool per = s0.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
+
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -3766,7 +3768,8 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d,
                                               real_t &err_avg, real_t &err_max)
 {
-   if (periodic) { MFEM_ABORT("periodic not implemented"); }
+   MFEM_VERIFY(periodic == false,
+               "Fitting is not supported for periodic meshes.");
 
    Vector pos;
    if (x_0)
@@ -5329,11 +5332,11 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
-   {
-      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
-
+   {      
       Vector x_loc(*x_0);
-      x_loc += d;
+      GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
+      d_loc = d;
+      GetPeriodicPositions(*x_0, d_loc, x_loc);
 
       adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
    }
@@ -5378,6 +5381,9 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
    fdflag = true;
    const FiniteElementSpace *fes = x.FESpace();
 
+   const bool per = fes->IsDGSpace();
+   MFEM_VERIFY(per == false, "FD is not supported for periodic meshes.");
+
    if (discr_tc)
    {
 #ifdef MFEM_USE_GSLIB
@@ -5399,6 +5405,9 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 {
    fdflag = true;
    const ParFiniteElementSpace *pfes = x.ParFESpace();
+
+   const bool per = pfes->IsDGSpace();
+   MFEM_VERIFY(per == false, "FD is not supported for periodic meshes.");
 
    if (discr_tc)
    {
