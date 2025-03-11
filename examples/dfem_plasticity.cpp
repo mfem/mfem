@@ -37,8 +37,8 @@ struct InternalStateQFunction
       auto dudX3D = tensor_to_3D(dudX);
       //auto internal_state_new = get<1>(material(dudX3D, internal_state));
       auto [stress, internal_state_new] = material(dudX3D, internal_state);
-      real_t vm = sqrt(1.5)*norm(dev(stress));
-      out << vm << " " << internal_state[9] << std::endl;
+      // real_t vm = sqrt(1.5)*norm(dev(stress));
+      // out << vm << " " << internal_state_new[9] << std::endl;
       return mfem::tuple{internal_state_new};
    }
 
@@ -133,14 +133,13 @@ struct J2SmallStrain {
       auto flow_strength = [this](real_t eqps) { return this->sigma_y + this->Hi*eqps; };
 
       // (ii) admissibility
-      if ((q - flow_strength(accumulated_plastic_strain))/sigma_y - 1.0 > tol) {
+      if (q - (sigma_y + Hi*accumulated_plastic_strain) > tol*sigma_y) {
          // (iii) return mapping
          real_t delta_eqps = (q - sigma_y - Hi*accumulated_plastic_strain)/(3*G + Hk + Hi);
          auto Np = 1.5 * eta / q;
          s -= 2.0 * G * delta_eqps * Np;
          plastic_strain += delta_eqps * Np;
          accumulated_plastic_strain += delta_eqps;
-         // out << accumulated_plastic_strain << std::endl;
       }
       auto stress = s + p * I;
       auto internal_state_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
@@ -397,18 +396,15 @@ int main(int argc, char* argv[])
    Mpi::Init();
 
    const char* device_config = "cpu";
-   const char* mesh_file = "/Users/andrej1/dump/fsi.msh";
-   // const char* mesh_file = "../data/ref-square.mesh";
    int polynomial_order = 1;
    int ir_order = 2;
    int refinements = 0;
    int nonlinear_solver_type = 0;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&polynomial_order, "-o", "--order", "");
-   args.AddOption(&refinements, "-r", "--r", "");
-   args.AddOption(&ir_order, "-iro", "--iro", "");
+   args.AddOption(&refinements, "-r", "--refinements", "");
+   args.AddOption(&ir_order, "-iro", "--integration-rule-order", "");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&nonlinear_solver_type, "-nls", "--nonlinear-solver", "");
@@ -470,7 +466,6 @@ int main(int argc, char* argv[])
 
    ParGridFunction u(&displacement_fes);
    u = 0.0;
-   real_t applied_displacement = 0.0;
 
    using Material = J2SmallStrain; // StVenantKirchhoff
    Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 0.0, .Hi = 40.0, .density = 1.0};
@@ -489,13 +484,6 @@ int main(int argc, char* argv[])
    solver.SetPrintLevel(2);
    solver.SetPreconditioner(prec);
 
-   // NewtonSolver newton(MPI_COMM_WORLD);
-   // newton.SetOperator(elasticity);
-   // newton.SetSolver(solver);
-   // newton.SetRelTol(1e-12);
-   // newton.SetMaxIter(50);
-   // newton.SetPrintLevel(1);
-
    std::shared_ptr<NewtonSolver> nonlinear_solver;
    if (nonlinear_solver_type == 0)
    {
@@ -511,10 +499,9 @@ int main(int argc, char* argv[])
    }
    nonlinear_solver->SetOperator(elasticity);
    nonlinear_solver->SetRelTol(1e-9);
-   nonlinear_solver->SetMaxIter(2);
+   nonlinear_solver->SetMaxIter(25);
    nonlinear_solver->SetSolver(solver);
    nonlinear_solver->SetPrintLevel(1);
-
 
    // variables for output
    QuadratureSpace output_internal_state_space(mesh_beam, displacement_ir);
@@ -534,18 +521,25 @@ int main(int argc, char* argv[])
 
    InternalStateUpdater internal_state_update(displacement_fes, displacement_ir, internal_state, material);
    //Vector q(internal_state_space.GetTotalSize());
+   
+   auto applied_displacement = [](double t) { return 1.2e-2*t; };
+
    real_t time = 0.0;
+   std::ofstream history_file("history_output.csv");
+   history_file << applied_displacement(time) << " " << 0.0 << std::endl;
 
    Vector zero, x(displacement_fes.GetTrueVSize());
 
-   constexpr int max_cycles = 1;
-   for (int cycle = 1; cycle < max_cycles + 1; cycle++) {
+   constexpr int max_cycles = 3;
+   const real_t dt = 1.0/(max_cycles - 1);
+   for (int cycle = 1; cycle < max_cycles; cycle++) {
+      time += dt;
       out << "-------------------------------------------" << std::endl;
       out << "TIME STEP " << cycle << std::endl;
-
-      time += 1.0;
-      applied_displacement += 0.3e-3;
-      u.SetSubVector(bc_tdof, applied_displacement);
+      out << "t = " << time << std::endl;
+      
+      real_t ubc = applied_displacement(time);
+      u.SetSubVector(bc_tdof, ubc);
 
       u.GetTrueDofs(x);
       nonlinear_solver->Mult(zero, x);
@@ -559,12 +553,14 @@ int main(int argc, char* argv[])
       reaction.SetFromTrueDofs(r);
       reaction.GetSubVector(bc_tdof, end_forces_x);
       real_t force = -end_forces_x.Sum();
-      out << "u = " << applied_displacement << ", Force = " << force << std::endl;
+      out << "u = " << applied_displacement(time) << ", Force = " << force << std::endl;
+      history_file << applied_displacement(time) << " " << force << std::endl;
 
       dc.SetCycle(cycle);
       dc.SetTime(time);
       dc.Save();
    }
 
+   history_file.close();
    return 0;
 }
