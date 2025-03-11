@@ -886,8 +886,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                }
                MFEM_SYNC_THREAD;
 
-               int step = 0;
-               for (; step < 50; step++)
+               for (int step = 0; step < 50; step++)
                {
                   switch (num_constrained(tmp->flags & FLAG_MASK))
                   {
