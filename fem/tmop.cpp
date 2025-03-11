@@ -22,9 +22,9 @@ namespace mfem
 /* AD related definitions below ========================================*/
 
 /// MFEM native AD-type for first derivatives
-typedef internal::dual<real_t, real_t> AD1Type;
+using AD1Type = internal::dual<real_t, real_t>;
 /// MFEM native AD-type for second derivatives
-typedef internal::dual<AD1Type, AD1Type> AD2Type;
+using AD2Type = internal::dual<AD1Type, AD1Type>;
 
 /*
 Functions for 2x2 DenseMatrix cast as std::vector<type>, assuming column-major storage
@@ -158,7 +158,7 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    Id(0,0) = 1; Id(1,1) = 1;
 
    std::vector<type> Mat;
-   add_2D(-1.0, T, &Id, Mat);
+   add_2D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
 };
@@ -171,7 +171,7 @@ type mu342_ad(const std::vector<type> &T, const std::vector<type> &W)
    Id(0,0) = 1; Id(1,1) = 1; Id(2,2) = 1;
 
    std::vector<type> Mat;
-   add_3D(-1.0, T, &Id, Mat);
+   add_3D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_3D(Mat)/sqrt(det_3D(T));
 };
@@ -291,6 +291,30 @@ type nu107_ad(const std::vector<type> &T, const std::vector<type> &W)
 
    add_2D(-aw, A, W, Mat);
    return (0.5/alpha)*fnorm2_2D(Mat);
+};
+
+// 0.5[ 1.0 - cos( phi_A - phi_W ) ]
+template <typename type>
+type skew2D_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   // We assume that both A and W are nonsingular.
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+
+   return 0.5*(1.0 - cos_A*cos_W - sin_A*sin_W);
 };
 
 // Given mu(X,Y), compute dmu/dX or dmu/dY. Y is an optional parameter when
@@ -622,6 +646,43 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1(weight, A.GetData());
+}
+
+real_t TMOP_Metric_skew2D::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+   int matsize = Jpt.TotalSize();
+   std::vector<AD1Type> T(matsize), W(matsize);
+   for (int i=0; i<matsize; i++)
+   {
+      T[i] = AD1Type{Jpt.GetData()[i], 0.0};
+      W[i] = AD1Type{Jtr->GetData()[i], 0.0};
+   }
+   return skew2D_ad(T, W).value;
+}
+
+void TMOP_Metric_skew2D::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(skew2D_ad<AD1Type>, P, Jpt, Jtr);
+   return;
+}
+
+void TMOP_Metric_skew2D::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   ADGrad(skew2D_ad<AD1Type>, PW, Jpt, Jtr, false);
+   return;
+}
+
+void TMOP_Metric_skew2D::AssembleH(const DenseMatrix &Jpt,
+                                   const DenseMatrix &DS,
+                                   const real_t weight,
+                                   DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(skew2D_ad<AD2Type>, H, Jpt, Jtr);
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_Metric_skew3D::EvalW(const DenseMatrix &Jpt) const
