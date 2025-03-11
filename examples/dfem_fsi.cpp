@@ -1,5 +1,8 @@
 #include "dfem/dfem_refactor.hpp"
 #include "examples/dfem/dfem_util.hpp"
+#include "linalg/hypre.hpp"
+#include "linalg/sparsemat.hpp"
+#include <fstream>
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -280,6 +283,11 @@ class ALEFSIOperator : public TimeDependentOperator
             S(S)
          {
             fd_jacobian = std::make_shared<FDJacobian>(res, S);
+
+            // auto jacout = std::ofstream("jacout.m");
+            // fd_jacobian->PrintMatlab(jacout);
+            // jacout.close();
+            // exit(0);
          }
 
          void Mult(const Vector &x, Vector &y) const override
@@ -308,80 +316,6 @@ class ALEFSIOperator : public TimeDependentOperator
             const ALEFSIResidual &res = alefsi_jac->res;
             ALEFSIOperator &op = res.op;
 
-            Vector Sd, Sv, Sp;
-            auto Sptr = const_cast<Vector*>(&alefsi_jac->S);
-            Sd.MakeRef(*Sptr, 0, op.H1vtsize);
-            Sv.MakeRef(*Sptr, op.H1vtsize, op.H1vtsize);
-            Sp.MakeRef(*Sptr, 2*op.H1vtsize, op.H1tsize);
-
-            auto x_gf = static_cast<ParGridFunction*>(op.H1vfes.GetParMesh()->GetNodes());
-            op.d_gf.SetFromTrueDofs(Sd);
-            op.v_gf.SetFromTrueDofs(Sv);
-            op.p_gf.SetFromTrueDofs(Sp);
-
-            HypreParMatrix Mds, Mdf, Mv, Mp, Aconv, Avisc, B, Kd;
-
-            auto solid_disp_mass_dd = op.solid_displacement_mass->GetDerivative(
-                                         Displacement, {&op.d_gf}, {x_gf});
-            auto fluid_disp_mass_dd = op.fluid_displacement_mass->GetDerivative(
-                                         Displacement, {&op.d_gf}, {x_gf});
-
-            auto dMDv = op.fluid_velocity_mass->GetDerivative(Velocity, {&op.v_gf}, {&op.d_gf, x_gf});
-            auto dMDp = op.fluid_pressure_mass->GetDerivative(Pressure, {&op.p_gf}, {x_gf});
-            auto dFcvDv = op.fluid_momentum_convective->GetDerivative(Velocity, {&op.v_gf}, {&op.d_gf, x_gf});
-            auto dFvvDv = op.fluid_momentum_viscous->GetDerivative(Velocity, {&op.v_gf}, { &op.p_gf, &op.d_gf, x_gf});
-            auto dCDv = op.fluid_continuity->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, &op.d_gf, x_gf});
-
-            auto dKddd = op.solid_momentum->GetDerivative(Displacement, {&op.d_gf}, {x_gf});
-
-            solid_disp_mass_dd->Assemble(Mds);
-            fluid_disp_mass_dd->Assemble(Mdf);
-
-            dMDv->Assemble(Mv);
-            dMDp->Assemble(Mp);
-            dFcvDv->Assemble(Aconv);
-            dFvvDv->Assemble(Avisc);
-            dCDv->Assemble(B);
-
-            dKddd->Assemble(Kd);
-
-            std::shared_ptr<HypreParMatrix> Md0, A0;
-            Md0.reset(Add(1.0/res.dt, Mds, res.relax/res.dt, Mdf));
-
-            std::shared_ptr<HypreParMatrix> A1, A;
-            A1.reset(Add(1.0/res.dt, Mv, 1.0, Aconv));
-            A.reset(Add(1.0, *A1, 1.0, Avisc));
-            auto Bt = B.Transpose();
-
-            Array2D<const HypreParMatrix*> blocks(3, 3);
-            blocks(0, 0) = Md0.get(); // D D
-            blocks(0, 1) = &Kd; // V D
-            blocks(0, 2) = nullptr; // P D
-
-            blocks(1, 0) = nullptr; // D V
-            blocks(1, 1) = A.get(); // V V
-            blocks(1, 2) = Bt; // P V
-
-            blocks(2, 0) = nullptr; // D P
-            blocks(2, 1) = &B; // V P
-            blocks(2, 2) = &Mp; // P P
-
-            Array2D<real_t> blockCoeff(3, 3);
-            blockCoeff = 1.0;
-            blockCoeff(0, 0) = 1.0/res.dt; // D D
-
-            blockCoeff(1, 2) = -1.0; // P V
-
-            blockCoeff(2, 1) = -1.0; // V P
-            blockCoeff(2, 2) = 0.0; // P P
-
-            K.reset(HypreParMatrixFromBlocks(blocks, &blockCoeff));
-
-            // std::ofstream kmout("K.m");
-            // kmout.precision(16);
-            // K->PrintMatlab(kmout);
-            // kmout.close();
-
             Array<int> combined_ess_tdof(op.def_ess_tdof.Size() +
                                          op.vel_ess_tdof.Size() +
                                          op.pres_ess_tdof.Size());
@@ -400,6 +334,109 @@ class ALEFSIOperator : public TimeDependentOperator
                combined_ess_tdof[i + offset] = op.pres_ess_tdof[i] + 2*op.H1vtsize;
             }
 
+            Vector Sd, Sv, Sp;
+            auto Sptr = const_cast<Vector*>(&alefsi_jac->S);
+            Sd.MakeRef(*Sptr, 0, op.H1vtsize);
+            Sv.MakeRef(*Sptr, op.H1vtsize, op.H1vtsize);
+            Sp.MakeRef(*Sptr, 2*op.H1vtsize, op.H1tsize);
+
+            Vector prevSd;
+            auto prevSptr = const_cast<Vector*>(&res.prevS);
+            prevSd.MakeRef(*prevSptr, 0, op.H1vtsize);
+
+            auto x_gf = static_cast<ParGridFunction*>(op.H1vfes.GetParMesh()->GetNodes());
+            op.d_gf.SetFromTrueDofs(Sd);
+            op.aux_gf.SetFromTrueDofs(prevSd);
+            op.v_gf.SetFromTrueDofs(Sv);
+            op.p_gf.SetFromTrueDofs(Sp);
+
+            HypreParMatrix Mds, Mdf, Mv, Mp, Aconv, Avisc, B, A001, A011, A10_0, A10_1,
+                           A10_2, A11_1;
+
+            auto solid_disp_mass_dd = op.solid_displacement_mass->GetDerivative(
+                                         Displacement, {&op.d_gf}, {x_gf});
+            auto fluid_disp_mass_dd = op.fluid_displacement_mass->GetDerivative(
+                                         Displacement, {&op.d_gf}, {x_gf});
+
+            auto dMDv = op.fluid_velocity_mass->GetDerivative(Velocity, {&op.v_gf}, {&op.d_gf, x_gf});
+            auto dMDp = op.fluid_pressure_mass->GetDerivative(Pressure, {&op.p_gf}, {x_gf});
+            auto dFcvDv = op.fluid_momentum_convective->GetDerivative(Velocity, {&op.v_gf}, {&op.d_gf, x_gf});
+            auto dFvvDv = op.fluid_momentum_viscous->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, &op.d_gf, x_gf});
+            auto dCDv = op.fluid_continuity->GetDerivative(Velocity, {&op.v_gf}, {&op.p_gf, &op.d_gf, x_gf});
+
+            auto a11_1 = op.fluid_momentum_convective_displacement->GetDerivative(Velocity, {&op.v_gf}, {&op.d_gf, &op.aux_gf, x_gf});
+
+            // auto dKddd = op.solid_momentum->GetDerivative(Displacement, {&op.d_gf}, {x_gf});
+            auto a001 = op.fluid_displacement_laplacian->GetDerivative(Displacement, {&op.d_gf}, {x_gf});
+
+            auto a01 = op.solid_lf->GetDerivative(Velocity, {&op.v_gf}, {&op.d_gf, x_gf});
+
+            auto a10_0 = op.fluid_momentum_viscous->GetDerivative(Displacement, {&op.v_gf}, {&op.p_gf, &op.d_gf, x_gf});
+            auto a10_1 = op.fluid_momentum_convective->GetDerivative(Displacement, {&op.v_gf}, {&op.d_gf, x_gf});
+            auto a10_2 = op.fluid_momentum_convective_displacement->GetDerivative(
+                            Displacement, {&op.v_gf}, {&op.d_gf, &op.aux_gf, x_gf});
+
+            solid_disp_mass_dd->Assemble(Mds);
+            fluid_disp_mass_dd->Assemble(Mdf);
+
+            dMDv->Assemble(Mv);
+            dMDp->Assemble(Mp);
+            dFcvDv->Assemble(Aconv);
+            dFvvDv->Assemble(Avisc);
+            dCDv->Assemble(B);
+
+            // dKddd->Assemble(Kd);
+
+            a01->Assemble(A011);
+
+            a001->Assemble(A001);
+            a10_0->Assemble(A10_0);
+            a10_1->Assemble(A10_1);
+            a10_2->Assemble(A10_2);
+
+            a11_1->Assemble(A11_1);
+
+            std::shared_ptr<HypreParMatrix> A00;
+            A00.reset(Add(1.0/res.dt, Mds, res.relax/res.dt, Mdf));
+            A00.reset(Add(1.0, *A00, res.relax, A001));
+
+            std::shared_ptr<HypreParMatrix> A10;
+            A10.reset(Add(1.0, A10_0, 1.0, A10_1));
+            A10.reset(Add(1.0, *A10, -1.0/res.dt, A10_2));
+
+            std::shared_ptr<HypreParMatrix> A11;
+            A11.reset(Add(1.0/res.dt, Mv, 1.0, Aconv));
+            A11.reset(Add(1.0, *A11, 1.0, Avisc));
+            A11.reset(Add(1.0, *A11, -1.0/res.dt, A11_1));
+
+            auto Bt = B.Transpose();
+
+            Array2D<const HypreParMatrix*> blocks(3, 3);
+            blocks(0, 0) = A00.get(); // D D
+            blocks(0, 1) = nullptr; // V D
+            blocks(0, 2) = nullptr; // P D
+
+            blocks(1, 0) = nullptr; // D V
+            blocks(1, 1) = A11.get(); // V V
+            blocks(1, 2) = Bt; // P V
+
+            blocks(2, 0) = nullptr; // D P
+            blocks(2, 1) = &B; // V P
+            blocks(2, 2) = &Mp; // P P
+
+            Array2D<real_t> blockCoeff(3, 3);
+            blockCoeff = 1.0;
+            blockCoeff(1, 2) = -1.0; // P V
+            blockCoeff(2, 1) = -1.0; // V P
+            blockCoeff(2, 2) = 1e-8; // P P
+
+            K.reset(HypreParMatrixFromBlocks(blocks, &blockCoeff));
+
+            // std::ofstream kmout("K.m");
+            // kmout.precision(16);
+            // K->PrintMatlab(kmout);
+            // kmout.close();
+
             auto Ke = K->EliminateRowsCols(combined_ess_tdof);
             delete Ke;
 
@@ -414,12 +451,10 @@ class ALEFSIOperator : public TimeDependentOperator
             // fd_jacobian->PrintMatlab(fdout);
             // fdout.close();
 
-            // exit(0);
-
-            slu = std::make_shared<SuperLUSolver>(MPI_COMM_WORLD);
-            slu->SetPrintStatistics(false);
+            solver = std::make_shared<SuperLUSolver>(MPI_COMM_WORLD);
+            solver->SetPrintStatistics(false);
             A_SLU = std::make_shared<SuperLURowLocMatrix>(*K);
-            slu->SetOperator(*A_SLU);
+            solver->SetOperator(*A_SLU);
          }
 
          void Mult(const Vector &x, Vector &y) const override
@@ -431,14 +466,14 @@ class ALEFSIOperator : public TimeDependentOperator
             // krylov.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
             // krylov.Mult(x, y);
 
-            slu->Mult(x, y);
-
-            // y = x;
+            // slu->Mult(x, y);
+            solver->Mult(x, y);
          }
+
 
          std::shared_ptr<HypreParMatrix> K;
          std::shared_ptr<SuperLURowLocMatrix> A_SLU;
-         std::shared_ptr<SuperLUSolver> slu;
+         std::shared_ptr<SuperLUSolver> solver;
       };
 
       ALEFSIResidual(ALEFSIOperator &op, const real_t &dt, const Vector &S,
@@ -457,6 +492,20 @@ class ALEFSIOperator : public TimeDependentOperator
          H1tsize(op.H1fes.GetTrueVSize()) {}
 
       void Mult(const Vector &S, Vector &R) const override
+      {
+         this->MultNoBC(S, R);
+
+         Vector Rd, Rv, Rp;
+         Rd.MakeRef(R, 0, H1vtsize);
+         Rv.MakeRef(R, H1vtsize, H1vtsize);
+         Rp.MakeRef(R, 2*H1vtsize, H1tsize);
+
+         Rd.SetSubVector(op.def_ess_tdof, 0.0);
+         Rv.SetSubVector(op.vel_ess_tdof, 0.0);
+         Rp.SetSubVector(op.pres_ess_tdof, 0.0);
+      }
+
+      void MultNoBC(const Vector &S, Vector &R) const
       {
          auto uptr = const_cast<Vector*>(&S);
 
@@ -543,10 +592,6 @@ class ALEFSIOperator : public TimeDependentOperator
 
          op.fluid_pressure_mass->SetParameters({x_gf});
          op.fluid_pressure_mass->AddMult(Sp, Rp, 1.0e-8);
-
-         Rd.SetSubVector(op.def_ess_tdof, 0.0);
-         Rv.SetSubVector(op.vel_ess_tdof, 0.0);
-         Rp.SetSubVector(op.pres_ess_tdof, 0.0);
       }
 
       Operator& GetGradient(const Vector &S) const override
@@ -610,6 +655,7 @@ public:
       ir(ir),
       prevS(offsets.Last()),
       d_gf(&H1vfes),
+      aux_gf(&H1vfes),
       v_gf(&H1vfes),
       p_gf(&H1fes)
    {
@@ -852,7 +898,9 @@ public:
          mfem::tuple outputs{Value<Displacement>{}};
 
          auto qf = SolidLFQFunction<DIMENSION> {};
-         solid_lf->AddDomainIntegrator(qf, inputs, outputs, ir, solid_domain_attr);
+         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         solid_lf->AddDomainIntegrator(qf, inputs, outputs, ir, solid_domain_attr,
+                                       derivatives);
       }
 
       // fluid velocity mass
@@ -918,7 +966,7 @@ public:
          mfem::tuple outputs{Value<Velocity>{}};
 
          auto qf = NavierStokesMomentumConvectiveQFunction<DIMENSION>(density_fluid);
-         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         auto derivatives = std::integer_sequence<size_t, Velocity, Displacement> {};
          fluid_momentum_convective->AddDomainIntegrator(
             qf, inputs, outputs, ir, fluid_domain_attr, derivatives);
       }
@@ -960,7 +1008,7 @@ public:
 
          auto qf = NavierStokesMomentumConvectiveDisplacementQFunction<DIMENSION>
                    (density_fluid);
-         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         auto derivatives = std::integer_sequence<size_t, Velocity, Displacement> {};
          fluid_momentum_convective_displacement->AddDomainIntegrator(
             qf, inputs, outputs, ir, fluid_domain_attr, derivatives);
       }
@@ -1001,7 +1049,7 @@ public:
          auto qf = NavierStokesMomentumViscousQFunction<DIMENSION>(
                       density_fluid,
                       kinematic_viscosity);
-         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         auto derivatives = std::integer_sequence<size_t, Velocity, Displacement> {};
          fluid_momentum_viscous->AddDomainIntegrator(qf, inputs, outputs, ir,
                                                      fluid_domain_attr, derivatives);
       }
@@ -1133,7 +1181,7 @@ public:
       krylov.SetRelTol(1e-8);
       krylov.SetMaxIter(2000);
       krylov.SetKDim(1000);
-      // krylov.SetPreconditioner(prec);
+      krylov.SetPreconditioner(prec);
       krylov.SetPrintLevel(IterativeSolver::PrintLevel().FirstAndLast());
 
       NewtonSolver newton(MPI_COMM_WORLD);
@@ -1176,7 +1224,7 @@ public:
 
    std::shared_ptr<DifferentiableOperator> displacement_mass;
 
-   ParGridFunction *x_gf, d_gf, v_gf, p_gf;
+   ParGridFunction *x_gf, d_gf, aux_gf, v_gf, p_gf;
 
    Vector prevS;
 
