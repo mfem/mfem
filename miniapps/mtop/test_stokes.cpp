@@ -7,6 +7,14 @@
 using namespace std;
 using namespace mfem;
 
+
+class GyroCoeff:public Coefficient
+{
+public:
+
+private:
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
