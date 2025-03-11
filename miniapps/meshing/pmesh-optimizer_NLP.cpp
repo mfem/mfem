@@ -34,6 +34,7 @@
 
 // beam
 // make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 5e-1 -rs 0 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 5e-1 -rs 0 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam
 /*******************************/
 // Presentation runs below:
 // Poisson - ZZ - 2nd order - shock wave around corner with filter
