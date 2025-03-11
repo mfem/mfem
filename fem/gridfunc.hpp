@@ -508,6 +508,9 @@ public:
    virtual real_t ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
+   virtual real_t ComputeIntegral(const IntegrationRule *irs[] = NULL,
+                                  const Array<int> *elems = NULL) const;
+
    /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
    /* The @a elems input variable expects a list of markers:
       an elem marker equal to 1 will compute the L2 error on that element

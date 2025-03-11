@@ -18,52 +18,34 @@
 // to solve the proble,
 //
 // Compile with: make pmesh-optimizer_NLP
-// mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 100 -ft 2 -w1 5e1 -w2 1e-2
-// mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2
-// WIP mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 200 -ft 2 --qtype 4 -w1 1e-4 -w2 1e-2
-
-
-// K10 -  TMOP solver based run
-// order 2, shock wave around origin
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 5e-2 -w2 5e-2 -m square01.mesh -rs 2 -o 2 -lsn 1.05 -lse 1.05
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 1e-1 -w2 5 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -ft 2 --qtype 3 -w1 2e3 -w2 30 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 200 -ft 2 -w1 1e1 -w2 0.5 -qt 1 -rs 3 -m square01.mesh -lsn 1.01 -o 1
-
-// order 1, cube mesh
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
-
-// sinusoidal wave for orientation and sharp inclined wave for solution
-// working with energy
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 3 --qtype 4 -w1 5e-2 -w2 2e-2 -m square01.mesh -rs 2 -alpha 20 -o 2 -mid 107 -tid 5
-
-// sinusoidal wave for orientation and gradient in solution
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 4 --qtype 4 -w1 1e-2 -w2 2e-2 -m square01.mesh -rs 2 -alpha 50 -o 2 -mid 107 -tid 5
-// Long run (3rd order):
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 2000 -ft 4 --qtype 4 -w1 8e-3 -w2 2e-2 -m square01.mesh -rs 2 -alpha 50 -o 3 -mid 107 -tid 5
-
-// L-shaped domain.
-
-
-// l2 error
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 1000 -ft 1 --qtype 0 -w1 2e4 -w2 1e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
-// h1 error
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 1000 -ft 1 --qtype 1 -w1 2e2 -w2 8e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
-
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e5 -w2 1e-2 -rs 3 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
 
 // elasticity runs / maximize comliance
-
 // make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1
 // make pmesh-optimizer_NLP -j4 && mpirun -np 1  pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e5 -w2 1e-1 -rs 4 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -m SquareFrame.mesh
 
 // beam case
-// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 1003 -w1 -1e-0 -w2 1e-1 -rs 1 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.001 -ph 1 -beam
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e-0 -w2 1e-1 -rs 1 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam
+// k10
+// Solid block
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 200 -w1 -1e4 -w2 1e-1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.1 -ph 1
+
+// Square hole
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10  pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e5 -w2 1e-1 -rs 3 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.1 -ph 1 -m SquareFrame.mesh
+
+// beam
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 5e-1 -rs 0 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam
 /*******************************/
 // Presentation runs below:
+// Poisson - ZZ - 2nd order - shock wave around corner with filter
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1e-2 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -rs 1 -w1 1e4
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 300 -w1 1e6 -w2 1e-2 -rs 3 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.005
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 200 -w1 1e7 -w2 1e-3 -rs 4 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.02
+// 3D
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 2 -m cube.mesh -mid 303
 
-// zz 2nd order - shock wave around corner - with filter
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -w1 1e5 -w2 1e-2 -rs 2 -o 2 -lsn 1.01 -lse 1.01 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.01
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1e-2 -rs 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -m square01-tri.mesh
 // average error - 2nd order - shock wave around corner
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005
 // same but with simplices
@@ -225,14 +207,23 @@ auto func_2( std::vector<type>& x ) -> type
     double theta = 0.0;
     auto xv = 1.0-x[0];
     auto yv = 1.0-x[1];
+    auto zv = 1.0-x[1];
+    if (x.size() == 3) {
+      zv = 1.0-x[2];
+    }
     double xc = -0.05,
            yc = -0.05,
            zc = -0.05,
            rc = 0.7,
            alpha = alphaw;
     auto dx = xv-xc,
-         dy = yv-yc;
+         dy = yv-yc,
+         dz = dy;
+    if (x.size() == 3) {
+      dz = zv-zc;
+    }
     auto val = dx*dx + dy*dy;
+    if (x.size() == 3) { val += dz*dz; }
     if (val > 0.0) { val = sqrt(val); }
     val -= rc;
     val = alpha*val;
@@ -484,6 +475,10 @@ double loadFunc(const Vector & x)
   {
     return -1.0;
   }
+  else if (ftype == 10)
+  {
+    return -1e-3;
+  }
   return 0.0;
 };
 
@@ -595,6 +590,15 @@ void VisVectorField(OSCoefficient *adapt_coeff, ParMesh *pmesh, ParGridFunction 
     pfespace->GetElementVDofs(e, dofs);
     orifield->SetSubVector(dofs, nodevals);
   }
+}
+
+void GetScalarDerivative(ParGridFunction *inp, ParGridFunction *outp, const int dim)
+{
+  for (int d = 0; d < dim; d++)
+    {
+      ParGridFunction outp_grad_temp(inp->ParFESpace(), outp->GetData() + d*inp->Size());
+      inp->GetDerivative(1,d,outp_grad_temp);
+    }
 }
 
 int main (int argc, char *argv[])
@@ -713,15 +717,6 @@ int main (int argc, char *argv[])
                    "-no-beam", "--no-beam",
                    "Beam with dmensions 1x0.1");
 
-    if(beam_case)
-    {
-      bcNeuman = 2;
-      nx = 10;
-      ny = 1;
-      lx = 1.0;
-      ly = 0.1;
-    }
-
    args.Parse();
    if (!args.Good())
    {
@@ -729,6 +724,15 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   if(beam_case)
+   {
+     bcNeuman = 2;
+     nx = 10;
+     ny = 4;
+     lx = 1.0;
+     ly = 0.1;
+   }
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
@@ -763,16 +767,33 @@ int main (int argc, char *argv[])
      }
   }
 
+  ConstantCoefficient firstLameCoef(0.5769230769);
+  ConstantCoefficient secondLameCoef(1.0/2.6);
+  ConstantCoefficient zerocoeff(0.0);
+
+  StrainEnergyDensityCoefficient tStraincoeff(&firstLameCoef, &secondLameCoef, nullptr);
+  StrainEnergyDensityCoefficient tStraincoeff_ref(&firstLameCoef, &secondLameCoef, nullptr);
+
   // Refine mesh in serial
   for (int lev = 0; lev < ref_ser; lev++) { des_mesh->UniformRefinement(); }
 
   auto PMesh = new ParMesh(MPI_COMM_WORLD, *des_mesh);
 
   int dim = PMesh->SpaceDimension();
+  delete des_mesh;
+
+  ParMesh *PMesh_ref = nullptr;
 
   if( physics ==1)
   {
     physicsdim = dim;
+    PMesh_ref = new ParMesh(*PMesh);
+    int nrefs = 3;
+    for (int i = 0; i < nrefs; i++)
+    {
+      PMesh_ref->UniformRefinement();
+    }
+    PMesh_ref->SetCurvature(mesh_poly_deg, false, -1, 0);
   }
 
 
@@ -788,12 +809,6 @@ int main (int argc, char *argv[])
     PMesh->SetCurvature(mesh_poly_deg, false, -1, 0);
   }
 
-  // int mesh_poly_deg = PMesh->GetNodes()->FESpace()->GetElementOrder(0);
-
-  // Create finite Element Spaces for analysis mesh
-  // if ( dim != 2 ) {
-  //   mfem_error("... This example only supports 2D meshes");
-  // }
 
   // 4. Define a finite element space on the mesh. Here we use vector finite
   //    elements which are tensor products of quadratic finite elements. The
@@ -805,6 +820,14 @@ int main (int argc, char *argv[])
   auto fespace_scalar = new ParFiniteElementSpace(PMesh, fec, 1);
   ParFiniteElementSpace pfespace_gf(PMesh, fec);
   ParGridFunction x_gf(&pfespace_gf);
+
+  // Strain energy density
+  ParFiniteElementSpace tspace(PMesh,fec,1);
+  ParGridFunction tGF(&tspace);
+  ParFiniteElementSpace tspace_grad(PMesh, fec, dim);
+  ParGridFunction tGF_grad(&tspace_grad);
+
+  double init_mesh_size = PMesh->GetElementSize(0, 0);
 
   // 5. Make the mesh curved based on the above finite element space. This
   //    means that we define the mesh elements through a fespace-based
@@ -832,6 +855,8 @@ int main (int argc, char *argv[])
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 36: metric = new TMOP_AMetric_036; break;
+      case 49: metric = new TMOP_AMetric_049(0.01); break;
+      case 501: metric = new TMOP_AMetric_050; break;
       case 50: metric = new TMOP_Metric_050; break;
       case 80: metric = new TMOP_Metric_080(0.8); break;
       case 85: metric = new TMOP_Metric_085; break;
@@ -847,6 +872,7 @@ int main (int argc, char *argv[])
 
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
+   TargetConstructor *target_c2 = NULL;
    OSCoefficient *adapt_coeff = NULL;
    switch (target_id)
    {
@@ -871,6 +897,10 @@ int main (int argc, char *argv[])
    if (target_c == NULL)
    {
     target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   }
+   if (target_c2 == NULL)
+   {
+    target_c2 = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
 
@@ -1055,15 +1085,19 @@ int main (int argc, char *argv[])
   {
     essentialBCfilter[0] = {1, 0};
     essentialBCfilter[1] = {2, 1};
+    if (dim == 3)
+    {
+      essentialBCfilter[2] = {3, 2};
+    }
   }
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-  mfem::MMAOpt* mma = nullptr;
+  MMAOpt* mma = nullptr;
 #ifdef MFEM_USE_PETSC
-  mfem::NativeMMA* mmaPetsc = nullptr;
+  NativeMMA* mmaPetsc = nullptr;
 #endif
-    // mfem::NativeMMA* mma = nullptr;
+    // NativeMMA* mma = nullptr;
   TMOP_MMA *tmma = new TMOP_MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0,
                                  trueOptvar, ir);
   {
@@ -1071,9 +1105,9 @@ int main (int argc, char *argv[])
     double a=0.0;
     double c=1000.0;
     double d=0.0;
-    mmaPetsc=new mfem::NativeMMA(MPI_COMM_WORLD,1, objgrad,&a,&c,&d);
+    mmaPetsc=new NativeMMA(MPI_COMM_WORLD,1, objgrad,&a,&c,&d);
 #else
-    mma=new mfem::MMAOpt(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
+    mma=new MMAOpt(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
 #endif
   }
 
@@ -1120,15 +1154,17 @@ if (myid == 0) {
   VectorCoefficient *trueSolutionHessV =
                           new VectorFunctionCoefficient(dim*dim, trueHessianFunc_v);
   PhysicsSolverBase * solver = nullptr;
+  PhysicsSolverBase * solver_ref = nullptr;
+  PhysicsSolverBase * solver_strong = nullptr;
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg, neumannBdr, physicsdim);
-  NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
+  NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg, metric, target_c2);
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
 
 
-  mfem::VectorArrayCoefficient tractionLoad(PMesh->SpaceDimension());
+  VectorArrayCoefficient tractionLoad(PMesh->SpaceDimension());
   tractionLoad.Set(1, QCoef);
-  tractionLoad.Set(0, new mfem::ConstantCoefficient(0.0));
+  tractionLoad.Set(0, new ConstantCoefficient(0.0));
 
   if( physics ==0)
   {
@@ -1136,7 +1172,12 @@ if (myid == 0) {
     diffsolver->SetManufacturedSolution(QCoef);
     diffsolver->setTrueSolGradCoeff(trueSolutionGrad);
 
+    Diffusion_Solver * diffsolver_strong = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, false, loadFuncGrad);
+    diffsolver_strong->SetManufacturedSolution(QCoef);
+    diffsolver_strong->setTrueSolGradCoeff(trueSolutionGrad);
+
     solver = diffsolver;
+    solver_strong = diffsolver_strong;
 
     QoIEvaluator.setTrueSolCoeff( trueSolution );
     if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
@@ -1153,6 +1194,11 @@ if (myid == 0) {
     solver = elasticitysolver;
 
     QoIEvaluator.setTractionCoeff(&tractionLoad);
+
+    Elasticity_Solver * elasticitysolver_ref = new Elasticity_Solver(PMesh_ref, essentialBC, neumannBdr, mesh_poly_deg);
+    elasticitysolver_ref->SetLoad(&tractionLoad);
+
+    solver_ref = elasticitysolver_ref;
   }
 
   //std::vector<std::pair<int, double>> essentialBC_filter(0);
@@ -1186,32 +1232,76 @@ if (myid == 0) {
   paraview_dc.SetHighOrderOutput(true);
 
   //
-  ParGridFunction & discretSol = solver->GetSolution();
-  discretSol.ProjectCoefficient(*trueSolution);
+  ParGridFunction & discreteSol = solver->GetSolution();
+  discreteSol.ProjectCoefficient(*trueSolution);
   if (visualization)
   {
       socketstream vis;
-      common::VisualizeField(vis, "localhost", 19916, discretSol,
+      common::VisualizeField(vis, "localhost", 19916, discreteSol,
                             "Initial Projected Solution", 0, 0, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
   }
   {
     solver->SetDesignVarFromUpdatedLocations(x);
     solver->FSolve();
-    ParGridFunction & discretSol = solver->GetSolution();
+    discreteSol = solver->GetSolution();
     if (visualization)
     {
         socketstream vis;
-        common::VisualizeField(vis, "localhost", 19916, discretSol,
+        common::VisualizeField(vis, "localhost", 19916, discreteSol,
                               "Initial Solver Solution", 0, 480, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
     }
   }
+  double strain_energy_ref = 0.0;
+  if (physics == 1)
+  {
+    GridFunction *x_ref = PMesh_ref->GetNodes();
+    solver_ref->SetDesignVarFromUpdatedLocations(*x_ref);
+    solver_ref->FSolve();
+    ParGridFunction &discreteSol_ref = solver_ref->GetSolution();
+    ParFiniteElementSpace tspace_ref(PMesh_ref, x_ref->FESpace()->FEColl(), 1);
+    ParGridFunction tGF_ref(&tspace_ref);
+    ParFiniteElementSpace tspace_grad_ref(PMesh_ref, x_ref->FESpace()->FEColl(), dim);
+    ParGridFunction tGF_grad_ref(&tspace_grad_ref);
 
+    if (visualization)
+    {
+        socketstream vis;
+        common::VisualizeField(vis, "localhost", 19916, discreteSol_ref,
+                              "Initial Solver Solution", 0, 960, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
+    }
 
+    tStraincoeff_ref.SetU(&discreteSol_ref);
+    tGF_ref.ProjectCoefficient(tStraincoeff_ref);
+    strain_energy_ref = tGF_ref.ComputeIntegral();
+    GetScalarDerivative(&tGF_ref, &tGF_grad_ref, dim);
+
+    VisItDataCollection *visdc = new VisItDataCollection("tmop-pde-ref", PMesh_ref);
+    visdc->RegisterField("solution", &(solver_ref->GetSolution()));
+    visdc->RegisterField("strain-energy-density", &tGF_ref);
+    visdc->RegisterField("strain-energy-density-grad", &tGF_grad_ref);
+    visdc->SetCycle(0);
+    visdc->SetTime(0.0);
+    visdc->Save();
+    // MFEM_ABORT(" ");
+  }
 
   x.SetTrueVector();
+  double init_strain_energy = 0.0;
 
+  if (physics == 1)
+  {
+    tStraincoeff.SetU(&(solver->GetSolution()));
+    tGF.ProjectCoefficient(tStraincoeff	);
+    GetScalarDerivative(&tGF, &tGF_grad, dim);
+    init_strain_energy = tGF.ComputeIntegral();
+  }
   VisItDataCollection *visdc = new VisItDataCollection("tmop-pde", PMesh);
   visdc->RegisterField("solution", &(solver->GetSolution()));
+  if (physics == 1)
+  {
+    visdc->RegisterField("strain-energy-density", &tGF);
+    visdc->RegisterField("strain-energy-density-grad", &tGF_grad);
+  }
   visdc->SetCycle(0);
   visdc->SetTime(0.0);
   visdc->Save();
@@ -1220,9 +1310,17 @@ if (myid == 0) {
 
   if (method == 0)
   {
-    auto init_l2_error = discretSol.ComputeL2Error(*trueSolution);
-    auto init_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
-    auto init_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+    auto init_l2_error = discreteSol.ComputeL2Error(*trueSolution);
+    auto init_grad_error = discreteSol.ComputeGradError(trueSolutionGrad);
+    auto init_h1_error = discreteSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+    {
+      solver_strong->SetDesignVarFromUpdatedLocations(x);
+      solver_strong->FSolve();
+      ParGridFunction &discreteSol_strong = solver_strong->GetSolution();
+      init_l2_error = discreteSol_strong.ComputeL2Error(*trueSolution);
+      init_grad_error = discreteSol_strong.ComputeGradError(trueSolutionGrad);
+      init_h1_error = discreteSol_strong.ComputeH1Error(trueSolution, trueSolutionGrad);
+    }
 
     ParNonlinearForm a(pfespace);
     a.AddDomainIntegrator(tmop_integ);
@@ -1283,6 +1381,12 @@ if (myid == 0) {
     x.SetFromTrueVector();
     if (!save_after_every_iteration)
     {
+      if (physics == 1)
+      {
+        tStraincoeff.SetU(&(solver->GetSolution()));
+        tGF.ProjectCoefficient(tStraincoeff	);
+        GetScalarDerivative(&tGF, &tGF_grad, dim);
+      }
       visdc->SetCycle(1);
       visdc->SetTime(1.0);
       visdc->Save();
@@ -1318,27 +1422,27 @@ if (myid == 0) {
 
     solver->SetDesignVarFromUpdatedLocations(x);
     solver->FSolve();
-    ParGridFunction & discretSol = solver->GetSolution();
+    discreteSol = solver->GetSolution();
     if (visualization)
     {
         socketstream vis;
-        common::VisualizeField(vis, "localhost", 19916, discretSol,
+        common::VisualizeField(vis, "localhost", 19916, discreteSol,
                               "Final Solver Solution", 400, 480, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
     }
 
-    auto final_l2_error = discretSol.ComputeL2Error(*trueSolution);
-    auto final_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
-    auto final_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+    auto final_l2_error = discreteSol.ComputeL2Error(*trueSolution);
+    auto final_grad_error = discreteSol.ComputeGradError(trueSolutionGrad);
+    auto final_h1_error = discreteSol.ComputeH1Error(trueSolution, trueSolutionGrad);
 
     const real_t final_energy = tmma->GetEnergy(x.GetTrueVector(), true);
     const real_t final_metric_energy = tmma->GetEnergy(x.GetTrueVector(), false);
     const real_t final_qoi_energy = final_energy - final_metric_energy;
 
-    discretSol.ProjectCoefficient(*trueSolution);
+    discreteSol.ProjectCoefficient(*trueSolution);
     if (visualization)
     {
         socketstream vis;
-        common::VisualizeField(vis, "localhost", 19916, discretSol,
+        common::VisualizeField(vis, "localhost", 19916, discreteSol,
                               "Final Projected Solution", 400, 000, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
     }
     if (myid == 0)
@@ -1356,6 +1460,18 @@ if (myid == 0) {
       std::cout << "Final   Total/Metric/QOI Energy: " << final_energy << " " << final_metric_energy << " " << final_qoi_energy << std::endl;
     }
 
+    int ne_glob = PMesh->GetGlobalNE();
+    real_t min_l2_solver, min_grad_solver;
+    int min_err_iter;
+    tmma->GetMinErrInfo(min_l2_solver, min_grad_solver, min_err_iter);
+    if (myid == 0)
+    {
+      std::cout << "k10info: " << qoitype << " "  << ftype << " " <<
+                              init_mesh_size << " " << ne_glob << " " <<
+                              init_l2_error << " " << init_grad_error << " " << final_l2_error << " " << final_grad_error << " " << min_l2_solver << " " << min_grad_solver <<
+                              std::endl;
+    }
+
     if (visualization && adapt_coeff)
     {
 
@@ -1368,6 +1484,7 @@ if (myid == 0) {
   else
   {
     int cycle_count = 1;
+    double final_strain_energy = 0.0;
     for(int i=1;i<max_it;i++)
     {
       filterSolver->setLoadGridFunction(gridfuncOptVar);
@@ -1377,12 +1494,12 @@ if (myid == 0) {
       solver->SetDesign( filteredDesign );
       solver->FSolve();
 
-      ParGridFunction & discretSol = solver->GetSolution();
+      ParGridFunction & discreteSol = solver->GetSolution();
 
       QoIEvaluator.SetDesign( filteredDesign );
       MeshQualityEvaluator.SetDesign( filteredDesign );
 
-      QoIEvaluator.SetDiscreteSol( discretSol );
+      QoIEvaluator.SetDiscreteSol( discreteSol );
       QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
 
       double ObjVal = QoIEvaluator.EvalQoI();
@@ -1412,7 +1529,7 @@ if (myid == 0) {
       dQdx_filtered.Add(weight_tmop, *dMeshQdxExpl);
 
       HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
-      mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
+      ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
 
       //std::cout << dQdx_filtered.Norml2() << " k101-filt1\n";
       filterSolver->ASolve(dQdx_filtered);
@@ -1427,8 +1544,8 @@ if (myid == 0) {
       HypreParVector *truedQdx_Impl = dQdxImpl->ParallelAssemble();
 
       // Construct grid function from hypre vector
-      mfem::ParGridFunction dQdx_ExplGF(pfespace, truedQdx_Expl);
-      mfem::ParGridFunction dQdx_ImplGF(pfespace, truedQdx_Impl);
+      ParGridFunction dQdx_ExplGF(pfespace, truedQdx_Expl);
+      ParGridFunction dQdx_ImplGF(pfespace, truedQdx_Impl);
 
 
       objgrad = *truedQdx;
@@ -1438,40 +1555,40 @@ if (myid == 0) {
       if(dQduFD)
       {
         double epsilon = 1e-8;
-        mfem::ParGridFunction tFD_sens(fespace_scalar); tFD_sens = 0.0;
-        for( int Ia = 0; Ia<discretSol.Size(); Ia++)
+        ParGridFunction tFD_sens(fespace_scalar); tFD_sens = 0.0;
+        for( int Ia = 0; Ia<discreteSol.Size(); Ia++)
         {
           if (myid == 0)
           {
-            std::cout<<"iter: "<< Ia<< " out of: "<<discretSol.Size() <<std::endl;
+            std::cout<<"iter: "<< Ia<< " out of: "<<discreteSol.Size() <<std::endl;
           }
-          discretSol[Ia] +=epsilon;
+          discreteSol[Ia] +=epsilon;
 
           // QoIEvaluator_FD1(PMesh, qoiType, 1);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
-          QoIEvaluator_FD1.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD1.SetDiscreteSol( discreteSol );
           QoIEvaluator_FD1.SetNodes(x0);
           QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
-          discretSol[Ia] -=2.0*epsilon;
+          discreteSol[Ia] -=2.0*epsilon;
 
           //QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
-          QoIEvaluator_FD2.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD2.SetDiscreteSol( discreteSol );
           QoIEvaluator_FD2.SetNodes(x0);
           QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
-          discretSol[Ia] +=epsilon;
+          discreteSol[Ia] +=epsilon;
 
           tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
         }
@@ -1480,7 +1597,7 @@ if (myid == 0) {
         tFD_sens.Print();
 
         std::cout<<"  ---------- dQdu Analytic - FD Diff ------------"<<std::endl;
-        mfem::ParGridFunction tFD_diff(fespace_scalar); tFD_diff = 0.0;
+        ParGridFunction tFD_diff(fespace_scalar); tFD_diff = 0.0;
         tFD_diff = *dQdu;
         tFD_diff -=tFD_sens;
         //tFD_diff.Print();
@@ -1492,8 +1609,7 @@ if (myid == 0) {
         // nodes are p
         // det(J) is order d*p-1
         double epsilon = 1e-8;
-        mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
-        ConstantCoefficient zerocoeff(0.0);
+        ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
         Array<double> GLLVec;
         int nqpts;
         {
@@ -1507,7 +1623,7 @@ if (myid == 0) {
             {
               const IntegrationPoint &ip = ir->IntPoint(q);
               T->SetIntPoint(&ip);
-              double disc_val = discretSol.GetValue(e, ip);
+              double disc_val = discreteSol.GetValue(e, ip);
               double exact_val = trueSolution->Eval( *T, ip );
               GLLVec.Append(disc_val-exact_val);
             }
@@ -1534,7 +1650,7 @@ if (myid == 0) {
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
-          QoIEvaluator_FD1.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD1.SetDiscreteSol( discreteSol );
           QoIEvaluator_FD1.SetNodes(x0);
           QoIEvaluator_FD1.SetGLLVec(GLLVec);
           QoIEvaluator_FD1.SetNqptsPerEl(nqpts);
@@ -1550,7 +1666,7 @@ if (myid == 0) {
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
-          QoIEvaluator_FD2.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD2.SetDiscreteSol( discreteSol );
           QoIEvaluator_FD2.SetNodes(x0);
           QoIEvaluator_FD2.SetGLLVec(GLLVec);
           QoIEvaluator_FD2.SetNqptsPerEl(nqpts);
@@ -1568,7 +1684,7 @@ if (myid == 0) {
         tFD_sens.Print();
 
         std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
-        mfem::ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
+        ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
         tFD_diff = *dQdxExpl;
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
@@ -1584,7 +1700,7 @@ if (myid == 0) {
       if(dQdxFD_global)
       {
         double epsilon = 1e-8;
-        mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
+        ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
           if(gridfuncLSBoundIndicator[Ia] == 1.0)
@@ -1600,14 +1716,14 @@ if (myid == 0) {
 
           solver_FD1.SetDesign( gridfuncOptVar );
           solver_FD1.FSolve();
-          ParGridFunction & discretSol_1 = solver_FD1.GetSolution();
+          ParGridFunction & discreteSol_1 = solver_FD1.GetSolution();
 
           //QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
-          QoIEvaluator_FD1.SetDiscreteSol( discretSol_1 );
+          QoIEvaluator_FD1.SetDiscreteSol( discreteSol_1 );
           QoIEvaluator_FD1.SetNodes(x0);
           QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
 
@@ -1617,14 +1733,14 @@ if (myid == 0) {
 
           solver_FD2.SetDesign( gridfuncOptVar );
           solver_FD2.FSolve();
-          ParGridFunction & discretSol_2 = solver_FD2.GetSolution();
+          ParGridFunction & discreteSol_2 = solver_FD2.GetSolution();
 
           //QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
-          QoIEvaluator_FD2.SetDiscreteSol( discretSol_2 );
+          QoIEvaluator_FD2.SetDiscreteSol( discreteSol_2 );
           QoIEvaluator_FD2.SetNodes(x0);
           QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
 
@@ -1640,7 +1756,7 @@ if (myid == 0) {
         tFD_sens.Print();
 
         std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
-        mfem::ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
+        ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
         tFD_diff = dQdx;
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
@@ -1656,7 +1772,7 @@ if (myid == 0) {
         paraview_dc.SetTime(i*1.0);
         //paraview_dc.RegisterField("ObjGrad",&objGradGF);
         paraview_dc.RegisterField("Solution",&x_gf);
-        paraview_dc.RegisterField("SolutionD",&discretSol   );
+        paraview_dc.RegisterField("SolutionD",&discreteSol   );
         paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
         paraview_dc.RegisterField("SensitivityFD",&tFD_sens);
         paraview_dc.RegisterField("SensitivityDiff",&tFD_diff);
@@ -1670,7 +1786,7 @@ if (myid == 0) {
 
       if( BreakAfterFirstIt )
       {
-        mfem::mfem_error("break before update");
+        mfem_error("break before update");
       }
 
       //----------------------------------------------------------------------------------------------------------
@@ -1695,53 +1811,59 @@ if (myid == 0) {
 
       if (i % save_freq == 0)
       {
+        if (physics == 1)
+        {
+           tStraincoeff.SetU(&(solver->GetSolution()));
+           tGF.ProjectCoefficient(tStraincoeff	);
+           GetScalarDerivative(&tGF, &tGF_grad, dim);
+        }
          visdc->SetCycle(cycle_count++);
          visdc->SetTime(cycle_count*1.0);
          visdc->Save();
       }
 
-    ::mfem::ConstantCoefficient firstLameCoef(0.5769230769);
-    ::mfem::ConstantCoefficient secondLameCoef(1.0/2.6);
-
-    StrainEnergyDensityCoefficient tStraincoeff(&firstLameCoef, &secondLameCoef, &discretSol);
-
-    ParFiniteElementSpace tspace(PMesh,fec,1);
-    ParGridFunction tGF(&tspace);
-    tGF.ProjectCoefficient(tStraincoeff	); 	
+      // StrainEnergyDensityCoefficient tStraincoeff(&firstLameCoef, &secondLameCoef, &discreteSol);
+      if (physics == 1)
+      {
+        tStraincoeff.SetU(&discreteSol);
+        tGF.ProjectCoefficient(tStraincoeff	);
+      }
 
       x_gf.ProjectCoefficient(*trueSolution);
       //ParGridFunction objGradGF(pfespace); objGradGF = objgrad;
       paraview_dc.SetCycle(i);
       paraview_dc.SetTime(i*1.0);
       //paraview_dc.RegisterField("ObjGrad",&objGradGF);
-      paraview_dc.RegisterField("SolutionD",&discretSol   );
-      paraview_dc.RegisterField("StrainEnergyDensity",&tGF);
+      paraview_dc.RegisterField("SolutionD",&discreteSol   );
+      if (physics == 1)
+      {
+        paraview_dc.RegisterField("StrainEnergyDensity",&tGF);
+      }
       //paraview_dc.RegisterField("Solution",&x_gf);
       //paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
       paraview_dc.Save();
 
       double localGradNormSquared = std::pow(objgrad.Norml2(), 2);
       double globGradNorm;
-  #ifdef MFEM_USE_MPI
-    MPI_Allreduce(&localGradNormSquared, &globGradNorm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #endif
-    globGradNorm = std::sqrt(globGradNorm);
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(&localGradNormSquared, &globGradNorm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      globGradNorm = std::sqrt(globGradNorm);
 
-    if (myid == 0)
-    {
-      std:cout<<"Iter: "<<i<<" obj: "<<val<<" with: "<<ObjVal<<" | "<<meshQualityVal<<" objGrad_Norm: "<<globGradNorm<<std::endl;
-    }
+      if (myid == 0)
+      {
+        std:cout<<"Iter: "<<i<<" obj: "<<val<<" with: "<<ObjVal<<" | "<<meshQualityVal<<" objGrad_Norm: "<<globGradNorm<<std::endl;
+      }
 
-  #ifdef MFEM_USE_PETSC
+#ifdef MFEM_USE_PETSC
       double  conDummy = -0.1;
       mmaPetsc->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
-  #else
+#else
       mfem:Vector conDummy(1);  conDummy= -0.1;
       //std::cout << trueOptvar.Norml2() << " k10-dxpre\n";
       mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
       //std::cout << trueOptvar.Norml2() << " k10-dxpost\n";
-  #endif
-
+#endif
       gridfuncOptVar.SetFromTrueVector();
 
       // std::string tDesingName = "DesingVarVec";
@@ -1759,12 +1881,37 @@ if (myid == 0) {
                               "Displacements", 400, 400, 300, 300, "jRmclA");
     }
 
+    {
+      ostringstream mesh_name;
+      mesh_name << "optimized.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      PMesh->PrintAsSerial(mesh_ofs);
+    }
+
+    {
+      if (physics == 1)
       {
-        ostringstream mesh_name;
-        mesh_name << "optimized.mesh";
-        ofstream mesh_ofs(mesh_name.str().c_str());
-        mesh_ofs.precision(8);
-        PMesh->PrintAsSerial(mesh_ofs);
+        tStraincoeff.SetU(&(solver->GetSolution()));
+        tGF.ProjectCoefficient(tStraincoeff	);
+        GetScalarDerivative(&tGF, &tGF_grad, dim);
+        final_strain_energy = tGF.ComputeIntegral();
+        if (myid == 0)
+        {
+          std::cout << init_strain_energy << " " << final_strain_energy
+          << " " << strain_energy_ref << " strain-energy\n";
+        }
+      }
+      VisItDataCollection *visdc = new VisItDataCollection("tmop-pde-final", PMesh);
+      visdc->RegisterField("solution", &(solver->GetSolution()));
+      if (physics == 1)
+      {
+        visdc->RegisterField("strain-energy-density", &tGF);
+        visdc->RegisterField("strain-energy-density-grad", &tGF_grad);
+      }
+      visdc->SetCycle(0);
+      visdc->SetTime(0.0);
+      visdc->Save();
     }
   }
 

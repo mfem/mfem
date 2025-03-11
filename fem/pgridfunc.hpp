@@ -288,6 +288,14 @@ public:
                           pfes->GetComm());
    }
 
+   real_t ComputeIntegral(const IntegrationRule *irs[] = NULL,
+    const Array<int> *elems = NULL) const override
+    {
+        double local_sumv = GridFunction::ComputeIntegral(irs, elems);
+        MPI_Allreduce(MPI_IN_PLACE, &local_sumv, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        return local_sumv;
+    }
+
    real_t ComputeL2Error(Coefficient &exsol,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override

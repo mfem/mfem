@@ -518,7 +518,7 @@ namespace mfem{
 class NodeAwareTMOPQuality
 {
 public:
-    NodeAwareTMOPQuality(mfem::ParMesh* mesh_, int order_=1)
+    NodeAwareTMOPQuality(mfem::ParMesh* mesh_, int order_, TMOP_QualityMetric *metric, TargetConstructor *target_c)
     {
         pmesh=mesh_;
         int dim=pmesh->Dimension();
@@ -534,6 +534,8 @@ public:
         X0_ = tempX0_;
 
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
+        metric_in = metric;
+        target_in = target_c;
     }
 
     ~NodeAwareTMOPQuality()
@@ -558,6 +560,8 @@ public:
     mfem::ParFiniteElementSpace	  *coord_fes_;
 
     mfem::ParLinearForm * dQdx_;
+    TMOP_QualityMetric *metric_in = nullptr;
+    TargetConstructor *target_in = nullptr;
 };
 
 // class Diffusion_Solver

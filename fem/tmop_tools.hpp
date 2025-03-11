@@ -385,6 +385,9 @@ protected:
    VisItDataCollection *dc = nullptr;
    ParMesh *pmesh = nullptr;
    int ofq = 1;
+   real_t min_l2_err = 100.0;
+   real_t min_grad_err = 100.0;
+   int min_err_iter = -1;
 
 public:
    TMOP_MMA(int nVar, int nCon, Vector xval, const IntegrationRule &irule) :
@@ -428,6 +431,12 @@ public:
       dc = vdc;
       pmesh = pm;
       ofq = output_freq;
+   }
+   void GetMinErrInfo(double &min_l2, double &min_grad, int &min_iter)
+   {
+      min_l2 = min_l2_err;
+      min_grad = min_grad_err;
+      min_iter = min_err_iter;
    }
 };
 

@@ -71,12 +71,15 @@ public:
       IdentityMatrix(dim, I);
       I *= L * div_u;
 
+      grad.Symmetrize();
       stress= grad;
       stress *= 2.0*M;
       stress += I;
 
       return MatrixInnerProduct(grad, stress);;
    }
+
+   void SetU(GridFunction *u_) { u = u_; }
 };
 
 
@@ -1016,7 +1019,7 @@ public:
 
         dQdu_ = new mfem::ParLinearForm(temp_fes_);
         dQdx_ = new mfem::ParLinearForm(coord_fes_);
-       
+
         if(physicsdim ==1)
         {
         true_solgf_.SetSpace(temp_fes_);
@@ -1069,6 +1072,8 @@ public:
     void SetGLLVec(Array<double> &gllvec) { gllvec_ = gllvec;}
     void SetNqptsPerEl(int nqp) { nqptsperel = nqp; }
     void SetIntegrationRules(IntegrationRules *irule_, int quad_order_) { irules = irule_; quad_order = quad_order_; }
+    Coefficient * GetTrueSolCoeff() { return trueSolution_; }
+    VectorCoefficient *GetTrueSolGradCoeff() { return trueSolutionGrad_; }
 private:
     mfem::Coefficient * trueSolution_ = nullptr;
     mfem::VectorCoefficient * trueSolutionGrad_ = nullptr;
@@ -1219,7 +1224,7 @@ public:
         solgf.SetSpace(physics_fes_);
         adjgf.SetSpace(physics_fes_);
 
-        dQdu_ = new mfem::ParLinearForm(physics_fes_);  
+        dQdu_ = new mfem::ParLinearForm(physics_fes_);
 
         // store list of essential dofs
         int maxAttribute = pmesh->bdr_attributes.Max();

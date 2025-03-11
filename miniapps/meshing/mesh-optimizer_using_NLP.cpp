@@ -711,51 +711,53 @@ double NodeAwareTMOPQuality::EvalQoI()
   ::mfem::Vector Xi(X0_.Size()); Xi = X0_;
   Xi += designVar;
 
-  int targetId = 1;
-  int metricId = 2;
+  // int targetId = 1;
+  // int metricId = 2;
   int quadOrder = 8;
 
   // Setup the mesh quality metric
-  mfem::TMOP_QualityMetric *metric = nullptr;
-  switch (metricId) {
-    // T-metrics
-    case 1:
-      metric = new mfem::TMOP_Metric_001;
-      break;
-    case 2:
-      metric = new mfem::TMOP_Metric_002;
-      break;
-    case 7:
-      metric = new mfem::TMOP_Metric_007;
-      break;
-    case 9:
-      metric = new mfem::TMOP_Metric_009;
-      break;
-    default:
-      std::cout << "Unknown metricId_: " << metricId << std::endl;
-  }
+  // mfem::TMOP_QualityMetric *metric = nullptr;
+  // switch (metricId) {
+  //   // T-metrics
+  //   case 1:
+  //     metric = new mfem::TMOP_Metric_001;
+  //     break;
+  //   case 2:
+  //     metric = new mfem::TMOP_Metric_002;
+  //     break;
+  //   case 7:
+  //     metric = new mfem::TMOP_Metric_007;
+  //     break;
+  //   case 9:
+  //     metric = new mfem::TMOP_Metric_009;
+  //     break;
+  //   default:
+  //     std::cout << "Unknown metricId_: " << metricId << std::endl;
+  // }
 
-  mfem::TargetConstructor::TargetType targetT;
-  mfem::TargetConstructor *targetC = nullptr;
-  switch (targetId) {
-    case 1:
-      targetT = mfem::TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-      break;
-    case 2:
-      targetT = mfem::TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
-      break;
-    case 3:
-      targetT = mfem::TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-      break;
-    default:
-      std::cout << "Unknown targetId: " << targetId << "\n";
-  }
-  if (nullptr == targetC) {
-    targetC = new mfem::TargetConstructor(targetT, MPI_COMM_WORLD);
-  }
+  // mfem::TargetConstructor::TargetType targetT;
+  // mfem::TargetConstructor *targetC = nullptr;
+  // switch (targetId) {
+  //   case 1:
+  //     targetT = mfem::TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+  //     break;
+  //   case 2:
+  //     targetT = mfem::TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
+  //     break;
+  //   case 3:
+  //     targetT = mfem::TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+  //     break;
+  //   default:
+  //     std::cout << "Unknown targetId: " << targetId << "\n";
+  // }
+  // if (nullptr == targetC) {
+  //   targetC = new mfem::TargetConstructor(targetT, MPI_COMM_WORLD);
+  // }
   //targetC->SetNodes(X0_);
 
-  mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric, targetC);
+  mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric_in, target_in);
+  // std::cout << metric_in << " " << target_in << " k10info\n";
+  // mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric, targetC);
   mfem::IntegrationRules *irules = nullptr;
   mfem::IntegrationRules IntRulesLo(0, mfem::Quadrature1D::GaussLobatto);
   irules = &IntRulesLo;
@@ -780,47 +782,48 @@ void NodeAwareTMOPQuality::EvalQoIGrad()
   int metricId = 2;
   int quadOrder = 8;
 
-  // Setup the mesh quality metric
-  mfem::TMOP_QualityMetric *metric = nullptr;
-  switch (metricId) {
-    // T-metrics
-    case 1:
-      metric = new mfem::TMOP_Metric_001;
-      break;
-    case 2:
-      metric = new mfem::TMOP_Metric_002;
-      break;
-    case 7:
-      metric = new mfem::TMOP_Metric_007;
-      break;
-    case 9:
-      metric = new mfem::TMOP_Metric_009;
-      break;
-    default:
-      std::cout << "Unknown metricId_: " << metricId << std::endl;
-  }
+  // // Setup the mesh quality metric
+  // mfem::TMOP_QualityMetric *metric = nullptr;
+  // switch (metricId) {
+  //   // T-metrics
+  //   case 1:
+  //     metric = new mfem::TMOP_Metric_001;
+  //     break;
+  //   case 2:
+  //     metric = new mfem::TMOP_Metric_002;
+  //     break;
+  //   case 7:
+  //     metric = new mfem::TMOP_Metric_007;
+  //     break;
+  //   case 9:
+  //     metric = new mfem::TMOP_Metric_009;
+  //     break;
+  //   default:
+  //     std::cout << "Unknown metricId_: " << metricId << std::endl;
+  // }
 
-  mfem::TargetConstructor::TargetType targetT;
-  mfem::TargetConstructor *targetC = nullptr;
-  switch (targetId) {
-    case 1:
-      targetT = mfem::TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-      break;
-    case 2:
-      targetT = mfem::TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
-      break;
-    case 3:
-      targetT = mfem::TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-      break;
-    default:
-      std::cout << "Unknown targetId: " << targetId << "\n";
-  }
-  if (nullptr == targetC) {
-    targetC = new mfem::TargetConstructor(targetT, MPI_COMM_WORLD);
-  }
+  // mfem::TargetConstructor::TargetType targetT;
+  // mfem::TargetConstructor *targetC = nullptr;
+  // switch (targetId) {
+  //   case 1:
+  //     targetT = mfem::TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+  //     break;
+  //   case 2:
+  //     targetT = mfem::TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
+  //     break;
+  //   case 3:
+  //     targetT = mfem::TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+  //     break;
+  //   default:
+  //     std::cout << "Unknown targetId: " << targetId << "\n";
+  // }
+  // if (nullptr == targetC) {
+  //   targetC = new mfem::TargetConstructor(targetT, MPI_COMM_WORLD);
+  // }
   //targetC->SetNodes(X0_);
 
-  mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric, targetC);
+  mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric_in, target_in);
+  // mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric, targetC);
   mfem::IntegrationRules *irules = nullptr;
   mfem::IntegrationRules IntRulesLo(0, mfem::Quadrature1D::GaussLobatto);
   irules = &IntRulesLo;

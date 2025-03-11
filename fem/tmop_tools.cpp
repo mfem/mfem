@@ -1222,6 +1222,11 @@ void TMOP_MMA::MultFilter(Vector &x)
    filter->FSolve();
    fldx = filter->GetSolutionVec();
    fdx = filter->GetSolutionTVec();
+   real_t l2_err = 100.0;
+   real_t grad_err = 100.0;
+   min_err_iter = 0;
+   min_l2_err = l2_err;
+   min_grad_err = grad_err;
 
    for (it = 0; it < max_iter; it++)
    {
@@ -1232,6 +1237,8 @@ void TMOP_MMA::MultFilter(Vector &x)
          ds->SetDesign(fldx);
          ds->FSolve();
          ParGridFunction & discretSol = ds->GetSolution();
+         l2_err = discretSol.ComputeL2Error(*(qoi->GetTrueSolCoeff()));
+         grad_err = discretSol.ComputeGradError((qoi->GetTrueSolGradCoeff()));
          qoi->SetDesign(fldx);
          qoi->SetDiscreteSol( discretSol );
          qoi->EvalQoIGrad();
@@ -1254,6 +1261,12 @@ void TMOP_MMA::MultFilter(Vector &x)
          filter->ASolve(lr);
          Vector lr_new = filter->GetImplicitDqDxVec(); // this is an l-vector
          r = GetProlongedTransposeVector(lr_new);
+         if (l2_err < min_l2_err)
+         {
+            min_l2_err = l2_err;
+            min_grad_err = grad_err;
+            min_err_iter = it;
+         }
       }
       // r.Print();
       norm = Norm(r);
@@ -1261,6 +1274,7 @@ void TMOP_MMA::MultFilter(Vector &x)
       MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
       if (print_options.first_and_last || print_options.iterations)
       {
+         out << "L2-H1-Error " << l2_err << " " << grad_err << '\n';
          out << "TMOP-MMA iteration " <<  it
                    << " : ||r|| = " << norm;
          if (it > 0)
@@ -1335,6 +1349,7 @@ void TMOP_MMA::MultFilter(Vector &x)
    {
       out << "TMOP MMA: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
+      out << "Min l2-grad info: " << min_l2_err << " " << min_grad_err << " " << min_err_iter << '\n';
    }
    if (print_options.summary || (!converged && print_options.warnings))
    {

@@ -1245,6 +1245,30 @@ public:
    virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
 };
 
+/// 2D barrier Shape+Skew (SQ) metric.
+/// gamma is recommended to be in (0, 0.9) as a pure skew metric has poor
+/// convergence properties.
+class TMOP_AMetric_049 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<real_t> ie;
+   TMOP_QualityMetric *sh_metric, *sk_metric;
+
+public:
+   TMOP_AMetric_049(real_t gamma)
+      : sh_metric(new TMOP_Metric_002), sk_metric(new TMOP_AMetric_050)
+   {
+      // (1-gamma) mu_2 + gamma nu_50
+      AddQualityMetric(sh_metric, 1.0 - gamma);
+      AddQualityMetric(sk_metric, gamma);
+   }
+
+   int Id() const override { return 49; }
+   real_t GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_AMetric_049() { delete sh_metric; delete sk_metric; }
+};
+
 /// 2D barrier Skew+Orientation (OQ) metric (polyconvex).
 class TMOP_AMetric_OQ : public TMOP_QualityMetric
 {

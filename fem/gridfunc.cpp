@@ -2892,6 +2892,37 @@ real_t GridFunction::ComputeL2Error(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+real_t GridFunction::ComputeIntegral(const IntegrationRule *irs[],
+   const Array<int> *elems) const
+{
+   real_t sumv = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, exact_vals;
+   Vector loc_errs;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
+      fe = fes->GetFE(i);
+      int intorder = 2*fe->GetOrder() + 3; // <----------
+      const IntegrationRule *ir;
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      ir = &(IntRulesGLL.Get(fe->GetGeomType(), intorder));
+      T = fes->GetElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+      Vector valsv(vals.GetData(), vals.TotalSize());
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         sumv += ip.weight * T->Weight() * valsv(j);
+      }
+   }
+
+   return sumv;
+}
+
 real_t GridFunction::ComputeElementGradError(int ielem,
                                              VectorCoefficient *exgrad,
                                              const IntegrationRule *irs[]) const
