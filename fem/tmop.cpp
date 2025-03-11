@@ -5317,9 +5317,13 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange
    if (discr_tc)
    {
       Vector x_loc(*x_0);
-      GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
-      d_loc = d;
-      GetPeriodicPositions(*x_0, d_loc, x_loc);
+      if (periodic)
+      {
+         GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
+         d_loc = d;
+         GetPeriodicPositions(*x_0, d_loc, x_loc);
+      }
+      else { x_loc += d; }
 
       discr_tc->UpdateTargetSpecification(x_loc, true, ordering);
       if (fdflag)
@@ -5332,11 +5336,15 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
-   {      
+   {
       Vector x_loc(*x_0);
-      GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
-      d_loc = d;
-      GetPeriodicPositions(*x_0, d_loc, x_loc);
+      if (periodic)
+      {
+         GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
+         d_loc = d;
+         GetPeriodicPositions(*x_0, d_loc, x_loc);
+      }
+      else { x_loc += d; }
 
       adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
    }
