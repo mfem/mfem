@@ -1272,7 +1272,7 @@ const real_t RT_FuentesPyramidElement::nk[24] =
 
 RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
    : VectorFiniteElement(3, Geometry::PYRAMID, (p + 1)*(3*p*(p + 2) + 5),
-                         p + 1, H_DIV, FunctionSpace::Pk),
+                         p + 1, H_DIV, FunctionSpace::Uk),
      dof2nk(dof)
 {
    zmax = 0.0;
