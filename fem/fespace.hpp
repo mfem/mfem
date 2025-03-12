@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,8 +51,17 @@ public:
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
 enum class QVectorLayout
 {
-   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
-   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: NQPT x VDIM x NE,
+       - scalar H1/L2 spaces, gradients: NQPT x VDIM x DIM x NE,
+       - vector RT/ND spaces, values: NQPT x SDIM x NE (vdim = 1). */
+   byNODES,
+
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: VDIM x NQPT x NE,
+       - scalar H1/L2 spaces, gradients: VDIM x DIM x NQPT x NE,
+       - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
+   byVDIM
 };
 
 template <> inline int
@@ -203,7 +212,7 @@ class FaceQuadratureInterpolator;
     @par
     %Vector dofs do not represent a specific index space the way the three
     previous types of dofs do. Rather they are related to modifications of
-    these other index spaces to accomodate multiple copies of the underlying
+    these other index spaces to accommodate multiple copies of the underlying
     function spaces.
     @par
     When using @b vdofs, i.e. when @b vdim != 1, the FiniteElementSpace only
@@ -265,7 +274,10 @@ protected:
    mutable Table *bdr_elem_fos; // bdr face orientations by bdr element index
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
-   Array<int> dof_elem_array, dof_ldof_array;
+   mutable Array<int> dof_elem_array;
+   mutable Array<int> dof_ldof_array;
+   mutable Array<int> dof_bdr_elem_array;
+   mutable Array<int> dof_bdr_ldof_array;
 
    NURBSExtension *NURBSext;
    /** array of NURBS extension for H(div) and H(curl) vector elements.
@@ -338,6 +350,14 @@ protected:
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
+
+   /** @brief Initialize internal data that enables the use of the methods
+    GetElementForDof() and GetLocalDofForDof(). */
+   void BuildDofToArrays_() const;
+
+   /** @brief Initialize internal data that enables the use of the methods
+      GetBdrElementForDof() and GetBdrLocalDofForDof(). */
+   void BuildDofToBdrArrays() const;
 
    /** @brief  Generates partial face_dof table for a NURBS space.
 
@@ -458,7 +478,7 @@ protected:
       DerefinementOperator(const FiniteElementSpace *f_fes,
                            const FiniteElementSpace *c_fes,
                            BilinearFormIntegrator *mass_integ);
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
       virtual ~DerefinementOperator();
    };
 
@@ -576,6 +596,14 @@ public:
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
    bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
+   /** Set the prolongation operator of the space to an arbitrary sparse matrix,
+       creating a copy of the argument. */
+   void SetProlongation(const SparseMatrix& p);
+
+   /** Set the restriction operator of the space to an arbitrary sparse matrix,
+       creating a copy of the argument. */
+   void SetRestriction(const SparseMatrix& r);
+
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
        SetElementOrder is called, the space becomes a variable order space. */
@@ -591,7 +619,8 @@ public:
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
 
-   /// The returned SparseMatrix is owned by the FiniteElementSpace.
+   /// The returned SparseMatrix is owned by the FiniteElementSpace. The method
+   /// returns nullptr if the matrix is identity.
    const SparseMatrix *GetConformingProlongation() const;
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
@@ -604,7 +633,8 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetHpConformingRestriction() const;
 
-   /// The returned Operator is owned by the FiniteElementSpace.
+   /// The returned Operator is owned by the FiniteElementSpace. The method
+   /// returns nullptr if the prolongation matrix is identity.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
@@ -716,7 +746,9 @@ public:
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
 
-   /// Returns vector dimension.
+   /// Returns the vector dimension of the finite element space.
+   /** Since the finite elements could be vector-valued, this may not be the
+       dimension of an actual vector in the space; see GetVectorDim(). */
    inline int GetVDim() const { return vdim; }
 
    /// @brief Returns number of degrees of freedom.
@@ -734,6 +766,22 @@ public:
    int GetNConformingDofs() const;
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+
+   /// Return the total dimension of a vector in the space
+   /** This accounts for the vectorization of elements and cases where the
+       elements themselves are vector-valued; see FiniteElement:GetRangeDim().
+       If the finite elements are FiniteElement::SCALAR, this equals GetVDim().
+
+       Note: For vector-valued elements, the results pads up the range dimension
+       to the spatial dimension. E.g., consider a stack of 5 vector-valued
+       elements each representing 2D vectors, living in a 3 dimensional space.
+       Then this fucntion would give 15, not 10.
+       */
+   int GetVectorDim() const;
+
+   /// Return the dimension of the curl of a GridFunction defined on this space.
+   /** Note: This assumes a space dimension of 2 or 3 only. */
+   int GetCurlDim() const;
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
@@ -1163,24 +1211,34 @@ public:
    const Table &GetFaceToDofTable() const
    { if (!face_dof) { BuildFaceToDofTable(); } return *face_dof; }
 
-   /** @brief Initialize internal data that enables the use of the methods
-       GetElementForDof() and GetLocalDofForDof(). */
-   void BuildDofToArrays();
+   /// Deprecated. This function is not required to be called by the user.
+   MFEM_DEPRECATED void BuildDofToArrays() const { BuildDofToArrays_(); }
 
-   /// Return the index of the first element that contains dof @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToArrays(). */
-   int GetElementForDof(int i) const { return dof_elem_array[i]; }
-   /// Return the local dof index in the first element that contains dof @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToArrays(). */
-   int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
+   /// Return the index of the first element that contains ldof index @a i.
+   int GetElementForDof(int i) const { BuildDofToArrays_(); return dof_elem_array[i]; }
+
+   /// Return the dof index within the element from GetElementForDof() for ldof index @a i.
+   int GetLocalDofForDof(int i) const { BuildDofToArrays_(); return dof_ldof_array[i]; }
+
+   /// Return the index of the first boundary element that contains ldof index @a i.
+   int GetBdrElementForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_elem_array[i]; }
+
+   /// Return the dof index within the boundary element from GetBdrElementForDof() for ldof index @a i.
+   int GetBdrLocalDofForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_ldof_array[i]; }
+
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th element in the mesh object.
         Note: The method has been updated to abort instead of returning NULL for
         an empty partition. */
    virtual const FiniteElement *GetFE(int i) const;
+
+   /** @brief Return GetFE(0) if the local mesh is not empty; otherwise return a
+       typical FE based on the Geometry types in the global mesh.
+
+       This method can be used as a replacement for GetFE(0) that will be valid
+       even if the local mesh is empty. */
+   const FiniteElement *GetTypicalFE() const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th boundary face in the mesh object. */
@@ -1198,6 +1256,12 @@ public:
 
    /// Return the trace element from element 'i' to the given 'geom_type'
    const FiniteElement *GetTraceElement(int i, Geometry::Type geom_type) const;
+
+   /// @brief Return a "typical" trace element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalTraceElement() const;
 
    /** @brief Mark degrees of freedom associated with boundary elements with
        the specified boundary attributes (marked in 'bdr_attr_is_ess').
@@ -1221,6 +1285,18 @@ public:
        FiniteElementSpace::GetEssentialTrueDofs with all boundary attributes
        marked as essential. */
    void GetBoundaryTrueDofs(Array<int> &boundary_dofs, int component = -1);
+
+   /** @brief Mark degrees of freedom associated with exterior faces of the
+       mesh. For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component. */
+   virtual void GetExteriorVDofs(Array<int> &exterior_vdofs,
+                                 int component = -1) const;
+
+   /** @brief Get a list of all true dofs on the exterior of the mesh,
+       @a exterior_dofs. For spaces with 'vdim' > 1, the 'component' parameter
+       can be used to restricts the marked tDOFs to the specified component. */
+   virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
+                                    int component = -1) const;
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
@@ -1345,6 +1421,18 @@ public:
       Update(false);
    }
 
+   /** @brief Compute the space's node positions w.r.t. given mesh positions.
+       The function uses FiniteElement::GetNodes() to obtain the reference DOF
+       positions of each finite element.
+
+       @param[in]  mesh_nodes   Mesh positions. Assumes that it has the same
+                                topology & ordering as the mesh of the FE space,
+                                i.e, same size as this->GetMesh()->GetNodes().
+       @param[out] fes_node_pos Positions of the FE space's nodes.
+       @param[in]  fes_nodes_ordering  Ordering of fes_node_pos.     */
+   void GetNodePositions(const Vector &mesh_nodes, Vector &fes_node_pos,
+                         int fes_nodes_ordering = Ordering::byNODES) const;
+
    /// Save finite element space to output stream @a out.
    void Save(std::ostream &out) const;
 
@@ -1355,18 +1443,19 @@ public:
    virtual ~FiniteElementSpace();
 };
 
-/// @brief Return true if the mesh contains only one topology and the elements are tensor elements.
+/// @brief Return true if the mesh contains only one topology and the elements
+/// are tensor elements.
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 {
    Mesh & mesh = *fes.GetMesh();
    const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
-   // Potential issue: empty local mesh --> no element 0.
    return !mixed &&
-          dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+          dynamic_cast<const mfem::TensorBasisElement *>(
+             fes.GetTypicalFE()) != nullptr;
 }
 
-/// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the elements are tensor
-/// elements, otherwise, return NATIVE.
+/// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the
+/// elements are tensor elements, otherwise, return NATIVE.
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes);
 
 }

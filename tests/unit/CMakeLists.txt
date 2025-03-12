@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -47,6 +47,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_face_orientations.cpp
   mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
+  mesh/test_exodus_reader.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
@@ -63,6 +64,7 @@ set(UNIT_TESTS_SRCS
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
+  fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_build_dof_to_arrays.cpp
   fem/test_calccurlshape.cpp

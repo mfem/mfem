@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -588,7 +588,7 @@ static void test_pa_integrator()
    // Don't use a special integration rule if q_order_inc == 0
    const bool use_ir = q_order_inc > 0;
    const IntegrationRule *ir =
-      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+      use_ir ? &IntRules.Get(mesh.GetTypicalElementGeometry(), q_order) : nullptr;
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
@@ -745,7 +745,7 @@ void test_dg_diffusion(FES &fes)
    const real_t kappa = 10.0;
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetFaceGeometry(0),
+   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetTypicalFaceGeometry(),
                                        2*fes.GetMaxElementOrder());
 
    BLF_t blf_fa(&fes);
@@ -830,3 +830,33 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
 #endif
 
 } // namespace pa_kernels
+
+TEST_CASE("Dispatch Map Specializations")
+{
+   // The kernel specializations are registered the first time the associated
+   // object is created (in the constructor of a static local variable in the
+   // object's constructor). We create a dummy objects here to ensure that the
+   // kernels are registered before testing.
+
+   MassIntegrator{};
+   REQUIRE_FALSE(MassIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(MassIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+
+   DiffusionIntegrator{};
+   REQUIRE_FALSE(
+      DiffusionIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(
+      DiffusionIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   fes.GetQuadratureInterpolator(IntRules.Get(mesh.GetElementGeometry(0), 1));
+
+   using QI = QuadratureInterpolator;
+   REQUIRE_FALSE(QI::TensorEvalKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::GradKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::DetKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::EvalKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::CollocatedGradKernels::GetDispatchTable().empty());
+}
