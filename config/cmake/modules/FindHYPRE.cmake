@@ -26,7 +26,12 @@ if (HYPRE_FOUND)
     find_package(rocrand REQUIRED)
     find_package(rocsolver REQUIRED)
   endif()
-  return()
+  if (HYPRE_LIBRARIES AND HYPRE_INCLUDE_DIRS AND HYPRE_VERSION)
+    find_package_handle_standard_args(HYPRE
+      REQUIRED_VARS HYPRE_LIBRARIES HYPRE_INCLUDE_DIRS HYPRE_VERSION
+    )
+    return()
+  endif()
 endif()
 
 include(MfemCmakeUtilities)
@@ -97,3 +102,7 @@ if (HYPRE_FOUND AND HYPRE_USING_HIP)
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
 endif()
+
+find_package_handle_standard_args(HYPRE
+  REQUIRED_VARS HYPRE_LIBRARIES HYPRE_INCLUDE_DIRS HYPRE_VERSION
+)
