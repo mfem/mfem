@@ -706,11 +706,12 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    // Form the final mesh using the computed displacement.
    if (periodic)
    {
-      GridFunction d_loc(const_cast<FiniteElementSpace *>(nlf->FESpace()));
+      Vector d_loc(nlf->FESpace()->GetVSize());
       const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
       if (Pd) { Pd->Mult(d, d_loc); }
       else    { d_loc = d; }
-      GetPeriodicPositions(x_0, d_loc, x);
+
+      GetPeriodicPositions(x_0, d_loc, *fes_mesh_nodes, *nlf->FESpace(), x);
    }
    else { x += d; }
 
@@ -1080,47 +1081,16 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
         << "keys jRmclA\n";
 }
 
-void GetPeriodicDisplacement(const GridFunction &x, const GridFunction &x_0,
-                             GridFunction &d)
+void GetPeriodicPositions(const Vector &x_0, const Vector &d,
+                          const FiniteElementSpace &fesL2,
+                          const FiniteElementSpace &fesH1, Vector &x)
 {
-   auto fes_h1 = *d.FESpace();
-   GridFunction d_l2(x);
-   d_l2 -= x_0;
-
-   Vector d_el;
-   for (int i = 0; i < fes_h1.GetNE(); i++)
-   {
-      d_l2.GetElementDofValues(i, d_el);
-      auto h1_el = dynamic_cast<const NodalFiniteElement *>(fes_h1.GetFE(i));
-      h1_el->ReorderLexToNative(fes_h1.GetVDim(), d_el);
-      Array<int> vdofs_h1;
-      d.FESpace()->GetElementVDofs(i, vdofs_h1);
-      d.SetSubVector(vdofs_h1, d_el);
-   }
-   d.SetFromTrueVector();
-}
-
-void GetPeriodicPositions(const GridFunction &x_0, const GridFunction &d,
-                          Vector &x)
-{
-   auto fes_h1 = *d.FESpace();
-   const int NE = fes_h1.GetNE(), dim = fes_h1.GetVDim();
-   const int s  = x.Size() / NE / dim;
-
-   Vector d_el;
-   for (int i = 0; i < NE; i++)
-   {
-      d.GetElementDofValues(i, d_el);
-      auto h1_el = dynamic_cast<const NodalFiniteElement *>(fes_h1.GetFE(i));
-      h1_el->ReorderNativeToLex(fes_h1.GetVDim(), d_el);
-      for (int j = 0; j < s; j++)
-      {
-         for (int c = 0; c < dim; c++)
-         {
-            x(c*NE*s + i*s + j) = x_0(c*NE*s + i*s + j) + d_el(c*s + j);
-         }
-      }
-   }
+   Vector d_r(x.Size());
+   const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+   auto R_H1 = fesH1.GetElementRestriction(ord);
+   auto R_L2 = fesL2.GetElementRestriction(ord);
+   R_H1->Mult(d, d_r);
+   R_L2->AddMultTranspose(d_r, x);
 }
 
 }

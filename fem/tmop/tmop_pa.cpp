@@ -187,9 +187,7 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
    Vector x_loc(*x_0);
    if (periodic)
    {
-      GridFunction dl(const_cast<FiniteElementSpace *>(PA.fes));
-      dl = d_loc;
-      GetPeriodicPositions(*x_0, dl, x_loc);
+      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
    }
    else { x_loc += d_loc; }
 
@@ -261,7 +259,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    if (x_0 != nullptr)
    {
       const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
-      const Operator *n0_R = x_0->FESpace()->GetElementRestriction(ord);
+      auto n0_R = x_0->FESpace()->GetElementRestriction(ord);
       PA.X0.UseDevice(true);
       PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
       n0_R->Mult(*x_0, PA.X0);

@@ -5382,7 +5382,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange
       {
          GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
          d_loc = d;
-         GetPeriodicPositions(*x_0, d_loc, x_loc);
+         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), d_fes, x_loc);
       }
       else { x_loc += d; }
 
@@ -5403,7 +5403,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange
       {
          GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
          d_loc = d;
-         GetPeriodicPositions(*x_0, d_loc, x_loc);
+         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), d_fes, x_loc);
       }
       else { x_loc += d; }
 

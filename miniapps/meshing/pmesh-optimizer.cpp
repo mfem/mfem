@@ -1228,7 +1228,12 @@ int main (int argc, char *argv[])
    }
 
    // Report the final energy of the functional.
-   if (periodic) { GetPeriodicDisplacement(x, x0, d); }
+   if (periodic)
+   {
+      ParGridFunction d_L2(x); d_L2 -= x0;
+      // Assumes Gauss-Lobatto and continuity in x and x_0 across faces.
+      d.ProjectGridFunction(d_L2);
+   }
    if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
    const real_t fin_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
