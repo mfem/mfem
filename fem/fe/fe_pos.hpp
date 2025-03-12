@@ -258,6 +258,13 @@ public:
 
 
 /// Arbitrary order H1 elements in 3D utilizing the Bernstein basis on a pyramid
+///
+/// The pyramid affine-related coordinates $\lambda_i$ for $i=1,\ldots,5$ can
+/// be used to define a positive H1 basis by noting that $\lambda_i \ge 0$
+/// inside the pyramid for all $i$ and that $\sum_{i=1}^5\lambda_i=1$. This
+/// leads to $1 = (\sum_{i=1}^5\lambda_i)^p$. The terms of this product,
+/// expanded as a polynomial in the $\lambda_i$, can be used as a Bernstein
+/// basis of order $p$ on a pyramid.
 class H1Pos_PyramidElement : public PositiveFiniteElement, FuentesPyramid
 {
 protected:
