@@ -38,7 +38,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
    int ND = ndof1d;
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
-               "Mixed meshes are not swupported.");
+               "Mixed meshes are not supported.");
    for (int d = 1; d < dim; ++d)
    {
       ND *= ndof1d;
