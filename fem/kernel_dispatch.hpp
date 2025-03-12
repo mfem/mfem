@@ -69,21 +69,20 @@ namespace mfem
 // is the concatenation of P1 and P2. We need to pass it as a separate argument
 // to avoid a trailing comma in the case that P2 is empty.
 #define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)             \
-  class KernelName                                                             \
-      : public ::mfem::KernelDispatchTable<                                    \
-            KernelName, KernelType,                                            \
-            ::mfem::internal::KernelTypeList<MFEM_PARAM_LIST P1>,              \
-            ::mfem::internal::KernelTypeList<MFEM_PARAM_LIST P2>> {            \
-  public:                                                                      \
-    const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                    \
-    using KernelSignature = KernelType;                                        \
-    template <MFEM_PARAM_LIST P3> static MFEM_EXPORT KernelSignature Kernel(); \
-    static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);           \
-    static MFEM_EXPORT KernelName &Get() {                                     \
-      static KernelName table;                                                 \
-      return table;                                                            \
-    }                                                                          \
-  }
+   class KernelName : public                                                   \
+   KernelDispatchTable<KernelName, KernelType,                                 \
+      internal::KernelTypeList<MFEM_PARAM_LIST P1>,                            \
+      internal::KernelTypeList<MFEM_PARAM_LIST P2>>                            \
+   {                                                                           \
+   public:                                                                     \
+      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
+      using KernelSignature = KernelType;                                      \
+      template <MFEM_PARAM_LIST P3>                                            \
+      static MFEM_EXPORT KernelSignature Kernel();                             \
+      static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);         \
+      static MFEM_EXPORT KernelName &Get()                                     \
+      { static KernelName table; return table;}                                \
+   }
 
 /// @brief Hashes variadic packs for which each type contained in the variadic
 /// pack has a specialization of `std::hash` available.
