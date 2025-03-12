@@ -361,7 +361,7 @@ HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
                              spmat->GetI(), hJ.GetData(), spmat->GetData(),
                              rows, pfes_tr->GetDofOffsets());
 }
-#endif
+#endif //MFEM_USE_MPI
 
 DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u,
                                        FiniteElementSpace *fes_p, bool bsym)
@@ -999,10 +999,10 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
       {
          hB->AddMult(Aibu, b_r);
       }
-      const Operator *tr_P = pfes_p->GetProlongationMatrix();
+#endif
+      const Operator *tr_P = fes_p->GetProlongationMatrix();
       b_tr.SetSize(tr_P->Width());
       tr_P->MultTranspose(b_r, b_tr);
-#endif
    }
 }
 
@@ -1038,10 +1038,8 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
    }
    else
    {
-#ifdef MFEM_USE_MPI
       sol_r.SetSize(fes_p->GetVSize());
-      pfes_p->GetProlongationMatrix()->Mult(sol_tr, sol_r);
-#endif
+      fes_p->GetProlongationMatrix()->Mult(sol_tr, sol_r);
    }
 
    p = sol_r;
@@ -1525,12 +1523,10 @@ void DarcyPotentialReduction::ParallelEliminateTDofsInRHS(
    }
    else
    {
-#ifdef MFEM_USE_MPI
       xu.SetSize(fes_u->GetVSize());
-      pfes_u->GetProlongationMatrix()->Mult(xu_t, xu);
+      fes_u->GetProlongationMatrix()->Mult(xu_t, xu);
       bu.SetSize(fes_u->GetVSize());
       bu = 0.;
-#endif
    }
 
    for (int el = 0; el < NE; el++)
@@ -1575,9 +1571,7 @@ void DarcyPotentialReduction::ParallelEliminateTDofsInRHS(
    }
    else
    {
-#ifdef MFEM_USE_MPI
-      pfes_u->GetProlongationMatrix()->AddMultTranspose(bu, bu_t);
-#endif
+      fes_u->GetProlongationMatrix()->AddMultTranspose(bu, bu_t);
    }
 
    for (int tdof : tdofs_flux)
@@ -1585,7 +1579,7 @@ void DarcyPotentialReduction::ParallelEliminateTDofsInRHS(
       bu_t(tdof) = xu_t(tdof);//<--can be arbitrary as it is ignored
    }
 }
-#endif
+#endif //MFEM_USE_MPI
 
 void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
                                         Vector &b_tr) const
@@ -1615,9 +1609,7 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
       }
       else
       {
-#ifdef MFEM_USE_MPI
-         pfes_u->GetProlongationMatrix()->Mult(bu, b_r);
-#endif
+         fes_u->GetProlongationMatrix()->Mult(bu, b_r);
       }
    }
 
@@ -1655,11 +1647,9 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
    }
    else
    {
-#ifdef MFEM_USE_MPI
-      const Operator *tr_P = pfes_u->GetProlongationMatrix();
+      const Operator *tr_P = fes_u->GetProlongationMatrix();
       b_tr.SetSize(tr_P->Width());
       tr_P->MultTranspose(b_r, b_tr);
-#endif
    }
 }
 
@@ -1692,10 +1682,8 @@ void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
    }
    else
    {
-#ifdef MFEM_USE_MPI
       sol_r.SetSize(fes_u->GetVSize());
-      pfes_u->GetProlongationMatrix()->Mult(sol_tr, sol_r);
-#endif
+      fes_u->GetProlongationMatrix()->Mult(sol_tr, sol_r);
    }
 
    u = sol_tr;

@@ -24,6 +24,11 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    : Hybridization(fes_u_, fes_c_), Operator(c_fes->GetVSize()),
      fes_p(fes_p_), bsym(bsymmetrize)
 {
+#ifdef MFEM_USE_MPI
+   pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+   pfes_p = dynamic_cast<ParFiniteElementSpace*>(fes_p);
+   c_pfes = dynamic_cast<ParFiniteElementSpace*>(c_fes);
+#endif
    SetLocalNLSolver(LSsolveType::LBFGS);
    SetLocalNLPreconditioner(LPrecType::GMRES);
 }
@@ -150,21 +155,32 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    // all other hat_dofs are "free".
    hat_dofs_marker.SetSize(num_hat_dofs);
    Array<int> free_tdof_marker;
+   if (ParallelU())
+   {
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
-   free_tdof_marker.SetSize(pfes ? pfes->TrueVSize() :
-                            fes->GetConformingVSize());
-#else
-   free_tdof_marker.SetSize(fes->GetConformingVSize());
+      free_tdof_marker.SetSize(pfes->TrueVSize());
 #endif
+   }
+   else
+   {
+      free_tdof_marker.SetSize(fes->GetConformingVSize());
+   }
+
    free_tdof_marker = 1;
    for (int i = 0; i < ess_flux_tdof_list.Size(); i++)
    {
       free_tdof_marker[ess_flux_tdof_list[i]] = 0;
    }
    Array<int> free_vdofs_marker;
+   if (ParallelU())
+   {
 #ifdef MFEM_USE_MPI
-   if (!pfes)
+      HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
+      free_vdofs_marker.SetSize(fes->GetVSize());
+      P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
+#endif
+   }
+   else
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
       if (!cP)
@@ -177,24 +193,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
          cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
       }
    }
-   else
-   {
-      HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
-      free_vdofs_marker.SetSize(fes->GetVSize());
-      P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
-   }
-#else
-   const SparseMatrix *cP = fes->GetConformingProlongation();
-   if (!cP)
-   {
-      free_vdofs_marker.MakeRef(free_tdof_marker);
-   }
-   else
-   {
-      free_vdofs_marker.SetSize(fes->GetVSize());
-      cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
-   }
-#endif
+
    for (int i = 0; i < NE; i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -204,23 +203,9 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
          hat_dofs_marker[hat_offsets[i]+j] = ! free_vdofs_marker[vdofs[j]];
       }
    }
-#ifndef MFEM_DEBUG
-   // In DEBUG mode this array is used below.
-   free_tdof_marker.DeleteAll();
-#endif
-   free_vdofs_marker.DeleteAll();
-   // Split the "free" (0) hat_dofs into "internal" (0) or "boundary" (-1).
-   // The "internal" hat_dofs are those "free" hat_dofs for which the
-   // corresponding column in C is zero; otherwise the free hat_dof is
-   // "boundary".
-   /*for (int i = 0; i < num_hat_dofs; i++)
-   {
-      // skip "essential" hat_dofs and empty rows in Ct
-      if (hat_dofs_marker[i] == 1) { continue; }
-      //CT row????????
 
-      //hat_dofs_marker[i] = -1; // mark this hat_dof as "boundary"
-   }*/
+   free_tdof_marker.DeleteAll();
+   free_vdofs_marker.DeleteAll();
 
    // Define Af_offsets and Af_f_offsets
    Af_offsets.SetSize(NE+1);
@@ -380,13 +365,14 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 
 void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    int face, DenseMatrix &elmat1, DenseMatrix &elmat2, Array<int> &vdofs1,
-   Array<int> &vdofs2)
+   Array<int> &vdofs2, int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe1, *fe2;
    DenseMatrix elmat, h_elmat;
    int ndof1, ndof2;
    Array<int> c_dofs;
+   bool save2 = false;
 
    tr_fe = c_fes->GetFaceElement(face);
    c_fes->GetFaceDofs(face, c_dofs);
@@ -396,11 +382,42 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
    fe1 = fes_p->GetFE(ftr->Elem1No);
    ndof1 = fe1->GetDof();
+   fe2 = NULL;
 
    if (ftr->Elem2No >= 0)
    {
       fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
       fe2 = fes_p->GetFE(ftr->Elem2No);
+      save2 = true;
+   }
+   else if (ParallelP())
+   {
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = pfes_p->GetParMesh();
+      if (pmesh->FaceIsTrueInterior(face))
+      {
+         ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(face);
+         const int el2nbr = ftr->Elem2No - mesh->GetNE();
+         pfes_p->GetFaceNbrElementVDofs(el2nbr, vdofs2);
+         fe2 = pfes_p->GetFaceNbrFE(el2nbr);
+      }
+#endif
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh && pmesh->FaceIsTrueInterior(face))
+      {
+         ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(face);
+         vdofs2.SetSize(0);
+         fe2 = fe1;
+      }
+#endif
+   }
+
+   if (fe2)
+   {
       ndof2 = fe2->GetDof();
    }
    else
@@ -419,7 +436,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    // assemble D element matrices
    elmat1.CopyMN(elmat, ndof1, ndof1, 0, 0);
    AssemblePotMassMatrix(ftr->Elem1No, elmat1);
-   if (ndof2)
+   if (save2)
    {
       elmat2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
       AssemblePotMassMatrix(ftr->Elem2No, elmat2);
@@ -428,15 +445,20 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    // assemble E constraint
    DenseMatrix E_f_1(E_data + E_offsets[face], ndof1, c_dof);
    E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
-   if (ndof2)
+   if (save2)
    {
       DenseMatrix E_f_2(E_data + E_offsets[face] + c_dof*ndof1, ndof2, c_dof);
       E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
    }
 
    // assemble G constraint
-   DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof1+ndof2);
-   G_f.CopyMN(elmat, c_dof, ndof1+ndof2, ndof1+ndof2, 0);
+   DenseMatrix G_f_1(G_data + G_offsets[face], c_dof, ndof1);
+   G_f_1.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, 0);
+   if (save2)
+   {
+      DenseMatrix G_f_2(G_data + G_offsets[face] + c_dof*ndof1, c_dof, ndof2);
+      G_f_2.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, ndof1);
+   }
 
    // assemble H matrix
    if (IsNonlinear())
@@ -448,12 +470,16 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    {
       if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
       h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
-      H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+#ifdef MFEM_USE_MPI
+      // prevent double integration on shared faces
+      if (ftr->Elem2No >= 0 && !save2) { h_elmat *= 0.5; }
+#endif
+      H->AddSubMatrix(c_dofs, c_dofs, h_elmat, skip_zeros);
    }
 }
 
 void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
-   int bface, DenseMatrix &elmat1, Array<int> &vdofs)
+   int bface, DenseMatrix &elmat1, Array<int> &vdofs, int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    const FiniteElement *tr_fe, *fe;
@@ -516,7 +542,7 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    {
       if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
       h_elmat.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
-      H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+      H->AddSubMatrix(c_dofs, c_dofs, h_elmat, skip_zeros);
    }
 }
 
@@ -666,6 +692,34 @@ void DarcyHybridization::ConstructC()
          // assemble the matrix
          AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
       }
+
+#ifdef MFEM_USE_MPI
+      if (ParallelU()) { pfes->ExchangeFaceNbrData(); }
+      ParMesh *pmesh = (pfes) ? (pfes->GetParMesh()) : (dynamic_cast<ParMesh*>(mesh));
+      const int NE = mesh->GetNE();
+
+      if (pmesh)
+      {
+         const int num_shared_faces = pmesh->GetNSharedFaces();
+         for (int sf = 0; sf < num_shared_faces; sf++)
+         {
+            const int f = pmesh->GetSharedFace(sf);
+            FaceElementTransformations *FTr = pmesh->GetSharedFaceTransformations(sf);
+
+            const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
+            const FiniteElement *fe2 =
+               (pfes)?(pfes->GetFaceNbrFE(FTr->Elem2No - NE)):(fe1);
+
+            c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
+                                      *fe1, *fe2, *FTr, elmat);
+            // zero-out small elements in elmat
+            elmat.Threshold(mtol * elmat.MaxMaxNorm());
+
+            // assemble the matrix
+            AssembleCtFaceMatrix(f, FTr->Elem1No, -1, elmat);
+         }
+      }
+#endif
 
       if (boundary_constraint_integs.Size())
       {
@@ -858,7 +912,7 @@ void DarcyHybridization::ComputeH()
       LU_A.Factor(a_dofs_size);
 
       // Construct Schur complement
-      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+      const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
       DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
       AiBt.SetSize(a_dofs_size, d_dofs_size);
 
@@ -1005,6 +1059,34 @@ void DarcyHybridization::ComputeH()
    }
    delete Hb;
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+
+   if (!ParallelC())
+   {
+      const SparseMatrix *cP = c_fes->GetConformingProlongation();
+      if (cP)
+      {
+         if (H->Height() != cP->Width())
+         {
+            SparseMatrix *cH = mfem::RAP(*cP, *H, *cP);
+            delete H;
+            H = cH;
+         }
+      }
+   }
+   else // parallel
+   {
+#ifdef MFEM_USE_MPI
+      OperatorHandle dH(pH.Type()), pP(pH.Type());
+      dH.MakeSquareBlockDiag(c_pfes->GetComm(), c_pfes->GlobalVSize(),
+                             c_pfes->GetDofOffsets(), H);
+      // TODO - construct Dof_TrueDof_Matrix directly in the pS format
+      pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
+      pH.MakePtAP(dH, pP);
+      dH.Clear();
+      delete H;
+      H = NULL;
+#endif
+   }
 }
 
 void DarcyHybridization::GetCtFaceMatrix(
@@ -1017,12 +1099,13 @@ void DarcyHybridization::GetCtFaceMatrix(
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
    const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
 
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       Ct.Reset(Ct_data + Ct_offsets[f], f_size_1, c_size);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
       Ct.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_size,
                f_size_2, c_size);
@@ -1030,13 +1113,14 @@ void DarcyHybridization::GetCtFaceMatrix(
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    Array<int> c_dofs;
    c_fes->GetFaceVDofs(f, c_dofs);
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
-      GetCtSubMatrix(el1, c_dofs, Ct_1);
+      GetCtSubMatrix(el1, c_dofs, Ct);
    }
    else
    {
-      GetCtSubMatrix(el2, c_dofs, Ct_2);
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
+      GetCtSubMatrix(el2, c_dofs, Ct);
    }
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 }
@@ -1050,12 +1134,13 @@ void DarcyHybridization::GetEFaceMatrix(
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
    const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
 
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       E.Reset(E_data + E_offsets[f], d_size_1, c_size);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       E.Reset(E_data + E_offsets[f] + d_size_1*c_size, d_size_2, c_size);
    }
@@ -1070,12 +1155,13 @@ void DarcyHybridization::GetGFaceMatrix(
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
    const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
 
-   if (side == 0 || el2 < 0)
+   if (side == 0)
    {
       G.Reset(G_data + G_offsets[f], c_size, d_size_1);
    }
    else
    {
+      MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       G.Reset(G_data + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
    }
@@ -1158,8 +1244,8 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    return *pGrad;
 }
 
-void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
-                                const Vector &x, Vector &y) const
+void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
+                                const Vector &bp, const Vector &x, Vector &y) const
 {
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1183,8 +1269,6 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
    Vector bu_l, bp_l, u_l, p_l, y_l;
    Array<int> u_vdofs, p_dofs;
 
-   const Vector &bu = b.GetBlock(0);
-   const Vector &bp = b.GetBlock(1);
    BlockVector yb;
    if (mode == MultNlMode::Sol)
    {
@@ -1484,6 +1568,114 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
 #endif //!MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
 
+void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
+                                   const Vector &x_t, Vector &y_t) const
+{
+   Vector x;
+   if (!ParallelC())
+   {
+      const Operator *tr_cP = c_fes->GetConformingProlongation();
+      if (!tr_cP)
+      {
+         x.MakeRef(const_cast<Vector&>(x_t), 0, x_t.Size());
+      }
+      else
+      {
+         x.SetSize(c_fes->GetVSize());
+         tr_cP->Mult(x_t, x);
+      }
+   }
+   else
+   {
+      x.SetSize(c_fes->GetVSize());
+      c_fes->GetProlongationMatrix()->Mult(x_t, x);
+   }
+
+   Vector bu;
+   const Operator *cR;
+
+   if (!ParallelU())
+   {
+      if (!(cR = fes->GetConformingRestriction()))
+      {
+         bu.MakeRef(const_cast<Vector&>(b_t.GetBlock(0)), 0, fes->GetVSize());
+      }
+      else
+      {
+         bu.SetSize(fes->GetVSize());
+         cR->MultTranspose(b_t.GetBlock(0), bu);
+      }
+   }
+   else
+   {
+      bu.SetSize(fes->GetVSize());
+      fes->GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
+   }
+
+   const Vector &bp = b_t.GetBlock(1);
+   Vector y;
+   const Operator *tr_cR;
+
+   if (mode == MultNlMode::Sol)
+   {
+      if (!ParallelU() && !cR)
+      {
+         y.MakeRef(y_t, 0, darcy_offsets.Last());
+      }
+      else
+      {
+         y.SetSize(darcy_offsets.Last());
+      }
+   }
+   else
+   {
+      if (!ParallelC() && !(tr_cR = c_fes->GetRestrictionOperator()))
+      {
+         y.MakeRef(y_t, 0, c_fes->GetVSize());
+      }
+      else
+      {
+         y.SetSize(c_fes->GetVSize());
+      }
+   }
+
+   MultNL(mode, bu, bp, x, y);
+
+   if (mode == MultNlMode::Sol)
+   {
+      if (ParallelU() || cR)
+      {
+         BlockVector yb(y, darcy_offsets);
+         BlockVector yb_t(y_t, darcy_toffsets);
+
+         if (!ParallelU())
+         {
+            cR->Mult(yb.GetBlock(0), yb_t.GetBlock(0));
+         }
+         else
+         {
+            fes->GetRestrictionOperator()->Mult(yb.GetBlock(0), yb_t.GetBlock(0));
+         }
+
+         yb_t.GetBlock(1) = yb.GetBlock(1);
+      }
+   }
+   else
+   {
+      if (!ParallelC())
+      {
+         if (tr_cR)
+         {
+            tr_cR->Mult(y, y_t);
+         }
+      }
+      else
+      {
+         c_fes->GetRestrictionOperator()->Mult(y, y_t);
+      }
+   }
+}
+
 void DarcyHybridization::Finalize()
 {
    if (bfin) { return; }
@@ -1525,6 +1717,10 @@ void DarcyHybridization::Finalize()
             }
          }
       }
+
+#ifdef MFEM_USE_MPI
+      pOp.Reset(new ParOperator(*this));
+#endif //MFEM_USE_MPI
    }
 
    bfin = true;
@@ -1535,6 +1731,9 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 {
    if (IsNonlinear())
    {
+      MFEM_ASSERT(!ParallelU() && !ParallelP(),
+                  "In parallel, use ParallelEliminateTDofsInRHS() instead!");
+
       //save the rhs for initial guess in the iterative local solve
       darcy_u = x.GetBlock(0);
       darcy_p = x.GetBlock(1);
@@ -1556,7 +1755,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
       //bu -= A_e u_e
       const int a_size = hat_offsets[el+1] - hat_offsets[el];
-      DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
 
       bu_e.SetSize(a_size);
       Ae.Mult(u_e, bu_e);
@@ -1566,7 +1765,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
       //bp -= B_e u_e
       const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
 
       bp_e.SetSize(d_size);
       Be.Mult(u_e, bp_e);
@@ -1585,6 +1784,109 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       bu(vdof) = xu(vdof);//<--can be arbitrary as it is ignored
    }
 }
+
+#ifdef MFEM_USE_MPI
+void DarcyHybridization::ParallelEliminateTDofsInRHS(
+   const Array<int> &tdofs_flux, const BlockVector &x_t, BlockVector &b_t)
+{
+   if (IsNonlinear())
+   {
+      //save the rhs for initial guess in the iterative local solve
+      darcy_u = x_t.GetBlock(0);
+      darcy_p = x_t.GetBlock(1);
+   }
+
+   Vector xu, bu;
+
+   if (!ParallelU())
+   {
+      const Operator *cP = fes->GetConformingProlongation();
+      if (!cP)
+      {
+         xu.MakeRef(const_cast<Vector&>(x_t.GetBlock(0)), 0, fes->GetVSize());
+      }
+      else
+      {
+         xu.SetSize(cP->Height());
+         cP->Mult(x_t.GetBlock(0), xu);
+      }
+
+      const Operator *cR = fes->GetConformingRestriction();
+      if (!cR)
+      {
+         bu.MakeRef(b_t.GetBlock(0), 0, fes->GetVSize());
+      }
+      else
+      {
+         bu.SetSize(cR->Width());
+         cR->MultTranspose(b_t.GetBlock(0), bu);
+      }
+   }
+   else
+   {
+      xu.SetSize(fes->GetVSize());
+      fes->GetProlongationMatrix()->Mult(x_t.GetBlock(0), xu);
+      bu.SetSize(xu.Size());
+      fes->GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
+   }
+
+   Vector &bp = b_t.GetBlock(1);
+
+   const int NE = fes->GetNE();
+   Vector u_e, bu_e, bp_e;
+   Array<int> u_vdofs, p_dofs, edofs;
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetEDofs(el, edofs);
+      xu.GetSubVector(edofs, u_e);
+      u_e.Neg();
+
+      //bu -= A_e u_e
+      const int a_size = hat_offsets[el+1] - hat_offsets[el];
+      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+
+      bu_e.SetSize(a_size);
+      Ae.Mult(u_e, bu_e);
+
+      fes->GetElementVDofs(el, u_vdofs);
+      bu.AddElementVector(u_vdofs, bu_e);
+
+      //bp -= B_e u_e
+      const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+
+      bp_e.SetSize(d_size);
+      Be.Mult(u_e, bp_e);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_e.Neg();
+      }
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.AddElementVector(p_dofs, bp_e);
+   }
+
+   if (!ParallelU())
+   {
+      const Operator *cP = fes->GetConformingProlongation();
+      if (cP)
+      {
+         cP->MultTranspose(bu, b_t.GetBlock(0));
+      }
+   }
+   else
+   {
+      fes->GetProlongationMatrix()->MultTranspose(bu, b_t.GetBlock(0));
+   }
+
+   for (int tdof : tdofs_flux)
+   {
+      b_t(tdof) = x_t(tdof);//<--can be arbitrary as it is ignored
+   }
+}
+#endif //MFEM_USE_MPI
 
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                                    const Vector &bp_l, const BlockVector &x_l,
@@ -1758,7 +2060,7 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    // Load B
 
-   DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+   const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
    //u = A^-1 bu
    u.SetSize(bu.Size());
@@ -1915,7 +2217,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    }
 
    // Construct Schur complement
-   DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+   const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
    DenseMatrix AiBt(a_dofs_size, d_dofs_size);
 
    AiBt.Transpose(B);
@@ -2032,7 +2334,7 @@ void DarcyHybridization::AssembleHDGGrad(
    if (elmat_H.Height() != 0) { H_f += elmat_H; }
 }
 
-void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
+void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
    if (IsNonlinear())
    {
@@ -2044,16 +2346,61 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
          darcy_offsets[1] = fes->GetVSize();
          darcy_offsets[2] = fes_p->GetVSize();
          darcy_offsets.PartialSum();
-
-         darcy_rhs.Update(darcy_offsets);
       }
-      darcy_rhs = b;
-      if (b_r.Size() != Height())
+      if (!darcy_toffsets.Size())
       {
-         b_r.SetSize(Height());
-         b_r = 0.;
+         darcy_toffsets.SetSize(3);
+         darcy_toffsets[0] = 0;
+         darcy_toffsets[1] = fes->GetTrueVSize();
+         darcy_toffsets[2] = fes_p->GetTrueVSize();
+         darcy_toffsets.PartialSum();
+
+         darcy_rhs.Update(darcy_toffsets);
       }
+      darcy_rhs = b_t;
       return;
+   }
+
+   Vector bu;
+
+   if (!ParallelU())
+   {
+      const Operator *cR = fes->GetConformingRestriction();
+      if (cR)
+      {
+         bu.SetSize(cR->Width());
+         cR->MultTranspose(b_t.GetBlock(0), bu);
+      }
+      else
+      {
+         bu.MakeRef(const_cast<Vector&>(b_t.GetBlock(0)), 0, fes->GetVSize());
+      }
+   }
+   else
+   {
+      const Operator *R = fes->GetRestrictionOperator();
+      bu.SetSize(R->Width());
+      R->MultTranspose(b_t.GetBlock(0), bu);
+   }
+
+   const Vector &bp = b_t.GetBlock(1);
+
+   Vector b_r;
+   const Operator *tr_cP;
+
+   if (!ParallelC() && !(tr_cP = c_fes->GetConformingProlongation()))
+   {
+      if (b_tr.Size() != c_fes->GetVSize())
+      {
+         b_tr.SetSize(c_fes->GetVSize());
+         b_tr = 0.;
+      }
+      b_r.MakeRef(b_tr, 0, b_tr.Size());
+   }
+   else
+   {
+      b_r.SetSize(c_fes->GetVSize());
+      b_r = 0.;
    }
 
    const int NE = fes->GetNE();
@@ -2069,15 +2416,6 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
    Array<int> u_vdofs, p_dofs;
-
-   if (b_r.Size() != H->Height())
-   {
-      b_r.SetSize(H->Height());
-      b_r = 0.;
-   }
-
-   const Vector &bu = b.GetBlock(0);
-   const Vector &bp = b.GetBlock(1);
 
    for (int el = 0; el < NE; el++)
    {
@@ -2148,16 +2486,95 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 #ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Ct->MultTranspose(hat_u, b_r);
 #endif //!MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+
+   if (!ParallelC())
+   {
+      if (tr_cP)
+      {
+         if (b_tr.Size() != tr_cP->Width())
+         {
+            b_tr.SetSize(tr_cP->Width());
+            tr_cP->MultTranspose(b_r, b_tr);
+         }
+         else
+         {
+            tr_cP->AddMultTranspose(b_r, b_tr);
+         }
+      }
+   }
+   else
+   {
+      const Operator *tr_P = c_fes->GetProlongationMatrix();
+
+      if (b_tr.Size() != tr_P->Width())
+      {
+         b_tr.SetSize(tr_P->Width());
+         tr_P->MultTranspose(b_r, b_tr);
+      }
+      else
+      {
+         tr_P->AddMultTranspose(b_r, b_tr);
+      }
+   }
 }
 
-void DarcyHybridization::ComputeSolution(const BlockVector &b,
-                                         const Vector &sol_r, BlockVector &sol) const
+void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
+                                         const Vector &sol_tr, BlockVector &sol_t) const
 {
    if (IsNonlinear())
    {
-      MultNL(MultNlMode::Sol, b, sol_r, sol);
+      ParMultNL(MultNlMode::Sol, b_t, sol_tr, sol_t);
       return;
    }
+
+   Vector sol_r;
+   if (!ParallelC())
+   {
+      const SparseMatrix *tr_cP = c_fes->GetConformingProlongation();
+      if (!tr_cP)
+      {
+         sol_r.SetDataAndSize(sol_tr.GetData(), sol_tr.Size());
+      }
+      else
+      {
+         sol_r.SetSize(c_fes->GetVSize());
+         tr_cP->Mult(sol_tr, sol_r);
+      }
+   }
+   else
+   {
+      sol_r.SetSize(c_fes->GetVSize());
+      c_fes->GetProlongationMatrix()->Mult(sol_tr, sol_r);
+   }
+
+   Vector bu, u;
+
+   if (!ParallelU())
+   {
+      const Operator *cR = fes->GetConformingRestriction();
+      if (!cR)
+      {
+         bu.MakeRef(const_cast<Vector&>(b_t.GetBlock(0)), 0, fes->GetVSize());
+         u.MakeRef(sol_t.GetBlock(0), 0, fes->GetVSize());
+      }
+      else
+      {
+         bu.SetSize(fes->GetVSize());
+         cR->MultTranspose(b_t.GetBlock(0), bu);
+         u.SetSize(bu.Size());
+         cR->MultTranspose(sol_t.GetBlock(0), u);
+      }
+   }
+   else
+   {
+      bu.SetSize(fes->GetVSize());
+      fes->GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
+      u.SetSize(bu.Size());
+      fes->GetRestrictionOperator()->MultTranspose(sol_t.GetBlock(0), u);
+   }
+
+   const Vector &bp = b_t.GetBlock(1);
+   Vector &p = sol_t.GetBlock(1);
 
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -2172,11 +2589,6 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
    Array<int> u_vdofs, p_dofs;
-
-   const Vector &bu = b.GetBlock(0);
-   const Vector &bp = b.GetBlock(1);
-   Vector &u = sol.GetBlock(0);
-   Vector &p = sol.GetBlock(1);
 
 #ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Ct->Mult(sol_r, hat_bu);
@@ -2249,6 +2661,19 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       u.SetSubVector(u_vdofs, u_l);
       p.SetSubVector(p_dofs, p_l);
    }
+
+   if (!ParallelU())
+   {
+      const Operator *cR = fes->GetConformingRestriction();
+      if (cR)
+      {
+         cR->Mult(u, sol_t.GetBlock(0));
+      }
+   }
+   else
+   {
+      fes->GetRestrictionOperator()->Mult(u, sol_t.GetBlock(0));
+   }
 }
 
 void DarcyHybridization::Reset()
@@ -2273,6 +2698,48 @@ void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
    //note that rhs is not used, it is only a dummy
    dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
 }
+
+#ifdef MFEM_USE_MPI
+void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(dh.bfin, "DarcyHybridization must be finalized");
+
+   if (dh.pH.Ptr())
+   {
+      dh.pH->Mult(x, y);
+      return;
+   }
+
+   dh.ParMultNL(MultNlMode::Mult, dh.darcy_rhs, x, y);
+}
+Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
+{
+   MFEM_VERIFY(dh.bfin, "DarcyHybridization must be finalized");
+
+   if (dh.pH.Ptr()) { return *dh.pH.Ptr(); }
+
+   if (!dh.Df_data) { dh.AllocD(); }// D is resetted in ConstructGrad()
+   if (!dh.E_data || !dh.G_data) { dh.AllocEG(); }// E and G are rewritten
+   if (!dh.H_data) { dh.AllocH(); }
+   else if (dh.c_nlfi_p || dh.c_nlfi)
+   {
+      // H is resetted here for additive double side integration
+      memset(dh.H_data, 0, dh.H_offsets.Last() * sizeof(real_t));
+   }
+
+   Vector y;//dummy
+   dh.ParMultNL(MultNlMode::Grad, dh.darcy_rhs, x, y);
+
+   pGrad.Reset(new ParGradient(dh));
+   return *pGrad;
+}
+
+void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
+{
+   //note that rhs is not used, it is only a dummy
+   dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+}
+#endif // MFEM_USE_MPI
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
    const DarcyHybridization &dh_, int el_, const BlockVector &trps_,
@@ -2415,7 +2882,8 @@ void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
    }
    else if (!dh.A_empty)
    {
-      DenseMatrix A(dh.Af_lin_data + dh.Af_offsets[el], a_dofs_size, a_dofs_size);
+      const DenseMatrix A(dh.Af_lin_data + dh.Af_offsets[el], a_dofs_size,
+                          a_dofs_size);
       A.AddMult(u_l, bu);
    }
 }
@@ -2431,7 +2899,8 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
    }
    else if (!dh.D_empty)
    {
-      DenseMatrix D(dh.Df_lin_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
+      const DenseMatrix D(dh.Df_lin_data + dh.Df_offsets[el], d_dofs_size,
+                          d_dofs_size);
       D.AddMult(p_l, bp);
    }
 

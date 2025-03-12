@@ -56,7 +56,21 @@ void ParDarcyForm::Assemble(int skip_zeros)
 
    if (pM_u)
    {
-      if (reduction)
+      if (hybridization)
+      {
+         DenseMatrix elmat;
+
+         // Element-wise integration
+         for (int i = 0; i < fes_u -> GetNE(); i++)
+         {
+            pM_u->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            pM_u->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            hybridization->AssembleFluxMassMatrix(i, elmat);
+         }
+      }
+      else if (reduction)
       {
          DenseMatrix elmat;
 
@@ -65,7 +79,7 @@ void ParDarcyForm::Assemble(int skip_zeros)
          {
             pM_u->ComputeElementMatrix(i, elmat);
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
-            M_u->AssembleElementMatrix(i, elmat, skip_zeros);
+            pM_u->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
             reduction->AssembleFluxMassMatrix(i, elmat);
          }
@@ -82,7 +96,21 @@ void ParDarcyForm::Assemble(int skip_zeros)
 
    if (pB)
    {
-      if (reduction)
+      if (hybridization)
+      {
+         DenseMatrix elmat;
+
+         // Element-wise integration
+         for (int i = 0; i < fes_u -> GetNE(); i++)
+         {
+            pB->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            pB->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            hybridization->AssembleDivMatrix(i, elmat);
+         }
+      }
+      else if (reduction)
       {
          DenseMatrix elmat;
 
@@ -107,7 +135,24 @@ void ParDarcyForm::Assemble(int skip_zeros)
 
    if (pM_p)
    {
-      if (reduction)
+      if (hybridization)
+      {
+         DenseMatrix elmat;
+
+         // Element-wise integration
+         for (int i = 0; i < fes_p -> GetNE(); i++)
+         {
+            pM_p->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            pM_p->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+            hybridization->AssemblePotMassMatrix(i, elmat);
+         }
+
+         AssemblePotHDGFaces(skip_zeros);
+         AssemblePotHDGSharedFaces(skip_zeros);
+      }
+      else if (reduction)
       {
          DenseMatrix elmat;
 
@@ -161,7 +206,11 @@ void ParDarcyForm::Finalize(int skip_zeros)
       }
    }
 
-   if (reduction)
+   if (hybridization)
+   {
+      hybridization->Finalize();
+   }
+   else if (reduction)
    {
       reduction->Finalize();
    }
@@ -189,7 +238,7 @@ void ParDarcyForm::FormLinearSystem(
    // essential BC values from x. Restrict the BC part of x in X, and set the
    // non-BC part to zero. Since there is no good initial guess for the Lagrange
    // multipliers, set X = 0.0 for hybridization.
-   if (reduction)
+   if (reduction || hybridization)
    {
       // Reduction to the single equation system
       BlockVector true_X(toffsets), true_B(toffsets);
@@ -209,7 +258,14 @@ void ParDarcyForm::FormLinearSystem(
       R_u.MultTranspose(true_B.GetBlock(0), b.GetBlock(0));
       R_p.MultTranspose(true_B.GetBlock(1), b.GetBlock(1));
 
-      reduction->ReduceRHS(true_B, B_);
+      if (hybridization)
+      {
+         hybridization->ReduceRHS(true_B, B_);
+      }
+      else if (reduction)
+      {
+         reduction->ReduceRHS(true_B, B_);
+      }
       X_.SetSize(B_.Size());
       X_ = 0.0;
    }
@@ -289,7 +345,19 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
    }
 
-   if (reduction)
+   if (hybridization)
+   {
+      hybridization->Finalize();
+      //if (!Mnl_u && !Mnl_p && !Mnl)
+      {
+         hybridization->GetParallelMatrix(A);
+      }
+      /*else
+      {
+         A.Reset(reduction, false);
+      }*/
+   }
+   else if (reduction)
    {
       reduction->Finalize();
       //if (!Mnl_u && !Mnl_p && !Mnl)
@@ -317,7 +385,7 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
                                       BlockVector &x)
 {
-   if (reduction)
+   if (reduction || hybridization)
    {
       // Primal unknowns recovery
       BlockVector true_X(toffsets), true_B(toffsets);
@@ -332,7 +400,14 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       P_p.MultTranspose(b.GetBlock(1), true_B.GetBlock(1));
       R_p.Mult(x.GetBlock(1), true_X.GetBlock(1));
 
-      reduction->ComputeSolution(true_B, X_, true_X);
+      if (hybridization)
+      {
+         hybridization->ComputeSolution(true_B, X_, true_X);
+      }
+      else if (reduction)
+      {
+         reduction->ComputeSolution(true_B, X_, true_X);
+      }
 
       P_u.Mult(true_X.GetBlock(0), x.GetBlock(0));
       P_p.Mult(true_X.GetBlock(1), x.GetBlock(1));
@@ -368,7 +443,12 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
                                                const BlockVector &x, BlockVector &b)
 {
 #ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
-   if (reduction)
+   if (hybridization)
+   {
+      hybridization->ParallelEliminateTDofsInRHS(tdofs_flux, x, b);
+      return;
+   }
+   else if (reduction)
    {
       reduction->ParallelEliminateTDofsInRHS(tdofs_flux, x, b);
       return;
@@ -433,7 +513,7 @@ void ParDarcyForm::AllocBlockOp()
 {
    bool noblock = false;
 #ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
-   noblock = noblock || reduction;
+   noblock = noblock || reduction || hybridization;
 #endif //MFEM_DARCY_REDUCTION_ELIM_BCS
 
    if (!noblock)
@@ -502,7 +582,6 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
       for (int i = 0; i < nsfaces; i++)
       {
          tr = pmesh->GetSharedFaceTransformations(i);
-         if (tr == NULL) { continue; }
 
          const FiniteElement *fe1 = pfes_p->GetFE(tr->Elem1No);
          const FiniteElement *fe2 = pfes_p->GetFaceNbrFE(tr->Elem2No - NE);
@@ -515,6 +594,27 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
          }
 
          reduction->AssemblePotSharedFaceMatrix(i, elmat);
+      }
+   }
+}
+
+void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
+{
+   ParMesh *pmesh = pfes_p->GetParMesh();
+   DenseMatrix elmat1, elmat2;
+   Array<int> vdofs1, vdofs2;
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   MFEM_ABORT("Not supported");
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   if (hybridization->GetPotConstraintIntegrator())
+   {
+      int nsfaces = pmesh->GetNSharedFaces();
+      for (int i = 0; i < nsfaces; i++)
+      {
+         const int f = pmesh->GetSharedFace(i);
+         hybridization->ComputeAndAssemblePotFaceMatrix(f, elmat1, elmat2, vdofs1,
+                                                        vdofs2, skip_zeros);
       }
    }
 }

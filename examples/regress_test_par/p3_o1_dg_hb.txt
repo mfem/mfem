@@ -1,0 +1,129 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --order 1
+   --discontinuous
+   --centered
+   --problem 3
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1e-07
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 22
+Hybridization init took 0.00603859s.
+***********************************************************
+dim(V) = 1584
+dim(W) = 792
+dim(M) = 854
+dim(V+W+M) = 3230
+***********************************************************
+Assembly took 0.0245109s.
+Preconditioner took 3.9885e-05s.
+
+
+ Num MPI tasks = 2
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 6
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+
+ No. of levels of aggressive coarsening: 1
+
+ Interpolation on agg. levels= multipass interpolation
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = extended+i interpolation
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    1680    21016  0.007     1   14    12.5  -5.420e-02   1.000e+00
+  1     213     2103  0.046     5   17     9.9  -5.280e-02   6.469e-03
+  2      87     1011  0.134     4   21    11.6  -6.129e-02   9.377e-03
+  3      35      441  0.360     4   19    12.6  -7.459e-02   9.432e-03
+  4      12      104  0.722     4   11     8.7  -7.332e-02  -3.051e-03
+  5       3        9  1.000     3    3     3.0  -8.189e-02   0.000e+00
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  1680 x 213     0    4   1.2  -1.708e-01   2.421e+00  -1.708e-01   2.421e+00
+  1   213 x 87      0    4   1.7  -1.112e-02   1.247e+00   0.000e+00   1.247e+00
+  2    87 x 35      0    4   1.4   8.771e-02   1.030e+00   0.000e+00   1.074e+00
+  3    35 x 12      0    4   1.0   7.342e-02   7.871e-01   0.000e+00   1.144e+00
+  4    12 x 3       0    1   0.4   6.595e-02   4.256e-01   0.000e+00   1.000e+00
+
+
+     Complexity:    grid = 1.208333
+                operator = 1.174534
+                memory = 1.288304
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+   Pass :  1   Iteration :   0  ||B r|| = 17.2935
+   Pass :  1   Iteration :   1  ||B r|| = 1.25549
+   Pass :  1   Iteration :   2  ||B r|| = 0.0822749
+   Pass :  1   Iteration :   3  ||B r|| = 0.0112693
+   Pass :  1   Iteration :   4  ||B r|| = 0.000610143
+   Pass :  1   Iteration :   5  ||B r|| = 7.31184e-05
+   Pass :  1   Iteration :   6  ||B r|| = 1.23995e-05
+GMRES+HypreAMG converged in 6 iterations with a residual norm of 1.23995e-05.
+solver took 0.00437795s.
+|| q_h - q_ex || / || q_ex || = 0.351557
+|| t_h - t_ex || / || t_ex || = 0.052059

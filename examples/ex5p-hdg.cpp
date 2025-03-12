@@ -288,14 +288,14 @@ int main(int argc, char *argv[])
    Array<int> ess_flux_tdofs_list;
 
    FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   ParFiniteElementSpace *trace_space = NULL;
 
    chrono.Clear();
    chrono.Start();
 
    if (hybridization)
    {
-      trace_coll = new RT_Trace_FECollection(order, dim, 0);
+      trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    if (hybridization || (reduction && dg))
    {
       // 12. Construct the preconditioner
-      HypreBoomerAMG prec(*pDarcyOp.As<HypreParMatrix>());
+      HypreBoomerAMG prec;
 
       // 13. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
@@ -340,8 +340,8 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
       solver.SetPreconditioner(prec);
+      solver.SetOperator(*pDarcyOp);
       solver.SetPrintLevel(verbose);
 
       solver.Mult(B, X);
