@@ -14,8 +14,6 @@
 
 #ifdef MFEM_USE_GSLIB
 
-#include "../general/forall.hpp"
-
 // Ignore warnings from the gslib header (GCC version)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic push
