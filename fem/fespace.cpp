@@ -3271,8 +3271,11 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
       var_ent_order->Reserve(num_ent);
    }
 
-   const int numGhost = (ent_dim == 1) ? NumGhostEdges() : NumGhostFaces();
-   const int nonGhost = num_ent - numGhost;
+   int nonGhost = num_ent;
+   if (IsVariableOrder())
+   {
+      nonGhost -= (ent_dim == 1) ? NumGhostEdges() : NumGhostFaces();
+   }
 
    // assign DOFs according to order bit masks
    for (int i = 0; i < num_ent; i++)
