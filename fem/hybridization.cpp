@@ -41,7 +41,7 @@ Hybridization::~Hybridization()
 {
    if (!extern_bdr_constr_integs)
    {
-      for (int k=0; k < boundary_constraint_integs.Size(); k++)
+      for (size_t k=0; k < boundary_constraint_integs.size(); k++)
       { delete boundary_constraint_integs[k]; }
    }
 }
@@ -138,7 +138,7 @@ void Hybridization::ConstructC()
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
       }
 
-      if (boundary_constraint_integs.Size())
+      if (!boundary_constraint_integs.empty())
       {
          const FiniteElement *fe1, *fe2;
          const FiniteElement *face_el;
@@ -147,7 +147,7 @@ void Hybridization::ConstructC()
          Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                     mesh->bdr_attributes.Max() : 0);
          bdr_attr_marker = 0;
-         for (int k = 0; k < boundary_constraint_integs.Size(); k++)
+         for (size_t k = 0; k < boundary_constraint_integs.size(); k++)
          {
             if (boundary_constraint_integs_marker[k] == NULL)
             {
@@ -188,7 +188,7 @@ void Hybridization::ConstructC()
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < boundary_constraint_integs.Size(); k++)
+            for (size_t k = 0; k < boundary_constraint_integs.size(); k++)
             {
                if (boundary_constraint_integs_marker[k] &&
                    (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }

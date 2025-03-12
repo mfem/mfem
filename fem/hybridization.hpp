@@ -70,9 +70,9 @@ protected:
    /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
    /// The constraint boundary face integrators
-   Array<BilinearFormIntegrator*> boundary_constraint_integs;
+   std::vector<BilinearFormIntegrator*> boundary_constraint_integs;
    /// Boundary markers for constraint face integrators
-   Array<Array<int>*> boundary_constraint_integs_marker;
+   std::vector<Array<int>*> boundary_constraint_integs_marker;
    /// Indicates if the boundary_constraint_integs integrators are owned externally
    bool extern_bdr_constr_integs{false};
 
@@ -136,15 +136,14 @@ public:
        integrator, i.e. it will delete the integrator when destroyed. */
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
-      boundary_constraint_integs.Append(c_integ);
-      boundary_constraint_integs_marker.Append(
-         NULL); // NULL marker means apply everywhere
+      boundary_constraint_integs.push_back(c_integ);
+      boundary_constraint_integs_marker.push_back(nullptr);
    }
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker)
    {
-      boundary_constraint_integs.Append(c_integ);
-      boundary_constraint_integs_marker.Append(&bdr_marker);
+      boundary_constraint_integs.push_back(c_integ);
+      boundary_constraint_integs_marker.push_back(&bdr_marker);
    }
 
    /// Access all integrators added with AddBdrConstraintIntegrator().
