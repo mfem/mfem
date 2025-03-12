@@ -299,6 +299,23 @@ void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
    if (dim == 3) { V(2) = Z; }
 }
 
+void SpiralTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   real_t x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+
+   real_t theta = 2.0*M_PI*turns*x;
+   real_t r_min = (0.5-0.5*width) + (gap+width)*turns*x;
+   real_t r_xyz = r_min + (width)*y;
+
+   V.SetSize(dim);
+   V(0) = r_xyz*std::cos(theta);
+   V(1) = r_xyz*std::sin(theta);
+   if (dim == 3) { V(2) = z*width + x*height; }
+}
+
 } // namespace common
 
 } // namespace mfem
