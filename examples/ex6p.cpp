@@ -99,8 +99,8 @@ int main(int argc, char *argv[])
                   "Stop after reaching this many degrees of freedom.");
    args.AddOption(&smooth_rt, "-rt", "--smooth-rt", "-h1", "--smooth-h1",
                   "Represent the smooth flux in RT or vector H1 space.");
-   args.AddOption(&usePRefinement, "-pref", "--prefine", "-no-pref",
-                  "--no-prefine", "Alternate between h- and p-refinement.");
+   args.AddOption(&usePRefinement, "-pref", "--p-refine", "-no-pref",
+                  "--no-p-refine", "Alternate between h- and p-refinement.");
    args.AddOption(&rebalance, "-reb", "--rebalance", "-no-reb",
                   "--no-rebalance", "Load balance the nonconforming mesh.");
    args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
