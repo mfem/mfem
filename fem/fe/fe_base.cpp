@@ -973,21 +973,6 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
-void NodalFiniteElement::ReorderNativeToLex(int ncomp, Vector &dofs) const
-{
-   MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
-
-   Vector dofs_lex(ncomp * dof);
-   for (int i = 0; i < dof; i++)
-   {
-      for (int c = 0; c < ncomp; c++)
-      {
-         dofs_lex(c*dof + i) = dofs(c*dof + lex_ordering[i]);
-      }
-   }
-   dofs = dofs_lex;
-}
-
 void NodalFiniteElement::ReorderLexToNative(int ncomp,
                                             Vector &dofs) const
 {
