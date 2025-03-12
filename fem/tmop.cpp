@@ -5362,8 +5362,8 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
    }
 }
 
-void TMOP_Integrator::UpdateAfterMeshPositionChange
-    (const Vector &d, const FiniteElementSpace &d_fes)
+void TMOP_Integrator::
+UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
@@ -5537,8 +5537,8 @@ real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
    return min_detT;
 }
 
-real_t TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
-                                                     const FiniteElementSpace &fes)
+real_t TMOP_Integrator::
+ComputeUntanglerMaxMuBarrier(const Vector &x, const FiniteElementSpace &fes)
 {
    real_t max_muT = -std::numeric_limits<real_t>::infinity();
    const int NE = fes.GetMesh()->GetNE();
@@ -5599,8 +5599,8 @@ real_t TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
    return max_muT;
 }
 
-void TMOP_Integrator::ComputeUntangleMetricQuantiles
-    (const Vector &d, const FiniteElementSpace &fes)
+void TMOP_Integrator::
+ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
@@ -5629,9 +5629,8 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
-                       MPI_MIN,
-                       pfes->GetComm());
+         MPI_Allreduce(&min_detT, &min_detT_all, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
       }
 #endif
       if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
@@ -5642,8 +5641,8 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    pfes->GetComm());
+      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, pfes->GetComm());
    }
 #endif
    wcuo->SetMaxMuT(max_muT_all);
