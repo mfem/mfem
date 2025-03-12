@@ -1592,7 +1592,7 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
                                                    const int cb_type,
                                                    const int ob_type)
    : VectorFiniteElement(3, Geometry::PYRAMID, p * (3 * p * p + 5), p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL, FunctionSpace::Uk),
      dof2tk(dof), doftrans(p)
 {
    zmax = 0.0;

@@ -4818,7 +4818,7 @@ void Nedelec1WdgFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec1PyrFiniteElement::Nedelec1PyrFiniteElement()
-   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL, FunctionSpace::Uk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -5124,7 +5124,7 @@ void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
-   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_CURL)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_CURL, FunctionSpace::Uk)
 {
    const real_t *eop = poly1d.OpenPoints(2 - 1);
    const real_t  fop = 1. / 3.;
@@ -6488,7 +6488,8 @@ void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
 }
 
 RT0PyrFiniteElement::RT0PyrFiniteElement(bool rt0tets)
-   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV), rt0(rt0tets)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV, FunctionSpace::Uk),
+     rt0(rt0tets)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
