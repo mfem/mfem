@@ -256,6 +256,17 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    // Note - initial mesh. TODO delete this?
    PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
+   // Initial node positions.
+   // PA.X0 is also updated in TMOP_Integrator::SetInitialMeshPos.
+   if (x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *n0_R = x_0->FESpace()->GetElementRestriction(ord);
+      PA.X0.UseDevice(true);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      n0_R->Mult(*x_0, PA.X0);
+   }
+
    // Energy vector, scalar Q-vector
    PA.E.UseDevice(true);
    PA.E.SetSize(ne*nq, Device::GetDeviceMemoryType());

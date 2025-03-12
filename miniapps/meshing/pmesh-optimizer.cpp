@@ -168,9 +168,9 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
-   int mesh_node_ordering = 0;
-   int barrier_type       = 0;
-   int worst_case_type    = 0;
+   int mesh_node_order   = 0;
+   int barrier_type      = 0;
+   int worst_case_type   = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -318,7 +318,7 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
-   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+   args.AddOption(&mesh_node_order, "-mno", "--mesh_node_ordering",
                   "Ordering of mesh nodes."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
@@ -371,8 +371,7 @@ int main (int argc, char *argv[])
       fec = new L2_FECollection(mesh_poly_deg, dim, BasisType::GaussLobatto);
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
-                                             mesh_node_ordering);
+   auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim, mesh_node_order);
 
    // Make the starting mesh curved. This means we define the mesh elements
    // through a FE-based transformation of the reference element.
@@ -384,11 +383,11 @@ int main (int argc, char *argv[])
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   // We create an H1 space for the mesh displacements, which are always
-   // in a continuous space, even if the mesh is periodic.
-   // The nonlinear problem will be solved for the continuous displacements.
+   // We create an H1 space for the mesh displacement. The displacement is
+   // always in a continuous space, even if the mesh is periodic.
+   // The nonlinear problem will be solved for the continuous displacement.
    H1_FECollection fec_h1(mesh_poly_deg, dim);
-   ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim, mesh_node_ordering);
+   ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim,  mesh_node_order);
    ParGridFunction d(&pfes_h1); d = 0.0;
 
    // Define a vector representing the minimal local mesh size in the mesh
@@ -1238,7 +1237,7 @@ int main (int argc, char *argv[])
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
+      fin_metric_energy  = a.GetParGridFunctionEnergy(periodic ? d : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;

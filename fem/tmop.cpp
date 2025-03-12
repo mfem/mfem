@@ -3500,13 +3500,12 @@ void TMOP_Integrator::SetInitialMeshPos(const GridFunction *x0)
    periodic = (x_0 && x_0->FESpace()->IsDGSpace()) ? true : false;
 
    // Compute PA.X0 when we're setting x_0 to something.
-   // TODO move(or copy?) this in AssemblePA.
    if (PA.enabled && x_0 != nullptr)
    {
       const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
       const Operator *n0_R = x0->FESpace()->GetElementRestriction(ord);
-      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
       PA.X0.UseDevice(true);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
       n0_R->Mult(*x_0, PA.X0);
    }
 }
