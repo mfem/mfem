@@ -5071,6 +5071,7 @@ void TMOP_Integrator::SetInitialMeshPos(const GridFunction *x0)
    x_0 = x0;
 
    // Compute PA.X0 when we're setting x_0 to something.
+   // TODO move(or copy?) this in AssemblePA.
    if (PA.enabled && x_0 != nullptr)
    {
       const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;

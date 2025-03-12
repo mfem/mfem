@@ -529,7 +529,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       //
       // Update the mesh and get the L-vector in x_out_loc.
       //
-      // Form x_out = x_0 + (d_in - scale * c).
+      // Form limited (line-search) displacement d_out = d_in - scale * c,
+      // and the corresponding mesh positions x_out = x_0 + d_out.
       add(d_in, -scale, c, d_out);
       add(x_0, d_out, x_out);
       if (serial)
