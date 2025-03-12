@@ -132,6 +132,14 @@ Miscellaneous
   assembly routines (although the latter is still possible, by leaving the new
   virtual method as its default base implementation of returning `NULL`).
 
+- Updated the benchmarks (in tests/benchmarks) to work with the latest Google
+  Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
+  CMake option to just MFEM_ENABLE_BENCHMARKS.
+
+- Changed the name of `IterativeSolverMonitor` to `IterativeSolverController`
+  which now allows for declaring convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
+
 API changes
 -----------
 - API change: 'TMOP_Metric_skew2D' has been marked as deprecated.
