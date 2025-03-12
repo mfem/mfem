@@ -512,6 +512,109 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
 
 }
 
+void AddMultPatchPA3D_SOL(const Vector &pa_data,
+                          const PatchBasisInfo &pb,
+                          const Vector &x,
+                          Vector &y)
+{
+   constexpr int vdim = 3;
+   // Unpack patch basis info
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+
+   mfem::out << "d1d = " << std::endl;
+   D1D.Print();
+   const int NQ = pb.NQ;
+   const std::vector<std::vector<int>> minD = pb.minD;
+   const std::vector<std::vector<int>> maxD = pb.maxD;
+   const std::vector<std::vector<int>> minQ = pb.minQ;
+   const std::vector<std::vector<int>> maxQ = pb.maxQ;
+
+   // Accumulators; these are shared between grad_u interpolation and grad_v_T
+   // application, so their size is the max of qpts/dofs
+   // Vector sumXYv(vdim*vdim*pb.accsize[0]*pb.accsize[1]);
+   // Vector sumXv(vdim*vdim*pb.accsize[0]);
+
+   // 1) Read dofs
+   const auto U = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
+   real_t sum = 0;
+   // mfem::out << "Q1D[2] = " << Q1D[2] << std::endl;
+   // mfem::out << "Q1D[2] = " << Q1D[2] << std::endl;
+
+// #pragma omp parallel for
+   for (int dz = 0; dz < D1D[2]; ++dz)
+   {
+      for (int dy = 0; dy < D1D[1]; ++dy)
+      {
+         for (int dx = 0; dx < D1D[0]; ++dx)
+         {
+            for (int c = 0; c < vdim; ++c)
+            {
+               const real_t u = U(dx,dy,dz,c);
+               sum += u;
+               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               {
+                  sum += B[0](qx,dx);
+                  sum += G[0](qx,dx);
+               }
+            }
+         } // dx
+         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         {
+            sum += B[1](qy,dy);
+            sum += G[1](qy,dy);
+         } // qy
+      } // dy
+      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      {
+         sum += B[2](qz,dz);
+         sum += G[2](qz,dz);
+      }
+   }
+
+   // 2) Read quadrature data
+   const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
+   Vector Sv(vdim*vdim*NQ);
+   Sv = 0.0;
+   auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+// #pragma omp parallel for
+   for (int qz = 0; qz < Q1D[2]; ++qz)
+   {
+      for (int qy = 0; qy < Q1D[1]; ++qy)
+      {
+         for (int qx = 0; qx < Q1D[0]; ++qx)
+         {
+            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+            for (int i = 0; i < 11; ++i)
+            {
+               sum += qd(q,i);
+            }
+
+         }
+      }
+   }
+
+   // 3) Write dofs
+   auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
+// #pragma omp parallel for
+   for (int dz = 0; dz < D1D[2]; ++dz)
+   {
+      for (int dy = 0; dy < D1D[1]; ++dy)
+      {
+         for (int dx = 0; dx < D1D[0]; ++dx)
+         {
+            for (int c = 0; c < vdim; ++c)
+            {
+               Y(dx,dy,dz,c) = sum;
+            }
+         }
+      }
+   }
+
+}
+
 
 void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
                                           Vector &y) const
@@ -519,6 +622,7 @@ void ElasticityIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    if (vdim == 3)
    {
       AddMultPatchPA3D(pa_data[patch], pbinfo[patch], x, y);
+      // AddMultPatchPA3D_SOL(pa_data[patch], pbinfo[patch], x, y);
    }
    else
    {
@@ -531,6 +635,7 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 {
    Vector xp, yp;
 
+// #pragma omp parallel for
    for (int p=0; p<numPatches; ++p)
    {
       Array<int> vdofs;

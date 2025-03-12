@@ -231,20 +231,8 @@ int main(int argc, char *argv[])
 
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
-   // GSSmoother M(A);
-   // GSSmoother M((SparseMatrix&)(*A));
-   // PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
-
-   // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-   // CG(*A, B, X, 1, 10, 1e-8, 1e-10);
-
-   // GSSmoother M(A);
-   // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
-   // GMRESSolver solver;
-   // solver.SetMaxIter(1000);
    CGSolver solver;
    solver.SetMaxIter(1e5);
-
    solver.SetPrintLevel(1);
    solver.SetRelTol(sqrt(1e-8));
    solver.SetAbsTol(sqrt(1e-14));
@@ -252,6 +240,9 @@ int main(int argc, char *argv[])
    solver.SetPreconditioner(M);
 
    solver.Mult(B, X);
+
+   // Apply operator once
+   // A->AddMult(X, X);
 
    cout << "Done solving system." << endl;
 
@@ -264,6 +255,7 @@ int main(int argc, char *argv[])
 
    // Collect results and write to file
    const int Niter = solver.GetNumIterations();
+   // const int Niter = 1;
    const int dof_per_sec_solve = Ndof * Niter / timeSolve;
    const int dof_per_sec_total = Ndof * Niter / timeTotal;
    cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
@@ -279,7 +271,7 @@ int main(int argc, char *argv[])
    {
       results_ofs << "int.patch, int.pa, "
                   << "problem.mesh, problem.refs, problem.degree_inc, problem.ndof, "
-                  << "solver.iter, solver.absnorm, solver.relnorm, solver.converged, "
+                  << "solver.iter, solver.absnorm, solver.relnorm, "
                   << "solution.linf, solution.l2, "
                   << "time.assemble, time.solve, time.total, "
                   << "dof_per_sec_solve, "
