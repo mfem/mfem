@@ -1939,13 +1939,13 @@ struct InvTNewtonEdgeScanner
       int res = InverseElementTransformation::Outside;
       for (int i = 0; i < nq1d; ++i)
       {
-         for (int d = 0; d < ::mfem::eltrans::GeometryUtils<Geom>::Dimension();
+         for (int d = 0; d < eltrans::GeometryUtils<Geom>::Dimension();
               ++d)
          {
             if (MFEM_THREAD_ID(x) == 0)
             {
                for (int d2 = 0;
-                    d2 < ::mfem::eltrans::GeometryUtils<Geom>::Dimension();
+                    d2 < eltrans::GeometryUtils<Geom>::Dimension();
                     ++d2)
                {
                   solver.xptr[idx + d2 * solver.npts] = 0;
