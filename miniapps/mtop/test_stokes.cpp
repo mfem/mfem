@@ -11,8 +11,40 @@ using namespace mfem;
 class GyroCoeff:public Coefficient
 {
 public:
+    GyroCoeff():l(0.0),scale(1.0){}
 
+    GyroCoeff(real_t l_,real_t s=1.0, real_t h=0.0)
+    {
+        l=l_;
+        scale=s;
+        shift=h;
+    }
+
+    virtual real_t Eval(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+    {
+        real_t x[3];
+        Vector transip(x, 3);
+        T.Transform(ip, transip);
+
+        //real_t r=sin(l*x[0])*cos(l*x[1])+sin(l*x[1])*cos(l*x[2])+sin(l*x[2])*cos(l*x[0])-shift;
+        real_t r=cos(l*x[0])*cos(l*x[1])*cos(l*x[2])-shift;
+
+        if(r>=real_t(0.0))
+        {
+            if(x[0]<0.05){return 0.0;}
+            if(x[0]>1.45){return 0.0;}
+            if(x[1]<0.05){return 0.0;}
+            if(x[1]>0.95){return 0.0;}
+            return r*scale;
+        }else{
+            return 0.0;
+        }
+    }
 private:
+    real_t l;
+    real_t scale;
+    real_t shift;
 };
 
 int main(int argc, char *argv[])
@@ -109,6 +141,7 @@ int main(int argc, char *argv[])
        std::cout<<pmesh.GetNE()<<std::endl;
    }
 
+   GyroCoeff gc(6.0*M_PI,1000.0,0.3);
 
    StokesOperator* sp=new StokesOperator(&pmesh,2);
    sp->AddVelocityBC(1,4,0.0);
@@ -116,11 +149,13 @@ int main(int argc, char *argv[])
 
    mfem::ConstantCoefficient mu(0.01);
    sp->SetViscosoty(mu);
+   sp->SetBrinkman(gc);
    sp->Assemble();
 
    sp->FSolve();
 
    {
+       ParGridFunction brink(sp->GetPressure()); brink.ProjectCoefficient(gc);
        ParaViewDataCollection paraview_dc("stokes", &pmesh);
        paraview_dc.SetPrefixPath("ParaView");
        paraview_dc.SetLevelsOfDetail(order);
@@ -130,6 +165,7 @@ int main(int argc, char *argv[])
        paraview_dc.SetTime(0.0);
        paraview_dc.RegisterField("velo",&(sp->GetVelocity()));
        paraview_dc.RegisterField("pres",&(sp->GetPressure()));
+       paraview_dc.RegisterField("brink",&(brink));
        paraview_dc.Save();
    }
 

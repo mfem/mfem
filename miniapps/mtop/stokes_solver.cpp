@@ -408,6 +408,36 @@ void StokesOperator::AssemblePrec6()
     pop=dpop;
 }
 
+void StokesOperator::AssemblePrec7()
+{
+    delete pop;
+    mfem::BlockLowerTriangularPreconditioner* dpop=new mfem::BlockLowerTriangularPreconditioner(block_true_offsets);
+    dpop->owns_blocks=false;
+
+    prec1=std::unique_ptr<mfem::HypreBoomerAMG>(new mfem::HypreBoomerAMG());
+    prec1->SetElasticityOptions(vfes);
+    prec1->SetPrintLevel(1);
+    prec1->SetOperator(*A);
+
+    ivisc=std::unique_ptr<InverseCoeff>(new InverseCoeff(mu));
+
+    mf=std::unique_ptr<mfem::ParBilinearForm>(new mfem::ParBilinearForm(pfes));
+    mf->AddDomainIntegrator(new mfem::MassIntegrator(*ivisc));
+    mf->Assemble(0);
+    mf->Finalize();
+
+    M=std::unique_ptr<mfem::HypreParMatrix>(mf->ParallelAssemble());
+    prec2=std::unique_ptr<mfem::HypreBoomerAMG>(new mfem::HypreBoomerAMG());
+    prec2->SetPrintLevel(1);
+    prec2->SetOperator(*M);
+
+    dpop->SetBlock(1,0,B.get());
+    dpop->SetDiagonalBlock(0,prec1.get());
+    dpop->SetDiagonalBlock(1,prec2.get());
+
+    pop=dpop;
+}
+
 
 void StokesOperator::Assemble()
 {
