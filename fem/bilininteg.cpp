@@ -438,7 +438,7 @@ void SumIntegrator::AddMultMF(const Vector& x, Vector& y) const
 {
    for (int i = 0; i < integrators.Size(); i++)
    {
-      integrators[i]->AddMultTransposeMF(x, y);
+      integrators[i]->AddMultMF(x, y);
    }
 }
 
@@ -446,7 +446,7 @@ void SumIntegrator::AddMultTransposeMF(const Vector &x, Vector &y) const
 {
    for (int i = 0; i < integrators.Size(); i++)
    {
-      integrators[i]->AddMultMF(x, y);
+      integrators[i]->AddMultTransposeMF(x, y);
    }
 }
 
