@@ -28,14 +28,16 @@
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
-#define MFEM_GPU_CHECK(x)                                                      \
-  do {                                                                         \
-    cudaError_t mfem_err_internal_var_name = (x);                              \
-    if (mfem_err_internal_var_name != cudaSuccess) {                           \
-      ::mfem::mfem_cuda_error(mfem_err_internal_var_name, #x, _MFEM_FUNC_NAME, \
-                              __FILE__, __LINE__);                             \
-    }                                                                          \
-  } while (0)
+#define MFEM_GPU_CHECK(x) \
+   do \
+   { \
+      cudaError_t err = (x); \
+      if (err != cudaSuccess) \
+      { \
+         mfem_cuda_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
+      } \
+   } \
+   while (0)
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
