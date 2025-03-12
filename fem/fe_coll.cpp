@@ -1884,7 +1884,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
          else
          {
             H1_dof[Geometry::PYRAMID] = (p-1)*(p-2)/2;
-            // H1_dof[Geometry::PYRAMID] = 0;
          }
          if (b_type == BasisType::Positive)
          {
@@ -1908,7 +1907,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
                H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
             }
          }
-         // H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
          const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
          TetDofOrd[0] = (TetDof > 0) ? new int[24*TetDof] : nullptr;
@@ -2257,7 +2255,6 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
          }
       }
-      // L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
 
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
@@ -2490,7 +2487,6 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
       RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
 
-      // RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
       RT_Elements[Geometry::PYRAMID] = new RT_FuentesPyramidElement(p);
       RT_dof[Geometry::PYRAMID] = 3*p*pp1*pp1;
    }
@@ -2907,8 +2903,6 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p);
       ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
 
-      // ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
-      // ND_dof[Geometry::PYRAMID] = 0;
       ND_Elements[Geometry::PYRAMID] = new ND_FuentesPyramidElement(p);
       ND_dof[Geometry::PYRAMID] = 3*p*pm1*pm1;
    }

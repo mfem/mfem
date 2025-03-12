@@ -1643,7 +1643,6 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       E_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
           mu01(z, xy, 1), grad_mu01(z, xy, 1), E_ijk, dE_ijk);
       // Re-using phi_E from Family I
-      // phi_E(p, mu01(z), grad_mu01(z), phi_k, dphi_k);
       const real_t muz = mu0(z);
       const Vector dmuz(grad_mu0(z));
 

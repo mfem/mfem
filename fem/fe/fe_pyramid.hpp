@@ -28,6 +28,12 @@ namespace mfem
   shape functions for the exact sequence elements of all shapes" by
   Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
   Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+
+  @note Many of the functions below, e.g. lam1, lam2, etc. and related
+        functions, are singular or multi-valued at the apex of the pyramid. The
+   values returned near the apex are computed in the limit z->1 using
+   (x, y, z) = ((1-z)/2, (1-z)/2, z) i.e. along the line from the center
+   of the base to the apex.
 */
 class FuentesPyramid
 {
@@ -115,6 +121,7 @@ public:
    static DenseMatrix grad_lam35(real_t x, real_t y, real_t z);
    static DenseMatrix grad_lam45(real_t x, real_t y, real_t z);
 
+   /// Computes $\lambda_i \nabla \lambda_5 -  \lambda_5 \nabla \lambda_i$
    static Vector lam15_grad_lam15(real_t x, real_t y, real_t z);
    static Vector lam25_grad_lam25(real_t x, real_t y, real_t z);
    static Vector lam35_grad_lam35(real_t x, real_t y, real_t z);
@@ -135,6 +142,13 @@ public:
    { return Vector({lam1(x, y, z), lam4(x, y, z), lam5(x, y, z)}); }
 
    /// Vector functions related to the normals to the triangular faces
+   ///
+   /// Computes
+   /// $
+   ///    \lambda_i \nabla\lambda_j \times \nabla \lambda_5
+   ///    + \lambda_j \nabla\lambda_5 \times \nabla \lambda_i
+   ///    + \lambda_5 \nabla\lambda_i \times \nabla \lambda_j
+   /// $
    static Vector lam125_grad_lam125(real_t x, real_t y, real_t z);
    static Vector lam235_grad_lam235(real_t x, real_t y, real_t z);
    static Vector lam345_grad_lam345(real_t x, real_t y, real_t z);
@@ -408,11 +422,6 @@ public:
    void phi_T(int p, Vector nu, DenseMatrix &u) const;
    void phi_T(int p, Vector nu, const DenseMatrix &grad_nu,
               DenseMatrix &u, DenseTensor &grad_u) const;
-   /*
-   static void E_E(int p, real_t s0, real_t s1, real_t *u,
-                   real_t *duds0, real_t *duds1);
-   */
-   // static void E_E(int p, real_t s0, real_t s1, real_t *u);
 
    /** This is a vector-valued function associated with an edge of a pyramid
 

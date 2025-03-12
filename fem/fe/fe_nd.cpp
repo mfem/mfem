@@ -2130,7 +2130,7 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
                }
 
       // Family IV
-      // Re-using mu from Family I
+      // Re-using mu from Family II
       dmu = grad_mu0(z);
       phi_Q(p, mu01(z, xy, 2), mu01(z, xy, 1), phi_Q2_ij);
       for (int j=2; j<=p; j++)
