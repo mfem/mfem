@@ -123,6 +123,10 @@ Miscellaneous
 - Added support for SUNDIALS v7. See the section "API changes" for some small
   changes related to this new version.
 
+- Changed the name of class IterativeSolverMonitor to IterativeSolverController,
+  which now allows for specifying convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
+
 - Refactored the ARKStepSolver class (ARKODE interface) to use the Mult() method
   of TimeDependentOperator only when the associated ODE operator is expressed in
   explicit form (i.e., TimeDependentOperator::isExplicit()), otherwise the
@@ -135,10 +139,6 @@ Miscellaneous
 - Updated the benchmarks (in tests/benchmarks) to work with the latest Google
   Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
   CMake option to just MFEM_ENABLE_BENCHMARKS.
-
-- Changed the name of `IterativeSolverMonitor` to `IterativeSolverController`
-  which now allows for declaring convergence by a user defined criterion. For
-  backward compatibility, the old name is still available.
 
 API changes
 -----------
