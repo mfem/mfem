@@ -3292,7 +3292,7 @@ using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 /** Integrator that represents the face terms used for the non-conservative
     DG discretization of the convection equation:
     $$
-      -\alpha \langle \rho_u (u \cdot n) \{v\},[w] \rangle + \beta \langle \rho_u |u \cdot n| [v],[w] \rangle.
+      -\alpha \langle \rho_u [v], (u \cdot n) \{w\} \rangle + \beta \langle \rho_u [v], |u \cdot n| [w] \rangle.
     $$
     This integrator can be used with together with ConvectionIntegrator to
     implement an upwind DG discretization in non-conservative form, see ex9 and
