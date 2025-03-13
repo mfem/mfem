@@ -392,7 +392,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
 #endif
 
 // Compute x = x_0 + d, where x and x_0 are L2, d is H1p.
-void GetPeriodicPositions(const Vector &x_0, const Vector &d,
+void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
                           const FiniteElementSpace &fesL2,
                           const FiniteElementSpace &fesH1, Vector &x);
 }

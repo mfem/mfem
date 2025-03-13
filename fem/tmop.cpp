@@ -4877,10 +4877,10 @@ real_t TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
 {
    int dof = el.GetDof();
    int idx = dir*dof+dofidx;
-   d_el[idx]     += dx;
+   d_el[idx]     += fd_h;
    real_t e_fxph = GetElementEnergy(el, T, d_el);
-   d_el[idx]     -= dx;
-   real_t dfdx   = (e_fxph - e_fx) / dx;
+   d_el[idx]     -= fd_h;
+   real_t dfdx   = (e_fxph - e_fx) / fd_h;
 
    if (update_stored)
    {
@@ -5002,7 +5002,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          {
             for (int k2 = 0; k2 < dim; k2++)
             {
-               d_el_mod(k2 * dof + j) += dx;
+               d_el_mod(k2 * dof + j) += fd_h;
 
                if (discr_tc)
                {
@@ -5032,11 +5032,11 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                real_t e_fx    = ElemPertLoc(k2 * dof + j);
                real_t e_fpxph = GetFDDerivative(el, T, d_el_mod, i, k1, e_fx,
                                                 false);
-               d_el_mod(k2 * dof + j) -= dx;
+               d_el_mod(k2 * dof + j) -= fd_h;
                real_t e_fpx = ElemDerLoc(k1*dof+i);
 
-               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / dx;
-               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / dx;
+               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / fd_h;
+               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / fd_h;
 
                if (discr_tc)
                {
@@ -5211,7 +5211,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    Vector posV(pos.Data(), dof * dim);
    Jpr.SetSize(dim);
 
-   dx = std::numeric_limits<float>::max();
+   fd_h = std::numeric_limits<float>::max();
 
    real_t detv_sum;
    real_t detv_avg_min = std::numeric_limits<float>::max();
@@ -5229,7 +5229,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       real_t detv_avg = pow(detv_sum/nsp, 1./dim);
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
-   dx = detv_avg_min / dxscale;
+   fd_h = detv_avg_min / fd_h_scale;
 }
 
 void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
@@ -5386,8 +5386,8 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       if (fdflag)
       {
          if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
-         discr_tc->UpdateGradientTargetSpecification(x_loc, dx, true, ordering);
-         discr_tc->UpdateHessianTargetSpecification(x_loc, dx, true, ordering);
+         discr_tc->UpdateGradientTargetSpecification(x_loc, fd_h, true, ordering);
+         discr_tc->UpdateHessianTargetSpecification(x_loc, fd_h, true, ordering);
       }
    }
 
@@ -5434,9 +5434,9 @@ void TMOP_Integrator::ComputeFDh(const Vector &d, const FiniteElementSpace &fes)
    if (pfes)
    {
       real_t min_jac_all;
-      MPI_Allreduce(&dx, &min_jac_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+      MPI_Allreduce(&fd_h, &min_jac_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
                     pfes->GetComm());
-      dx = min_jac_all;
+      fd_h = min_jac_all;
    }
 #endif
 }
@@ -5460,8 +5460,8 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
       }
 #endif
       discr_tc->UpdateTargetSpecification(x, false, fes->GetOrdering());
-      discr_tc->UpdateGradientTargetSpecification(x, dx, false, fes->GetOrdering());
-      discr_tc->UpdateHessianTargetSpecification(x, dx, false, fes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false, fes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false, fes->GetOrdering());
    }
 }
 
@@ -5485,8 +5485,8 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
       }
 #endif
       discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
-      discr_tc->UpdateGradientTargetSpecification(x, dx, false, pfes->GetOrdering());
-      discr_tc->UpdateHessianTargetSpecification(x, dx, false, pfes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false, pfes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false, pfes->GetOrdering());
    }
 }
 #endif
