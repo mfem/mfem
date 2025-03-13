@@ -36,11 +36,11 @@ dim(V) = 1800
 dim(W) = 900
 dim(V+W) = 2700
 ***********************************************************
-Assembly took 0.0686669s.
-Preconditioner took 2.0952e-05s.
+Assembly took 0.0621302s.
+Preconditioner took 3.0662e-05s.
 Newton iteration  0 : ||r|| = 0.0568908
-Newton iteration  1 : ||r|| = 6.39153e-09, ||r||/||r_0|| = 1.12347e-07
-Newton+GMRES+UMFPack converged in 1 iterations with a residual norm of 6.39153e-09.
-solver took 0.204547s.
-|| q_h - q_ex || / || q_ex || = 8.81777e-05
-|| t_h - t_ex || / || t_ex || = 8.83948e-05
+Newton iteration  1 : ||r|| = 4.38138e-09, ||r||/||r_0|| = 7.70138e-08
+Newton+GMRES+UMFPack converged in 1 iterations with a residual norm of 4.38138e-09.
+solver took 0.162773s.
+|| q_h - q_ex || / || q_ex || = 7.91878e-05
+|| t_h - t_ex || / || t_ex || = 8.27714e-05

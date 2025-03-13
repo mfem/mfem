@@ -368,7 +368,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient ikcoeff(1./k);
 
    auto cFun = GetCFun(problem, c);
-   VectorFunctionCoefficient ccoeff(dim, cFun);
+   VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
+   NormalizedVectorCoefficient nccoeff(ccoeff);
 
    auto tFun = GetTFun(problem, t_0, k, c);
    FunctionCoefficient tcoeff(tFun);
@@ -510,9 +511,9 @@ int main(int argc, char *argv[])
       if (upwinded)
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
+                                         new DGNormalTraceIntegrator(ccoeff, -1., +0.5)));
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            ccoeff, -1.)), bdr_is_neumann);
+                                                            ccoeff, -1., +0.5)), bdr_is_neumann);
       }
       else
       {
@@ -712,6 +713,15 @@ int main(int argc, char *argv[])
    {
       gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
                                   bdr_is_dirichlet);
+      if (!hybridization)
+      {
+         if (bconv && upwinded)
+            gform->AddBdrFaceIntegrator(new BoundaryNormalFlowIntegrator(
+                                           gcoeff, nccoeff, +1., -0.5), bdr_is_neumann);
+         else
+            gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
+                                           gcoeff, 0.5), bdr_is_neumann);
+      }
    }
    else
    {

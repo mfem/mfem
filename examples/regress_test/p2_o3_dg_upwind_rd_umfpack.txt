@@ -1,10 +1,10 @@
 Options used:
    --mesh 
    --ncells-x 10
-   --ncells-y 0
+   --ncells-y 10
    --size-x 1
    --size-y 1
-   --order 2
+   --order 3
    --discontinuous
    --upwinded
    --problem 2
@@ -15,13 +15,13 @@ Options used:
    --velocity 1
    --stab_diff 0.5
    --no-bc-neumann
-   --no-reduction
+   --reduction
    --no-hybridization
-   --nonlinear
+   --no-nonlinear
    --no-nonlinear-convection
-   --nonlinear-diffusion
+   --no-nonlinear-diffusion
    --hdg_scheme 1
-   --nonlinear-solver 3
+   --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
    --no-mfem
@@ -31,16 +31,15 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
+Reduction init took 0.000243736s.
 ***********************************************************
-dim(V) = 1800
-dim(W) = 900
-dim(V+W) = 2700
+dim(W) = 1600
 ***********************************************************
-Assembly took 0.0412338s.
-Preconditioner took 2.9921e-05s.
-Newton iteration  0 : ||r|| = 0.0568908
-Newton iteration  1 : ||r|| = 4.38138e-09, ||r||/||r_0|| = 7.70138e-08
-Newton+GMRES+UMFPack converged in 1 iterations with a residual norm of 4.38138e-09.
-solver took 0.204618s.
-|| q_h - q_ex || / || q_ex || = 7.91878e-05
-|| t_h - t_ex || / || t_ex || = 8.27714e-05
+Assembly took 0.18648s.
+Preconditioner took 0.00787725s.
+   Pass :  1   Iteration :   0  ||B r|| = 2.10384
+   Pass :  1   Iteration :   1  ||B r|| = 1.07425e-14
+GMRES+UMFPack converged in 1 iterations with a residual norm of 1.07425e-14.
+solver took 0.00419245s.
+|| q_h - q_ex || / || q_ex || = 4.87198e-07
+|| t_h - t_ex || / || t_ex || = 6.65782e-07

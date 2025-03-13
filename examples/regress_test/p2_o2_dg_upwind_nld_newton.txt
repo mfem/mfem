@@ -27,7 +27,7 @@ Options used:
    --no-mfem
    --no-visit
    --no-paraview
-   --visualization
+   --no-visualization
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
@@ -36,11 +36,11 @@ dim(V) = 1800
 dim(W) = 900
 dim(V+W) = 2700
 ***********************************************************
-Assembly took 0.0804597s.
-Preconditioner took 3.0813e-05s.
+Assembly took 0.0594011s.
+Preconditioner took 3.0745e-05s.
 Newton iteration  0 : ||r|| = 0.0568908
-Newton iteration  1 : ||r|| = 1.54681e-10, ||r||/||r_0|| = 2.71891e-09
-Newton+GMRES+GS converged in 1 iterations with a residual norm of 1.54681e-10.
-solver took 1.08498s.
-|| q_h - q_ex || / || q_ex || = 8.81778e-05
-|| t_h - t_ex || / || t_ex || = 8.83946e-05
+Newton iteration  1 : ||r|| = 7.72352e-11, ||r||/||r_0|| = 1.3576e-09
+Newton+GMRES+GS converged in 1 iterations with a residual norm of 7.72352e-11.
+solver took 0.737046s.
+|| q_h - q_ex || / || q_ex || = 7.91877e-05
+|| t_h - t_ex || / || t_ex || = 8.27713e-05
