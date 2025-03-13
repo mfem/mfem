@@ -1808,9 +1808,9 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
       // of the reference element.
       const IntegrationPoint &ipc = irc.IntPoint(0);
       IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(0);
-      ipp.x = ipc.x * (1.0 - ipc.z);
-      ipp.y = ipc.y * (1.0 - ipc.z);
-      ipp.z = ipc.z;
+      ipp.x = 0.375;
+      ipp.y = 0.375;
+      ipp.z = 0.25;
       ipp.weight = 1.0 / 3.0;
    }
    else
