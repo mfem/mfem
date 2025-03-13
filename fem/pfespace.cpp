@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1068,6 +1068,54 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
+void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
+                                             int component) const
+{
+   FiniteElementSpace::GetExteriorVDofs(ext_dofs, component);
+
+   // Make sure that processors without boundary elements mark
+   // their boundary dofs (if they have any).
+   Synchronize(ext_dofs);
+}
+
+void ParFiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+                                                int component) const
+{
+   Array<int> ext_dofs, true_ext_dofs;
+
+   GetExteriorVDofs(ext_dofs, component);
+   GetRestrictionMatrix()->BooleanMult(ext_dofs, true_ext_dofs);
+
+#ifdef MFEM_DEBUG
+   // Verify that in boolean arithmetic: P^T ext_dofs = R ext_dofs.
+   Array<int> true_ext_dofs2(true_ext_dofs.Size());
+   auto Pt = std::unique_ptr<HypreParMatrix>(Dof_TrueDof_Matrix()->Transpose());
+
+   const int *ext_dofs_data = ext_dofs.HostRead();
+   Pt->BooleanMult(1, ext_dofs_data, 0, true_ext_dofs2);
+   int counter = 0;
+   const int *ted = true_ext_dofs.HostRead();
+   std::string error_msg = "failed dof: ";
+   for (int i = 0; i < true_ext_dofs.Size(); i++)
+   {
+      if (bool(ted[i]) != bool(true_ext_dofs2[i]))
+      {
+         error_msg += std::to_string(i) += "(R ";
+         error_msg += std::to_string(bool(ted[i])) += " P^T ";
+         error_msg += std::to_string(bool(true_ext_dofs2[i])) += ") ";
+         ++counter;
+      }
+   }
+   MFEM_ASSERT(R->Height() == P->Width(), "!");
+   MFEM_ASSERT(R->Width() == P->Height(), "!");
+   MFEM_ASSERT(R->Width() == ext_dofs.Size(), "!");
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+               << ", rank = " << MyRank << ", " << error_msg);
+#endif
+
+   MarkerToList(true_ext_dofs, ext_tdof_list);
+}
+
 int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 {
    if (Nonconforming())
@@ -1880,7 +1928,7 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       {
          if (uni_fdof >= 0) // uniform faces
          {
-            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
+            int nf = fec->DofForGeometry(pmesh->GetTypicalFaceGeometry());
             index = dof / nf, edof = dof % nf;
          }
          else // mixed faces or var-order space
@@ -1984,7 +2032,7 @@ struct PMatrixRow
 
    void write(std::ostream &os, real_t sign) const
    {
-      bin_io::write<int>(os, elems.size());
+      bin_io::write<int>(os, static_cast<int>(elems.size()));
       for (unsigned i = 0; i < elems.size(); i++)
       {
          const PMatrixElement &e = elems[i];
@@ -2074,7 +2122,7 @@ void NeighborRowMessage::Encode(int rank)
    }
 
    Array<GroupId> all_group_ids;
-   all_group_ids.Reserve(rows.size());
+   all_group_ids.Reserve(static_cast<int>(rows.size()));
    for (int i = 0; i < 3; i++)
    {
       all_group_ids.Append(group_ids[i]);
@@ -2833,7 +2881,7 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(col_map.size());
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(static_cast<int>(col_map.size()));
    int offd_col = 0;
    for (auto it = col_map.begin(); it != col_map.end(); ++it)
    {
@@ -2893,7 +2941,7 @@ HypreParMatrix* ParFiniteElementSpace
                              row_starts.GetData(), col_starts.GetData(),
                              I_diag, J_diag, A_diag,
                              I_offd, J_offd, A_offd,
-                             col_map.size(), cmap);
+                             static_cast<HYPRE_Int>(col_map.size()), cmap);
 }
 
 template <typename int_type>
@@ -3119,7 +3167,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
             msg.dofs[i] = old_offset + dofs[i];
          }
 
-         MPI_Isend(&msg.dofs[0], msg.dofs.size(), HYPRE_MPI_BIG_INT,
+         MPI_Isend(&msg.dofs[0], static_cast<int>(msg.dofs.size()), HYPRE_MPI_BIG_INT,
                    coarse_rank, 291, MyComm, &msg.request);
       }
       else if (coarse_rank == MyRank && fine_rank != MyRank)
@@ -3240,7 +3288,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                   {
                      if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
                      int &lcol = col_map[remote_dofs[j]];
-                     if (!lcol) { lcol = col_map.size(); }
+                     if (!lcol) { lcol = static_cast<int>(col_map.size()); }
                      offd->_Set_(m, lcol-1, row[j]);
                   }
                   mark[m] = 1;
@@ -3252,7 +3300,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    messages.clear();
    offd->Finalize(0);
-   offd->SetWidth(col_map.size());
+   offd->SetWidth(static_cast<int>(col_map.size()));
 
    // create offd column mapping for use by hypre
    HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(offd->Width());

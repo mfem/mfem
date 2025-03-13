@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -222,6 +222,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
          fespace.Update();
          x.Update();
          x = coarse_soln_v;
+         x.HostReadWrite();
          x(i) += f*eps;
 
          mesh.GeneralRefinement(refinements);

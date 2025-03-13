@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,8 +17,8 @@
 
 // Make sure that hypre and PETSc use the same size indices.
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
-#if (defined(HYPRE_BIGINT) && !defined(PETSC_USE_64BIT_INDICES)) || \
-    (!defined(HYPRE_BIGINT) && defined(PETSC_USE_64BIT_INDICES))
+#if ((defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT)) && !defined(PETSC_USE_64BIT_INDICES)) || \
+    (!defined(HYPRE_BIGINT) && !defined(HYPRE_MIXEDINT) && defined(PETSC_USE_64BIT_INDICES))
 #error HYPRE and PETSC do not use the same size integers!
 #endif
 #endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -141,4 +141,23 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       sol.HostRead();
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
+}
+
+TEST_CASE("BilinearForm print",
+          "[SparseMatrix]"
+          "[BilinearForm]")
+{
+
+   Mesh mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL));
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fec);
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.SetAssemblyLevel(AssemblyLevel::FULL);
+   a.Assemble();
+   a.Finalize(0);
+
+   std::stringstream ss;
+   a.Print(ss);
+   REQUIRE(ss.str().length() > 0);
 }

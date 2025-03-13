@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -87,13 +87,16 @@ if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, Ginkgo, Tribol, RAJA and Umpire require C++14:
-if ((MFEM_USE_SUNDIALS OR
-     MFEM_USE_STRUMPACK OR
-     MFEM_USE_GINKGO OR
-     MFEM_USE_TRIBOL OR
-     MFEM_USE_RAJA OR
-     MFEM_USE_UMPIRE) AND
+# Ginkgo requires C++17:
+if ((MFEM_USE_GINKGO) AND ("${CMAKE_CXX_STANDARD}" LESS "17"))
+  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use." FORCE)
+# Google Benchmark, SUNDIALS, STRUMPACK, Tribol, RAJA and Umpire require C++14:
+elseif ((MFEM_USE_BENCHMARK OR
+         MFEM_USE_SUNDIALS OR
+         MFEM_USE_STRUMPACK OR
+         MFEM_USE_TRIBOL OR
+         MFEM_USE_RAJA OR
+         MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to use." FORCE)
 endif()
@@ -340,7 +343,10 @@ if (MFEM_USE_SUNDIALS)
   if (MFEM_USE_HIP)
     list(APPEND SUNDIALS_COMPONENTS NVector_Hip)
   endif()
-  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
+  # The Core component was added in SUNDIALS v7, so we treat it as optional in
+  # order to support older versions.
+  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS}
+    OPTIONAL_COMPONENTS Core)
 endif()
 
 # SuperLU_DIST can only be enabled in parallel
@@ -615,15 +621,37 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
-set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
-set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
-set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+# Installation options (we use GNUInstallDirs but prefer lib by default)
+set(MFEM_USE_GNUINSTALLDIRS OFF CACHE BOOL
+  "Use CMAKE_INSTALL_LIBDIR as defined by the GNUInstallDirs CMake module.")
+if (NOT MFEM_USE_GNUINSTALLDIRS)
+  mfem_cache_path(CMAKE_INSTALL_LIBDIR "lib" "Object code libraries (lib)")
+endif()
+include(GNUInstallDirs)
+mfem_cache_path(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}"
+  "Relative or absolute path for installing header files.")
+mfem_cache_path(INSTALL_BIN_DIR "${CMAKE_INSTALL_BINDIR}"
+  "Relative or absolute path for installing the binaries.")
+mfem_cache_path(INSTALL_LIB_DIR "${CMAKE_INSTALL_LIBDIR}"
+  "Relative or absolute path for installing the library.")
+mfem_cache_path(INSTALL_SHARE_DIR "${CMAKE_INSTALL_DATAROOTDIR}"
+  "Relative or absolute path for installing shared data.")
+# other options: "share/mfem/cmake", "lib/mfem/cmake"
+mfem_cache_path(INSTALL_CMAKE_DIR "${INSTALL_LIB_DIR}/cmake/mfem"
+  "Relative or absolute path for installing cmake config files.")
 
-set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
-    "The MFEM source directory" FORCE)
-set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
-    "The MFEM install directory" FORCE)
+mfem_path_to_fullpath("${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" _lib_path)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
+if(NOT DEFINED CMAKE_INSTALL_RPATH)
+  set(CMAKE_INSTALL_RPATH "${_lib_path}")
+endif()
+if(NOT DEFINED CMAKE_INSTALL_NAME_DIR)
+  set(CMAKE_INSTALL_NAME_DIR "${_lib_path}")
+endif()
+
+# Variables used when generating _config.hpp, and config.mk
+set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
@@ -719,11 +747,17 @@ if (MFEM_ENABLE_TESTING)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
 
-  # Create a target for all benchmarks and, optionally, enable it.
-  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
-  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
-                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
-  add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+  if (MFEM_USE_BENCHMARK)
+    # Create a target for all benchmarks and, optionally, enable it.
+    set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+    add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                    ${MFEM_ENABLE_BENCHMARKS})
+    if (MFEM_ENABLE_BENCHMARKS)
+      add_subdirectory(tests/benchmarks) #install benchmarks if enabled
+    else()
+      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+    endif()
+  endif()
 endif()
 
 # Define a target that all examples and miniapps will depend on.
@@ -742,7 +776,11 @@ endif()
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
 add_mfem_target(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_ENABLE_MINIAPPS})
-add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_MINIAPPS)
+  add_subdirectory(miniapps) #install miniapps if enabled
+else()
+  add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+endif()
 
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)
@@ -792,15 +830,6 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-set(INSTALL_INCLUDE_DIR include
-  CACHE PATH "Relative path for installing header files.")
-set(INSTALL_BIN_DIR bin
-  CACHE PATH "Relative path for installing the binaries.")
-set(INSTALL_LIB_DIR lib
-  CACHE PATH "Relative path for installing the library.")
-# other options: "share/mfem/cmake", "lib/mfem/cmake"
-set(INSTALL_CMAKE_DIR lib/cmake/mfem
-  CACHE PATH "Relative path for installing cmake config files.")
 
 target_include_directories(mfem BEFORE
   PUBLIC
@@ -825,7 +854,7 @@ foreach(Header mfem.hpp mfem-performance.hpp)
 endforeach()
 install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
-# Install the headers; currently, the miniapps headers are excluded
+# Install the headers (except common miniapp which is installed from its subdir)
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
