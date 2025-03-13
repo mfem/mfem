@@ -388,20 +388,20 @@ int main (int argc, char *argv[])
    // The nonlinear problem will be solved for the continuous displacement.
    H1_FECollection fec_h1(mesh_poly_deg, dim);
    ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim,  mesh_node_order);
-   ParGridFunction d(&pfes_h1); d = 0.0;
+   ParGridFunction dx(&pfes_h1); dx = 0.0;
 
    // Define a vector representing the minimal local mesh size in the mesh
    // nodes. We index the nodes by the scalar version of the DOFs in pfespace.
    // In addition, compute average mesh size and total volume.
    // Note: this is MPI partition-dependent.
-   Vector h0(pfespace->GetNDofs());
+   Vector h0(pfes_h1.GetNDofs());
    h0 = infinity();
    real_t vol_loc = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
-      pfespace->GetElementDofs(i, dofs);
+      pfes_h1.GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
       const real_t hi = pmesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
@@ -434,8 +434,7 @@ int main (int argc, char *argv[])
       {
          for (int d = 0; d < dim; d++)
          {
-            // TODO h0 indices go on the L2 space here, wrong.
-            rdm(pfes_h1.DofToVDof(i,d)) *= h0(i);
+            rdm(pfes_h1.DofToVDof(i, d)) *= h0(i);
          }
       }
       // Set the boundary values to zero. Note that periodic meshes have no
@@ -1031,23 +1030,23 @@ int main (int argc, char *argv[])
          Geometries.GetGeomToPerfGeomJac(pmesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
-      real_t h0min = h0.Min(), h0min_all;
-      MPI_Allreduce(&h0min, &h0min_all, 1, MPITypeMap<real_t>::mpi_type,
+      real_t h0_min = h0.Min();
+      MPI_Allreduce(MPI_IN_PLACE, &h0_min, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_MIN, MPI_COMM_WORLD);
       // Slightly below minJ0 to avoid div by 0.
-      min_detJ -= 0.01 * h0min_all;
+      min_detJ -= 0.01 * h0_min;
    }
 
    // For HR tests, the energy is normalized by the number of elements.
    if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
-   const real_t init_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
+   const real_t init_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
    real_t init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      init_metric_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
+      init_metric_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
@@ -1230,19 +1229,19 @@ int main (int argc, char *argv[])
    // Report the final energy of the functional.
    if (periodic)
    {
-      ParGridFunction d_L2(x); d_L2 -= x0;
+      ParGridFunction dx_L2(x); dx_L2 -= x0;
       // Assumes Gauss-Lobatto and continuity in x and x_0 across faces.
-      d.ProjectGridFunction(d_L2);
+      dx.ProjectGridFunction(dx_L2);
    }
    if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
-   const real_t fin_energy = a.GetParGridFunctionEnergy(periodic ? d : x) /
+   const real_t fin_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
    real_t fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(periodic ? d : x) /
+      fin_metric_energy  = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;

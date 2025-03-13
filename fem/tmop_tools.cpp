@@ -698,22 +698,22 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    // Solve for the displacement, which always starts from zero.
-   Vector d(height); d = 0.0;
-   if (solver_type == 0)      { NewtonSolver::Mult(b, d); }
-   else if (solver_type == 1) { LBFGSSolver::Mult(b, d); }
+   Vector dx(height); dx = 0.0;
+   if (solver_type == 0)      { NewtonSolver::Mult(b, dx); }
+   else if (solver_type == 1) { LBFGSSolver::Mult(b, dx); }
    else { MFEM_ABORT("Invalid solver_type"); }
 
    // Form the final mesh using the computed displacement.
    if (periodic)
    {
-      Vector d_loc(nlf->FESpace()->GetVSize());
+      Vector dx_loc(nlf->FESpace()->GetVSize());
       const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
-      if (Pd) { Pd->Mult(d, d_loc); }
-      else    { d_loc = d; }
+      if (Pd) { Pd->Mult(dx, dx_loc); }
+      else    { dx_loc = dx; }
 
-      GetPeriodicPositions(x_0, d_loc, *fes_mesh_nodes, *nlf->FESpace(), x);
+      GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes, *nlf->FESpace(), x);
    }
-   else { x += d; }
+   else { x += dx; }
 
    // Make sure the pointers don't use invalid memory (x_0_loc is gone).
    for (int i = 0; i < integs.Size(); i++)
@@ -1081,16 +1081,16 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
         << "keys jRmclA\n";
 }
 
-void GetPeriodicPositions(const Vector &x_0, const Vector &d,
+void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
                           const FiniteElementSpace &fesL2,
                           const FiniteElementSpace &fesH1, Vector &x)
 {
-   Vector d_r(x.Size());
+   Vector dx_r(x.Size());
    const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
    auto R_H1 = fesH1.GetElementRestriction(ord);
    auto R_L2 = fesL2.GetElementRestriction(ord);
-   R_H1->Mult(d, d_r);
-   R_L2->AddMultTranspose(d_r, x);
+   R_H1->Mult(dx, dx_r);
+   R_L2->AddMultTranspose(dx_r, x);
 }
 
 }
