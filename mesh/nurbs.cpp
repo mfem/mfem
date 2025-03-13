@@ -129,13 +129,13 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
-void KnotVector::UniformRefinement(Vector &newknots, int rf) const
+void KnotVector::UniformRefinement(Vector &new_knots, int rf) const
 {
    MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
 
    const real_t h = 1.0 / ((real_t) rf);
 
-   newknots.SetSize(NumOfElements * (rf - 1));
+   new_knots.SetSize(NumOfElements * (rf - 1));
    int j = 0;
    for (int i = 0; i < knot.Size()-1; i++)
    {
@@ -143,7 +143,7 @@ void KnotVector::UniformRefinement(Vector &newknots, int rf) const
       {
          for (int m = 1; m < rf; ++m)
          {
-            newknots(j) = m * h * (knot(i) + knot(i+1));
+            new_knots(j) = ((1.0 - (m * h)) * knot(i)) + (m * h * knot(i+1));
             j++;
          }
       }
@@ -182,6 +182,7 @@ Vector KnotVector::GetFineKnots(const int cf) const
    int fcnt = 0;
    int i = Order;
    real_t kprev = knot(Order);
+   int ifine0 = 0;
    for (int c=0; c<cne; ++c)  // Loop over coarse elements
    {
       int cnt = 0;
@@ -194,6 +195,11 @@ Vector KnotVector::GetFineKnots(const int cf) const
             cnt++;
             if (cnt < cf)
             {
+               if (fcnt == 0)
+               {
+                  ifine0 = i;
+               }
+
                fine[fcnt] = knot(i);
                fcnt++;
             }
@@ -203,30 +209,71 @@ Vector KnotVector::GetFineKnots(const int cf) const
 
    MFEM_VERIFY(fcnt == fine.Size(), "");
 
-   return fine;
+   // Find the multiplicity of each fine knot
+   Array<int> mlt(fine.Size());
+   mlt = 1;
+
+   for (int j=ifine0+1, ifine=0; j<knot.Size(); ++j)
+   {
+      if (knot(j) == fine(ifine))
+      {
+         mlt[ifine]++;
+      }
+      else
+      {
+         ifine++;
+         if (ifine == fine.Size()) { break; }
+      }
+   }
+
+   Vector mfine(mlt.Sum());
+
+   MFEM_VERIFY(mlt.Sum() == fine.Size() * mlt[0], "");
+
+   for (i=0; i<fine.Size(); ++i)
+   {
+      for (int j=0; j<mlt[0]; ++j)
+      {
+         mfine[(fine.Size() * j) + i] = fine[i];
+      }
+   }
+
+   return mfine;
 }
 
-void KnotVector::Refinement(Vector &newknots, int rf) const
+void KnotVector::Refinement(Vector &new_knots, int rf,
+                            const Array<int> *rf_elem) const
 {
    MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
 
    if (spacing)
    {
-      spacing->ScaleParameters(1.0 / ((real_t) rf));
-      spacing->SetSize(rf * NumOfElements);
+      if (rf_elem)
+      {
+         // Note that ScaleParameters is not called here, because
+         // ScalePartition is assumed to have already done that.
+         MFEM_VERIFY(rf_elem->Size() == NumOfElements, "");
+         spacing->SetSize(NumOfElements);
+      }
+      else // Use scalar factor rf
+      {
+         spacing->ScaleParameters(1.0 / ((real_t) rf));
+         spacing->SetSize(rf * NumOfElements);
+      }
+
       Vector s;
       spacing->EvalAll(s);
 
-      newknots.SetSize((rf - 1) * NumOfElements);
+      new_knots.SetSize(s.Size() - NumOfElements);
 
       const real_t k0 = knot(0);
-      const real_t k1 = knot(knot.Size()-1);
+      const real_t k1 = knot(knot.Size() - 1);
 
       Array<int> span0(NumOfElements + 1);
       span0[0] = 0;
 
       int j = 1;
-      for (int i = 0; i < knot.Size()-1; i++)
+      for (int i = 0; i < knot.Size() - 1; i++)
       {
          if (knot(i) != knot(i+1))
          {
@@ -235,10 +282,12 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
          }
       }
 
-      MFEM_VERIFY(j == NumOfElements + 1, "bug");
+      MFEM_VERIFY(j == NumOfElements + 1, "Incorrect number of knot spans");
 
       real_t s0 = 0.0;
 
+      int os = 0;
+      int os1 = 0;
       for (int i=0; i<NumOfElements; ++i)
       {
          // Note that existing coarse knots are not modified here according to
@@ -249,20 +298,23 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
          // a sufficiently large refinement factor to produce the desired mesh
          // with only one refinement.
 
-         s0 += s[rf*i];
+         const int rf_i = rf_elem ? (*rf_elem)[i] : rf;
+         s0 += s[os];
 
-         for (j=0; j<rf-1; ++j)
+         for (j = 0; j < rf_i - 1; ++j)
          {
-            // Define a new knot between the modified coarse knots
-            newknots(((rf - 1) * i) + j) = ((1.0 - s0) * k0) + (s0 * k1);
-
-            s0 += s[(rf*i) + j + 1];
+            // Define a new knot between the coarse knots
+            new_knots(os1 + j) = ((1.0 - s0) * k0) + (s0 * k1);
+            s0 += s[os + j + 1];
          }
+
+         os += rf_i;
+         os1 += rf_i - 1;
       }
    }
    else
    {
-      UniformRefinement(newknots, rf);
+      UniformRefinement(new_knots, rf);
    }
 }
 
@@ -288,6 +340,11 @@ void KnotVector::Flip()
       real_t tmp = apb - knot(Order + i);
       knot(Order + i) = apb - knot(NumOfControlPoints - i);
       knot(NumOfControlPoints - i) = tmp;
+   }
+
+   if (spacing)
+   {
+      spacing->Flip();
    }
 }
 
@@ -529,7 +586,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
    xi.SetSize(GetNCP());
    u.SetSize(GetNCP());
    ks.SetSize(GetNCP());
-   for (int j = 0; j <GetNCP(); j++)
+   for (int j = 0; j < GetNCP(); j++)
    {
       maxima[j] = 0;
       for (int d = 0; d < Order+1; d++)
@@ -589,7 +646,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    // Find interpolation points
    Vector xi_args, u_args;
    Array<int> i_args;
-   FindMaxima(i_args,xi_args, u_args);
+   FindMaxima(i_args, xi_args, u_args);
 
    // Assemble collocation matrix
    Vector shape(order+1);
@@ -676,6 +733,26 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
          s++;
       }
    }
+}
+
+KnotVector* KnotVector::FullyCoarsen()
+{
+   KnotVector *kvc = new KnotVector(Order, Order + 1);
+   MFEM_VERIFY(kvc->Size() == 2 * (Order + 1), "");
+   for (int i=0; i<Order+1; ++i)
+   {
+      (*kvc)[i] = 0.0;
+      (*kvc)[i + Order + 1] = 1.0;
+   }
+
+   kvc->GetElements();
+   if (spacing)
+   {
+      kvc->spacing = spacing->Clone();
+      kvc->spacing->FullyCoarsen();
+   }
+
+   return kvc;
 }
 
 void NURBSPatch::init(int dim)
@@ -979,17 +1056,46 @@ int NURBSPatch::SetLoopDirection(int dir)
    return -1;
 }
 
-void NURBSPatch::UniformRefinement(Array<int> const& rf)
+void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
 {
-   Vector newknots;
+   Vector new_knots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
       if (rf[dir] != 1)
       {
-         kv[dir]->Refinement(newknots, rf[dir]);
-         KnotInsert(dir, newknots);
+         kv[dir]->Refinement(new_knots, rf[dir]);
+         for (int i=0; i<multiplicity; ++i)
+         {
+            KnotInsert(dir, new_knots);
+         }
       }
    }
+}
+
+void NURBSPatch::UniformRefinement(std::vector<Array<int>> const& rf,
+                                   int multiplicity)
+{
+   Vector new_knots;
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      if (fully_coarsened)
+      {
+         // Note that ScalePartition is used to modify the relative number of
+         // elements per piece in a PiecewiseSpacingFunction.
+         kv[dir]->Refinement(new_knots, rf[dir].Sum());
+      }
+      else
+      {
+         kv[dir]->Refinement(new_knots, rf[dir].Sum(), &rf[dir]);
+      }
+
+      for (int i=0; i<multiplicity; ++i)
+      {
+         KnotInsert(dir, new_knots);
+      }
+   }
+
+   fully_coarsened = false;
 }
 
 void NURBSPatch::UniformRefinement(int rf)
@@ -997,6 +1103,41 @@ void NURBSPatch::UniformRefinement(int rf)
    Array<int> rf_array(kv.Size());
    rf_array = rf;
    UniformRefinement(rf_array);
+}
+
+void NURBSPatch::UpdateSpacingPartitions(const Array<KnotVector*> &pkv)
+{
+   MFEM_VERIFY(pkv.Size() == kv.Size(), "");
+
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      if (kv[dir]->spacing && pkv[dir]->spacing)
+      {
+         PiecewiseSpacingFunction *pws = dynamic_cast<PiecewiseSpacingFunction*>
+                                         (kv[dir]->spacing.get());
+         const PiecewiseSpacingFunction *upws =
+            dynamic_cast<const PiecewiseSpacingFunction*>(pkv[dir]->spacing.get());
+
+         MFEM_VERIFY((pws == nullptr) == (upws == nullptr), "");
+
+         if (pws)
+         {
+            Array<int> s0 = pws->RelativePieceSizes();
+            Array<int> s1 = upws->RelativePieceSizes();
+            MFEM_VERIFY(s0.Size() == s1.Size(), "");
+
+            Array<int> rf(s0.Size());
+            for (int i=0; i<s0.Size(); ++i)
+            {
+               const int f = s1[i] / s0[i];
+               MFEM_VERIFY(f * s0[i] == s1[i], "");
+               rf[i] = f;
+            }
+
+            pws->ScalePartition(rf, false);
+         }
+      }
+   }
 }
 
 void NURBSPatch::Coarsen(Array<int> const& cf, real_t tol)
@@ -1007,6 +1148,7 @@ void NURBSPatch::Coarsen(Array<int> const& cf, real_t tol)
       {
          const int ne_fine = kv[dir]->GetNE();
          KnotRemove(dir, kv[dir]->GetFineKnots(cf[dir]), tol);
+
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
@@ -1305,9 +1447,9 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
       }
       else
       {
-         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);
+         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);  // TODO: + t
          for (int ll = 0; ll < size; ll++)
-            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+1, ll))
+            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+1, ll))  // TODO: ii + t + 1
                        - ((1.0 - a_i) * temp(ii-1, ll));
       }
 
@@ -1967,6 +2109,59 @@ void NURBSPatch::SetKnotVectorsCoarse(bool c)
    }
 }
 
+void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
+{
+   // Remove interior knots
+   Array<const KnotVector *> kvc(kv.Size());
+   origNE.SetSize(kv.Size());
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      origNE[dir] = kv[dir]->GetNE();
+      kvc[dir] = kv[dir]->FullyCoarsen();
+   }
+
+   // Copy CP
+
+   NURBSPatch *newpatch = new NURBSPatch(kvc, Dim);
+   NURBSPatch &newp = *newpatch;
+
+   if (Dim == 4)  // 3D
+   {
+      for (int i=0; i<ncp1D; ++i)
+         for (int j=0; j<ncp1D; ++j)
+            for (int k=0; k<ncp1D; ++k)
+            {
+               const int dof = i + (ncp1D * (j + (ncp1D * k)));
+               for (int l = 0; l < Dim - 1; ++l)
+               {
+                  newp(i,j,k,l) = cp(dof, l);
+                  newp(i,j,k,Dim-1) = 1.0;  // Assuming unit weights
+               }
+            }
+   }
+   else if (Dim == 3)  // 2D
+   {
+      for (int i=0; i<ncp1D; ++i)
+         for (int j=0; j<ncp1D; ++j)
+         {
+            const int dof = i + (ncp1D * j);
+            for (int l=0; l<Dim - 1; ++l)
+            {
+               newp(i,j,l) = cp(dof, l);
+               newp(i,j,Dim-1) = 1.0;  // Assuming unit weights
+            }
+         }
+   }
+   else
+   {
+      MFEM_ABORT("Dimension not supported in FullyCoarsen");
+   }
+
+   swap(newpatch);
+
+   fully_coarsened = true;
+}
+
 NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    : mOrder(orig.mOrder), mOrders(orig.mOrders),
      NumOfKnotVectors(orig.NumOfKnotVectors),
@@ -1995,10 +2190,16 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      e_meshOffsets(orig.e_meshOffsets),
      f_meshOffsets(orig.f_meshOffsets),
      p_meshOffsets(orig.p_meshOffsets),
+     aux_e_meshOffsets(orig.aux_e_meshOffsets),
+     aux_f_meshOffsets(orig.aux_f_meshOffsets),
      v_spaceOffsets(orig.v_spaceOffsets),
      e_spaceOffsets(orig.e_spaceOffsets),
      f_spaceOffsets(orig.f_spaceOffsets),
      p_spaceOffsets(orig.p_spaceOffsets),
+     aux_e_spaceOffsets(orig.aux_e_spaceOffsets),
+     aux_f_spaceOffsets(orig.aux_f_spaceOffsets),
+     auxEdges(orig.auxEdges),
+     auxFaces(orig.auxFaces),
      el_dof(orig.el_dof ? new Table(*orig.el_dof) : NULL),
      bel_dof(orig.bel_dof ? new Table(*orig.bel_dof) : NULL),
      el_to_patch(orig.el_to_patch),
@@ -2021,11 +2222,20 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    }
 }
 
-NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
+NURBSExtension::NURBSExtension(std::istream &input, bool spacing, bool nc)
 {
    // Read topology
    patchTopo = new Mesh;
-   patchTopo->LoadPatchTopo(input, edge_to_knot);
+   if (nc)
+   {
+      patchTopo->LoadNonconformingPatchTopo(input, edge_to_knot);
+      nonconforming = true;
+   }
+   else
+   {
+      patchTopo->LoadPatchTopo(input, edge_to_knot);
+   }
+
    own_topo = true;
 
    CheckPatches();
@@ -2047,9 +2257,39 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
 
       if (spacing)  // Read spacing formulas for knotvectors
       {
-         input >> ws >> ident; // 'spacing'
+         input >> ws >> ident; // 'spacing' or 'refinements'
+
+         if (ident == "refinements")
+         {
+            ref_factors.SetSize(Dimension());
+            for (int i=0; i<Dimension(); ++i)
+            {
+               input >> ref_factors[i];
+            }
+
+            input >> ws >> ident; // 'spacing'
+         }
+
+         if (ident == "knotvector_refinements")
+         {
+            kvf.resize(NumOfKnotVectors);
+            for (int i=0; i<NumOfKnotVectors; ++i)
+            {
+               int nf;
+               input >> nf;
+               kvf[i].SetSize(nf);
+               for (int j=0; j<nf; ++j)
+               {
+                  input >> kvf[i][j];
+               }
+            }
+
+            input >> ws >> ident; // 'spacing'
+         }
+
          MFEM_VERIFY(ident == "spacing",
                      "Spacing formula section missing from NURBS mesh file");
+
          int numSpacing = 0;
          input >> numSpacing;
          for (int j = 0; j < numSpacing; j++)
@@ -2186,6 +2426,26 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
       NumOfActiveElems = NumOfElements;
       activeElem.SetSize(NumOfElements);
       activeElem = true;
+   }
+
+   if (nc && patchTopo->ncmesh &&
+       patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
+   {
+      // Set map from patchTopo edges to patchTopo->ncmesh edges
+      Array<int> vert;
+      for (int i=0; i<patchTopo->GetNEdges(); ++i)
+      {
+         patchTopo->GetEdgeVertices(i, vert);
+         const std::pair<int, int> vpair(vert[0], vert[1]);
+         const int ncedge = v2e[vpair];
+
+         e2nce[i] = ncedge;
+
+         // TODO: if this is always true, we don't need e2nce or v2e.
+         // Of course, this is only for the vertex_to_knot case, not the vertex_parents
+         // case, assuming those 2 cases are mutually exclusive.
+         MFEM_VERIFY(i == ncedge, "");
+      }
    }
 
    GenerateActiveVertices();
@@ -2383,8 +2643,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    patchTopo->GetEdgeVertexTable();
    own_topo = 1;
    patches.Reserve(p.Size());
-   Array<int> edges;
-   Array<int> oedges;
+   Array<int> edges, oedges;
    Array<int> kvs(3);
    edge_to_knot.SetSize(patch_topology->GetNEdges());
    NumOfKnotVectors = 0;
@@ -2480,8 +2739,21 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
       }
    }
 
-   const int version = kvSpacing.Size() > 0 ? 11 : 10;  // v1.0 or v1.1
-   patchTopo->PrintTopo(os, edge_to_knot, version, comments);
+   bool writeSpacing = false;
+   if (patchTopo->ncmesh)
+   {
+      // Writing MFEM NURBS NC-patch mesh v1.0
+      patchTopo->ncmesh->Print(os, comments, true);
+      patchTopo->PrintTopoEdges(os, edge_to_knot, true);
+      writeSpacing = true;
+   }
+   else
+   {
+      const int version = kvSpacing.Size() > 0 ? 11 : 10;  // v1.0 or v1.1
+      if (version == 11) { writeSpacing = true; }
+      patchTopo->PrintTopo(os, edge_to_knot, version, comments);
+   }
+
    if (patches.Size() == 0)
    {
       os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
@@ -2490,9 +2762,47 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
          knotVectors[i]->Print(os);
       }
 
-      if (kvSpacing.Size() > 0)
+      if (ref_factors.Size() > 0)
+      {
+         os << "\nrefinements\n";
+         for (int i=0; i<ref_factors.Size(); ++i)
+         {
+            os << ref_factors[i];
+            if (i == ref_factors.Size() - 1) { os << '\n'; }
+            else { os << ' '; }
+         }
+      }
+
+      if (kvf.size() > 0)
+      {
+         MFEM_VERIFY(kvf.size() == (size_t) NumOfKnotVectors, "");
+         os << "\nknotvector_refinements\n";
+         for (size_t i=0; i<kvf.size(); ++i)
+         {
+            if (kvf_coarse.size() > 0)
+            {
+               os << kvf_coarse[i].Size();
+               for (int j=0; j<kvf_coarse[i].Size(); ++j)
+               {
+                  os << ' ' << kvf_coarse[i][j];
+               }
+            }
+            else
+            {
+               os << kvf[i].Size();
+               for (int j=0; j<kvf[i].Size(); ++j)
+               {
+                  os << ' ' << kvf[i][j];
+               }
+            }
+            os << '\n';
+         }
+      }
+
+      if (writeSpacing)
       {
          os << "\nspacing\n" << kvSpacing.Size() << '\n';
+
          for (auto kv : kvSpacing)
          {
             os << kv << " ";
@@ -2927,8 +3237,7 @@ void NURBSExtension::CheckPatches()
 {
    if (Dimension() == 1 ) { return; }
 
-   Array<int> edges;
-   Array<int> oedge;
+   Array<int> edges, oedge;
 
    for (int p = 0; p < GetNP(); p++)
    {
@@ -3011,25 +3320,26 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    {
       // First side
       patchTopo->GetEdgeVertices(edges[i], edgevert);
+      const int ks = KnotSign(edges[i]);
       if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[1])
       {
-         kvdir[0] = 1;
+         kvdir[0] = ks;
       }
 
       if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[0])
       {
-         kvdir[0] = -1;
+         kvdir[0] = -ks;
       }
 
       // Second side
-      if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
+      if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[3])
       {
-         kvdir[1] = 1;
+         kvdir[1] = ks;
       }
 
-      if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
+      if (edgevert[0] == patchvert[3]  && edgevert[1] == patchvert[0])
       {
-         kvdir[1] = -1;
+         kvdir[1] = -ks;
       }
    }
 
@@ -3039,15 +3349,16 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       for (int i = 0; i < edges.Size(); i++)
       {
          patchTopo->GetEdgeVertices(edges[i], edgevert);
+         const int ks = KnotSign(edges[i]);
 
          if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[4])
          {
-            kvdir[2] = 1;
+            kvdir[2] = ks;
          }
 
          if (edgevert[0] == patchvert[4]  && edgevert[1] == patchvert[0])
          {
-            kvdir[2] = -1;
+            kvdir[2] = -ks;
          }
       }
    }
@@ -3095,10 +3406,8 @@ void NURBSExtension::CreateComprehensiveKV()
          // Indices in unique and comprehensive sets of the KnotVector
          int iun = edges[e[d]];
          int icomp = Dimension()*p+d;
-
          knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(iun)));
-
-         if (kvdir[d] == -1) {knotVectorsCompr[icomp]->Flip();}
+         if (kvdir[d] == -1) { knotVectorsCompr[icomp]->Flip(); }
       }
    }
 
@@ -3137,10 +3446,10 @@ void NURBSExtension::UpdateUniqueKV()
       patchTopo->GetElementEdges(p, edges, orient);
       CheckKVDirection(p, kvdir);
 
-      for ( int d = 0; d < Dimension(); d++)
+      for (int d = 0; d < Dimension(); d++)
       {
          bool flip = false;
-         if (kvdir[d] == -1) {flip = true;}
+         if (kvdir[d] == -1) { flip = true; }
 
          // Indices in unique and comprehensive sets of the KnotVector
          int iun = edges[e[d]];
@@ -3151,7 +3460,10 @@ void NURBSExtension::UpdateUniqueKV()
          int o2 = knotVectorsCompr[icomp]->GetOrder();
          int diffo = abs(o1 - o2);
 
-         if (diffo)
+         int ne1 = KnotVec(iun)->GetNE();
+         int ne2 = knotVectorsCompr[icomp]->GetNE();
+
+         if (diffo || ne1 != ne2)
          {
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
@@ -3276,8 +3588,6 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
 void NURBSExtension::GetPatchKnotVectors(int p, Array<const KnotVector *> &kv)
 const
 {
-   Array<int> edges, orient;
-
    kv.SetSize(Dimension());
 
    if (Dimension() == 1)
@@ -3362,13 +3672,346 @@ void NURBSExtension::SetOrdersFromKnotVectors()
    SetOrderFromOrders();
 }
 
+// This function assumes a uniform number of control points per element in kv.
+int GetNCPperEdge(const KnotVector *kv)
+{
+   const int ne = kv->GetNE();
+
+   // Total number of CP on edge, excluding vertex CP.
+   const int totalEdgeCP = kv->GetNCP() - 2 - ne + 1;
+   const int perEdgeCP = totalEdgeCP / ne;
+
+   MFEM_VERIFY(perEdgeCP * ne == totalEdgeCP, "");
+
+   return perEdgeCP;
+}
+
 void NURBSExtension::GenerateOffsets()
 {
-   int nv = patchTopo->GetNV();
-   int ne = patchTopo->GetNEdges();
-   int nf = patchTopo->GetNFaces();
-   int np = patchTopo->GetNE();
+   const int nv = patchTopo->GetNV();
+   const int ne = patchTopo->GetNEdges();
+   const int nf = patchTopo->GetNFaces();
+   const int np = patchTopo->GetNE();
    int meshCounter, spaceCounter, dim = Dimension();
+
+   std::set<int> reversedParents;
+   if (patchTopo->ncmesh)
+   {
+      // Note that master or slave entities exist only for a mesh with
+      // vertex_parents, not for the vertex_to_knot case. Currently, a mesh is
+      // not allowed to have both cases, see the MFEM_VERIFY below.
+
+      // TODO: for simplicity, should we only support vertex_to_knot in NC-NURBS,
+      // not vertex_parents? Or should we allow either-or, but not both in the same mesh?
+
+      const NCMesh::NCList& nce = patchTopo->ncmesh->GetNCList(1);
+      const NCMesh::NCList& ncf = patchTopo->ncmesh->GetNCList(2);
+
+      masterEdges.clear();
+      masterFaces.clear();
+      slaveEdges.clear();
+      slaveFaces.clear();
+      slaveFaceNE1.clear();
+      slaveFaceNE2.clear();
+      slaveFaceI.clear();
+      slaveFaceJ.clear();
+      slaveFaceOri.clear();
+      masterEdgeToId.clear();
+      masterFaceToId.clear();
+
+      MFEM_VERIFY(nce.masters.Size() > 0 ||
+                  patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0, "");
+      MFEM_VERIFY(!(nce.masters.Size() > 0 &&
+                    patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0), "");
+
+      std::vector<EdgePairInfo> edgePairs;
+      std::vector<FacePairInfo> facePairs;
+      std::vector<int> parentN1, parentN2, parentFaces, parentVerts;
+
+      const bool is3D = dim == 3;
+
+      std::map<std::pair<int, int>, int> v2f;
+
+      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
+      {
+         // Intersections of master edges may not be edges in patchTopo->ncmesh,
+         // so we represent them in auxEdges, to account for their vertices and
+         // DOFs.
+         {
+            int vert_index[2];
+            const NCMesh::NCList& EL = patchTopo->ncmesh->GetEdgeList();
+            for (auto edgeID : EL.conforming)
+            {
+               patchTopo->ncmesh->GetEdgeVertices(edgeID, vert_index);
+               v2e[std::pair<int, int> (vert_index[0], vert_index[1])] = edgeID.index;
+            }
+         }
+
+         if (is3D)
+         {
+            Array<int> vert;
+            for (int i=0; i<patchTopo->GetNumFaces(); ++i)
+            {
+               // TODO: should this be a loop over conforming faces as for v2e?
+               patchTopo->GetFaceVertices(i, vert);
+               MFEM_VERIFY(vert.Size() == 4, "TODO: remove this obvious check");
+               const int vmin = vert.Min();
+               const int idmin = vert.Find(vmin);
+               v2f[std::pair<int, int> (vert[idmin], vert[(idmin + 2) % 4])] = i;
+            }
+         }
+
+         const VertexToKnotSpan &v2k = patchTopo->ncmesh->GetVertexToKnotSpan();
+
+         if (is3D)
+            ProcessVertexToKnot3D(v2k, v2f, parentN1, parentN2, edgePairs,
+                                  facePairs, parentFaces, parentVerts);
+         else
+         {
+            ProcessVertexToKnot2D(v2k, reversedParents, edgePairs);
+         }
+      } // if using vertex_to_knot
+
+      const int numMasters = is3D ? ncf.masters.Size() : nce.masters.Size();
+
+      if (is3D)
+      {
+         for (auto masterFace : ncf.masters)
+         {
+            masterFaces.insert(masterFace.index);
+         }
+      }
+
+      for (auto masterEdge : nce.masters)
+      {
+         masterEdges.insert(masterEdge.index);
+      }
+
+      masterEdgeIndex.SetSize(masterEdges.size());
+      int cnt = 0;
+      for (auto medge : masterEdges)
+      {
+         masterEdgeIndex[cnt] = medge;
+         masterEdgeToId[medge] = cnt;
+         cnt++;
+      }
+      MFEM_VERIFY(cnt == masterEdgeIndex.Size(), "");
+
+      Array<int> masterFaceIndex(parentFaces.size());
+
+      // Note that masterFaces is a subset of parentFaces.
+      MFEM_VERIFY(masterFaces.size() <= parentFaces.size(), "");
+
+      cnt = 0;
+      for (auto mface : parentFaces)
+      {
+         masterFaceIndex[cnt] = mface;
+         masterFaceToId[mface] =
+            cnt;  // TODO: is this actually parentFaceToId, which includes master faces?
+         cnt++;
+      }
+
+      MFEM_VERIFY(cnt == masterFaceIndex.Size(), "");
+
+      masterEdgeSlaves.clear();
+      masterEdgeVerts.clear();
+      masterEdgeKI.clear();
+
+      masterEdgeSlaves.resize(masterEdgeIndex.Size());
+      masterEdgeVerts.resize(masterEdgeIndex.Size());
+      masterEdgeKI.resize(masterEdgeIndex.Size());
+
+      masterFaceSlaves.clear();
+      masterFaceSlaveCorners.clear();
+      masterFaceSizes.clear();
+      masterFaceVerts.clear();
+
+      masterFaceSlaves.resize(masterFaceIndex.Size());
+      masterFaceSlaveCorners.resize(masterFaceIndex.Size());
+      masterFaceSizes.resize(masterFaceIndex.Size());
+      masterFaceVerts.resize(masterFaceIndex.Size());
+
+      masterFaceS0.resize(masterFaceIndex.Size());
+      masterFaceRev.resize(masterFaceIndex.Size());
+
+      for (unsigned int i=0; i<masterFaceSizes.size(); ++i)
+      {
+         masterFaceSizes[i].resize(2);
+         masterFaceS0[i].resize(2);
+      }
+
+      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
+      {
+         // Note that this is used in 2D and 3D.
+         const int npairs = edgePairs.size();
+
+         for (int i=0; i<npairs; ++i)
+         {
+            if (!edgePairs[i].isSet)
+            {
+               continue;
+            }
+
+            const int v = edgePairs[i].v;
+            const int s = edgePairs[i].child;
+            const int m = edgePairs[i].parent;
+            const int ki = edgePairs[i].ki;
+
+            slaveEdges.push_back(s);
+
+            const int mid = masterEdgeToId[m];
+            const int si = slaveEdges.size() - 1;
+            masterEdgeSlaves[mid].push_back(si);
+            if (v >= 0)
+            {
+               masterEdgeVerts[mid].push_back(v);
+               masterEdgeKI[mid].push_back(ki);
+            }
+         }
+
+         ProcessFacePairs(0, 0, parentN1, parentN2, parentVerts, facePairs);
+      }
+
+      for (int i=0; i<nce.slaves.Size(); ++i)
+      {
+         const NCMesh::Slave& slaveEdge = nce.slaves[i];
+         int vert_index[2];
+         patchTopo->ncmesh->GetEdgeVertices(slaveEdge, vert_index);
+         slaveEdges.push_back(slaveEdge.index);
+
+         const int mid = masterEdgeToId[slaveEdge.master];
+         masterEdgeSlaves[mid].push_back(i);
+      }
+
+      if (!is3D)
+      {
+         for (int m=0; m<numMasters; ++m)
+         {
+            // Order the slaves of each master edge, from the first to second
+            // vertex of the master edge.
+            const int numSlaves = masterEdgeSlaves[m].size();
+            MFEM_VERIFY(numSlaves > 0, "");
+            int mvert[2];
+            int svert[2];
+            patchTopo->ncmesh->GetEdgeVertices(nce.masters[m], mvert);
+
+            std::vector<int> orderedSlaves(numSlaves);
+
+            int vi = mvert[0];
+            for (int s=0; s<numSlaves; ++s)
+            {
+               // Find the slave edge containing vertex vi
+
+               // TODO: This has quadratic complexity. Can it be improved? Does it
+               // matter, since the number of slave edges should always be small?
+               orderedSlaves[s] = -1;
+               for (int t=0; t<numSlaves; ++t)
+               {
+                  const int sid = masterEdgeSlaves[m][t];
+                  patchTopo->ncmesh->GetEdgeVertices(nce.slaves[sid], svert);
+                  if (svert[0] == vi || svert[1] == vi)
+                  {
+                     orderedSlaves[s] = sid;
+                     break;
+                  }
+               }
+
+               MFEM_VERIFY(orderedSlaves[s] >= 0, "");
+
+               // Update vi to the next vertex
+               vi = (svert[0] == vi) ? svert[1] : svert[0];
+
+               if (s < numSlaves - 1)
+               {
+                  masterEdgeVerts[m].push_back(vi);
+                  masterEdgeKI[m].push_back(-1);  // TODO: this is not set and not used in 2D.
+               }
+            }
+
+            masterEdgeSlaves[m] = orderedSlaves;
+
+            MFEM_VERIFY(masterEdgeSlaves[m].size() == masterEdgeVerts[m].size() + 1, "");
+            MFEM_VERIFY(masterEdgeVerts[m].size() > 0, "");
+         } // m
+      }
+
+      if (is3D)
+      {
+         // Remove edges from masterEdges if they do not have any slave edges.
+         std::vector<int> falseMasterEdges;
+         for (auto me : masterEdges)
+         {
+            const int mid = masterEdgeToId.at(me);
+            if (masterEdgeSlaves[mid].size() <= 1)
+            {
+               falseMasterEdges.push_back(me);
+            }
+         }
+
+         for (auto me : falseMasterEdges)
+         {
+            masterEdges.erase(me);
+         }
+
+         // Find slave and auxiliary faces not yet defined.
+         const int nfp0 = facePairs.size();
+         std::set<int> addParentFaces;
+         FindAdditionalSlaveAndAuxiliaryFaces(v2f, addParentFaces, facePairs);
+
+         cnt = parentFaces.size();
+         const int npf0 = cnt;
+
+         for (auto pf : addParentFaces)
+         {
+            if (masterFaces.count(pf) == 0)
+            {
+               masterFaces.insert(pf);
+               masterFaceIndex.Append(pf);
+
+               masterFaceToId[pf] = cnt;
+               cnt++;
+
+               {
+                  Array<int> edges, ori, verts;
+                  patchTopo->GetFaceEdges(pf, edges, ori);
+                  patchTopo->GetFaceVertices(pf, verts);
+
+                  MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
+
+                  parentN1.push_back(KnotVec(edges[0])->GetNE());
+                  parentN2.push_back(KnotVec(edges[1])->GetNE());
+
+                  masterFaceSizes.push_back({KnotVec(edges[0])->GetNE(),
+                                             KnotVec(edges[1])->GetNE()});
+
+                  masterFaceS0.push_back({-1, -1});
+                  masterFaceRev.push_back(false);
+
+                  for (int i=0; i<4; ++i)
+                  {
+                     parentVerts.push_back(verts[i]);
+                  }
+               }
+            }
+         }
+
+         MFEM_VERIFY(cnt == masterFaceIndex.Size(), "");
+
+         masterFaceSlaves.resize(masterFaceIndex.Size());
+         masterFaceSlaveCorners.resize(masterFaceIndex.Size());
+         masterFaceVerts.resize(masterFaceIndex.Size());
+
+         ProcessFacePairs(nfp0, npf0, parentN1, parentN2, parentVerts, facePairs);
+      }
+   }
+
+   for (auto rp : reversedParents)
+   {
+      const int mid = masterEdgeToId[rp];
+      std::reverse(masterEdgeSlaves[mid].begin(), masterEdgeSlaves[mid].end());
+      std::reverse(masterEdgeVerts[mid].begin(), masterEdgeVerts[mid].end());
+      std::reverse(masterEdgeKI[mid].begin(), masterEdgeKI[mid].end());
+   }
 
    Array<int> edges;
    Array<int> orient;
@@ -3396,9 +4039,46 @@ void NURBSExtension::GenerateOffsets()
    {
       e_meshOffsets[e]  = meshCounter;
       e_spaceOffsets[e] = spaceCounter;
-      meshCounter  += KnotVec(e)->GetNE() - 1;
-      spaceCounter += KnotVec(e)->GetNCP() - 2;
+
+      if (masterEdges.count(e) == 0)  // If not a master edge
+      {
+         meshCounter  += KnotVec(e)->GetNE() - 1;
+         spaceCounter += KnotVec(e)->GetNCP() - 2;
+      }
    }
+
+   const int nauxe = auxEdges.size();
+   aux_e_meshOffsets.SetSize(nauxe + 1);
+   aux_e_spaceOffsets.SetSize(nauxe + 1);
+   for (int e = 0; e < nauxe; e++)
+   {
+      aux_e_meshOffsets[e] = meshCounter;
+      aux_e_spaceOffsets[e] = spaceCounter;
+
+      // Find the number of elements and CP in this auxiliary edge, which is
+      // defined only on part of the master edge knotvector.
+
+      const int signedParentEdge = auxEdges[e].parent;
+      const int ki0 = auxEdges[e].ki[0];
+      const int ki1raw = auxEdges[e].ki[1];
+
+      const bool rev = signedParentEdge < 0;
+      const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
+
+      const int masterNE = KnotVec(parentEdge)->GetNE();
+
+      const int ki1 = ki1raw == -1 ? masterNE : ki1raw;
+
+      const int perEdgeCP = GetNCPperEdge(KnotVec(e));
+
+      const int auxne = ki1 - ki0;
+      MFEM_ASSERT(auxne > 0, "");
+      meshCounter += auxne - 1;
+      spaceCounter += (auxne * perEdgeCP) + auxne - 1;
+   }
+
+   aux_e_meshOffsets[nauxe] = meshCounter;
+   aux_e_spaceOffsets[nauxe] = spaceCounter;
 
    // Get face offsets
    for (int f = 0; f < nf; f++)
@@ -3406,15 +4086,53 @@ void NURBSExtension::GenerateOffsets()
       f_meshOffsets[f]  = meshCounter;
       f_spaceOffsets[f] = spaceCounter;
 
-      patchTopo->GetFaceEdges(f, edges, orient);
+      const bool trueMaster = masterFaces.count(f) > 0;
+      /*
+      if (trueMaster)
+      {
+        const int mid = masterFaceToId.at(f);
+        if (masterFaceSizes[mid][0] == 0 && masterFaceSizes[mid][1] == 0)
+          trueMaster = false;
+      }
+           */
 
-      meshCounter +=
-         (KnotVec(edges[0])->GetNE() - 1) *
-         (KnotVec(edges[1])->GetNE() - 1);
-      spaceCounter +=
-         (KnotVec(edges[0])->GetNCP() - 2) *
-         (KnotVec(edges[1])->GetNCP() - 2);
+      if (!trueMaster)  // If not a master face
+      {
+         patchTopo->GetFaceEdges(f, edges, orient);
+
+         meshCounter +=
+            (KnotVec(edges[0])->GetNE() - 1) *
+            (KnotVec(edges[1])->GetNE() - 1);
+         spaceCounter +=
+            (KnotVec(edges[0])->GetNCP() - 2) *
+            (KnotVec(edges[1])->GetNCP() - 2);
+      }
    }
+
+   const int nauxf = auxFaces.size();
+   aux_f_meshOffsets.SetSize(nauxf + 1);
+   aux_f_spaceOffsets.SetSize(nauxf + 1);
+   for (int f = 0; f < nauxf; f++)
+   {
+      aux_f_meshOffsets[f] = meshCounter;
+      aux_f_spaceOffsets[f] = spaceCounter;
+
+      const int parentFace = auxFaces[f].parent;
+      patchTopo->GetFaceEdges(parentFace, edges, orient);
+
+      // Number of control points per edge, in first and second directions.
+      const int perEdgeCP0 = GetNCPperEdge(KnotVec(edges[0]));
+      const int perEdgeCP1 = GetNCPperEdge(KnotVec(edges[1]));
+
+      const int auxne0 = auxFaces[f].ki1[0] - auxFaces[f].ki0[0];
+      const int auxne1 = auxFaces[f].ki1[1] - auxFaces[f].ki0[1];
+      meshCounter += (auxne0 - 1) * (auxne1 - 1);
+      spaceCounter += ((auxne0 * perEdgeCP0) + auxne0 - 1) *
+                      ((auxne1 * perEdgeCP1) + auxne1 - 1);
+   }
+
+   aux_f_meshOffsets[nauxf] = meshCounter;
+   aux_f_spaceOffsets[nauxf] = spaceCounter;
 
    // Get patch offsets
    for (int p = 0; p < np; p++)
@@ -3452,6 +4170,64 @@ void NURBSExtension::GenerateOffsets()
    }
    NumOfVertices = meshCounter;
    NumOfDofs     = spaceCounter;
+
+   SetDofToPatch();
+}
+
+void NURBSExtension::SetDofToPatch()
+{
+   dof2patch.SetSize(NumOfDofs);
+   dof2patch = -1;
+
+   const int dim = Dimension();
+   if (dim == 1) { return; }
+
+   Array<int> edges, faces, orient;
+   const int np = patchTopo->GetNE();
+
+   for (int p = 0; p < np; p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+      for (auto e : edges)
+      {
+         if (masterEdges.count(e) > 0)
+         {
+            Array<int> mdof;
+            GetMasterEdgeDofs(e, v_spaceOffsets, e_spaceOffsets,
+                              aux_e_spaceOffsets, mdof);
+            for (auto dof : mdof)
+            {
+               dof2patch[dof] = p;
+            }
+         }
+      }
+
+      if (dim == 3)
+      {
+         patchTopo->GetElementFaces(p, faces, orient);
+
+         for (auto f : faces)
+         {
+            if (masterFaces.count(f) > 0)
+            {
+               Array2D<int> mdof;
+               GetMasterFaceDofs(true, f,
+                                 v_spaceOffsets,
+                                 e_spaceOffsets,
+                                 f_spaceOffsets,
+                                 aux_e_spaceOffsets,
+                                 aux_f_spaceOffsets,
+                                 mdof);
+
+               for (int j=0; j<mdof.NumCols(); ++j)
+                  for (int k=0; k<mdof.NumRows(); ++k)
+                  {
+                     dof2patch[mdof(k,j)] = p;
+                  }
+            }
+         }
+      }
+   }
 }
 
 void NURBSExtension::CountElements()
@@ -4435,12 +5211,941 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    return new NURBSExtension(this, newOrders, Mode::H_CURL);
 }
 
-
-void NURBSExtension::UniformRefinement(Array<int> const& rf)
+void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
+                    int &k)
 {
+   const int ne = rf.Size();
+   const int k0 = k;
+   k = 0;
+   for (int p=0; p<k0; ++p)
+   {
+      const int rp = rev ? ne - 1 - p : p;
+      k += rf[rp];
+   }
+}
+
+void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
+{
+   for (auto auxEdge : auxEdges)
+   {
+      const int p = auxEdge.parent;
+      const int parent = p < 0 ? -1 - p : p;
+      const int kv = KnotInd(parent);
+      for (int i=0; i<2; ++i)
+      {
+         RemapKnotIndex(false, kvf[kv], knotVectors[kv]->spacing.get(), auxEdge.ki[i]);
+      }
+   }
+
+   for (auto auxFace : auxFaces)
+   {
+      // TODO: save this or make a function for it
+      Array<int> pv;
+      patchTopo->GetFaceVertices(auxFace.parent, pv);
+      MFEM_VERIFY(pv.Size() == 4, "");
+      const int vmin = pv.Min();
+      const int idmin = pv.Find(vmin);
+      const int c0 = vmin;
+      const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
+
+      // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
+      const std::pair<int, int> parentPair(c0, c1);
+      const std::pair<int,int> kv = parentToKV.at(parentPair);
+
+      RemapKnotIndex(false, kvf[kv.first], knotVectors[kv.first]->spacing.get(),
+                     auxFace.ki0[0]);
+      RemapKnotIndex(false, kvf[kv.first], knotVectors[kv.first]->spacing.get(),
+                     auxFace.ki1[0]);
+
+      RemapKnotIndex(false, kvf[kv.second], knotVectors[kv.second]->spacing.get(),
+                     auxFace.ki0[1]);
+      RemapKnotIndex(false, kvf[kv.second], knotVectors[kv.second]->spacing.get(),
+                     auxFace.ki1[1]);
+   }
+}
+
+const int NURBSExtension::unsetFactor;
+
+void NURBSExtension::LoadFactorsForKV(const std::string &filename)
+{
+   kvf_coarse = kvf;
+
+   if (kvf.size() == 0)
+   {
+      kvf.resize(NumOfKnotVectors);
+   }
+
+   for (int kv=0; kv<NumOfKnotVectors; ++kv)
+   {
+      kvf[kv].SetSize(knotVectors[kv]->GetNE());
+      kvf[kv] = unsetFactor;
+   }
+
+   if (filename.empty())
+   {
+      return;
+   }
+
+   ifstream f(filename);
+   int nkv;
+   f >> nkv;
+
+   for (int i=0; i<nkv; ++i)
+   {
+      int kv, nf, rf;
+      f >> kv >> nf;
+      MFEM_VERIFY(nf == 1, "");  // TODO: support input of multiple factors!
+
+      kvf[kv] = unsetFactor;
+      for (int j=0; j<nf; ++j)
+      {
+         f >> rf;
+      }
+
+      for (int j=0; j<kvf[kv].Size(); ++j)
+      {
+         kvf[kv][j] = rf;
+      }
+   }
+
+   f.close();
+}
+
+int NURBSExtension::AuxiliaryEdgeNE(int aux_edge)
+{
+   const int signedParentEdge = auxEdges[aux_edge].parent;
+   const int ki0 = auxEdges[aux_edge].ki[0];
+   const int ki1raw = auxEdges[aux_edge].ki[1];
+   int ki1 = ki1raw;
+   if (ki1raw == -1)
+   {
+      const bool rev = signedParentEdge < 0;
+      const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
+      ki1 = KnotVec(parentEdge)->GetNE();
+   }
+
+   return ki1 - ki0;
+}
+
+// parentVerts are ordered with ascending knot index in parent edge, with knots
+// from lower edge endpoint vertex to higher.
+void NURBSExtension::SlaveEdgeToParent(int se, int parent, const Array<int> &os,
+                                       const std::vector<int> &parentVerts,
+                                       Array<int> &edges)
+{
+   Array<int> sev(2);
+   if (se < 0) // Auxiliary edge
+   {
+      for (int i=0; i<2; ++i)
+      {
+         sev[i] = auxEdges[-1 - se].v[i];
+      }
+   }
+   else
+   {
+      patchTopo->GetEdgeVertices(se, sev);
+   }
+
+   // Number of slave and auxiliary edges, not mesh edges
+   const int nedge = parentVerts.size() + 1;
+
+   MFEM_VERIFY((int) parentVerts.size() + 2 == os.Size(), "");
+
+   Array<int> parentEndpoints;
+   patchTopo->GetEdgeVertices(parent, parentEndpoints);
+
+   bool found = false;
+   for (int i=0; i<nedge; ++i)
+   {
+      const bool first = (i == 0);
+      const bool last = (i == nedge - 1);
+      const int v0 = first ? parentEndpoints[0] : parentVerts[i - 1];
+      const int v1 = last ? parentEndpoints[1] : parentVerts[i];
+      if (sev[0] == v0 && sev[1] == v1)
+      {
+         found = true;
+         MFEM_VERIFY(edges.Size() == os[i + 1] - os[i], "");
+         for (int j=0; j<edges.Size(); ++j)
+         {
+            edges[j] = os[i] + j;
+         }
+      }
+      else if (sev[0] == v1 && sev[1] == v0)
+      {
+         found = true;
+         MFEM_VERIFY(edges.Size() == os[i + 1] - os[i], "");
+         for (int j=0; j<edges.Size(); ++j)
+         {
+            edges[j] = os[i + 1] - 1 - j;
+         }
+      }
+   }
+
+   MFEM_VERIFY(found, "");
+}
+
+void NURBSExtension::GetMasterEdgePieceOffsets(int mid, Array<int> &os)
+{
+   const int np = masterEdgeSlaves[mid].size();
+   MFEM_VERIFY(np > 0, "");
+   os.SetSize(np + 1);
+   os[0] = 0;
+
+   for (int i=0; i<np; ++i)
+   {
+      const int p = masterEdgeSlaves[mid][i];
+      const int s = slaveEdges[p];
+      int nes = 0;
+      if (s >= 0)
+      {
+         const int kvs = KnotInd(s);
+         nes = knotVectors[kvs]->GetNE();
+      }
+      else
+      {
+         const int e = -1 - s;
+
+         // TODO: refactor this copied code into a function.
+         const int signedParentEdge = auxEdges[e].parent;
+         const int ki0 = auxEdges[e].ki[0];
+         const int ki1raw = auxEdges[e].ki[1];
+         const bool rev = signedParentEdge < 0;
+         const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
+         const int masterNE = KnotVec(parentEdge)->GetNE();
+         const int ki1 = ki1raw == -1 ? masterNE : ki1raw;
+         const int auxne = ki1 - ki0;
+         nes = auxne;
+      }
+
+      os[i+1] = os[i] + nes;
+   }
+}
+
+Array<int> CoarseToFineFactors(const Array<int> &rf)
+{
+   Array<int> frf(rf.Sum());
+   int os = 0;
+   for (auto f : rf)
+   {
+      for (int i=0; i<f; ++i)
+      {
+         frf[os + i] = f;
+      }
+
+      os += f;
+   }
+
+   return frf;
+}
+
+int NURBSExtension::SetPatchFactors(int p)
+{
+   constexpr int dirEdges3D[3][4] = {{0, 2, 4, 6},
+      {1, 3, 5, 7},
+      {8, 9, 10, 11}
+   };
+
+   constexpr int dirEdges2D[2][2] = {{0, 2},
+      {1, 3}
+   };
+
+   Array<int> edges, oedges;
+   patchTopo->GetElementEdges(p, edges, oedges);
+
+   const int dim = Dimension();
+   const int nedge = dim == 3 ? 4 : 2;
+
+   int dirSet = 0;
+
+   bool partialChange = false;
+   bool consistent = true;
+   for (int d=0; d<dim; ++d)
+   {
+      // Find the array of factors for direction d
+      Array<int> rf;
+      for (int i=0; i<nedge; ++i)
+      {
+         const int edgeIndex = dim == 3 ? dirEdges3D[d][i] : dirEdges2D[d][i];
+         const int edge = edges[edgeIndex];
+         const bool isMaster = masterEdges.count(edge) > 0;
+         const int kv = edge_to_knot[edge];
+         const int akv = kv < 0 ? -1 - kv : kv;
+         const int nfe = knotVectors[akv]->GetNE();
+         const bool fullSize = kvf.size() > 0 && kvf[akv].Size() == nfe;
+         const Array<int> rf_i = fullSize ? kvf[akv] : CoarseToFineFactors(kvf[akv]);
+         const bool rev = kv < 0;
+
+         if (rf_i.Size() > 0 && rf.Size() == 0)
+         {
+            rf = rf_i;
+         }
+
+         if (isMaster)
+         {
+            // Check whether slave edges have factors set.
+            const int mid = masterEdgeToId.at(edge);
+            const int numPieces = masterEdgeSlaves[mid].size();
+
+            Array<int> os;
+            GetMasterEdgePieceOffsets(mid, os);
+
+            for (int piece=0; piece<numPieces; ++piece)
+            {
+               const int e = masterEdgeSlaves[mid][piece];
+               const int s = slaveEdges[e];
+
+               if (s >= 0) // Not an aux edge
+               {
+                  // TODO: use KnotInd
+                  const int kvs = edge_to_knot[s];
+                  const int akvs = kvs < 0 ? -1 - kvs : kvs;
+                  if (kvf[akvs].Size() > 0)
+                  {
+                     MFEM_VERIFY(kvf[akvs].Size() == knotVectors[akvs]->GetNE(), "");
+
+                     // TODO: refactor. Can the slave and aux cases be combined, since they are more similar now?
+                     Array<int> seParentEdges(kvf[akvs].Size());
+                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], seParentEdges);
+
+                     MFEM_VERIFY(seParentEdges.Size() == os[piece + 1] - os[piece], "");
+
+                     for (int j = os[piece]; j < os[piece + 1]; ++j)
+                     {
+                        const int jj = seParentEdges[j - os[piece]];
+                        const int jr = rev ? rf.Size() - 1 - jj : jj;
+                        const int af = kvf[akvs][j - os[piece]];
+                        if (af == unsetFactor) { continue; }
+                        if (rf.Size() == 0)
+                        {
+                           rf.SetSize(os[numPieces]);
+                           rf = unsetFactor;
+                        }
+
+                        if (rf[jr] != unsetFactor && af != rf[jr])
+                        {
+                           consistent = false;
+                        }
+
+                        rf[jr] = af;
+                     }
+                  }
+               }
+               else // Aux edge
+               {
+                  const int ae = -1 - s;
+                  if (auxef[ae].Size() > 0)
+                  {
+                     Array<int> aeParentEdges(auxef[ae].Size());
+                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], aeParentEdges);
+
+                     MFEM_VERIFY(auxef[ae].Size() == os[piece + 1] - os[piece], "");
+
+                     for (int j = os[piece]; j < os[piece + 1]; ++j)
+                     {
+                        const int jj = aeParentEdges[j - os[piece]];
+                        const int jr = rev ? rf.Size() - 1 - jj : jj;
+                        const int af = auxef[ae][j - os[piece]];
+                        if (af == unsetFactor) { continue; }
+                        if (rf.Size() == 0)
+                        {
+                           rf.SetSize(os[numPieces]);
+                           rf = unsetFactor;
+                        }
+
+                        if (rf[jr] != unsetFactor && af != rf[jr])
+                        {
+                           consistent = false;
+                        }
+
+                        rf[jr] = af;
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      if (rf.Size() == 0)  // This direction is unset
+      {
+         continue;
+      }
+
+      // Set the same factor for all knotvectors in direction d.
+      for (int i=0; i<nedge; ++i)
+      {
+         const int edgeIndex = dim == 3 ? dirEdges3D[d][i] : dirEdges2D[d][i];
+         const int edge = edges[edgeIndex];
+         const int kv = edge_to_knot[edge];
+         const int akv = kv < 0 ? -1 - kv : kv;
+         const bool rev = kv < 0;
+
+         if (kvf[akv] != rf)
+         {
+            partialChange = true;
+         }
+
+         kvf[akv] = rf;
+
+         if (masterEdges.count(edge))
+         {
+            // Also propagate to slave edges and any overlapping master edges
+            // containing a common slave or auxiliary edge.
+
+            const int mid = masterEdgeToId.at(edge);
+            const int numPieces = masterEdgeSlaves[mid].size();
+
+            Array<int> os;
+            GetMasterEdgePieceOffsets(mid, os);
+
+            for (int piece=0; piece<numPieces; ++piece)
+            {
+               const int e = masterEdgeSlaves[mid][piece];
+               const int s = slaveEdges[e];
+
+               if (s < 0) // Aux edge
+               {
+                  const int aux_edge = -1 - s;
+                  if (auxef[aux_edge].Size() == 0)
+                  {
+                     auxef[aux_edge].SetSize(AuxiliaryEdgeNE(aux_edge));
+                     auxef[aux_edge] = unsetFactor;
+                  }
+
+                  Array<int> aeParentEdges(auxef[aux_edge].Size());
+                  SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], aeParentEdges);
+                  for (int j = os[piece]; j < os[piece + 1]; ++j)
+                  {
+                     const int jj = aeParentEdges[j - os[piece]];
+                     const int jr = rev ? rf.Size() - 1 - jj : jj;
+                     if (rf[jr] == unsetFactor) { continue; }
+                     if (auxef[aux_edge][j - os[piece]] != unsetFactor &&
+                         auxef[aux_edge][j - os[piece]] != rf[jr])
+                     {
+                        consistent = false;
+                     }
+                     auxef[aux_edge][j - os[piece]] = rf[jr];
+                  }
+               }
+               else
+               {
+                  const int kvs = edge_to_knot[s];
+                  const int akvs = kvs < 0 ? -1 - kvs : kvs;
+                  const int nse = knotVectors[akvs]->GetNE();
+
+                  if (kvf[akvs].Size() == 0)
+                  {
+                     kvf[akvs].SetSize(nse);
+                     MFEM_ABORT("TODO: set from rf");
+                  }
+                  else
+                  {
+                     MFEM_VERIFY(kvf[akvs].Size() == nse, "");
+
+                     // TODO: refactor!
+                     Array<int> seParentEdges(kvf[akvs].Size());
+                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], seParentEdges);
+
+                     MFEM_VERIFY(seParentEdges.Size() == os[piece + 1] - os[piece], "");
+
+                     for (int j = os[piece]; j < os[piece + 1]; ++j)
+                     {
+                        const int jj = seParentEdges[j - os[piece]];
+                        const int jr = rev ? rf.Size() - 1 - jj : jj;
+                        const int fj = rf[jr];
+                        if (fj == unsetFactor) { continue; }
+                        if (kvf[akvs][j - os[piece]] != unsetFactor && fj != kvf[akvs][j - os[piece]])
+                        {
+                           consistent = false;
+                        }
+
+                        kvf[akvs][j - os[piece]] = fj;
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      if (rf.Min() > unsetFactor)
+      {
+         dirSet += pow(2, d);
+      }
+   }
+
+   MFEM_VERIFY(consistent, "");
+
+   return partialChange ? -1 - dirSet : dirSet;
+}
+
+void NURBSExtension::PropagateFactorsForKV(int rf_default)
+{
+   const int dim = Dimension();
+   if (dim == 1 || npatch < 1)
+   {
+      return;
+   }
+
+   // Set slaveToMasterEdges
+   // A slave edge can be a patchTopo edge (nonnegative index) or an
+   // AuxiliaryEdge (negative index). A slave edge can be contained in multiple
+   // overlapping master edges.
+
+   // First, set slaveEdgesUnique.
+   // TODO: can we avoid slaveEdgesUnique, by making indices unique in slaveEdges?
+   {
+      slaveEdgesUnique.SetSize(0);
+      slaveEdgesUnique.Reserve(slaveEdges.size());
+      for (auto s : slaveEdges)
+      {
+         if (slaveEdgesToUnique.count(s) == 0)
+         {
+            slaveEdgesToUnique[s] = slaveEdgesUnique.Size();
+            slaveEdgesUnique.Append(s);
+         }
+      }
+   }
+
+   slaveToMasterEdges.clear();
+   slaveToMasterEdges.resize(slaveEdgesUnique.Size());
+   for (size_t mid=0; mid<masterEdgeSlaves.size(); ++mid)
+   {
+      for (auto id : masterEdgeSlaves[mid])
+      {
+         const int s = slaveEdges[id];
+         const int u = slaveEdgesToUnique[s];
+         slaveToMasterEdges[u].push_back(mid);
+      }
+   }
+
+   // First, set slaveFacesUnique.
+   // TODO: can we avoid slaveFacesUnique, by making indices unique in slaveFaces?
+   {
+      slaveFacesUnique.SetSize(0);
+      slaveFacesUnique.Reserve(slaveFaces.size());
+      for (auto s : slaveFaces)
+      {
+         if (slaveFacesToUnique.count(s) == 0)
+         {
+            slaveFacesToUnique[s] = slaveFacesUnique.Size();
+            slaveFacesUnique.Append(s);
+         }
+      }
+   }
+
+   slaveToMasterFaces.clear();
+   slaveToMasterFaces.resize(slaveFacesUnique.Size());
+   for (size_t mid=0; mid<masterFaceSlaves.size(); ++mid)
+   {
+      for (auto id : masterFaceSlaves[mid])
+      {
+         const int s = slaveFaces[id];
+         const int u = slaveFacesToUnique[s];
+         slaveToMasterFaces[u].push_back(mid);
+      }
+   }
+
+   // Initialize a set of patches to visit, using face-neighbors of the first patch.
+   std::set<int> nextPatches;
+
+   const Table *face2elem = patchTopo->GetFaceToElementTable();
+
+   Array2D<int> auxface2elem, sface2elem;
+   GetAuxFaceToElementTable(auxface2elem);
+   GetPatchSlaveFaceToPatchTable(sface2elem);
+
+   Array<int> faces, orient;
+
+   auto faceNeighbors = [&](int p, std::set<int> & nghb)
+   {
+      if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
+      else { patchTopo->GetElementFaces(p, faces, orient); }
+
+      for (auto face : faces)
+      {
+         Array<int> row;
+         face2elem->GetRow(face, row);
+
+         const bool isSlave = dim == 2 ? slaveEdgesToUnique.count(
+                                 face) > 0 : slaveFacesToUnique.count(face) > 0;
+         if (isSlave)
+         {
+            const int u = dim == 2 ? slaveEdgesToUnique[face] : slaveFacesToUnique[face];
+
+            for (int i=0; i<2; ++i)
+            {
+               const int elem = sface2elem(u, i);
+               if (elem >= 0 && elem != p)
+               {
+                  nghb.insert(elem);
+               }
+            }
+         }
+
+         for (auto elem : row) { nghb.insert(elem); }
+      }
+   };
+
+   auto masterFaceNeighbors = [&](int p, std::set<int> & nghb)
+   {
+      if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
+      else { patchTopo->GetElementFaces(p, faces, orient); }
+
+      for (auto face : faces)
+      {
+         const bool isMaster = dim == 2 ? masterEdgeToId.count(face) > 0 :
+                               masterFaceToId.count(face) > 0;
+         if (isMaster)  // If a master face
+         {
+            const int mid = dim == 2 ? masterEdgeToId.at(face) : masterFaceToId.at(face);
+            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
+                                             masterFaceSlaves[mid];
+            for (auto s : slaves)
+            {
+               if (s < 0)
+               {
+                  // Auxiliary face.
+                  const int aux = -1 - s;
+                  for (int i=0; i<2; ++i)
+                  {
+                     const int elem = auxface2elem(aux, i);
+                     if (elem >= 0) { nghb.insert(elem); }
+                  }
+               }
+               else
+               {
+                  // Slave face in patchTopo.
+                  Array<int> row;
+                  face2elem->GetRow(s, row);
+                  for (auto elem : row) { nghb.insert(elem); }
+               }
+            }
+         }
+      }
+   };
+
+   auto auxFaceNeighbors = [&](int p, std::set<int> & nghb)
+   {
+      // TODO: this comes from masterFaceNeighbors?
+   };
+
+   const int npatchall = patches.Size();
+   Array<int> patchState(npatchall);
+   patchState = 0;
+
+   auxef.resize(auxEdges.size());
+
+   std::set<int> unchanged;
+
+   const int dirAllSet = dim == 3 ? 7 : 3;
+
+   int lastChanged = 0;
+
+   int iter = 0;
+   bool done = false;
+   while (iter < 100 && !done)
+   {
+      // Start each iteration at the patch last changed
+      nextPatches.clear();
+      nextPatches.insert(lastChanged);
+
+      std::set<int> visited;  // Visit each patch only once per iteration
+      iter++;
+
+      while (nextPatches.size() > 0)
+      {
+         const int p = *nextPatches.begin();
+         nextPatches.erase(p);
+
+         visited.insert(p);
+
+         const int dirSetSigned = SetPatchFactors(p);
+         const bool partialChange = dirSetSigned < 0;
+         const int dirSet = partialChange ? -1 - dirSetSigned : dirSetSigned;
+         const bool changed = (patchState[p] != dirSet) || partialChange;
+         patchState[p] = dirSet;
+
+         // Find neighbors of patch p
+         std::set<int> neighbors;
+
+         // First, find neighbors sharing a conforming face, via face2elem.
+         faceNeighbors(p, neighbors);
+
+         // Second, find neighbors sharing a slave face in patchTopo.
+         masterFaceNeighbors(p, neighbors);
+
+         // Third, find neighbors sharing an auxFace.
+         auxFaceNeighbors(p, neighbors);
+
+         // Add neighbors not done to nextPatches.
+         // Note that a patch can be added to nextPatches on multiple iterations,
+         // to propagate factors in different directions, on multiple sweeps.
+
+         for (auto n : neighbors)
+         {
+            if (n < npatchall && n != p && patchState[n] != dirAllSet &&
+                visited.count(n) == 0)
+            {
+               nextPatches.insert(n);
+            }
+         }
+
+         if (changed)
+         {
+            unchanged.erase(p);
+            lastChanged = p;
+         }
+         else
+         {
+            unchanged.insert(p);
+         }
+
+         if (unchanged.size() == (size_t) npatchall)
+         {
+            // Make another pass through all patches to check for changes
+            for (int i=0; i<npatchall; ++i)
+            {
+               const int dirSetSigned_i = SetPatchFactors(i);
+               const bool partialChange_i = dirSetSigned_i < 0;
+               const int dirSet_i = partialChange_i ? -1 - dirSetSigned_i : dirSetSigned_i;
+               const bool changed_i = (patchState[i] != dirSet_i) || partialChange_i;
+               patchState[p] = dirSet_i;
+               if (changed_i)
+               {
+                  unchanged.erase(i);
+                  lastChanged = i;
+               }
+            }
+         }
+
+         if (unchanged.size() == (size_t) npatchall)
+         {
+            done = true;
+            break;
+         }
+      }
+   }
+
+   // For any unset entries of kvf, set to default refinement factor rf_default.
+   for (size_t i=0; i<kvf.size(); ++i)
+   {
+      if (kvf[i].Size() == 0)
+      {
+         kvf[i].SetSize(knotVectors[i]->GetNE());
+         kvf[i] = rf_default;
+      }
+      else
+      {
+         for (int j=0; j<kvf[i].Size(); ++j)
+         {
+            if (kvf[i][j] == unsetFactor)
+            {
+               kvf[i][j] = rf_default;
+            }
+         }
+      }
+
+      if (knotVectors[i]->spacing)
+      {
+         PiecewiseSpacingFunction *pws = dynamic_cast<PiecewiseSpacingFunction*>
+                                         (knotVectors[i]->spacing.get());
+         if (pws)
+         {
+            Array<int> pwn = pws->RelativePieceSizes();
+            const bool rev = pws->GetReverse();
+            const int np = pwn.Size();
+            const int f = kvf[i].Size() / pwn.Sum();
+            MFEM_VERIFY(kvf[i].Size() == f * pwn.Sum(), "");
+
+            Array<int> os(np + 1);
+            os[0] = 0;
+            for (int j=1; j<np+1; ++j)
+            {
+               const int jp = rev ? np - j : j - 1;
+               os[j] = os[j-1] + (f * pwn[jp]);
+            }
+
+            Array<int> pwf(np);
+            for (int j=0; j<np; ++j)
+            {
+               pwf[j] = kvf[i][os[j]];
+               for (int r=os[j]+1; r<os[j+1]; ++r)
+               {
+                  MFEM_VERIFY(kvf[i][r] == pwf[j], "");
+               }
+            }
+
+            pws->ScalePartition(pwf, true);
+         }
+      }
+   }
+}
+
+void UpdateFactors(Array<int> &f)
+{
+   Array<int> rf(f.Sum());
+
+   int os = 0;
+   for (int i=0; i<f.Size(); ++i)
+   {
+      const int f_i = f[i];
+      for (int j=0; j<f_i; ++j)
+      {
+         rf[os + j] = f_i;
+      }
+
+      os += f_i;
+   }
+
+   MFEM_VERIFY(os == rf.Size(), "");
+
+   f = rf;
+}
+
+void NURBSExtension::UpdateKVF()
+{
+   for (auto &f : kvf)
+   {
+      UpdateFactors(f);
+   }
+}
+
+void NURBSExtension::SetKVP(Array<bool> &kvp)
+{
+   kvp.SetSize(NumOfKnotVectors);
+   kvp = false;
+
+   for (int p=0; p<npatch; ++p)
+   {
+      Array<int> edges, orient;
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      for (auto edge : edges)
+      {
+         const int kv = KnotInd(edge);
+         kvp[kv] = true;
+      }
+   }
+}
+
+void NURBSExtension::UniformRefinement(Array<int> const& rf,
+                                       const std::string &kvf_filename)
+{
+   if (ref_factors.Size())
+   {
+      MFEM_VERIFY(ref_factors.Size() == rf.Size(), "");
+      for (int i=0; i<rf.Size(); ++i)
+      {
+         ref_factors[i] *= rf[i];
+      }
+   }
+   else
+   {
+      ref_factors = rf;
+   }
+
+   const bool varyingFactors = true;  // TODO: input this?
+   if (varyingFactors)
+   {
+      LoadFactorsForKV(kvf_filename);
+      PropagateFactorsForKV(rf[0]);  // TODO: better way to input a default factor
+
+      Array<bool> kvp;
+      SetKVP(kvp);
+   }
+
+   const int maxOrder = mOrders.Max();
+   const int dim = Dimension();
+
    for (int p = 0; p < patches.Size(); p++)
    {
-      patches[p]->UniformRefinement(rf);
+      if (nonconforming)
+      {
+         std::vector<Array<int>> prf(dim);
+         Array<KnotVector*> pkv(dim);
+         Array<int> edges, orient;
+         patchTopo->GetElementEdges(p, edges, orient);
+
+         if (dim == 3)
+         {
+            int e3[3] = {0, 3, 8};
+            for (int i=0; i<3; ++i)
+            {
+               prf[i] = kvf[KnotInd(edges[e3[i]])];
+               pkv[i] = knotVectors[KnotInd(edges[e3[i]])];
+            }
+         }
+         else
+         {
+            MFEM_VERIFY(dim == 2, "");
+            for (int i=0; i<2; ++i)
+            {
+               prf[i] = kvf[KnotInd(edges[i])];
+               pkv[i] = knotVectors[KnotInd(edges[i])];
+            }
+         }
+
+         if (p >= npatch)
+         {
+            for (int i=0; i<dim; ++i)
+            {
+               // Collapse prf[i] to a single factor
+               MFEM_VERIFY(prf[i].IsConstant(), "");
+               prf[i].SetSize(1);
+            }
+         }
+
+         patches[p]->UpdateSpacingPartitions(pkv);
+         patches[p]->UniformRefinement(prf, maxOrder);
+      }
+      else
+      {
+         patches[p]->UniformRefinement(rf, nonconforming ? maxOrder : 1);
+      }
+   }
+
+   if (nonconforming)
+   {
+      patchTopo->ncmesh->RefineVertexToKnot(kvf, knotVectors, parentToKV);
+      RefineKnotIndices(rf);
+      UpdateCoarseKVF();
+   }
+}
+
+void ApplyFineToCoarse(const Array<int> &f, Array<int> &c)
+{
+   MFEM_VERIFY(f.Size() == c.Sum(), "");
+   bool consistent = true;
+   int os = 0;
+   for (int j=0; j<c.Size(); ++j)
+   {
+      const int cf = c[j];
+      const int ff = f[os];
+      for (int i=0; i<cf; ++i)
+      {
+         if (f[os + i] != ff)
+         {
+            consistent = false;
+         }
+      }
+
+      c[j] *= ff;
+
+      os += cf;
+   }
+
+   MFEM_VERIFY(consistent, "");
+}
+
+void NURBSExtension::UpdateCoarseKVF()
+{
+   if (kvf_coarse.size() == 0)
+   {
+      return;
+   }
+
+   for (int k=0; k<NumOfKnotVectors; ++k)
+   {
+      ApplyFineToCoarse(kvf[k], kvf_coarse[k]);
    }
 }
 
@@ -4466,6 +6171,42 @@ void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
    }
 }
 
+void NURBSExtension::FullyCoarsen()
+{
+   // First, mark all knot vectors on all patches as not coarse. This prevents
+   // coarsening the same knot vector twice.
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->SetKnotVectorsCoarse(false);
+   }
+
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element,
+   // and the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = pow(ncp1D, Dimension());
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      if (p < npatch)
+      {
+         // Use data from patchCP
+         Array2D<double> pcp(ncp, Dimension());
+         for (int i=0; i<ncp; ++i)
+         {
+            for (int j=0; j<Dimension(); ++j)
+            {
+               pcp(i, j) = patchCP(p, i, j);
+            }
+         }
+
+         patches[p]->FullyCoarsen(pcp, ncp1D);
+      }
+   }
+}
+
 void NURBSExtension::Coarsen(int cf, real_t tol)
 {
    Array<int> cf_array(Dimension());
@@ -4480,6 +6221,7 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
    {
       Array<int> pf;
       patch->GetCoarseningFactors(pf);
+
       if (f.Size() == 0)
       {
          f = pf; // Initialize
@@ -4489,9 +6231,15 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
          MFEM_VERIFY(f.Size() == pf.Size(), "");
          for (int i=0; i<f.Size(); ++i)
          {
-            MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
-                        "Inconsistent patch coarsening factors");
-            if (f[i] == 1 && pf[i] != 1)
+            /*
+                  MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
+                              "Inconsistent patch coarsening factors");
+                  if (f[i] == 1 && pf[i] != 1)
+                  {
+                     f[i] = pf[i];
+                  }
+            */
+            if ((f[i] == 1 && pf[i] != 1) || (pf[i] < f[i] && pf[i] != 1))
             {
                f[i] = pf[i];
             }
@@ -4812,7 +6560,6 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    }
 }
 
-
 void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
 {
    Array<const KnotVector *> kv(2);
@@ -4830,6 +6577,11 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
             const int l = p2g(i,j);
+            if (dof2patch[l] >= 0 && dof2patch[l] != p)
+            {
+               continue;
+            }
+
             for (int d = 0; d < vdim; d++)
             {
                coords(l*vdim + d) = patch(i,j,d)/patch(i,j,vdim);
@@ -4860,6 +6612,11 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
                const int l = p2g(i,j,k);
+               if (dof2patch[l] >= 0 && dof2patch[l] != p)
+               {
+                  continue;
+               }
+
                for (int d = 0; d < vdim; d++)
                {
                   coords(l*vdim + d) = patch(i,j,k,d)/patch(i,j,k,vdim);
@@ -4912,6 +6669,134 @@ const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
    MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_el not set");
 
    return patch_to_bel[patch];
+}
+
+void NURBSExtension::GetVertexDofs(int index, Array<int> &dofs) const
+{
+   MFEM_ASSERT(index < v_spaceOffsets.Size(), "");
+
+   const int os = v_spaceOffsets[index];
+   const int os1 = index + 1 == v_spaceOffsets.Size() ? e_spaceOffsets[0] :
+                   v_spaceOffsets[index + 1];
+
+   dofs.SetSize(0);
+   dofs.Reserve(os1 - os);
+
+   for (int i=os; i<os1; ++i)
+   {
+      dofs.Append(i);
+   }
+}
+
+int NURBSExtension::GetEdgeDofs(int index, Array<int> &dofs) const
+{
+   MFEM_ASSERT(index < e_spaceOffsets.Size(), "");
+
+   const int os = e_spaceOffsets[index];
+   const int os_upper = f_spaceOffsets.Size() > 0 ? f_spaceOffsets[0] :
+                        p_spaceOffsets[0];
+   const int os1 = index + 1 == e_spaceOffsets.Size() ? os_upper :
+                   v_spaceOffsets[index + 1];
+
+   dofs.SetSize(0);
+   // Reserve 2 for the two vertices and os1 - os for the interior edge DOFs.
+   dofs.Reserve(2 + os1 - os);
+
+   // First get the DOFs for the vertices of the edge.
+
+   Array<int> vert;
+   patchTopo->GetEdgeVertices(index, vert);
+   MFEM_ASSERT(vert.Size() == 2, "TODO: remove this");
+
+   for (auto v : vert)
+   {
+      Array<int> vdofs;
+      GetVertexDofs(v, vdofs);
+      dofs.Append(vdofs);
+   }
+
+   // Now get the interior edge DOFs.
+
+   for (int i=os; i<os1; ++i)
+   {
+      dofs.Append(i);
+   }
+
+   return GetOrder();
+}
+
+int NURBSExtension::GetEntityDofs(int entity, int index, Array<int> &dofs) const
+{
+   switch (entity)
+   {
+      case 0:
+         GetVertexDofs(index, dofs);
+         return 0;
+      case 1:
+         return GetEdgeDofs(index, dofs);
+      default:
+         MFEM_ABORT("TODO: entity type not yet supported in GetEntityDofs");
+         return 0;
+   }
+}
+
+// TODO: rename this.
+void NURBSExtension::ReadPatchCP(std::istream &input)
+{
+   input >> npatch;
+
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element, and
+   // the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = pow(ncp1D, Dimension());
+
+   patchCP.SetSize(npatch, ncp, Dimension());
+   for (int p=0; p<npatch; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         for (int j=0; j<Dimension(); ++j)
+         {
+            input >> patchCP(p, i, j);
+         }
+      }
+   }
+}
+
+void NURBSExtension::PrintCoarsePatches(std::ostream &os)
+{
+   const int maxOrder = mOrders.Max();
+
+   const int patchCP_size1 = patchCP.GetSize1();
+   MFEM_VERIFY(patchCP_size1 == npatch || patchCP_size1 == 0, "");
+
+   if (patchCP_size1 == 0)
+   {
+      return;
+   }
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element, and
+   // the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = pow(ncp1D, Dimension());
+
+   os << "\npatch_cp\n" << npatch << "\n";
+   for (int p=0; p<npatch; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         os << patchCP(p, i, 0);
+         for (int j=1; j<Dimension(); ++j)
+         {
+            os << ' ' << patchCP(p, i, j);
+         }
+         os << '\n';
+      }
+   }
 }
 
 NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
@@ -5318,6 +7203,7 @@ void ParNURBSExtension::BuildGroups(const int *partition,
    IntegerSet         group;
 
    Transpose(elem_dof, dof_proc); // dof_proc is dof_elem
+
    // convert elements to processors
    for (int i = 0; i < dof_proc.Size_of_connections(); i++)
    {
@@ -5392,7 +7278,6 @@ void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
       kv[0] = Ext->KnotVec(edges[0], oedge[0], &okv[0]);
       kv[1] = Ext->KnotVec(edges[1], oedge[1], &okv[1]);
    }
-
 }
 
 void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
@@ -5409,6 +7294,7 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNE() - 1;
+      SetMasterEdges(false, kv);
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = Ext->e_meshOffsets[edges[i]];
@@ -5417,7 +7303,7 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() == 3)
    {
       K = kv[2]->GetNE() - 1;
-
+      SetMasterFaces(false);
       for (int i = 0; i < faces.Size(); i++)
       {
          faces[i] = Ext->f_meshOffsets[faces[i]];
@@ -5440,15 +7326,40 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNCP() - 2;
-      for (int i = 0; i < edges.Size(); i++)
+      SetMasterEdges(true);
+
+      if (Ext->nonconforming && Ext->patchTopo->ncmesh
+          && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
       {
-         edges[i] = Ext->e_spaceOffsets[edges[i]];
+         // Use e2nce to map from patchTopo edges to patchTopo->ncmesh edges.
+         for (int i = 0; i < edges.Size(); i++)
+         {
+            int nce = -1;
+            auto s = Ext->e2nce.find(edges[i]);
+            if (s != Ext->e2nce.end())
+            {
+               nce = s->second;
+            }
+            else
+            {
+               MFEM_ABORT("TODO");
+            }
+
+            edges[i] = Ext->e_spaceOffsets[nce];
+         }
+      }
+      else
+      {
+         for (int i = 0; i < edges.Size(); i++)
+         {
+            edges[i] = Ext->e_spaceOffsets[edges[i]];
+         }
       }
    }
    if (Ext->Dimension() == 3)
    {
       K = kv[2]->GetNCP() - 2;
-
+      SetMasterFaces(true);
       for (int i = 0; i < faces.Size(); i++)
       {
          faces[i] = Ext->f_spaceOffsets[faces[i]];
@@ -5482,6 +7393,8 @@ void NURBSPatchMap::SetBdrPatchVertexMap(int p, const KnotVector *kv[],
       I = kv[0]->GetNE() - 1;
       J = kv[1]->GetNE() - 1;
 
+      SetMasterEdges(false);
+      SetMasterFaces(false);
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = Ext->e_meshOffsets[edges[i]];
@@ -5513,6 +7426,8 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
    {
       I = kv[0]->GetNCP() - 2;
       J = kv[1]->GetNCP() - 2;
+
+      SetMasterEdges(true);
 
       for (int i = 0; i < edges.Size(); i++)
       {
