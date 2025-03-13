@@ -597,28 +597,10 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
    {
       Vector x(Width());
       x = 0.;
-      if (pdarcy)
-      {
-         ConstructPar(x);
-      }
-      else
-      {
-         Construct(x);
-      }
+      ConstructPar(x);
    }
 
-   if (pdarcy)
-   {
-      prec_str = "HypreAMG";
-   }
-   else
-   {
-#ifndef MFEM_USE_SUITESPARSE
-      prec_str = "GS";
-#else
-      prec_str = "UMFPack";
-#endif
-   }
+   prec_str = "HypreAMG";
 }
 #endif //MFEM_USE_MPI
 
