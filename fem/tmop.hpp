@@ -2323,7 +2323,7 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &d,
+   void GetSurfaceFittingErrors(const Vector &d_loc,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
    {
