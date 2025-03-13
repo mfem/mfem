@@ -22,6 +22,8 @@
 namespace mfem
 {
 
+class GridFunction;
+
 class ElementTransformation
 {
 protected:
@@ -322,7 +324,8 @@ public:
    void SetInitialGuess(const IntegrationPoint &init_ip)
    { ip0 = init_ip; SetInitialGuessType(GivenPoint); }
 
-   /// Set the Quadrature1D type used for the `Closest*` initial guess types.
+   /// Set the Quadrature1D type used for the `Closest*` and `EdgeScan` initial
+   /// guess types.
    void SetInitGuessPointsType(int q_type) { refiner.SetType(q_type); }
 
    /// Set the relative order used for the `Closest*` initial guess types.
@@ -386,28 +389,43 @@ public:
  */
 class BatchInverseElementTransformation
 {
-   Mesh* mesh = nullptr;
+   // nodes grid function, not owned
+   const GridFunction *gf_ = nullptr;
+   // initial guess algorithm to use
    InverseElementTransformation::InitGuessType init_guess_type =
       InverseElementTransformation::ClosestPhysNode;
+   // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int rel_qpts_order = 0;
+   // solution strategy to use
    InverseElementTransformation::SolverType solver_type =
       InverseElementTransformation::NewtonElementProject;
-   /// basis type stored in points1d
+   // basis type stored in points1d
    int basis_type = BasisType::Invalid;
+   // initial guess points type. Quadrature1D::Invalid is used for match
+   // basis_type.
    int guess_points_type = Quadrature1D::Invalid;
+   // max. number of Newton iterations
    int max_iter = 16;
+   // internal element node locations cache
    Vector node_pos;
 #ifdef MFEM_USE_DOUBLE
+   // reference space tolerance
    real_t ref_tol = 1e-15;
+   // physical space tolerance (relative)
    real_t phys_rtol = 4e-15;
 #else
+   // reference space tolerance
    real_t ref_tol = 4e-7;
+   // physical space tolerance (relative)
    real_t phys_rtol = 1e-6;
 #endif
    // not owned, location of tensor product basis nodes in reference space
    const Array<real_t> *points1d = nullptr;
 
 public:
+   BatchInverseElementTransformation();
+   BatchInverseElementTransformation(const GridFunction &gf,
+                                     MemoryType d_mt = MemoryType::DEFAULT);
    ~BatchInverseElementTransformation();
 
    /** @brief Choose how the initial guesses for subsequent calls to Transform()
@@ -417,7 +435,8 @@ public:
       init_guess_type = itype;
    }
 
-   /// Set the Quadrature1D type used for the `Closest*` initial guess types.
+   /// Set the Quadrature1D type used for the `Closest*` and `EdgeScan` initial
+   /// guess types.
    void SetInitGuessPointsType(int q_type) { guess_points_type = q_type; }
 
    /// Set the relative order used for the `Closest*` initial guess types.
@@ -448,10 +467,11 @@ public:
 
    /**
     * @brief Performs setup for a batch transformation. This must be called
-    * at least once before calls to Transform. This function must be re-called
-    * after m.NodesUpdated() is called prior to calling Transform()
+    * at least once before calls to Transform. @a gf contains the mesh nodes
+    * grid function. This function must be re-called if @a gf changes prior to
+    * calling Transform()
     */
-   void Setup(Mesh &m, MemoryType d_mt = MemoryType::DEFAULT);
+   void UpdateNodes(const GridFunction &gf, MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Performs a batch request of a set of points belonging to the given
        elements.

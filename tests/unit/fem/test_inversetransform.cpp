@@ -49,6 +49,25 @@ std::string CShapedNodesStr =
    "-8 4"                                "\n"
    "-7 4"                                "\n";
 
+// Nodal grid function for a C-shaped quadratic quadrilateral embedded in 3D
+std::string EmbCShapedNodesStr =
+   "vertices"                            "\n"
+   "4"                                 "\n\n"
+   "nodes"                               "\n"
+   "FiniteElementSpace"                  "\n"
+   "FiniteElementCollection: Quadratic"  "\n"
+   "VDim: 3"                             "\n"
+   "Ordering: 1"                         "\n"
+   "0 0 0"                               "\n"
+   "0 2 2"                               "\n"
+   "0 6 6"                                "\n"
+   "0 8 8"                                "\n"
+   "0 1 1"                                "\n"
+   "-6 4 4"                               "\n"
+   "0 7 7"                                "\n"
+   "-8 4 4"                               "\n"
+   "-7 4 4"                               "\n";
+
 TEST_CASE("InverseElementTransformation",
           "[InverseElementTransformation]")
 {
@@ -125,7 +144,6 @@ TEST_CASE("InverseElementTransformation",
       REQUIRE( mesh_file.good() );
 
       const int npts = 100; // number of random points to test
-      const int min_found_pts = 100;
       const int rand_seed = 189548;
       srand(rand_seed);
 
@@ -164,7 +182,7 @@ TEST_CASE("InverseElementTransformation",
          }
       }
       CAPTURE(pts_found, npts, max_err);
-      REQUIRE( pts_found >= min_found_pts );
+      REQUIRE( pts_found == npts );
       REQUIRE( max_err <= tol );
    }
 }
@@ -194,7 +212,11 @@ TEST_CASE("BatchInverseElementTransformation",
       }
 
       const int times = 100;
-      const int dim = 2;
+      const int dim = mesh.Dimension();
+      const int sdim = mesh.SpaceDimension();
+
+      REQUIRE( dim == 2 );
+      REQUIRE( sdim == 2 );
 
       // Create a uniform grid of integration points over the element
       const int geom = mesh.GetElementBaseGeometry(0);
@@ -215,13 +237,13 @@ TEST_CASE("BatchInverseElementTransformation",
       Vector res_ref_space;
 
       BatchInverseElementTransformation itransform;
-      itransform.Setup(mesh);
+      itransform.UpdateNodes(*mesh.GetNodes());
       // itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
       // itransform.SetInitGuessRelOrder(3);
       // itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
 
       orig_ref_space.SetSize(npts * dim);
-      phys_space.SetSize(npts * dim);
+      phys_space.SetSize(npts * sdim);
       elems.SetSize(npts);
       res_type.SetSize(npts);
       res_ref_space.SetSize(npts * dim);
@@ -242,6 +264,112 @@ TEST_CASE("BatchInverseElementTransformation",
          for (int d = 0; d < dim; ++d)
          {
             orig_ref_space(i + d * npts) = tmp[d];
+            phys_space(i + d * npts) = v(d);
+         }
+
+         for (int d = 0; d < sdim; ++d)
+         {
+            phys_space(i + d * npts) = v(d);
+         }
+      }
+
+      // now batch reverse transform
+      itransform.Transform(phys_space, elems, res_type, res_ref_space);
+      res_type.HostRead();
+      res_ref_space.HostRead();
+      int pts_found = 0;
+      real_t max_err = 0;
+      for (int i = 0; i < npts; ++i)
+      {
+         if (res_type[i] == InverseElementTransformation::Inside)
+         {
+            ++pts_found;
+            for (int d = 0; d < dim; ++d)
+            {
+               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
+                                            orig_ref_space[i + d * npts]));
+            }
+         }
+      }
+
+      CAPTURE(pts_found, npts, max_err);
+      REQUIRE( pts_found == npts );
+      REQUIRE( max_err <= tol );
+   }
+
+   SECTION("{ C-shaped Q2 Quad 3D }")
+   {
+      // Create quadratic with single C-shaped quadrilateral
+      std::stringstream meshStr;
+      meshStr << meshPrefixStr << EmbCShapedNodesStr;
+      Mesh mesh( meshStr );
+
+      REQUIRE( mesh.GetNE() == 1 );
+      REQUIRE( mesh.GetNodes() != nullptr );
+
+      // Optionally, dump mesh to disk
+      bool dumpMesh = false;
+      if (dumpMesh)
+      {
+         std::string filename = "emb_c_shaped_quadratic_mesh";
+         VisItDataCollection dataCol(filename, &mesh);
+         dataCol.Save();
+      }
+
+      const int times = 100;
+      const int dim = mesh.Dimension();
+      const int sdim = mesh.SpaceDimension();
+
+      REQUIRE( dim == 2 );
+      REQUIRE( sdim == 3 );
+
+      // Create a uniform grid of integration points over the element
+      const int geom = mesh.GetElementBaseGeometry(0);
+      RefinedGeometry* ref =
+         GlobGeometryRefiner.Refine(Geometry::Type(geom), times);
+      const IntegrationRule& intRule = ref->RefPts;
+
+      // Create a transformation
+      IsoparametricTransformation tr;
+      mesh.GetElementTransformation(0, &tr);
+      Vector v(dim);
+
+      const int npts = intRule.GetNPoints();
+      Vector orig_ref_space;
+      Vector phys_space;
+      Array<int> elems;
+      Array<int> res_type;
+      Vector res_ref_space;
+
+      BatchInverseElementTransformation itransform;
+      itransform.UpdateNodes(*mesh.GetNodes());
+      itransform.SetInitialGuessType(InverseElementTransformation::Center);
+
+      orig_ref_space.SetSize(npts * dim);
+      phys_space.SetSize(npts * sdim);
+      elems.SetSize(npts);
+      res_type.SetSize(npts);
+      res_ref_space.SetSize(npts * dim);
+
+      orig_ref_space.HostWrite();
+      phys_space.HostWrite();
+      elems.HostWrite();
+
+      for (int i=0; i<npts; ++i)
+      {
+         elems[i] = 0;
+         // Transform the integration point into space
+         const IntegrationPoint& ip = intRule.IntPoint(i);
+         tr.Transform(ip, v);
+
+         real_t tmp[3];
+         ip.Get(tmp, dim);
+         for (int d = 0; d < dim; ++d)
+         {
+            orig_ref_space(i + d * npts) = tmp[d];
+         }
+         for (int d = 0; d < sdim; ++d)
+         {
             phys_space(i + d * npts) = v(d);
          }
       }
@@ -277,7 +405,6 @@ TEST_CASE("BatchInverseElementTransformation",
       REQUIRE( mesh_file.good() );
 
       const int npts = 100; // number of random points to test
-      const int min_found_pts = npts;
       const int rand_seed = 189548;
       srand(rand_seed);
 
@@ -294,7 +421,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Vector res_ref_space;
 
       BatchInverseElementTransformation itransform;
-      itransform.Setup(mesh);
+      itransform.UpdateNodes(*mesh.GetNodes());
       itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
       itransform.SetInitGuessRelOrder(3 - 20);
       itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
@@ -350,7 +477,87 @@ TEST_CASE("BatchInverseElementTransformation",
       }
 
       CAPTURE(pts_found, npts, max_err);
-      REQUIRE( pts_found >= min_found_pts );
+      REQUIRE( pts_found == npts );
+      REQUIRE( max_err <= tol );
+   }
+
+   SECTION("{ 3D Spiral }")
+   {
+      // Load the spiral mesh from file:
+      std::ifstream mesh_file("./data/spiral_3D_p9.mesh");
+      REQUIRE( mesh_file.good() );
+
+      const int npts = 100; // number of random points to test
+      const int rand_seed = 189548;
+      srand(rand_seed);
+
+      Mesh mesh(mesh_file);
+      REQUIRE( mesh.Dimension() == 3 );
+      REQUIRE( mesh.SpaceDimension() == 3 );
+      REQUIRE( mesh.GetNE() == 1 );
+
+      int dim = mesh.Dimension();
+      Vector orig_ref_space;
+      Vector phys_space;
+      Array<int> elems;
+      Array<int> res_type;
+      Vector res_ref_space;
+
+      BatchInverseElementTransformation itransform;
+      itransform.UpdateNodes(*mesh.GetNodes());
+
+      orig_ref_space.SetSize(npts * dim);
+      phys_space.SetSize(npts * dim);
+      elems.SetSize(npts);
+      res_type.SetSize(npts);
+      res_ref_space.SetSize(npts * dim);
+
+      orig_ref_space.HostWrite();
+      phys_space.HostWrite();
+      elems.HostWrite();
+
+      ElementTransformation &T = *mesh.GetElementTransformation(0);
+      IntegrationPoint ip;
+      Vector pt;
+      pt.SetSize(dim);
+
+      for (int i = 0; i < npts; i++)
+      {
+         elems[i] = 0;
+         Geometry::GetRandomPoint(T.GetGeometryType(), ip);
+         T.Transform(ip, pt);
+
+         real_t tmp[3];
+         ip.Get(tmp, dim);
+         for (int d = 0; d < dim; ++d)
+         {
+            orig_ref_space(i + d * npts) = tmp[d];
+            phys_space(i + d * npts) = pt(d);
+         }
+      }
+
+      // now batch reverse transform
+      itransform.Transform(phys_space, elems, res_type, res_ref_space);
+      res_type.HostRead();
+      res_ref_space.HostReadWrite();
+      res_ref_space -= orig_ref_space;
+      res_ref_space.HostRead();
+      int pts_found = 0;
+      real_t max_err = 0;
+      for (int i = 0; i < npts; ++i)
+      {
+         if (res_type[i] == InverseElementTransformation::Inside)
+         {
+            ++pts_found;
+            for (int d = 0; d < dim; ++d)
+            {
+               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+            }
+         }
+      }
+
+      CAPTURE(pts_found, npts, max_err);
+      REQUIRE( pts_found == npts );
       REQUIRE( max_err <= tol );
    }
 }

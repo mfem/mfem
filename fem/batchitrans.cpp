@@ -21,23 +21,32 @@
 
 namespace mfem
 {
+BatchInverseElementTransformation::BatchInverseElementTransformation()
+{
+   static Kernels kernels;
+}
+BatchInverseElementTransformation::BatchInverseElementTransformation(
+   const GridFunction &gf, MemoryType d_mt)
+   : BatchInverseElementTransformation()
+{
+   UpdateNodes(gf, d_mt);
+}
 
 BatchInverseElementTransformation::~BatchInverseElementTransformation() {}
 
-void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
+void BatchInverseElementTransformation::UpdateNodes(const GridFunction &gf,
+                                                    MemoryType d_mt)
 {
-   static Kernels kernels;
    MemoryType my_d_mt =
       (d_mt != MemoryType::DEFAULT) ? d_mt : Device::GetDeviceMemoryType();
 
-   mesh = &m;
-   MFEM_VERIFY(mesh->GetNodes(), "the provided mesh must have valid nodes.");
-   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
+   gf_ = &gf;
+   const FiniteElementSpace *fespace = gf.FESpace();
    const int max_order = fespace->GetMaxElementOrder();
    const int ndof1d = max_order + 1;
    int ND = ndof1d;
-   const int dim = mesh->Dimension();
-   MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
+   const int dim = fespace->GetMesh()->Dimension();
+   MFEM_VERIFY(fespace->GetMesh()->GetNumGeometries(dim) <= 1,
                "Mixed meshes are not supported.");
    for (int d = 1; d < dim; ++d)
    {
@@ -62,9 +71,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
       // either mixed order, or not a tensor basis
       node_pos.HostWrite();
       real_t tmp[3];
-      int sdim = mesh->SpaceDimension();
-      MFEM_VERIFY(sdim == vdim,
-                  "mesh.SpaceDimension and fespace.GetVDim mismatch");
+      int sdim = vdim;
       Vector pos(tmp, sdim);
       IntegrationPoint ip;
       int idcs[3];
@@ -80,7 +87,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
             ip.x = (*points1d)[idcs[0]];
             ip.y = (*points1d)[idcs[1]];
             ip.z = (*points1d)[idcs[2]];
-            mesh->GetNodes()->GetVectorValue(e, ip, pos);
+            gf.GetVectorValue(e, ip, pos);
             for (int d = 0; d < sdim; ++d)
             {
                node_pos[i + (d + e * sdim) * ND] = pos[d];
@@ -92,7 +99,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt)
    {
       const Operator *elem_restr =
          fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-      elem_restr->Mult(*mesh->GetNodes(), node_pos);
+      elem_restr->Mult(gf, node_pos);
       basis_type = tfe->GetBasisType();
       points1d = poly1d.GetPointsArray(max_order, basis_type);
    }
@@ -109,7 +116,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       // no devices available
       use_dev = false;
    }
-   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
+   const FiniteElementSpace *fespace = gf_->FESpace();
    const FiniteElement *fe = fespace->GetTypicalFE();
    const int dim = fe->GetDim();
    const int vdim = fespace->GetVDim();
