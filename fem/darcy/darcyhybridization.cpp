@@ -1035,18 +1035,9 @@ void DarcyHybridization::ComputeH()
    }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   if (diag_policy == DIAG_ONE)
-   {
-      // Complete the diagonal by ones
-      for (int i = 0; i < H->Size(); i++)
-      {
-         if (!H->RowIsEmpty(i)) { continue; }
-         H->Set(i, i, 1.);
-      }
-   }
-   H->Finalize();
+   H->Finalize(skip_zeros, diag_policy == DIAG_ONE);
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   Hb->Finalize();
+   Hb->Finalize(skip_zeros);
    if (H)
    {
       SparseMatrix *rap = RAP(*Ct, *Hb, *Ct);
