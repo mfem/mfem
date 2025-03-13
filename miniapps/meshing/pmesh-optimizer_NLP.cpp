@@ -42,15 +42,17 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1e-2 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -rs 1 -w1 1e4
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 300 -w1 1e6 -w2 1e-2 -rs 3 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.005
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 200 -w1 1e7 -w2 1e-3 -rs 4 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.02
-// 3D
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 2 -m cube.mesh -mid 303
-
+// simplices
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1e-2 -rs 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -m square01-tri.mesh
+
 // average error - 2nd order - shock wave around corner
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005
 // same but with simplices
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -m square01-tri.mesh
+// 3D with avg error
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 2 -m cube.mesh -mid 303
+
 // l2 with wave around center - linear
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 400 -ft 1 --qtype 0 -w1 2e4 -w2 1e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
 // h1 with wave around center - linear
@@ -1132,9 +1134,6 @@ if (myid == 0) {
   case 5:
     std::cout<<" Global ZZ"<<std::endl;
     break;
-  case 6:
-    std::cout<<" L2+H1"<<std::endl;;
-    break;
   case 7:
     std::cout<<" Struct Compliance"<<std::endl;;
     break;
@@ -1343,7 +1342,7 @@ if (myid == 0) {
       tmma->SetTrueDofs(trueBounds);
     }
     // Set QoI and Solver and weight
-    if (weight_1 > 0.0)
+    if (weight_1 != 0.0)
     {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
       tmma->SetDiffusionSolver(reinterpret_cast<Diffusion_Solver*>(solver));       // TODO change to base class
