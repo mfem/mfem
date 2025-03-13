@@ -5434,8 +5434,8 @@ void TMOP_Integrator::ComputeFDh(const Vector &d, const FiniteElementSpace &fes)
    if (pfes)
    {
       real_t min_jac_all;
-      MPI_Allreduce(&fd_h, &min_jac_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
-                    pfes->GetComm());
+      MPI_Allreduce(&fd_h, &min_jac_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, pfes->GetComm());
       fd_h = min_jac_all;
    }
 #endif
@@ -5460,8 +5460,10 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
       }
 #endif
       discr_tc->UpdateTargetSpecification(x, false, fes->GetOrdering());
-      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false, fes->GetOrdering());
-      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false, fes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false,
+                                                  fes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false,
+                                                 fes->GetOrdering());
    }
 }
 
@@ -5485,8 +5487,10 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
       }
 #endif
       discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
-      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false, pfes->GetOrdering());
-      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false, pfes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false,
+                                                  pfes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false,
+                                                 pfes->GetOrdering());
    }
 }
 #endif
