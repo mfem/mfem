@@ -1806,7 +1806,6 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
       // point we cannot accurately integrate the quadratic factor
       // pow(1.0 - ipc.z, 2) and the resulting weight does not match the volume
       // of the reference element.
-      const IntegrationPoint &ipc = irc.IntPoint(0);
       IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(0);
       ipp.x = 0.375;
       ipp.y = 0.375;
