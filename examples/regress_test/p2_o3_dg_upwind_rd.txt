@@ -14,7 +14,7 @@ Options used:
    --kappa 1
    --velocity 1
    --stab_diff 0.5
-   --no-bc-neumann
+   --bc-neumann
    --reduction
    --no-hybridization
    --no-nonlinear
@@ -31,12 +31,12 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Reduction init took 0.000230639s.
+Reduction init took 0.000255944s.
 ***********************************************************
 dim(W) = 1600
 ***********************************************************
-Assembly took 0.188988s.
-Preconditioner took 2.0013e-05s.
+Assembly took 0.18697s.
+Preconditioner took 3.3748e-05s.
    Pass :  1   Iteration :   0  ||B r|| = 0.0163145
    Pass :  1   Iteration :   1  ||B r|| = 0.0115162
    Pass :  1   Iteration :   2  ||B r|| = 0.011444
@@ -112,6 +112,6 @@ Restarting...
    Pass :  2   Iteration :  71  ||B r|| = 1.95865e-08
    Pass :  2   Iteration :  72  ||B r|| = 1.54337e-08
 GMRES+GS converged in 72 iterations with a residual norm of 1.54337e-08.
-solver took 0.0471164s.
+solver took 0.0483163s.
 || q_h - q_ex || / || q_ex || = 5.8937e-07
 || t_h - t_ex || / || t_ex || = 6.87392e-07

@@ -14,7 +14,7 @@ Options used:
    --kappa 1
    --velocity 1
    --stab_diff 0.5
-   --no-bc-neumann
+   --bc-neumann
    --reduction
    --no-hybridization
    --no-nonlinear
@@ -33,12 +33,12 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 10
-Reduction init took 0.000316504s.
+Reduction init took 0.000229938s.
 ***********************************************************
 dim(W) = 800
 ***********************************************************
-Assembly took 0.0752102s.
-Preconditioner took 4.1672e-05s.
+Assembly took 0.0836588s.
+Preconditioner took 2.6519e-05s.
 
 
  Num MPI tasks = 2
@@ -144,6 +144,6 @@ BoomerAMG SOLVER PARAMETERS:
    Pass :  1   Iteration :  32  ||B r|| = 7.29292e-07
    Pass :  1   Iteration :  33  ||B r|| = 5.56099e-07
 GMRES+HypreAMG converged in 33 iterations with a residual norm of 5.56099e-07.
-solver took 0.0188777s.
+solver took 0.0144072s.
 || q_h - q_ex || / || q_ex || = 6.09677e-06
 || t_h - t_ex || / || t_ex || = 4.57826e-06

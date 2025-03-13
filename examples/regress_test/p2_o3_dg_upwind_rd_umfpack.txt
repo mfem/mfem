@@ -14,7 +14,7 @@ Options used:
    --kappa 1
    --velocity 1
    --stab_diff 0.5
-   --no-bc-neumann
+   --bc-neumann
    --reduction
    --no-hybridization
    --no-nonlinear
@@ -31,15 +31,15 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Reduction init took 0.000243736s.
+Reduction init took 0.000656228s.
 ***********************************************************
 dim(W) = 1600
 ***********************************************************
-Assembly took 0.18648s.
-Preconditioner took 0.00787725s.
+Assembly took 0.186881s.
+Preconditioner took 0.00652136s.
    Pass :  1   Iteration :   0  ||B r|| = 2.10384
    Pass :  1   Iteration :   1  ||B r|| = 1.07425e-14
 GMRES+UMFPack converged in 1 iterations with a residual norm of 1.07425e-14.
-solver took 0.00419245s.
+solver took 0.00410399s.
 || q_h - q_ex || / || q_ex || = 4.87198e-07
 || t_h - t_ex || / || t_ex || = 6.65782e-07

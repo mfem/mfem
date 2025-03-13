@@ -14,7 +14,14 @@ Options used:
    --kappa 1
    --velocity 1
    --stab_diff 0.5
+   --bc-neumann
+   --no-reduction
    --hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
    --no-mfem
@@ -24,44 +31,49 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
+Hybridization init took 0.0260873s.
 ***********************************************************
 dim(V) = 3280
 dim(W) = 1600
-dim(V+W) = 4880
+dim(M) = 880
+dim(V+W+M) = 5760
 ***********************************************************
-Assembly took 0.0581648s.
-Preconditioner took 1.2609e-05s.
-   Pass :  1   Iteration :   0  ||B r|| = 0.0364865
-   Pass :  1   Iteration :   1  ||B r|| = 0.0277438
-   Pass :  1   Iteration :   2  ||B r|| = 0.0230387
-   Pass :  1   Iteration :   3  ||B r|| = 0.0174493
-   Pass :  1   Iteration :   4  ||B r|| = 0.0137436
-   Pass :  1   Iteration :   5  ||B r|| = 0.00896777
-   Pass :  1   Iteration :   6  ||B r|| = 0.00590091
-   Pass :  1   Iteration :   7  ||B r|| = 0.00283417
-   Pass :  1   Iteration :   8  ||B r|| = 0.00153903
-   Pass :  1   Iteration :   9  ||B r|| = 0.000581217
-   Pass :  1   Iteration :  10  ||B r|| = 0.000400993
-   Pass :  1   Iteration :  11  ||B r|| = 0.00029275
-   Pass :  1   Iteration :  12  ||B r|| = 0.000238802
-   Pass :  1   Iteration :  13  ||B r|| = 0.000134284
-   Pass :  1   Iteration :  14  ||B r|| = 9.30129e-05
-   Pass :  1   Iteration :  15  ||B r|| = 4.49352e-05
-   Pass :  1   Iteration :  16  ||B r|| = 2.43118e-05
-   Pass :  1   Iteration :  17  ||B r|| = 9.6586e-06
-   Pass :  1   Iteration :  18  ||B r|| = 6.77309e-06
-   Pass :  1   Iteration :  19  ||B r|| = 3.70714e-06
-   Pass :  1   Iteration :  20  ||B r|| = 2.58626e-06
-   Pass :  1   Iteration :  21  ||B r|| = 1.24687e-06
-   Pass :  1   Iteration :  22  ||B r|| = 9.22982e-07
-   Pass :  1   Iteration :  23  ||B r|| = 5.99905e-07
-   Pass :  1   Iteration :  24  ||B r|| = 4.32719e-07
-   Pass :  1   Iteration :  25  ||B r|| = 2.50362e-07
-   Pass :  1   Iteration :  26  ||B r|| = 1.75141e-07
-   Pass :  1   Iteration :  27  ||B r|| = 1.05926e-07
-   Pass :  1   Iteration :  28  ||B r|| = 6.60834e-08
-   Pass :  1   Iteration :  29  ||B r|| = 3.32522e-08
-GMRES+GS converged in 29 iterations with a residual norm of 3.32522e-08.
-GMRES solver took 0.00585433s.
-|| q_h - q_ex || / || q_ex || = 4.55477e-07
-|| t_h - t_ex || / || t_ex || = 1.78812e-07
+Assembly took 0.231276s.
+Preconditioner took 1.9305e-05s.
+   Pass :  1   Iteration :   0  ||B r|| = 3.39849
+   Pass :  1   Iteration :   1  ||B r|| = 0.0497973
+   Pass :  1   Iteration :   2  ||B r|| = 0.0290039
+   Pass :  1   Iteration :   3  ||B r|| = 0.0215547
+   Pass :  1   Iteration :   4  ||B r|| = 0.0171677
+   Pass :  1   Iteration :   5  ||B r|| = 0.0134762
+   Pass :  1   Iteration :   6  ||B r|| = 0.0113621
+   Pass :  1   Iteration :   7  ||B r|| = 0.00935178
+   Pass :  1   Iteration :   8  ||B r|| = 0.00774471
+   Pass :  1   Iteration :   9  ||B r|| = 0.00734466
+   Pass :  1   Iteration :  10  ||B r|| = 0.00673245
+   Pass :  1   Iteration :  11  ||B r|| = 0.00636417
+   Pass :  1   Iteration :  12  ||B r|| = 0.00579576
+   Pass :  1   Iteration :  13  ||B r|| = 0.00529263
+   Pass :  1   Iteration :  14  ||B r|| = 0.0042932
+   Pass :  1   Iteration :  15  ||B r|| = 0.00355719
+   Pass :  1   Iteration :  16  ||B r|| = 0.00256598
+   Pass :  1   Iteration :  17  ||B r|| = 0.00139006
+   Pass :  1   Iteration :  18  ||B r|| = 0.000903464
+   Pass :  1   Iteration :  19  ||B r|| = 0.000641531
+   Pass :  1   Iteration :  20  ||B r|| = 0.000483224
+   Pass :  1   Iteration :  21  ||B r|| = 0.000263395
+   Pass :  1   Iteration :  22  ||B r|| = 0.00016559
+   Pass :  1   Iteration :  23  ||B r|| = 9.61118e-05
+   Pass :  1   Iteration :  24  ||B r|| = 6.49821e-05
+   Pass :  1   Iteration :  25  ||B r|| = 3.71899e-05
+   Pass :  1   Iteration :  26  ||B r|| = 2.0518e-05
+   Pass :  1   Iteration :  27  ||B r|| = 1.48709e-05
+   Pass :  1   Iteration :  28  ||B r|| = 9.71717e-06
+   Pass :  1   Iteration :  29  ||B r|| = 6.96074e-06
+   Pass :  1   Iteration :  30  ||B r|| = 5.71704e-06
+   Pass :  1   Iteration :  31  ||B r|| = 4.95969e-06
+   Pass :  1   Iteration :  32  ||B r|| = 3.175e-06
+GMRES+GS converged in 32 iterations with a residual norm of 3.175e-06.
+solver took 0.00956355s.
+|| q_h - q_ex || / || q_ex || = 0.00102764
+|| t_h - t_ex || / || t_ex || = 0.00146825
