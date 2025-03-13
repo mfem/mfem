@@ -1949,8 +1949,8 @@ protected:
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
-   real_t dx;
-   real_t dxscale;
+   real_t fd_h;
+   real_t fd_h_scale;
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
@@ -2163,7 +2163,7 @@ public:
         surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
+        fdflag(false), fd_h_scale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
@@ -2401,9 +2401,9 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(real_t dxscale_) { dxscale = dxscale_; }
+   void   SetFDhScale(real_t scale) { fd_h_scale = scale; }
    bool   GetFDFlag() const { return fdflag; }
-   real_t GetFDh()    const { return dx; }
+   real_t GetFDh()    const { return fd_h; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
