@@ -175,15 +175,15 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double k = 1.0;
-   ConstantCoefficient kcoeff(k);
-   RatioCoefficient ikcoeff(1., kcoeff);
+   ConstantCoefficient kcoeff(k); //acoustic resistance
+   RatioCoefficient ikcoeff(1., kcoeff); //inverse acoustic resistance
 
-   VectorFunctionCoefficient fcoeff(dim, fFun);
-   FunctionCoefficient fnatcoeff(f_natural);
-   FunctionCoefficient gcoeff(gFun);
+   VectorFunctionCoefficient fcoeff(dim, fFun); //velocity rhs
+   FunctionCoefficient fnatcoeff(f_natural); //boundary velocity rhs
+   FunctionCoefficient gcoeff(gFun); //pressure rhs
 
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex);
-   FunctionCoefficient pcoeff(pFun_ex);
+   VectorFunctionCoefficient ucoeff(dim, uFun_ex); //velocity
+   FunctionCoefficient pcoeff(pFun_ex); //pressure
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and

@@ -190,19 +190,19 @@ int main(int argc, char *argv[])
    const real_t t_0 = 1.; //base temperature
    const real_t k = 1.; //base heat conductivity
 
-   ConstantCoefficient acoeff(a);
+   ConstantCoefficient acoeff(a); //heat capacity
 
    auto kFun = GetKFun(k, ks, ka);
-   MatrixFunctionCoefficient kcoeff(dim, kFun);
-   InverseMatrixCoefficient ikcoeff(kcoeff);
+   MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
+   InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
 
    auto tFun = GetTFun(t_0, a, kFun);
-   FunctionCoefficient tcoeff(tFun);
-   SumCoefficient gcoeff(0, tcoeff, 1.,
+   FunctionCoefficient tcoeff(tFun); //temperature
+   SumCoefficient gcoeff(0, tcoeff, 1., //boundary heat flux rhs
                          -((a>0.)?(a):(1.)));//<-- due to symmetrization, the sign is opposite
 
    auto qFun = GetQFun(t_0, a, kFun);
-   VectorFunctionCoefficient qcoeff(dim, qFun);
+   VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and

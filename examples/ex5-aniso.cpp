@@ -341,27 +341,27 @@ int main(int argc, char *argv[])
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
 
-   ConstantCoefficient acoeff(a);
+   ConstantCoefficient acoeff(a); //heat capacity
 
    constexpr unsigned int seed = 0;
    srand(seed);// init random number generator
 
    auto kFun = GetKFun(problem, k, ks, ka);
-   MatrixFunctionCoefficient kcoeff(dim, kFun);
-   InverseMatrixCoefficient ikcoeff(kcoeff);
+   MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
+   InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
 
    auto cFun = GetCFun(problem, c);
-   VectorFunctionCoefficient ccoeff(dim, cFun);
+   VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
 
    auto tFun = GetTFun(problem, t_0, a, kFun, c);
-   FunctionCoefficient tcoeff(tFun);
-   SumCoefficient gcoeff(0., tcoeff, 1., -1.);
+   FunctionCoefficient tcoeff(tFun); //temperature
+   SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
 
    auto fFun = GetFFun(problem, t_0, a, kFun, c);
-   FunctionCoefficient fcoeff(fFun);
+   FunctionCoefficient fcoeff(fFun); //temperature rhs
 
    auto qFun = GetQFun(problem, t_0, a, kFun, c);
-   VectorFunctionCoefficient qcoeff(dim, qFun);
+   VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
    ConstantCoefficient one;
    VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
    VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)

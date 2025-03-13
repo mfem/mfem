@@ -394,22 +394,22 @@ int main(int argc, char *argv[])
    // 8. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
 
-   ConstantCoefficient kcoeff(k);
-   ConstantCoefficient ikcoeff(1./k);
+   ConstantCoefficient kcoeff(k); //conductivity
+   ConstantCoefficient ikcoeff(1./k); //inverse conductivity
 
    auto cFun = GetCFun(problem, c);
-   VectorFunctionCoefficient ccoeff(dim, cFun);
-   NormalizedVectorCoefficient nccoeff(ccoeff);
+   VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
+   NormalizedVectorCoefficient nccoeff(ccoeff); //normalized velocity
 
    auto tFun = GetTFun(problem, t_0, k, c);
-   FunctionCoefficient tcoeff(tFun);
-   SumCoefficient gcoeff(0., tcoeff, 1., -1.);
+   FunctionCoefficient tcoeff(tFun); //temperature
+   SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
 
    auto fFun = GetFFun(problem, t_0, k, c);
-   FunctionCoefficient fcoeff(fFun);
+   FunctionCoefficient fcoeff(fFun); //temperature rhs
 
    auto qFun = GetQFun(problem, t_0, k, c);
-   VectorFunctionCoefficient qcoeff(dim, qFun);
+   VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
    ConstantCoefficient one;
    VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
    VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)
