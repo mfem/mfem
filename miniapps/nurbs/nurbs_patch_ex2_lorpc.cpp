@@ -28,8 +28,6 @@
 //               patch-wise matrix assembly and partial assembly on NURBS
 //               meshes.
 
-#include "fem/fe_coll.hpp"
-#include "fem/gridfunc.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -66,12 +64,6 @@ struct Problem
 
       // 1a) Verify mesh is valid for this problem
       MFEM_VERIFY(!(isNURBS && !mesh.GetNodes()), "NURBS mesh must have nodes");
-      if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
-      {
-         cout << "\nInput mesh should have at least two materials and "
-            << "two boundary attributes! (See schematic in ex2.cpp)\n"
-            << endl;
-      }
       // 1b) Optionally, increase the NURBS degree.
       if (isNURBS && nurbs_degree_increase>0)
       {
@@ -105,7 +97,7 @@ struct Problem
       // 3) Determine the list of true (i.e. conforming) essential boundary dofs.
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 0;
-      ess_bdr[0] = 1;
+      ess_bdr[3] = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       // 4) Set up the linear form b(.)
@@ -250,36 +242,34 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file.
    cout << "Setting up problem..." << endl;
    // Mesh mesh(mesh_file, 1, 1);
-   Mesh mesh("nurbs-meshes/high_order_p4_i8.mesh", 1, 1);
+   Mesh mesh("nurbs-meshes/high_order_p4_i16.mesh", 1, 1);
    bool isNURBS = mesh.NURBSext;
    Problem hop(mesh, pa, patchAssembly, ref_levels,
                nurbs_degree_increase, ir_order);
 
    cout << "Setting up low-order problem..." << endl;
-   Mesh lop_mesh("nurbs-meshes/low_order_p4_i8.mesh", 1, 1);
-   Problem lop(lop_mesh, pa, patchAssembly, 0,
-               0, ir_order);
+   // Mesh lop_mesh("nurbs-meshes/low_order_p4_i8.mesh", 1, 1);
+   // Problem lop(lop_mesh, pa, patchAssembly, ref_levels,
+   //             0, ir_order);
 
    StopWatch sw;
    sw.Start();
 
    // Diagonal preconditioner
    cout << "Getting diagonal ... " << endl;
-   OperatorJacobiSmoother M(*hop.a, hop.ess_tdof_list);
+   OperatorJacobiSmoother Pjacobi(*hop.a, hop.ess_tdof_list);
+
+   // LOR preconditioner
+   cout << "Getting LOR PC ... " << endl;
+   // CGSolver Plop;
+   // Plop.SetOperator(*lop.A);
+   // Plop.SetPrintLevel(-1);
+   // Plop.SetRelTol(1e-6);
+   // Plop.SetMaxIter(100);
+
 
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
-   // GSSmoother M(A);
-   // GSSmoother M((SparseMatrix&)(*A));
-   // PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
-
-   // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-   // CG(*A, B, X, 1, 10, 1e-8, 1e-10);
-
-   // GSSmoother M(A);
-   // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
-   // GMRESSolver solver;
-   // solver.SetMaxIter(1000);
    CGSolver solver;
    solver.SetMaxIter(1e5);
 
@@ -287,9 +277,11 @@ int main(int argc, char *argv[])
    solver.SetRelTol(sqrt(1e-8));
    solver.SetAbsTol(sqrt(1e-14));
    solver.SetOperator(*hop.A);
-   // solver.SetPreconditioner(M);
+   // solver.SetPreconditioner(Pjacobi);
+   // solver.SetPreconditioner(Plop);
 
-   solver.Mult(hop.B, hop.X);
+   // solver.Mult(hop.B, hop.X);
+   hop.A->Mult(hop.B, hop.X);
 
    cout << "Done solving system." << endl;
 
@@ -310,7 +302,7 @@ int main(int argc, char *argv[])
    cout << "Dof/sec (solve): " << dof_per_sec_solve << endl;
    cout << "Dof/sec (total): " << dof_per_sec_total << endl;
 
-   ofstream results_ofs("ex2_results.csv", ios_base::app);
+   ofstream results_ofs("ex2_lorpc_results.csv", ios_base::app);
    bool file_exists = results_ofs.tellp() != 0;
    // header
    if (!file_exists)
