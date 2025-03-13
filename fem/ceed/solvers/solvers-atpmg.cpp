@@ -120,7 +120,7 @@ int CeedATPMGElemRestriction(int order,
    }
    ierr = CeedVectorRestoreArray(in_lvec, &lvec_data); PCeedChk(ierr);
    CeedInt in_layout[3];
-   ierr = CeedElemRestrictionGetELayout(er_in, &in_layout); PCeedChk(ierr);
+   ierr = CeedElemRestrictionGetELayout(er_in, in_layout); PCeedChk(ierr);
    if (in_layout[0] == 0 && in_layout[1] == 0 && in_layout[2] == 0)
    {
       return CeedError(ceed, 1, "Cannot interpret e-vector ordering of given"
@@ -664,7 +664,7 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
 
    for (int i = 0; i < numinputfields; ++i)
    {
-      char * fieldname;
+      const char * fieldname;
       ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); PCeedChk(ierr);
       if (if_vector[i] == CEED_VECTOR_ACTIVE)
       {
@@ -682,7 +682,7 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    }
    for (int i = 0; i < numoutputfields; ++i)
    {
-      char * fieldname;
+      const char * fieldname;
       ierr = CeedQFunctionFieldGetName(outputqfields[i], &fieldname); PCeedChk(ierr);
       if (of_vector[i] == CEED_VECTOR_ACTIVE)
       {
