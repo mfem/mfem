@@ -3826,19 +3826,15 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 }
 #endif
 
-void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d,
+void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
                                               real_t &err_avg, real_t &err_max)
 {
    MFEM_VERIFY(periodic == false,
                "Fitting is not supported for periodic meshes.");
 
-   Vector pos;
-   if (x_0)
-   {
-      pos = *x_0;
-      pos += d;
-   }
-   else { pos = d; }
+   Vector pos(d_loc.Size());
+   if (x_0) { add(*x_0, d_loc, pos); }
+   else     { pos = d_loc; }
 
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
