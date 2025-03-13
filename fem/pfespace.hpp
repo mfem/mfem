@@ -549,10 +549,12 @@ protected:
                          Array<VarOrderBits> &face_orders) const override;
 
    /// Returns the number of ghost edges.
-   int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
+   int NumGhostEdges() const override
+   { return pncmesh ? pncmesh->GetNGhostEdges() : 0; }
 
    /// Returns the number of ghost faces.
-   int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }
+   int NumGhostFaces() const override
+   { return pncmesh ? pncmesh->GetNGhostFaces() : 0; }
 };
 
 
