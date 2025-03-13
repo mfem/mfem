@@ -214,7 +214,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    PCeedChk(ierr);
 
    CeedInt layout[3];
-   ierr = CeedElemRestrictionGetELayout(rstr_q, &layout); PCeedChk(ierr);
+   ierr = CeedElemRestrictionGetELayout(rstr_q, layout); PCeedChk(ierr);
    ierr = CeedElemRestrictionDestroy(&rstr_q); PCeedChk(ierr);
 
    // enforce structurally symmetric for later elimination
