@@ -48,7 +48,7 @@ real_t size_indicator_periodic(const Vector &x)
    zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    r = sqrt(xc*xc + yc*yc + zc*zc);
    r1 = 0.45; r2 = 0.55; sf=30.0;
-   double val1 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   real_t val1 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
    val = std::max(val, val1);
 
    // top left
@@ -56,7 +56,7 @@ real_t size_indicator_periodic(const Vector &x)
    zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    r = sqrt(xc*xc + yc*yc + zc*zc);
    r1 = 0.45; r2 = 0.55; sf=30.0;
-   double val2 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   real_t val2 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
    val = std::max(val, val2);
 
    // bottom left
@@ -64,7 +64,7 @@ real_t size_indicator_periodic(const Vector &x)
    zc = (x.Size() == 3) ? x(2) - 0.0 : 0.0;
    r = sqrt(xc*xc + yc*yc + zc*zc);
    r1 = 0.45; r2 = 0.55; sf=30.0;
-   double val3 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   real_t val3 = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
    val = std::max(val, val3);
 
    return val;
