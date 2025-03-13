@@ -767,15 +767,31 @@ int main(int argc, char *argv[])
    ParLinearForm *fform(new ParLinearForm);
    fform->Update(W_space, rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+
+   //Neumann
    if (!hybridization)
    {
-      if (upwinded)
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
-                                     bdr_is_neumann);
-      else
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
-                                     bdr_is_neumann);
+      if (dg)
+      {
+         if (upwinded)
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
+                                        bdr_is_neumann);
+         else
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
+                                        bdr_is_neumann);
+      }
+      else if (bconv)
+      {
+         if (upwinded)
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
+                                        bdr_is_neumann);
+         else
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1., 0.),
+                                        bdr_is_neumann);
+      }
    }
+
+   //Dirichlet
    if (bconv)
    {
       if (upwinded)
