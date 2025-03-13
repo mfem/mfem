@@ -3899,8 +3899,18 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 
 real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
-                                         const Vector &elfun)
+                                         const Vector &d_el)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim();
    const int el_id = T.ElementNo;
    real_t energy;
@@ -4197,38 +4207,48 @@ real_t TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
-                                            const Vector &elfun, Vector &elvect)
+                                            const Vector &d_el, Vector &elvect)
 {
    if (!fdflag)
    {
-      AssembleElementVectorExact(el, T, elfun, elvect);
+      AssembleElementVectorExact(el, T, d_el, elvect);
    }
    else
    {
-      AssembleElementVectorFD(el, T, elfun, elvect);
+      AssembleElementVectorFD(el, T, d_el, elvect);
    }
 }
 
 void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           ElementTransformation &T,
-                                          const Vector &elfun,
+                                          const Vector &d_el,
                                           DenseMatrix &elmat)
 {
    if (!fdflag)
    {
-      AssembleElementGradExact(el, T, elfun, elmat);
+      AssembleElementGradExact(el, T, d_el, elmat);
    }
    else
    {
-      AssembleElementGradFD(el, T, elfun, elmat);
+      AssembleElementGradFD(el, T, d_el, elmat);
    }
 }
 
 void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  ElementTransformation &T,
-                                                 const Vector &elfun,
+                                                 const Vector &d_el,
                                                  Vector &elvect)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim();
 
    DenseMatrix Amat(dim), work1(dim), work2(dim);
@@ -4381,9 +4401,19 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                                                ElementTransformation &T,
-                                               const Vector &elfun,
+                                               const Vector &d_el,
                                                DenseMatrix &elmat)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
@@ -4782,16 +4812,16 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
 real_t TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
-                                        Vector &elfun, const int dofidx,
+                                        Vector &d_el, const int dofidx,
                                         const int dir, const real_t e_fx,
                                         bool update_stored)
 {
    int dof = el.GetDof();
    int idx = dir*dof+dofidx;
-   elfun[idx]    += dx;
-   real_t e_fxph  = GetElementEnergy(el, T, elfun);
-   elfun[idx]    -= dx;
-   real_t dfdx    = (e_fxph-e_fx)/dx;
+   d_el[idx]     += dx;
+   real_t e_fxph = GetElementEnergy(el, T, d_el);
+   d_el[idx]     -= dx;
+   real_t dfdx   = (e_fxph - e_fx) / dx;
 
    if (update_stored)
    {
@@ -4804,11 +4834,21 @@ real_t TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
                                               ElementTransformation &T,
-                                              const Vector &elfun,
+                                              const Vector &d_el,
                                               Vector &elvect)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim(), elnum = T.ElementNo;
-   if (elnum>=ElemDer.Size())
+   if (elnum >= ElemDer.Size())
    {
       ElemDer.Append(new Vector);
       ElemPertEnergy.Append(new Vector);
@@ -4817,14 +4857,14 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    }
 
    elvect.SetSize(dof*dim);
-   Vector elfunmod(elfun);
 
    // In GetElementEnergy(), skip terms that have exact derivative calculations.
    fd_call_flag = true;
 
    // Energy for unperturbed configuration.
-   const real_t e_fx = GetElementEnergy(el, T, elfun);
+   const real_t e_fx = GetElementEnergy(el, T, d_el);
 
+   Vector d_el_mod(d_el);
    for (int j = 0; j < dim; j++)
    {
       for (int i = 0; i < dof; i++)
@@ -4834,7 +4874,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
             discr_tc->UpdateTargetSpecificationAtNode(
                el, T, i, j, discr_tc->GetTspecPert1H());
          }
-         elvect(j*dof+i) = GetFDDerivative(el, T, elfunmod, i, j, e_fx, true);
+         elvect(j*dof+i) = GetFDDerivative(el, T, d_el_mod, i, j, e_fx, true);
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
       }
    }
@@ -4872,18 +4912,28 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                                             ElementTransformation &T,
-                                            const Vector &elfun,
+                                            const Vector &d_el,
                                             DenseMatrix &elmat)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim();
 
    elmat.SetSize(dof*dim);
-   Vector elfunmod(elfun);
 
    const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
    const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
 
    // In GetElementEnergy(), skip terms that have exact derivative calculations.
+   Vector d_el_mod(d_el);
    fd_call_flag = true;
    for (int i = 0; i < dof; i++)
    {
@@ -4893,7 +4943,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          {
             for (int k2 = 0; k2 < dim; k2++)
             {
-               elfunmod(k2*dof+j) += dx;
+               d_el_mod(k2 * dof + j) += dx;
 
                if (discr_tc)
                {
@@ -4920,10 +4970,10 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                   }
                }
 
-               real_t e_fx   = ElemPertLoc(k2*dof+j);
-               real_t e_fpxph = GetFDDerivative(el, T, elfunmod, i, k1, e_fx,
+               real_t e_fx    = ElemPertLoc(k2 * dof + j);
+               real_t e_fpxph = GetFDDerivative(el, T, d_el_mod, i, k1, e_fx,
                                                 false);
-               elfunmod(k2*dof+j) -= dx;
+               d_el_mod(k2 * dof + j) -= dx;
                real_t e_fpx = ElemDerLoc(k1*dof+i);
 
                elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / dx;
@@ -5015,6 +5065,22 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
+
+void TMOP_Integrator::SetInitialMeshPos(const GridFunction *x0)
+{
+   x_0 = x0;
+
+   // Compute PA.X0 when we're setting x_0 to something.
+   // TODO move(or copy?) this in AssemblePA.
+   if (PA.enabled && x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *n0_R = x0->FESpace()->GetElementRestriction(ord);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      PA.X0.UseDevice(true);
+      n0_R->Mult(*x_0, PA.X0);
+   }
+}
 
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
