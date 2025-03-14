@@ -46,8 +46,8 @@ public:
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
 
       Array<real_t> mp;
       if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
@@ -69,8 +69,8 @@ public:
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-         constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
+         constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
          MFEM_SHARED real_t BG[2][MQ1 * MD1];

@@ -52,6 +52,7 @@ struct DofQuadLimits_CUDA
    static constexpr int HDIV_MAX_Q1D = 6;
    static constexpr int MAX_INTERP_1D = 8;
    static constexpr int MAX_DET_1D = 6;
+   static constexpr int MAX_TMOP_1D = 6;
 };
 
 struct DofQuadLimits_HIP
@@ -64,6 +65,7 @@ struct DofQuadLimits_HIP
    static constexpr int HDIV_MAX_Q1D = 6;
    static constexpr int MAX_INTERP_1D = 8;
    static constexpr int MAX_DET_1D = 6;
+   static constexpr int MAX_TMOP_1D = 6;
 };
 
 struct DofQuadLimits_CPU
@@ -81,6 +83,7 @@ struct DofQuadLimits_CPU
    static constexpr int HDIV_MAX_Q1D = 10;
    static constexpr int MAX_INTERP_1D = MAX_D1D;
    static constexpr int MAX_DET_1D = MAX_D1D;
+   static constexpr int MAX_TMOP_1D = 6;
 };
 
 } // namespace internal
@@ -120,6 +123,7 @@ struct DeviceDofQuadLimits
    int HDIV_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(div).
    int MAX_INTERP_1D; ///< Maximum number of points for use in QuadratureInterpolator.
    int MAX_DET_1D; ///< Maximum number of points for determinant computation in QuadratureInterpolator.
+   int MAX_TMOP_1D; ///< Maximum number of points for TMOP.
 
    /// Return a const reference to the DeviceDofQuadLimits singleton.
    static const DeviceDofQuadLimits &Get()
@@ -151,6 +155,7 @@ private:
       HDIV_MAX_Q1D = T::HDIV_MAX_Q1D;
       MAX_INTERP_1D = T::MAX_INTERP_1D;
       MAX_DET_1D = T::MAX_DET_1D;
+      MAX_TMOP_1D = T::MAX_TMOP_1D;
    }
 };
 
