@@ -58,7 +58,7 @@ bool ParLinearForm::SupportsDevice() const
 {
    bool parallel;
    bool local = LinearForm::SupportsDevice();
-   MPI_Allreduce(&local, &parallel, 1, MPI_C_BOOL, MPI_LAND, pfes->GetComm());
+   MPI_Allreduce(&local, &parallel, 1, MPI_CXX_BOOL, MPI_LAND, pfes->GetComm());
    return parallel;
 }
 
