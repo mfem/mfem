@@ -1051,20 +1051,44 @@ MMA::MMA(int nVar, int nCon, real_t *xval)
    AllocData(nVar,nCon);
    InitData(xval);
    // allocate the serial subproblem
-   //mSubProblem = new MMA::MMASubSerial(this, nVar,nCon);
    mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
 }
+
+MMA::MMA(const int nVar, int nCon, Vector &xval) : MMA(nVar, nCon, xval.GetData())
+{}
+
+MMA::MMA(int nVar, Vector &xval) : MMA(nVar, 0, xval.GetData())
+{}
 
 #ifdef MFEM_USE_MPI
 MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval)
 {
-   comm=comm_;
+   int rank = 0;
+   MPI_Comm_rank(comm_, &rank);
+
+   // create new communicator
+   int colour;
+
+   if ( 0 != nVar)
+   {
+      colour = 0;
+   }
+   else
+   {
+      colour = MPI_UNDEFINED;
+   }
+
+   // Split the global communicator
+   MPI_Comm_split(comm_, colour, rank, &comm);
 
    AllocData(nVar,nCon);
    InitData(xval);
    // allocate the serial subproblem
    mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
 }
+
+MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval) : MMA(comm_, nVar, nCon, xval.GetData())
+{}
 #endif
 
 
@@ -1137,7 +1161,29 @@ void MMA::FreeData()
    delete[] factor;
    delete[] low;
    delete[] upp;
+}
 
+void MMA::Update(int iter, const Vector& dfdx,
+               const Vector& gx, const Vector& dgdx,
+               const Vector& xmin, const Vector& xmax,
+               Vector& xval)
+{
+   this->Update(iter, dfdx.GetData(),
+               gx.GetData(),dgdx.GetData(),
+               xmin.GetData(), xmax.GetData(),
+               xval.GetData());
+}
+
+void MMA::Update(int iter, const Vector& dfdx,
+               const Vector& xmin, const Vector& xmax,
+               Vector& xval)
+{
+   MFEM_ASSERT(0 == nCon, "MMA::Update() number of constraint != 0. Provide constraint calues and gradients");
+
+   this->Update(iter, dfdx.GetData(),
+               nullptr,nullptr,
+               xmin.GetData(), xmax.GetData(),
+               xval.GetData());
 }
 
 void MMA::Update(int iter, const real_t* dfdx,
