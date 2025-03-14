@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
       }
    }
    bool inactive_elements_global;
-   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1, MPI_C_BOOL,
+   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1, MPI_CXX_BOOL,
                  MPI_LOR, MPI_COMM_WORLD);
    if (inactive_elements_global) { ess_elem.Append(0); }
    pmesh.SetAttributes();
