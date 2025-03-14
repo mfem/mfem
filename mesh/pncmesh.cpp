@@ -76,7 +76,7 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
                "size is not supported.");
 
    bool iso = Iso;
-   MPI_Allreduce(&iso, &Iso, 1, MPI_CXX_BOOL, MPI_LAND, MyComm);
+   MPI_Allreduce(&iso, &Iso, 1, MFEM_MPI_CXX_BOOL, MPI_LAND, MyComm);
 
    Update();
 }

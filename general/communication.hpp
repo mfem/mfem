@@ -22,6 +22,12 @@
 #include "globals.hpp"
 #include <mpi.h>
 
+#ifdef MPI_CXX_BOOL
+#define MFEM_MPI_CXX_BOOL MPI_CXX_BOOL
+#else
+#define MFEM_MPI_CXX_BOOL MPI_C_BOOL
+#endif
+
 namespace mfem
 {
 
