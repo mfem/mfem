@@ -1339,7 +1339,7 @@ get_shmem_info(
    const std::vector<int> &input_size_on_qp,
    const int &residual_size_on_qp,
    const ElementDofOrdering &dof_ordering,
-   const int &derivative_idx = -1)
+   const int &derivative_action_field_idx = -1)
 {
    std::array<int, 8> offsets = {0};
    int total_size = 0;
@@ -1393,10 +1393,10 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::DIRECTION] = total_size;
    int direction_size = 0;
-   if (derivative_idx != -1)
+   if (derivative_action_field_idx != -1)
    {
       direction_size = get_restriction<entity_t>(
-                          fields[derivative_idx],
+                          fields[derivative_action_field_idx],
                           dof_ordering)->Height() / num_entities;
       total_size += direction_size;
    }
@@ -1412,7 +1412,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::SHADOW] = total_size;
    std::array<int, num_inputs> shadow_sizes{0};
-   if (derivative_idx != -1)
+   if (derivative_action_field_idx != -1)
    {
       for (int i = 0; i < num_inputs; i++)
       {

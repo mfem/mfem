@@ -21,8 +21,8 @@ public:
       total_size(total_size),
       identity(total_size)
    {
-      dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
-      // dtq.ndof = element_size;
+      // dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
+      dtq.ndof = element_size;
       dtq.nqpt = dtq.ndof;
    }
 

@@ -7,6 +7,7 @@
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
+#include "examples/dfem/dfem_util.hpp"
 #include "general/error.hpp"
 
 namespace mfem
@@ -81,6 +82,7 @@ public:
       direction_t = x;
       direction_t.SetSubVector(ess_tdof_list, 0.0);
 
+      derivative_action_l.SetSize(height);
       derivative_action_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
@@ -98,6 +100,7 @@ public:
       direction_t = x;
       direction_t.SetSubVector(ess_tdof_list, 0.0);
 
+      derivative_action_l.SetSize(width);
       derivative_action_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
@@ -219,8 +222,8 @@ public:
       const int derivative_idx = FindIdx(derivative_id, fields);
 
       return std::make_shared<DerivativeOperator>(
+                height,
                 GetTrueVSize(fields[derivative_idx]),
-                width,
                 derivative_action_callbacks[derivative_id],
                 derivative_action_transpose_callbacks[derivative_id],
                 fields[derivative_idx],
@@ -481,7 +484,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       const size_t residual_lsize = GetVSize(fields[test_space_field_idx]);
       residual_l.SetSize(residual_lsize);
-      height = GetTrueVSize(fields[0]);
+      height = GetTrueVSize(fields[test_space_field_idx]);
    }
 
    // TODO: Is this a hack?
@@ -610,7 +613,6 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       const size_t d_field_idx = FindIdx(derivative_id, fields);
       const auto direction = fields[d_field_idx];
-      // const size_t derivative_action_l_size = GetVSize(fields[test_space_field_idx]);
       const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
                                                       fields[test_space_field_idx]);
 
@@ -673,153 +675,164 @@ void DifferentiableOperator::AddDomainIntegrator(
    }, derivative_ids);
 
    // Create the transpose action of the derivatives
-   //    if (!use_sum_factorization)
-   //    {
-   //       for_constexpr([&](auto derivative_idx)
-   //       {
-   //          const auto direction = fields[0];
-   //          const size_t derivative_action_l_size = GetVSize(direction);
-   //          const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop, direction);
+   if (!use_sum_factorization)
+   {
+      for_constexpr([&](auto derivative_id)
+      {
+         const size_t d_field_idx = FindIdx(derivative_id, fields);
+         const auto direction = fields[test_space_field_idx];
+         const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
+                                                         fields[test_space_field_idx]);
 
-   //          auto shmem_info =
-   //             get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-   //             (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
-   //              input_size_on_qp, residual_size_on_qp, element_dof_ordering, derivative_idx);
+         auto shmem_info =
+            get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
+            (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
+             input_size_on_qp, residual_size_on_qp, element_dof_ordering,
+             test_space_field_idx);
 
-   //          Vector shmem_cache(shmem_info.total_size);
+         Vector shmem_cache(shmem_info.total_size);
 
-   //          Vector direction_e;
-   //          Vector derivative_action_e(output_e_size);
-   //          derivative_action_e = 0.0;
+         print_shared_memory_info(shmem_info);
 
-   //          const auto input_is_dependent = dependency_map[derivative_idx];
+         Vector direction_e;
+         Vector derivative_action_e(output_e_size);
+         derivative_action_e = 0.0;
 
-   //          const int trial_vdim = GetVDim(fields[0]);
+         const auto input_is_dependent = dependency_map[derivative_id];
 
-   //          int total_trial_op_dim = 0;
-   //          for_constexpr<num_inputs>([&](auto s)
-   //          {
-   //             if (!input_is_dependent[s])
-   //             {
-   //                return;
-   //             }
-   //             auto B = is_value_fop<decltype(mfem::get<s>(inputs))>::value ?
-   //                      input_dtq_maps[s].B : input_dtq_maps[s].G;
-   //             total_trial_op_dim += B.GetShape()[DofToQuadMap::Index::DIM];
-   //          });
+         const int trial_vdim = GetVDim(fields[0]);
 
-   //          derivative_action_transpose_callbacks[derivative_idx].push_back(
-   //             [=, output_restriction_transpose = this->output_restriction_transpose](
-   //                std::vector<Vector> &fields_e, const Vector &direction_l,
-   //                Vector &derivative_action_l) mutable
-   //          {
-   //             auto shmem = shmem_cache.ReadWrite();
+         int total_trial_op_dim = 0;
+         for_constexpr<num_inputs>([&](auto s)
+         {
+            if (!input_is_dependent[s])
+            {
+               return;
+            }
+            auto B = is_value_fop<decltype(mfem::get<s>(inputs))>::value ?
+                     input_dtq_maps[s].B : input_dtq_maps[s].G;
+            total_trial_op_dim += B.GetShape()[DofToQuadMap::Index::DIM];
+         });
 
-   //             restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
-   //             auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
-   //             auto wrapped_fields_e = wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
-   //             auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
+         derivative_action_transpose_callbacks[derivative_id].push_back(
+            [=, output_restriction_transpose = this->output_restriction_transpose](
+               std::vector<Vector> &fields_e, const Vector &direction_l,
+               Vector &derivative_action_l) mutable
+         {
+            auto shmem = shmem_cache.ReadWrite();
 
-   //             Vector a_qp_mem(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim);
-   //             auto a_qp = Reshape(a_qp_mem.ReadWrite(), test_vdim, test_op_dim,
-   //                                 trial_vdim, total_trial_op_dim);
+            restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
+            auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
+            auto wrapped_fields_e = wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
+            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
 
-   //             Vector dir_mem(shmem_info.shadow_sizes[derivative_idx]);
-   //             auto dir = Reshape(dir_mem.ReadWrite(), input_size_on_qp[derivative_idx], num_qp);
+            Vector a_qp_mem(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim);
+            auto a_qp = Reshape(a_qp_mem.ReadWrite(), test_vdim, test_op_dim,
+                                trial_vdim, total_trial_op_dim);
 
-   //             derivative_action_e = 0.0;
-   //             for (int e = 0; e < num_entities; e++)
-   //             {
-   //                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
-   //                                       input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
-   //                unpack_shmem(shmem, shmem_info, input_dtq_maps,
-   //                             output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
+            Vector dir_mem(shmem_info.shadow_sizes[test_space_field_idx]);
+            auto dir = Reshape(dir_mem.ReadWrite(), input_size_on_qp[test_space_field_idx], num_qp);
 
-   //                map_fields_to_quadrature_data(
-   //                   input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-   //                   scratch_shmem, dimension, use_sum_factorization);
+            derivative_action_e = 0.0;
+            for (int e = 0; e < num_entities; e++)
+            {
+               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
+                                      input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
+               unpack_shmem(shmem, shmem_info, input_dtq_maps,
+                            output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
 
-   //                set_zero(shadow_shmem);
-   //                map_direction_to_quadrature_data_conditional(
-   //                   shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
-   //                   scratch_shmem, input_is_dependent, use_sum_factorization);
+               map_fields_to_quadrature_data(
+                  input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
+                  scratch_shmem, dimension, use_sum_factorization);
 
-   //                copy(shadow_shmem[derivative_idx], dir);
-   //                set_zero(shadow_shmem);
+               set_zero(shadow_shmem);
+               std::array<bool, num_inputs> direction_is_dependent{false};
+               direction_is_dependent[test_space_field_idx] = true;
 
-   //                for (int q = 0; q < num_qp; q++)
-   //                {
-   //                   for (int j = 0; j < trial_vdim; j++)
-   //                   {
-   //                      size_t m_offset = 0;
-   //                      for_constexpr<num_inputs>([&](auto s)
-   //                      {
-   //                         if (!input_is_dependent[s])
-   //                         {
-   //                            return;
-   //                         }
+               map_direction_to_quadrature_data_conditional(
+                  shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
+                  scratch_shmem, direction_is_dependent, use_sum_factorization);
 
-   //                         auto B = is_value_fop<std::decay_t<decltype(mfem::get<s>(inputs))>>::value ?
-   //                                  input_dtq_maps[s].B : input_dtq_maps[s].G;
-   //                         auto trial_op_dim = B.GetShape()[DofToQuadMap::Index::DIM];
-   //                         auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-   //                         for (int m = 0; m < trial_op_dim; m++)
-   //                         {
-   //                            d_qp(j, m, q) = 1.0;
+               copy(shadow_shmem[test_space_field_idx], dir);
+               set_zero(shadow_shmem);
 
-   //                            auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
-   //                            auto qf_args = decay_tuple<qf_param_ts> {};
-   // #ifdef MFEM_USE_ENZYME
-   //                            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-   //                            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-   //                                                        shadow_shmem, q);
-   // #else
-   //                            apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-   // #endif
-   //                            d_qp(j, m, q) = 0.0;
+               print_vector(dir_mem);
 
-   //                            auto f = Reshape(&r(0), test_vdim, test_op_dim);
-   //                            for (int i = 0; i < test_vdim; i++)
-   //                            {
-   //                               for (int k = 0; k < test_op_dim; k++)
-   //                               {
-   //                                  a_qp(i, k, j, m + m_offset) = f(i, k);
-   //                               }
-   //                            }
-   //                         }
-   //                         m_offset += trial_op_dim;
-   //                      });
-   //                   }
+               for (int q = 0; q < num_qp; q++)
+               {
+                  for (int j = 0; j < trial_vdim; j++)
+                  {
+                     size_t m_offset = 0;
+                     for_constexpr<num_inputs>([&](auto s)
+                     {
+                        if (!input_is_dependent[s])
+                        {
+                           return;
+                        }
 
-   //                   // Multiply transpose of a_qp with direction
-   //                   auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-   //                   auto dir_qp = Reshape(&dir[0], trial_vdim, total_trial_op_dim, num_qp);
-   //                   for (int i = 0; i < test_vdim; i++)
-   //                   {
-   //                      for (int k = 0; k < test_op_dim; k++)
-   //                      {
-   //                         fhat(i, k, q) = 0.0;
-   //                         for (int j = 0; j < trial_vdim; j++)
-   //                         {
-   //                            for (int m = 0; m < total_trial_op_dim; m++)
-   //                            {
-   //                               fhat(i, k, q) += a_qp(i, m, j, k) * dir_qp(j, m, q);
-   //                            }
-   //                         }
-   //                      }
-   //                   }
-   //                }
+                        auto B = is_value_fop<std::decay_t<decltype(mfem::get<s>(inputs))>>::value ?
+                                 input_dtq_maps[s].B : input_dtq_maps[s].G;
+                        auto trial_op_dim = B.GetShape()[DofToQuadMap::Index::DIM];
+                        auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           d_qp(j, m, q) = 1.0;
 
-   //                auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-   //                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-   //                map_quadrature_data_to_fields(
-   //                   y, fhat, output_fop, output_dtq_shmem[0],
-   //                   scratch_shmem, dimension, use_sum_factorization);
-   //             }
-   //             output_restriction_transpose(derivative_action_e, derivative_action_l);
-   //          });
-   //       }, derivative_ids);
-   //    }
+                           auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
+                           auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+                           auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+                           apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                                       shadow_shmem, q);
+#else
+                           apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+                           d_qp(j, m, q) = 0.0;
+
+                           auto f = Reshape(&r(0), test_vdim, test_op_dim);
+                           for (int i = 0; i < test_vdim; i++)
+                           {
+                              for (int k = 0; k < test_op_dim; k++)
+                              {
+                                 a_qp(i, k, j, m + m_offset) = f(i, k);
+                              }
+                           }
+                        }
+                        m_offset += trial_op_dim;
+                     });
+                  }
+
+
+
+                  // Multiply transpose of a_qp with direction
+                  auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
+                  auto dir_qp = Reshape(&dir[0], trial_vdim, total_trial_op_dim, num_qp);
+                  for (int i = 0; i < test_vdim; i++)
+                  {
+                     for (int k = 0; k < test_op_dim; k++)
+                     {
+                        fhat(i, k, q) = 0.0;
+                        for (int j = 0; j < trial_vdim; j++)
+                        {
+                           for (int m = 0; m < total_trial_op_dim; m++)
+                           {
+                              fhat(i, k, q) += a_qp(i, k, j, m) * dir_qp(j, m, q);
+                           }
+                        }
+                     }
+                  }
+               }
+
+               auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
+               auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+               map_quadrature_data_to_fields(
+                  y, fhat, output_fop, output_dtq_shmem[0],
+                  scratch_shmem, dimension, use_sum_factorization);
+            }
+            output_restriction_transpose(derivative_action_e, derivative_action_l);
+         });
+      }, derivative_ids);
+   }
 
    // Create assembly callbacks for derivatives
    // TODO: Host only for now
