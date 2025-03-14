@@ -78,7 +78,6 @@ struct J2SmallStrain {
   real_t E;                 ///< Young's modulus
   real_t nu;                ///< Poisson's ratio
   real_t sigma_y;           ///< Yield strength
-  real_t Hk;                ///< Kinematic hardening modulus
   real_t Hi;                ///< Isotropic hardening modulus
   real_t density;           ///< Mass density
 
@@ -125,9 +124,7 @@ struct J2SmallStrain {
       auto el_strain = sym(dudX) - plastic_strain;
       auto p = K * tr(el_strain);
       auto s = 2.0 * G * dev(el_strain);
-      auto sigma_b = 2.0 / 3.0 * Hk * plastic_strain;
-      auto eta = s - sigma_b;
-      auto q = sqrt(1.5) * norm(eta);
+      auto q = sqrt(1.5) * norm(s);
       real_t delta_eqps = 0.0;
 
       auto flow_strength = [this](real_t eqps) { return this->sigma_y + this->Hi*eqps; };
@@ -135,8 +132,8 @@ struct J2SmallStrain {
       // (ii) admissibility
       if (q - (sigma_y + Hi*accumulated_plastic_strain) > tol*sigma_y) {
          // (iii) return mapping
-         real_t delta_eqps = (q - sigma_y - Hi*accumulated_plastic_strain)/(3*G + Hk + Hi);
-         auto Np = 1.5 * eta / q;
+         real_t delta_eqps = (q - sigma_y - Hi*accumulated_plastic_strain)/(3*G + Hi);
+         auto Np = 1.5 * s / q;
          s -= 2.0 * G * delta_eqps * Np;
          plastic_strain += delta_eqps * Np;
          accumulated_plastic_strain += delta_eqps;
@@ -201,7 +198,6 @@ public:
       {
          ParGridFunction u(&elasticity->displacement_fes);
          u.SetFromTrueDofs(x);
-
          auto mesh_nodes = static_cast<ParGridFunction*>
                            (elasticity->displacement_fes.GetParMesh()->GetNodes());
          momentum_du = elasticity->momentum->GetDerivative(Displacement, {&u}, {mesh_nodes, &elasticity->internal_state});
@@ -344,6 +340,7 @@ class InternalStateUpdater : public Operator
                         ParametricFunction &internal_state,
                         Material material) :
       Operator(displacement_fes.GetTrueVSize()),
+      displacement_fes(displacement_fes),
       displacement_ir(displacement_ir),
       internal_state(internal_state)
    {
@@ -362,7 +359,7 @@ class InternalStateUpdater : public Operator
          FieldDescriptor{InternalState, &internal_state.space}
       };
 
-      diff_op = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+      op = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
       mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
       mfem::tuple outputs{None<InternalState>{}};
@@ -372,18 +369,27 @@ class InternalStateUpdater : public Operator
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
       Array<int> solid_domain_attr(mesh->attributes.Max());
       solid_domain_attr[0] = 1;
-      diff_op->AddDomainIntegrator(
+      op->AddDomainIntegrator(
          qfunction, inputs, outputs, displacement_ir, solid_domain_attr, derivatives);
    }
 
    void Mult(const Vector &displacement, Vector& internal_state_new) const override
    {
-      diff_op->SetParameters({mesh_nodes, &internal_state});
-      diff_op->Mult(displacement, internal_state_new);
+      op->SetParameters({mesh_nodes, &internal_state});
+      op->Mult(displacement, internal_state_new);
+   }
+
+   void VjpDisplacement(ParGridFunction &u, Vector& internal_state_old, Vector& internal_state_new_bar, Vector& displacement_bar) const
+   {
+      // u, internal_state_old, internal_state_new_bar should be const
+      out << "Sizes " << "u " << u.Size() << ", qold " << internal_state_old.Size() << ", qbar " << internal_state_new_bar.Size() << ", ubar " << displacement_bar.Size() << std::endl;
+      auto grad_op = op->GetDerivative(Displacement, {&u}, {mesh_nodes, &internal_state_old});
+      grad_op->AddMultTranspose(internal_state_new_bar, displacement_bar);
    }
 
    ParGridFunction *mesh_nodes;
-   std::shared_ptr<DifferentiableOperator> diff_op;
+   ParFiniteElementSpace &displacement_fes;
+   std::shared_ptr<DifferentiableOperator> op;
    IntegrationRule displacement_ir;
    ParametricFunction& internal_state;
 };
@@ -444,6 +450,8 @@ int main(int argc, char* argv[])
 
    ParametricFunction internal_state(internal_state_space);
    internal_state = 0.0;
+   ParametricFunction internal_state_old(internal_state_space);
+   internal_state_old = 0.0;
 
    Array<int> bdr_attr_is_ess(mesh_beam.bdr_attributes.Max());
    Array<int> displacement_ess_tdof;
@@ -468,7 +476,7 @@ int main(int argc, char* argv[])
    u = 0.0;
 
    using Material = J2SmallStrain; // StVenantKirchhoff
-   Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hk = 0.0, .Hi = 40.0, .density = 1.0};
+   Material material{.E = 1000.0, .nu = 0.25, .sigma_y = 0.53333, .Hi = 40.0, .density = 1.0};
    // Material material{.mu = 0.5e6, .nu = 0.4};
 
    ElasticityOperator elasticity(displacement_fes, displacement_ess_tdof,
@@ -546,6 +554,7 @@ int main(int argc, char* argv[])
       u.SetFromTrueDofs(x);
 
       // update internal variables
+      internal_state_old.Set(1.0, internal_state);
       internal_state_update.Mult(u, internal_state);
 
       // Compute reactions
@@ -560,6 +569,14 @@ int main(int argc, char* argv[])
       dc.SetTime(time);
       dc.Save();
    }
+
+   // try to use the derivative to see if it works
+   ParametricFunction internal_state_bar(internal_state_space);
+   internal_state_bar = 1.0;
+   //ParGridFunction u_bar(displacement_fes);
+   Vector u_bar(displacement_fes.GetTrueVSize());
+   internal_state_update.VjpDisplacement(u, internal_state_old, internal_state_bar, u_bar);
+   u_bar.Print();
 
    history_file.close();
    return 0;
