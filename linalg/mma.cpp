@@ -1042,7 +1042,7 @@ void MMA::InitData(real_t *xval)
 }
 
 /// Serial MMA
-MMA::MMA(int nVar, int nCon, real_t *xval)
+MMA::MMA(int nVar, int nCon, real_t *xval, int iter)
 {
 #ifdef MFEM_USE_MPI
    comm=MPI_COMM_SELF;
@@ -1054,14 +1054,14 @@ MMA::MMA(int nVar, int nCon, real_t *xval)
    mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
 }
 
-MMA::MMA(const int nVar, int nCon, Vector &xval) : MMA(nVar, nCon, xval.GetData())
+MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon, xval.GetData(), iter)
 {}
 
-MMA::MMA(int nVar, Vector &xval) : MMA(nVar, 0, xval.GetData())
+MMA::MMA(int nVar, Vector &xval, int iter) : MMA(nVar, 0, xval.GetData(), iter)
 {}
 
 #ifdef MFEM_USE_MPI
-MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval)
+MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
 {
    int rank = 0;
    MPI_Comm_rank(comm_, &rank);
@@ -1087,7 +1087,7 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval)
    mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
 }
 
-MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval) : MMA(comm_, nVar, nCon, xval.GetData())
+MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval, int iter) : MMA(comm_, nVar, nCon, xval.GetData(), iter)
 {}
 #endif
 
@@ -1163,30 +1163,30 @@ void MMA::FreeData()
    delete[] upp;
 }
 
-void MMA::Update(int iter, const Vector& dfdx,
+void MMA::Update( const Vector& dfdx,
                const Vector& gx, const Vector& dgdx,
                const Vector& xmin, const Vector& xmax,
                Vector& xval)
 {
-   this->Update(iter, dfdx.GetData(),
+   this->Update(dfdx.GetData(),
                gx.GetData(),dgdx.GetData(),
                xmin.GetData(), xmax.GetData(),
                xval.GetData());
 }
 
-void MMA::Update(int iter, const Vector& dfdx,
+void MMA::Update( const Vector& dfdx,
                const Vector& xmin, const Vector& xmax,
                Vector& xval)
 {
    MFEM_ASSERT(0 == nCon, "MMA::Update() number of constraint != 0. Provide constraint calues and gradients");
 
-   this->Update(iter, dfdx.GetData(),
+   this->Update(dfdx.GetData(),
                nullptr,nullptr,
                xmin.GetData(), xmax.GetData(),
                xval.GetData());
 }
 
-void MMA::Update(int iter, const real_t* dfdx,
+void MMA::Update(const real_t* dfdx,
                  const real_t* gx,const real_t* dgdx,
                  const real_t* xmin, const real_t* xmax,
                  real_t* xval)
@@ -1244,6 +1244,8 @@ void MMA::Update(int iter, const real_t* dfdx,
       xo1[i] = xval[i];
       xval[i] = x[i];
    }
+
+   iter++;
 }
 
 
