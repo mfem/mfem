@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
       else
       {
          cout << "Using bilinear form" << endl;
+         MFEM_ASSERT(p.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
          // Make the RHS bilinear form for scaling
          BilinearForm b_bi(&scaler_fespace);
          RGridFunctionCoefficient scaled_r_coef(mu);
