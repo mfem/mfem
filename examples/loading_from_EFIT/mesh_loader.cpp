@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    //    load from solution file
-   ifstream temp_log("EFIT_loading/psi.gf");
+   ifstream temp_log("input/psi.gf");
    GridFunction x(&mesh, temp_log);
 
    // GridFunction x(&fespace);

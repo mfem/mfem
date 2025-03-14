@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("EFIT_loading/gg.gf");
+   ifstream temp_log("input/gg.gf");
    GridFunction gg(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
