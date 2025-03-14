@@ -12,7 +12,7 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
-#include "../../kernels_sm.hpp"
+#include "../../kernels_smem.hpp"
 #include "../../gridfunc.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"

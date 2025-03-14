@@ -61,6 +61,7 @@
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#define MFEM_FOREACH_THREAD2(i,k,N) for(int i=0; i<N; i++)
 #endif
 
 // 'double' and 'float' atomicAdd implementation for previous versions of CUDA
