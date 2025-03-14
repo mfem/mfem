@@ -17,6 +17,10 @@ Version 4.7.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added support for p-refinement in parallel, on quadrilateral and hexahedral
+  meshes. Parallel hp-refinement is also supported, on isotropically refined
+  meshes with L2 or H1 spaces.
+
 - Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
   patch meshes. Only implemented for serial computations.
 
