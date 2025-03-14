@@ -1905,6 +1905,14 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray()
          old_DoFTransArray[Geometry::PRISM] =
             new ND_WedgeDofTransformation(nd_pri->GetOrder());
       }
+
+      const FiniteElement *nd_pyr =
+         fec_ref->FiniteElementForGeometry(Geometry::PYRAMID);
+      if (nd_pyr)
+      {
+         old_DoFTransArray[Geometry::PYRAMID] =
+            new ND_PyramidDofTransformation(nd_pyr->GetOrder());
+      }
    }
 }
 
@@ -2584,6 +2592,14 @@ void FiniteElementSpace::ConstructDoFTransArray()
       {
          DoFTransArray[Geometry::PRISM] =
             new ND_WedgeDofTransformation(nd_pri->GetOrder());
+      }
+
+      const FiniteElement *nd_pyr =
+         fec->FiniteElementForGeometry(Geometry::PYRAMID);
+      if (nd_pyr)
+      {
+         DoFTransArray[Geometry::PYRAMID] =
+            new ND_PyramidDofTransformation(nd_pyr->GetOrder());
       }
    }
 }

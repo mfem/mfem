@@ -85,6 +85,9 @@ set(UNIT_TESTS_SRCS
   fem/test_face_permutation.cpp
   fem/test_face_restriction.cpp
   fem/test_fe.cpp
+  fem/test_fe_compatibility.cpp
+  fem/test_fe_fixed.cpp
+  fem/test_fe_symmetry.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
