@@ -97,6 +97,12 @@ real_t dg0(mfem::Vector& x, mfem::Vector& dx)
    return rez-1.0;
 }
 
+
+/** \brief Unit test
+ * 
+ *    Find x that minimizes the objective function F(x) = \sum x2, subject to
+ *    s.t \sum x / N -2 <= 0.
+ * */
 #ifdef MFEM_USE_MPI
 TEST_CASE("MMA Test", "[Parallel], [MMA]")
 {
@@ -134,7 +140,7 @@ TEST_CASE("MMA Test", "[MMA]")
       o=dobj0(x,dx);
       g[0]=dg0(x,dg);
 
-      mma->Update(it,dx,g,dg,xmin,xmax,x);
+      mma->Update(dx,g,dg,xmin,xmax,x);
    }
 
    o=obj0(x);
@@ -144,6 +150,46 @@ TEST_CASE("MMA Test", "[MMA]")
    REQUIRE( std::fabs(o - 0.0005790847638021212) < 1e-12 );
 }
 
+real_t obj0_c(mfem::Vector& x)
+{
+   const int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+1.0/x[i]+10.0*x[i];
+   }
+
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   return rez;
+}
+
+real_t dobj0_c(mfem::Vector& x, mfem::Vector& dx)
+{
+   const int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+1.0/x[i]+10.0*x[i];
+      dx[i]= -1.0/(x[i]*x[i]) + 10.0;
+   }
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   return rez;
+}
+
+/** \brief Unit test
+ * 
+ *    Find x that minimizes the objective function F(x) = \sum 1/x+10*x, subject to
+ * */
 #ifdef MFEM_USE_MPI
 TEST_CASE("MMA Unconstraint Test", "[Parallel], [MMA_0CONSTR]")
 {
@@ -160,9 +206,9 @@ TEST_CASE("MMA Unconstraint Test", "[MMA_0CONSTR]")
 
    mfem::Vector x(num_var);
    mfem::Vector dx(num_var);
-   mfem::Vector xmin(num_var); xmin=-1.0;
+   mfem::Vector xmin(num_var); xmin=0.0;
    mfem::Vector xmax(num_var); xmax=2.0;
-   x=xmin; x+=0.5;
+   x=xmin; x+=1.5;
 
    mfem::MMA* mma = nullptr;
 
@@ -175,14 +221,14 @@ TEST_CASE("MMA Unconstraint Test", "[MMA_0CONSTR]")
    real_t o;
    for (int it=0; it<30; it++)
    {
-      o=dobj0(x,dx);
+      o=dobj0_c(x,dx);
 
-      mma->Update(it,dx,xmin,xmax,x);
+      mma->Update(dx,xmin,xmax,x);
    }
 
-   o=obj0(x);
+   o=obj0_c(x);
 
    delete mma;
 
-   REQUIRE( std::fabs(o - 0.00024068658656312) < 1e-12 );
+   REQUIRE( std::fabs(o - 75.977534018859) < 1e-12 );
 }

@@ -24,7 +24,31 @@
 
 namespace mfem
 {
-
+/** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
+ *  collection of points.
+ * 
+ *    Find x that minimizes the objective function F(x), subject to
+ *    s.t C(x)_i <= 0,    for all i = 1, ... m
+ *        x_lo <= x <= x_hi.
+ * 
+ *  The operators F, C, D must take input of the same size (same width).
+ *  Gradients of F, C, D might be needed, depending on the OptimizationSolver.
+ *  When used with Hiop, gradients of C and D must be DenseMatrices.
+ *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
+ *  C and D can have arbitrary heights.
+ *  C and D can be NULL, meaning that their constraints are not used.
+ *
+ *  There are three key functions in FindPointsGSLIB:
+ *
+ *  1. Update - constructs the internal data structures of gslib. See \ref Setup.
+ *  * 
+ * 
+ *   2. Subproblem
+ * 
+ *  *  When used in parallel, all Vectors are assumed to be true dof vectors, and
+ *  the operators are expected to be defined for tdof vectors. 
+ * */
+ 
 class MMA
 {
 public:
@@ -33,18 +57,18 @@ public:
    /// nVar - number of design parameters;
    /// nCon - number of constraints;
    /// xval[nVar] - initial parameter values
-   MMA(int nVar, int nCon, real_t *xval);
+   MMA(int nVar, int nCon, real_t *xval, int iterationNumber = 0);
 
    /// Serial constructor:
    /// nVar - number of design parameters;
    /// nCon - number of constraints;
    /// xval[nVar] - initial parameter values
-   MMA(const int nVar, int nCon, Vector & xval);
+   MMA(const int nVar, int nCon, Vector & xval, int iterationNumber = 0);
 
    /// Serial constructor for unconstraint problem:
    /// nVar - number of design parameters;
    /// xval[nVar] - initial parameter values
-   MMA(int nVar, Vector & xval);
+   MMA(int nVar, Vector & xval, int iterationNumber = 0);
 
 #ifdef MFEM_USE_MPI
    /// Parallel constructor:
@@ -52,14 +76,14 @@ public:
    /// nVar - number of design parameters;
    /// nCon - number of constraints;
    /// xval[nVar] - initial parameter values
-   MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval);
+   MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iterationNumber = 0);
 
    /// Parallel constructor:
    /// comm_ - communicator
    /// nVar - number of design parameters;
    /// nCon - number of constraints;
    /// xval[nVar] - initial parameter values
-   MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval);
+   MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval, int iterationNumber = 0);
 #endif
 
    /// Destructor
@@ -67,7 +91,6 @@ public:
 
 
    /// Update the optimization parameters
-   /// iter - current iteration number
    /// dfdx[nVar] - gradients of the objective
    /// gx[nCon] - values of the constraints
    /// dgdx[nCon*nVar] - gradients of the constraints
@@ -75,21 +98,23 @@ public:
    /// xxmax[nVar] - upper bounds
    /// xval[nVar] - (input: current optimization parameters)
    /// xval[nVar] - (output: updated optimization parameters)
-   void Update(int iter, const Vector& dfdx,
+   void Update(const Vector& dfdx,
                const Vector& gx, const Vector& dgdx,
                const Vector& xmin, const Vector& xmax,
                Vector& xval);
 
    /// Update the optimization parameters
-   /// iter - current iteration number
    /// dfdx[nVar] - gradients of the objective
    /// xxmin[nVar] - lower bounds
    /// xxmax[nVar] - upper bounds
    /// xval[nVar] - (input: current optimization parameters)
    /// xval[nVar] - (output: updated optimization parameters)
-   void Update(int iter, const Vector& dfdx,
+   void Update( const Vector& dfdx,
                const Vector& xmin, const Vector& xmax,
                Vector& xval);
+
+   void SetIteraton( int iterationNumber ){ iter = iterationNumber; };
+   int GetIteraton(){ return iter; };
 
    /// Dump the internal state into a file
    /// xval[nVar] - current optimization parameters
@@ -111,10 +136,12 @@ protected:
    real_t z, zet;
    int nCon, nVar;
 
+   // couter for Update() calls
+   int iter = 0;
+
    // Global: Asymptotes, bounds, objective approx., constraint approx.
    real_t *low, *upp;
    real_t *x, *y, *xsi, *eta, *lam, *mu, *s;
-
 
 private:
 
@@ -146,7 +173,6 @@ private:
    void  InitData(real_t *xval);
 
    /// Update the optimization parameters
-   /// iter - current iteration number
    /// dfdx[nVar] - gradients of the objective
    /// gx[nCon] - values of the constraints
    /// dgdx[nCon*nVar] - gradients of the constraints
@@ -154,7 +180,7 @@ private:
    /// xxmax[nVar] - upper bounds
    /// xval[nVar] - (input: current optimization parameters)
    /// xval[nVar] - (output: updated optimization parameters)
-   void Update(int iter, const real_t* dfdx, const real_t* gx,
+   void Update(const real_t* dfdx, const real_t* gx,
                const real_t* dgdx,
                const real_t* xxmin,const real_t* xxmax,
                real_t* xval);
@@ -248,81 +274,6 @@ private:
       void FreeSubData();
    };
 };
-
-class MMAOptimizer:public OptimizationSolver
-{
-public:
-    MMAOptimizer()
-    {
-#ifdef MFEM_USE_MPI
-        comm=MPI_COMM_SELF;
-#endif
-    }
-
-#ifdef MFEM_USE_MPI
-    MMAOptimizer(MPI_Comm comm_)
-    {
-        comm=comm_;
-    }
-#endif
-
-    virtual ~MMAOptimizer()
-    {
-    }
-
-    virtual
-    void SetOptimizationProblem (const OptimizationProblem &prob)
-    {
-      //   problem=&prob;
-      //   height = width = problem->input_size;
-      //   dfdx.SetSize(height);
-      //   xmin=problem->GetInequalityVec_Lo();
-      //   xmax=problem->GetInequalityVec_Hi();
-
-      //   gx.SetSize(problem->GetNumConstraints());
-      //   dgdx.SetSize((problem->GetNumConstraints())*height);
-    }
-
-    virtual
-    void Mult (const Vector &xt, Vector &x) const
-    {
-
-        // we do not use the values of the assumptotes from the previous iterations
-        MMA* mma;
-        x=xt;
-        //allocate the solver
-#ifdef MFEM_USE_MPI
-        mma=new MMA(comm,height,problem->GetNumConstraints(),x);
-#else
-        mma=new MMA(height,problem->GetNumConstraints(),x);
-#endif
-
-        for(int i=0;i<mfem::IterativeSolver::max_iter;i++)
-        {
-
-
-            mma->Update(i,dfdx,gx,dgdx,xmin,xmax,x);
-        }
-
-        delete mma;
-    }
-
-
-private:
-#ifdef MFEM_USE_MPI
-    MPI_Comm comm;
-#endif
-    Vector gx;
-    Vector dfdx;
-    Vector dgdx;
-    Vector xmin;
-    Vector xmax;
-
-    const OptimizationProblem* problem;
-
-};
-
-
 
 } // mfem namespace
 
