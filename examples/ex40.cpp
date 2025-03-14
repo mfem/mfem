@@ -1,8 +1,11 @@
-//                            MFEM Example 40 (Taylor–Hood version)
+//                                MFEM Example 40
 //
 // Compile with: make ex40
 //
 // Sample runs: ex40 -step 10.0 -gr 2.0
+//              ex40 -step 10.0 -gr 2.0 -o 3 -r 1
+//              ex40 -step 10.0 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              ex40 -step 10.0 -gr 2.0 -r 2 -m ../data/fichera.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
@@ -89,7 +92,7 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/mobius-strip.mesh";
+   const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int max_it = 5;
    int ref_levels = 3;
@@ -101,6 +104,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--refs",
@@ -147,26 +152,22 @@ int main(int argc, char *argv[])
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
 
-   // 3C. Rescale the domain.
-   GridFunction *nodes = mesh.GetNodes();
-   real_t scale = 2;
-   *nodes *= scale;
+   // 4. Define the necessary finite element spaces on the mesh.
+   RT_FECollection RTfec(order, dim);
+   FiniteElementSpace RTfes(&mesh, &RTfec);
 
-   // 4. Define the Taylor–Hood finite element spaces on the mesh.
-   H1_FECollection H1fec1(order+1, dim);
-   H1_FECollection H1fec2(order, dim);
-   FiniteElementSpace Hdivfes(&mesh, &H1fec1, sdim);
-   FiniteElementSpace L2fes(&mesh, &H1fec2);
+   L2_FECollection L2fec(order, dim);
+   FiniteElementSpace L2fes(&mesh, &L2fec);
 
    cout << "Number of H(div) dofs: "
-        << Hdivfes.GetTrueVSize() << endl;
+        << RTfes.GetTrueVSize() << endl;
    cout << "Number of L² dofs: "
         << L2fes.GetTrueVSize() << endl;
 
    // 5. Define the offsets for the block matrices
    Array<int> offsets(3);
    offsets[0] = 0;
-   offsets[1] = Hdivfes.GetVSize();
+   offsets[1] = RTfes.GetVSize();
    offsets[2] = L2fes.GetVSize();
    offsets.PartialSum();
 
@@ -176,11 +177,11 @@ int main(int argc, char *argv[])
    // 6. Define the solution vectors as a finite element grid functions
    //    corresponding to the fespaces.
    GridFunction u_gf, delta_psi_gf;
-   delta_psi_gf.MakeRef(&Hdivfes,x,offsets[0]);
+   delta_psi_gf.MakeRef(&RTfes,x,offsets[0]);
    u_gf.MakeRef(&L2fes,x,offsets[1]);
 
-   GridFunction psi_old_gf(&Hdivfes);
-   GridFunction psi_gf(&Hdivfes);
+   GridFunction psi_old_gf(&RTfes);
+   GridFunction psi_gf(&RTfes);
    GridFunction u_old_gf(&L2fes);
 
    // 7. Define initial guesses for the solution variables.
@@ -212,18 +213,18 @@ int main(int argc, char *argv[])
 
    // 10. Assemble constant matrices/vectors to avoid reassembly in the loop.
    LinearForm b0, b1;
-   b0.MakeRef(&Hdivfes,rhs.GetBlock(0),0);
+   b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
 
-   b0.AddDomainIntegrator(new VectorDomainLFIntegrator(neg_Z));
+   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
    b1.AddDomainIntegrator(new DomainLFIntegrator(neg_alpha_cf));
    b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
 
-   BilinearForm a00(&Hdivfes);
-   a00.AddDomainIntegrator(new VectorMassIntegrator(DZ));
+   BilinearForm a00(&RTfes);
+   a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
 
-   MixedBilinearForm a10(&Hdivfes,&L2fes);
-   a10.AddDomainIntegrator(new VectorDivergenceIntegrator());
+   MixedBilinearForm a10(&RTfes,&L2fes);
+   a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    a10.Assemble();
    a10.Finalize();
    SparseMatrix &A10 = a10.SpMat();
@@ -272,7 +273,7 @@ int main(int argc, char *argv[])
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
 
-         MINRES(A,prec,rhs,x,0,20000,1e-12);
+         MINRES(A,prec,rhs,x,0,2000,1e-12);
          delete S;
 
          u_tmp -= u_gf;
@@ -313,14 +314,13 @@ int main(int argc, char *argv[])
       }
 
       alpha *= max(growth_rate, 1_r);
-      alpha = min(alpha, 50_r);
       neg_alpha_cf.constant = -alpha;
 
    }
 
    mfem::out << "\n Outer iterations: " << k+1
              << "\n Total iterations: " << total_iterations
-             << "\n Total dofs:       " << Hdivfes.GetTrueVSize() + L2fes.GetTrueVSize()
+             << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
    delete A01;
