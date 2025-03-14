@@ -117,12 +117,12 @@ TEST_CASE("MMA Test", "[MMA]")
    mfem::Vector xmax(num_var); xmax=2.0;
    x=xmin; x+=0.5;
 
-   mfem::MMAOpt* mma = nullptr;
+   mfem::MMA* mma = nullptr;
 
 #ifdef MFEM_USE_MPI
-   mma = new mfem::MMAOpt(MPI_COMM_WORLD,num_var,1,x);
+   mma = new mfem::MMA(MPI_COMM_WORLD,num_var,1,x);
 #else
-   mma = new mfem::MMAOpt(num_var,1,x);
+   mma = new mfem::MMA(num_var,1,x);
 #endif
 
    mfem::Vector g(1); g=-1.0;
@@ -134,33 +134,55 @@ TEST_CASE("MMA Test", "[MMA]")
       o=dobj0(x,dx);
       g[0]=dg0(x,dg);
 
-      std::cout<<"it="<<it<<" o="<<o<<" g="<<g[0]<<std::endl;
-
-      for (int i=0; i<num_var; i++)
-      {
-         std::cout<<" "<<x[i];
-      }
-      std::cout<<std::endl;
-      for (int i=0; i<num_var; i++)
-      {
-         std::cout<<" "<<dx[i];
-      }
-      std::cout<<std::endl;
-
       mma->Update(it,dx,g,dg,xmin,xmax,x);
-      std::cout<<std::endl;
    }
-
-   for (int i=0; i<num_var; i++)
-   {
-      std::cout<<" "<<x[i];
-   }
-   std::cout<<std::endl;
 
    o=obj0(x);
-   std::cout<<"Final o="<<o<<std::endl;
 
    delete mma;
 
    REQUIRE( std::fabs(o - 0.0005790847638021212) < 1e-12 );
+}
+
+#ifdef MFEM_USE_MPI
+TEST_CASE("MMA Unconstraint Test", "[Parallel], [MMA_0CONSTR]")
+{
+#else
+TEST_CASE("MMA Unconstraint Test", "[MMA_0CONSTR]")
+{
+#endif
+   int world_size = 1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+#endif
+
+   const int num_var=12 / world_size;
+
+   mfem::Vector x(num_var);
+   mfem::Vector dx(num_var);
+   mfem::Vector xmin(num_var); xmin=-1.0;
+   mfem::Vector xmax(num_var); xmax=2.0;
+   x=xmin; x+=0.5;
+
+   mfem::MMA* mma = nullptr;
+
+#ifdef MFEM_USE_MPI
+   mma = new mfem::MMA(MPI_COMM_WORLD,num_var,0,x);
+#else
+   mma = new mfem::MMA(num_var,x);
+#endif
+
+   real_t o;
+   for (int it=0; it<30; it++)
+   {
+      o=dobj0(x,dx);
+
+      mma->Update(it,dx,xmin,xmax,x);
+   }
+
+   o=obj0(x);
+
+   delete mma;
+
+   REQUIRE( std::fabs(o - 0.00024068658656312) < 1e-12 );
 }
