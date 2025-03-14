@@ -8,21 +8,21 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "2d_mesh.mesh";
+   const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./EFIT_loading/gg.gf");
+   ifstream temp_log("EFIT_loading/gg.gf");
    GridFunction gg(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   const char *new_mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    // refine the mesh
@@ -85,13 +85,6 @@ int main(int argc, char *argv[])
 
    B_tor.SetFromTrueDofs(X);
 
-   // ifstream temp_log2("./EFIT_loading/B_phi.gf");
-   // GridFunction B_psi(&mesh, temp_log2);
-
-   // GridFunction B_tor_diff(&fespace);
-   // B_tor_diff = B_tor;
-   // B_tor_diff -= B_psi;
-
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -115,7 +108,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("B_tor.gf");
+   ofstream sol_ofs("output/B_tor.gf");
    sol_ofs.precision(8);
    B_tor.Save(sol_ofs);
 

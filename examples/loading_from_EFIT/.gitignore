@@ -20,3 +20,5 @@ JxB_*
 !JxB_*.hpp
 test
 ParaView
+output
+mesh

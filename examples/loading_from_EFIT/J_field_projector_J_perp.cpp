@@ -8,14 +8,14 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *new_mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = true;
 
    Mesh mesh(new_mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./B_tor.gf");
+   ifstream temp_log("output/B_tor.gf");
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("J_perp.gf");
+   ofstream sol_ofs("output/J_perp.gf");
    sol_ofs.precision(8);
    J_perp.Save(sol_ofs);
 

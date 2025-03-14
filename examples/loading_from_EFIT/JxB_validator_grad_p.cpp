@@ -8,19 +8,19 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "2d_mesh.mesh";
+   const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./EFIT_loading/p.gf");
+   ifstream temp_log("EFIT_loading/p.gf");
    GridFunction p(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   const char *new_mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    H1_FECollection scaler_fec(1, dim);
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 
    // load JxB_perp on the new mesh
    temp_log.close(); // close the file
-   temp_log.open("./JxB_perp.gf");
+   temp_log.open("output/JxB_perp.gf");
    GridFunction JxB_perp(new_mesh, temp_log);
 
    cout << grad_p.FESpace()->GetTrueVSize() << endl;
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("grad_p.gf");
+   ofstream sol_ofs("output/grad_p.gf");
    sol_ofs.precision(8);
    grad_p.Save(sol_ofs);
 

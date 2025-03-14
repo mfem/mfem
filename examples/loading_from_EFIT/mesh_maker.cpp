@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    mesh->Transform([](const Vector &x, Vector &p)
                    { p[0] = x[0]* ((10.0 - 7.0 / 514) - (3.0 + 7.0 / 514)) + 3.0 + 7.0 / 514; p[1] = x[1]* ((6.0 - 12.0 / 1026) - (-6.0 + 12.0 / 1026)) - 6.0 + 12.0 / 1026; });
 
-   ofstream mesh_ofs("2d_mesh.mesh");
+   ofstream mesh_ofs("mesh/2d_mesh.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
    mesh_ofs.close();

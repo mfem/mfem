@@ -8,18 +8,18 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *new_mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
 
    Mesh mesh(new_mesh_file, 1, 1);
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./B_perp.gf");
+   ifstream temp_log("output/B_perp.gf");
    GridFunction B_perp(&mesh, temp_log);
 
    temp_log.close();            // Close previous file
-   temp_log.open("./B_tor.gf"); // Open new file
+   temp_log.open("output/B_tor.gf"); // Open new file
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("JxB_perp.gf");
+   ofstream sol_ofs("output/JxB_perp.gf");
    sol_ofs.precision(8);
    JxB_perp.Save(sol_ofs);
 

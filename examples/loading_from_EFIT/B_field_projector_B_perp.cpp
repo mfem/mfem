@@ -8,19 +8,19 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "2d_mesh.mesh";
+   const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("./EFIT_loading/psi.gf");
+   ifstream temp_log("EFIT_loading/psi.gf");
    GridFunction psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   const char *new_mesh_file = "2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    // refine the mesh
@@ -94,13 +94,6 @@ int main(int argc, char *argv[])
 
    B_perp.SetFromTrueDofs(X);
 
-   // ifstream temp_log2("./EFIT_loading/B_phi.gf");
-   // GridFunction B_psi(&mesh, temp_log2);
-
-   // GridFunction B_perp_diff(&fespace);
-   // B_perp_diff = B_perp;
-   // B_perp_diff -= B_psi;
-
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -124,7 +117,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("B_perp.gf");
+   ofstream sol_ofs("output/B_perp.gf");
    sol_ofs.precision(8);
    B_perp.Save(sol_ofs);
 
