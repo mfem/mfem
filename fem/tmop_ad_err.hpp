@@ -820,7 +820,7 @@ private:
 class QuantityOfInterest
 {
 public:
-    QuantityOfInterest(ParMesh* mesh_, enum QoIType qoiType, int order_, Array<int> NeumannBdr = {} ,int physicsdim = 1)
+    QuantityOfInterest(ParMesh* mesh_, enum QoIType qoiType, int order_, int physics_order_, Array<int> NeumannBdr = {} ,int pdim = 1)
     : pmesh(mesh_), qoiType_(qoiType), bdr(NeumannBdr)
     {
         int dim=pmesh->Dimension();
@@ -828,34 +828,15 @@ public:
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        temp_fes_ = new ParFiniteElementSpace(pmesh,fec,physicsdim);
+        pfec = new H1_FECollection(physics_order_,dim);
+        temp_fes_ = new ParFiniteElementSpace(pmesh,pfec,pdim);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
-        hess_fes_ = new ParFiniteElementSpace(pmesh,fec,dim*dim);
+        temp_fes_grad_ = new ParFiniteElementSpace(pmesh,pfec,dim*pdim);
 
         solgf_.SetSpace(temp_fes_);
 
         dQdu_ = new ParLinearForm(temp_fes_);
         dQdx_ = new ParLinearForm(coord_fes_);
-
-        if(physicsdim ==1)
-        {
-          true_solgf_.SetSpace(temp_fes_);
-          true_solgradgf_.SetSpace(coord_fes_);
-          true_solhessgf_.SetSpace(hess_fes_);
-          true_solgf_coeff_.SetGridFunction(&true_solgf_);
-          true_solgradgf_coeff_.SetGridFunction(&true_solgradgf_);
-          true_solhessgf_coeff_.SetGridFunction(&true_solhessgf_);
-        }
-
-        // debug_pdc = new ParaViewDataCollection("DebugQoI", temp_fes_->GetParMesh());
-        // debug_pdc->SetLevelsOfDetail(1);
-        // debug_pdc->SetDataFormat(VTKFormat::BINARY);
-        // debug_pdc->SetHighOrderOutput(true);
-        // debug_pdc->SetCycle(0);
-        // debug_pdc->SetTime(0.0);
-        // debug_pdc->RegisterField("sol",&solgf_);
-        // debug_pdc->RegisterField("true_sol",&true_solgf_);
-        // debug_pdc->RegisterField("true_sol_grad",&true_solgradgf_);
     }
 
     ~QuantityOfInterest()
@@ -906,18 +887,15 @@ private:
     Vector designVar;
 
     FiniteElementCollection *fec;
+    FiniteElementCollection *pfec;
     ParFiniteElementSpace	  *temp_fes_;
     ParFiniteElementSpace	  *coord_fes_;
-    ParFiniteElementSpace	  *hess_fes_;
+    ParFiniteElementSpace	  *temp_fes_grad_;
 
     ParLinearForm * dQdu_;
     ParLinearForm * dQdx_;
 
     ParGridFunction solgf_;
-    ParGridFunction true_solgf_, true_solgradgf_, true_solhessgf_;
-    GridFunctionCoefficient true_solgf_coeff_;
-    VectorGridFunctionCoefficient true_solgradgf_coeff_;
-    VectorGridFunctionCoefficient true_solhessgf_coeff_;
 
     ParaViewDataCollection *debug_pdc;
     int pdc_cycle = 0;
@@ -935,7 +913,7 @@ private:
 class PhysicsSolverBase
 {
   public:
-    PhysicsSolverBase( ParMesh* mesh_, int order_)
+    PhysicsSolverBase( ParMesh* mesh_, int order_, int physics_order_)
     {
         pmesh=mesh_;
         int dim=pmesh->Dimension();
@@ -943,6 +921,7 @@ class PhysicsSolverBase
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
+        pfec = new H1_FECollection(physics_order_,dim);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
         dQdx_ = new ParLinearForm(coord_fes_);
@@ -1002,6 +981,7 @@ class PhysicsSolverBase
     Vector designVar;
 
     FiniteElementCollection *fec;
+    FiniteElementCollection *pfec;
     ParFiniteElementSpace	  *physics_fes_;
     ParFiniteElementSpace	  *coord_fes_;
 
@@ -1027,12 +1007,12 @@ class PhysicsSolverBase
 class Diffusion_Solver : public PhysicsSolverBase
 {
 public:
-    Diffusion_Solver(ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
-    : PhysicsSolverBase(mesh_, order_)
+    Diffusion_Solver(ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_, int physics_order_, Coefficient *truesolfunc = nullptr, bool weakBC = false, VectorCoefficient *loadFuncGrad = nullptr)
+    : PhysicsSolverBase(mesh_, order_, physics_order_)
     {
         weakBC_ = weakBC;
 
-        physics_fes_ = new ParFiniteElementSpace(pmesh,fec);
+        physics_fes_ = new ParFiniteElementSpace(pmesh,pfec);
 
         sol.SetSize(physics_fes_->GetTrueVSize()); sol=0.0;
         rhs.SetSize(physics_fes_->GetTrueVSize()); rhs=0.0;
@@ -1091,9 +1071,6 @@ public:
         {
           loadGradCoef_ = loadFuncGrad;
         }
-
-        trueloadgradgf_.SetSpace(coord_fes_);
-        trueloadgradgf_coeff_.SetGridFunction(&trueloadgradgf_);
     }
 
     ~Diffusion_Solver(){
@@ -1127,9 +1104,6 @@ private:
     VectorCoefficient *loadGradCoef_ = nullptr;
     VectorCoefficient *trueSolutionGradCoef_ = nullptr;
 
-    ParGridFunction trueloadgradgf_;
-    VectorGridFunctionCoefficient trueloadgradgf_coeff_;
-
     bool weakBC_ = false;
 };
 
@@ -1137,7 +1111,7 @@ class Elasticity_Solver : public PhysicsSolverBase
 {
 public:
     Elasticity_Solver(ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, const Array<int> & neumannBdr, int order_)
-    : PhysicsSolverBase( mesh_, order_ ), bdr(neumannBdr)
+    : PhysicsSolverBase( mesh_, order_ , order_), bdr(neumannBdr)
     {
         int dim=pmesh->Dimension();
         physics_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
@@ -1208,7 +1182,7 @@ private:
 class VectorHelmholtz
 {
 public:
-    VectorHelmholtz(ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, real_t radius, int order_)
+    VectorHelmholtz(ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, real_t radius, int order_, int physics_order_)
     {
 
         radius_ = new ConstantCoefficient(radius);
@@ -1218,18 +1192,20 @@ public:
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
+        pfec = new H1_FECollection(physics_order_,dim);
+        temp_fes_ = new ParFiniteElementSpace(pmesh,pfec,dim);
+        temp_fes_scalar_ = new ParFiniteElementSpace(pmesh,pfec);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
         // sol.SetSize(coord_fes_->GetTrueVSize()); sol=0.0;
         rhs.SetSize(coord_fes_->GetTrueVSize()); rhs=0.0;
         // adj.SetSize(coord_fes_->GetTrueVSize()); adj=0.0;
 
-        solgf.SetSpace(coord_fes_);
+        solgf.SetSpace(temp_fes_);
         // adjgf.SetSpace(coord_fes_);
 
         dQdx_ = new ParLinearForm(coord_fes_);
-        dQdu_ = new ParLinearForm(temp_fes_);
+        dQdu_ = new ParLinearForm(temp_fes_scalar_);
         dQdxshape_ = new ParLinearForm(coord_fes_);
 
         SetLinearSolver();
@@ -1258,7 +1234,7 @@ public:
         }
     }
 
-    VectorHelmholtz(ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, ProductCoefficient *radius, int order_)
+    VectorHelmholtz(ParMesh* mesh_, std::vector<std::pair<int, int>> ess_bdr, ProductCoefficient *radius, int order_, int physics_order_)
     {
         pradius_ = radius;
         pmesh=mesh_;
@@ -1267,18 +1243,20 @@ public:
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
+        pfec = new H1_FECollection(physics_order_,dim);
+        temp_fes_ = new ParFiniteElementSpace(pmesh,pfec, dim);
+        temp_fes_scalar_ = new ParFiniteElementSpace(pmesh,pfec);
         coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
         // sol.SetSize(coord_fes_->GetTrueVSize()); sol=0.0;
         rhs.SetSize(coord_fes_->GetTrueVSize()); rhs=0.0;
         // adj.SetSize(coord_fes_->GetTrueVSize()); adj=0.0;
 
-        solgf.SetSpace(coord_fes_);
+        solgf.SetSpace(temp_fes_);
         // adjgf.SetSpace(coord_fes_);
 
         dQdx_ = new ParLinearForm(coord_fes_);
-        dQdu_ = new ParLinearForm(temp_fes_);
+        dQdu_ = new ParLinearForm(temp_fes_scalar_);
         dQdxshape_ = new ParLinearForm(coord_fes_);
 
         SetLinearSolver();
@@ -1389,8 +1367,10 @@ private:
     ParLinearForm * dQdu_;
 
     FiniteElementCollection *fec;
+    FiniteElementCollection *pfec;
     ParFiniteElementSpace	  *temp_fes_;
     ParFiniteElementSpace	  *coord_fes_;
+    ParFiniteElementSpace	  *temp_fes_scalar_;
 
     //Linear solver parameters
     double linear_rtol;

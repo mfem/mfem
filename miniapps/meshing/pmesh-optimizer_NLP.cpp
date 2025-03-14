@@ -636,6 +636,7 @@ int main (int argc, char *argv[])
   double filterRadius = 0.000;
   int method = 0;
   int mesh_poly_deg     = 1;
+  int physics_deg       = -1;
   int nx                = 4;
   int ny                = 4;
   const char *mesh_file = "null.mesh";
@@ -691,6 +692,8 @@ int main (int argc, char *argv[])
                   "Mesh quality weight type");
    args.AddOption(&mesh_poly_deg, "-o", "--order",
                   "Polynomial degree of mesh finite element space.");
+   args.AddOption(&physics_deg, "-so", "--physics-order",
+                  "Polynomial degree of solution space.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
     args.AddOption(&exactaction, "-ex", "--exact_action",
@@ -736,6 +739,7 @@ int main (int argc, char *argv[])
      lx = 1.0;
      ly = 0.1;
    }
+   if (physics_deg < 0) { physics_deg = mesh_poly_deg; }
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
@@ -1156,7 +1160,7 @@ if (myid == 0) {
   PhysicsSolverBase * solver = nullptr;
   PhysicsSolverBase * solver_ref = nullptr;
   PhysicsSolverBase * solver_strong = nullptr;
-  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg, neumannBdr, physicsdim);
+  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg, physics_deg,neumannBdr, physicsdim);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg, metric, target_c2);
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
@@ -1168,11 +1172,11 @@ if (myid == 0) {
 
   if( physics ==0)
   {
-    Diffusion_Solver * diffsolver = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC, loadFuncGrad);
+    Diffusion_Solver * diffsolver = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, physics_deg, trueSolution, weakBC, loadFuncGrad);
     diffsolver->SetManufacturedSolution(QCoef);
     diffsolver->setTrueSolGradCoeff(trueSolutionGrad);
 
-    Diffusion_Solver * diffsolver_strong = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, trueSolution, false, loadFuncGrad);
+    Diffusion_Solver * diffsolver_strong = new Diffusion_Solver(PMesh, essentialBC, mesh_poly_deg, physics_deg, trueSolution, false, loadFuncGrad);
     diffsolver_strong->SetManufacturedSolution(QCoef);
     diffsolver_strong->setTrueSolGradCoeff(trueSolutionGrad);
 
@@ -1208,23 +1212,23 @@ if (myid == 0) {
   if (metric_id == 107)
   {
     // filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, &filterRadiusCoeff, mesh_poly_deg);
-    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg, mesh_poly_deg);
   }
   else
   {
-    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg);
+    filterSolver = new VectorHelmholtz(PMesh, essentialBCfilter, filterRadius, mesh_poly_deg, mesh_poly_deg);
   }
 
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order2);
   x_gf.ProjectCoefficient(*trueSolution);
 
-  Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
-  Diffusion_Solver solver_FD2(PMesh, essentialBC, mesh_poly_deg, trueSolution, weakBC);
+  Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg,  physics_deg, trueSolution, weakBC);
+  Diffusion_Solver solver_FD2(PMesh, essentialBC, mesh_poly_deg,  physics_deg, trueSolution, weakBC);
   solver_FD1.SetManufacturedSolution(QCoef);
   solver_FD2.SetManufacturedSolution(QCoef);
 
-  QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
-  QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
+  QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1, physics_deg);
+  QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1, physics_deg);
 
   ParaViewDataCollection paraview_dc("MeshOptimizer", PMesh);
   paraview_dc.SetLevelsOfDetail(1);
@@ -1577,7 +1581,6 @@ if (myid == 0) {
 
           discreteSol[Ia] -=2.0*epsilon;
 
-          //QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
@@ -1645,7 +1648,7 @@ if (myid == 0) {
           double fac = 1.0-gridfuncLSBoundIndicator[Ia];
           gridfuncOptVar[Ia] +=(fac)*epsilon;
 
-          QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
+          QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1,physics_deg);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
@@ -1660,7 +1663,7 @@ if (myid == 0) {
 
           gridfuncOptVar[Ia] -=(fac)*2.0*epsilon;
 
-          QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
+          QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1,physics_deg);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
           // QoIEvaluator_FD2.setTrueSolCoeff(  &zerocoeff );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
@@ -1718,7 +1721,6 @@ if (myid == 0) {
           solver_FD1.FSolve();
           ParGridFunction & discreteSol_1 = solver_FD1.GetSolution();
 
-          //QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
@@ -1735,7 +1737,6 @@ if (myid == 0) {
           solver_FD2.FSolve();
           ParGridFunction & discreteSol_2 = solver_FD2.GetSolution();
 
-          //QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);

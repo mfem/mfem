@@ -1426,7 +1426,6 @@ double QuantityOfInterest::EvalQoI()
   oneGridFunction = 1.0;
   ConstantCoefficient one(1.0);
   BilinearFormIntegrator *integ = nullptr;
-  ParGridFunction flux(coord_fes_);
 
   const int dim = pmesh->Dimension();
   L2_FECollection fecGF_0(0, dim, BasisType::GaussLobatto);
@@ -1451,25 +1450,16 @@ double QuantityOfInterest::EvalQoI()
   GridFunctionCoefficient L2Field(&b_GF);
   VectorCoefficient * gradField = nullptr;
   VectorCoefficient * gradGF = nullptr;
-  ParGridFunction fiteredGradField(coord_fes_);
+  ParGridFunction fiteredGradField(temp_fes_grad_);
 
   switch (qoiType_) {
   case 0:
      if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
-     true_solgf_.ProjectCoefficient(*trueSolution_);
-     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
       ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
-    // ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
      break;
   case 1:
     if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
      ErrorCoefficient_ = std::make_shared<H1SemiError_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
-     true_solgf_.ProjectCoefficient(*trueSolution_);
-     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
-     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
-     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
-     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
-    //  ErrorCoefficient_ = std::make_shared<H1SemiError_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
     break;
   case 3:
     ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field, dim);
@@ -1482,7 +1472,7 @@ double QuantityOfInterest::EvalQoI()
       {
         std::vector<std::pair<int, int>> essentialBC(0);
         double mesh_poly_deg = pmesh->GetNodalFESpace()->GetOrder(0);
-        VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0, mesh_poly_deg);
+        VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0,  mesh_poly_deg, temp_fes_->GetMaxElementOrder());
         gradGF= new GradientGridFunctionCoefficient(&solgf_);
         filterSolver.setLoadCoeff(gradGF);
         filterSolver.FSolve();
@@ -1534,7 +1524,6 @@ void QuantityOfInterest::EvalQoIGrad()
 
   ConstantCoefficient one(1.0);
   BilinearFormIntegrator *integ = nullptr;
-  ParGridFunction flux(coord_fes_);
   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
 
   const int dim = pmesh->Dimension();
@@ -1564,29 +1553,19 @@ void QuantityOfInterest::EvalQoIGrad()
 
   VectorCoefficient * gradField = nullptr;
   VectorCoefficient * gradGF = nullptr;
-  ParGridFunction fiteredGradField(coord_fes_);
+  ParGridFunction fiteredGradField(temp_fes_grad_);
 
   std::vector<std::pair<int, int>> essentialBC(0);
-  double mesh_poly_deg = pmesh->GetNodalFESpace()->GetMaxElementOrder();
-  VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0, mesh_poly_deg);
+  double mesh_poly_deg = pmesh->GetNodalFESpace()->GetOrder(0);
+  VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0, mesh_poly_deg, temp_fes_->GetMaxElementOrder());
 
   switch (qoiType_) {
     case 0:
       if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
-     true_solgf_.ProjectCoefficient(*trueSolution_);
-     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
-
        ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, trueSolutionGrad_);
-      //  ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_, &true_solgradgf_coeff_);
       break;
     case 1:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
-     true_solgf_.ProjectCoefficient(*trueSolution_);
-     true_solgradgf_.ProjectCoefficient(*trueSolutionGrad_);
-     MFEM_VERIFY(trueSolutionHess_ != nullptr, "trueSolutionHess_ is null");
-     MFEM_VERIFY(trueSolutionHessV_ != nullptr, "trueSolutionHessV_ is null");
-     true_solhessgf_.ProjectCoefficient(*trueSolutionHessV_);
-      // ErrorCoefficient_ = std::make_shared<H1SemiError_QoI>(&solgf_, trueSolutionGrad_, &true_solhessgf_coeff_);
        ErrorCoefficient_ = std::make_shared<H1SemiError_QoI>(&solgf_, trueSolutionGrad_, trueSolutionHess_);
       break;
     case 3:
@@ -1659,7 +1638,7 @@ if(qoiType_ == QoIType::AVG_ERROR)
 
       //--------------------------------------------------------------------
 
-      ParLinearForm SmoothTForm(coord_fes_);
+      ParLinearForm SmoothTForm(temp_fes_grad_);
       LFFilteredFieldErrorDerivativeIntegrator *lfi_s = new LFFilteredFieldErrorDerivativeIntegrator;
       lfi_s->SetQoI(ErrorCoefficient_);
       lfi_s->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), quad_order*4));
@@ -1963,8 +1942,8 @@ void VectorHelmholtz::FSolve( )
 
   Array<int> ess_tdof_list(ess_tdof_list_);
 
-  ParBilinearForm a(coord_fes_);
-  ParLinearForm b(coord_fes_);
+  ParBilinearForm a(temp_fes_);
+  ParLinearForm b(temp_fes_);
   a.AddDomainIntegrator(new VectorMassIntegrator);
   a.AddDomainIntegrator(new VectorDiffusionIntegrator(pradius_ ? *pradius_ : *radius_));
 
@@ -2002,13 +1981,13 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
 
     Array<int> ess_tdof_list(ess_tdof_list_);
 
-    ParBilinearForm a(coord_fes_);
+    ParBilinearForm a(temp_fes_);
     a.AddDomainIntegrator(new VectorMassIntegrator);
     a.AddDomainIntegrator(new VectorDiffusionIntegrator(pradius_ ? *pradius_ : *radius_));
     a.Assemble();
 
     // solve adjoint problem
-    ParGridFunction adj_sol(coord_fes_);
+    ParGridFunction adj_sol(temp_fes_);
     adj_sol = 0.0;
 
     HypreParMatrix A;
@@ -2049,7 +2028,7 @@ void VectorHelmholtz::ASolve( Vector & rhs, bool isGradX )
     if( !isGradX )
     {
       {
-        ParLinearForm RHS_sensitivity(temp_fes_);
+        ParLinearForm RHS_sensitivity(temp_fes_scalar_);
         DomainLFGradIntegrator *lfi = new DomainLFGradIntegrator(QF);
 
         lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
