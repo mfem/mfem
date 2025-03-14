@@ -155,6 +155,31 @@ inline MFEM_HOST_DEVICE void readDofsOffset3d(const int elem, const int stride,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+template <int NCOMP, int P1d, int T1d>
+inline MFEM_HOST_DEVICE void readDofsOffset3d(const int e, const int NE,
+                                              const real_t *d_u,
+                                              regs2d_t<T1d> (&r_u)[NCOMP * P1d])
+{
+   const auto X = Reshape(d_u, P1d, P1d, P1d, NCOMP, NE);
+   MFEM_FOREACH_THREAD(dy,y,P1d)
+   {
+      MFEM_FOREACH_THREAD(dx,x,P1d)
+      {
+         for (int dz = 0; dz < P1d; ++dz)
+         {
+            for (int c = 0; c < NCOMP; ++c)
+            {
+               const int idx = dz + c * P1d;
+               const real_t value = X(dx,dy,dz,c,e);
+               r_u[idx][dx][dy] = value;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 template <int P1d, int Q1d, int T1d>
 inline MFEM_HOST_DEVICE void ContractX3d(real_t *smem,
                                          const regs2d_t<T1d> (&U)[P1d], const real_t *B,

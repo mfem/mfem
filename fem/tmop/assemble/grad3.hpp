@@ -143,7 +143,8 @@ public:
       const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-      const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
+      const real_t *x_r = ker.x.Read();
+      const auto X = Reshape(x_r, D1D, D1D, D1D, DIM, NE);
       auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
 
@@ -153,28 +154,36 @@ public:
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         const int D1D = T_D1D ? T_D1D : d1d;
+         // const int D1D = T_D1D ? T_D1D : d1d;
          const int Q1D = T_Q1D ? T_Q1D : q1d;
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
-         MFEM_SHARED real_t sBG[2][MQ1 * MD1];
-         MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
-         MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
+         // MFEM_SHARED real_t sBG[2][MQ1 * MD1];
+         // MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
+         // MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
+         // kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
+         // kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, sBG);
+         // kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
+         // kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, sBG, sm1, sm0);
+         // kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
 
-         kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
-         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, sBG);
-
+         constexpr int NCOMP = 3;
          MFEM_SHARED real_t smem[MDQ * MDQ];
-         MFEM_SHARED real_t s_B[D1D * Q1D], s_G[D1D * Q1D];
+         MFEM_SHARED real_t s_B[MD1 * MQ1], s_G[MD1 * MQ1];
 
-         kernels::internal::regs::loadMatrix<D1D, Q1D>(B, s_B);
-         loadMatrix<D1D, Q1D>(G, s_G);
+         using regs2d_t = kernels::internal::regs::Registers<real_t,MDQ,MDQ>;
+         regs2d_t r_u[NCOMP*MD1], r_grad_u[NCOMP * DIM * MQ1], r_q[DIM * MQ1];
 
-         kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
-         kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, sBG, sm1, sm0);
-         kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
+         kernels::internal::regs::loadMatrix<MD1, MQ1>(B, s_B);
+         kernels::internal::regs::loadMatrix<MD1, MQ1>(G, s_G);
+
+         // const int stride = NDOFS / NCOMP;
+         // kernels::internal::regs::readDofsOffset3d<NCOMP, MD1, MDQ>(e, stride, map, XD, r_u);
+         kernels::internal::regs::readDofsOffset3d<NCOMP, MD1, MDQ>(e, NE, x_r, r_u);
+         kernels::internal::regs::grad3d<DIM, NCOMP, MD1, MQ1, MDQ>(smem, s_B, s_G, r_u,
+                                                                    r_grad_u);
 
          MFEM_FOREACH_THREAD(qz, z, Q1D)
          {
@@ -194,8 +203,11 @@ public:
                   kernels::CalcInverse<3>(Jtr, Jrt);
 
                   // Jpr = X^T.DSh
-                  real_t Jpr[9];
-                  kernels::internal::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jpr);
+                  auto idx = [&](int comp, int d, int qz) {return qz + d * NCOMP * Q1D + comp * Q1D;};
+                  real_t Jpr[9] = {r_grad_u[idx(0,0,qz)][qx][qy], r_grad_u[idx(1,0,qz)][qx][qy], r_grad_u[idx(2,0,qz)][qx][qy],
+                                   r_grad_u[idx(0,1,qz)][qx][qy], r_grad_u[idx(1,1,qz)][qx][qy], r_grad_u[idx(2,1,qz)][qx][qy],
+                                   r_grad_u[idx(0,2,qz)][qx][qy], r_grad_u[idx(1,2,qz)][qx][qy], r_grad_u[idx(2,2,qz)][qx][qy]
+                                  };
 
                   // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
                   real_t Jpt[9];
@@ -212,7 +224,7 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPSetupGradPA3D &ker)
    {
-      return Mult_sm<METRIC, T_D1D, T_Q1D>(ker);
+      return Mult_regs<METRIC, T_D1D, T_Q1D>(ker);
    }
 };
 
