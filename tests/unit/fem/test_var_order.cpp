@@ -918,6 +918,9 @@ real_t ErrorSerialParallel(const GridFunction & xser,
    bool elemsMatch = true;
    real_t error = 0.0;
 
+   xser.HostRead();
+   xpar.HostRead();
+
    // Loop over only the local elements in the parallel mesh.
    for (int e=0; e<pmesh->GetNE(); ++e)
    {
