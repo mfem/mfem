@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TETRAHEDRON
 #define MFEM_TETRAHEDRON
@@ -52,66 +52,77 @@ public:
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Initialize the vertex indices and the attribute of a Tetrahedron.
-   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1);
+   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1,
+             int ref_flag = 0);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::TETRAHEDRON; }
+   Type GetType() const override { return Element::TETRAHEDRON; }
 
-   void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
+   void  ParseRefinementFlag(int refinement_edges[2], int &type,
+                             int &flag) const;
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
-   void GetMarkedFace(const int face, int *fv);
+   void GetMarkedFace(const int face, int *fv) const;
 
-   int GetRefinementFlag() { return refinement_flag; }
+   int GetRefinementFlag() const { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
-
-   /// Set the vertices according to the given input.
-   virtual void SetVertices(const int *ind);
+   int NeedRefinement(HashTable<Hashed2> &v_to_v) const override;
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length);
+   void MarkEdge(const DSTable &v_to_v, const int *length) override;
 
-   virtual void ResetTransform(int tr) { transform = tr; }
-   virtual unsigned GetTransform() const { return transform; }
+   void ResetTransform(int tr) override { transform = tr; }
+   unsigned GetTransform() const override { return transform; }
 
    /// Add 'tr' to the current chain of coarse-fine transformations.
-   virtual void PushTransform(int tr)
+   void PushTransform(int tr) override
    { transform = (transform << 3) | (tr + 1); }
 
    /// Calculate point matrix corresponding to a chain of transformations.
    static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices(Array<int> &v) const;
+   /// Get the indices defining the vertices.
+   void GetVertices(Array<int> &v) const override;
 
-   virtual int *GetVertices() { return indices; }
+   /// Set the indices defining the vertices.
+   void SetVertices(const Array<int> &v) override;
 
-   virtual int GetNVertices() const { return 4; }
+   /// @note The returned array should NOT be deleted by the caller.
+   int * GetVertices () override { return indices; }
 
-   virtual int GetNEdges() const { return (6); }
+   /// Set the indices defining the vertices.
+   void SetVertices(const int *ind) override;
 
-   virtual const int *GetEdgeVertices(int ei) const
+   int GetNVertices() const override { return 4; }
+
+   int GetNEdges() const override { return (6); }
+
+   const int *GetEdgeVertices(int ei) const override
    { return geom_t::Edges[ei]; }
 
-   virtual int GetNFaces(int &nFaceVertices) const
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
+   MFEM_DEPRECATED int GetNFaces(int &nFaceVertices) const override
    { nFaceVertices = 3; return 4; }
 
-   virtual const int *GetFaceVertices(int fi) const
-   { MFEM_ABORT("not implemented"); return NULL; }
+   int GetNFaces() const override { return 4; }
 
-   virtual Element *Duplicate(Mesh *m) const;
+   int GetNFaceVertices(int) const override { return 3; }
 
-   virtual ~Tetrahedron() { }
+   const int *GetFaceVertices(int fi) const override
+   { return geom_t::FaceVert[fi]; }
+
+   Element *Duplicate(Mesh *m) const override;
+
+   virtual ~Tetrahedron() = default;
 };
 
 // Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
-extern class Linear3DFiniteElement TetrahedronFE;
+extern MFEM_EXPORT class Linear3DFiniteElement TetrahedronFE;
 
 }
 

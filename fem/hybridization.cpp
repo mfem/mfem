@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "hybridization.hpp"
 #include "gridfunc.hpp"
@@ -29,8 +29,8 @@ namespace mfem
 
 Hybridization::Hybridization(FiniteElementSpace *fespace,
                              FiniteElementSpace *c_fespace)
-   : fes(fespace), c_fes(c_fespace), c_bfi(NULL), Ct(NULL), H(NULL),
-     Af_data(NULL), Af_ipiv(NULL)
+   : fes(fespace), c_fes(c_fespace), c_bfi(NULL), extern_bdr_constr_integs(0),
+     Ct(NULL), H(NULL), Af_data(NULL), Af_ipiv(NULL)
 {
 #ifdef MFEM_USE_MPI
    pC = P_pc = NULL;
@@ -49,6 +49,11 @@ Hybridization::~Hybridization()
    delete H;
    delete Ct;
    delete c_bfi;
+   if (!extern_bdr_constr_integs)
+   {
+      for (int k=0; k < boundary_constraint_integs.Size(); k++)
+      { delete boundary_constraint_integs[k]; }
+   }
 }
 
 void Hybridization::ConstructC()
@@ -57,20 +62,29 @@ void Hybridization::ConstructC()
    int num_hat_dofs = hat_offsets[NE];
    Array<int> vdofs, c_vdofs;
 
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t mtol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t mtol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t mtol = 1.;
+#endif
+
    int c_num_face_nbr_dofs = 0;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *c_pfes = dynamic_cast<ParFiniteElementSpace*>(c_fes);
    ParMesh *pmesh = c_pfes ? c_pfes->GetParMesh() : NULL;
-   HYPRE_Int num_shared_slave_faces = 0, glob_num_shared_slave_faces = 0;
+   HYPRE_BigInt num_shared_slave_faces = 0, glob_num_shared_slave_faces = 0;
    if (c_pfes)
    {
       if (pmesh->Nonconforming())
       {
          const int dim = pmesh->Dimension();
          const NCMesh::NCList &shared = pmesh->pncmesh->GetSharedList(dim-1);
-         num_shared_slave_faces = (HYPRE_Int)shared.slaves.size();
+         num_shared_slave_faces = (HYPRE_BigInt) shared.slaves.Size();
          MPI_Allreduce(&num_shared_slave_faces, &glob_num_shared_slave_faces, 1,
-                       HYPRE_MPI_INT, MPI_SUM, pmesh->GetComm());
+                       HYPRE_MPI_BIG_INT, MPI_SUM, pmesh->GetComm());
          MFEM_ASSERT(glob_num_shared_slave_faces%2 == 0, "");
          glob_num_shared_slave_faces /= 2;
          if (glob_num_shared_slave_faces)
@@ -125,8 +139,72 @@ void Hybridization::ConstructC()
                                    *fes->GetFE(FTr->Elem2No),
                                    *FTr, elmat);
          // zero-out small elements in elmat
-         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+         elmat.Threshold(mtol * elmat.MaxMaxNorm());
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+      }
+
+      if (boundary_constraint_integs.Size())
+      {
+         const FiniteElement *fe1, *fe2;
+         const FiniteElement *face_el;
+
+         // Which boundary attributes need to be processed?
+         Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                    mesh->bdr_attributes.Max() : 0);
+         bdr_attr_marker = 0;
+         for (int k = 0; k < boundary_constraint_integs.Size(); k++)
+         {
+            if (boundary_constraint_integs_marker[k] == NULL)
+            {
+               bdr_attr_marker = 1;
+               break;
+            }
+            Array<int> &bdr_marker = *boundary_constraint_integs_marker[k];
+            MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                        "invalid boundary marker for boundary face integrator #"
+                        << k << ", counting from zero");
+            for (int i = 0; i < bdr_attr_marker.Size(); i++)
+            {
+               bdr_attr_marker[i] |= bdr_marker[i];
+            }
+         }
+
+         for (int i = 0; i < fes->GetNBE(); i++)
+         {
+            const int bdr_attr = mesh->GetBdrAttribute(i);
+            if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+            FTr = mesh->GetBdrFaceTransformations(i);
+            if (!FTr) { continue; }
+
+            int o1 = hat_offsets[FTr->Elem1No];
+            int s1 = hat_offsets[FTr->Elem1No+1] - o1;
+
+            vdofs.SetSize(s1);
+            for (int j = 0; j < s1; j++)
+            {
+               vdofs[j] = o1 + j;
+            }
+            int iface = mesh->GetBdrElementFaceIndex(i);
+            c_fes->GetFaceVDofs(iface, c_vdofs);
+            face_el = c_fes->GetFaceElement(iface);
+            fe1 = fes -> GetFE (FTr -> Elem1No);
+            // The fe2 object is really a dummy and not used on the boundaries,
+            // but we can't dereference a NULL pointer, and we don't want to
+            // actually make a fake element.
+            fe2 = fe1;
+            for (int k = 0; k < boundary_constraint_integs.Size(); k++)
+            {
+               if (boundary_constraint_integs_marker[k] &&
+                   (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
+                                                                 elmat);
+               // zero-out small elements in elmat
+               elmat.Threshold(mtol * elmat.MaxMaxNorm());
+               Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+            }
+         }
       }
 #ifdef MFEM_USE_MPI
       if (pmesh)
@@ -167,19 +245,20 @@ void Hybridization::ConstructC()
             fe = fes->GetFE(FTr->Elem1No);
             c_bfi->AssembleFaceMatrix(*face_fe, *fe, *fe, *FTr, elmat);
             // zero-out small elements in elmat
-            elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+            elmat.Threshold(mtol * elmat.MaxMaxNorm());
             Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
          }
          if (glob_num_shared_slave_faces)
          {
             // Convert Ct to parallel and then transpose it:
             Ct->Finalize(skip_zeros);
-            HYPRE_Int Ct_num_rows = Ct->Height();
-            Array<HYPRE_Int> Ct_rows, *offsets[1] = { &Ct_rows };
+            HYPRE_BigInt Ct_num_rows = Ct->Height();
+            Array<HYPRE_BigInt> Ct_rows;
+            Array<HYPRE_BigInt> *offsets[1] = { &Ct_rows };
             pmesh->GenerateOffsets(1, &Ct_num_rows, offsets);
-            Array<HYPRE_Int> Ct_J(Ct->NumNonZeroElems());
-            HYPRE_Int c_ldof_offset = c_pfes->GetMyDofOffset();
-            const HYPRE_Int *c_face_nbr_glob_ldof =
+            Array<HYPRE_BigInt> Ct_J(Ct->NumNonZeroElems());
+            HYPRE_BigInt c_ldof_offset = c_pfes->GetMyDofOffset();
+            const HYPRE_BigInt *c_face_nbr_glob_ldof =
                c_pfes->GetFaceNbrGlobalDofMap();
             int *J = Ct->GetJ();
             for (int i = 0; i < Ct_J.Size(); i++)
@@ -363,7 +442,7 @@ void Hybridization::Init(const Array<int> &ess_tdof_list)
 #undef MFEM_DEBUG_HERE
 #endif
 
-   Af_data = new double[Af_offsets[NE]];
+   Af_data = new real_t[Af_offsets[NE]];
    Af_ipiv = new int[Af_f_offsets[NE]];
 
 #ifdef MFEM_DEBUG
@@ -390,7 +469,7 @@ void Hybridization::Init(const Array<int> &ess_tdof_list)
 
       const int ncols = R->RowSize(tdof);
       const int *cols = R->GetRowColumns(tdof);
-      const double *vals = R->GetRowEntries(tdof);
+      const real_t *vals = R->GetRowEntries(tdof);
       for (int j = 0; j < ncols; j++)
       {
          if (std::abs(vals[j]) != 0.0 && vdof_marker[cols[j]] == 0)
@@ -589,8 +668,8 @@ void Hybridization::ComputeH()
       GetBDofs(el, i_dofs_size, b_dofs);
 
       LUFactors LU_ii(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
-      double *A_ib_data = LU_ii.data + i_dofs_size*i_dofs_size;
-      double *A_bi_data = A_ib_data + i_dofs_size*b_dofs.Size();
+      real_t *A_ib_data = LU_ii.data + i_dofs_size*i_dofs_size;
+      real_t *A_bi_data = A_ib_data + i_dofs_size*b_dofs.Size();
       LUFactors LU_bb(A_bi_data + i_dofs_size*b_dofs.Size(),
                       LU_ii.ipiv + i_dofs_size);
 
@@ -623,7 +702,7 @@ void Hybridization::ComputeH()
          const int row = b_dofs[i];
          const int ncols = Ct->RowSize(row);
          const int *cols = Ct->GetRowColumns(row);
-         const double *vals = Ct->GetRowEntries(row);
+         const real_t *vals = Ct->GetRowEntries(row);
          for (int j = 0; j < ncols; j++)
          {
             const int loc_j = c_dof_marker[cols[j]] - c_mark_start;
@@ -677,11 +756,11 @@ void Hybridization::ComputeH()
    {
       // TODO: add ones on the diagonal of zero rows
       V->Finalize();
-      Array<HYPRE_Int> V_J(V->NumNonZeroElems());
+      Array<HYPRE_BigInt> V_J(V->NumNonZeroElems());
       MFEM_ASSERT(c_pfes, "");
       const int c_vsize = c_fes->GetVSize();
-      HYPRE_Int c_ldof_offset = c_pfes->GetMyDofOffset();
-      const HYPRE_Int *c_face_nbr_glob_ldof = c_pfes->GetFaceNbrGlobalDofMap();
+      HYPRE_BigInt c_ldof_offset = c_pfes->GetMyDofOffset();
+      const HYPRE_BigInt *c_face_nbr_glob_ldof = c_pfes->GetFaceNbrGlobalDofMap();
       int *J = V->GetJ();
       for (int i = 0; i < V_J.Size(); i++)
       {
@@ -775,7 +854,7 @@ void Hybridization::MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
          if (vdof_marker[vdof]) { el_vals(j) = 0.0; }
          else { vdof_marker[vdof] = true; }
       }
-      bf_i.SetDataAndSize(&bf[hat_offsets[i]], vdofs.Size());
+      bf_i.MakeRef(bf, hat_offsets[i], vdofs.Size());
       if (mode == 1)
       {
          el_vals -= bf_i;
@@ -785,8 +864,8 @@ void Hybridization::MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
       el_vals.GetSubVector(b_dofs, b_vals);
 
       LUFactors LU_ii(Af_data + Af_offsets[i], Af_ipiv + Af_f_offsets[i]);
-      double *U_ib = LU_ii.data + i_dofs.Size()*i_dofs.Size();
-      double *L_bi = U_ib + i_dofs.Size()*b_dofs.Size();
+      real_t *U_ib = LU_ii.data + i_dofs.Size()*i_dofs.Size();
+      real_t *L_bi = U_ib + i_dofs.Size()*b_dofs.Size();
       LUFactors LU_bb(L_bi + b_dofs.Size()*i_dofs.Size(),
                       LU_ii.ipiv + i_dofs.Size());
       LU_ii.BlockForwSolve(i_dofs.Size(), b_dofs.Size(), 1, L_bi,
@@ -820,7 +899,14 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
    else
    {
       Vector bl(pC ? pC->Height() : Ct->Width());
-      pC ? pC->Mult(bf, bl) : Ct->MultTranspose(bf, bl);
+      if (pC)
+      {
+         pC->Mult(bf, bl);
+      }
+      else
+      {
+         Ct->MultTranspose(bf, bl);
+      }
       b_r.SetSize(pH.Ptr()->Height());
       (P_pc ? P_pc : c_pfes->GetProlongationMatrix())->MultTranspose(bl, b_r);
    }

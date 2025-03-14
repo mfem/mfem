@@ -1,35 +1,47 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMAT_HPP
 #define MFEM_SPARSEMAT_HPP
 
 // Data types for sparse matrix
 
+#include "../general/backends.hpp"
 #include "../general/mem_alloc.hpp"
+#include "../general/mem_manager.hpp"
+#include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
+
+#if defined(MFEM_USE_HIP)
+#if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
+#include <hipsparse.h>
+#else
+#include <hipsparse/hipsparse.h>
+#endif
+#endif
+
 
 namespace mfem
 {
 
 class
 #if defined(__alignas_is_defined)
-   alignas(double)
+   alignas(real_t)
 #endif
    RowNode
 {
 public:
-   double Value;
+   real_t Value;
    RowNode *Prev;
    int Column;
 };
@@ -47,13 +59,13 @@ protected:
        this array is always zero, I[0] = 0, and the last entry, I[height], gives
        the total number of entries stored (at a minimum, all nonzeros must be
        represented) in the sparse matrix. */
-   int *I;
+   Memory<int> I;
    /** @brief %Array with size #I[#height], containing the column indices for
        all matrix entries, as indexed by the #I array. */
-   int *J;
+   Memory<int> J;
    /** @brief %Array with size #I[#height], containing the actual entries of the
        sparse matrix, as indexed by the #I array. */
-   double *A;
+   Memory<real_t> A;
    ///@}
 
    /** @brief %Array of linked lists, one for every row. This array represents
@@ -64,15 +76,13 @@ protected:
    mutable int* ColPtrJ;
    mutable RowNode ** ColPtrNode;
 
+   /// Transpose of A. Owned. Used to perform MultTranspose() on devices.
+   mutable SparseMatrix *At;
+
 #ifdef MFEM_USE_MEMALLOC
    typedef MemAlloc <RowNode, 1024> RowNodeAlloc;
    RowNodeAlloc * NodesMem;
 #endif
-
-   /// Say whether we own the pointers for I and J (should we free them?).
-   bool ownGraph;
-   /// Say whether we own the pointers for A (should we free them?).
-   bool ownData;
 
    /// Are the columns sorted already.
    bool isSorted;
@@ -80,9 +90,50 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
+   bool useGPUSparse = true; // Use cuSPARSE or hipSPARSE if available
+
+   // Initialize cuSPARSE/hipSPARSE
+   void InitGPUSparse();
+
+#ifdef MFEM_USE_CUDA_OR_HIP
+   // common for hipSPARSE and cuSPARSE
+   static int SparseMatrixCount;
+   static size_t bufferSize;
+   static void *dBuffer;
+   mutable bool initBuffers = false;
+
+#if defined(MFEM_USE_CUDA)
+   cusparseStatus_t status;
+   static cusparseHandle_t handle;
+   cusparseMatDescr_t descr = 0;
+
+#if CUDA_VERSION >= 10010
+   mutable cusparseSpMatDescr_t matA_descr;
+   mutable cusparseDnVecDescr_t vecX_descr;
+   mutable cusparseDnVecDescr_t vecY_descr;
+#else // CUDA_VERSION >= 10010
+   mutable cusparseMatDescr_t matA_descr;
+#endif // CUDA_VERSION >= 10010
+
+#else // defined(MFEM_USE_CUDA)
+   hipsparseStatus_t status;
+   static hipsparseHandle_t handle;
+   hipsparseMatDescr_t descr = 0;
+
+   mutable hipsparseSpMatDescr_t matA_descr;
+   mutable hipsparseDnVecDescr_t vecX_descr;
+   mutable hipsparseDnVecDescr_t vecY_descr;
+#endif // defined(MFEM_USE_CUDA)
+#endif // MFEM_USE_CUDA_OR_HIP
+
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix()
+   {
+      SetEmpty();
+
+      InitGPUSparse();
+   }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -93,11 +144,14 @@ public:
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is transferred to the SparseMatrix. */
-   SparseMatrix(int *i, int *j, double *data, int m, int n);
+   SparseMatrix(int *i, int *j, real_t *data, int m, int n);
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is optionally transferred to the SparseMatrix. */
-   SparseMatrix(int *i, int *j, double *data, int m, int n, bool ownij,
+   /** If the parameter @a data is NULL, then the internal #A array is allocated
+       by this constructor (initializing it with zeros and taking ownership,
+       regardless of the parameter @a owna). */
+   SparseMatrix(int *i, int *j, real_t *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
 
    /** @brief Create a sparse matrix in CSR format where each row has space
@@ -109,12 +163,35 @@ public:
    /// Copy constructor (deep copy).
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
-       ownership. */
-   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+       ownership.
+       If @a mt is MemoryType::PRESERVE the memory type of the resulting
+       SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
+       otherwise the type will be @a mt for those arrays that are deep
+       copied. */
+   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
+                MemoryType mt = MemoryType::PRESERVE);
 
-   /// Create a SparseMatrix with diagonal v, i.e. A = Diag(v)
+   /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
+   /// @brief Sets the height and width of the matrix.
+   /** @warning This does not modify in any way the underlying CSR or LIL
+       representation of the matrix.
+
+       This function should generally be called when manually constructing the
+       CSR #I, #J, and #A arrays in conjunction with the
+       SparseMatrix::SparseMatrix() constructor. */
+   void OverrideSize(int height_, int width_);
+
+   /** @brief Runtime option to use cuSPARSE or hipSPARSE. Only valid when using
+       a CUDA or HIP backend.
+
+       @note This option is enabled by default, so typically one would use this
+       method to disable the use of cuSPARSE/hipSPARSE. */
+   void UseGPUSparse(bool useGPUSparse_ = true) { useGPUSparse = useGPUSparse_;}
+   /// Deprecated equivalent of UseGPUSparse().
+   MFEM_DEPRECATED
+   void UseCuSparse(bool useCuSparse_ = true) { UseGPUSparse(useCuSparse_); }
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -131,25 +208,94 @@ public:
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
 
-   /// Check if the SparseMatrix is empty.
-   bool Empty() const { return (A == NULL) && (Rows == NULL); }
+   /** @brief Clear the cuSPARSE/hipSPARSE descriptors.
+       This must be called after releasing the device memory of A. */
+   void ClearGPUSparse();
+   /// Deprecated equivalent of ClearGPUSparse().
+   MFEM_DEPRECATED
+   void ClearCuSparse() { ClearGPUSparse(); }
 
-   /// Return the array #I
-   inline int *GetI() const { return I; }
-   /// Return the array #J
-   inline int *GetJ() const { return J; }
-   /// Return element data, i.e. array #A
-   inline double *GetData() const { return A; }
-   /// Returns the number of elements in row @a i
+   /// Check if the SparseMatrix is empty.
+   bool Empty() const { return A.Empty() && (Rows == NULL); }
+
+   /// Return the array #I.
+   inline int *GetI() { return I; }
+   /// Return the array #I, const version.
+   inline const int *GetI() const { return I; }
+
+   /// Return the array #J.
+   inline int *GetJ() { return J; }
+   /// Return the array #J, const version.
+   inline const int *GetJ() const { return J; }
+
+   /// Return the element data, i.e. the array #A.
+   inline real_t *GetData() { return A; }
+   /// Return the element data, i.e. the array #A, const version.
+   inline const real_t *GetData() const { return A; }
+
+   // Memory access methods for the #I array.
+   Memory<int> &GetMemoryI() { return I; }
+   const Memory<int> &GetMemoryI() const { return I; }
+   const int *ReadI(bool on_dev = true) const
+   { return mfem::Read(I, Height()+1, on_dev); }
+   int *WriteI(bool on_dev = true)
+   { return mfem::Write(I, Height()+1, on_dev); }
+   int *ReadWriteI(bool on_dev = true)
+   { return mfem::ReadWrite(I, Height()+1, on_dev); }
+   const int *HostReadI() const
+   { return mfem::Read(I, Height()+1, false); }
+   int *HostWriteI()
+   { return mfem::Write(I, Height()+1, false); }
+   int *HostReadWriteI()
+   { return mfem::ReadWrite(I, Height()+1, false); }
+
+   // Memory access methods for the #J array.
+   Memory<int> &GetMemoryJ() { return J; }
+   const Memory<int> &GetMemoryJ() const { return J; }
+   const int *ReadJ(bool on_dev = true) const
+   { return mfem::Read(J, J.Capacity(), on_dev); }
+   int *WriteJ(bool on_dev = true)
+   { return mfem::Write(J, J.Capacity(), on_dev); }
+   int *ReadWriteJ(bool on_dev = true)
+   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
+   const int *HostReadJ() const
+   { return mfem::Read(J, J.Capacity(), false); }
+   int *HostWriteJ()
+   { return mfem::Write(J, J.Capacity(), false); }
+   int *HostReadWriteJ()
+   { return mfem::ReadWrite(J, J.Capacity(), false); }
+
+   // Memory access methods for the #A array.
+   Memory<real_t> &GetMemoryData() { return A; }
+   const Memory<real_t> &GetMemoryData() const { return A; }
+   const real_t *ReadData(bool on_dev = true) const
+   { return mfem::Read(A, A.Capacity(), on_dev); }
+   real_t *WriteData(bool on_dev = true)
+   { return mfem::Write(A, A.Capacity(), on_dev); }
+   real_t *ReadWriteData(bool on_dev = true)
+   { return mfem::ReadWrite(A, A.Capacity(), on_dev); }
+   const real_t *HostReadData() const
+   { return mfem::Read(A, A.Capacity(), false); }
+   real_t *HostWriteData()
+   { return mfem::Write(A, A.Capacity(), false); }
+   real_t *HostReadWriteData()
+   { return mfem::ReadWrite(A, A.Capacity(), false); }
+
+   /// Returns the number of elements in row @a i.
    int RowSize(const int i) const;
-   /// Returns the maximum number of elements among all rows
+
+   /// Returns the maximum number of elements among all rows.
    int MaxRowSize() const;
-   /// Return a pointer to the column indices in a row
+
+   /// Return a pointer to the column indices in a row.
    int *GetRowColumns(const int row);
+   /// Return a pointer to the column indices in a row, const version.
    const int *GetRowColumns(const int row) const;
-   /// Return a pointer to the entries in a row
-   double *GetRowEntries(const int row);
-   const double *GetRowEntries(const int row) const;
+
+   /// Return a pointer to the entries in a row.
+   real_t *GetRowEntries(const int row);
+   /// Return a pointer to the entries in a row, const version.
+   const real_t *GetRowEntries(const int row) const;
 
    /// Change the width of a SparseMatrix.
    /*!
@@ -163,7 +309,7 @@ public:
 
    /// Returns the actual Width of the matrix.
    /*! This method can be called for matrices finalized or not. */
-   int ActualWidth();
+   int ActualWidth() const;
 
    /// Sort the column indices corresponding to each row.
    void SortColumnIndices();
@@ -173,16 +319,16 @@ public:
    void MoveDiagonalFirst();
 
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j);
+   real_t &Elem(int i, int j) override;
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const;
+   const real_t &Elem(int i, int j) const override;
 
    /// Returns reference to A[i][j].
-   double &operator()(int i, int j);
+   real_t &operator()(int i, int j);
 
    /// Returns reference to A[i][j].
-   const double &operator()(int i, int j) const;
+   const real_t &operator()(int i, int j) const;
 
    /// Returns the Diagonal of A
    void GetDiag(Vector & d) const;
@@ -193,41 +339,110 @@ public:
    /// Produces a DenseMatrix from a SparseMatrix
    void ToDenseMatrix(DenseMatrix & B) const;
 
+   MemoryClass GetMemoryClass() const override
+   {
+      return Finalized() ?
+             Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
+   }
+
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// y += A * x (default)  or  y += a * A * x
-   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void AddMult(const Vector &x, Vector &y,
+                const real_t a = 1.0) const override;
 
    /// Multiply a vector with the transposed matrix. y = At * x
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    /// y += At * x (default)  or  y += a * At * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const;
+                         const real_t a = 1.0) const override;
+
+   /** @brief Build and store internally the transpose of this matrix which will
+       be used in the methods AddMultTranspose(), MultTranspose(), and
+       AbsMultTranspose(). */
+   /** If this method has been called, the internal transpose matrix will be
+       used to perform the action of the transpose matrix in AddMultTranspose(),
+       MultTranspose(), and AbsMultTranspose().
+
+       Warning: any changes in this matrix will invalidate the internal
+       transpose. To rebuild the transpose, call ResetTranspose() followed by
+       (optionally) a call to this method. If the internal transpose is already
+       built, this method has no effect.
+
+       When any non-serial-CPU backend is enabled, i.e. the call
+       Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
+       require the internal transpose to be built. If that is not the case (i.e.
+       the internal transpose is not built), these methods will automatically
+       call EnsureMultTranspose(). When using any backend from
+       Backend::CPU_MASK, calling this method is optional.
+
+       This method can only be used when the sparse matrix is finalized.
+
+       @sa EnsureMultTranspose(), ResetTranspose(). */
+   void BuildTranspose() const;
+
+   /** Reset (destroy) the internal transpose matrix. See BuildTranspose() for
+       more details. */
+   void ResetTranspose() const;
+
+   /** @brief Ensures that the matrix is capable of performing MultTranspose(),
+       AddMultTranspose(), and AbsMultTranspose(). */
+   /** For non-serial-CPU backends (e.g. GPU, OpenMP), multiplying by the
+       transpose requires that the internal transpose matrix be already built.
+       When such a backend is enabled, this function will build the internal
+       transpose matrix, see BuildTranspose().
+
+       For the serial CPU backends, the internal transpose is not required, and
+       this function is a no-op. This allows for significant memory savings
+       when the internal transpose matrix is not required. */
+   void EnsureMultTranspose() const;
 
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
-                    const double a=1.0) const;
+                    const real_t a=1.0) const;
 
-   /// y = A * x, but treat all elements as booleans (zero=false, nonzero=true).
+   /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
+   /** The actual values stored in the data array, #A, are not used - this means
+       that all entries in the sparsity pattern are considered to be true by
+       this method. */
    void BooleanMult(const Array<int> &x, Array<int> &y) const;
-   /// y = At * x, but treat all elements as booleans (zero=false, nonzero=true).
+
+   /// y = At * x, treating all entries as booleans (zero=false, nonzero=true).
+   /** The actual values stored in the data array, #A, are not used - this means
+       that all entries in the sparsity pattern are considered to be true by
+       this method. */
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
 
-   /// Compute y^t A x
-   double InnerProduct(const Vector &x, const Vector &y) const;
+   /// y = |A| * x, using entry-wise absolute values of matrix A
+   void AbsMult(const Vector &x, Vector &y) const;
 
-   /// For all i compute \f$ x_i = \sum_j A_{ij} \f$
+   /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
+
+   /// Compute y^t A x
+   real_t InnerProduct(const Vector &x, const Vector &y) const;
+
+   /// For all i compute $ x_i = \sum_j A_{ij} $
    void GetRowSums(Vector &x) const;
-   /// For i = irow compute \f$ x_i = \sum_j | A_{i, j} | \f$
-   double GetRowNorml1(int irow) const;
+   /// For i = irow compute $ x_i = \sum_j | A_{i, j} | $
+   real_t GetRowNorml1(int irow) const;
 
    /// This virtual method is not supported: it always returns NULL.
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /// Eliminates a column from the transpose matrix.
-   void EliminateRow(int row, const double sol, Vector &rhs);
+   void EliminateRow(int row, const real_t sol, Vector &rhs);
 
    /// Eliminates a row from the matrix.
    /*!
@@ -253,13 +468,17 @@ public:
    void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
                       Vector *b = NULL);
 
+   /** @brief Similar to EliminateCols + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae);
+
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
        is assembled if and only if the element (rc,i) is assembled.
        By default, elements (rc,rc) are set to 1.0, although this behavior
        can be adjusted by changing the @a dpolicy parameter. */
-   void EliminateRowCol(int rc, const double sol, Vector &rhs,
+   void EliminateRowCol(int rc, const real_t sol, Vector &rhs,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief Similar to
@@ -271,7 +490,7 @@ public:
                                    DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// Perform elimination and set the diagonal entry to the given value
-   void EliminateRowColDiag(int rc, double value);
+   void EliminateRowColDiag(int rc, real_t value);
 
    /// Eliminate row @a rc and column @a rc.
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
@@ -282,43 +501,62 @@ public:
    void EliminateRowCol(int rc, SparseMatrix &Ae,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+      @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                          essential boundary conditions.
+      @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
+
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
-   virtual void EliminateZeroRows(const double threshold = 1e-12);
+   void EliminateZeroRows(const real_t threshold = 1e-12) override;
 
    /// Gauss-Seidel forward and backward iterations over a vector x.
    void Gauss_Seidel_forw(const Vector &x, Vector &y) const;
    void Gauss_Seidel_back(const Vector &x, Vector &y) const;
 
    /// Determine appropriate scaling for Jacobi iteration
-   double GetJacobiScaling() const;
+   real_t GetJacobiScaling() const;
    /** One scaled Jacobi iteration for the system A x = b.
-       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A. */
-   void Jacobi(const Vector &b, const Vector &x0, Vector &x1, double sc) const;
+       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A.
+       Absolute values of D are used when use_abs_diag = true. */
+   void Jacobi(const Vector &b, const Vector &x0, Vector &x1,
+               real_t sc, bool use_abs_diag = false) const;
 
-   void DiagScale(const Vector &b, Vector &x, double sc = 1.0) const;
+   /// x = sc b / A_ii. When use_abs_diag = true, |A_ii| is used.
+   void DiagScale(const Vector &b, Vector &x,
+                  real_t sc = 1.0, bool use_abs_diag = false) const;
 
-   /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
+   /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j |A_{ij}| $. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
-                double sc = 1.0) const;
+                real_t sc = 1.0) const;
 
-   /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j A_{ij} \f$. */
+   /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j A_{ij} $. */
    void Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
-                double sc = 1.0) const;
+                real_t sc = 1.0) const;
 
    /** @brief Finalize the matrix initialization, switching the storage format
        from LIL to CSR. */
    /** This method should be called once, after the matrix has been initialized.
        Internally, this method converts the matrix from row-wise linked list
        (LIL) format into CSR (compressed sparse row) format. */
-   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   void Finalize(int skip_zeros = 1) override { Finalize(skip_zeros, false); }
 
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
-   bool Finalized() const { return (A != NULL); }
-   bool areColumnsSorted() const { return isSorted; }
+   /// Returns whether or not CSR format has been finalized.
+   bool Finalized() const { return !A.Empty(); }
+   /// Returns whether or not the columns are sorted.
+   bool ColumnsAreSorted() const { return isSorted; }
+
+   /** @brief Remove entries smaller in absolute value than a given tolerance
+       @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
+       diagonal entry (for square matrices only) */
+   void Threshold(real_t tol, bool fix_empty_rows = false);
 
    /** Split the matrix into M x N blocks of sparse matrices in CSR format.
        The 'blocks' array is M x N (i.e. M and N are determined by its
@@ -328,23 +566,38 @@ public:
    void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      DenseMatrix &subm) const;
 
+   /** @brief Initialize the SparseMatrix for fast access to the entries of the
+       given @a row which becomes the "current row". */
+   /** Fast access to the entries of the "current row" can be performed using
+       the methods: SearchRow(const int), _Add_(const int, const double),
+       _Set_(const int, const double), and _Get_(const int). */
    inline void SetColPtr(const int row) const;
+   /** @brief Reset the "current row" set by calling SetColPtr(). This method
+       must be called between any two calls to SetColPtr(). */
    inline void ClearColPtr() const;
-   inline double &SearchRow(const int col);
-   inline void _Add_(const int col, const double a)
+   /// Perform a fast search for an entry in the "current row". See SetColPtr().
+   /** If the matrix is not finalized and the entry is not found in the
+       SparseMatrix, it will be added to the sparsity pattern initialized with
+       zero. If the matrix is finalized and the entry is not found, an error
+       will be generated. */
+   inline real_t &SearchRow(const int col);
+   /// Add a value to an entry in the "current row". See SetColPtr().
+   inline void _Add_(const int col, const real_t a)
    { SearchRow(col) += a; }
-   inline void _Set_(const int col, const double a)
+   /// Set an entry in the "current row". See SetColPtr().
+   inline void _Set_(const int col, const real_t a)
    { SearchRow(col) = a; }
-   inline double _Get_(const int col) const;
+   /// Read the value of an entry in the "current row". See SetColPtr().
+   inline real_t _Get_(const int col) const;
 
-   inline double &SearchRow(const int row, const int col);
-   inline void _Add_(const int row, const int col, const double a)
+   inline real_t &SearchRow(const int row, const int col);
+   inline void _Add_(const int row, const int col, const real_t a)
    { SearchRow(row, col) += a; }
-   inline void _Set_(const int row, const int col, const double a)
+   inline void _Set_(const int row, const int col, const real_t a)
    { SearchRow(row, col) = a; }
 
-   void Set(const int i, const int j, const double a);
-   void Add(const int i, const int j, const double a);
+   void Set(const int i, const int j, const real_t val);
+   void Add(const int i, const int j, const real_t val);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
@@ -352,6 +605,12 @@ public:
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
                               const DenseMatrix &subm, int skip_zeros = 1);
 
+   /** Insert the DenseMatrix into this SparseMatrix at the specified rows and
+       columns. If \c skip_zeros==0 , all entries from the DenseMatrix are
+       added including zeros. If \c skip_zeros==2 , no zeros are added to the
+       SparseMatrix regardless of their position in the matrix. Otherwise, the
+       default \c skip_zeros behavior is to omit the zero from the SparseMatrix
+       unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
 
@@ -364,86 +623,117 @@ public:
        - 0, if @a cols and @a srow are copies of the values in the matrix, i.e.
          when the matrix is open.
        - 1, if @a cols and @a srow are views of the values in the matrix, i.e.
-         when the matrix is finalized. */
-   virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
+         when the matrix is finalized.
+       @warning This method breaks the const-ness when the matrix is finalized
+       because it gives write access to the #J and #A arrays. */
+   int GetRow(const int row, Array<int> &cols, Vector &srow) const override;
 
    void SetRow(const int row, const Array<int> &cols, const Vector &srow);
    void AddRow(const int row, const Array<int> &cols, const Vector &srow);
 
-   void ScaleRow(const int row, const double scale);
-   // this = diag(sl) * this;
+   void ScaleRow(const int row, const real_t scale);
+   /// this = diag(sl) * this;
    void ScaleRows(const Vector & sl);
-   // this = this * diag(sr);
+   /// this = this * diag(sr);
    void ScaleColumns(const Vector & sr);
 
-   /** Add the sparse matrix 'B' to '*this'. This operation will cause an error
-       if '*this' is finalized and 'B' has larger sparsity pattern. */
+   /** @brief Add the sparse matrix 'B' to '*this'. This operation will cause an
+       error if '*this' is finalized and 'B' has larger sparsity pattern. */
    SparseMatrix &operator+=(const SparseMatrix &B);
 
-   /** Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
+   /** @brief Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
        Only entries in the sparsity pattern of '*this' are added. */
-   void Add(const double a, const SparseMatrix &B);
+   void Add(const real_t a, const SparseMatrix &B);
 
-   SparseMatrix &operator=(double a);
+   SparseMatrix &operator=(real_t a);
 
-   SparseMatrix &operator*=(double a);
+   SparseMatrix &operator*=(real_t a);
 
    /// Prints matrix to stream out.
-   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   /** @note The host in synchronized when the finalized matrix is on the device. */
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const override;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = mfem::out) const;
+   /** @note The host in synchronized when the finalized matrix is on the device. */
+   void PrintMatlab(std::ostream &out = mfem::out) const override;
+
+   /// Prints matrix as a SparseArray for importing into Mathematica.
+   /** The resulting file can be read into Mathematica using an expression such
+       as: myMat = Get["output_file_name"]
+       The Mathematica variable "myMat" will then be assigned to a new
+       SparseArray object containing the data from this MFEM SparseMatrix.
+
+       @note Mathematica uses 1-based indexing so the MFEM row and column
+       indices will be sifted up by one in the Mathematica output.
+
+       @note The host in synchronized when the finalized matrix is on the
+       device. */
+   virtual void PrintMathematica(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintMM(std::ostream &out = mfem::out) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintCSR(std::ostream &out) const;
 
    /// Prints a sparse matrix to stream out in CSR format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
-   double IsSymmetric() const;
+   real_t IsSymmetric() const;
 
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
 
    /// Returns the number of the nonzero elements in the matrix
-   virtual int NumNonZeroElems() const;
+   int NumNonZeroElems() const override;
 
-   double MaxNorm() const;
+   real_t MaxNorm() const;
 
    /// Count the number of entries with |a_ij| <= tol.
-   int CountSmallElems(double tol) const;
+   int CountSmallElems(real_t tol) const;
 
    /// Count the number of entries that are NOT finite, i.e. Inf or Nan.
    int CheckFinite() const;
 
    /// Set the graph ownership flag (I and J arrays).
-   void SetGraphOwner(bool ownij) { ownGraph = ownij; }
+   void SetGraphOwner(bool ownij)
+   { I.SetHostPtrOwner(ownij); J.SetHostPtrOwner(ownij); }
+
    /// Set the data ownership flag (A array).
-   void SetDataOwner(bool owna) { ownData = owna; }
+   void SetDataOwner(bool owna) { A.SetHostPtrOwner(owna); }
+
    /// Get the graph ownership flag (I and J arrays).
-   bool OwnsGraph() const { return ownGraph; }
+   bool OwnsGraph() const { return I.OwnsHostPtr() && J.OwnsHostPtr(); }
+
    /// Get the data ownership flag (A array).
-   bool OwnsData() const { return ownData; }
+   bool OwnsData() const { return A.OwnsHostPtr(); }
+
    /// Lose the ownership of the graph (I, J) and data (A) arrays.
-   void LoseData() { ownGraph = ownData = false; }
+   void LoseData() { SetGraphOwner(false); SetDataOwner(false); }
 
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { Destroy(); }
+   virtual ~SparseMatrix();
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
 
+inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
+{
+   mat.Print(os);
+   return os;
+}
+
 /// Applies f() to each element of the matrix (after it is finalized).
-void SparseMatrixFunction(SparseMatrix &S, double (*f)(double));
+void SparseMatrixFunction(SparseMatrix &S, real_t (*f)(real_t));
 
 
 /// Transpose of a sparse matrix. A must be finalized.
@@ -452,11 +742,11 @@ SparseMatrix *Transpose(const SparseMatrix &A);
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                              int useActualWidth);
 
-/** Matrix product A.B.
-    If OAB is not NULL, we assume it has the structure
-    of A.B and store the result in OAB.
-    If OAB is NULL, we create a new SparseMatrix to store
+/// Matrix product A.B.
+/** If @a OAB is not NULL, we assume it has the structure of A.B and store the
+    result in @a OAB. If @a OAB is NULL, we create a new SparseMatrix to store
     the result and return a pointer to it.
+
     All matrices must be finalized. */
 SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
                    SparseMatrix *OAB = NULL);
@@ -494,13 +784,13 @@ SparseMatrix *Mult_AtDA(const SparseMatrix &A, const Vector &D,
 /// Matrix addition result = A + B.
 SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B);
 /// Matrix addition result = a*A + b*B
-SparseMatrix * Add(double a, const SparseMatrix & A, double b,
+SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
                    const SparseMatrix & B);
 /// Matrix addition result = sum_i A_i
 SparseMatrix * Add(Array<SparseMatrix *> & Ai);
 
 /// B += alpha * A
-void Add(const SparseMatrix &A, double alpha, DenseMatrix &B);
+void Add(const SparseMatrix &A, real_t alpha, DenseMatrix &B);
 
 /// Produces a block matrix with blocks A_{ij}*B
 DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B);
@@ -555,19 +845,23 @@ inline void SparseMatrix::SetColPtr(const int row) const
 inline void SparseMatrix::ClearColPtr() const
 {
    if (Rows)
+   {
       for (RowNode *node_p = Rows[current_row]; node_p != NULL;
            node_p = node_p->Prev)
       {
          ColPtrNode[node_p->Column] = NULL;
       }
+   }
    else
+   {
       for (int j = I[current_row], end = I[current_row+1]; j < end; j++)
       {
          ColPtrJ[J[j]] = -1;
       }
+   }
 }
 
-inline double &SparseMatrix::SearchRow(const int col)
+inline real_t &SparseMatrix::SearchRow(const int col)
 {
    if (Rows)
    {
@@ -594,7 +888,7 @@ inline double &SparseMatrix::SearchRow(const int col)
    }
 }
 
-inline double SparseMatrix::_Get_(const int col) const
+inline real_t SparseMatrix::_Get_(const int col) const
 {
    if (Rows)
    {
@@ -608,7 +902,7 @@ inline double SparseMatrix::_Get_(const int col) const
    }
 }
 
-inline double &SparseMatrix::SearchRow(const int row, const int col)
+inline real_t &SparseMatrix::SearchRow(const int row, const int col)
 {
    if (Rows)
    {
@@ -657,6 +951,6 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
    a.Swap(b);
 }
 
-}
+} // namespace mfem
 
 #endif

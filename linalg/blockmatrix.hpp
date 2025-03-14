@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BLOCKMATRIX
 #define MFEM_BLOCKMATRIX
@@ -71,6 +71,12 @@ public:
        treated according to that policy. */
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate the rows and columns corresponding to the entries
+       in @a vdofs + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
+                         DiagonalPolicy dpolicy = DIAG_ONE);
+
    //! Symmetric elimination of the marked degree of freedom.
    /**
      @param ess_bc_dofs  marker of the degree of freedom to be eliminated
@@ -82,24 +88,24 @@ public:
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
 
    ///  Finalize all the submatrices
-   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   void Finalize(int skip_zeros = 1) override { Finalize(skip_zeros, false); }
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = mfem::out) const;
+   void PrintMatlab(std::ostream & os = mfem::out) const override;
 
    /// @name Matrix interface
    ///@{
 
    /// Returns reference to a_{ij}.
-   virtual double& Elem (int i, int j);
+   real_t& Elem (int i, int j) override;
    /// Returns constant reference to a_{ij}.
-   virtual const double& Elem (int i, int j) const;
+   const real_t& Elem (int i, int j) const override;
    /// Returns a pointer to (approximation) of the matrix inverse.
-   virtual MatrixInverse * Inverse() const
+   MatrixInverse * Inverse() const override
    {
       mfem_error("BlockMatrix::Inverse not implemented \n");
       return static_cast<MatrixInverse*>(NULL);
@@ -110,33 +116,45 @@ public:
    ///@{
 
    //! Returns the total number of non zeros in the matrix.
-   virtual int NumNonZeroElems() const;
+   int NumNonZeroElems() const override;
    /// Gets the columns indexes and values for row *row*.
    /** The return value is always 0 since @a cols and @a srow are copies of the
        values in the matrix. */
-   virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
+   int GetRow(const int row, Array<int> &cols, Vector &srow) const override;
    /** @brief If the matrix is square, this method will place 1 on the diagonal
        (i,i) if row i has "almost" zero l1-norm.
 
        If entry (i,i) does not belong to the sparsity pattern of A, then a error
        will occur. */
-   virtual void EliminateZeroRows(const double threshold = 1e-12);
+   void EliminateZeroRows(const real_t threshold = 1e-12) override;
 
    /// Matrix-Vector Multiplication y = A*x
-   virtual void Mult(const Vector & x, Vector & y) const;
+   void Mult(const Vector & x, Vector & y) const override;
    /// Matrix-Vector Multiplication y = y + val*A*x
-   virtual void AddMult(const Vector & x, Vector & y, const double val = 1.) const;
+   void AddMult(const Vector & x, Vector & y,
+                const real_t val = 1.) const override;
    /// MatrixTranspose-Vector Multiplication y = A'*x
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   void MultTranspose(const Vector & x, Vector & y) const override;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double val = 1.) const;
+   void AddMultTranspose(const Vector & x, Vector & y,
+                         const real_t val = 1.) const override;
    ///@}
+
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is given in @a y */
+   void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is multiplied by
+       @a a and added to @a y */
+   void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
+                    const real_t a=1.0) const;
 
    //! Destructor
    virtual ~BlockMatrix();
    //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
    int owns_blocks;
+
+   virtual Type GetType() const { return MFEM_Block_Matrix; }
 
 private:
    //! Given a global row iglobal finds to which row iloc in block iblock belongs to.
@@ -171,10 +189,9 @@ inline void BlockMatrix::findGlobalRow(int iglobal, int & iblock,
    }
 
    for (iblock = 0; iblock < nRowBlocks; ++iblock)
-      if (row_offsets[iblock+1] > iglobal)
-      {
-         break;
-      }
+   {
+      if (row_offsets[iblock+1] > iglobal) { break; }
+   }
 
    iloc = iglobal - row_offsets[iblock];
 }
@@ -188,10 +205,9 @@ inline void BlockMatrix::findGlobalCol(int jglobal, int & jblock,
    }
 
    for (jblock = 0; jblock < nColBlocks; ++jblock)
-      if (col_offsets[jblock+1] > jglobal)
-      {
-         break;
-      }
+   {
+      if (col_offsets[jblock+1] > jglobal) { break; }
+   }
 
    jloc = jglobal - col_offsets[jblock];
 }

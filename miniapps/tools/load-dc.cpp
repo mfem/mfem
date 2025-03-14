@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //    -------------------------------------------------------------------
 //    Load DC Miniapp:  Visualize fields saved via DataCollection classes
@@ -33,22 +33,31 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
    const char *coll_name = NULL;
    int cycle = 0;
+   int pad_digits_cycle = 6;
+   int pad_digits_rank = 6;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
+   args.AddOption(&pad_digits_cycle, "-pdc", "--pad-digits-cycle",
+                  "Number of digits in cycle.");
+   args.AddOption(&pad_digits_rank, "-pdr", "--pad-digits-rank",
+                  "Number of digits in MPI rank.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -62,9 +71,11 @@ int main(int argc, char *argv[])
 #else
    VisItDataCollection dc(coll_name);
 #endif
+   dc.SetPadDigitsCycle(pad_digits_cycle);
+   dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
-   if (dc.Error() != DataCollection::NO_ERROR)
+   if (dc.Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading VisIt data collection: " << coll_name << endl;
       return 1;
@@ -84,22 +95,28 @@ int main(int argc, char *argv[])
    if (!visualization) { return 0; }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    // Visualize all fields. If there are no fields, visualize the mesh.
    for (fields_t::const_iterator it = fields.begin();
         it != fields.end() || fields.begin() == fields.end(); ++it)
    {
       socketstream sol_sock(vishost, visport);
-      if (!sol_sock)
+      bool succeeded = sol_sock.good();
+#ifdef MFEM_USE_MPI
+      bool all_succeeded;
+      MPI_Allreduce(&succeeded, &all_succeeded, 1,
+                    MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+      succeeded = all_succeeded;
+#endif
+      if (!succeeded)
       {
          mfem::out << "Connection to " << vishost << ':' << visport
                    << " failed." << endl;
          return 1;
       }
 #ifdef MFEM_USE_MPI
-      sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
-               << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
 #endif
       if (fields.begin() == fields.end())
       {

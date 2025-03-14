@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH_OPERATORS
 #define MFEM_MESH_OPERATORS
@@ -132,10 +132,13 @@ protected:
    /// Do not allow copy construction, due to assumed ownership.
    MeshOperatorSequence(const MeshOperatorSequence &) { }
 
+   /// Do not allow copy assignment, due to assumed ownership.
+   MeshOperatorSequence& operator=(const MeshOperatorSequence &s) = delete;
+
    /** @brief Apply the MeshOperatorSequence.
        @return ActionInfo value corresponding to the last applied operator from
        the sequence. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Constructor. Use the Append() method to create the sequence.
@@ -152,7 +155,7 @@ public:
    Array<MeshOperator*> &GetSequence() { return sequence; }
 
    /// Reset all MeshOperators in the sequence.
-   virtual void Reset();
+   void Reset() override;
 };
 
 
@@ -175,14 +178,14 @@ protected:
    ErrorEstimator &estimator;
    AnisotropicErrorEstimator *aniso_estimator;
 
-   double total_norm_p;
-   double total_err_goal;
-   double total_fraction;
-   double local_err_goal;
-   long   max_elements;
+   real_t total_norm_p;
+   real_t total_err_goal;
+   real_t total_fraction;
+   real_t local_err_goal;
+   long long max_elements;
 
-   double threshold;
-   long num_marked_elements;
+   real_t threshold;
+   long long num_marked_elements;
 
    Array<Refinement> marked_elements;
    long current_sequence;
@@ -190,12 +193,12 @@ protected:
    int non_conforming;
    int nc_limit;
 
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
+   real_t GetNorm(const Vector &local_err, Mesh &mesh) const;
 
    /** @brief Apply the operator to the mesh.
        @return STOP if a stopping criterion is satisfied or no elements were
        marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Construct a ThresholdRefiner using the given ErrorEstimator.
@@ -205,29 +208,29 @@ public:
 
    /** @brief Set the exponent, p, of the discrete p-norm used to compute the
        total error from the local element errors. */
-   void SetTotalErrorNormP(double norm_p = infinity())
+   void SetTotalErrorNormP(real_t norm_p = infinity())
    { total_norm_p = norm_p; }
 
    /** @brief Set the total error stopping criterion: stop when
        total_err <= total_err_goal. The default value is zero. */
-   void SetTotalErrorGoal(double err_goal) { total_err_goal = err_goal; }
+   void SetTotalErrorGoal(real_t err_goal) { total_err_goal = err_goal; }
 
    /** @brief Set the total fraction used in the computation of the threshold.
        The default value is 1/2.
        @note If fraction == 0, total_err is essentially ignored in the threshold
        computation, i.e. threshold = local error goal. */
-   void SetTotalErrorFraction(double fraction) { total_fraction = fraction; }
+   void SetTotalErrorFraction(real_t fraction) { total_fraction = fraction; }
 
    /** @brief Set the local stopping criterion: stop when
        local_err_i <= local_err_goal. The default value is zero.
        @note If local_err_goal == 0, it is essentially ignored in the threshold
        computation. */
-   void SetLocalErrorGoal(double err_goal) { local_err_goal = err_goal; }
+   void SetLocalErrorGoal(real_t err_goal) { local_err_goal = err_goal; }
 
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
-   void SetMaxElements(long max_elem) { max_elements = max_elem; }
+   void SetMaxElements(long long max_elem) { max_elements = max_elem; }
 
    /// Use nonconforming refinement, if possible (triangles, quads, hexes).
    void PreferNonconformingRefinement() { non_conforming = 1; }
@@ -238,20 +241,20 @@ public:
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
+   long long GetNumMarkedElements() const { return num_marked_elements; }
 
    /// Get the threshold used in the last Apply() call.
-   double GetThreshold() const { return threshold; }
+   real_t GetThreshold() const { return threshold; }
 
    /// Reset the associated estimator.
-   virtual void Reset();
+   void Reset() override;
 };
 
 // TODO: BulkRefiner to refine a portion of the global error
@@ -270,13 +273,13 @@ class ThresholdDerefiner : public MeshOperator
 protected:
    ErrorEstimator &estimator;
 
-   double threshold;
+   real_t threshold;
    int nc_limit, op;
 
    /** @brief Apply the operator to the mesh.
        @return DEREFINED + CONTINUE if some elements were de-refined; NONE
        otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Construct a ThresholdDerefiner using the given ErrorEstimator.
@@ -291,20 +294,132 @@ public:
    // default destructor (virtual)
 
    /// Set the de-refinement threshold. The default value is zero.
-   void SetThreshold(double thresh) { threshold = thresh; }
+   void SetThreshold(real_t thresh) { threshold = thresh; }
 
-   void SetOp(int op) { this->op = op; }
+   void SetOp(int oper) { op = oper; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Reset the associated estimator.
-   virtual void Reset() { estimator.Reset(); }
+   void Reset() override { estimator.Reset(); }
+};
+
+
+/** @brief Refinement operator to control data oscillation.
+
+    This class computes osc_K(f) := || h ⋅ (I - Π) f ||_K  at each element K.
+    Here, Π is the L2-projection and ||⋅||_K is the L2-norm, restricted to the
+    element K. All elements satisfying the inequality
+    \code
+       osc_K(f) > threshold ⋅ ||f|| / sqrt(n_el),
+    \endcode
+    are refined. Here, threshold is a positive parameter, ||⋅|| is the L2-norm
+    over the entire domain Ω, and n_el is the number of elements in the mesh.
+
+    Note that if osc(f) = threshold ⋅ ||f|| / sqrt(n_el) for each K, then
+    \code
+       osc(f) = sqrt(sum_K osc_K^2(f)) = threshold ⋅ ||f||.
+    \endcode
+    This is the reason for the 1/sqrt(n_el) factor.
+*/
+class CoefficientRefiner : public MeshOperator
+{
+protected:
+   bool print_level = false;
+   int nc_limit = 1;
+   int nonconforming = -1;
+   int order;
+   long long max_elements = std::numeric_limits<long long>::max();
+   real_t threshold = 1.0e-2;
+   real_t global_osc = NAN;
+   Array<int> mesh_refinements;
+   Vector element_oscs;
+   Coefficient *coeff = NULL;
+   const IntegrationRule *ir_default[Geometry::NumGeom];
+   const IntegrationRule **irs = NULL;
+
+   /** @brief Apply the operator to the mesh once.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   int ApplyImpl(Mesh &mesh) override;
+
+public:
+   /// Constructor
+   CoefficientRefiner(Coefficient &coeff_, int order_)
+   {
+      // function f
+      coeff = &coeff_;
+
+      // order of the projection Π
+      order = order_;
+   }
+
+   /** @brief Apply the operator to the mesh max_it times or until tolerance
+    *  achieved.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int PreprocessMesh(Mesh &mesh, int max_it);
+
+   int PreprocessMesh(Mesh &mesh)
+   {
+      int max_it = 10;
+      return PreprocessMesh(mesh, max_it);
+   }
+
+   /// Set the refinement threshold. The default value is 1.0e-2.
+   void SetThreshold(real_t threshold_) { threshold = threshold_; }
+
+   /** @brief Set the maximum number of elements stopping criterion: stop when
+       the input mesh has num_elements >= max_elem. The default value is
+       LONG_MAX. */
+   void SetMaxElements(long long max_elements_) { max_elements = max_elements_; }
+
+   /// Reset the function f
+   void ResetCoefficient(Coefficient &coeff_)
+   {
+      element_oscs.Destroy();
+      global_osc = NAN;
+      coeff = &coeff_;
+   }
+
+   /// Reset the oscillation order
+   void SetOrder(int order_) { order = order_; }
+
+   /** @brief Set the maximum ratio of refinement levels of adjacent elements
+       (0 = unlimited). The default value is 1, which helps ensure appropriate
+       refinements in pathological situations where the default quadrature
+       order is too low.  */
+   void SetNCLimit(int nc_limit_)
+   {
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
+   }
+
+   // Set a custom integration rule
+   void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
+
+   // Set print level
+   void PrintWarnings() { print_level = true; }
+
+   // Return the value of the global relative data oscillation
+   real_t GetOsc() const { return global_osc; }
+
+   // Return the local relative data oscillation errors
+   const Vector & GetLocalOscs() const
+   {
+      MFEM_ASSERT(element_oscs.Size() > 0,
+                  "Local oscillations have not been computed yet")
+      return element_oscs;
+   }
+
+   /// Reset
+   void Reset() override;
 };
 
 
@@ -318,11 +433,11 @@ protected:
    /** @brief Rebalance a parallel mesh (only non-conforming parallel meshes are
        supported).
        @return CONTINUE + REBALANCE on success, NONE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Empty.
-   virtual void Reset() { }
+   void Reset() override { }
 };
 
 } // namespace mfem

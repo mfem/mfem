@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Tesla Miniapp:  Simple Magnetostatics Simulation Code
@@ -74,8 +74,8 @@ static Vector pw_mu_(0);      // Piecewise permeability values
 static Vector pw_mu_inv_(0);  // Piecewise inverse permeability values
 static Vector ms_params_(0);  // Center, Inner and Outer Radii, and
 //                               Permeability of magnetic shell
-double magnetic_shell(const Vector &);
-double magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
+real_t magnetic_shell(const Vector &);
+real_t magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Current Density Function
 static Vector cr_params_(0);  // Axis Start, Axis End, Inner Ring Radius,
@@ -99,16 +99,17 @@ static Vector b_uniform_(0);
 void a_bc_uniform(const Vector &, Vector&);
 
 // Phi_M Boundary Condition for H = (0,0,1)
-double phi_m_bc_uniform(const Vector &x);
+real_t phi_m_bc_uniform(const Vector &x);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -116,6 +117,7 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int visport = 19916;
    bool visualization = true;
    bool visit = true;
 
@@ -158,16 +160,17 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -177,7 +180,7 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Starting initialization." << endl;
    }
@@ -221,7 +224,7 @@ int main(int argc, char *argv[])
         ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
         ( vbcv.Size() < vbcs.Size() ) )
    {
-      if ( mpi.Root() )
+      if ( Mpi::Root() )
       {
          cout << "The surface current (K) boundary condition requires "
               << "surface current boundary condition surfaces (with -kbcs), "
@@ -255,7 +258,7 @@ int main(int argc, char *argv[])
    {
       Tesla.RegisterVisItFields(visit_dc);
    }
-   if (mpi.Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -265,7 +268,7 @@ int main(int argc, char *argv[])
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -291,10 +294,10 @@ int main(int argc, char *argv[])
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         Tesla.DisplayToGLVis();
+         Tesla.DisplayToGLVis(visport);
       }
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -302,7 +305,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -315,7 +318,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 10 == 0))
+      if (Mpi::Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -331,24 +334,24 @@ int main(int argc, char *argv[])
       Vector errors(pmesh.GetNE());
       Tesla.GetErrorEstimates(errors);
 
-      double local_max_err = errors.Max();
-      double global_max_err;
+      real_t local_max_err = errors.Max();
+      real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
-                    MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+                    MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
-      const double frac = 0.5;
-      double threshold = frac * global_max_err;
-      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      const real_t frac = 0.5;
+      real_t threshold = frac * global_max_err;
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Tesla.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1)
+      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
       {
-         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
@@ -404,9 +407,9 @@ SetupInvPermeabilityCoefficient()
 // A spherical shell with constant permeability.  The sphere has inner
 // and outer radii, center, and relative permeability specified on the
 // command line and stored in ms_params_.
-double magnetic_shell(const Vector &x)
+real_t magnetic_shell(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i = 0; i < x.Size(); i++)
    {
@@ -442,29 +445,29 @@ void current_ring(const Vector &x, Vector &j)
       a[i]   = cr_params_[x.Size()+i] - cr_params_[i];
    }
 
-   double h = a.Norml2();
+   real_t h = a.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double ra = cr_params_[2*x.Size()+0];
-   double rb = cr_params_[2*x.Size()+1];
+   real_t ra = cr_params_[2*x.Size()+0];
+   real_t rb = cr_params_[2*x.Size()+1];
    if ( ra > rb )
    {
-      double rc = ra;
+      real_t rc = ra;
       ra = rb;
       rb = rc;
    }
-   double xa = xu*a;
+   real_t xa = xu*a;
 
    if ( h > 0.0 )
    {
       xu.Add(-xa/(h*h),a);
    }
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp >= ra && xp <= rb )
    {
@@ -496,22 +499,22 @@ void bar_magnet(const Vector &x, Vector &m)
       a[i]   = bm_params_[x.Size()+i] - bm_params_[i];
    }
 
-   double h = a.Norml2();
+   real_t h = a.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double  r = bm_params_[2*x.Size()];
-   double xa = xu*a;
+   real_t  r = bm_params_[2*x.Size()];
+   real_t xa = xu*a;
 
    if ( h > 0.0 )
    {
       xu.Add(-xa/(h*h),a);
    }
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp <= r )
    {
@@ -539,10 +542,10 @@ void halbach_array(const Vector &x, Vector &m)
    int ri = (int)ha_params_[7];
    int n  = (int)ha_params_[8];
 
-   int i = (int)n * (x[ai] - ha_params_[ai]) /
-           (ha_params_[ai+3] - ha_params_[ai]);
+   int i = static_cast<int>(n * (x[ai] - ha_params_[ai]) /
+                            (ha_params_[ai+3] - ha_params_[ai]));
 
-   m[(ri + 1 + (i % 2)) % 3] = pow(-1.0,i/2);
+   m[(ri + 1 + (i % 2)) % 3] = static_cast<int>(pow(-1.0,i/2));
 }
 
 // To produce a uniform magnetic flux the vector potential can be set
@@ -557,7 +560,7 @@ void a_bc_uniform(const Vector & x, Vector & a)
 
 // To produce a uniform magnetic field the scalar potential can be set
 // to -z (or -y in 2D).
-double phi_m_bc_uniform(const Vector &x)
+real_t phi_m_bc_uniform(const Vector &x)
 {
    return -x(x.Size()-1);
 }

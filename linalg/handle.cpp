@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "handle.hpp"
 #include "sparsemat.hpp"
@@ -17,8 +17,8 @@
 
 // Make sure that hypre and PETSc use the same size indices.
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
-#if (defined(HYPRE_BIGINT) && !defined(PETSC_USE_64BIT_INDICES)) || \
-    (!defined(HYPRE_BIGINT) && defined(PETSC_USE_64BIT_INDICES))
+#if ((defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT)) && !defined(PETSC_USE_64BIT_INDICES)) || \
+    (!defined(HYPRE_BIGINT) && !defined(HYPRE_MIXEDINT) && defined(PETSC_USE_64BIT_INDICES))
 #error HYPRE and PETSC do not use the same size integers!
 #endif
 #endif
@@ -44,6 +44,7 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 #endif
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
 #ifdef MFEM_USE_PETSC
          break;
 #else
@@ -57,8 +58,8 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 }
 
 #ifdef MFEM_USE_MPI
-void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
-                                         HYPRE_Int *row_starts,
+void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
+                                         HYPRE_BigInt *row_starts,
                                          SparseMatrix *diag)
 {
    if (own_oper) { delete oper; }
@@ -88,9 +89,9 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
 }
 
 void OperatorHandle::
-MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
-                         HYPRE_Int glob_num_cols, HYPRE_Int *row_starts,
-                         HYPRE_Int *col_starts, SparseMatrix *diag)
+MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
+                         HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
+                         HYPRE_BigInt *col_starts, SparseMatrix *diag)
 {
    if (own_oper) { delete oper; }
 
@@ -148,6 +149,7 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
          pSet(mfem::RAP(A.As<PetscParMatrix>(), P.As<PetscParMatrix>()));
          break;
@@ -186,6 +188,7 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
          pSet(mfem::RAP(Rt.As<PetscParMatrix>(), A.As<PetscParMatrix>(),
                         P.As<PetscParMatrix>()));
@@ -288,6 +291,7 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
       }
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
 #ifdef MFEM_USE_PETSC
          pSet(A.As<PetscParMatrix>()->EliminateRowsCols(ess_dof_list));
@@ -297,6 +301,43 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
          break;
       }
       default: MFEM_ABORT(not_supported_msg << A.Type());
+   }
+}
+
+void OperatorHandle::EliminateRows(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         this->As<HypreParMatrix>()->EliminateRows(ess_dof_list);
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
+         break;
+      }
+      default:
+         MFEM_ABORT(not_supported_msg << Type());
+   }
+}
+
+void OperatorHandle::EliminateCols(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         auto Ae = this->As<HypreParMatrix>()->EliminateCols(ess_dof_list);
+         delete Ae;
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
+         break;
+      }
+      default:
+         MFEM_ABORT(not_supported_msg << Type());
    }
 }
 
@@ -331,6 +372,7 @@ void OperatorHandle::EliminateBC(const OperatorHandle &A_e,
       }
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
 #ifdef MFEM_USE_PETSC
          mfem::EliminateBC(*As<PetscParMatrix>(), *A_e.As<PetscParMatrix>(),

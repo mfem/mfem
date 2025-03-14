@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_POINT
 #define MFEM_POINT
@@ -30,35 +30,47 @@ public:
    Point() : Element(Geometry::POINT) {}
 
    /// Constructs point by specifying the indices and the attribute.
-   Point( const int *ind, int attr = -1 );
+   Point(const int *ind, int attr = 1);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::POINT; }
+   Type GetType() const override { return Element::POINT; }
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices( Array<int> &v ) const;
+   /// Get the indices defining the vertices
+   void GetVertices(Array<int> &v) const override;
 
-   virtual int * GetVertices () { return indices; }
+   /// Set the indices defining the vertices
+   void SetVertices(const Array<int> &v) override;
 
-   virtual int GetNVertices() const { return 1; }
+   /// @note The returned array should NOT be deleted by the caller.
+   int *GetVertices() override { return indices; }
 
-   virtual int GetNEdges() const { return (0); }
+   /// Set the vertices according to the given input.
+   void SetVertices(const int *ind) override;
 
-   virtual const int *GetEdgeVertices(int ei) const { return NULL; }
+   int GetNVertices() const override { return 1; }
 
-   virtual int GetNFaces(int &nFaceVertices) const
+   int GetNEdges() const override { return (0); }
+
+   const int *GetEdgeVertices(int ei) const override { return NULL; }
+
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
+   MFEM_DEPRECATED int GetNFaces(int &nFaceVertices) const override
    { nFaceVertices = 0; return 0; }
 
-   virtual const int *GetFaceVertices(int fi) const { return NULL; }
+   int GetNFaces() const override { return 0; }
 
-   virtual Element *Duplicate(Mesh *m) const
-   { return new Point (indices, attribute); }
+   int GetNFaceVertices(int) const override { return 0; }
 
-   virtual ~Point() { }
+   const int *GetFaceVertices(int fi) const override { return NULL; }
+
+   Element *Duplicate(Mesh *m) const override
+   { return new Point(indices, attribute); }
+
+   virtual ~Point() = default;
 };
 
 class PointFiniteElement;
-extern PointFiniteElement PointFE;
+extern MFEM_EXPORT PointFiniteElement PointFE;
 
 }
 

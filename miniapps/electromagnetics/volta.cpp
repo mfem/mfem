@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Volta Miniapp:  Simple Electrostatics Simulation Code
@@ -76,12 +76,12 @@ Coefficient * SetupPermittivityCoefficient();
 static Vector pw_eps_(0);     // Piecewise permittivity values
 static Vector ds_params_(0);  // Center, Radius, and Permittivity
 //                               of dielectric sphere
-double dielectric_sphere(const Vector &);
+real_t dielectric_sphere(const Vector &);
 
 // Charge Density Function
 static Vector cs_params_(0);  // Center, Radius, and Total Charge
 //                               of charged sphere
-double charged_sphere(const Vector &);
+real_t charged_sphere(const Vector &);
 
 // Point Charges
 static Vector pc_params_(0); // Point charge locations and charges
@@ -93,16 +93,17 @@ void voltaic_pile(const Vector &, Vector &);
 
 // Phi Boundary Condition
 static Vector e_uniform_(0);
-double phi_bc_uniform(const Vector &);
+real_t phi_bc_uniform(const Vector &);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -110,6 +111,7 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int visport = 19916;
    bool visualization = true;
    bool visit = true;
 
@@ -162,16 +164,17 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -182,7 +185,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int sdim = mesh->SpaceDimension();
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Starting initialization." << endl;
    }
@@ -268,7 +271,7 @@ int main(int argc, char *argv[])
    {
       Volta.RegisterVisItFields(visit_dc);
    }
-   if (mpi.Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -278,7 +281,7 @@ int main(int argc, char *argv[])
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -304,10 +307,10 @@ int main(int argc, char *argv[])
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         Volta.DisplayToGLVis();
+         Volta.DisplayToGLVis(visport);
       }
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -315,7 +318,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -328,7 +331,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 10 == 0))
+      if (Mpi::Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -344,24 +347,24 @@ int main(int argc, char *argv[])
       Vector errors(pmesh.GetNE());
       Volta.GetErrorEstimates(errors);
 
-      double local_max_err = errors.Max();
-      double global_max_err;
+      real_t local_max_err = errors.Max();
+      real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
-                    MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+                    MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
-      const double frac = 0.7;
-      double threshold = frac * global_max_err;
-      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      const real_t frac = 0.7;
+      real_t threshold = frac * global_max_err;
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
       // Update the electrostatic solver to reflect the new state of the mesh.
       Volta.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1)
+      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
       {
-         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
@@ -411,9 +414,9 @@ SetupPermittivityCoefficient()
 // A sphere with constant permittivity.  The sphere has a radius,
 // center, and permittivity specified on the command line and stored
 // in ds_params_.
-double dielectric_sphere(const Vector &x)
+real_t dielectric_sphere(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {
@@ -430,10 +433,10 @@ double dielectric_sphere(const Vector &x)
 // A sphere with constant charge density.  The sphere has a radius,
 // center, and total charge specified on the command line and stored
 // in cs_params_.
-double charged_sphere(const Vector &x)
+real_t charged_sphere(const Vector &x)
 {
-   double r2 = 0.0;
-   double rho = 0.0;
+   real_t r2 = 0.0;
+   real_t rho = 0.0;
 
    if ( cs_params_(x.Size()) > 0.0 )
    {
@@ -483,22 +486,22 @@ void voltaic_pile(const Vector &x, Vector &p)
       a[i]   = vp_params_[x.Size()+i] - vp_params_[i];
    }
 
-   double h = a.Norml2();
+   real_t h = a.Norml2();
 
    if ( h == 0.0 )
    {
       return;
    }
 
-   double  r = vp_params_[2 * x.Size()];
-   double xa = xu * a;
+   real_t  r = vp_params_[2 * x.Size()];
+   real_t xa = xu * a;
 
    if ( h > 0.0 )
    {
       xu.Add(-xa / (h * h), a);
    }
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xa >= 0.0 && xa <= h*h && xp <= r )
    {
@@ -508,9 +511,9 @@ void voltaic_pile(const Vector &x, Vector &p)
 
 // To produce a uniform electric field the potential can be set
 // to (- Ex x - Ey y - Ez z).
-double phi_bc_uniform(const Vector &x)
+real_t phi_bc_uniform(const Vector &x)
 {
-   double phi = 0.0;
+   real_t phi = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {

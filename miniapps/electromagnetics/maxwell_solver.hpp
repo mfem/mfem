@@ -1,18 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MAXWELL_SOLVER
 #define MFEM_MAXWELL_SOLVER
 
 #include "../common/pfem_extras.hpp"
+#include "../common/mesh_extras.hpp"
 #include "electromagnetics.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -26,9 +27,9 @@ using namespace mfem;
 namespace mfem
 {
 
-using miniapps::ND_ParFESpace;
-using miniapps::RT_ParFESpace;
-using miniapps::ParDiscreteCurlOperator;
+using common::ND_ParFESpace;
+using common::RT_ParFESpace;
+using common::ParDiscreteCurlOperator;
 
 namespace electromagnetics
 {
@@ -37,19 +38,19 @@ class MaxwellSolver : public TimeDependentOperator
 {
 public:
    MaxwellSolver(ParMesh & pmesh, int sOrder,
-                 double (*eps     )(const Vector&),
-                 double (*muInv   )(const Vector&),
-                 double (*sigma   )(const Vector&),
-                 void   (*j_src   )(const Vector&, double, Vector&),
+                 real_t (*eps     )(const Vector&),
+                 real_t (*muInv   )(const Vector&),
+                 real_t (*sigma   )(const Vector&),
+                 void   (*j_src   )(const Vector&, real_t, Vector&),
                  Array<int> & abcs, Array<int> & dbcs,
-                 void   (*dEdt_bc )(const Vector&, double, Vector&));
+                 void   (*dEdt_bc )(const Vector&, real_t, Vector&));
 
    ~MaxwellSolver();
 
    int GetLogging() const { return logging_; }
    void SetLogging(int logging) { logging_ = logging; }
 
-   HYPRE_Int GetProblemSize();
+   HYPRE_BigInt GetProblemSize();
 
    void PrintSizes();
 
@@ -58,11 +59,11 @@ public:
 
    void Mult(const Vector &B, Vector &dEdt) const;
 
-   void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   double GetMaximumTimeStep() const;
+   real_t GetMaximumTimeStep() const;
 
-   double GetEnergy() const;
+   real_t GetEnergy() const;
 
    Operator & GetNegCurl() { return *NegCurl_; }
 
@@ -77,14 +78,14 @@ public:
 
    void InitializeGLVis();
 
-   void DisplayToGLVis();
+   void DisplayToGLVis(int visport = 19916);
 
 private:
 
    // This method alters mutable member data
-   void setupSolver(const int idt, const double dt) const;
+   void setupSolver(const int idt, const real_t dt) const;
 
-   void implicitSolve(const double dt, const Vector &x, Vector &k) const;
+   void implicitSolve(const real_t dt, const Vector &x, Vector &k) const;
 
    int myid_;
    int num_procs_;
@@ -93,8 +94,8 @@ private:
 
    bool lossy_;
 
-   double dtMax_;   // Maximum stable time step
-   double dtScale_; // Used to scale dt before converting to an integer
+   real_t dtMax_;   // Maximum stable time step
+   real_t dtScale_; // Used to scale dt before converting to an integer
 
    ParMesh * pmesh_;
 
@@ -132,17 +133,17 @@ private:
    VectorCoefficient * jCoef_;      // Time dependent current density
    VectorCoefficient * dEdtBCCoef_; // Time dependent boundary condition
 
-   double (*eps_    )(const Vector&);
-   double (*muInv_  )(const Vector&);
-   double (*sigma_  )(const Vector&);
-   void   (*j_src_  )(const Vector&, double, Vector&);
+   real_t (*eps_    )(const Vector&);
+   real_t (*muInv_  )(const Vector&);
+   real_t (*sigma_  )(const Vector&);
+   void   (*j_src_  )(const Vector&, real_t, Vector&);
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_marker_;
 
    // Array of 0's and 1's marking the location of Dirichlet boundaries
    Array<int> dbc_marker_;
-   void   (*dEdt_bc_)(const Vector&, double, Vector&);
+   void   (*dEdt_bc_)(const Vector&, real_t, Vector&);
 
    // Dirichlet degrees of freedom
    Array<int>   dbc_dofs_;

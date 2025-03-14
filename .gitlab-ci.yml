@@ -1,0 +1,99 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# General GitLab pipelines configurations for supercomputers and Linux clusters
+# at Lawrence Livermore National Laboratory (LLNL). This entire pipeline is
+# LLNL-specific!
+
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+
+# The pipeline is divided into stages. Usually, jobs in a given stage wait for
+# the preceding stages to complete before to start. However, we sometimes use
+# the "needs" keyword and express the DAG of jobs for more efficiency.
+# - We use setup and setup_baseline phases to download content outside of mfem
+#   directory.
+# - Allocate/Release is where ruby resource are allocated/released once for all.
+# - Build and Test is where we build and MFEM for multiple toolchains.
+# - Baseline_checks gathers baseline-type test suites execution
+# - Baseline_publish, only available on master, allows to update baseline
+#   results
+stages:
+  - sub-pipelines
+
+variables:
+  CUSTOM_CI_BUILDS_DIR: "/usr/workspace/mfem/gitlab-runner"
+  USER_CI_TOP_DIR: "${CUSTOM_CI_BUILDS_DIR}/${GITLAB_USER_LOGIN}"
+  SHARED_REPOS_DIR: "${USER_CI_TOP_DIR}/repos"
+  AUTOTEST_ROOT: "${SHARED_REPOS_DIR}"
+  # MFEM_DATA_DIR is setup in '.gitlab/configs/setup-build-and-test.yml' and
+  # used in '.gitlab/configs/<machine>-config.yml':
+  MFEM_DATA_DIR: "${SHARED_REPOS_DIR}/mfem-data"
+
+# Defines the default choice for updating the saved baseline results. By default
+# the baseline can only be updated from the master branch. This variable offers
+# the option to manually ask for rebaselining from another branch if necessary.
+  REBASELINE: "NO"
+  AUTOTEST: "NO"
+  # AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
+  # * If AUTOTEST_COMMIT is NOT set to NO, reporting jobs will commit their
+  #   files to the MFEM/autotest repo.
+  # * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
+  #   files to the MFEM/autotest repo. Instead they will just show the contents
+  #   of the report files and remove them.
+  AUTOTEST_COMMIT: "YES"
+
+# Trigger subpipelines:
+ruby-build-and-test:
+  stage: sub-pipelines
+  variables:
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/ruby-build-and-test.yml
+    strategy: depend
+
+ruby-baseline:
+  stage: sub-pipelines
+  variables:
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    REBASELINE: "${REBASELINE}"
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/ruby-baseline.yml
+    strategy: depend
+
+lassen-build-and-test:
+  stage: sub-pipelines
+  variables:
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/lassen-build-and-test.yml
+    strategy: depend
+
+corona-build-and-test:
+  stage: sub-pipelines
+  variables:
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/corona-build-and-test.yml
+    strategy: depend

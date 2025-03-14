@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------------
 //       LOR Transfer Miniapp:  Map functions between HO and LOR spaces
@@ -18,10 +18,12 @@
 // low-order refined (LOR) finite element space, typically defined by 0th or 1st
 // order functions on a low-order refinement of the HO mesh.
 //
-// Two main operators are illustrated:
+// The grid transfer operators are represented using either
+// InterpolationGridTransfer or L2ProjectionGridTransfer (depending on the
+// options requested by the user). The two transfer operators are then:
 //
-//  1. R: HO -> LOR, defined by FiniteElementSpace::GetTransferOperator
-//  2. P: LOR -> HO, defined by FiniteElementSpace::GetReverseTransferOperator
+//  1. R: HO -> LOR, defined by GridTransfer::ForwardOperator
+//  2. P: LOR -> HO, defined by GridTransfer::BackwardOperator
 //
 // While defined generally, these operators have some nice properties for
 // particular finite element spaces. For example they satisfy PR=I, plus mass
@@ -33,6 +35,7 @@
 //               lor-transfer -h1
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
 //               lor-transfer -lref 4 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 3 -p 2
@@ -55,23 +58,26 @@ string space;
 string direction;
 
 // Exact functions to project
-double RHO_exact(const Vector &x);
+real_t RHO_exact(const Vector &x);
 
 // Helper functions
-void visualize(VisItDataCollection &, string, int, int);
-double compute_mass(FiniteElementSpace *, double, VisItDataCollection &,
+void visualize(VisItDataCollection &, string, int, int, int visport = 19916);
+real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
                     string);
 
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 4;
-   int lref = order;
+   int order = 3;
+   int lref = order+1;
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
-   bool use_transfer = false;
+   int visport = 19916;
+   bool use_pointwise_transfer = false;
+   const char *device_config = "cpu";
+   bool use_ea       = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -89,16 +95,17 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&useH1, "-h1", "--use-h1", "-l2", "--use-l2",
                   "Use H1 spaces instead of L2.");
-   args.AddOption(&use_transfer, "-t", "--use-pointwise-transfer", "-no-t",
-                  "--dont-use-pointwise-transfer",
+   args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
+                  "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
+                  "--no-ea-version", "Use element assembly version.");
+   args.ParseCheck();
+
+   // Configure device
+   Device device(device_config);
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -106,7 +113,7 @@ int main(int argc, char *argv[])
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor(&mesh, lref, basis_lor);
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -118,13 +125,13 @@ int main(int argc, char *argv[])
          lorder = 1;
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
-      fec = new H1_FECollection(order-1, dim);
+      fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
    }
    else
    {
       space = "L2";
-      fec = new L2_FECollection(order-1, dim);
+      fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
@@ -140,16 +147,29 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
+   BilinearForm M_ho(&fespace);
+   M_ho.AddDomainIntegrator(new MassIntegrator);
+   M_ho.Assemble();
+   M_ho.Finalize();
+
+   BilinearForm M_lor(&fespace_lor);
+   M_lor.AddDomainIntegrator(new MassIntegrator);
+   M_lor.Assemble();
+   M_lor.Finalize();
 
    // HO projections
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
    rho.ProjectCoefficient(RHO);
-   double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
-   if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
+   // Make sure AMR constraints are satisfied
+   rho.SetTrueVector();
+   rho.SetFromTrueVector();
+
+   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   if (vis) { visualize(HO_dc, "HO", Wx, Wy, visport); Wx += offx; }
 
    GridTransfer *gt;
-   if (use_transfer)
+   if (use_pointwise_transfer)
    {
       gt = new InterpolationGridTransfer(fespace, fespace_lor);
    }
@@ -157,49 +177,78 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
+
+   // Configure element assembly for device acceleration
+   gt->UseEA(use_ea);
+
    const Operator &R = gt->ForwardOperator();
-   const Operator &P = gt->BackwardOperator();
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
-   if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
+   if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy, visport); Wx += offx; }
 
-   // LOR->HO prolongation
-   direction = "HO -> LOR @ HO";
-   GridFunction rho_prev = rho;
-   P.Mult(rho_lor, rho);
-   compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
-   if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
+   if (gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      // LOR->HO prolongation
+      direction = "HO -> LOR @ HO";
+      GridFunction rho_prev = rho;
+      P.Mult(rho_lor, rho);
+      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
+      if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy, visport); Wx = 0; Wy += offy; }
 
-   rho_prev -= rho;
-   cout.precision(12);
-   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl << endl;
+      rho_prev -= rho;
+      cout.precision(12);
+      cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+   }
+
+   // HO* to LOR* dual fields
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      M_ho.Mult(rho, M_rho);
+      P.MultTranspose(M_rho, M_rho_lor);
+      cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n";
+   }
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
    GridFunction rho_lor_prev = rho_lor;
-   double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
-   if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
+   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   if (vis) { visualize(LOR_dc, "LOR", Wx, Wy, visport); Wx += offx; }
 
-   // Prolongate to HO space
-   direction = "LOR -> HO @ HO";
-   P.Mult(rho_lor, rho);
-   compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
-   if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
+   if (gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      // Prolongate to HO space
+      direction = "LOR -> HO @ HO";
+      P.Mult(rho_lor, rho);
+      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
+      if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy, visport); Wx += offx; }
 
-   // Restrict back to LOR space. This won't give the original function because
-   // the rho_lor doesn't necessarily live in the range of R.
-   direction = "LOR -> HO @ LOR";
-   R.Mult(rho, rho_lor);
-   compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
-   if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
+      // Restrict back to LOR space. This won't give the original function because
+      // the rho_lor doesn't necessarily live in the range of R.
+      direction = "LOR -> HO @ LOR";
+      R.Mult(rho, rho_lor);
+      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
+      if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy, visport); }
 
-   rho_lor_prev -= rho_lor;
-   cout.precision(12);
-   cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+      rho_lor_prev -= rho_lor;
+      cout.precision(12);
+      cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+   }
+
+   // LOR* to HO* dual fields
+   if (!use_pointwise_transfer)
+   {
+      M_lor.Mult(rho_lor, M_rho_lor);
+      R.MultTranspose(M_rho_lor, M_rho);
+      cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
+   }
 
    delete fec;
    delete fec_lor;
@@ -208,7 +257,7 @@ int main(int argc, char *argv[])
 }
 
 
-double RHO_exact(const Vector &x)
+real_t RHO_exact(const Vector &x)
 {
    switch (problem)
    {
@@ -226,12 +275,12 @@ double RHO_exact(const Vector &x)
 }
 
 
-void visualize(VisItDataCollection &dc, string prefix, int x, int y)
+void visualize(VisItDataCollection &dc, string prefix, int x, int y,
+               int visport)
 {
    int w = Ww, h = Wh;
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
    sol_sockL2.precision(8);
@@ -242,18 +291,15 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 }
 
 
-double compute_mass(FiniteElementSpace *L2, double massL2,
+real_t compute_mass(FiniteElementSpace *L2, real_t massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   BilinearForm ML2(L2);
-   ML2.AddDomainIntegrator(new MassIntegrator(one));
-   ML2.Assemble();
+   LinearForm lf(L2);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.Assemble();
 
-   GridFunction rhoone(L2);
-   rhoone = 1.0;
-
-   double newmass = ML2.InnerProduct(*dc.GetField("density"),rhoone);
+   real_t newmass = lf(*dc.GetField("density"));
    cout.precision(18);
    cout << space << " " << prefix << " mass   = " << newmass;
    if (massL2 >= 0)

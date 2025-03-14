@@ -3,6 +3,10 @@
 // Compile with: make ex20p
 //
 // Sample runs:  mpirun -np 4 ex20p
+//               mpirun -np 4 ex20p -p 1 -o 1 -n 120 -dt 0.1
+//               mpirun -np 4 ex20p -p 1 -o 2 -n 60 -dt 0.2
+//               mpirun -np 4 ex20p -p 1 -o 3 -n 40 -dt 0.3
+//               mpirun -np 4 ex20p -p 1 -o 4 -n 30 -dt 0.4
 //
 // Description: This example demonstrates the use of the variable order,
 //              symplectic ODE integration algorithm.  Symplectic integration
@@ -70,39 +74,39 @@ using namespace mfem;
 
 // Constants used in the Hamiltonian
 static int prob_ = 0;
-static double m_ = 1.0;
-static double k_ = 1.0;
+static real_t m_ = 1.0;
+static real_t k_ = 1.0;
 
 // Hamiltonian functional, see below for implementation
-double hamiltonian(double q, double p, double t);
+real_t hamiltonian(real_t q, real_t p, real_t t);
 
 class GradT : public Operator
 {
 public:
    GradT() : Operator(1) {}
-   void Mult(const Vector &x, Vector &y) const { y.Set(1.0/m_, x); }
+   void Mult(const Vector &x, Vector &y) const override { y.Set(1.0/m_, x); }
 };
 
 class NegGradV : public TimeDependentOperator
 {
 public:
    NegGradV() : TimeDependentOperator(1) {}
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
    int order  = 1;
    int nsteps = 100;
-   double dt  = 0.1;
+   real_t dt  = 0.1;
    bool visualization = true;
    bool gnuplot = false;
 
@@ -136,7 +140,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -151,11 +154,11 @@ int main(int argc, char *argv[])
    siaSolver.Init(P,F);
 
    // 4. Set the initial conditions
-   double t = 0.0;
+   real_t t = 0.0;
    Vector q(1), p(1);
    Vector e(nsteps+1);
-   q(0) = sin(2.0*M_PI*(double)myid/num_procs);
-   p(0) = cos(2.0*M_PI*(double)myid/num_procs);
+   q(0) = sin(2.0*M_PI*(real_t)myid/num_procs);
+   p(0) = cos(2.0*M_PI*(real_t)myid/num_procs);
 
    // 5. Prepare GnuPlot output file if needed
    ostringstream oss;
@@ -168,7 +171,7 @@ int main(int argc, char *argv[])
    }
 
    // 6. Create a Mesh for visualization in phase space
-   int nverts = (visualization) ? (num_procs+1)*(nsteps+1) : 0;
+   int nverts = (visualization) ? 2*num_procs*(nsteps+1) : 0;
    int nelems = (visualization) ? (nsteps * num_procs) : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
 
@@ -178,7 +181,7 @@ int main(int argc, char *argv[])
    Vector x1(3); x1 = 0.0;
 
    // 7. Perform time-stepping
-   double e_mean = 0.0;
+   real_t e_mean = 0.0;
 
    for (int i = 0; i < nsteps; i++)
    {
@@ -190,9 +193,9 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            mesh.AddVertex(x0);
             for (int j = 0; j < num_procs; j++)
             {
+               mesh.AddVertex(x0);
                x1[0] = q(0);
                x1[1] = p(0);
                x1[2] = 0.0;
@@ -216,17 +219,17 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          x0[2] = t;
-         mesh.AddVertex(x0);
          for (int j = 0; j < num_procs; j++)
          {
+            mesh.AddVertex(x0);
             x1[0] = q(0);
             x1[1] = p(0);
             x1[2] = t;
             mesh.AddVertex(x1);
-            v[0] = (num_procs + 1) * i;
-            v[1] = (num_procs + 1) * (i + 1);
-            v[2] = (num_procs + 1) * (i + 1) + j + 1;
-            v[3] = (num_procs + 1) * i + j + 1;
+            v[0] = 2 * num_procs * i + 2 * j;
+            v[1] = 2 * num_procs * (i + 1) + 2 * j;
+            v[2] = 2 * num_procs * (i + 1) + 2 * j + 1;
+            v[3] = 2 * num_procs * i + 2 * j + 1;
             mesh.AddQuad(v);
             part[num_procs * i + j] = j;
          }
@@ -235,25 +238,32 @@ int main(int argc, char *argv[])
 
    // 8. Compute and display mean and standard deviation of the energy
    e_mean /= (nsteps + 1);
-   double e_var = 0.0;
+   real_t e_var = 0.0;
    for (int i = 0; i <= nsteps; i++)
    {
       e_var += pow(e[i] - e_mean, 2);
    }
    e_var /= (nsteps + 1);
-   double e_sd = sqrt(e_var);
+   real_t e_sd = sqrt(e_var);
+
+   real_t e_loc_stats[2];
+   real_t *e_stats = (myid == 0) ? new real_t[2 * num_procs] : (real_t*)NULL;
+
+   e_loc_stats[0] = e_mean;
+   e_loc_stats[1] = e_sd;
+   MPI_Gather(e_loc_stats, 2, MPITypeMap<real_t>::mpi_type, e_stats, 2,
+              MPITypeMap<real_t>::mpi_type, 0, comm);
 
    if (myid == 0)
    {
-      cout << endl << "Mean and standard deviation of the energy" << endl;
-   }
-   for (int i = 0; i < num_procs; i++)
-   {
-      if (myid == i)
+      cout << endl << "Mean and standard deviation of the energy "
+           << "for different initial conditions" << endl;
+      for (int i = 0; i < num_procs; i++)
       {
-         cout << myid << ": " << e_mean << "\t" << e_sd << endl;
+         cout << i << ": " << e_stats[2 * i + 0]
+              << "\t" << e_stats[2 * i + 1] << endl;
       }
-      MPI_Barrier(comm);
+      delete [] e_stats;
    }
 
    // 9. Finalize the GnuPlot output
@@ -313,13 +323,11 @@ int main(int argc, char *argv[])
            << "window_title 'Energy in Phase Space'\n"
            << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
    }
-
-   MPI_Finalize();
 }
 
-double hamiltonian(double q, double p, double t)
+real_t hamiltonian(real_t q, real_t p, real_t t)
 {
-   double h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
+   real_t h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
    switch (prob_)
    {
       case 1:

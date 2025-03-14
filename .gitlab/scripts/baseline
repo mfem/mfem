@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# locals
+glob_err=${BASELINE_TEST}.err
+base=${BASELINE_TEST}-${SYS_TYPE}
+if [[ "${MACHINE_NAME}" == "ruby" ]]; then
+  base="${BASELINE_TEST}-${MACHINE_NAME}"
+fi
+base_diff=${base}.diff
+base_patch=${base}.patch
+base_out=${base}.out
+artifacts_path=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
+
+# prepare
+cd ${BUILD_ROOT} || \
+  { echo "Invalid BUILD_ROOT=$BUILD_ROOT"; exit 1; }
+ln -snf ${CI_PROJECT_DIR} mfem
+cd tests
+[[ -d _${BASELINE_TEST} ]] && rm -rf _${BASELINE_TEST}
+mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
+
+# run
+if [[ "${MACHINE_NAME}" == "ruby" ]]; then
+  salloc --nodes=1 --exclusive --reservation=ci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+elif [[ ${MACHINE_NAME} == "corona" ]]; then
+  salloc --nodes=1 -t 60 -p pbatch ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+elif [[ ${MACHINE_NAME} == "lassen" ]]; then
+  lalloc 1 -q pci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+else
+  echo "Unknown machine: MACHINE_NAME=$MACHINE_NAME"
+  exit 1
+fi
+status="$?"
+
+# post
+mkdir ${artifacts_path}
+
+if [[ -f ${BASELINE_TEST}.out ]]; then
+  cp ${BASELINE_TEST}.out ${artifacts_path}
+fi
+if [[ -s ${glob_err} ]]; then
+  echo "ERROR during ${BASELINE_TEST} execution"
+  echo "Here is the ${glob_err} file content"
+  cat ${glob_err}
+  cp ${glob_err} ${artifacts_path}/${glob_err}
+  status=1
+fi
+if [[ -f ${base_patch} ]]; then
+  echo "${BASELINE_TEST}: Differences found, patch generated"
+  cp ${base_patch} ${artifacts_path}/${base_patch}
+elif [[ -f ${base_out} ]]; then
+  echo "${BASELINE_TEST}: Differences found, replacement file generated"
+  cp ${base_out} ${artifacts_path}/${base_out}
+fi
+# base_diff won't even exist if there is no difference.
+if [[ -f ${base_diff} ]]; then
+  echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
+  cat ${base_diff}
+  cp ${base_diff} ${artifacts_path}/${base_diff}
+  status=1
+fi
+if [[ $status -eq 0 ]]; then
+  echo "${BASELINE_TEST}: PASSED"
+else
+  echo "${BASELINE_TEST}: FAILED"
+fi
+exit $status

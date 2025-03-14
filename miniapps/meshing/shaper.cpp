@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------------
 //       Shaper Miniapp: Resolve material interfaces by mesh refinement
@@ -18,6 +18,10 @@
 // given material() function. It can be used as a simple initial mesh generator,
 // for example in the case when the interface is too complex to describe without
 // local refinement. Both conforming and non-conforming refinements are supported.
+//
+// Two additional versions of this miniapp can be found in the miniapps/toys
+// directory: Mandel uses the Shaper algorithm for fractal visualization, while
+// Mondrian convert an image to an AMR mesh suitable for MFEM computations.
 //
 // Compile with: make shaper
 //
@@ -48,7 +52,7 @@ using namespace std;
 // the rescaled coordinates.
 int material(Vector &x, Vector &xmin, Vector &xmax)
 {
-   static double p = 2.0;
+   static real_t p = 2.0;
 
    // Rescaling to [-1,1]^sdim
    for (int i = 0; i < x.Size(); i++)
@@ -68,6 +72,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
    bool aniso = false;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -79,6 +84,7 @@ int main(int argc, char *argv[])
                   "Level of hanging nodes allowed (-1 = unlimited).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -103,7 +109,6 @@ int main(int argc, char *argv[])
 
    // GLVis server to visualize to
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
@@ -126,7 +131,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);
@@ -154,22 +159,22 @@ int main(int argc, char *argv[])
                const int s = sd+1;
                if (dim == 2)
                {
-                  for (int j = 0; j <= sd; j++)
-                     for (int i = 0; i < sd; i++)
+                  for (int jj = 0; jj <= sd; jj++)
+                     for (int ii = 0; ii < sd; ii++)
                      {
-                        dx += abs(mat[j*s + i+1] - mat[j*s + i]);
-                        dy += abs(mat[(i+1)*s + j] - mat[i*s + j]);
+                        dx += abs(mat[jj*s + ii+1] - mat[jj*s + ii]);
+                        dy += abs(mat[(ii+1)*s + jj] - mat[ii*s + jj]);
                      }
                }
                else if (dim == 3)
                {
-                  for (int k = 0; k <= sd; k++)
-                     for (int j = 0; j <= sd; j++)
-                        for (int i = 0; i < sd; i++)
+                  for (int kk = 0; kk <= sd; kk++)
+                     for (int jj = 0; jj <= sd; jj++)
+                        for (int ii = 0; ii < sd; ii++)
                         {
-                           dx += abs(mat[(k*s + j)*s + i+1] - mat[(k*s + j)*s + i]);
-                           dy += abs(mat[(k*s + i+1)*s + j] - mat[(k*s + i)*s + j]);
-                           dz += abs(mat[((i+1)*s + j)*s + k] - mat[(i*s + j)*s + k]);
+                           dx += abs(mat[(kk*s + jj)*s + ii+1] - mat[(kk*s + jj)*s + ii]);
+                           dy += abs(mat[(kk*s + ii+1)*s + jj] - mat[(kk*s + ii)*s + jj]);
+                           dz += abs(mat[((ii+1)*s + jj)*s + kk] - mat[(ii*s + jj)*s + kk]);
                         }
                }
                type = 0;
@@ -214,7 +219,7 @@ int main(int argc, char *argv[])
    // Set element attributes in the mesh object before saving
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      mesh.SetAttribute(i, attr(i));
+      mesh.SetAttribute(i, static_cast<int>(attr(i)));
    }
    mesh.SetAttributes();
 

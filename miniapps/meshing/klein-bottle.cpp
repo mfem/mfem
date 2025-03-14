@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //             ---------------------------------------------------
 //             Klein Bottle Miniapp:  Generate Klein bottle meshes
@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int trans_type = 1;
    bool dg_mesh = false;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -71,16 +73,15 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh;
    // The mesh could use quads (default) or triangles
    Element::Type el_type = Element::QUADRILATERAL;
    // Element::Type el_type = Element::TRIANGLE;
-   mesh = new Mesh(nx, ny, el_type, 1, 2*M_PI, 2*M_PI);
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, el_type, 1, 2*M_PI, 2*M_PI);
 
-   mesh->SetCurvature(order, true, 3, Ordering::byVDIM);
+   mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
 
    {
-      Array<int> v2v(mesh->GetNV());
+      Array<int> v2v(mesh.GetNV());
       for (int i = 0; i < v2v.Size(); i++)
       {
          v2v[i] = i;
@@ -100,9 +101,9 @@ int main(int argc, char *argv[])
          v2v[v_old] = v2v[v_new];
       }
       // renumber elements
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
-         Element *el = mesh->GetElement(i);
+         Element *el = mesh.GetElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -111,9 +112,9 @@ int main(int argc, char *argv[])
          }
       }
       // renumber boundary elements
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         Element *el = mesh->GetBdrElement(i);
+         Element *el = mesh.GetBdrElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -121,24 +122,24 @@ int main(int argc, char *argv[])
             v[j] = v2v[v[j]];
          }
       }
-      mesh->RemoveUnusedVertices();
-      mesh->RemoveInternalBoundaries();
+      mesh.RemoveUnusedVertices();
+      mesh.RemoveInternalBoundaries();
    }
 
    switch (trans_type)
    {
-      case 0: mesh->Transform(figure8_trans); break;
-      case 1: mesh->Transform(bottle_trans); break;
-      case 2: mesh->Transform(bottle2_trans); break;
-      default: mesh->Transform(bottle_trans); break;
+      case 0: mesh.Transform(figure8_trans); break;
+      case 1: mesh.Transform(bottle_trans); break;
+      case 2: mesh.Transform(bottle2_trans); break;
+      default: mesh.Transform(bottle_trans); break;
    }
 
    if (!dg_mesh)
    {
-      mesh->SetCurvature(order, false, 3, Ordering::byVDIM);
+      mesh.SetCurvature(order, false, 3, Ordering::byVDIM);
    }
 
-   GridFunction &nodes = *mesh->GetNodes();
+   GridFunction &nodes = *mesh.GetNodes();
    for (int i = 0; i < nodes.Size(); i++)
    {
       if (std::abs(nodes(i)) < 1e-12)
@@ -149,26 +150,24 @@ int main(int argc, char *argv[])
 
    ofstream ofs(new_mesh_file);
    ofs.precision(8);
-   mesh->Print(ofs);
+   mesh.Print(ofs);
    ofs.close();
 
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "mesh\n" << *mesh << flush;
+      sol_sock << "mesh\n" << mesh << flush;
    }
 
-   delete mesh;
    return 0;
 }
 
 void figure8_trans(const Vector &x, Vector &p)
 {
-   const double r = 2.5;
-   double a = r + cos(x(0)/2) * sin(x(1)) - sin(x(0)/2) * sin(2*x(1));
+   const real_t r = 2.5;
+   real_t a = r + cos(x(0)/2) * sin(x(1)) - sin(x(0)/2) * sin(2*x(1));
 
    p.SetSize(3);
    p(0) = a * cos(x(0));
@@ -178,11 +177,11 @@ void figure8_trans(const Vector &x, Vector &p)
 
 void bottle_trans(const Vector &x, Vector &p)
 {
-   double u = x(0);
-   double v = x(1) + M_PI_2;
-   double a = 6.*cos(u)*(1.+sin(u));
-   double b = 16.*sin(u);
-   double r = 4.*(1.-cos(u)/2.);
+   real_t u = x(0);
+   real_t v = x(1) + M_PI_2;
+   real_t a = 6.*cos(u)*(1.+sin(u));
+   real_t b = 16.*sin(u);
+   real_t r = 4.*(1.-cos(u)/2.);
 
    if (u <= M_PI)
    {
@@ -199,8 +198,8 @@ void bottle_trans(const Vector &x, Vector &p)
 
 void bottle2_trans(const Vector &x, Vector &p)
 {
-   double u = x(1)-M_PI_2, v = 2*x(0);
-   const double pi = M_PI;
+   real_t u = x(1)-M_PI_2, v = 2*x(0);
+   const real_t pi = M_PI;
 
    p(0) = (v<pi     ? (2.5-1.5*cos(v))*cos(u) :
            (v<2*pi  ? (2.5-1.5*cos(v))*cos(u) :

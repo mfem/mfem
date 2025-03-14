@@ -1,92 +1,51 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 // Abstract array data type
 
 #include "array.hpp"
+#include "../general/forall.hpp"
 #include <fstream>
 
 namespace mfem
 {
 
-BaseArray::BaseArray(int asize, int ainc, int elementsize)
-{
-   if (asize > 0)
-   {
-      data = new char[asize * elementsize];
-      size = allocsize = asize;
-   }
-   else
-   {
-      data = 0;
-      size = allocsize = 0;
-   }
-   inc = ainc;
-}
-
-BaseArray::~BaseArray()
-{
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-}
-
-void BaseArray::GrowSize(int minsize, int elementsize)
-{
-   void *p;
-   int nsize = (inc > 0) ? abs(allocsize) + inc : 2 * abs(allocsize);
-   if (nsize < minsize) { nsize = minsize; }
-
-   p = new char[nsize * elementsize];
-   if (size > 0)
-   {
-      memcpy(p, data, size * elementsize);
-   }
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-   data = p;
-   allocsize = nsize;
-}
-
 template <class T>
-void Array<T>::Print(std::ostream &out, int width) const
+void Array<T>::Print(std::ostream &os, int width) const
 {
    for (int i = 0; i < size; i++)
    {
-      out << ((T*)data)[i];
+      os << data[i];
       if ( !((i+1) % width) || i+1 == size )
       {
-         out << '\n';
+         os << '\n';
       }
       else
       {
-         out << " ";
+         os << " ";
       }
    }
 }
 
 template <class T>
-void Array<T>::Save(std::ostream &out, int fmt) const
+void Array<T>::Save(std::ostream &os, int fmt) const
 {
    if (fmt == 0)
    {
-      out << size << '\n';
+      os << size << '\n';
    }
    for (int i = 0; i < size; i++)
    {
-      out << operator[](i) << '\n';
+      os << operator[](i) << '\n';
    }
 }
 
@@ -112,10 +71,12 @@ T Array<T>::Max() const
 
    T max = operator[](0);
    for (int i = 1; i < size; i++)
+   {
       if (max < operator[](i))
       {
          max = operator[](i);
       }
+   }
 
    return max;
 }
@@ -127,10 +88,12 @@ T Array<T>::Min() const
 
    T min = operator[](0);
    for (int i = 1; i < size; i++)
+   {
       if (operator[](i) < min)
       {
          min = operator[](i);
       }
+   }
 
    return min;
 }
@@ -149,7 +112,7 @@ void Array<T>::PartialSum()
 
 // Sum
 template <class T>
-T Array<T>::Sum()
+T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)
@@ -161,7 +124,7 @@ T Array<T>::Sum()
 }
 
 template <class T>
-int Array<T>::IsSorted()
+int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
    for (int i = 1; i < size; i++)
@@ -189,31 +152,34 @@ void Array2D<T>::Load(const char *filename, int fmt)
 }
 
 template <class T>
-void Array2D<T>::Print(std::ostream &out, int width_)
+void Array2D<T>::Print(std::ostream &os, int width_)
 {
    int height = this->NumRows();
    int width  = this->NumCols();
 
    for (int i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
+         os << (*this)(i,j);
          if ( (j+1) == width_ || (j+1) % width_ == 0 )
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
    }
 }
 
+template class Array<char>;
 template class Array<int>;
-template class Array<double>;
+template class Array<long long>;
+template class Array<real_t>;
 template class Array2D<int>;
-template class Array2D<double>;
-}
+template class Array2D<real_t>;
+
+} // namespace mfem

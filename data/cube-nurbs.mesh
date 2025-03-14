@@ -1,0 +1,73 @@
+MFEM NURBS mesh v1.0
+
+#
+# MFEM Geometry Types (see fem/geom.hpp):
+#
+# SEGMENT     = 1
+# SQUARE      = 3
+# CUBE        = 5
+#
+
+dimension
+3
+
+elements
+1
+1 5 0 1 2 3 4 5 6 7
+
+boundary
+6
+1 3 0 1 2 3
+1 3 4 5 6 7
+1 3 0 1 5 4
+1 3 1 2 6 5
+1 3 2 3 7 6
+1 3 3 0 4 7
+
+edges
+12
+0 0 1
+0 3 2
+0 4 5
+0 7 6
+1 0 3
+1 1 2
+1 4 7
+1 5 6
+2 0 4
+2 1 5
+2 2 6
+2 3 7
+
+vertices
+8
+
+knotvectors
+3
+1 2 0 0 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+
+weights
+1
+1
+1
+1
+1
+1
+1
+1
+
+FiniteElementSpace
+FiniteElementCollection: NURBS1
+VDim: 3
+Ordering: 1
+
+0 0 0
+1 0 0
+1 1 0
+0 1 0
+0 0 1
+1 0 1
+1 1 1
+0 1 1

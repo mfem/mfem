@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -330,7 +330,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          }
          else
          {
-            Node &(n_bndry_conn_conv) =
+            Node &n_bndry_conn_conv =
                n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
             n_bndry_conn.to_int_array(n_bndry_conn_conv);
             bndry_indices = (n_bndry_conn_conv).value();
@@ -645,7 +645,8 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
                                            Node &n_mesh,
                                            const std::string &coordset_name,
                                            const std::string &main_topology_name,
-                                           const std::string &boundary_topology_name)
+                                           const std::string &boundary_topology_name,
+                                           const std::string &main_adjset_name)
 {
    int dim = mesh->SpaceDimension();
 
@@ -718,7 +719,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // copy out. Some other cases (sidre) may actually have contig
    // allocation but I am  not sure how to detect this case from mfem
    int num_ele = mesh->GetNE();
-   int geom = mesh->GetElementBaseGeometry(0);
+   int geom = mesh->GetTypicalElementGeometry();
    int idxs_per_ele = Geometry::NumVerts[geom];
    int num_conn_idxs =  num_ele * idxs_per_ele;
 
@@ -764,7 +765,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    ////////////////////////////////////////////
 
    // guard vs if we have boundary elements
-   if (mesh->GetNBE() > 0)
+   if (mesh->HasBoundaryElements())
    {
       n_topo["boundary_topology"] = boundary_topology_name;
 
@@ -773,17 +774,20 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_bndry_topo["type"]     = "unstructured";
       n_bndry_topo["coordset"] = coordset_name;
 
-      Element::Type bndry_ele_type = mesh->GetBdrElementType(0);
+      int num_bndry_ele = mesh->GetNBE();
 
-      std::string bndry_ele_shape = ElementTypeToShapeName(bndry_ele_type);
+      Element *BE0 = NULL; // representative boundary element
+      if (num_bndry_ele > 0) { BE0 = mesh->GetBdrElement(0); }
 
+      // must initialize this to something, pick POINT if no boundary elements
+      Element::Type bndry_ele_type   = (BE0) ? BE0->GetType() : Element::POINT;
+      std::string bndry_ele_shape    = ElementTypeToShapeName(bndry_ele_type);
       n_bndry_topo["elements/shape"] = bndry_ele_shape;
 
-
-      int num_bndry_ele = mesh->GetNBE();
-      int bndry_geom    = mesh->GetBdrElementBaseGeometry(0);
+      // must initialize this to something, pick POINT if no boundary elements
+      int bndry_geom          = (BE0) ? BE0->GetGeometryType() : Geometry::POINT;
       int bndry_idxs_per_ele  = Geometry::NumVerts[bndry_geom];
-      int num_bndry_conn_idxs =  num_bndry_ele * bndry_idxs_per_ele;
+      int num_bndry_conn_idxs = num_bndry_ele * bndry_idxs_per_ele;
 
       n_bndry_topo["elements/connectivity"].set(DataType::c_int(num_bndry_conn_idxs));
 
@@ -815,6 +819,83 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
          bndry_att_vals[i] = mesh->GetBdrAttribute(i);
       }
    }
+
+   ////////////////////////////////////////////
+   // Setup adjsets
+   ////////////////////////////////////////////
+
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   if (pmesh)
+   {
+      ////////////////////////////////////////////
+      // Setup main adjset
+      ////////////////////////////////////////////
+
+      Node &n_adjset = n_mesh["adjsets"][main_adjset_name];
+
+      n_adjset["association"] = "vertex";
+      n_adjset["topology"] = main_topology_name;
+      n_adjset["groups"].set(DataType::object());
+
+      const GroupTopology &pmesh_gtopo = pmesh->gtopo;
+      const int local_rank = pmesh->GetMyRank();
+      const int num_groups = pmesh_gtopo.NGroups();
+      // NOTE: skip the first group since its the local-only group
+      for (int i = 1; i < num_groups; i++)
+      {
+         const int num_group_nbrs = pmesh_gtopo.GetGroupSize(i);
+         const int *group_nbrs = pmesh_gtopo.GetGroup(i);
+         const int num_group_verts = pmesh->GroupNVertices(i);
+
+         // NOTE: 'neighbor' values are local to this processor, but Blueprint
+         // expects global domain identifiers, so we collapse this layer of
+         // indirection
+         Array<int> group_ranks(num_group_nbrs);
+         std::string group_name = "group";
+         {
+            for (int j = 0; j < num_group_nbrs; j++)
+            {
+               group_ranks[j] = pmesh_gtopo.GetNeighborRank(group_nbrs[j]);
+            }
+            group_ranks.Sort();
+            for (int j = 0; j < num_group_nbrs; j++)
+            {
+               group_name += "_" + std::to_string(group_ranks[j]);
+            }
+
+            // NOTE: Blueprint only wants remote ranks in its neighbor list,
+            // so we remove the local rank after the canonicalized Blueprint
+            // group name is formed
+            group_ranks.DeleteFirst(local_rank);
+         }
+         Node &n_group = n_adjset["groups"][group_name];
+
+         n_group["neighbors"].set(group_ranks.GetData(), group_ranks.Size());
+         n_group["values"].set(DataType::c_int(num_group_verts));
+
+         int_array group_vals = n_group["values"].value();
+         for (int j = 0; j < num_group_verts; j++)
+         {
+            group_vals[j] = pmesh->GroupVertex(i, j);
+         }
+      }
+
+      // NOTE: We don't create an adjset for face neighbor data because
+      // these faces aren't listed in the 'boundary_topology_name' topology
+      // (this topology only covers the faces between 'main_topology_name'
+      // elements and void). To include a face neighbor data adjset, this
+      // function would need to export a topology with either (1) all faces
+      // in the mesh topology or (2) all boundary faces, including neighbors.
+
+      ////////////////////////////////////////////
+      // Setup distributed state
+      ////////////////////////////////////////////
+
+      Node &n_domid = n_mesh["state/domain_id"];
+      n_domid.set(local_rank);
+   }
+#endif
 }
 
 //---------------------------------------------------------------------------//
@@ -916,8 +997,7 @@ std::string
 ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
 {
    std::ostringstream oss;
-   oss << prefix_path
-       << name
+   oss << name
        << "_"
        << to_padded_string(cycle, pad_digits_cycle)
        << "/domain_%0"
@@ -980,6 +1060,11 @@ ConduitDataCollection::SaveRootFile(int num_domains,
    n_root["number_of_trees"]  = num_domains;
    n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
    n_root["tree_pattern"]     = "";
+
+   // Add the time, time step, and cycle
+   n_root["blueprint_index/mesh/state/time"] = time;
+   n_root["blueprint_index/mesh/state/time_step"] = time_step;
+   n_root["blueprint_index/mesh/state/cycle"] = cycle;
 
    relay::io::save(n_root, RootFileName(), root_proto);
 }

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "maxwell_solver.hpp"
 
@@ -18,22 +18,22 @@ using namespace std;
 namespace mfem
 {
 
-using namespace miniapps;
+using namespace common;
 
 namespace electromagnetics
 {
 
 // Used for combining scalar coefficients
-double prodFunc(double a, double b) { return a * b; }
+real_t prodFunc(real_t a, real_t b) { return a * b; }
 
 MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
-                             double (*eps     )(const Vector&),
-                             double (*muInv   )(const Vector&),
-                             double (*sigma   )(const Vector&),
-                             void   (*j_src   )(const Vector&, double, Vector&),
+                             real_t (*eps     )(const Vector&),
+                             real_t (*muInv   )(const Vector&),
+                             real_t (*sigma   )(const Vector&),
+                             void   (*j_src   )(const Vector&, real_t, Vector&),
                              Array<int> & abcs,
                              Array<int> & dbcs,
-                             void   (*dEdt_bc )(const Vector&, double, Vector&))
+                             void   (*dEdt_bc )(const Vector&, real_t, Vector&))
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -141,21 +141,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
          cout << "Creating Admittance Coefficient" << endl;
       }
 
-      abc_marker_.SetSize(pmesh.bdr_attributes.Max());
-      if ( abcs.Size() == 1 && abcs[0] < 0 )
-      {
-         // Mark all boundaries as absorbing
-         abc_marker_ = 1;
-      }
-      else
-      {
-         // Mark select boundaries as absorbing
-         abc_marker_ = 0;
-         for (int i=0; i<abcs.Size(); i++)
-         {
-            abc_marker_[abcs[i]-1] = 1;
-         }
-      }
+      AttrToMarker(pmesh.bdr_attributes.Max(), abcs, abc_marker_);
       etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
    }
 
@@ -166,22 +152,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
       {
          cout << "Configuring Dirichlet BC" << endl;
       }
-      dbc_marker_.SetSize(pmesh.bdr_attributes.Max());
-      if ( dbcs.Size() == 1 && dbcs[0] < 0 )
-      {
-         // Mark all boundaries as Dirichlet
-         dbc_marker_ = 1;
-      }
-      else
-      {
-         // Mark select boundaries as Dirichlet
-         dbc_marker_ = 0;
-         for (int i=0; i<dbcs.Size(); i++)
-         {
-            dbc_marker_[dbcs[i]-1] = 1;
-         }
-      }
 
+      AttrToMarker(pmesh.bdr_attributes.Max(), dbcs, dbc_marker_);
       HCurlFESpace_->GetEssentialTrueDofs(dbc_marker_, dbc_dofs_);
 
       if ( dEdt_bc_ != NULL )
@@ -362,7 +334,7 @@ MaxwellSolver::~MaxwellSolver()
    }
 }
 
-HYPRE_Int
+HYPRE_BigInt
 MaxwellSolver::GetProblemSize()
 {
    return HCurlFESpace_->GlobalTrueVSize();
@@ -371,8 +343,8 @@ MaxwellSolver::GetProblemSize()
 void
 MaxwellSolver::PrintSizes()
 {
-   HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_nd = HCurlFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_rt = HDivFESpace_->GlobalTrueVSize();
    if ( myid_ == 0 )
    {
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
@@ -403,13 +375,13 @@ MaxwellSolver::Mult(const Vector &B, Vector &dEdt) const
 }
 
 void
-MaxwellSolver::ImplicitSolve(double dt, const Vector &B, Vector &dEdt)
+MaxwellSolver::ImplicitSolve(real_t dt, const Vector &B, Vector &dEdt)
 {
    implicitSolve(dt, B, dEdt);
 }
 
 void
-MaxwellSolver::setupSolver(const int idt, const double dt) const
+MaxwellSolver::setupSolver(const int idt, const real_t dt) const
 {
    if ( pcg_.find(idt) == pcg_.end() )
    {
@@ -458,7 +430,7 @@ MaxwellSolver::setupSolver(const int idt, const double dt) const
 }
 
 void
-MaxwellSolver::implicitSolve(double dt, const Vector &B, Vector &dEdt) const
+MaxwellSolver::implicitSolve(real_t dt, const Vector &B, Vector &dEdt) const
 {
    int idt = hCurlLosses_ ? ((int)(dtScale_ * dt / dtMax_)) : 0;
 
@@ -505,7 +477,7 @@ MaxwellSolver::SyncGridFuncs()
    b_->Distribute(*B_);
 }
 
-double
+real_t
 MaxwellSolver::GetMaximumTimeStep() const
 {
    if ( dtMax_ > 0.0 )
@@ -520,7 +492,7 @@ MaxwellSolver::GetMaximumTimeStep() const
    v0->Randomize(1234);
 
    int iter = 0, nstep = 20;
-   double dt0 = 1.0, dt1 = 1.0, change = 1.0, ptol = 0.001;
+   real_t dt0 = 1.0, dt1 = 1.0, change = 1.0, ptol = 0.001;
 
    // Create Solver assuming no loss operators
    setupSolver(0, 0.0);
@@ -529,7 +501,7 @@ MaxwellSolver::GetMaximumTimeStep() const
    // operator.
    while ( iter < nstep && change > ptol )
    {
-      double normV0 = InnerProduct(*v0,*v0);
+      real_t normV0 = InnerProduct(*v0,*v0);
       *v0 /= sqrt(normV0);
 
       NegCurl_->Mult(*v0,*u0);
@@ -538,7 +510,7 @@ MaxwellSolver::GetMaximumTimeStep() const
 
       pcg_[0]->Mult(*RHS_,*v1);
 
-      double lambda = InnerProduct(*v0,*v1);
+      real_t lambda = InnerProduct(*v0,*v1);
       dt1 = 2.0/sqrt(lambda);
       change = fabs((dt1-dt0)/dt0);
       dt0 = dt1;
@@ -560,10 +532,10 @@ MaxwellSolver::GetMaximumTimeStep() const
    return dt0;
 }
 
-double
+real_t
 MaxwellSolver::GetEnergy() const
 {
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    A1_[0]->Mult(*E_,*RHS_);
    M2MuInv_->Mult(*B_,*HD_);
@@ -631,13 +603,12 @@ MaxwellSolver::InitializeGLVis()
 }
 
 void
-MaxwellSolver::DisplayToGLVis()
+MaxwellSolver::DisplayToGLVis(int visport)
 {
    if ( myid_ == 0 && logging_ > 1 )
    { cout << "Sending data to GLVis ..." << flush; }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
    int Ww = 350, Wh = 350; // window size

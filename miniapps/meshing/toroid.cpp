@@ -1,19 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //             ------------------------------------------------
 //             Toroid Miniapp:  Generate simple toroidal meshes
 //             ------------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with triangular
+// This miniapp generates two types of toroidal meshes; one with triangular
 // cross sections and one with square cross sections.  It works by defining a
 // stack of individual elements and bending them so that the bottom and top of
 // the stack can be joined to form a torus.  The stack can also be twisted so
@@ -43,11 +43,11 @@ static Element::Type el_type_ = Element::WEDGE;
 static int    order_  = 3;
 static int    nphi_   = 8;
 static int    ns_     = 0;
-static double R_      = 1.0;
-static double r_      = 0.2;
-static double theta0_ = 0.0;
+static real_t R_      = 1.0;
+static real_t r_      = 0.2;
+static real_t theta0_ = 0.0;
 
-void pts(int iphi, int t, double x[]);
+void pts(int iphi, int t, real_t x[]);
 void trans(const Vector &x, Vector &p);
 
 int main(int argc, char *argv[])
@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int el_type = 0;
    bool dg_mesh = false;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -107,7 +109,7 @@ int main(int argc, char *argv[])
    mesh = new Mesh(3, nnode * (nphi_+1), nphi_);
 
    // Add vertices for a stack of elements
-   double c[3];
+   real_t c[3];
    for (int i=0; i<=nphi_; i++)
    {
       c[0] = 0.0; c[1] = 0.0; c[2] = i;
@@ -127,18 +129,20 @@ int main(int argc, char *argv[])
    }
 
    // Add Elements of the desired type
-   int v[8];
-   for (int i=0; i < nphi_; i++)
    {
-      if (el_type_ == Element::WEDGE)
+      int v[8];
+      for (int i=0; i < nphi_; i++)
       {
-         for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
-         mesh->AddWedge(v);
-      }
-      else
-      {
-         for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
-         mesh->AddHex(v);
+         if (el_type_ == Element::WEDGE)
+         {
+            for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
+            mesh->AddWedge(v);
+         }
+         else
+         {
+            for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
+            mesh->AddHex(v);
+         }
       }
    }
    mesh->FinalizeTopology();
@@ -225,7 +229,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "mesh\n" << *mesh << flush;
@@ -240,11 +243,11 @@ void trans(const Vector &x, Vector &p)
 {
    int nnode = (el_type_ == Element::WEDGE)? 3:4;
 
-   double phi = 2.0 * M_PI * x[2] / nphi_;
-   double theta = theta0_ + phi * ns_ / nnode;
+   real_t phi = 2.0 * M_PI * x[2] / nphi_;
+   real_t theta = theta0_ + phi * ns_ / nnode;
 
-   double u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
-   double v = sqrt(0.75) * (x[0] - x[1]) * r_;
+   real_t u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
+   real_t v = sqrt(0.75) * (x[0] - x[1]) * r_;
 
    if (el_type_ == Element::WEDGE)
    {

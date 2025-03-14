@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 #include "mesh_headers.hpp"
@@ -37,13 +37,16 @@ void Segment::SetVertices(const int *ind)
    indices[1] = ind[1];
 }
 
-void Segment::GetVertices( Array<int> &v ) const
+void Segment::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 2 );
-   for (int i=0; i<2; i++)
-   {
-      v[i] = indices[i];
-   }
+   v.SetSize(2);
+   std::copy(indices, indices + 2, v.begin());
+}
+
+void Segment::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 2, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 Linear1DFiniteElement SegmentFE;

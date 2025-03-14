@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_STATIC_CONDENSATION
 #define MFEM_STATIC_CONDENSATION
@@ -36,32 +36,32 @@ namespace mfem
     (associated with the element boundaries) are interfacial.
 
     In block form the matrix of the system can be written as
-       \f[ A =
+       $$ A =
        \begin{pmatrix}
           A_{11} & A_{12} \\
           A_{21} & A_{22}
        \end{pmatrix}
        \begin{array}{l}
-          \text{-- groups: element interior/private DOFs} \\
-          \text{-- interface: element boundary/exposed DOFs}
-       \end{array} \f]
-    where the block \f$ A_1 \f$ is itself block diagonal with small local blocks
+          \text{- groups: element interior/private DOFs} \\
+          \text{- interface: element boundary/exposed DOFs}
+       \end{array} $$
+    where the block $ A_1 $ is itself block diagonal with small local blocks
     and it is, therefore, easily invertible.
 
     Starting with the block system
-       \f[ \begin{pmatrix}
+       $$ \begin{pmatrix}
           A_{11} & A_{12} \\
           A_{21} & A_{22}
        \end{pmatrix}
        \begin{pmatrix} X_1 \\ X_2 \end{pmatrix} =
-       \begin{pmatrix} B_1 \\ B_2 \end{pmatrix} \f]
+       \begin{pmatrix} B_1 \\ B_2 \end{pmatrix} $$
     the reduced, statically condensed system is given by
-        \f[ S_{22} X_2 = B_2 - A_{21} A_{11}^{-1} B_1 \f]
-    where the Schur complement matrix \f$ S_{22} \f$ is given by
-        \f[ S_{22} = A_{22} - A_{21} A_{11}^{-1} A_{12}. \f]
-    After solving the Schur complement system, the \f$ X_1 \f$ part of the
+        $$ S_{22} X_2 = B_2 - A_{21} A_{11}^{-1} B_1 $$
+    where the Schur complement matrix $ S_{22} $ is given by
+        $$ S_{22} = A_{22} - A_{21} A_{11}^{-1} A_{12}. $$
+    After solving the Schur complement system, the $ X_1 $ part of the
     solution can be recovered using the formula
-        \f[ X_1 = A_{11}^{-1} ( B_1 - A_{12} X_2 ). \f] */
+        $$ X_1 = A_{11}^{-1} ( B_1 - A_{12} X_2 ). $$ */
 class StaticCondensation
 {
    FiniteElementSpace *fes, *tr_fes;
@@ -82,8 +82,8 @@ class StaticCondensation
 
    bool symm; // TODO: handle the symmetric case correctly.
    Array<int> A_offsets, A_ipiv_offsets;
-   double *A_data;
-   int *A_ipiv;
+   Memory<real_t> A_data;
+   Memory<int> A_ipiv;
 
    Array<int> ess_rtdof_list;
 
@@ -199,14 +199,14 @@ public:
 
    /** Restrict a list of true FE space dofs to a list of reduced/trace true FE
        space dofs. */
-   void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list,
-                                     Array<int> &ess_rtdof_list) const
+   void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list_,
+                                     Array<int> &ess_rtdof_list_) const
    {
       Array<int> ess_tdof_marker, ess_rtdof_marker;
-      FiniteElementSpace::ListToMarker(ess_tdof_list, fes->GetTrueVSize(),
+      FiniteElementSpace::ListToMarker(ess_tdof_list_, fes->GetTrueVSize(),
                                        ess_tdof_marker);
       ConvertMarkerToReducedTrueDofs(ess_tdof_marker, ess_rtdof_marker);
-      FiniteElementSpace::MarkerToList(ess_rtdof_marker, ess_rtdof_list);
+      FiniteElementSpace::MarkerToList(ess_rtdof_marker, ess_rtdof_list_);
    }
 
    /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the

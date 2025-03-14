@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SETS
 #define MFEM_SETS
@@ -20,33 +20,29 @@ namespace mfem
 {
 
 /// A set of integers
-class IntegerSet
+class IntegerSet : public Array<int>
 {
-private:
-   Array<int> me;
-
 public:
-   IntegerSet() { }
+   using Array<int>::Array; ///< Inherit all Array constructors.
+   // MSVC fails to recognize that rule of zero applies after using base class
+   // constructors.
+   IntegerSet() = default; ///< Default construct and empty set.
+   IntegerSet(const IntegerSet &) = default; ///< Copy constructor.
+   IntegerSet(IntegerSet &&) = default; ///< Move constructor.
+   IntegerSet& operator=(const IntegerSet &) = default; ///< Copy assignment.
+   IntegerSet& operator=(IntegerSet &&) = default; ///< Move assignment.
 
-   IntegerSet(IntegerSet &s);
-
-   /// Create an integer set from a block of memory containing integer values
-   /// ( like an array ).
-   ///
-   /// n - length ( number of integers )
-   /// p - pointer to block of memory containing the integer values
+   /// Create an integer set from C-array 'p' of 'n' integers.
    IntegerSet(const int n, const int *p) { Recreate(n, p); }
 
-   int Size() { return me.Size(); }
+   /// Return the value of the lowest element of the set.
+   int PickElement() const { return data[0]; }
 
-   operator Array<int>& () { return me; }
+   /// Return the value of a random element of the set.
+   int PickRandomElement() const;
 
-   int PickElement() { return me[0]; }
-
-   int PickRandomElement();
-
-   int operator==(IntegerSet &s);
-
+   /** @brief Create an integer set from C-array 'p' of 'n' integers.
+       Overwrites any existing set data. */
    void Recreate(const int n, const int *p);
 };
 
@@ -58,17 +54,26 @@ private:
 
 public:
 
-   int Size() { return TheList.Size(); }
+   /// Return the number of integer sets in the list.
+   int Size() const { return TheList.Size(); }
 
-   int PickElementInSet(int i) { return TheList[i]->PickElement(); }
+   /// Return the value of the first element of the ith set.
+   int PickElementInSet(int i) const { return TheList[i]->PickElement(); }
 
-   int PickRandomElementInSet(int i) { return TheList[i]->PickRandomElement(); }
+   /// Return a random value from the ith set in the list.
+   int PickRandomElementInSet(int i) const { return TheList[i]->PickRandomElement(); }
 
-   int Insert(IntegerSet &s);
+   /** @brief Check to see if set 's' is in the list. If not append it to the
+       end of the list. Returns the index of the list where set 's' can be
+       found. */
+   int Insert(const IntegerSet &s);
 
-   int Lookup(IntegerSet &s);
+   /** Return the index of the list where set 's' can be found. Returns -1 if
+       not found. */
+   int Lookup(const IntegerSet &s) const;
 
-   void AsTable(Table &t);
+   /// Write the list of sets into table 't'.
+   void AsTable(Table &t) const;
 
    ~ListOfIntegerSets();
 };

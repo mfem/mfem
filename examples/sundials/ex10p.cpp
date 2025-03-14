@@ -1,19 +1,21 @@
 //                       MFEM Example 10 - Parallel Version
 //                             SUNDIALS Modification
 //
-// Compile with: make ex10p
+// Compile with:
+//    make ex10p            (GNU make)
+//    make sundials_ex10p   (CMake)
 //
 // Sample runs:
-//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s  5 -dt 0.15 -vs 10
-//    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s  7 -dt 0.25  -vs 10
-//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rp 0 -o 2 -s  5 -dt 0.15  -vs 10
-//    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s  2 -dt 3 -nls kinsol
-//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s  2 -dt 3 -nls kinsol
-//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rs 1 -o 2 -s  2 -dt 3 -nls kinsol
-//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 15 -dt 3e-3 -vs 120
-//    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s 16 -dt 5e-3 -vs 60
-//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rp 0 -o 2 -s 15 -dt 5e-3 -vs 60
-//    mpirun -np 4 ex10p -m ../../data/beam-quad-amr.mesh -rp 1 -o 2 -s 5 -dt 0.15 -vs 10
+//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 12 -dt 0.15 -vs 10
+//    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s 16 -dt 0.25 -vs 10
+//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rp 0 -o 2 -s 12 -dt 0.15 -vs 10
+//    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s  2 -dt 3 -nls 1
+//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s  2 -dt 3 -nls 2
+//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rs 1 -o 2 -s  2 -dt 3 -nls 4
+//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 14 -dt 0.15 -vs 10
+//    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s 17 -dt 5e-3 -vs 60
+//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rp 0 -o 2 -s 14 -dt 0.15 -vs 10
+//    mpirun -np 4 ex10p -m ../../data/beam-quad-amr.mesh -rp 1 -o 2 -s 12 -dt 0.15 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -53,7 +55,6 @@ using namespace std;
 using namespace mfem;
 
 class ReducedSystemOperator;
-class SundialsJacSolver;
 
 /** After spatial discretization, the hyperelastic model can be written as a
  *  system of ODEs:
@@ -94,29 +95,55 @@ protected:
 
    mutable Vector z; // auxiliary vector
 
+   const SparseMatrix *local_grad_H;
+   HypreParMatrix *Jacobian;
+
+   double saved_gamma; // saved gamma value from implicit setup
+
 public:
-   /// Solver type to use in the ImplicitSolve() method, used by SDIRK methods.
-   enum NonlinearSolverType
-   {
-      NEWTON = 0, ///< Use MFEM's plain NewtonSolver
-      KINSOL = 1  ///< Use SUNDIALS' KINSOL (through MFEM's class KinSolver)
-   };
 
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
                         double visc, double mu, double K,
-                        NonlinearSolverType nls_type);
+                        int kinsol_nls_type = -1, double kinsol_damping = 0.0,
+                        int kinsol_aa_n = 0);
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   /** Connect the Jacobian linear system solver (SundialsJacSolver) used by
-       SUNDIALS' CVODE and ARKODE time integrators to the internal objects
-       created by HyperelasticOperator. This method is called by the InitSystem
-       method of SundialsJacSolver. */
-   void InitSundialsJacSolver(SundialsJacSolver &sjsolv);
+
+   /// Custom Jacobian system solver for the SUNDIALS time integrators.
+   /** For the ODE system represented by HyperelasticOperator
+
+          M dv/dt = -(H(x) + S*v)
+          dx/dt = v,
+
+       this class facilitates the solution of linear systems of the form
+
+           (M + γS) yv + γJ yx = M bv,   J=(dH/dx)(x)
+                - γ yv +    yx =   bx
+
+       for given bv, bx, x, and γ = GetTimeStep(). */
+
+   /** Linear solve applicable to the SUNDIALS format.
+       Solves (Mass - dt J) y = Mass b, where in our case:
+       Mass = | M  0 |  J = | -S  -grad_H |  y = | v_hat |  b = | b_v |
+              | 0  I |      |  I     0    |      | x_hat |      | b_x |
+       The result replaces the rhs b.
+       We substitute x_hat = b_x + dt v_hat and solve
+       (M + dt S + dt^2 grad_H) v_hat = M b_v - dt grad_H b_x. */
+
+   /** Setup the linear system. This method is used by the implicit
+       SUNDIALS solvers. */
+   virtual int SUNImplicitSetup(const Vector &y, const Vector &fy,
+                                int jok, int *jcur, double gamma);
+
+   /** Solve the linear system. This method is used by the implicit
+       SUNDIALS solvers. */
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
    double ElasticEnergy(const ParGridFunction &x) const;
    double KineticEnergy(const ParGridFunction &v) const;
@@ -157,57 +184,6 @@ public:
    virtual ~ReducedSystemOperator();
 };
 
-/// Custom Jacobian system solver for the SUNDIALS time integrators.
-/** For the ODE system represented by HyperelasticOperator
-
-        M dv/dt = -(H(x) + S*v)
-          dx/dt = v,
-
-    this class facilitates the solution of linear systems of the form
-
-        (M + γS) yv + γJ yx = M bv,   J=(dH/dx)(x)
-             - γ yv +    yx =   bx
-
-    for given bv, bx, x, and γ = GetTimeStep(). */
-class SundialsJacSolver : public SundialsODELinearSolver
-{
-private:
-   ParBilinearForm *M, *S;
-   ParNonlinearForm *H;
-   const SparseMatrix *local_grad_H;
-   HypreParMatrix *Jacobian;
-   Solver *J_solver;
-   const Array<int> *ess_tdof_list;
-
-public:
-   SundialsJacSolver()
-      : M(), S(), H(), local_grad_H(), Jacobian(), J_solver() { }
-
-   /// Connect the solver to the objects created inside HyperelasticOperator.
-   void SetOperators(ParBilinearForm &M_, ParBilinearForm &S_,
-                     ParNonlinearForm &H_, Solver &solver,
-                     const Array<int> &ess_tdof_list_)
-   {
-      M = &M_; S = &S_; H = &H_; J_solver = &solver;
-      ess_tdof_list = &ess_tdof_list_;
-   }
-
-   /** Linear solve applicable to the SUNDIALS format.
-       Solves (Mass - dt J) y = Mass b, where in our case:
-       Mass = | M  0 |  J = | -S  -grad_H |  y = | v_hat |  b = | b_v |
-              | 0  I |      |  I     0    |      | x_hat |      | b_x |
-       The result replaces the rhs b.
-       We substitute x_hat = b_x + dt v_hat and solve
-       (M + dt S + dt^2 grad_H) v_hat = M b_v - dt grad_H b_x. */
-   int InitSystem(void *sundials_mem);
-   int SetupSystem(void *sundials_mem, int conv_fail,
-                   const Vector &y_pred, const Vector &f_pred, int &jac_cur,
-                   Vector &v_temp1, Vector &v_temp2, Vector &v_temp3);
-   int SolveSystem(void *sundials_mem, Vector &b, const Vector &weight,
-                   const Vector &y_cur, const Vector &f_cur);
-   int FreeSystem(void *sundials_mem);
-};
-
 
 /** Function representing the elastic energy density for the given hyperelastic
     model+deformation. Used in HyperelasticOperator::GetElasticEnergyDensity. */
@@ -229,18 +205,18 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
@@ -254,11 +230,19 @@ int main(int argc, char *argv[])
    double mu = 0.25;
    double K = 5.0;
    bool visualization = true;
-   const char *nls = "newton";
+   int nonlinear_solver_type = 0;
    int vis_steps = 1;
+   double kinsol_damping = 0.0;
+   int kinsol_aa_n = -1;
 
    // Relative and absolute tolerances for CVODE and ARKODE.
    const double reltol = 1e-1, abstol = 1e-1;
+   // Since this example uses the loose tolerances defined above, it is
+   // necessary to lower the linear solver tolerance for CVODE which is relative
+   // to the above tolerances.
+   const double cvode_eps_lin = 1e-4;
+   // Similarly, the nonlinear tolerance for ARKODE needs to be tightened.
+   const double arkode_eps_nonlin = 1e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -270,18 +254,36 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "            4 - CVODE implicit, approximate Jacobian,\n\t"
-                  "            5 - CVODE implicit, specified Jacobian,\n\t"
-                  "            6 - ARKODE implicit, approximate Jacobian,\n\t"
-                  "            7 - ARKODE implicit, specified Jacobian,\n\t"
-                  "            11 - Forward Euler, 12 - RK2,\n\t"
-                  "            13 - RK3 SSP, 14 - RK4,\n\t"
-                  "            15 - CVODE (adaptive order) explicit,\n\t"
-                  "            16 - ARKODE default (4th order) explicit.");
-   args.AddOption(&nls, "-nls", "--nonlinear-solver",
-                  "Nonlinear systems solver: "
-                  "\"newton\" (plain Newton) or \"kinsol\" (KINSOL).");
+                  "ODE solver:\n\t"
+                  "1  - Backward Euler,\n\t"
+                  "2  - SDIRK2, L-stable\n\t"
+                  "3  - SDIRK3, L-stable\n\t"
+                  "4  - Implicit Midpoint,\n\t"
+                  "5  - SDIRK2, A-stable,\n\t"
+                  "6  - SDIRK3, A-stable,\n\t"
+                  "7  - Forward Euler,\n\t"
+                  "8  - RK2,\n\t"
+                  "9  - RK3 SSP,\n\t"
+                  "10 - RK4,\n\t"
+                  "11 - CVODE implicit BDF, approximate Jacobian,\n\t"
+                  "12 - CVODE implicit BDF, specified Jacobian,\n\t"
+                  "13 - CVODE implicit ADAMS, approximate Jacobian,\n\t"
+                  "14 - CVODE implicit ADAMS, specified Jacobian,\n\t"
+                  "15 - ARKODE implicit, approximate Jacobian,\n\t"
+                  "16 - ARKODE implicit, specified Jacobian,\n\t"
+                  "17 - ARKODE explicit, 4th order.");
+   args.AddOption(&nonlinear_solver_type, "-nls", "--nonlinear-solver",
+                  "Nonlinear system solver:\n\t"
+                  "0  - MFEM Newton method,\n\t"
+                  "1  - KINSOL Newton method,\n\t"
+                  "2  - KINSOL Newton method with globalization,\n\t"
+                  "3  - KINSOL fixed-point method (with or without AA),\n\t"
+                  "4  - KINSOL Picard method (with or without AA).");
+   args.AddOption(&kinsol_damping, "-damp", "--kinsol-damping",
+                  "Picard or Fixed-Point damping parameter (only valid with KINSOL): "
+                  "0 < d <= 1.0");
+   args.AddOption(&kinsol_aa_n, "-aan", "--anderson-subspace",
+                  "Anderson Acceleration subspace size (only valid with KINSOL)");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -304,12 +306,50 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   // check for valid ODE solver option
+   if (ode_solver_type < 1 || ode_solver_type > 17)
+   {
+      if (myid == 0)
+      {
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+      }
+      return 1;
+   }
+
+   // check for valid nonlinear solver options
+   if (nonlinear_solver_type < 0 || nonlinear_solver_type > 4)
+   {
+      if (myid == 0)
+      {
+         cout << "Unknown nonlinear solver type: " << nonlinear_solver_type
+              << "\n";
+      }
+      return 1;
+   }
+   if (kinsol_damping > 0.0 &&
+       !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+   {
+      if (myid == 0)
+      {
+         cout << "Only KINSOL fixed-point and Picard methods can use damping\n";
+      }
+      return 1;
+   }
+   if (kinsol_aa_n > 0 &&
+       !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+   {
+      if (myid == 0)
+      {
+         cout << "Only KINSOL fixed-point and Picard methods can use AA\n";
+      }
+      return 1;
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
@@ -318,86 +358,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Define the ODE solver used for time integration. Several implicit
-   //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
-   //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
-   CVODESolver *cvode = NULL;
-   ARKODESolver *arkode = NULL;
-   SundialsJacSolver *sjsolver = NULL;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1: ode_solver = new BackwardEulerSolver; break;
-      case 2: ode_solver = new SDIRK23Solver(2); break;
-      case 3: ode_solver = new SDIRK33Solver; break;
-      case 4:
-      case 5:
-         cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF, CV_NEWTON);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         if (ode_solver_type == 5)
-         {
-            sjsolver = new SundialsJacSolver;
-            cvode->SetLinearSolver(*sjsolver); // Custom Jacobian inversion.
-         }
-         ode_solver = cvode; break;
-      case 6:
-      case 7:
-         arkode = new ARKODESolver(MPI_COMM_WORLD, ARKODESolver::IMPLICIT);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         if (ode_solver_type == 7)
-         {
-            sjsolver = new SundialsJacSolver;
-            arkode->SetLinearSolver(*sjsolver); // Custom Jacobian inversion.
-         }
-         ode_solver = arkode; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15:
-         cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS, CV_FUNCTIONAL);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         ode_solver = cvode; break;
-      case 16:
-         arkode = new ARKODESolver(MPI_COMM_WORLD, ARKODESolver::EXPLICIT);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         ode_solver = arkode; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         if (myid == 0)
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
-         delete mesh;
-         MPI_Finalize();
-         return 3;
-   }
-
-   map<string,HyperelasticOperator::NonlinearSolverType> nls_map;
-   nls_map["newton"] = HyperelasticOperator::NEWTON;
-   nls_map["kinsol"] = HyperelasticOperator::KINSOL;
-   if (nls_map.find(nls) == nls_map.end())
-   {
-      if (myid == 0)
-      {
-         cout << "Unknown type of nonlinear solver: " << nls << endl;
-      }
-      delete ode_solver;
-      delete mesh;
-      MPI_Finalize();
-      return 4;
-   }
-
-   // 5. Refine the mesh in serial to increase the resolution. In this example
+   // 4. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
@@ -405,7 +366,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -415,7 +376,7 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 7. Define the parallel vector finite element spaces representing the mesh
+   // 6. Define the parallel vector finite element spaces representing the mesh
    //    deformation x_gf, the velocity v_gf, and the initial configuration,
    //    x_ref. Define also the elastic energy density, w_gf, which is in a
    //    discontinuous higher-order space. Since x and v are integrated in time
@@ -424,7 +385,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
@@ -447,7 +408,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace w_fespace(pmesh, &w_fec);
    ParGridFunction w_gf(&w_fespace);
 
-   // 8. Set the initial conditions for v_gf, x_gf and vx, and define the
+   // 7. Set the initial conditions for v_gf, x_gf and vx, and define the
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v_gf.ProjectCoefficient(velo);
@@ -462,9 +423,38 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    ess_bdr[0] = 1; // boundary attribute 1 (index 0) is fixed
 
-   // 9. Initialize the hyperelastic operator, the GLVis visualization and print
+   // 8. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
-   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K, nls_map[nls]);
+   std::unique_ptr<HyperelasticOperator> oper;
+   if (nonlinear_solver_type == 0)
+      oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr, visc, mu,
+                                                    K);
+   else
+   {
+      switch (nonlinear_solver_type)
+      {
+         case 1:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+                                                          visc, mu, K, KIN_NONE);
+            break;
+         case 2:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+                                                          visc, mu, K, KIN_LINESEARCH);
+            break;
+         case 3:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+                                                          visc, mu, K, KIN_FP, kinsol_damping, kinsol_aa_n);
+            break;
+         case 4:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+                                                          visc, mu, K, KIN_PICARD, kinsol_damping, kinsol_aa_n);
+            break;
+         default:
+            cout << "Unknown type of nonlinear solver: "
+                 << nonlinear_solver_type << endl;
+            return 4;
+      }
+   }
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -480,14 +470,14 @@ int main(int argc, char *argv[])
       vis_w.open(vishost, visport);
       if (vis_w)
       {
-         oper.GetElasticEnergyDensity(x_gf, w_gf);
+         oper->GetElasticEnergyDensity(x_gf, w_gf);
          vis_w.precision(8);
          visualize(vis_w, pmesh, &x_gf, &w_gf, "Elastic energy density", true);
       }
    }
 
-   double ee0 = oper.ElasticEnergy(x_gf);
-   double ke0 = oper.KineticEnergy(v_gf);
+   double ee0 = oper->ElasticEnergy(x_gf);
+   double ke0 = oper->KineticEnergy(v_gf);
    if (myid == 0)
    {
       cout << "initial elastic energy (EE) = " << ee0 << endl;
@@ -495,9 +485,84 @@ int main(int argc, char *argv[])
       cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
    }
 
+   // 9. Define the ODE solver used for time integration. Several implicit
+   //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
+   //    explicit Runge-Kutta methods are available.
    double t = 0.0;
-   oper.SetTime(t);
-   ode_solver->Init(oper);
+   oper->SetTime(t);
+
+   ODESolver *ode_solver = NULL;
+   CVODESolver *cvode = NULL;
+   ARKStepSolver *arkode = NULL;
+   switch (ode_solver_type)
+   {
+      // Implicit L-stable methods
+      case 1:  ode_solver = new BackwardEulerSolver; break;
+      case 2:  ode_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 4:  ode_solver = new ImplicitMidpointSolver; break;
+      case 5:  ode_solver = new SDIRK23Solver; break;
+      case 6:  ode_solver = new SDIRK34Solver; break;
+      // Explicit methods
+      case 7:  ode_solver = new ForwardEulerSolver; break;
+      case 8:  ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 9:  ode_solver = new RK3SSPSolver; break;
+      case 10: ode_solver = new RK4Solver; break;
+      // CVODE BDF
+      case 11:
+      case 12:
+         cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
+         cvode->Init(*oper);
+         cvode->SetSStolerances(reltol, abstol);
+         CVodeSetEpsLin(cvode->GetMem(), cvode_eps_lin);
+         cvode->SetMaxStep(dt);
+         if (ode_solver_type == 11)
+         {
+            cvode->UseSundialsLinearSolver();
+         }
+         ode_solver = cvode; break;
+      // CVODE Adams
+      case 13:
+      case 14:
+         cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
+         cvode->Init(*oper);
+         cvode->SetSStolerances(reltol, abstol);
+         CVodeSetEpsLin(cvode->GetMem(), cvode_eps_lin);
+         cvode->SetMaxStep(dt);
+         if (ode_solver_type == 13)
+         {
+            cvode->UseSundialsLinearSolver();
+         }
+         ode_solver = cvode; break;
+      // ARKStep Implicit methods
+      case 15:
+      case 16:
+         arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
+         arkode->Init(*oper);
+         arkode->SetSStolerances(reltol, abstol);
+#if MFEM_SUNDIALS_VERSION < 70100
+         ARKStepSetNonlinConvCoef(arkode->GetMem(), arkode_eps_nonlin);
+#else
+         ARKodeSetNonlinConvCoef(arkode->GetMem(), arkode_eps_nonlin);
+#endif
+         arkode->SetMaxStep(dt);
+         if (ode_solver_type == 15)
+         {
+            arkode->UseSundialsLinearSolver();
+         }
+         ode_solver = arkode; break;
+      // ARKStep Explicit methods
+      case 17:
+         arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
+         arkode->Init(*oper);
+         arkode->SetSStolerances(reltol, abstol);
+         arkode->SetMaxStep(dt);
+         ode_solver = arkode; break;
+   }
+
+   // Initialize MFEM integrators, SUNDIALS integrators are initialized above
+   if (ode_solver_type < 11) { ode_solver->Init(*oper); }
 
    // 10. Perform time-integration
    //     (looping over the time iterations, ti, with a time-step dt).
@@ -514,8 +579,8 @@ int main(int argc, char *argv[])
       {
          v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
-         double ee = oper.ElasticEnergy(x_gf);
-         double ke = oper.KineticEnergy(v_gf);
+         double ee = oper->ElasticEnergy(x_gf);
+         double ke = oper->KineticEnergy(v_gf);
 
          if (myid == 0)
          {
@@ -531,7 +596,7 @@ int main(int argc, char *argv[])
             visualize(vis_v, pmesh, &x_gf, &v_gf);
             if (vis_w)
             {
-               oper.GetElasticEnergyDensity(x_gf, w_gf);
+               oper->GetElasticEnergyDensity(x_gf, w_gf);
                visualize(vis_w, pmesh, &x_gf, &w_gf);
             }
          }
@@ -559,24 +624,21 @@ int main(int argc, char *argv[])
       v_gf.Save(velo_ofs);
       ofstream ee_ofs(ee_name.str().c_str());
       ee_ofs.precision(8);
-      oper.GetElasticEnergyDensity(x_gf, w_gf);
+      oper->GetElasticEnergyDensity(x_gf, w_gf);
       w_gf.Save(ee_ofs);
    }
 
    // 12. Free the used memory.
    delete ode_solver;
-   delete sjsolver;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -586,25 +648,25 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      os << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 
@@ -653,92 +715,17 @@ ReducedSystemOperator::~ReducedSystemOperator()
 }
 
 
-int SundialsJacSolver::InitSystem(void *sundials_mem)
-{
-   TimeDependentOperator *td_oper = GetTimeDependentOperator(sundials_mem);
-   HyperelasticOperator *he_oper;
-
-   // During development, we use dynamic_cast<> to ensure the setup is correct:
-   he_oper = dynamic_cast<HyperelasticOperator*>(td_oper);
-   MFEM_VERIFY(he_oper, "operator is not HyperelasticOperator");
-
-   // When the implementation is finalized, we can switch to static_cast<>:
-   // he_oper = static_cast<HyperelasticOperator*>(td_oper);
-
-   he_oper->InitSundialsJacSolver(*this);
-   return 0;
-}
-
-int SundialsJacSolver::SetupSystem(void *sundials_mem, int conv_fail,
-                                   const Vector &y_pred, const Vector &f_pred,
-                                   int &jac_cur, Vector &v_temp1,
-                                   Vector &v_temp2, Vector &v_temp3)
-{
-   int sc = y_pred.Size() / 2;
-   const Vector x(y_pred.GetData() + sc, sc);
-   double dt = GetTimeStep(sundials_mem);
-
-   // J = M + dt*(S + dt*grad(H))
-   delete Jacobian;
-   SparseMatrix *localJ = Add(1.0, M->SpMat(), dt, S->SpMat());
-   local_grad_H = &H->GetLocalGradient(x);
-   localJ->Add(dt*dt, *local_grad_H);
-   Jacobian = M->ParallelAssemble(localJ);
-   delete localJ;
-   HypreParMatrix *Je = Jacobian->EliminateRowsCols(*ess_tdof_list);
-   delete Je;
-
-   J_solver->SetOperator(*Jacobian);
-
-   jac_cur = 1;
-   return 0;
-}
-
-int SundialsJacSolver::SolveSystem(void *sundials_mem, Vector &b,
-                                   const Vector &weight, const Vector &y_cur,
-                                   const Vector &f_cur)
-{
-   int sc = b.Size() / 2;
-   ParFiniteElementSpace *fes = H->ParFESpace();
-   // Vector x(y_cur.GetData() + sc, sc);
-   Vector b_v(b.GetData() +  0, sc);
-   Vector b_x(b.GetData() + sc, sc);
-   Vector rhs(sc);
-   double dt = GetTimeStep(sundials_mem);
-
-   // We can assume that b_v and b_x have zeros at essential tdofs.
-
-   // rhs = M b_v - dt*grad(H) b_x
-   ParGridFunction lb_x(fes), lrhs(fes);
-   lb_x.Distribute(b_x);
-   local_grad_H->Mult(lb_x, lrhs);
-   lrhs.ParallelAssemble(rhs);
-   rhs *= -dt;
-   M->TrueAddMult(b_v, rhs);
-   rhs.SetSubVector(*ess_tdof_list, 0.0);
-
-   J_solver->iterative_mode = false;
-   J_solver->Mult(rhs, b_v);
-
-   b_x.Add(dt, b_v);
-
-   return 0;
-}
-
-int SundialsJacSolver::FreeSystem(void *sundials_mem)
-{
-   delete Jacobian;
-   return 0;
-}
-
-
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K,
-                                           NonlinearSolverType nls_type)
+                                           int kinsol_nls_type,
+                                           double kinsol_damping,
+                                           int kinsol_aa_n)
+
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
-     viscosity(visc), M_solver(f.GetComm()), z(height/2)
+     viscosity(visc), M_solver(f.GetComm()), z(height/2),
+     local_grad_H(NULL), Jacobian(NULL)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
@@ -786,25 +773,39 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    J_minres->SetPreconditioner(*J_prec);
    J_solver = J_minres;
 
-   if (nls_type == KINSOL)
+   if (kinsol_nls_type > 0)
    {
-      KinSolver *kinsolver = new KinSolver(f.GetComm(), KIN_NONE, true);
-      kinsolver->SetMaxSetupCalls(4);
+      KINSolver *kinsolver = new KINSolver(f.GetComm(), kinsol_nls_type, true);
+      if (kinsol_nls_type != KIN_PICARD)
+      {
+         kinsolver->SetJFNK(true);
+         kinsolver->SetLSMaxIter(100);
+      }
+      if (kinsol_aa_n > 0)
+      {
+         kinsolver->EnableAndersonAcc(kinsol_aa_n);
+      }
       newton_solver = kinsolver;
+      newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
       newton_solver->SetRelTol(rel_tol);
       newton_solver->SetPrintLevel(0);
+      kinsolver->SetMaxSetupCalls(4);
+      if (kinsol_damping > 0.0)
+      {
+         kinsolver->SetDamping(kinsol_damping);
+      }
    }
    else
    {
       newton_solver = new NewtonSolver(f.GetComm());
+      newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(10);
       newton_solver->SetRelTol(rel_tol);
       newton_solver->SetPrintLevel(-1);
    }
    newton_solver->SetSolver(*J_solver);
    newton_solver->iterative_mode = false;
-   newton_solver->SetOperator(*reduced_oper);
 }
 
 void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -858,9 +859,64 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-void HyperelasticOperator::InitSundialsJacSolver(SundialsJacSolver &sjsolv)
+int HyperelasticOperator::SUNImplicitSetup(const Vector &y,
+                                           const Vector &fy, int jok, int *jcur,
+                                           double gamma)
 {
-   sjsolv.SetOperators(M, S, H, *J_solver, ess_tdof_list);
+   int sc = y.Size() / 2;
+   const Vector x(y.GetData() + sc, sc);
+
+   // J = M + dt*(S + dt*grad(H))
+   if (Jacobian) { delete Jacobian; }
+   SparseMatrix *localJ = Add(1.0, M.SpMat(), gamma, S.SpMat());
+   local_grad_H = &H.GetLocalGradient(x);
+   localJ->Add(gamma*gamma, *local_grad_H);
+   Jacobian = M.ParallelAssemble(localJ);
+   delete localJ;
+   HypreParMatrix *Je = Jacobian->EliminateRowsCols(ess_tdof_list);
+   delete Je;
+
+   // Set Jacobian solve operator
+   J_solver->SetOperator(*Jacobian);
+
+   // Indicate that the Jacobian was updated
+   *jcur = 1;
+
+   // Save gamma for use in solve
+   saved_gamma = gamma;
+
+   // Return success
+   return 0;
+}
+
+int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x,
+                                           double tol)
+{
+   int sc = b.Size() / 2;
+   ParFiniteElementSpace *fes = H.ParFESpace();
+   Vector b_v(b.GetData() +  0, sc);
+   Vector b_x(b.GetData() + sc, sc);
+   Vector x_v(x.GetData() +  0, sc);
+   Vector x_x(x.GetData() + sc, sc);
+   Vector rhs(sc);
+
+   // We can assume that b_v and b_x have zeros at essential tdofs.
+
+   // rhs = M b_v - dt*grad(H) b_x
+   ParGridFunction lb_x(fes), lrhs(fes);
+   lb_x.Distribute(b_x);
+   local_grad_H->Mult(lb_x, lrhs);
+   lrhs.ParallelAssemble(rhs);
+   rhs *= -saved_gamma;
+   M.TrueAddMult(b_v, rhs);
+   rhs.SetSubVector(ess_tdof_list, 0.0);
+
+   J_solver->iterative_mode = false;
+   J_solver->Mult(rhs, x_v);
+
+   add(b_x, saved_gamma, x_v, x_x);
+
+   return 0;
 }
 
 double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
@@ -870,10 +926,7 @@ double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   double loc_energy = 0.5*M.InnerProduct(v, v);
-   double energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPI_DOUBLE, MPI_SUM,
-                 fespace.GetComm());
+   double energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 
@@ -886,6 +939,7 @@ void HyperelasticOperator::GetElasticEnergyDensity(
 
 HyperelasticOperator::~HyperelasticOperator()
 {
+   delete Jacobian;
    delete newton_solver;
    delete J_solver;
    delete J_prec;

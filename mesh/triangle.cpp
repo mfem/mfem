@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
 
@@ -52,7 +52,7 @@ void Triangle::SetVertices(const int *ind)
 
 void Triangle::MarkEdge(DenseMatrix &pmat)
 {
-   double d[3];
+   real_t d[3];
    int shift, v;
 
    d[0] = ( (pmat(0,1)-pmat(0,0))*(pmat(0,1)-pmat(0,0)) +
@@ -125,7 +125,7 @@ void Triangle::MarkEdge(int *indices, const DSTable &v_to_v, const int *length)
 // static method
 void Triangle::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 {
-   double *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2);
+   real_t *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2);
 
    // initialize to identity
    a[0] = 0.0; a[1] = 0.0;
@@ -155,7 +155,7 @@ void Triangle::GetPointMatrix(unsigned transform, DenseMatrix &pm)
           a        d        b    a        d        b
    */
 
-   double d[2], e[2], f[2];
+   real_t d[2], e[2], f[2];
 #define ASGN(a, b) (a[0] = b[0], a[1] = b[1])
 #define AVG(a, b, c) (a[0] = (b[0] + c[0])*0.5, a[1] = (b[1] + c[1])*0.5)
 
@@ -188,10 +188,13 @@ void Triangle::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 void Triangle::GetVertices(Array<int> &v) const
 {
    v.SetSize(3);
-   for (int i = 0; i < 3; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 3, v.begin());
+}
+
+void Triangle::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 3, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 } // namespace mfem

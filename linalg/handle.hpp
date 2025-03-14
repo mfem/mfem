@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HANDLE_HPP
 #define MFEM_HANDLE_HPP
@@ -69,6 +69,11 @@ public:
    template <typename OpType>
    explicit OperatorHandle(OpType *A, bool own_A = true) { pSet(A, own_A); }
 
+   /// Shallow copy. The ownership flag of the target is set to false.
+   OperatorHandle(const OperatorHandle &other) :
+      oper(other.oper), type_id(other.type_id), own_oper(false)
+   {  }
+
    ~OperatorHandle() { if (own_oper) { delete oper; } }
 
    /// Shallow copy. The ownership flag of the target is set to false.
@@ -80,6 +85,15 @@ public:
 
    /// Access the underlying Operator pointer.
    Operator *Ptr() const { return oper; }
+
+   /// Support the use of -> to call methods of the underlying Operator.
+   Operator *operator->() const { return oper; }
+
+   /// Access the underlying Operator.
+   Operator &operator*() { return *oper; }
+
+   /// Access the underlying Operator.
+   const Operator &operator*() const { return *oper; }
 
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
@@ -138,15 +152,15 @@ public:
    /** @brief Reset the OperatorHandle to hold a parallel square block-diagonal
        matrix using the currently set type id. */
    /** The operator ownership flag is set to true. */
-   void MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
-                            HYPRE_Int *row_starts, SparseMatrix *diag);
+   void MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
+                            HYPRE_BigInt *row_starts, SparseMatrix *diag);
 
    /** @brief Reset the OperatorHandle to hold a parallel rectangular
        block-diagonal matrix using the currently set type id. */
    /** The operator ownership flag is set to true. */
-   void MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
-                                 HYPRE_Int glob_num_cols, HYPRE_Int *row_starts,
-                                 HYPRE_Int *col_starts, SparseMatrix *diag);
+   void MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
+                                 HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
+                                 HYPRE_BigInt *col_starts, SparseMatrix *diag);
 #endif // MFEM_USE_MPI
 
    /// Reset the OperatorHandle to hold the product @a P^t @a A @a P.
@@ -180,12 +194,22 @@ public:
        elimination of the essential dofs @a ess_dof_list. */
    void EliminateRowsCols(OperatorHandle &A, const Array<int> &ess_dof_list);
 
+   /// Eliminate the rows corresponding to the essential dofs @a ess_dof_list
+   void EliminateRows(const Array<int> &ess_dof_list);
+
+   /// Eliminate columns corresponding to the essential dofs @a ess_dof_list
+   void EliminateCols(const Array<int> &ess_dof_list);
+
    /// Eliminate essential dofs from the solution @a X into the r.h.s. @a B.
    /** The argument @a A_e is expected to be the result of the method
        EliminateRowsCols(). */
    void EliminateBC(const OperatorHandle &A_e, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
 };
+
+
+/// Add an alternative name for OperatorHandle -- OperatorPtr.
+typedef OperatorHandle OperatorPtr;
 
 } // namespace mfem
 

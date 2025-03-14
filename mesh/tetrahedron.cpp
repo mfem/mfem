@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of class Tetrahedron
 
@@ -40,17 +40,20 @@ Tetrahedron::Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr)
    transform = 0;
 }
 
-void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr)
+void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr,
+                       int ref_flag)
 {
    attribute  = attr;
    indices[0] = ind1;
    indices[1] = ind2;
    indices[2] = ind3;
    indices[3] = ind4;
+   refinement_flag = ref_flag;
+   transform = 0;
 }
 
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
-                                      int &flag)
+                                      int &flag) const
 {
    int i, f = refinement_flag;
 
@@ -131,9 +134,10 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag |= refinement_edges[0];
 }
 
-void Tetrahedron::GetMarkedFace(const int face, int *fv)
+void Tetrahedron::GetMarkedFace(const int face, int *fv) const
 {
-   int re[2], type, flag, *tv = this->indices;
+   int re[2], type, flag;
+   const int *tv = this->indices;
    ParseRefinementFlag(re, type, flag);
    switch (face)
    {
@@ -280,7 +284,7 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
 // static method
 void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 {
-   double *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
+   real_t *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
 
    // initialize to identity
    a[0] = 0.0, a[1] = 0.0, a[2] = 0.0;
@@ -303,7 +307,7 @@ void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 #define SWAP(a, b) for (int i = 0; i < 3; i++) { std::swap(a[i], b[i]); }
 #define AVG(a, b, c) for (int i = 0; i < 3; i++) { a[i] = (b[i]+c[i])*0.5; }
 
-      double e[3];
+      real_t e[3];
       AVG(e, a, b);
       switch (chain[--n])
       {
@@ -323,10 +327,13 @@ void Tetrahedron::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 void Tetrahedron::GetVertices(Array<int> &v) const
 {
    v.SetSize(4);
-   for (int i = 0; i < 4; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 4, v.begin());
+}
+
+void Tetrahedron::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 4, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 Element *Tetrahedron::Duplicate(Mesh *m) const

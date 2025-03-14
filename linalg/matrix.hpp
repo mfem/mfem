@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MATRIX
 #define MFEM_MATRIX
@@ -28,13 +28,6 @@ class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:
-   //// Defines matrix diagonal policy upon elimination of rows and/or columns.
-   enum DiagonalPolicy
-   {
-      DIAG_ZERO, ///< Set the diagonal value to zero
-      DIAG_ONE,  ///< Set the diagonal value to one
-      DIAG_KEEP  ///< Keep the diagonal value
-   };
 
    /// Creates a square matrix of size s.
    explicit Matrix(int s) : Operator(s) { }
@@ -42,11 +35,14 @@ public:
    /// Creates a matrix of the given height and width.
    explicit Matrix(int h, int w) : Operator(h, w) { }
 
+   /// Returns whether the matrix is a square matrix.
+   bool IsSquare() const { return (height == width); }
+
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j) = 0;
+   virtual real_t &Elem(int i, int j) = 0;
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const = 0;
+   virtual const real_t &Elem(int i, int j) const = 0;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
    virtual MatrixInverse *Inverse() const = 0;
@@ -54,8 +50,8 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int) { }
 
-   /// Prints matrix to stream out.
-   virtual void Print (std::ostream & out = mfem::out, int width_ = 4) const;
+   /// Prints matrix to stream os.
+   virtual void Print(std::ostream & os = mfem::out, int width_ = 4) const;
 
    /// Destroys matrix.
    virtual ~Matrix() { }
@@ -97,18 +93,18 @@ public:
 
        If entry (i,i) does not belong to the sparsity pattern of A, then an
        error will occur. */
-   virtual void EliminateZeroRows(const double threshold = 1e-12) = 0;
+   virtual void EliminateZeroRows(const real_t threshold = 1e-12) = 0;
 
    /// Matrix-Vector Multiplication y = A*x
-   virtual void Mult(const Vector &x, Vector &y) const = 0;
+   void Mult(const Vector &x, Vector &y) const override = 0;
    /// Matrix-Vector Multiplication y = y + val*A*x
-   virtual void AddMult(const Vector &x, Vector &y,
-                        const double val = 1.) const = 0;
+   void AddMult(const Vector &x, Vector &y,
+                const real_t val = 1.) const override = 0;
    /// MatrixTranspose-Vector Multiplication y = A'*x
-   virtual void MultTranspose(const Vector &x, Vector &y) const = 0;
+   void MultTranspose(const Vector &x, Vector &y) const override = 0;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double val = 1.) const = 0;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t val = 1.) const override = 0;
 
    /// Destroys AbstractSparseMatrix.
    virtual ~AbstractSparseMatrix() { }

@@ -1,24 +1,26 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_DATACOLLECTION
 #define MFEM_DATACOLLECTION
 
 #include "../config/config.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #ifdef MFEM_USE_MPI
 #include "pgridfunc.hpp"
 #endif
 #include <string>
 #include <map>
+#include <fstream>
 
 namespace mfem
 {
@@ -174,10 +176,10 @@ protected:
    /**  When cycle >= 0, it is appended to directory names. */
    int cycle;
    /// Physical time (for time-dependent simulations)
-   double time;
+   real_t time;
 
    /// Time step i.e. delta_t (for time-dependent simulations)
-   double time_step;
+   real_t time_step;
 
    /// Serial or parallel run? False iff mesh is a ParMesh
    bool serial;
@@ -205,6 +207,7 @@ protected:
 
    /// Output mesh format: see the #Format enumeration
    int format;
+   int compression;
 
    /// Should the collection delete its mesh and fields
    bool own_data;
@@ -256,8 +259,8 @@ public:
    { q_field_map.Deregister(field_name, own_data); }
 
    /// Check if a grid function is part of the collection
-   bool HasField(const std::string& name) const
-   { return field_map.Has(name); }
+   bool HasField(const std::string& field_name) const
+   { return field_map.Has(field_name); }
 
    /// Get a pointer to a grid function in the collection.
    /** Returns NULL if @a field_name is not in the collection. */
@@ -315,17 +318,17 @@ public:
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
    /// Set physical time (for time-dependent simulations)
-   void SetTime(double t) { time = t; }
+   void SetTime(real_t t) { time = t; }
 
    /// Set the simulation time step (for time-dependent simulations)
-   void SetTimeStep(double ts) { time_step = ts; }
+   void SetTimeStep(real_t ts) { time_step = ts; }
 
    /// Get time cycle (for time-dependent simulations)
    int GetCycle() const { return cycle; }
    /// Get physical time (for time-dependent simulations)
-   double GetTime() const { return time; }
+   real_t GetTime() const { return time; }
    /// Get the simulation time step (for time-dependent simulations)
-   double GetTimeStep() const { return time_step; }
+   real_t GetTimeStep() const { return time_step; }
 
    /// Get the name of the collection
    const std::string& GetCollectionName() const { return name; }
@@ -335,16 +338,20 @@ public:
    /// Set the precision (number of digits) used for the text output of doubles
    void SetPrecision(int prec) { precision = prec; }
    /// Set the number of digits used for both the cycle and the MPI rank
-   void SetPadDigits(int digits) { pad_digits_cycle=pad_digits_rank = digits; }
+   virtual void SetPadDigits(int digits)
+   { pad_digits_cycle=pad_digits_rank = digits; }
    /// Set the number of digits used for the cycle
-   void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
+   virtual void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
    /// Set the number of digits used for the MPI rank in filenames
-   void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
+   virtual void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
    /// Set the desired output mesh and data format.
    /** See the enumeration #Format for valid options. Derived classes can define
        their own format enumerations and override this method to perform input
        validation. */
    virtual void SetFormat(int fmt);
+
+   /// Set the flag for use of gz compressed files
+   virtual void SetCompression(bool comp);
 
    /// Set the path where the DataCollection will be saved.
    void SetPrefixPath(const std::string &prefix);
@@ -371,12 +378,28 @@ public:
    virtual ~DataCollection();
 
    /// Errors returned by Error()
-   enum { NO_ERROR = 0, READ_ERROR = 1, WRITE_ERROR = 2 };
+   enum
+   {
+      // Workaround for use with headers that define NO_ERROR as a macro,
+      // e.g. winerror.h (which is included by Windows.h):
+#ifndef NO_ERROR
+      NO_ERROR = 0,
+#endif
+      // Use the following identifier if NO_ERROR is defined as a macro,
+      // e.g. winerror.h (which is included by Windows.h):
+      No_Error    = 0,
+      READ_ERROR  = 1,
+      WRITE_ERROR = 2
+   };
 
    /// Get the current error state
    int Error() const { return error; }
    /// Reset the error state
-   void ResetError(int err = NO_ERROR) { error = err; }
+   void ResetError(int err_state = No_Error) { error = err_state; }
+
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 };
 
 
@@ -386,9 +409,10 @@ class VisItFieldInfo
 public:
    std::string association;
    int num_components;
-   VisItFieldInfo() { association = ""; num_components = 0; }
-   VisItFieldInfo(std::string _association, int _num_components)
-   { association = _association; num_components = _num_components; }
+   int lod;
+   VisItFieldInfo() { association = ""; num_components = 0; lod = 1;}
+   VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1)
+   { association = association_; num_components = num_components_; lod =lod_;}
 };
 
 /// Data collection with VisIt I/O routines
@@ -430,15 +454,29 @@ public:
 #endif
 
    /// Set/change the mesh associated with the collection
-   virtual void SetMesh(Mesh *new_mesh);
+   void SetMesh(Mesh *new_mesh) override;
 
 #ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+   void SetMesh(MPI_Comm comm, Mesh *new_mesh) override;
 #endif
 
    /// Add a grid function to the collection and update the root file
-   virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+   void RegisterField(const std::string& field_name,
+                      GridFunction *gf) override;
+
+   /// Add a quadrature function to the collection and update the root file.
+   /** Visualization of quadrature function is not supported in VisIt(3.12).
+       A patch has been sent to VisIt developers in June 2020. */
+   void RegisterQField(const std::string& q_field_name,
+                       QuadratureFunction *qf) override;
+
+   /// Set the number of digits used for both the cycle and the MPI rank
+   /// @note VisIt seems to require 6 pad digits for the MPI rank. Therefore,
+   /// this function uses this default value. This behavior can be overridden
+   /// by calling SetPadDigitsCycle() and SetPadDigitsRank() instead.
+   void SetPadDigits(int digits) override
+   { pad_digits_cycle=digits; pad_digits_rank=6; }
 
    /// Set VisIt parameter: default levels of detail for the MultiresControl
    void SetLevelsOfDetail(int levels_of_detail);
@@ -451,18 +489,109 @@ public:
    void DeleteAll();
 
    /// Save the collection and a VisIt root file
-   virtual void Save();
+   void Save() override;
 
    /// Save a VisIt root file for the collection
    void SaveRootFile();
 
    /// Load the collection based on its VisIt data (described in its root file)
-   virtual void Load(int cycle_ = 0);
+   void Load(int cycle_ = 0) override;
 
    /// We will delete the mesh and fields if we own them
    virtual ~VisItDataCollection() {}
 };
 
-}
 
+/// Helper class for ParaView visualization data
+class ParaViewDataCollection : public DataCollection
+{
+private:
+   int levels_of_detail;
+   int compression_level;
+   std::fstream pvd_stream;
+   VTKFormat pv_data_format;
+   bool high_order_output;
+   bool restart_mode;
+
+protected:
+   void WritePVTUHeader(std::ostream &out);
+   void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
+   void SaveDataVTU(std::ostream &out, int ref);
+   void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+   const char *GetDataFormatString() const;
+   const char *GetDataTypeString() const;
+   /// @brief If compression is enabled, return the compression level, otherwise
+   /// return 0.
+   int GetCompressionLevel() const;
+
+   std::string GenerateCollectionPath();
+   std::string GenerateVTUFileName(const std::string &prefix, int rank);
+   std::string GenerateVTUPath();
+   std::string GeneratePVDFileName();
+   std::string GeneratePVTUFileName(const std::string &prefix);
+   std::string GeneratePVTUPath();
+
+
+public:
+   /// Constructor. The collection name is used when saving the data.
+   /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
+       Before saving the data collection, some parameters in the collection can
+       be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
+   ParaViewDataCollection(const std::string& collection_name,
+                          mfem::Mesh *mesh_ = NULL);
+
+   /// Set refinement levels - every element is uniformly split based on
+   /// levels_of_detail_. The initial value is 1.
+   void SetLevelsOfDetail(int levels_of_detail_);
+
+   /// Save the collection - the directory name is constructed based on the
+   /// cycle value
+   void Save() override;
+
+   /// Set the data format for the ParaView output files. Possible options are
+   /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
+   /// The ASCII and BINARY options output double precision data, whereas the
+   /// BINARY32 option outputs single precision data.
+   ///
+   /// The initial format is VTKFormat::BINARY.
+   void SetDataFormat(VTKFormat fmt);
+
+   /// @brief Set the zlib compression level.
+   ///
+   /// 0 indicates no compression, -1 indicates the default compression level.
+   /// Otherwise, specify a number between 1 and 9, 1 being the fastest, and 9
+   /// being the best compression. Compression only takes effect if the output
+   /// format is BINARY or BINARY32. MFEM must be compiled with MFEM_USE_ZLIB =
+   /// YES.
+   ///
+   /// The initial compression level is 0 if MFEM is compiled with MFEM_USE_ZLIB
+   /// turned off, and -1 otherwise.
+   ///
+   /// Any nonzero compression level will enable compression.
+   void SetCompressionLevel(int compression_level_);
+
+   /// Enable or disable zlib compression. If the input is true, use the default
+   /// zlib compression level (unless the compression level has previously been
+   /// set by calling SetCompressionLevel()).
+   void SetCompression(bool compression_) override;
+
+   /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
+   bool IsBinaryFormat() const;
+
+   /// Sets whether or not to output the data as high-order elements (false
+   /// by default). Reading high-order data requires ParaView 5.5 or later.
+   void SetHighOrderOutput(bool high_order_output_);
+
+   /// Enable or disable restart mode. If restart is enabled, new writes will
+   /// preserve timestep metadata for any solutions prior to the currently
+   /// defined time.
+   ///
+   /// Initially, restart mode is disabled.
+   void UseRestartMode(bool restart_mode_);
+
+   /// Load the collection - not implemented in the ParaView writer
+   void Load(int cycle_ = 0) override;
+};
+
+}
 #endif

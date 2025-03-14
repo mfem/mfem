@@ -1,0 +1,330 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# In this CI section, we build different variants of mfem and run test on them.
+name: "Tests"
+
+# Github actions can use the default "GITHUB_TOKEN". By default, this token
+# is set to have permissive access. However, this is not a good practice
+# security-wise. Here we use an external action, so we restrict the
+# permission to the minimum required.
+# When the 'permissions' is set, all the scopes not mentioned are set to the
+# most restrictive setting. So the following is enough.
+permissions:
+  actions: write
+
+on:
+  push:
+    branches:
+      - master
+      - next
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HYPRE_ARCHIVE: v2.19.0.tar.gz
+  HYPRE_TOP_DIR: hypre-2.19.0
+  METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_ARCHIVE_MAC: metis-4.0.3-mac.tgz
+  METIS_TOP_DIR: metis-4.0.3
+  MFEM_TOP_DIR: mfem
+
+# Note for future improvements:
+#
+# We cannot reuse cached dependencies and have to build them for each target
+# although they could be shared sometimes. That's because Github cache Action
+# has no read-only mode. But there is a PR ready for this
+# (https://github.com/actions/cache/pull/489)
+
+jobs:
+  builds-and-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        target: [dbg, opt]
+        mpi: [seq, par]
+        build-system: [make, cmake]
+        hypre-target: [int32]
+        precision: [fp64]
+        exclude:
+          - os: ubuntu-latest
+            build-system: cmake
+          - os: macos-latest
+            build-system: cmake
+          - os: windows-latest
+            build-system: make
+        # 'include' allows us to:
+        # - Add a variable to all jobs without creating a new matrix dimension.
+        #   Codecov is defined that way.
+        # - Add a new combination.
+        #   'build-system: cmake' and 'hypre-target: int64'
+        #
+        # Note: we will gather coverage info for any non-debug run except the
+        # CMake build.
+        include:
+          - target: dbg
+            codecov: NO
+          - target: opt
+            codecov: YES
+          - os: ubuntu-latest
+            target: dbg
+            config-opts: 'CPPFLAGS+=-Og'
+          - os: macos-latest
+            codecov: NO
+          - os: windows-latest
+            codecov: NO
+          - os: windows-latest
+            target: opt
+            mpi: par
+            config-opts: '-DBUILD_SHARED_LIBS=ON'
+          - os: ubuntu-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: cmake
+            hypre-target: int32
+            precision: fp64
+            config-opts: '-DCMAKE_INSTALL_PREFIX=../cmake-install'
+            # This option can be set to pass additional configuration options to
+            # the MFEM configuration command.
+            # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
+          - os: ubuntu-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int64
+            precision: fp64
+          - os: ubuntu-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp32
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # Fix 'No space left on device' errors for Ubuntu builds.
+      - name: Run Actions Cleaner
+        if: matrix.os == 'ubuntu-latest'
+        uses: easimon/maximize-build-space@v8
+        with:
+          overprovision-lvm: 'true'
+          remove-android: 'true'
+
+      # Checkout MFEM in "mfem" subdirectory. Final path:
+      # /home/runner/work/mfem/mfem/mfem
+      # Note: Done now to access "install-hypre" and "install-metis" actions.
+      - name: checkout mfem
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.MFEM_TOP_DIR }}
+          # Fetch the complete history for codecov to access commits ID
+          fetch-depth: 0
+
+      - name: Xcode version setup (MacOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          XCODE_PATH="/Applications/Xcode_15.3.app"
+          echo "> sudo xcode-select -s ${XCODE_PATH}"
+          sudo xcode-select -s ${XCODE_PATH}
+          echo "> g++ -v"
+          g++ -v
+          echo "> clang++ -v"
+          clang++ -v
+
+      # Only get MPI if defined for the job.
+      # TODO: It would be nice to have only one step, e.g. with a dedicated
+      # action, but I (@adrienbernede) don't see how at the moment.
+      - name: get MPI (Linux)
+        if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install mpich libmpich-dev
+
+      - name: get lcov (Linux)
+        if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install lcov
+
+      # Keep the following section in case we need it again in the future,
+      # see: https://github.com/mfem/mfem/pull/3385#discussion_r1058013032
+      # - name: Set up Homebrew
+      #   if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-latest'
+      #   uses: Homebrew/actions/setup-homebrew@master
+
+      - name: get MPI (MacOS)
+        if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
+        run: |
+          export HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew install openmpi
+
+      - name: get lcov (MacOS)
+        if: matrix.codecov == 'YES' && matrix.os == 'macos-latest'
+        run: |
+          export HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew install lcov
+
+      - name: get MPI (Windows)
+        if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
+        uses: mpi4py/setup-mpi@v1.1.4
+
+      # Get Hypre through cache, or build it.
+      # Install will only run on cache miss.
+      - name: cache hypre
+        id: hypre-cache
+        if: matrix.mpi == 'par'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HYPRE_TOP_DIR }}
+          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
+
+      - name: get hypre
+        if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
+        uses: mfem/github-actions/build-hypre@v2.5
+        with:
+          archive: ${{ env.HYPRE_ARCHIVE }}
+          dir: ${{ env.HYPRE_TOP_DIR }}
+          target: ${{ matrix.hypre-target }}
+          build-system: make
+          precision: ${{ matrix.precision }}
+
+      - name: get hypre (Windows)
+        if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
+        uses: mfem/github-actions/build-hypre@v2.5
+        with:
+          archive: ${{ env.HYPRE_ARCHIVE }}
+          dir: ${{ env.HYPRE_TOP_DIR }}
+          target: ${{ matrix.hypre-target }}
+          build-system: cmake
+          precision: ${{ matrix.precision }}
+
+      # Get Metis through cache, or build it.
+      # Install will only run on cache miss.
+      - name: cache metis
+        id: metis-cache
+        if: matrix.mpi == 'par' && matrix.os != 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.METIS_TOP_DIR }}
+          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.5
+
+      - name: install metis
+        if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
+        uses: mfem/github-actions/build-metis@v2.5
+        with:
+          archive: ${{ matrix.os != 'macos-latest' && env.METIS_ARCHIVE || env.METIS_ARCHIVE_MAC }}
+          dir: ${{ env.METIS_TOP_DIR }}
+
+      - name: cache vcpkg (Windows)
+        id: vcpkg-cache
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: vcpkg_cache
+          key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
+
+      - name: prepare vcpkg binary cache location (Windows)
+        if: matrix.os == 'windows-latest' && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p vcpkg_cache
+
+      - name: install metis (Windows)
+        if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+        run: |
+          vcpkg install metis-mfem --triplet=x64-windows-static --overlay-ports=${{ env.MFEM_TOP_DIR }}/config/vcpkg/ports
+
+      # MFEM build and test
+      - name: build
+        uses: mfem/github-actions/build-mfem@v2.5
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+        with:
+          os: ${{ matrix.os }}
+          target: ${{ matrix.target }}
+          codecov: ${{ matrix.codecov }}
+          mpi: ${{ matrix.mpi }}
+          build-system: ${{ matrix.build-system }}
+          hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+          metis-dir: ${{ env.METIS_TOP_DIR }}
+          mfem-dir: ${{ env.MFEM_TOP_DIR }}
+          precision: ${{ matrix.precision }}
+          config-options: ${{ matrix.config-opts }}
+          library-only: ${{ matrix.target == 'dbg' && matrix.os != 'ubuntu-latest' }}
+
+      # Run checks (and only checks) on debug targets
+      - name: checks
+        if: matrix.build-system == 'make' && matrix.target == 'dbg'
+        run: |
+          cd ${{ env.MFEM_TOP_DIR }}  && make check
+
+      # Note: 'tests' include the unit tests
+      - name: tests
+        if: matrix.build-system == 'make' && (matrix.target == 'opt' || matrix.os == 'ubuntu-latest')
+        run: |
+          cd ${{ env.MFEM_TOP_DIR }} && make test
+
+      - name: cmake checks
+        if: matrix.build-system == 'cmake' && matrix.target == 'dbg'
+        run: |
+          CTEST_CONFIG="Debug"
+          cd ${{ env.MFEM_TOP_DIR }} && cmake --build build --target check --config ${CTEST_CONFIG}
+        shell: bash
+
+      - name: cmake unit tests (Ubuntu)
+        if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os == 'ubuntu-latest'
+        run: |
+          CTEST_CONFIG="Release"
+          [[ ${{ matrix.target }} == 'dbg' ]] && CTEST_CONFIG="Debug"
+          cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure -C ${CTEST_CONFIG}
+        shell: bash
+
+      - name: cmake tests
+        if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-latest'
+        run: |
+          CTEST_CONFIG="Release"
+          cd ${{ env.MFEM_TOP_DIR }}/build && \
+          ctest --output-on-failure -C ${CTEST_CONFIG} || \
+          ctest --rerun-failed --output-on-failure -C ${CTEST_CONFIG}
+        shell: bash
+
+      - name: make install
+        if: matrix.build-system == 'make'
+        run: |
+          cd ${{ env.MFEM_TOP_DIR }} && make install
+
+      - name: cmake install
+        if: matrix.build-system == 'cmake'
+        run: |
+          CONFIG="Release"
+          [[ ${{ matrix.target }} == 'dbg' ]] && CONFIG="Debug"
+          TARGET="install"
+          [[ ${{ matrix.os }} == 'windows-latest' ]] && TARGET="INSTALL"
+          cd ${{ env.MFEM_TOP_DIR }} && \
+          cmake --build build --target ${TARGET} --config ${CONFIG}
+        shell: bash
+
+      # Code coverage (process and upload reports)
+      - name: codecov
+        if: matrix.codecov == 'YES'
+        uses: mfem/github-actions/upload-coverage@v2.5
+        with:
+          name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+          project_dir: ${{ env.MFEM_TOP_DIR }}
+          directories: "fem general linalg mesh"

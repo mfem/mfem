@@ -1,16 +1,16 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 #include <iostream>
 #include <string>
@@ -54,33 +54,34 @@ TEST_CASE("InverseElementTransformation",
 {
    typedef InverseElementTransformation InvTransform;
 
-   // Create quadratic with single C-shaped quadrilateral
-   std::stringstream meshStr;
-   meshStr << meshPrefixStr << CShapedNodesStr;
-   Mesh mesh( meshStr );
-
-   REQUIRE( mesh.GetNE() == 1 );
-   REQUIRE( mesh.GetNodes() != NULL );
-
-   // Optionally, dump mesh to disk
-   bool dumpMesh = false;
-   if (dumpMesh)
-   {
-      std::string filename = "c_shaped_quadratic_mesh";
-      VisItDataCollection dataCol(filename, &mesh);
-      dataCol.Save();
-   }
-
-   const int res = 100;
-   const int dim = 2;
-   const double tol = 2e-14;
+   const real_t tol = 2e-14;
 
    SECTION("{ C-shaped Q2 Quad }")
    {
+      // Create quadratic with single C-shaped quadrilateral
+      std::stringstream meshStr;
+      meshStr << meshPrefixStr << CShapedNodesStr;
+      Mesh mesh( meshStr );
+
+      REQUIRE( mesh.GetNE() == 1 );
+      REQUIRE( mesh.GetNodes() != nullptr );
+
+      // Optionally, dump mesh to disk
+      bool dumpMesh = false;
+      if (dumpMesh)
+      {
+         std::string filename = "c_shaped_quadratic_mesh";
+         VisItDataCollection dataCol(filename, &mesh);
+         dataCol.Save();
+      }
+
+      const int times = 100;
+      const int dim = 2;
+
       // Create a uniform grid of integration points over the element
       const int geom = mesh.GetElementBaseGeometry(0);
       RefinedGeometry* ref =
-         GlobGeometryRefiner.Refine(Geometry::Type(geom), res);
+         GlobGeometryRefiner.Refine(Geometry::Type(geom), times);
       const IntegrationRule& intRule = ref->RefPts;
 
       // Create a transformation
@@ -90,7 +91,7 @@ TEST_CASE("InverseElementTransformation",
 
       const int npts = intRule.GetNPoints();
       int pts_found = 0;
-      double max_err = 0.0;
+      real_t max_err = 0.0;
       for (int i=0; i<npts; ++i)
       {
          // Transform the integration point into space
@@ -112,8 +113,7 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
-      std::cout << "Points found: " << pts_found << '/' << npts << '\n'
-                << "Maximum error: " << max_err << '\n';
+      CAPTURE(pts_found, npts, max_err);
       REQUIRE( pts_found == npts );
       REQUIRE( max_err <= tol );
    }
@@ -121,11 +121,11 @@ TEST_CASE("InverseElementTransformation",
    SECTION("{ Spiral Q20 Quad }")
    {
       // Load the spiral mesh from file:
-      std::ifstream mesh_file("data/quad-spiral-q20.mesh");
+      std::ifstream mesh_file("./data/quad-spiral-q20.mesh");
       REQUIRE( mesh_file.good() );
 
       const int npts = 100; // number of random points to test
-      const int min_found_pts = 94;
+      const int min_found_pts = 93;
       const int rand_seed = 189548;
       srand(rand_seed);
 
@@ -146,7 +146,7 @@ TEST_CASE("InverseElementTransformation",
       Vector pt;
 
       int pts_found = 0;
-      double max_err = 0.0;
+      real_t max_err = 0.0;
       for (int i = 0; i < npts; i++)
       {
          Geometry::GetRandomPoint(T.GetGeometryType(), ip);
@@ -162,8 +162,7 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
-      std::cout << "Points found: " << pts_found << '/' << npts << '\n'
-                << "Maximum error: " << max_err << '\n';
+      CAPTURE(pts_found, npts, max_err);
       REQUIRE( pts_found >= min_found_pts );
       REQUIRE( max_err <= tol );
    }

@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+# cling is installed here (in bin) and will look in {dir}/include and {dir}/lib
+# without extra intervention (jk it doesn't look in {dir}/lib unless something
+# has been #included from {dir}/include first...)
+install_dir=/srv/conda/envs/notebook
+mkdir -p $install_dir
+
+# build and install mfem, which is the directory we start in
+make serial SHARED=YES -j8
+make install PREFIX=$install_dir
+
+# install xeus-glvis
+git clone https://github.com/GLVis/xeus-glvis.git
+pushd xeus-glvis
+make install prefix=$install_dir
+popd
+
+# install jupyter-lab extension
+jupyter labextension install @jupyter-widgets/jupyterlab-manager --no-build
+jupyter labextension install glvis-jupyter
+
+# fixup kernelspec, we could probably do this from sh but ¯\_(ツ)_/¯
+python .binder/update_kernel_env.py

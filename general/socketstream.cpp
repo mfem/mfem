@@ -1,16 +1,16 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifdef _WIN32
-// Turn off CRT deprecation warnings for strerror (VS 2013)
+// Turn off CRT deprecation warnings for strerror
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -19,22 +19,24 @@
 #include <cstring>      // memset, memcpy, strerror
 #include <cerrno>       // errno
 #ifndef _WIN32
-#include <netdb.h>      // gethostbyname
+#include <netdb.h>      // getaddrinfo
 #include <arpa/inet.h>  // htons
 #include <sys/types.h>  // socket, setsockopt, connect, recv, send
 #include <sys/socket.h> // socket, setsockopt, connect, recv, send
 #include <unistd.h>     // close
-#include <netinet/in.h> // sockaddr_in
 #define closesocket (::close)
 #else
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#ifdef _MSC_VER
 typedef int ssize_t;
+typedef int socklen_t;
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #endif
+#endif
 
 #ifdef MFEM_USE_GNUTLS
-#include <cstdlib>  // getenv
 #ifndef MFEM_USE_GNUTLS_X509
 #include <gnutls/openpgp.h>
 #endif
@@ -44,6 +46,40 @@ typedef int ssize_t;
 
 namespace mfem
 {
+
+// Helper class for handling Winsock initialization calls.
+class WinsockWrapper
+{
+public:
+   WinsockWrapper()
+   {
+#ifdef _WIN32
+      WSADATA wsaData;
+      int err_flag = WSAStartup(MAKEWORD(2,2), &wsaData);
+      if (err_flag != 0)
+      {
+         mfem::err << "Error occurred during initialization of WinSock."
+                   << std::endl;
+         return;
+      }
+#endif
+      initialized = true;
+   }
+
+#ifdef _WIN32
+   ~WinsockWrapper() { WSACleanup(); }
+#endif
+
+   WinsockWrapper(const WinsockWrapper&) = delete;
+   WinsockWrapper& operator=(const WinsockWrapper&) = delete;
+
+   bool Initialized() { return initialized; }
+private:
+   bool initialized = false;
+};
+
+// If available, Winsock is initialized when this object is constructed.
+static WinsockWrapper wsInit_;
 
 int socketbuf::attach(int sd)
 {
@@ -57,50 +93,71 @@ int socketbuf::attach(int sd)
 
 int socketbuf::open(const char hostname[], int port)
 {
-   struct sockaddr_in  sa;
-   struct hostent     *hp;
+   struct addrinfo     hints, *res, *rp;
+
+   if (!wsInit_.Initialized())
+   {
+      mfem_error("Attempting to open socket, but Winsock not initialized.");
+   }
 
    close();
    setg(NULL, NULL, NULL);
    setp(obuf, obuf + buflen);
 
-   hp = gethostbyname(hostname);
-   if (hp == NULL)
+   hints.ai_family = AF_UNSPEC;
+   hints.ai_socktype = SOCK_STREAM;
+   hints.ai_flags = 0;
+   hints.ai_protocol = 0;
+   // On Windows, the following need to be set to 0; also required by POSIX.
+   hints.ai_addrlen = 0;
+   hints.ai_canonname = NULL;
+   hints.ai_addr = NULL;
+   hints.ai_next = NULL;
+
+   std::string portStr = std::to_string(port);
+   int s = getaddrinfo(hostname, portStr.c_str(), &hints, &res);
+   if (s != 0)
    {
+#ifdef MFEM_DEBUG
+      mfem::err << "Error in getaddrinfo(): code = " << s << std::endl;
+#endif
       socket_descriptor = -3;
       return -1;
    }
-   memset(&sa, 0, sizeof(sa));
-   memcpy((char *)&sa.sin_addr, hp->h_addr, hp->h_length);
-   sa.sin_family = hp->h_addrtype;
-   sa.sin_port = htons(port);
-   socket_descriptor = socket(hp->h_addrtype, SOCK_STREAM, 0);
-   if (socket_descriptor < 0)
+
+   for (rp = res; rp != NULL; rp = rp->ai_next)
    {
-      return -1;
-   }
+      socket_descriptor = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      if (socket_descriptor < 0)
+      {
+         continue;
+      }
 
 #if defined __APPLE__
-   // OS X does not support the MSG_NOSIGNAL option of send().
-   // Instead we can use the SO_NOSIGPIPE socket option.
-   int on = 1;
-   if (setsockopt(socket_descriptor, SOL_SOCKET, SO_NOSIGPIPE,
-                  (char *)(&on), sizeof(on)) < 0)
-   {
-      closesocket(socket_descriptor);
-      socket_descriptor = -2;
-      return -1;
-   }
+      // OS X does not support the MSG_NOSIGNAL option of send().
+      // Instead we can use the SO_NOSIGPIPE socket option.
+      int on = 1;
+      if (setsockopt(socket_descriptor, SOL_SOCKET, SO_NOSIGPIPE,
+                     &on, sizeof(on)) < 0)
+      {
+         closesocket(socket_descriptor);
+         socket_descriptor = -2;
+         continue;
+      }
 #endif
 
-   if (connect(socket_descriptor,
-               (const struct sockaddr *)&sa, sizeof(sa)) < 0)
-   {
-      closesocket(socket_descriptor);
-      socket_descriptor = -2;
-      return -1;
+      if (connect(socket_descriptor, rp->ai_addr,
+                  static_cast<socklen_t>(rp->ai_addrlen)) < 0)
+      {
+         closesocket(socket_descriptor);
+         socket_descriptor = -2;
+         continue;
+      }
+      break;
    }
-   return 0;
+
+   freeaddrinfo(res);
+   return (socket_descriptor < 0) ? -1 : 0;
 }
 
 int socketbuf::close()
@@ -108,9 +165,9 @@ int socketbuf::close()
    if (is_open())
    {
       pubsync();
-      int err = closesocket(socket_descriptor);
+      int err_flag = closesocket(socket_descriptor);
       socket_descriptor = -1;
-      return err;
+      return err_flag;
    }
    return 0;
 }
@@ -129,7 +186,7 @@ int socketbuf::sync()
       if (bw < 0)
       {
 #ifdef MFEM_DEBUG
-         mfem::out << "Error in send(): " << strerror(errno) << std::endl;
+         mfem::err << "Error in send(): " << strerror(errno) << std::endl;
 #endif
          setp(pptr() - n, obuf + buflen);
          pbump(n);
@@ -152,7 +209,7 @@ socketbuf::int_type socketbuf::underflow()
 #ifdef MFEM_DEBUG
       if (br < 0)
       {
-         mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
+         mfem::err << "Error in recv(): " << strerror(errno) << std::endl;
       }
 #endif
       setg(NULL, NULL, NULL);
@@ -177,21 +234,21 @@ socketbuf::int_type socketbuf::overflow(int_type c)
    return c;
 }
 
-std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
+std::streamsize socketbuf::xsgetn(char_type *s__, std::streamsize n__)
 {
-   // mfem::out << "[socketbuf::xsgetn __n=" << __n << ']'
+   // mfem::out << "[socketbuf::xsgetn n__=" << n__ << ']'
    //           << std::endl;
    const std::streamsize bn = egptr() - gptr();
-   if (__n <= bn)
+   if (n__ <= bn)
    {
-      traits_type::copy(__s, gptr(), __n);
-      gbump(__n);
-      return __n;
+      traits_type::copy(s__, gptr(), n__);
+      gbump(n__);
+      return n__;
    }
-   traits_type::copy(__s, gptr(), bn);
+   traits_type::copy(s__, gptr(), bn);
    setg(NULL, NULL, NULL);
-   std::streamsize remain = __n - bn;
-   char_type *end = __s + __n;
+   std::streamsize remain = n__ - bn;
+   char_type *end = s__ + n__;
    ssize_t br;
    while (remain > 0)
    {
@@ -201,33 +258,33 @@ std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
 #ifdef MFEM_DEBUG
          if (br < 0)
          {
-            mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
+            mfem::err << "Error in recv(): " << strerror(errno) << std::endl;
          }
 #endif
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= br;
    }
-   return __n;
+   return n__;
 }
 
-std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
+std::streamsize socketbuf::xsputn(const char_type *s__, std::streamsize n__)
 {
-   // mfem::out << "[socketbuf::xsputn __n=" << __n << ']'
+   // mfem::out << "[socketbuf::xsputn n__=" << n__ << ']'
    //           << std::endl;
-   if (pptr() + __n <= epptr())
+   if (pptr() + n__ <= epptr())
    {
-      traits_type::copy(pptr(), __s, __n);
-      pbump(__n);
-      return __n;
+      traits_type::copy(pptr(), s__, n__);
+      pbump(n__);
+      return n__;
    }
    if (sync() < 0)
    {
       return 0;
    }
    ssize_t bw;
-   std::streamsize remain = __n;
-   const char_type *end = __s + __n;
+   std::streamsize remain = n__;
+   const char_type *end = s__ + n__;
    while (remain > buflen)
    {
 #ifdef MSG_NOSIGNAL
@@ -238,9 +295,9 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
       if (bw < 0)
       {
 #ifdef MFEM_DEBUG
-         mfem::out << "Error in send(): " << strerror(errno) << std::endl;
+         mfem::err << "Error in send(): " << strerror(errno) << std::endl;
 #endif
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= bw;
    }
@@ -249,7 +306,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
       traits_type::copy(pptr(), end - remain, remain);
       pbump(remain);
    }
-   return __n;
+   return n__;
 }
 
 
@@ -294,9 +351,9 @@ int socketserver::close()
    {
       return 0;
    }
-   int err = closesocket(listen_socket);
+   int err_flag = closesocket(listen_socket);
    listen_socket = -1;
-   return err;
+   return err_flag;
 }
 
 int socketserver::accept()
@@ -385,29 +442,30 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    int ret = gnutls_certificate_verify_peers3(session, hostname, &status);
    if (ret < 0)
    {
-      mfem::out << "Error in gnutls_certificate_verify_peers3:"
+      mfem::err << "Error in gnutls_certificate_verify_peers3:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
 
 #ifdef MFEM_DEBUG
-   gnutls_datum_t out;
+   gnutls_datum_t status_str;
    gnutls_certificate_type_t type = gnutls_certificate_type_get(session);
-   ret = gnutls_certificate_verification_status_print(status, type, &out, 0);
+   ret = gnutls_certificate_verification_status_print(
+            status, type, &status_str, 0);
    if (ret < 0)
    {
-      mfem::out << "Error in gnutls_certificate_verification_status_print:"
+      mfem::err << "Error in gnutls_certificate_verification_status_print:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
-   mfem::out << out.data << std::endl;
-   gnutls_free(out.data);
+   mfem::out << status_str.data << std::endl;
+   gnutls_free(status_str.data);
 #endif
 #else // --> GNUTLS_VERSION_NUMBER < 0x030104
    int ret = gnutls_certificate_verify_peers2(session, &status);
    if (ret < 0)
    {
-      mfem::out << "Error in gnutls_certificate_verify_peers2:"
+      mfem::err << "Error in gnutls_certificate_verify_peers2:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
@@ -511,11 +569,11 @@ void GnuTLS_socketbuf::handshake()
 #endif
 
    // Called at the end of start_session.
-   int err;
+   int err_flag;
    do
    {
-      err = gnutls_handshake(session);
-      status.set_result(err);
+      err_flag = gnutls_handshake(session);
+      status.set_result(err_flag);
       if (status.good())
       {
 #if 0
@@ -526,7 +584,7 @@ void GnuTLS_socketbuf::handshake()
          return;
       }
    }
-   while (err == GNUTLS_E_INTERRUPTED || err == GNUTLS_E_AGAIN);
+   while (err_flag == GNUTLS_E_INTERRUPTED || err_flag == GNUTLS_E_AGAIN);
 #ifdef MFEM_DEBUG
    status.print_on_error("gnutls_handshake");
 #endif
@@ -594,7 +652,7 @@ void GnuTLS_socketbuf::start_session()
       status.print_on_error("gnutls_priority_set_direct");
       if (!status.good())
       {
-         mfem::out << "Error ptr = \"" << err_ptr << '"' << std::endl;
+         mfem::err << "Error ptr = \"" << err_ptr << '"' << std::endl;
       }
    }
 
@@ -640,14 +698,14 @@ void GnuTLS_socketbuf::start_session()
       status.set_result(mfem_gnutls_verify_callback(session));
       if (!status.good())
       {
-         int err;
+         int err_flag;
          do
          {
             // Close the connection without waiting for close reply, i.e. we
             // use GNUTLS_SHUT_WR.
-            err = gnutls_bye(session, GNUTLS_SHUT_WR);
+            err_flag = gnutls_bye(session, GNUTLS_SHUT_WR);
          }
-         while (err == GNUTLS_E_AGAIN || err == GNUTLS_E_INTERRUPTED);
+         while (err_flag == GNUTLS_E_AGAIN || err_flag == GNUTLS_E_INTERRUPTED);
       }
    }
 #endif
@@ -682,14 +740,15 @@ void GnuTLS_socketbuf::end_session()
 #ifdef MFEM_USE_GNUTLS_DEBUG
       mfem::out << "[GnuTLS_socketbuf::end_session: gnutls_bye]" << std::endl;
 #endif
-      int err;
+      int err_flag;
       do
       {
-         // err = gnutls_bye(session, GNUTLS_SHUT_RDWR);
-         err = gnutls_bye(session, GNUTLS_SHUT_WR); // does not wait for reply
-         status.set_result(err);
+         // err_flag = gnutls_bye(session, GNUTLS_SHUT_RDWR);
+         err_flag = gnutls_bye(session,
+                               GNUTLS_SHUT_WR); // does not wait for reply
+         status.set_result(err_flag);
       }
-      while (err == GNUTLS_E_AGAIN || err == GNUTLS_E_INTERRUPTED);
+      while (err_flag == GNUTLS_E_AGAIN || err_flag == GNUTLS_E_INTERRUPTED);
       status.print_on_error("gnutls_bye");
    }
 
@@ -718,8 +777,8 @@ int GnuTLS_socketbuf::open(const char hostname[], int port)
    mfem::out << "[GnuTLS_socketbuf::open]" << std::endl;
 #endif
 
-   int err = socketbuf::open(hostname, port); // calls close()
-   if (err) { return err; }
+   int err_flag = socketbuf::open(hostname, port); // calls close()
+   if (err_flag) { return err_flag; }
 
    start_session();
 
@@ -734,9 +793,9 @@ int GnuTLS_socketbuf::close()
 
    end_session();
 
-   int err = socketbuf::close();
+   int err_flag = socketbuf::close();
 
-   return status.good() ? err : -100;
+   return status.good() ? err_flag : -100;
 }
 
 int GnuTLS_socketbuf::sync()
@@ -803,24 +862,24 @@ GnuTLS_socketbuf::int_type GnuTLS_socketbuf::underflow()
    return traits_type::to_int_type(*ibuf);
 }
 
-std::streamsize GnuTLS_socketbuf::xsgetn(char_type *__s, std::streamsize __n)
+std::streamsize GnuTLS_socketbuf::xsgetn(char_type *s__, std::streamsize n__)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   mfem::out << "[GnuTLS_socketbuf::xsgetn __n=" << __n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::xsgetn n__=" << n__ << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return 0; }
 
    const std::streamsize bn = egptr() - gptr();
-   if (__n <= bn)
+   if (n__ <= bn)
    {
-      traits_type::copy(__s, gptr(), __n);
-      gbump(__n);
-      return __n;
+      traits_type::copy(s__, gptr(), n__);
+      gbump(n__);
+      return n__;
    }
-   traits_type::copy(__s, gptr(), bn);
+   traits_type::copy(s__, gptr(), bn);
    setg(NULL, NULL, NULL);
-   std::streamsize remain = __n - bn;
-   char_type *end = __s + __n;
+   std::streamsize remain = n__ - bn;
+   char_type *end = s__ + n__;
    ssize_t br;
    while (remain > 0)
    {
@@ -842,34 +901,34 @@ std::streamsize GnuTLS_socketbuf::xsgetn(char_type *__s, std::streamsize __n)
             status.print_on_error("gnutls_record_recv");
 #endif
          }
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= br;
    }
-   return __n;
+   return n__;
 }
 
-std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
-                                         std::streamsize __n)
+std::streamsize GnuTLS_socketbuf::xsputn(const char_type *s__,
+                                         std::streamsize n__)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   mfem::out << "[GnuTLS_socketbuf::xsputn __n=" << __n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::xsputn n__=" << n__ << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return 0; }
 
-   if (pptr() + __n <= epptr())
+   if (pptr() + n__ <= epptr())
    {
-      traits_type::copy(pptr(), __s, __n);
-      pbump(__n);
-      return __n;
+      traits_type::copy(pptr(), s__, n__);
+      pbump(n__);
+      return n__;
    }
    if (sync() < 0)
    {
       return 0;
    }
    ssize_t bw;
-   std::streamsize remain = __n;
-   const char_type *end = __s + __n;
+   std::streamsize remain = n__;
+   const char_type *end = s__ + n__;
    while (remain > buflen)
    {
       bw = gnutls_record_send(session, end - remain, remain);
@@ -883,7 +942,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
 #ifdef MFEM_DEBUG
          status.print_on_error("gnutls_record_send");
 #endif
-         return (__n - remain);
+         return (n__ - remain);
       }
       remain -= bw;
    }
@@ -892,7 +951,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
       traits_type::copy(pptr(), end - remain, remain);
       pbump(remain);
    }
-   return __n;
+   return n__;
 }
 
 
@@ -907,7 +966,7 @@ GnuTLS_session_params &socketstream::add_socket()
    {
       state = new GnuTLS_global_state;
       // state->set_log_level(1000);
-      std::string home_dir(getenv("HOME"));
+      std::string home_dir(GetEnv("HOME"));
       std::string client_dir = home_dir + "/.config/glvis/client/";
 #ifndef MFEM_USE_GNUTLS_X509
       std::string pubkey  = client_dir + "pubring.gpg";
@@ -923,10 +982,10 @@ GnuTLS_session_params &socketstream::add_socket()
          GNUTLS_CLIENT);
       if (!params->status.good())
       {
-         mfem::out << "  public key   = " << pubkey << '\n'
+         mfem::err << "  public key   = " << pubkey << '\n'
                    << "  private key  = " << privkey << '\n'
                    << "  trusted keys = " << trustedkeys << std::endl;
-         mfem::out << "Error setting GLVis client parameters.\n"
+         mfem::err << "Error setting GLVis client parameters.\n"
                    "Use the following GLVis script to create your GLVis keys:\n"
                    "   bash glvis-keygen.sh [\"Your Name\"] [\"Your Email\"]"
                    << std::endl;
@@ -1007,8 +1066,8 @@ socketstream::socketstream(int s, bool secure) : std::iostream(0)
 
 int socketstream::open(const char hostname[], int port)
 {
-   int err = buf__->open(hostname, port);
-   if (err)
+   int err_flag = buf__->open(hostname, port);
+   if (err_flag)
    {
       setstate(std::ios::failbit);
    }
@@ -1016,7 +1075,7 @@ int socketstream::open(const char hostname[], int port)
    {
       clear();
    }
-   return err;
+   return err_flag;
 }
 
 socketstream::~socketstream()

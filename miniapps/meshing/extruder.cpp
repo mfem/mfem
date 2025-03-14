@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //   ------------------------------------------------------------------------
 //   Extruder Miniapp: Extrude a low-dimensional mesh into a higher dimension
@@ -51,9 +51,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = -1;
    int ny = -1, nz = -1; // < 0: autoselect based on the initial mesh dimension
-   double wy = 1.0, hz = 1.0;
+   real_t wy = 1.0, hz = 1.0;
    bool trans = false;
    bool visualization = 1;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -75,6 +76,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -105,7 +107,7 @@ int main(int argc, char *argv[])
    int meshOrder = 1;
    if (mesh->GetNodalFESpace() != NULL)
    {
-      meshOrder = mesh->GetNodalFESpace()->GetOrder(0);
+      meshOrder = mesh->GetNodalFESpace()->GetElementOrder(0);
    }
    if (order < 0 && trans)
    {
@@ -159,7 +161,6 @@ int main(int argc, char *argv[])
       {
          // GLVis server to visualize to
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          sol_sock.precision(8);
          sol_sock << "mesh\n" << *mesh << flush;
@@ -186,8 +187,8 @@ void trans2D(const Vector&x, Vector&p)
 
 void trans3D(const Vector&x, Vector&p)
 {
-   double r = sqrt(x[0] * x[0] + x[1] * x[1]);
-   double theta = atan2(x[1], x[0]);
+   real_t r = sqrt(x[0] * x[0] + x[1] * x[1]);
+   real_t theta = atan2(x[1], x[0]);
    p[0] = r * cos(theta + 0.25 * M_PI * x[2]);
    p[1] = r * sin(theta + 0.25 * M_PI * x[2]);
    p[2] = x[2];

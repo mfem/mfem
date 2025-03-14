@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PNONLINEARFORM
 #define MFEM_PNONLINEARFORM
@@ -40,22 +40,22 @@ public:
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
-   double GetParGridFunctionEnergy(const Vector &x) const;
+   real_t GetParGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy of a ParGridFunction
-   double GetEnergy(const ParGridFunction &x) const
+   real_t GetEnergy(const ParGridFunction &x) const
    { return GetParGridFunctionEnergy(x); }
 
-   virtual double GetEnergy(const Vector &x) const
+   real_t GetEnergy(const Vector &x) const override
    { return GetParGridFunctionEnergy(Prolongate(x)); }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Return the local gradient matrix for the given true-dof vector x.
    /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
@@ -64,7 +64,7 @@ public:
        parallel FE space. */
    /** After calling this method, the essential boundary conditions need to be
        set again. */
-   virtual void Update();
+   void Update() override;
 
    virtual ~ParNonlinearForm() { }
 };
@@ -82,6 +82,9 @@ protected:
    mutable BlockOperator *pBlockGrad;
 
 public:
+   /// Computes the energy of the system
+   real_t GetEnergy(const Vector &x) const override;
+
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
    ParBlockNonlinearForm() : pBlockGrad(NULL) { }
 
@@ -100,15 +103,16 @@ public:
    void SetParSpaces(Array<ParFiniteElementSpace *> &pf);
 
    // Here, rhs is a true dof vector
-   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                               Array<Vector *> &rhs);
+   void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                       Array<Vector *> &rhs) override;
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   /// Block T-Vector to Block T-Vector
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
 
-   virtual BlockOperator &GetGradient(const Vector &x) const;
+   BlockOperator &GetGradient(const Vector &x) const override;
 
    /** @brief Set the operator type id for the blocks of the parallel gradient
        matrix/operator. The default type is Operator::Hypre_ParCSR. */

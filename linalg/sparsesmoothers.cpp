@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data types for sparse matrix smoothers
 
@@ -52,7 +52,7 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
 }
 
 /// Create the Jacobi smoother.
-DSmoother::DSmoother(const SparseMatrix &a, int t, double s, int it)
+DSmoother::DSmoother(const SparseMatrix &a, int t, real_t s, int it)
    : SparseSmoother(a)
 {
    type = t;
@@ -65,7 +65,7 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
 {
    if (!iterative_mode && type == 0 && iterations == 1)
    {
-      oper->DiagScale(x, y, scale);
+      oper->DiagScale(x, y, scale, use_abs_diag);
       return;
    }
 
@@ -90,7 +90,7 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
    {
       if (type == 0)
       {
-         oper->Jacobi(x, *p, *r, scale);
+         oper->Jacobi(x, *p, *r, scale, use_abs_diag);
       }
       else if (type == 1)
       {

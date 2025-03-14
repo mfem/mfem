@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
@@ -19,11 +19,13 @@ namespace mfem
 ElementTransformation::ElementTransformation()
    : IntPoint(static_cast<IntegrationPoint *>(NULL)),
      EvalState(0),
+     geom(Geometry::INVALID),
      Attribute(-1),
-     ElementNo(-1)
+     ElementNo(-1),
+     mesh(nullptr)
 { }
 
-double ElementTransformation::EvalWeight()
+real_t ElementTransformation::EvalWeight()
 {
    MFEM_ASSERT((EvalState & WEIGHT_MASK) == 0, "");
    Jacobian();
@@ -39,6 +41,17 @@ const DenseMatrix &ElementTransformation::EvalAdjugateJ()
    if (dFdx.Width() > 0) { CalcAdjugate(dFdx, adjJ); }
    EvalState |= ADJUGATE_MASK;
    return adjJ;
+}
+
+const DenseMatrix &ElementTransformation::EvalTransAdjugateJ()
+{
+   MFEM_ASSERT((EvalState & TRANS_ADJUGATE_MASK) == 0, "");
+   Jacobian();
+   adjJT.SetSize(dFdx.Height(), dFdx.Width());
+   if (dFdx.Width() == dFdx.Height()) { CalcAdjugateTranspose(dFdx, adjJT); }
+   else { AdjugateJacobian(); adjJT.Transpose(adjJ); }
+   EvalState |= TRANS_ADJUGATE_MASK;
+   return adjJT;
 }
 
 const DenseMatrix &ElementTransformation::EvalInverseJ()
@@ -65,13 +78,13 @@ int InverseElementTransformation::FindClosestPhysPoint(
 
    // Initialize distance and index of closest point
    int minIndex = -1;
-   double minDist = std::numeric_limits<double>::max();
+   real_t minDist = std::numeric_limits<real_t>::max();
 
    // Check all integration points in ir
    const int npts = ir.GetNPoints();
    for (int i = 0; i < npts; ++i)
    {
-      double dist = pt.DistanceTo(physPts.GetColumn(i));
+      real_t dist = pt.DistanceTo(physPts.GetColumn(i));
       if (dist < minDist)
       {
          minDist = dist;
@@ -89,7 +102,7 @@ int InverseElementTransformation::FindClosestRefPoint(
 
    // Initialize distance and index of closest point
    int minIndex = -1;
-   double minDist = std::numeric_limits<double>::max();
+   real_t minDist = std::numeric_limits<real_t>::max();
 
    // Check all integration points in ir using the local metric at each point
    // induced by the transformation.
@@ -102,7 +115,7 @@ int InverseElementTransformation::FindClosestRefPoint(
       dp -= pt;
       T->SetIntPoint(&ip);
       T->InverseJacobian().Mult(dp, dr);
-      double dist = dr.Norml2();
+      real_t dist = dr.Norml2();
       // double dist = dr.Normlinf();
       if (dist < minDist)
       {
@@ -113,32 +126,32 @@ int InverseElementTransformation::FindClosestRefPoint(
    return minIndex;
 }
 
-void InverseElementTransformation::NewtonPrint(int mode, double val)
+void InverseElementTransformation::NewtonPrint(int mode, real_t val)
 {
-   std::ostream &out = mfem::out;
+   std::ostream &os = mfem::out;
 
    // separator:
    switch (mode%3)
    {
-      case 0: out << ", "; break;
-      case 1: out << "Newton: "; break;
-      case 2: out << "                   "; break;
+      case 0: os << ", "; break;
+      case 1: os << "Newton: "; break;
+      case 2: os << "                   "; break;
          //          "Newton: iter = xx, "
    }
    switch ((mode/3)%4)
    {
-      case 0: out << "iter = " << std::setw(2) << int(val); break;
-      case 1: out << "delta_ref = " << std::setw(11) << val; break;
-      case 2: out << " err_phys = " << std::setw(11) << val; break;
+      case 0: os << "iter = " << std::setw(2) << int(val); break;
+      case 1: os << "delta_ref = " << std::setw(11) << val; break;
+      case 2: os << " err_phys = " << std::setw(11) << val; break;
       case 3: break;
    }
    // ending:
    switch ((mode/12)%4)
    {
       case 0: break;
-      case 1: out << '\n'; break;
-      case 2: out << " (converged)\n"; break;
-      case 3: out << " (actual)\n"; break;
+      case 1: os << '\n'; break;
+      case 2: os << " (converged)\n"; break;
+      case 3: os << " (actual)\n"; break;
    }
 }
 
@@ -146,14 +159,14 @@ void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
                                                     const Vector &pt,
                                                     const char *suffix)
 {
-   std::ostream &out = mfem::out;
+   std::ostream &os = mfem::out;
 
-   out << prefix << " = (";
+   os << prefix << " = (";
    for (int j = 0; j < pt.Size(); j++)
    {
-      out << (j > 0 ? ", " : "") << pt(j);
+      os << (j > 0 ? ", " : "") << pt(j);
    }
-   out << ')' << suffix;
+   os << ')' << suffix;
 }
 
 int InverseElementTransformation::NewtonSolve(const Vector &pt,
@@ -161,13 +174,13 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
 {
    MFEM_ASSERT(pt.Size() == T->GetSpaceDim(), "invalid point");
 
-   const double phys_tol = phys_rtol*pt.Normlinf();
+   const real_t phys_tol = phys_rtol*pt.Normlinf();
 
    const int geom = T->GetGeometryType();
    const int dim = T->GetDimension();
    const int sdim = T->GetSpaceDim();
    IntegrationPoint xip, prev_xip;
-   double xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm = -1.0;
+   real_t xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm = -1.0;
    Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
    bool hit_bdr = false, prev_hit_bdr = false;
 
@@ -212,7 +225,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
       {
          if (print_level >= 1)
          {
-            NewtonPrint(1, (double)it);
+            NewtonPrint(1, (real_t)it);
             NewtonPrint(3, dx_norm);
             NewtonPrint(30, err_phys);
          }
@@ -224,7 +237,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
       {
          if (it == 0 || print_level >= 2)
          {
-            NewtonPrint(1, (double)it);
+            NewtonPrint(1, (real_t)it);
             NewtonPrint(3, dx_norm);
             NewtonPrint(18, err_phys);
          }
@@ -248,7 +261,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
                {
                   if (print_level <= 1)
                   {
-                     NewtonPrint(1, (double)it);
+                     NewtonPrint(1, (real_t)it);
                      NewtonPrint(3, dx_norm);
                      NewtonPrint(18, err_phys);
                      NewtonPrint(41, real_dx_norm);
@@ -286,7 +299,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
       }
       if (print_level >= 3)
       {
-         NewtonPrint(1, double(it));
+         NewtonPrint(1, real_t(it));
          xip.Get(xd, dim); // xip -> x
          NewtonPrintPoint(",    ref_pt", x, "\n");
       }
@@ -297,7 +310,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
       {
          if (print_level >= 1)
          {
-            NewtonPrint(1, (double)it);
+            NewtonPrint(1, (real_t)it);
             NewtonPrint(27, dx_norm);
          }
          ip = xip;
@@ -309,7 +322,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    {
       if (print_level <= 1)
       {
-         NewtonPrint(1, (double)max_iter);
+         NewtonPrint(1, (real_t)max_iter);
          NewtonPrint(3, dx_norm);
          NewtonPrint(18, err_phys);
          if (hit_bdr) { NewtonPrint(41, real_dx_norm); }
@@ -342,15 +355,11 @@ int InverseElementTransformation::Transform(const Vector &pt,
          }
          else
          {
-            const int old_type = GlobGeometryRefiner.GetType();
-            GlobGeometryRefiner.SetType(qpts_type);
-            RefinedGeometry &RefG =
-               *GlobGeometryRefiner.Refine(T->GetGeometryType(), order);
+            RefinedGeometry &RefG = *refiner.Refine(T->GetGeometryType(), order);
             int closest_idx = (init_guess_type == ClosestPhysNode) ?
                               FindClosestPhysPoint(pt, RefG.RefPts) :
                               FindClosestRefPoint(pt, RefG.RefPts);
             ip0 = &RefG.RefPts.IntPoint(closest_idx);
-            GlobGeometryRefiner.SetType(old_type);
          }
          break;
       }
@@ -379,6 +388,7 @@ void IsoparametricTransformation::SetIdentityTransformation(
       case Geometry::TETRAHEDRON : FElem = &TetrahedronFE; break;
       case Geometry::CUBE :        FElem = &HexahedronFE; break;
       case Geometry::PRISM :       FElem = &WedgeFE; break;
+      case Geometry::PYRAMID :     FElem = &PyramidFE; break;
       default:
          MFEM_ABORT("unknown Geometry::Type!");
    }
@@ -391,14 +401,10 @@ void IsoparametricTransformation::SetIdentityTransformation(
       nodes.IntPoint(j).Get(&PointMat(0,j), dim);
    }
    geom = GeomType;
-   space_dim = dim;
 }
 
 const DenseMatrix &IsoparametricTransformation::EvalJacobian()
 {
-   MFEM_ASSERT(space_dim == PointMat.Height(),
-               "the IsoparametricTransformation has not been finalized;"
-               " call FinilizeTransformation() after setup");
    MFEM_ASSERT((EvalState & JACOBIAN_MASK) == 0, "");
 
    dshape.SetSize(FElem->GetDof(), FElem->GetDim());
@@ -413,7 +419,24 @@ const DenseMatrix &IsoparametricTransformation::EvalJacobian()
    return dFdx;
 }
 
-int IsoparametricTransformation::OrderJ()
+const DenseMatrix &IsoparametricTransformation::EvalHessian()
+{
+   MFEM_ASSERT((EvalState & HESSIAN_MASK) == 0, "");
+
+   int Dim = FElem->GetDim();
+   d2shape.SetSize(FElem->GetDof(), (Dim*(Dim+1))/2);
+   d2Fdx2.SetSize(PointMat.Height(), d2shape.Width());
+   if (d2shape.Width() > 0)
+   {
+      FElem->CalcHessian(*IntPoint, d2shape);
+      Mult(PointMat, d2shape, d2Fdx2);
+   }
+   EvalState |= HESSIAN_MASK;
+
+   return d2Fdx2;
+}
+
+int IsoparametricTransformation::OrderJ() const
 {
    switch (FElem->Space())
    {
@@ -422,12 +445,12 @@ int IsoparametricTransformation::OrderJ()
       case FunctionSpace::Qk:
          return (FElem->GetOrder());
       default:
-         mfem_error("IsoparametricTransformation::OrderJ()");
+         MFEM_ABORT("unsupported finite element");
    }
    return 0;
 }
 
-int IsoparametricTransformation::OrderW()
+int IsoparametricTransformation::OrderW() const
 {
    switch (FElem->Space())
    {
@@ -436,12 +459,12 @@ int IsoparametricTransformation::OrderW()
       case FunctionSpace::Qk:
          return (FElem->GetOrder() * FElem->GetDim() - 1);
       default:
-         mfem_error("IsoparametricTransformation::OrderW()");
+         MFEM_ABORT("unsupported finite element");
    }
    return 0;
 }
 
-int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
+int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 {
    if (FElem->Space() == fe->Space())
    {
@@ -454,15 +477,18 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
             return ((k-1)*(d-1)+(l-1));
          case FunctionSpace::Qk:
             return (k*(d-1)+(l-1));
+         default:
+            MFEM_ABORT("unsupported finite element");
       }
    }
-   mfem_error("IsoparametricTransformation::OrderGrad(...)");
+   MFEM_ABORT("incompatible finite elements");
    return 0;
 }
 
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
+   MFEM_ASSERT(FElem != nullptr, "Must provide a valid FiniteElement object!");
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
 
@@ -517,7 +543,7 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
 void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
                                                 IntegrationPoint &ip2)
 {
-   double vec[3];
+   real_t vec[3];
    Vector v (vec, Transf.GetPointMat().Height());
 
    Transf.Transform (ip1, v);
@@ -534,6 +560,157 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
    {
       Transform (ir1.IntPoint(i), ir2.IntPoint(i));
    }
+}
+
+void FaceElementTransformations::SetIntPoint(const IntegrationPoint *face_ip)
+{
+   IsoparametricTransformation::SetIntPoint(face_ip);
+
+   if (mask & 4)
+   {
+      Loc1.Transform(*face_ip, eip1);
+      if (Elem1)
+      {
+         Elem1->SetIntPoint(&eip1);
+      }
+   }
+   if (mask & 8)
+   {
+      Loc2.Transform(*face_ip, eip2);
+      if (Elem2)
+      {
+         Elem2->SetIntPoint(&eip2);
+      }
+   }
+}
+
+ElementTransformation &
+FaceElementTransformations::GetElement1Transformation()
+{
+   MFEM_VERIFY(mask & HAVE_ELEM1 && Elem1 != NULL, "The ElementTransformation "
+               "for the element has not been configured for side 1.");
+   return *Elem1;
+}
+
+ElementTransformation &
+FaceElementTransformations::GetElement2Transformation()
+{
+   MFEM_VERIFY(mask & HAVE_ELEM2 && Elem2 != NULL, "The ElementTransformation "
+               "for the element has not been configured for side 2.");
+   return *Elem2;
+}
+
+IntegrationPointTransformation &
+FaceElementTransformations::GetIntPoint1Transformation()
+{
+   MFEM_VERIFY(mask & HAVE_LOC1, "The IntegrationPointTransformation "
+               "for the element has not been configured for side 1.");
+   return Loc1;
+}
+
+IntegrationPointTransformation &
+FaceElementTransformations::GetIntPoint2Transformation()
+{
+   MFEM_VERIFY(mask & HAVE_LOC2, "The IntegrationPointTransformation "
+               "for the element has not been configured for side 2.");
+   return Loc2;
+}
+
+void FaceElementTransformations::Transform(const IntegrationPoint &ip,
+                                           Vector &trans)
+{
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
+               "for the face has not been configured.");
+   IsoparametricTransformation::Transform(ip, trans);
+}
+
+void FaceElementTransformations::Transform(const IntegrationRule &ir,
+                                           DenseMatrix &tr)
+{
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
+               "for the face has not been configured.");
+   IsoparametricTransformation::Transform(ir, tr);
+}
+
+void FaceElementTransformations::Transform(const DenseMatrix &matrix,
+                                           DenseMatrix &result)
+{
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
+               "for the face has not been configured.");
+   IsoparametricTransformation::Transform(matrix, result);
+}
+
+real_t FaceElementTransformations::CheckConsistency(int print_level,
+                                                    std::ostream &os)
+{
+   // Check that the face vertices are mapped to the same physical location
+   // when using the following three transformations:
+   // - the face transformation, *this
+   // - Loc1 + Elem1
+   // - Loc2 + Elem2, if present.
+
+   const bool have_face = (mask & 16);
+   const bool have_el1 = (mask & 1) && (mask & 4);
+   const bool have_el2 = (mask & 2) && (mask & 8) && (Elem2No >= 0);
+   if (int(have_face) + int(have_el1) + int(have_el2) < 2)
+   {
+      // need at least two different transformations to perform a check
+      return 0.0;
+   }
+
+   const IntegrationRule &v_ir = *Geometries.GetVertices(GetGeometryType());
+
+   real_t max_dist = 0.0;
+   Vector dist(v_ir.GetNPoints());
+   DenseMatrix coords_base, coords_el;
+   IntegrationRule v_eir(v_ir.GetNPoints());
+   if (have_face)
+   {
+      Transform(v_ir, coords_base);
+      if (print_level > 0)
+      {
+         os << "\nface vertex coordinates (from face transform):\n"
+            << "----------------------------------------------\n";
+         coords_base.PrintT(os, coords_base.Height());
+      }
+   }
+   if (have_el1)
+   {
+      Loc1.Transform(v_ir, v_eir);
+      Elem1->Transform(v_eir, coords_el);
+      if (print_level > 0)
+      {
+         os << "\nface vertex coordinates (from element 1 transform):\n"
+            << "---------------------------------------------------\n";
+         coords_el.PrintT(os, coords_el.Height());
+      }
+      if (have_face)
+      {
+         coords_el -= coords_base;
+         coords_el.Norm2(dist);
+         max_dist = std::max(max_dist, dist.Normlinf());
+      }
+      else
+      {
+         coords_base = coords_el;
+      }
+   }
+   if (have_el2)
+   {
+      Loc2.Transform(v_ir, v_eir);
+      Elem2->Transform(v_eir, coords_el);
+      if (print_level > 0)
+      {
+         os << "\nface vertex coordinates (from element 2 transform):\n"
+            << "---------------------------------------------------\n";
+         coords_el.PrintT(os, coords_el.Height());
+      }
+      coords_el -= coords_base;
+      coords_el.Norm2(dist);
+      max_dist = std::max(max_dist, dist.Normlinf());
+   }
+
+   return max_dist;
 }
 
 }

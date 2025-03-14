@@ -1,22 +1,24 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../mesh/vtk.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "picojson.h"
 
-#include <fstream>
 #include <cerrno>      // errno
 #include <sstream>
+#include <regex>
 
 #ifndef _WIN32
 #include <sys/stat.h>  // mkdir
@@ -35,7 +37,7 @@ int DataCollection::create_directory(const std::string &dir_name,
    // create directories recursively
    const char path_delim = '/';
    std::string::size_type pos = 0;
-   int err;
+   int err_flag;
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
 #endif
@@ -46,13 +48,13 @@ int DataCollection::create_directory(const std::string &dir_name,
       std::string subdir = dir_name.substr(0, pos);
 
 #ifndef MFEM_USE_MPI
-      err = mkdir(subdir.c_str(), 0777);
-      err = (err && (errno != EEXIST)) ? 1 : 0;
+      err_flag = mkdir(subdir.c_str(), 0777);
+      err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
 #else
       if (myid == 0 || pmesh == NULL)
       {
-         err = mkdir(subdir.c_str(), 0777);
-         err = (err && (errno != EEXIST)) ? 1 : 0;
+         err_flag = mkdir(subdir.c_str(), 0777);
+         err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
       }
 #endif
    }
@@ -61,11 +63,11 @@ int DataCollection::create_directory(const std::string &dir_name,
 #ifdef MFEM_USE_MPI
    if (pmesh)
    {
-      MPI_Bcast(&err, 1, MPI_INT, 0, pmesh->GetComm());
+      MPI_Bcast(&err_flag, 1, MPI_INT, 0, pmesh->GetComm());
    }
 #endif
 
-   return err;
+   return err_flag;
 }
 
 // class DataCollection implementation
@@ -108,7 +110,8 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = SERIAL_FORMAT; // use serial mesh format
-   error = NO_ERROR;
+   compression = 0;
+   error = No_Error;
 }
 
 void DataCollection::SetMesh(Mesh *new_mesh)
@@ -161,6 +164,14 @@ void DataCollection::SetFormat(int fmt)
    format = fmt;
 }
 
+void DataCollection::SetCompression(bool comp)
+{
+   compression = comp;
+#ifndef MFEM_USE_ZLIB
+   MFEM_VERIFY(!compression, "ZLib not enabled in MFEM build.");
+#endif
+}
+
 void DataCollection::SetPrefixPath(const std::string& prefix)
 {
    if (!prefix.empty())
@@ -177,7 +188,7 @@ void DataCollection::SetPrefixPath(const std::string& prefix)
    }
 }
 
-void DataCollection::Load(int cycle)
+void DataCollection::Load(int cycle_)
 {
    MFEM_ABORT("this method is not implemented");
 }
@@ -203,15 +214,13 @@ void DataCollection::Save()
 
 void DataCollection::SaveMesh()
 {
-   int err;
-
    std::string dir_name = prefix_path + name;
    if (cycle != -1)
    {
       dir_name += "_" + to_padded_string(cycle, pad_digits_cycle);
    }
-   err = create_directory(dir_name, mesh, myid);
-   if (err)
+   int error_code = create_directory(dir_name, mesh, myid);
+   if (error_code)
    {
       error = WRITE_ERROR;
       MFEM_WARNING("Error creating directory: " << dir_name);
@@ -219,7 +228,7 @@ void DataCollection::SaveMesh()
    }
 
    std::string mesh_name = GetMeshFileName();
-   std::ofstream mesh_file(mesh_name.c_str());
+   mfem::ofgzstream mesh_file(mesh_name, compression);
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
@@ -267,7 +276,8 @@ const
 
 void DataCollection::SaveOneField(const FieldMapIterator &it)
 {
-   std::ofstream field_file(GetFieldFileName(it->first).c_str());
+   mfem::ofgzstream field_file(GetFieldFileName(it->first), compression);
+
    field_file.precision(precision);
    (it->second)->Save(field_file);
    if (!field_file)
@@ -279,7 +289,8 @@ void DataCollection::SaveOneField(const FieldMapIterator &it)
 
 void DataCollection::SaveOneQField(const QFieldMapIterator &it)
 {
-   std::ofstream q_field_file(GetFieldFileName(it->first).c_str());
+   mfem::ofgzstream q_field_file(GetFieldFileName(it->first), compression);
+
    q_field_file.precision(precision);
    (it->second)->Save(q_field_file);
    if (!q_field_file)
@@ -404,9 +415,6 @@ void VisItDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
 void VisItDataCollection::RegisterField(const std::string& name,
                                         GridFunction *gf)
 {
-   DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim());
-
    int LOD = 1;
    if (gf->FESpace()->GetNURBSext())
    {
@@ -414,12 +422,33 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
    else
    {
-      for (int e=0; e<gf->FESpace()->GetNE() ; e++)
+      for (int e=0; e<gf->FESpace()->GetNE(); e++)
       {
          LOD = std::max(LOD,gf->FESpace()->GetFE(e)->GetOrder());
       }
    }
 
+   DataCollection::RegisterField(name, gf);
+   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
+   visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
+}
+
+void VisItDataCollection::RegisterQField(const std::string& name,
+                                         QuadratureFunction *qf)
+{
+   int LOD = -1;
+   Mesh *mesh = qf->GetSpace()->GetMesh();
+   for (int e=0; e<qf->GetSpace()->GetNE(); e++)
+   {
+      int locLOD = GlobGeometryRefiner.GetRefinementLevelFromElems(
+                      mesh->GetElementBaseGeometry(e),
+                      qf->GetIntRule(e).GetNPoints());
+
+      LOD = std::max(LOD,locLOD);
+   }
+
+   DataCollection::RegisterQField(name, qf);
+   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -452,7 +481,7 @@ void VisItDataCollection::SaveRootFile()
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
-   std::ofstream root_file(root_name.c_str());
+   std::ofstream root_file(root_name);
    root_file << GetVisItRootString();
    if (!root_file)
    {
@@ -465,7 +494,7 @@ void VisItDataCollection::Load(int cycle_)
 {
    DeleteAll();
    time_step = 0.0;
-   error = NO_ERROR;
+   error = No_Error;
    cycle = cycle_;
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
@@ -518,7 +547,7 @@ void VisItDataCollection::Load(int cycle_)
 
 void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 {
-   std::ifstream root_file(root_name.c_str());
+   std::ifstream root_file(root_name);
    std::stringstream buffer;
    buffer << root_file.rdbuf();
    if (!buffer)
@@ -534,8 +563,10 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
+   // GetMeshFileName() uses 'serial', so we need to set it in advance.
+   serial = (format == SERIAL_FORMAT);
    std::string mesh_fname = GetMeshFileName();
-   named_ifgzstream file(mesh_fname.c_str());
+   named_ifgzstream file(mesh_fname);
    // TODO: in parallel, check for errors on all processors
    if (!file)
    {
@@ -576,7 +607,7 @@ void VisItDataCollection::LoadFields()
         it != field_info_map.end(); ++it)
    {
       std::string fname = path_left + it->first + path_right;
-      std::ifstream file(fname.c_str());
+      mfem::ifgzstream file(fname);
       // TODO: in parallel, check for errors on all processors
       if (!file)
       {
@@ -587,14 +618,28 @@ void VisItDataCollection::LoadFields()
       // TODO: 1) load parallel GridFunction on one processor
       if (serial)
       {
-         field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+         if ((it->second).association == "nodes")
+         {
+            field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+         }
+         else if ((it->second).association == "elements")
+         {
+            q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
+         }
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         field_map.Register(
-            it->first,
-            new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
+         if ((it->second).association == "nodes")
+         {
+            field_map.Register(
+               it->first,
+               new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
+         }
+         else if ((it->second).association == "elements")
+         {
+            q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
+         }
 #else
          error = READ_ERROR;
          MFEM_WARNING("Reading parallel format in serial is not supported");
@@ -629,7 +674,7 @@ std::string VisItDataCollection::GetVisItRootString()
    {
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
-      ftags["lod"] = picojson::value(to_string(visit_levels_of_detail));
+      ftags["lod"] = picojson::value(to_string((it->second).lod));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);
@@ -679,7 +724,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
    // Set the DataCollection::name using the mesh path
    std::string path = mesh.get("path").get<std::string>();
-   size_t right_sep = path.find('_');
+   size_t right_sep = path.rfind('_');
    if (right_sep == std::string::npos)
    {
       error = READ_ERROR;
@@ -711,6 +756,425 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
                            to_int(tags.get("comps").get<std::string>()));
       }
    }
+}
+
+ParaViewDataCollection::ParaViewDataCollection(const std::string&
+                                               collection_name,
+                                               Mesh *mesh_)
+   : DataCollection(collection_name, mesh_),
+     levels_of_detail(1),
+     pv_data_format(VTKFormat::BINARY),
+     high_order_output(false),
+     restart_mode(false)
+{
+   cycle = 0; // always include a valid cycle index in file names
+
+   compression_level = -1;  // default zlib compression level, equivalent to 6
+#ifdef MFEM_USE_ZLIB
+   compression = true; // if we have zlib, enable compression
+#else
+   compression = false; // otherwise, disable compression
+#endif
+}
+
+void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
+{
+   levels_of_detail = levels_of_detail_;
+}
+
+void ParaViewDataCollection::Load(int )
+{
+   MFEM_WARNING("ParaViewDataCollection::Load() is not implemented!");
+}
+
+std::string ParaViewDataCollection::GenerateCollectionPath()
+{
+   return prefix_path + DataCollection::GetCollectionName();
+}
+
+std::string ParaViewDataCollection::GeneratePVTUPath()
+{
+   return "Cycle" + to_padded_string(cycle,pad_digits_cycle);
+}
+
+std::string ParaViewDataCollection::GenerateVTUPath()
+{
+   return GeneratePVTUPath();
+}
+
+std::string ParaViewDataCollection::GeneratePVDFileName()
+{
+   return GetCollectionName() + ".pvd";
+}
+
+std::string ParaViewDataCollection::GeneratePVTUFileName(
+   const std::string &prefix)
+{
+   return prefix + ".pvtu";
+}
+
+std::string ParaViewDataCollection::GenerateVTUFileName(
+   const std::string &prefix, int rank)
+{
+   return prefix + to_padded_string(rank, pad_digits_rank) + ".vtu";
+}
+
+void ParaViewDataCollection::Save()
+{
+   // add a new collection to the PDV file
+
+   std::string col_path = GenerateCollectionPath();
+   // check if the directories are created
+   {
+      std::string path = col_path + "/" + GenerateVTUPath();
+      int error_code = create_directory(path, mesh, myid);
+      if (error_code)
+      {
+         error = WRITE_ERROR;
+         MFEM_WARNING("Error creating directory: " << path);
+         return; // do not even try to write the mesh
+      }
+   }
+   // the directory is created
+
+   // create pvd file if needed. If we are not in restart mode, a new pvd file
+   // is always created. In restart mode, we keep any previously defined
+   // timestep values as long as they are less than the currently defined time.
+
+   if (myid == 0 && !pvd_stream.is_open())
+   {
+      std::string pvdname = col_path + "/" + GeneratePVDFileName();
+
+      bool write_header = true;
+      std::ifstream pvd_in;
+      if (restart_mode && (pvd_in.open(pvdname,std::ios::binary),pvd_in.good()))
+      {
+         // PVD file exists and restart mode enabled: preserve existing time
+         // steps less than the current time.
+         std::fstream::pos_type pos_begin = pvd_in.tellg();
+         std::fstream::pos_type pos_end = pos_begin;
+
+         std::regex regexp("timestep=\"([^[:space:]]+)\".*file=\"Cycle(\\d+)");
+         std::smatch match;
+
+         std::string line;
+         while (getline(pvd_in,line))
+         {
+            if (regex_search(line,match,regexp))
+            {
+               MFEM_ASSERT(match.size() == 3, "Unable to parse DataSet");
+               double tvalue = std::stod(match[1]);
+               if (tvalue >= GetTime()) { break; }
+               int cvalue = std::stoi(match[2]);
+               MFEM_VERIFY(cvalue < GetCycle(), "Cycle " << GetCycle() <<
+                           " is too small for restart mode: trying to overwrite"
+                           " existing data.");
+               pos_end = pvd_in.tellg();
+            }
+         }
+         // Since pvd_in is opened in binary mode, count will store the number
+         // of bytes from the beginning of the file until the desired insertion
+         // point (in text mode on Windows this is not the case).
+         size_t count = pos_end - pos_begin;
+         if (count != 0)
+         {
+            write_header = false;
+            std::vector<char> buf(count);
+            // Read the contents of the PVD file, from the beginning to the
+            // insertion point.
+            pvd_in.clear();
+            pvd_in.seekg(pos_begin);
+            pvd_in.read(buf.data(), count);
+            pvd_in.close();
+            // Open the PVD file in truncate mode to delete the previous
+            // contents. Open in binary mode to write the data buffer without
+            // converting \r\n to \r\r\n on Windows.
+            pvd_stream.open(pvdname,std::ios::out|std::ios::trunc|std::ios::binary);
+            pvd_stream.write(buf.data(), count);
+            // Close and reopen the file in text mode, appending to the end.
+            pvd_stream.close();
+            pvd_stream.open(pvdname,std::ios::in|std::ios::out|std::ios::ate);
+         }
+      }
+      if (write_header)
+      {
+         // Initialize new pvd file.
+         pvd_stream.open(pvdname,std::ios::out|std::ios::trunc);
+         pvd_stream << "<?xml version=\"1.0\"?>\n";
+         pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+         pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
+         pvd_stream << "<Collection>" << std::endl;
+      }
+   }
+
+   std::string vtu_prefix = col_path + "/" + GenerateVTUPath() + "/";
+
+   // Save the local part of the mesh and grid functions fields to the local
+   // VTU file
+   {
+      std::ofstream os(vtu_prefix + GenerateVTUFileName("proc", myid));
+      os.precision(precision);
+      SaveDataVTU(os, levels_of_detail);
+   }
+
+   // Save the local part of the quadrature function fields
+   for (const auto &qfield : q_field_map)
+   {
+      const std::string &field_name = qfield.first;
+      std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
+      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel(), field_name);
+   }
+
+   // MPI rank 0 also creates a "PVTU" file that points to all of the separately
+   // written VTU files.
+   // This file path is then appended to the PVD file.
+   if (myid == 0)
+   {
+      // Create the main PVTU file
+      {
+         std::ofstream pvtu_out(vtu_prefix + GeneratePVTUFileName("data"));
+         WritePVTUHeader(pvtu_out);
+
+         // Grid function fields
+         pvtu_out << "<PPointData>\n";
+         for (auto &field_it : field_map)
+         {
+            int vec_dim = field_it.second->VectorDim();
+            pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
+                     << "\" Name=\"" << field_it.first
+                     << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                     << VTKComponentLabels(vec_dim) << " "
+                     << "format=\"" << GetDataFormatString() << "\" />\n";
+         }
+         pvtu_out << "</PPointData>\n";
+         // Element attributes
+         pvtu_out << "<PCellData>\n";
+         pvtu_out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
+                  << "\" NumberOfComponents=\"1\""
+                  << " format=\"" << GetDataFormatString() << "\"/>\n";
+         pvtu_out << "</PCellData>\n";
+
+         WritePVTUFooter(pvtu_out, "proc");
+      }
+
+      // Add the latest PVTU to the PVD
+      pvd_stream << "<DataSet timestep=\"" << GetTime()
+                 << "\" group=\"\" part=\"" << 0 << "\" file=\""
+                 << GeneratePVTUPath() + "/" + GeneratePVTUFileName("data")
+                 << "\" name=\"mesh\"/>\n";
+
+      // Create PVTU files for each quadrature field and add them to the PVD
+      // file
+      for (auto &q_field : q_field_map)
+      {
+         const std::string &q_field_name = q_field.first;
+         std::string q_fname = GeneratePVTUPath() + "/"
+                               + GeneratePVTUFileName(q_field_name);
+
+         std::ofstream pvtu_out(col_path + "/" + q_fname);
+         WritePVTUHeader(pvtu_out);
+         int vec_dim = q_field.second->GetVDim();
+         pvtu_out << "<PPointData>\n";
+         pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
+                  << "\" Name=\"" << q_field_name
+                  << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                  << VTKComponentLabels(vec_dim) << " "
+                  << "format=\"" << GetDataFormatString() << "\" />\n";
+         pvtu_out << "</PPointData>\n";
+         WritePVTUFooter(pvtu_out, q_field_name);
+
+         pvd_stream << "<DataSet timestep=\"" << GetTime()
+                    << "\" group=\"\" part=\"" << 0 << "\" file=\""
+                    << q_fname << "\" name=\"" << q_field_name << "\"/>\n";
+      }
+      pvd_stream.flush();
+      // Move the insertion point before the closing collection tag, so that
+      // the PVD file is valid even when writing incrementally.
+      std::fstream::pos_type pos = pvd_stream.tellp();
+      pvd_stream << "</Collection>\n";
+      pvd_stream << "</VTKFile>" << std::endl;
+      pvd_stream.seekp(pos);
+   }
+}
+
+void ParaViewDataCollection::WritePVTUHeader(std::ostream &os)
+{
+   os << "<?xml version=\"1.0\"?>\n";
+   os << "<VTKFile type=\"PUnstructuredGrid\"";
+   os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
+
+   os << "<PPoints>\n";
+   os << "\t<PDataArray type=\"" << GetDataTypeString() << "\" ";
+   os << " Name=\"Points\" NumberOfComponents=\"3\""
+      << " format=\"" << GetDataFormatString() << "\"/>\n";
+   os << "</PPoints>\n";
+
+   os << "<PCells>\n";
+   os << "\t<PDataArray type=\"Int32\" ";
+   os << " Name=\"connectivity\" NumberOfComponents=\"1\""
+      << " format=\"" << GetDataFormatString() << "\"/>\n";
+   os << "\t<PDataArray type=\"Int32\" ";
+   os << " Name=\"offsets\"      NumberOfComponents=\"1\""
+      << " format=\"" << GetDataFormatString() << "\"/>\n";
+   os << "\t<PDataArray type=\"UInt8\" ";
+   os << " Name=\"types\"        NumberOfComponents=\"1\""
+      << " format=\"" << GetDataFormatString() << "\"/>\n";
+   os << "</PCells>\n";
+}
+
+void ParaViewDataCollection::WritePVTUFooter(std::ostream &os,
+                                             const std::string &vtu_prefix)
+{
+   for (int ii=0; ii<num_procs; ii++)
+   {
+      std::string vtu_filename = GenerateVTUFileName(vtu_prefix, ii);
+      os << "<Piece Source=\"" << vtu_filename << "\"/>\n";
+   }
+   os << "</PUnstructuredGrid>\n";
+   os << "</VTKFile>\n";
+}
+
+void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
+{
+   os << "<VTKFile type=\"UnstructuredGrid\"";
+   if (GetCompressionLevel() != 0)
+   {
+      os << " compressor=\"vtkZLibDataCompressor\"";
+   }
+   os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << "<UnstructuredGrid>\n";
+   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel());
+
+   // dump out the grid functions as point data
+   os << "<PointData >\n";
+   // save the grid functions
+   // iterate over all grid functions
+   for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
+   {
+      SaveGFieldVTU(os,ref,it);
+   }
+   os << "</PointData>\n";
+   // close the mesh
+   os << "</Piece>\n"; // close the piece open in the PrintVTU method
+   os << "</UnstructuredGrid>\n";
+   os << "</VTKFile>" << std::endl;
+}
+
+void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
+                                           const FieldMapIterator &it)
+{
+   RefinedGeometry *RefG;
+   Vector val;
+   DenseMatrix vval, pmat;
+   std::vector<char> buf;
+   int vec_dim = it->second->VectorDim();
+   os << "<DataArray type=\"" << GetDataTypeString()
+      << "\" Name=\"" << it->first
+      << "\" NumberOfComponents=\"" << vec_dim << "\" "
+      << VTKComponentLabels(vec_dim) << " "
+      << "format=\"" << GetDataFormatString() << "\" >" << '\n';
+   if (vec_dim == 1)
+   {
+      // scalar data
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         RefG = GlobGeometryRefiner.Refine(
+                   mesh->GetElementBaseGeometry(i), ref_, 1);
+         it->second->GetValues(i, RefG->RefPts, val, pmat);
+         for (int j = 0; j < val.Size(); j++)
+         {
+            WriteBinaryOrASCII(os, buf, val(j), "\n", pv_data_format);
+         }
+      }
+   }
+   else
+   {
+      // vector data
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         RefG = GlobGeometryRefiner.Refine(
+                   mesh->GetElementBaseGeometry(i), ref_, 1);
+         it->second->GetVectorValues(i, RefG->RefPts, vval, pmat);
+         for (int jj = 0; jj < vval.Width(); jj++)
+         {
+            for (int ii = 0; ii < vval.Height(); ii++)
+            {
+               WriteBinaryOrASCII(os, buf, vval(ii,jj), " ", pv_data_format);
+            }
+            if (pv_data_format == VTKFormat::ASCII) { os << '\n'; }
+         }
+      }
+   }
+
+   if (IsBinaryFormat())
+   {
+      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),GetCompressionLevel());
+      os << '\n';
+   }
+   os << "</DataArray>" << std::endl;
+}
+
+void ParaViewDataCollection::SetDataFormat(VTKFormat fmt)
+{
+   pv_data_format = fmt;
+}
+
+bool ParaViewDataCollection::IsBinaryFormat() const
+{
+   return pv_data_format != VTKFormat::ASCII;
+}
+
+void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
+{
+   high_order_output = high_order_output_;
+}
+
+void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
+{
+   MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
+               "Compression level must be between -1 and 9 (inclusive).");
+   compression_level = compression_level_;
+   compression = compression_level_ != 0;
+}
+
+void ParaViewDataCollection::SetCompression(bool compression_)
+{
+   compression = compression_;
+}
+
+void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
+{
+   restart_mode = restart_mode_;
+}
+
+const char *ParaViewDataCollection::GetDataFormatString() const
+{
+   if (pv_data_format == VTKFormat::ASCII)
+   {
+      return "ascii";
+   }
+   else
+   {
+      return "binary";
+   }
+}
+
+const char *ParaViewDataCollection::GetDataTypeString() const
+{
+   if (pv_data_format==VTKFormat::ASCII || pv_data_format==VTKFormat::BINARY)
+   {
+      return "Float64";
+   }
+   else
+   {
+      return "Float32";
+   }
+}
+
+int ParaViewDataCollection::GetCompressionLevel() const
+{
+   return compression ? compression_level : 0;
 }
 
 }  // end namespace MFEM
