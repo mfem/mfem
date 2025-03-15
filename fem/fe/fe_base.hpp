@@ -794,6 +794,8 @@ public:
        TensorBasisElement::GetDofMap, but it is also available for non-tensor
        elements. */
    const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
+
+   void ReorderLexToNative(int ncomp, Vector &dofs) const;
 };
 
 /** @brief Intermediate class for finite elements whose basis functions return

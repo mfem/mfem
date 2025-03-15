@@ -179,13 +179,13 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
    const Array<real_t> &B   = PA.maps->B;
    const Array<real_t> &BLD = PA.maps_lim->B;
    const Vector &C0 = PA.C0;
-   const Vector &X0 = PA.X0;
+   const Vector &XL = PA.XL;
    Vector &H0 = PA.H0;
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,XL,X,
                            H0,exp_lim);
 }
 
