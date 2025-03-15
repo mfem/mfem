@@ -242,6 +242,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    di_dt = 0.0;
    if (al == AssemblyLevel::PARTIAL)
    {
+      // Solve mat-free on the tdofs as the JacobiSmoother operates on tdofs.
       OperatorPtr A;
       Vector B, X;
       Array<int> ess_tdof_list;
@@ -252,6 +253,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    }
    else
    {
+      // Solve the SpMat directly on the ldofs.
       DSmoother S(M.SpMat());
       PCG(M.SpMat(), S, rhs, di_dt, 0, 100, rtol, 0.0);
    }
