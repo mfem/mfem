@@ -22,6 +22,14 @@
 #include "globals.hpp"
 #include <mpi.h>
 
+// can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
+// doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
+#ifdef MPI_CXX_BOOL
+#define MFEM_MPI_CXX_BOOL MPI_CXX_BOOL
+#else
+#define MFEM_MPI_CXX_BOOL MPI_C_BOOL
+#endif
+
 namespace mfem
 {
 
