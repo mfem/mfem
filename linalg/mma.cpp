@@ -379,7 +379,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    std::copy(b_local, b_local + ncon, b);
 
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(b_local, b, ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
+   MPI_Allreduce(b_local, b, ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 mma->comm);
 #endif
 
    for (int i = 0; i < ncon; i++)
@@ -464,7 +465,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       std::copy(gvec_local, gvec_local + ncon, gvec);
 
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(gvec_local, gvec, ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
+      MPI_Allreduce(gvec_local, gvec, ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    mma->comm);
 #endif
 
       if ( rank == 0)
@@ -1003,7 +1005,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          global_max = residumax;
 #ifdef MFEM_USE_MPI
          MPI_Allreduce(&residumax, &global_max, 1,
-                        MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
 #endif
          residumax = global_max;
          steg = steg * 2.0;
@@ -1011,7 +1013,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       }
       if (ittt > 198)
       {
-         printf("Warning: Maximum number of iterations reached in subsolv.\n");
+         printf("Warning: Maximum number of iterations reached in MMA subsolve.\n");
       }
       epsi = 0.1 * epsi;
    }
@@ -1054,7 +1056,8 @@ MMA::MMA(int nVar, int nCon, real_t *xval, int iter)
    mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
 }
 
-MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon, xval.GetData(), iter)
+MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon,
+                                                                    xval.GetData(), iter)
 {}
 
 MMA::MMA(int nVar, Vector &xval, int iter) : MMA(nVar, 0, xval.GetData(), iter)
@@ -1087,7 +1090,8 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
 }
 
-MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval, int iter) : MMA(comm_, nVar, nCon, xval.GetData(), iter)
+MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon,
+         const Vector & xval, int iter) : MMA(comm_, nVar, nCon, xval.GetData(), iter)
 {}
 #endif
 
@@ -1164,26 +1168,27 @@ void MMA::FreeData()
 }
 
 void MMA::Update( const Vector& dfdx,
-               const Vector& gx, const Vector& dgdx,
-               const Vector& xmin, const Vector& xmax,
-               Vector& xval)
+                  const Vector& gx, const Vector& dgdx,
+                  const Vector& xmin, const Vector& xmax,
+                  Vector& xval)
 {
    this->Update(dfdx.GetData(),
-               gx.GetData(),dgdx.GetData(),
-               xmin.GetData(), xmax.GetData(),
-               xval.GetData());
+                gx.GetData(),dgdx.GetData(),
+                xmin.GetData(), xmax.GetData(),
+                xval.GetData());
 }
 
 void MMA::Update( const Vector& dfdx,
-               const Vector& xmin, const Vector& xmax,
-               Vector& xval)
+                  const Vector& xmin, const Vector& xmax,
+                  Vector& xval)
 {
-   MFEM_ASSERT(0 == nCon, "MMA::Update() number of constraint != 0. Provide constraint calues and gradients");
+   MFEM_ASSERT(0 == nCon,
+               "MMA::Update() number of constraint != 0. Provide constraint calues and gradients");
 
    this->Update(dfdx.GetData(),
-               nullptr,nullptr,
-               xmin.GetData(), xmax.GetData(),
-               xval.GetData());
+                nullptr,nullptr,
+                xmin.GetData(), xmax.GetData(),
+                xval.GetData());
 }
 
 void MMA::Update(const real_t* dfdx,
