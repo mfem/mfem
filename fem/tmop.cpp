@@ -5376,9 +5376,7 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       Vector x_loc(*x_0);
       if (periodic)
       {
-         GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
-         d_loc = d;
-         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), d_fes, x_loc);
+         GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
       }
       else { x_loc += d; }
 
@@ -5397,9 +5395,7 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       Vector x_loc(*x_0);
       if (periodic)
       {
-         GridFunction d_loc(const_cast<FiniteElementSpace *>(&d_fes));
-         d_loc = d;
-         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), d_fes, x_loc);
+         GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
       }
       else { x_loc += d; }
 
