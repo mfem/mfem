@@ -68,7 +68,7 @@
 //   Periodic 2D + adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
 //   Periodic 3D + adapted discrete size + PA:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-cube.mesh -o 2 -rs 3 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
+//     mpirun -np 4 pmesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
 //   Periodic 2D NC mesh + adapted discrete size + PA:
 //     (the mesh is in the mfem/data GitHub repository)
 //   * mpirun -np 4 pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
@@ -130,7 +130,7 @@ int main (int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   // 1. Set the method's default parameters.
+   // Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
@@ -172,7 +172,7 @@ int main (int argc, char *argv[])
    int barrier_type      = 0;
    int worst_case_type   = 0;
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -353,6 +353,7 @@ int main (int argc, char *argv[])
    const int dim = mesh->Dimension();
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
@@ -396,7 +397,7 @@ int main (int argc, char *argv[])
    // Note: this is MPI partition-dependent.
    Vector h0(pfes_h1.GetNDofs());
    h0 = infinity();
-   real_t vol_loc = 0.0;
+   real_t mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
@@ -408,12 +409,11 @@ int main (int argc, char *argv[])
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      vol_loc += pmesh->GetElementVolume(i);
+      mesh_volume += pmesh->GetElementVolume(i);
    }
-   real_t vol_glb;
-   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPITypeMap<real_t>::mpi_type,
+   MPI_Allreduce(MPI_IN_PLACE, &mesh_volume, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, MPI_COMM_WORLD);
-   const real_t small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
+   const real_t small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
    // Add a random perturbation to the nodes in the interior of the domain.
    // We define a random grid function of pfespace and make sure that it is
@@ -437,8 +437,8 @@ int main (int argc, char *argv[])
             rdm(pfes_h1.DofToVDof(i, d)) *= h0(i);
          }
       }
-      // Set the boundary values to zero. Note that periodic meshes have no
-      // boundaries and this won't fix anything in the periodic case.
+      // Set the boundary values to zero. Note that periodic periodic boundaries
+      // will be free to move.
       Array<int> vdofs;
       for (int i = 0; i < pfes_h1.GetNBE(); i++)
       {

@@ -272,7 +272,7 @@ public:
    /// Given the new displacements @a d (tdof Vector), update
    /// (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   void ProcessNewState(const Vector &d) const override;
+   void ProcessNewState(const Vector &dx) const override;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the

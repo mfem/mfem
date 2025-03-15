@@ -232,32 +232,29 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    M.BilinearForm::operator=(0.0);
    M.Assemble();
 
-   di_dt = 0.0;
-   CGSolver lin_solver;
-   Solver *prec = nullptr;
-   Array<int> ess_tdof_list;
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-      lin_solver.SetOperator(M);
-   }
-   else
-   {
-      prec = new DSmoother(M.SpMat());
-      lin_solver.SetOperator(M.SpMat());
-   }
-   lin_solver.SetPreconditioner(*prec);
 #ifdef MFEM_USE_SINGLE
    const real_t rtol = 1e-4;
 #else
    const real_t rtol = 1e-12;
 #endif
-   lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
-   lin_solver.SetMaxIter(100);
-   lin_solver.SetPrintLevel(0);
-   lin_solver.Mult(rhs, di_dt);
 
-   delete prec;
+   // Solve.
+   di_dt = 0.0;
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list;
+      M.FormLinearSystem(ess_tdof_list, di_dt, rhs, A, X, B);
+      OperatorJacobiSmoother S(M, ess_tdof_list);
+      PCG(*A, S, B, X, 0, 100, rtol, 0.0);
+      M.RecoverFEMSolution(X, rhs, di_dt);
+   }
+   else
+   {
+      DSmoother S(M.SpMat());
+      PCG(M.SpMat(), S, rhs, di_dt, 0, 100, rtol, 0.0);
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -857,7 +854,7 @@ bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
    return false;
 }
 
-void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
+void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
@@ -887,25 +884,25 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
       }
    }
 
-   Vector d_loc;
+   Vector dx_loc;
    const Operator *P = nlf->GetProlongation();
    if (P)
    {
-      d_loc.SetSize(P->Height());
-      P->Mult(d, d_loc);
+      dx_loc.SetSize(P->Height());
+      P->Mult(dx, dx_loc);
    }
-   else { d_loc = d; }
+   else { dx_loc = dx; }
 
-   const FiniteElementSpace *d_fes = nlf->FESpace();
+   const FiniteElementSpace *dx_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->UpdateAfterMeshPositionChange(d_loc, *d_fes);
+         ti->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
          if (compute_metric_quantile_flag)
          {
-            ti->ComputeUntangleMetricQuantiles(d_loc, *d_fes);
+            ti->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -914,10 +911,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->UpdateAfterMeshPositionChange(d_loc, *d_fes);
+            ati[j]->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
             if (compute_metric_quantile_flag)
             {
-               ati[j]->ComputeUntangleMetricQuantiles(d_loc, *d_fes);
+               ati[j]->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
             }
          }
       }
@@ -930,7 +927,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
    if (surf_fit_coeff_update)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(d_loc, surf_fit_avg_err, surf_fit_max_err);
+      GetSurfaceFittingError(dx_loc, surf_fit_avg_err, surf_fit_max_err);
       // Get array with surface fitting weights.
       Array<real_t> fitweights;
       GetSurfaceFittingWeight(fitweights);
