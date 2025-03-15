@@ -1183,7 +1183,7 @@ void MMA::Update( const Vector& dfdx,
                   Vector& xval)
 {
    MFEM_ASSERT(0 == nCon,
-               "MMA::Update() number of constraint != 0. Provide constraint calues and gradients");
+               "MMA::Update() number of constraint != 0. Provide constraint values and gradients");
 
    this->Update(dfdx.GetData(),
                 nullptr,nullptr,
