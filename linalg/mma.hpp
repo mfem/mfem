@@ -24,31 +24,28 @@
 
 namespace mfem
 {
-/** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
- *  collection of points.
- * 
- *    Find x that minimizes the objective function F(x), subject to
- *    s.t C(x)_i <= 0,    for all i = 1, ... m
- *        x_lo <= x <= x_hi.
- * 
- *  The operators F, C, D must take input of the same size (same width).
- *  Gradients of F, C, D might be needed, depending on the OptimizationSolver.
- *  When used with Hiop, gradients of C and D must be DenseMatrices.
- *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
- *  C and D can have arbitrary heights.
- *  C and D can be NULL, meaning that their constraints are not used.
+/** \brief MMA (Method of Moving Asymptotes) solves an optimization problem of the form:
  *
- *  There are three key functions in FindPointsGSLIB:
+ *    Find       x that minimizes the objective function F(x),
+ *    subject to C(x)_i <= 0,         for all i = 1, ... m
+ *               x_lo <= x <= x_hi.
  *
- *  1. Update - constructs the internal data structures of gslib. See \ref Setup.
- *  * 
- * 
- *   2. Subproblem
- * 
+ *  There are two key functions in MMA :
+ *
+ *  1. Update - current and previous iteration points construct the "moving asymptotes".
+ *     The design variables, objective function, constraints are passed to an
+ *     approximating subproblem. The design variables are updated and returned.
+ *
+ *  2. Subproblem - the objective functions are replaced by convex functions chosen
+ *     based on gradient information, and solved using a dual method. The unique
+ *     optimal solution of the subproblem is returned as the next iteration point.
+ *     Optimality is determined by the KKT conditions.
+ *
  *  *  When used in parallel, all Vectors are assumed to be true dof vectors, and
- *  the operators are expected to be defined for tdof vectors. 
+ *  the operators are expected to be defined for tdof vectors.
  * */
- 
+
+
 class MMA
 {
 public:
@@ -58,32 +55,15 @@ public:
    /// nCon - number of constraints;
    /// xval[nVar] - initial parameter values
    MMA(int nVar, int nCon, real_t *xval, int iterationNumber = 0);
-
-   /// Serial constructor:
-   /// nVar - number of design parameters;
-   /// nCon - number of constraints;
-   /// xval[nVar] - initial parameter values
    MMA(const int nVar, int nCon, Vector & xval, int iterationNumber = 0);
-
-   /// Serial constructor for unconstraint problem:
-   /// nVar - number of design parameters;
-   /// xval[nVar] - initial parameter values
-   MMA(int nVar, Vector & xval, int iterationNumber = 0);
+   MMA(int nVar, Vector & xval, int iterationNumber = 0); /// Unconstrained
 
 #ifdef MFEM_USE_MPI
    /// Parallel constructor:
    /// comm_ - communicator
-   /// nVar - number of design parameters;
-   /// nCon - number of constraints;
-   /// xval[nVar] - initial parameter values
    MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iterationNumber = 0);
-
-   /// Parallel constructor:
-   /// comm_ - communicator
-   /// nVar - number of design parameters;
-   /// nCon - number of constraints;
-   /// xval[nVar] - initial parameter values
-   MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval, int iterationNumber = 0);
+   MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval,
+       int iterationNumber = 0);
 #endif
 
    /// Destructor
@@ -102,32 +82,13 @@ public:
                const Vector& gx, const Vector& dgdx,
                const Vector& xmin, const Vector& xmax,
                Vector& xval);
-
-   /// Update the optimization parameters
-   /// dfdx[nVar] - gradients of the objective
-   /// xxmin[nVar] - lower bounds
-   /// xxmax[nVar] - upper bounds
-   /// xval[nVar] - (input: current optimization parameters)
-   /// xval[nVar] - (output: updated optimization parameters)
+   /// Unconstrained
    void Update( const Vector& dfdx,
-               const Vector& xmin, const Vector& xmax,
-               Vector& xval);
+                const Vector& xmin, const Vector& xmax,
+                Vector& xval);
 
-   void SetIteraton( int iterationNumber ){ iter = iterationNumber; };
-   int GetIteraton(){ return iter; };
-
-   /// Dump the internal state into a file
-   /// xval[nVar] - current optimization parameters
-   /// iter - current interation
-   /// fname, fpath - file name and file path
-   void WriteState(real_t* xval, int iter,
-                   std::string fname,
-                   std::string fpath = "./");
-
-   /// Load the internal state
-   void LoadState(real_t* xval, int iter,
-                  std::string fname,
-                  std::string fpath = "./");
+   void SetIteration( int iterationNumber ) { iter = iterationNumber; };
+   int GetIteration() { return iter; };
 
 protected:
    // Local vectors
@@ -136,7 +97,7 @@ protected:
    real_t z, zet;
    int nCon, nVar;
 
-   // couter for Update() calls
+   // counter for Update() calls
    int iter = 0;
 
    // Global: Asymptotes, bounds, objective approx., constraint approx.

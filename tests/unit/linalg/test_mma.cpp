@@ -25,7 +25,8 @@ real_t obj0(mfem::Vector& x)
 
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -43,7 +44,8 @@ real_t dobj0(mfem::Vector& x, mfem::Vector& dx)
    }
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -63,7 +65,8 @@ real_t g0(mfem::Vector& x)
 #ifdef MFEM_USE_MPI
    real_t grez;
    MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -89,7 +92,8 @@ real_t dg0(mfem::Vector& x, mfem::Vector& dx)
 
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -98,10 +102,11 @@ real_t dg0(mfem::Vector& x, mfem::Vector& dx)
 }
 
 
-/** \brief Unit test
- * 
- *    Find x that minimizes the objective function F(x) = \sum x2, subject to
- *    s.t \sum x / N -2 <= 0.
+/** \brief Constrained Unit test
+ *
+ *    minimize   F(x) = \sum[ x*x ],
+ *    subject to \sum[ x ]/ m - 2 <= 0  for m design variables
+ *
  * */
 #ifdef MFEM_USE_MPI
 TEST_CASE("MMA Test", "[Parallel], [MMA]")
@@ -161,7 +166,8 @@ real_t obj0_c(mfem::Vector& x)
 
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -179,22 +185,24 @@ real_t dobj0_c(mfem::Vector& x, mfem::Vector& dx)
    }
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
    rez = grez;
 #endif
 
    return rez;
 }
 
-/** \brief Unit test
- * 
- *    Find x that minimizes the objective function F(x) = \sum 1/x+10*x, subject to
+/** \brief Unconstrained Unit test
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *
  * */
 #ifdef MFEM_USE_MPI
-TEST_CASE("MMA Unconstraint Test", "[Parallel], [MMA_0CONSTR]")
+TEST_CASE("MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR]")
 {
 #else
-TEST_CASE("MMA Unconstraint Test", "[MMA_0CONSTR]")
+TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 {
 #endif
    int world_size = 1;
