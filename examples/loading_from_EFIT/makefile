@@ -86,7 +86,7 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
-SEQ_EXAMPLES : *.hpp
+$(SEQ_EXAMPLES) : *.hpp
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
