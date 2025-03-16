@@ -11,6 +11,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = false;
+   bool from_psi = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -44,7 +45,7 @@ int main(int argc, char *argv[])
       // solving <B_tor, v> = <gg/R, v> for all v in L2
 
       // 1. make the linear form
-      FGridFunctionCoefficient f_coef(&gg);
+      FGridFunctionCoefficient f_coef(&gg, from_psi);
       b.AddDomainIntegrator(new DomainLFIntegrator(f_coef));
       b.Assemble();
    }
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
       // 1.a make the RHS bilinear form
       // Assert that the two spaces are on the same mesh
       MFEM_ASSERT(gg.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
+      MFEM_ASSERT(from_psi == false, "from_psi is not implemented for mixed bilinear form")
       MixedBilinearForm b_bi(gg.FESpace(), &fespace);
       ConstantCoefficient one(1.0);
       b_bi.AddDomainIntegrator(new MixedScalarMassIntegrator(one));
