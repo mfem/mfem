@@ -52,11 +52,12 @@ struct TMOP_PA_Metric_3D
                                        const real_t *w,
                                        real_t (&P)[DIM * DIM]) = 0;
 
-   virtual MFEM_HOST_DEVICE void
-   AssembleH(const int qx, const int qy, const int qz, const int e,
-             const real_t weight, real_t *Jrt, real_t *Jpr,
-             const real_t (&Jpt)[DIM * DIM], const real_t *w,
-             const DeviceTensor<5 + DIM> &H) const = 0;
+   virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
+                                           const int qz, const int e, const real_t weight,
+                                           real_t *Jrt, real_t *Jpr,
+                                           const real_t (&Jpt)[DIM * DIM],
+                                           const real_t *w,
+                                           const DeviceTensor<5 + DIM> &H) const = 0;
 };
 
 namespace tmop
@@ -99,6 +100,7 @@ int KernelSpecializations()
 
    Kernel::template Specialization<5, 5>::Add();
    Kernel::template Specialization<5, 6>::Add();
+   Kernel::template Specialization<6, 6>::Add();
    return 0;
 }
 

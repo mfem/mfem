@@ -139,13 +139,10 @@ public:
       }
       const real_t *w = mp.Read();
 
-      const real_t *B_r = ti->PA.maps->B.Read();
-      const real_t *G_r = ti->PA.maps->G.Read();
-      // const auto B = Reshape(ti->PA.maps->B.Read(), Q1D, D1D);
-      // const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
+      const real_t *x_r = ker.x.Read();
+      const real_t *B = ti->PA.maps->B.Read(), *G = ti->PA.maps->G.Read();
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-      const real_t *x_r = ker.x.Read();
       auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
       const bool const_m0 = ti->PA.MC.Size() == 1;
@@ -165,8 +162,8 @@ public:
          using regs2d_t = kernels::internal::regs::Registers<real_t,MDQ,MDQ>;
          regs2d_t r_u[VDIM*MD1], r_gu[VDIM * DIM * MQ1];
 
-         kernels::internal::regs::LoadMatrix<MD1, MQ1>(B_r, sB);
-         kernels::internal::regs::LoadMatrix<MD1, MQ1>(G_r, sG);
+         kernels::internal::regs::LoadMatrix<MD1, MQ1>(B, sB);
+         kernels::internal::regs::LoadMatrix<MD1, MQ1>(G, sG);
 
          kernels::internal::regs::ReadDofsOffset3dXD<VDIM, MD1, MDQ>(e, NE, x_r, r_u);
          kernels::internal::regs::Grad3d<DIM,VDIM, MD1,MQ1,MDQ>(sm, sB, sG, r_u, r_gu);
@@ -199,8 +196,7 @@ public:
                   real_t Jpt[9];
                   kernels::Mult(3, 3, 3, Jpr, Jrt, Jpt);
 
-                  METRIC{}.AssembleH(qx, qy, qz, e, weight, Jrt, Jpr, Jpt, w,
-                                     H);
+                  METRIC{}.AssembleH(qx, qy, qz, e, weight, Jrt, Jpr, Jpt, w, H);
                } // qx
             } // qy
          } // qz
