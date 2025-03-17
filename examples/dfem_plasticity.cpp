@@ -254,7 +254,7 @@ public:
 
          momentum =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
-         momentum->DisableTensorProductStructure();
+         // momentum->DisableTensorProductStructure();
 
          mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
          mfem::tuple outputs{Gradient<Displacement>{}};
@@ -360,8 +360,6 @@ class InternalStateUpdater : public Operator
       };
 
       op = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
-
-      op->DisableTensorProductStructure();
 
       mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
       mfem::tuple outputs{None<InternalState>{}};
