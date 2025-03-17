@@ -24,27 +24,29 @@
 
 namespace mfem
 {
-/** \brief MMA (Method of Moving Asymptotes) solves an optimization problem of the form:
+/** \brief MMA (Method of Moving Asymptotes) solves an optimization problem 
+ *         of the form:
  *
  *    Find       x that minimizes the objective function F(x),
  *    subject to C(x)_i <= 0,         for all i = 1, ... m
  *               x_lo <= x <= x_hi.
+ * 
+ *    The objective functions are replaced by convex functions 
+ *    chosen based on gradient information, and solved using a dual method.
+ *    The unique optimal solution of this subproblem is returned as the next
+ *    iteration point. Optimality is determined by the KKT conditions.
  *
- *  There are two key functions in MMA :
+ *  The "Update" function in MMA advances the optimization and must be called
+ *  in every optimization iteratiorn
  *
- *  1. Update - current and previous iteration points construct the "moving asymptotes".
- *     The design variables, objective function, constraints are passed to an
- *     approximating subproblem. The design variables are updated and returned.
+ *  1. Update - current and previous iteration points construct the 
+ *     "moving asymptotes". The design variables, objective function,
+ *     constraints are passed to an approximating subproblem. The design
+ *     variables are updated and returned.
  *
- *  2. Subproblem - the objective functions are replaced by convex functions chosen
- *     based on gradient information, and solved using a dual method. The unique
- *     optimal solution of the subproblem is returned as the next iteration point.
- *     Optimality is determined by the KKT conditions.
- *
- *  *  When used in parallel, all Vectors are assumed to be true dof vectors, and
- *  the operators are expected to be defined for tdof vectors.
+ *  When used in parallel, all Vectors are assumed to be true dof vectors, 
+ *  and the operators are expected to be defined for tdof vectors.
  * */
-
 
 class MMA
 {
@@ -219,10 +221,10 @@ private:
       real_t *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *delx, *dely,
              *dellam,
              *dellamyi, *diagx, *diagy, *diaglamyi, *bb, *bb1, *Alam, *AA, *AA1,
-             *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx,
-             *stepalfa, *stepbeta, *xold, *yold,
-             *lamold, *xsiold, *etaold, *muold, *sold, *p0, *q0, *P, *Q, *alfa, *beta,
-             *xmami, *b;
+             *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx,
+             *stepxx, *stepalfa, *stepbeta, *xold, *yold,
+             *lamold, *xsiold, *etaold, *muold, *sold, *p0, *q0, *P, *Q, *alfa,
+             *beta, *xmami, *b;
 
       // parallel helper variables
       real_t global_max = 0.0;
