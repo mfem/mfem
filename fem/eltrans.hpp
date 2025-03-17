@@ -202,45 +202,46 @@ public:
    /// Algorithms for selecting an initial guess.
    enum InitGuessType
    {
-      Center = 0, ///< Use the center of the reference element.
+      Center = 0,          ///< Use the center of the reference element.
       ClosestPhysNode = 1, /**<
-         Use the point returned by FindClosestPhysPoint() from a reference-space
-         grid of type and size controlled by SetInitGuessPointsType() and
-         SetInitGuessRelOrder(), respectively. */
-      ClosestRefNode = 2, /**<
-         Use the point returned by FindClosestRefPoint() from a reference-space
-         grid of type and size controlled by SetInitGuessPointsType() and
-         SetInitGuessRelOrder(), respectively. */
-      GivenPoint = 3, ///< Use a specific point, set with SetInitialGuess().
-      EdgeScan = 4, /**< Performs full solves on multiple points along the edges
-          of the element. It is recommended that SetInitGuessRelOrder() is chosen
-          such that max(trans_order+order,0)+1 <= 4 with SetInitGuessPointsType()
-          as Quadrature1D::ClosedUniform.
-          @see GeometryRefiner::EdgeScan */
+       Use the point returned by FindClosestPhysPoint() from a reference-space
+       grid of type and size controlled by SetInitGuessPointsType() and
+       SetInitGuessRelOrder(), respectively. */
+      ClosestRefNode = 2,  /**<
+        Use the point returned by FindClosestRefPoint() from a reference-space
+        grid of type and size controlled by SetInitGuessPointsType() and
+        SetInitGuessRelOrder(), respectively. */
+      GivenPoint = 3,      ///< Use a specific point, set with SetInitialGuess().
+      EdgeScan =
+         4, /**< Performs full solves on multiple points along the r/s/t=0 edges
+              of the element. It is recommended that SetInitGuessRelOrder() is
+              chosen such that max(trans_order+order,0)+1 <= 4 with
+              SetInitGuessPointsType() as Quadrature1D::ClosedUniform. @see
+              GeometryRefiner::EdgeScan */
    };
 
    /// Solution strategy.
    enum SolverType
    {
-      Newton = 0, /**<
-         Use Newton's algorithm, without restricting the reference-space points
-         (iterates) to the reference element. */
+      Newton = 0,               /**<
+                     Use Newton's algorithm, without restricting the reference-space points
+                     (iterates) to the reference element. */
       NewtonSegmentProject = 1, /**<
-         Use Newton's algorithm, restricting the reference-space points to the
-         reference element by scaling back the Newton increments, i.e.
-         projecting new iterates, x_new, lying outside the element, to the
-         intersection of the line segment [x_old, x_new] with the boundary. */
+       Use Newton's algorithm, restricting the reference-space points to the
+       reference element by scaling back the Newton increments, i.e.
+       projecting new iterates, x_new, lying outside the element, to the
+       intersection of the line segment [x_old, x_new] with the boundary. */
       NewtonElementProject = 2, /**<
-         Use Newton's algorithm, restricting the reference-space points to the
-         reference element by projecting new iterates, x_new, lying outside the
-         element, to the point on the boundary closest (in reference-space) to
-         x_new. */
+       Use Newton's algorithm, restricting the reference-space points to the
+       reference element by projecting new iterates, x_new, lying outside the
+       element, to the point on the boundary closest (in reference-space) to
+       x_new. */
    };
 
    /// Values returned by Transform().
    enum TransformResult
    {
-      Inside  = 0, ///< The point is inside the element
+      Inside = 0,  ///< The point is inside the element
       Outside = 1, ///< The point is _probably_ outside the element
       Unknown = 2  ///< The algorithm failed to determine where the point is
    };
@@ -384,7 +385,7 @@ public:
 
 /**
  * @brief Performs batch inverse element transforms. Currently only supports
- * meshes non-mixed meshes with SEGMENT, SQUARE, or CUBE geometries. Mixed
+ * non-mixed meshes with SEGMENT, SQUARE, or CUBE geometries. Mixed
  * element order meshes are projected onto an equivalent uniform order mesh.
  */
 class BatchInverseElementTransformation
@@ -423,9 +424,22 @@ class BatchInverseElementTransformation
    const Array<real_t> *points1d = nullptr;
 
 public:
+   /// Uninitialized BatchInverseElementTransformation. Users must call
+   /// UpdateNodes before Transform.
    BatchInverseElementTransformation();
-   BatchInverseElementTransformation(const GridFunction &gf,
+   ///
+   /// Constructs a BatchInverseElementTransformation given @a nodes representing
+   /// the mesh nodes.
+   ///
+   BatchInverseElementTransformation(const GridFunction &nodes,
                                      MemoryType d_mt = MemoryType::DEFAULT);
+   ///
+   /// Constructs a BatchInverseElementTransformation for a given @a mesh.
+   /// mesh.GetNodes() must not be null.
+   ///
+   BatchInverseElementTransformation(const Mesh &mesh,
+                                     MemoryType d_mt = MemoryType::DEFAULT);
+
    ~BatchInverseElementTransformation();
 
    /** @brief Choose how the initial guesses for subsequent calls to Transform()
@@ -445,7 +459,8 @@ public:
        ElementTransformation. */
    void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
 
-   /// @b Gets the basis type nodes are projected onto. Call only after Setup()
+   /// @b Gets the basis type nodes are projected onto, or BasisType::Invalid if
+   /// uninitialized.
    int GetBasisType() const { return basis_type; }
 
    /** @brief Specify which algorithm to use for solving the transformation
@@ -466,12 +481,18 @@ public:
    void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
 
    /**
-    * @brief Performs setup for a batch transformation. This must be called
-    * at least once before calls to Transform. @a gf contains the mesh nodes
-    * grid function. This function must be re-called if @a gf changes prior to
-    * calling Transform()
+    * @brief Updates internal datastructures if @a nodes change. Some version
+    * of UpdateNodes must be called at least once before calls to Transform if
+    * nodes have changed.
     */
-   void UpdateNodes(const GridFunction &gf, MemoryType d_mt = MemoryType::DEFAULT);
+   void UpdateNodes(const GridFunction &nodes,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+   /**
+    * @brief Updates internal datastructures if @a mesh nodes change. Some version
+    * of UpdateNodes must be called at least once before calls to Transform if
+    * mesh nodes have changed. mesh.GetNodes() must not be null.
+    */
+   void UpdateNodes(const Mesh &mesh, MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Performs a batch request of a set of points belonging to the given
        elements.
