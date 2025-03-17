@@ -90,6 +90,8 @@ public:
    void SetIteration( int iterationNumber ) { iter = iterationNumber; };
    int GetIteration() { return iter; };
 
+   void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+
 protected:
    // Local vectors
    real_t *a, *b, *c, *d;
@@ -99,6 +101,9 @@ protected:
 
    // counter for Update() calls
    int iter = 0;
+
+   // print level: 1 = none, 2 = warnings
+   int print_level = 1;
 
    // Global: Asymptotes, bounds, objective approx., constraint approx.
    real_t *low, *upp;

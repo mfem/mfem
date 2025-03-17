@@ -97,7 +97,6 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    {
       if (U[i][i] == 0.0)
       {
-         printf("Error: matrix is singular.");
          delete[] ipiv;
          for (int j = 0; j < nLAP; ++j)
          {
@@ -109,7 +108,7 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
          delete[] L;
          delete[] U;
          delete[] B;
-         return;
+         MFEM_ABORT("Error: matrix in MMA LU Solve is singular.");
       }
    }
 
@@ -703,11 +702,11 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                }
                else if (info > 0)
                {
-                  err << "Error: matrix is singular." << std::endl;
+                  MFEM_ABORT("MMA: matrix is singular.");
                }
                else
                {
-                  err << "Error: Argument " << info << " has illegal value." << std::endl;
+                  MFEM_ABORT("MMA: Argument %d in linear system solve has illegal value.", info);
                }
 #else
                solveLU(ncon, AA1, bb1);
@@ -738,7 +737,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          }
          else
          {
-            mfem_error("MMA: Optimization problem case which has more constraints than design variables is not implemented!");
+            MFEM_ABORT("MMA: Optimization problem case which has more constraints than design variables is not implemented!");
          }
 
          for (int i = 0; i < ncon; i++)
@@ -1011,20 +1010,19 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          steg = steg * 2.0;
 
       }
-      if (ittt > 198)
+      if (ittt > 198 && mma->print_level>=2)
       {
-         printf("Warning: Maximum number of iterations reached in MMA subsolve.\n");
+         out << "Warning: Maximum number of iterations reached in MMA subsolve.\n";
       }
       epsi = 0.1 * epsi;
    }
 
-   // should return x, y, z, lam, xsi, eta, mu, zet, s
+   // returns x, y, z, lam, xsi, eta, mu, zet, s
 
 }
 
 void MMA::InitData(real_t *xval)
 {
-
    for (int i = 0; i < nVar; i++)
    {
       x[i]=xval[i];
