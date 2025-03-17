@@ -158,24 +158,23 @@ public:
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
-         MFEM_SHARED real_t smem[MDQ * MDQ];
-         MFEM_SHARED real_t s_B[MD1 * MQ1], s_G[MD1 * MQ1];
+         MFEM_SHARED real_t sm[MDQ * MDQ];
+         MFEM_SHARED real_t sB[MD1 * MQ1], sG[MD1 * MQ1];
 
          using regs2d_t = kernels::internal::regs::Registers<real_t,MDQ,MDQ>;
-         regs2d_t r_u[VDIM*MD1], r_grad_u[VDIM * DIM * MQ1], r_q[DIM * MQ1];
+         regs2d_t r_u[VDIM*MD1], r_gu[VDIM * DIM * MQ1];
 
-         kernels::internal::regs::loadMatrix<MD1, MQ1>(B, s_B);
-         kernels::internal::regs::loadMatrix<MD1, MQ1>(G, s_G);
+         kernels::internal::regs::loadMatrix<MD1, MQ1>(B, sB);
+         kernels::internal::regs::loadMatrix<MD1, MQ1>(G, sG);
 
-         kernels::internal::regs::readDofsOffset3d<VDIM, MD1, MDQ>(e, NE, x_r, r_u);
-         kernels::internal::regs::grad3d<DIM, VDIM, MD1, MQ1, MDQ>(smem, s_B, s_G, r_u,
-                                                                   r_grad_u);
+         kernels::internal::regs::readDofsOffset3dXD<VDIM, MD1, MDQ>(e, NE, x_r, r_u);
+         kernels::internal::regs::grad3d<DIM,VDIM, MD1,MQ1,MDQ>(sm, sB, sG, r_u, r_gu);
 
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         for (int qz=0; qz < Q1D; ++qz)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               for (int qz=0; qz < Q1D; ++qz)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJtr = kernels::Det<3>(Jtr);
@@ -190,9 +189,9 @@ public:
 
                   // Jpr = X^T.DSh
                   auto idx = [&](int comp, int d, int qz) {return qz + d * VDIM * Q1D + comp * Q1D;};
-                  real_t Jpr[9] = {r_grad_u[idx(0,0,qz)][qx][qy], r_grad_u[idx(1,0,qz)][qx][qy], r_grad_u[idx(2,0,qz)][qx][qy],
-                                   r_grad_u[idx(0,1,qz)][qx][qy], r_grad_u[idx(1,1,qz)][qx][qy], r_grad_u[idx(2,1,qz)][qx][qy],
-                                   r_grad_u[idx(0,2,qz)][qx][qy], r_grad_u[idx(1,2,qz)][qx][qy], r_grad_u[idx(2,2,qz)][qx][qy]
+                  real_t Jpr[9] = {r_gu[idx(0,0,qz)][qx][qy], r_gu[idx(1,0,qz)][qx][qy], r_gu[idx(2,0,qz)][qx][qy],
+                                   r_gu[idx(0,1,qz)][qx][qy], r_gu[idx(1,1,qz)][qx][qy], r_gu[idx(2,1,qz)][qx][qy],
+                                   r_gu[idx(0,2,qz)][qx][qy], r_gu[idx(1,2,qz)][qx][qy], r_gu[idx(2,2,qz)][qx][qy]
                                   };
 
                   // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
