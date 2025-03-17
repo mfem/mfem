@@ -243,22 +243,10 @@ using hip_threads_z =
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
-void RajaCuWrap1D(const int N, DBODY &&d_body, int X)
+void RajaCuWrap1D(const int N, DBODY &&d_body)
 {
-   X = X ? X : BLOCKS;
-   // true denotes asynchronous kernel
-   RAJA::launch<cuda_launch_policy>(
-      RAJA::LaunchParams(RAJA::Teams((N + X - 1) / X, 1, 1),
-                         RAJA::Threads(X, 1, 1), 0),
-      [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
-   {
-      const int k = blockDim.x * blockIdx.x + threadIdx.x;
-      if (k >= N)
-      {
-         return;
-      }
-      d_body(k);
-   });
+   //true denotes asynchronous kernel
+   RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
 template <typename DBODY>
@@ -327,7 +315,7 @@ struct RajaCuWrap<1>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      RajaCuWrap1D<BLCK>(N, d_body, X);
+      RajaCuWrap1D<BLCK>(N, d_body);
    }
 };
 
@@ -357,22 +345,8 @@ struct RajaCuWrap<3>
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
 template <const int BLOCKS = MFEM_HIP_BLOCKS, typename DBODY>
-void RajaHipWrap1D(const int N, DBODY &&d_body, int X)
+void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
-   X = X ? X : BLOCKS;
-   // true denotes asynchronous kernel
-   RAJA::launch<hip_launch_policy>(
-      RAJA::LaunchParams(RAJA::Teams((N + X - 1) / X, 1, 1),
-                         RAJA::Threads(X, 1, 1), 0),
-      [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
-   {
-      const int k = blockDim.x * blockIdx.x + threadIdx.x;
-      if (k >= N)
-      {
-         return;
-      }
-      d_body(k);
-   });
    //true denotes asynchronous kernel
    RAJA::forall<RAJA::hip_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
@@ -443,7 +417,7 @@ struct RajaHipWrap<1>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      RajaHipWrap1D<BLCK>(N, d_body, X);
+      RajaHipWrap1D<BLCK>(N, d_body);
    }
 };
 
@@ -532,12 +506,11 @@ void CuKernel3D(const int N, BODY body)
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-void CuWrap1D(const int N, DBODY &&d_body, int X)
+void CuWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
-   X = X ? X : BLCK;
-   const int GRID = (N + X - 1) / X;
-   CuKernel1D<<<GRID,X>>>(N, d_body);
+   const int GRID = (N+BLCK-1)/BLCK;
+   CuKernel1D<<<GRID,BLCK>>>(N, d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -574,7 +547,7 @@ struct CuWrap<1>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      CuWrap1D<BLCK>(N, d_body, X);
+      CuWrap1D<BLCK>(N, d_body);
    }
 };
 
@@ -629,12 +602,11 @@ void HipKernel3D(const int N, BODY body)
 }
 
 template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
-void HipWrap1D(const int N, DBODY &&d_body, int X)
+void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
-   X = X ? X : BLCK;
-   const int GRID = (N + X - 1) / X;
-   hipLaunchKernelGGL(HipKernel1D,GRID,X,0,0,N,d_body);
+   const int GRID = (N+BLCK-1)/BLCK;
+   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -670,7 +642,7 @@ struct HipWrap<1>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      HipWrap1D<BLCK>(N, d_body, X);
+      HipWrap1D<BLCK>(N, d_body);
    }
 };
 
@@ -778,15 +750,13 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
    ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
 }
 
-template <typename lambda> inline void forall(int N, lambda &&body, int X = 0)
-{
-   ForallWrap<1>(true, N, body, X);
-}
+template<typename lambda>
+inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
 
 template<typename lambda>
-inline void forall_switch(bool use_dev, int N, lambda &&body, int X=0)
+inline void forall_switch(bool use_dev, int N, lambda &&body)
 {
-   ForallWrap<1>(use_dev, N, body, X);
+   ForallWrap<1>(use_dev, N, body);
 }
 
 template<typename lambda>
@@ -831,12 +801,12 @@ inline void hypre_forall_cpu(int N, lambda &&body)
 // executes on the GPU device that hypre was configured with at build time.
 #if defined(HYPRE_USING_GPU)
 template<typename lambda>
-inline void hypre_forall_gpu(int N, lambda &&body, int X=0)
+inline void hypre_forall_gpu(int N, lambda &&body)
 {
 #if defined(HYPRE_USING_CUDA)
-   CuWrap1D(N, body, X);
+   CuWrap1D(N, body);
 #elif defined(HYPRE_USING_HIP)
-   HipWrap1D(N, body, X);
+   HipWrap1D(N, body);
 #else
 #error Unknown HYPRE GPU backend!
 #endif
