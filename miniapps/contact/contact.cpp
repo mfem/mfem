@@ -33,7 +33,7 @@ int ExtractStepNumber(const char *filename)
    return std::atoi(step_pos + 4); // Convert characters after "step" to an integer
 }
 
-void SaveState(ParGridFunction &x_gf, int step, const std::string & checkpoint_dir)
+void SaveState(ParGridFunction &x_gf, const Vector& eps, const Vector& dx, int step, const std::string & checkpoint_dir, bool nonlinear)
 {
    std::string gf_filename = checkpoint_dir + "/step" 
                                             + std::to_string(step) 
@@ -62,9 +62,34 @@ void SaveState(ParGridFunction &x_gf, int step, const std::string & checkpoint_d
    {
       mfem::out << "Saved gf to " << gf_filename.c_str() << std::endl;
    }
+
+   if (nonlinear)
+   {
+      std::string eps_filename = checkpoint_dir + "/step" + std::to_string(step)
+      + "_eps.vec";
+      ofstream epsofs(MakeParFilename(eps_filename,myid));
+      epsofs.precision(16);
+      eps.Print(epsofs, 1);
+
+      if (Mpi::Root())
+      {
+         mfem::out << "Saved eps to " << eps_filename.c_str() << std::endl;
+      }
+
+      std::string dx_filename = checkpoint_dir + "/step" + std::to_string(step)
+      + "_dx.vec";
+      ofstream dxofs(MakeParFilename(dx_filename,myid));
+      dxofs.precision(16);
+      dx.Print(dxofs, 1);
+
+      if (Mpi::Root())
+      {
+         mfem::out << "Saved dx to " << dx_filename.c_str() << std::endl;
+      }
+   }
 }
 
-void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf, int & step, int & testNo)
+void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf, Vector*& eps, Vector*& dx, int & step, int & testNo, bool nonlinear)
 {
    std::ostringstream mesh_file, gf_file;
    mesh_file << state_file << ".mesh";
@@ -107,9 +132,23 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
    ifstream gfifs(gfname);
    MFEM_VERIFY(gfifs.good(), "Checkpoint file " << gfname << " not found.");
    x_gf = new ParGridFunction(pmesh, gfifs);
+
+   if (nonlinear)
+   {
+      std::ostringstream eps_file, dx_file;
+      eps_file << state_file << "_eps.vec";
+      dx_file << state_file << "_dx.vec";
+      string epsname(MakeParFilename(eps_file.str().c_str(), myid));
+      ifstream epsifs(epsname);
+      string dxname(MakeParFilename(dx_file.str().c_str(), myid));
+      ifstream dxifs(dxname);
+
+      eps = new Vector(x_gf->GetTrueVector().Size());
+      eps->Load(epsifs, x_gf->GetTrueVector().Size());
+      dx = new Vector(x_gf->GetTrueVector().Size());
+      dx->Load(dxifs, x_gf->GetTrueVector().Size());
+   }
 }
-
-
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
 {
@@ -311,10 +350,12 @@ int main(int argc, char *argv[])
 
    int istep=0;   
    ParGridFunction * restart_gf=nullptr;
+   Vector * restart_eps=nullptr;
+   Vector * restart_dx=nullptr;
    ParMesh * pmesh = nullptr;
    if (restart)
    {
-      LoadState(restart_file, pmesh, restart_gf, istep, testNo);
+      LoadState(restart_file, pmesh, restart_gf, restart_eps, restart_dx, istep, testNo, nonlinear);
       if (!pmesh)
       {
          mfem::out << "Pmesh pointer is null" << endl;
@@ -577,8 +618,18 @@ int main(int argc, char *argv[])
    // issues with the optimizer
    // eps_min > 0 ensures that this issue will not occur
    Vector xl(xref.Size()); xl = 0.0;
-   Vector eps(xref.Size()); eps = 0.0;
-   Vector dx(xref.Size()); dx = 0.0;
+   Vector eps(xref.Size());
+   Vector dx(xref.Size());
+   if (restart)
+   {
+      eps = *restart_eps;
+      dx = *restart_dx;
+   }
+   else
+   {
+      eps = 0.0;
+      dx = 0.0;
+   }
    double eps_min = 1.e-4;
 
 
@@ -826,7 +877,7 @@ int main(int argc, char *argv[])
          {
             std::cerr << "Warning: Failed to create ParaView output directory.\n";
          }      
-         SaveState(x_gf,i,checkpoint_dir);
+         SaveState(x_gf,eps,dx,i,checkpoint_dir,nonlinear);
       }
       if (visualization)
       {
