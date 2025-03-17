@@ -32,7 +32,17 @@ BatchInverseElementTransformation::BatchInverseElementTransformation(
    UpdateNodes(gf, d_mt);
 }
 
+BatchInverseElementTransformation::BatchInverseElementTransformation(
+   const Mesh &mesh, MemoryType d_mt)
+   : BatchInverseElementTransformation(*mesh.GetNodes(), d_mt) {}
+
 BatchInverseElementTransformation::~BatchInverseElementTransformation() {}
+
+void BatchInverseElementTransformation::UpdateNodes(const Mesh &mesh,
+                                                    MemoryType d_mt)
+{
+   UpdateNodes(*mesh.GetNodes(), d_mt);
+}
 
 void BatchInverseElementTransformation::UpdateNodes(const GridFunction &gf,
                                                     MemoryType d_mt)
@@ -223,6 +233,11 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       {
          int nq1d = std::max(order + rel_qpts_order, 0) + 1;
          int btype = BasisType::GetNodalBasis(guess_points_type);
+         if (btype == BasisType::Invalid)
+         {
+            // default to closed uniform points
+            btype = BasisType::ClosedUniform;
+         }
          auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
          auto qptr = qpoints->Read(use_dev);
          NewtonEdgeScan::Run(geom, vdim, solver_type, use_dev, ref_tol,
