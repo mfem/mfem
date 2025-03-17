@@ -165,7 +165,7 @@ public:
          kernels::internal::regs::LoadMatrix<MD1, MQ1>(B, sB);
          kernels::internal::regs::LoadMatrix<MD1, MQ1>(G, sG);
 
-         kernels::internal::regs::ReadDofsOffset3dXD<VDIM, MD1, MDQ>(e, NE, x_r, r_u);
+         kernels::internal::regs::ReadDofsOffset3dXE<VDIM, MD1, MDQ>(e, x_r, r_u);
          kernels::internal::regs::Grad3d<DIM,VDIM, MD1,MQ1,MDQ>(sm, sB, sG, r_u, r_gu);
 
          for (int qz = 0; qz < Q1D; ++qz)
@@ -187,9 +187,9 @@ public:
 
                   // Jpr = X^T.DSh
                   auto idx = [&](int comp, int d, int qz) {return qz + d * VDIM * Q1D + comp * Q1D;};
-                  real_t Jpr[9] = {r_gu[idx(0,0,qz)][qx][qy], r_gu[idx(1,0,qz)][qx][qy], r_gu[idx(2,0,qz)][qx][qy],
-                                   r_gu[idx(0,1,qz)][qx][qy], r_gu[idx(1,1,qz)][qx][qy], r_gu[idx(2,1,qz)][qx][qy],
-                                   r_gu[idx(0,2,qz)][qx][qy], r_gu[idx(1,2,qz)][qx][qy], r_gu[idx(2,2,qz)][qx][qy]
+                  real_t Jpr[9] = {r_gu[idx(0,0,qz)][qy][qx], r_gu[idx(1,0,qz)][qy][qx], r_gu[idx(2,0,qz)][qy][qx],
+                                   r_gu[idx(0,1,qz)][qy][qx], r_gu[idx(1,1,qz)][qy][qx], r_gu[idx(2,1,qz)][qy][qx],
+                                   r_gu[idx(0,2,qz)][qy][qx], r_gu[idx(1,2,qz)][qy][qx], r_gu[idx(2,2,qz)][qy][qx]
                                   };
 
                   // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
