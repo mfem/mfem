@@ -916,10 +916,26 @@ void GSLIBBound::GetBounds(Vector &vect, Vector &qpmin, Vector &qpmax, int dim)
    }
    else if (dim == 3)
    {
+      DenseTensor Jtrl(mr,mr,mr), Jtru(mr,mr,mr);
+      DenseTensor Jtrls(Jtrl.Data(), mr*mr*mr,1,1),
+                  Jtrus(Jtru.Data(), mr*mr*mr,1,1);
+      int count = 0;
+      for (int k = 0; k < mr; k++)
+      {
+         for (int j = 0; j < mr; j++)
+         {
+            for (int i = 0; i < mr; i++)
+            {
+               Jtrl(k,j,i) = work(2*count+0);
+               Jtru(k,j,i) = work(2*count+1);
+               count++;
+            }
+         }
+      }
       for (int j = 0; j < mr*mr*mr; j++)
       {
-         qpmin(j) = work[2*j+0];
-         qpmax(j) = work[2*j+1];
+         qpmin(j) = Jtrls(j,0,0);
+         qpmax(j) = Jtrus(j,0,0);
       }
    }
 }

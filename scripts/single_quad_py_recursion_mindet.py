@@ -49,6 +49,20 @@ levels4, patches4 = get_npatch_per_level("/Users/mittal3/LLNL/mfem-detJ/mfem/exa
 x1a, y1a, y1ab = load_data("/Users/mittal3/LLNL/mfem-detJ/mfem/examples/single_quad_custom_bounds3.txt", 0, 1, 2)
 levels1a, patches1a = get_npatch_per_level("/Users/mittal3/LLNL/mfem-detJ/mfem/examples/2DcustomboundinfoM3.txt",3)
 
+#print data to file
+sizemax = np.size(x1)
+dataprint = np.zeros((sizemax,5))
+# dataprint[:] = np.nan
+for i in range(sizemax):
+    dataprint[i,0] = x1[i]
+    dataprint[i,1] = y1[i]
+    if (i < np.size(y2)):
+        dataprint[i,2] = y2[i]
+    if (i < np.size(y3)):
+        dataprint[i,3] = y3[i]
+    if (i < np.size(y4)):
+        dataprint[i,4] = y4[i]
+
 # Plot the data
 plt.figure(figsize=(8, 6))
 plt.plot(x1, -y1, label='Bernstein', marker='o', color='red')
@@ -80,6 +94,8 @@ plt.grid()
 
 outpathpre = "/Users/mittal3/LLNL/mfem-detJ/mfem/scripts/results/single_quad/"
 plt.savefig(outpathpre+"single_quad_detj_comparison.png", dpi=300, bbox_inches="tight")
+
+np.savetxt(outpathpre+'berncompdata.txt', dataprint)
 
 
 for i in range(len(x1)):

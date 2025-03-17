@@ -171,13 +171,62 @@ for i, N in enumerate(Ns):
 
 	writeerrs[5,:] = l2errs
 
-	plt.xlabel('M')
+	plt.xlabel('$M$')
+	plt.ylabel('L2 err')
+	plt.title(f'N = {N}')
+
+	if i == 0:
+		plt.legend(['$\eta_{GL + endpoints},q_{opt}$', '$\eta_{Chebyshev},q_{opt}$', '$\eta_{GLL},q_{opt}$', '$\eta_{equispaced},q_{opt}$', '$\eta_{opt},q_{opt}$'])
+		# plt.legend(['$\eta_{opt},q_{opt}$'])
+
+	np.savetxt(f'basis_l2errs_N{N}.csv', writeerrs.T, header='gl, gll, cheb, eq, opt', delimiter=',', comments='')
+
+plt.show()
+
+plt.close()
+
+#plot with dx_avg^2
+for i, N in enumerate(Ns):
+	plt.subplot(2,3,i+1)
+
+	xe = []
+	ye = []
+	dxmin = np.zeros(len(Ms))
+	dxmax = np.zeros(len(Ms))
+	dxavg = np.zeros(len(Ms))
+	dxc   = np.zeros(len(Ms))
+	for j, M in enumerate(Ms):
+		try:
+			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
+			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
+			l1errs[j] = l1err
+			l2errs[j] = l2err
+			linferrs[j] = linferr
+		except:
+			l1errs[j] = np.nan
+			l2errs[j] = np.nan
+			linferrs[j] = np.nan
+
+	# plt.semilogy(Ms, l2errs, 'ko-',linewidth=1)
+
+		dx = np.diff(xb)
+		dxmin[j] = np.min(dx)
+		dxmax[j] = np.max(dx)
+		dxavg[j] = np.mean(dx)
+		dxc[j] = dxavg[j]
+	for jk, vv in enumerate(dxc):
+		dxc[jk] = vv**2
+	plt.loglog(dxc, l2errs, 'ko--',linewidth=1)
+
+	writeerrs[5,:] = l2errs
+
+	plt.xlabel('$\Delta x_{avg}^2$')
 	plt.ylabel('L2 err')
 	plt.title(f'N = {N}')
 
 	if i == 0:
 		plt.legend(['$\eta_{GL + endpoints},q_{opt}$', '$\eta_{Chebyshev},q_{opt}$', '$\eta_{GLL},q_{opt}$', '$\eta_{equispaced},q_{opt}$', '$\eta_{opt},q_{opt}$'])
 
-	np.savetxt(f'basis_l2errs_N{N}.csv', writeerrs.T, header='gl, gll, cheb, eq, opt', delimiter=',', comments='')
+	# np.savetxt(f'basis_l2errs_N{N}.csv', writeerrs.T, header='gl, gll, cheb, eq, opt', delimiter=',', comments='')
 
 plt.show()

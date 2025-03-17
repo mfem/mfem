@@ -7,6 +7,29 @@ from scipy.special import legendre
 from matplotlib.backends.backend_pdf import PdfPages
 import os
 import copy
+from math import comb
+
+# after running this file:
+# python3 pyomo_get_optimal_bounds.py --N 5 --M 6 --nt 1/0/2
+# you can grep the output log: grep -i 'curr_x\[ ' ipopt_iter_log.txt  > x_N=5_M=6.txt
+# and then plot this: python3 pyomo_plot_x_progress.py
+# convert output pdfs to gif: makegiffrompdf x_progress_phi0 x_progress_phi0 25 500
+# convert pdfs to gif in 1
+#
+#####  put the text below in a bash script and run it
+# NUM_PAGES=29  # set this to the number of pages each PDF has
+# for (( i=0; i<$NUM_PAGES; i++ )); do
+#   magick  convert -density 500 \ #density 500 results in 3200x2400 size pngs
+#     \( x_progress_phi0.pdf[$i] \) \
+#     \( x_progress_phi1.pdf[$i] \) \
+#     \( x_progress_phi2.pdf[$i] \) +append top_row.png
+#   magick  convert -density 500 \
+#     \( x_progress_phi3.pdf[$i] \) \
+#     \( x_progress_phi4.pdf[$i] \) +append bottom_row.png
+#   magick bottom_row.png -gravity center -background none -extent 9600x2400 bottom_ext.png
+#   magick top_row.png bottom_ext.png -append frame-$i.png
+# done
+# magick -delay 25 -loop 0 frame-*.png output.gif
 
 # 1) Define the N Lagrange basis polynomials, L_j(x), j=0..N-1.
 #    You can build them symbolically or load them if you have a direct formula.
@@ -16,23 +39,75 @@ def lobatto_nodes(N):
 	x = np.concatenate(([-1], roots, [1]))
 	return np.sort(x)
 
-def lagrange_basis_polynomial(j, x, gll_nodes):
+def lagrange_basis_polynomial(j, x, nodes):
     """
     Returns the L_j(x) value at x (assuming j-th Lagrange polynomial
     w.r.t. the given GLL nodes). For brevity, just illustrate a direct product form.
     """
     L = 1.0
-    x_j = gll_nodes[j]
-    for m, xm in enumerate(gll_nodes):
+    x_j = nodes[j]
+    for m, xm in enumerate(nodes):
         if m != j:
             L *= (x - xm) / (x_j - xm)
     return L
 
-def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
+def bernstein_basis(n, i, x):
+    """
+    Evaluate the Bernstein basis polynomial of degree n and index i at point x.
+
+    Parameters:
+    n (int): Degree of the polynomial
+    i (int): Index of the basis polynomial (0 <= i <= n)
+    x (float): Point at which to evaluate (typically in [0, 1])
+
+    Returns:
+    float: Value of the Bernstein basis polynomial B_{i,n}(x)
+    """
+    return comb(n, i) * (x ** i) * ((1.0 - x) ** (n - i))
+
+def generate_symmetric_random_points(M, random_seed=None):
+    # Optionally set a random seed for reproducibility
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    if M < 2:
+        raise ValueError("M must be at least 2 to include both endpoints -1 and 1.")
+    if M == 2:
+        # Just return [-1, 1]
+        return np.array([-1.0, 1.0])
+    elif M == 3:
+        # Return [-1, 0, 1]
+        return np.array([-1.0, 0.0, 1.0])
+
+    if M % 2 == 0:
+        half_to_generate = (M - 2) // 2
+        positive_samples = np.random.uniform(low=0.0, high=1.0, size=half_to_generate)
+        points = np.concatenate((
+            [-1.0],
+            positive_samples,
+            -positive_samples,  # mirrored
+            [1.0]
+        ))
+    else:
+        half_to_generate = (M - 3) // 2
+        positive_samples = np.random.uniform(low=0.0, high=1.0, size=half_to_generate)
+
+        points = np.concatenate((
+            [-1.0],
+            [0.0],
+            positive_samples,
+            -positive_samples,  # mirrored
+            [1.0]
+        ))
+
+    # Sort for a nice ascending order: [-1, ..., -x, ..., 0, ..., x, ..., 1]
+    points = np.sort(points)
+    return points
+
+def build_and_solve_model_L2_bounds(N, M, nodes, K_sub, bern):
     """
     N: number of GLL nodes => defines N Lagrange polynomials L_0..L_{N-1}.
     M: total number of piecewise-linear breakpoints => (M-1) subintervals.
-    gll_nodes: array of the GLL nodes in [-1,1].
+    nodes: array of the GLL/GL nodes in [-1,1] or uniform nodes in [0,1]
     K_sub: number of sample fractions *inside each subinterval* to enforce constraints.
 
     Decision vars:
@@ -46,10 +121,8 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     where x_{i,k} is a sample point in [x[i],x[i+1]].
     """
     model = pyo.ConcreteModel()
+    evenM = M % 2 == 0
 
-    # ------------------
-    # 1) Define indexes
-    # ------------------
     model.i_set = pyo.RangeSet(0, M-1)     # for breakpoints x[i]
     model.j_set = pyo.RangeSet(0, N-1)     # for polynomials L_j
 
@@ -57,13 +130,34 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     # 2) Variables: x[i], etc.
     # -------------------------
     # x[i] are the subinterval breakpoints in [-1,1]
-    model.x = pyo.Var(model.i_set, bounds=(-1,1))
-    model.x[0].fix(-1)       # left endpoint
-    model.x[M-1].fix(1)      # right endpoint
+    model.x = pyo.Var(model.i_set, bounds=(-1,1) if not bern else (0,1))
+    model.symmetry_c = pyo.ConstraintList()
 
-    xinit = lobatto_nodes(M)
+    xinit = generate_symmetric_random_points(M, random_seed=20)
+    if bern:
+        #rescale xinit to [0,1]
+        xinit = (xinit + 1.0) / 2.0
+
+    model.x[0].fix(0 if bern else -1)       # left endpoint
+    model.x[M-1].fix(1)      # right endpoint
+    if M % 2 == 1:
+        mid = (M - 1) // 2
+        model.x[mid].fix(0.0 if not bern else 0.5)
+        if not bern:
+            for i in range(1,mid):
+                model.symmetry_c.add(model.x[M - 1 - i] == -model.x[i])
+        else:
+            for i in range(1,mid):
+                model.symmetry_c.add(model.x[M - 1 - i]-0.5 == 0.5-model.x[i])
+
+    else:
+        half = M // 2
+        for i in range(half):
+            model.symmetry_c.add(model.x[M - 1 - i]-0.5 == 0.5-model.x[i])
+
     for i in range(1,M-1):
         model.x[i].value = xinit[i]
+        # print(model.x[i].value)
 
     # For each polynomial j, define nodal values l[j,i] and u[j,i]
     model.l = pyo.Var(model.j_set, model.i_set)
@@ -71,12 +165,8 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
 
     for i in range(N):
             for j in range(M):
-                model.l[i,j].value = -1.0
-                model.u[i,j].value = 1.0
-
-    blow = np.zeros((N,M))
-    bhigh = np.zeros((N,M))
-    xt = np.zeros(M)
+                model.l[i,j].value = bernstein_basis(N-1, i, model.x[j].value) if bern else lagrange_basis_polynomial(i, model.x[j].value, nodes)
+                model.u[i,j].value = bernstein_basis(N-1, i, model.x[j].value) if bern else lagrange_basis_polynomial(i, model.x[j].value, nodes)
 
     # Force ordering: x[i+1] >= x[i] + a small gap
     def _order_rule(m, i):
@@ -84,6 +174,7 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
             return m.x[i+1] >= m.x[i] + 1e-2
         return pyo.Constraint.Skip
     model.order_c = pyo.Constraint(model.i_set, rule=_order_rule)
+
 
     # input(' ')
     # -------------------------------------------
@@ -123,7 +214,10 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
 
             for j in range(N):
                 # Evaluate L_j at x_ik (symbolically recognized by Pyomo)
-                L_j_ik = lagrange_basis_polynomial(j, x_ik, gll_nodes)
+                if bern:
+                    L_j_ik = bernstein_basis(N-1, j, x_ik)
+                else:
+                    L_j_ik = lagrange_basis_polynomial(j, x_ik, nodes)
 
                 # Enforce l_ik <= L_j_ik <= u_ik
                 model.con_bounds.add(l_ik_expr(j) <= L_j_ik)
@@ -152,6 +246,7 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     solver.options['linear_solver'] = 'mumps'  # or 'ma57' if available
     solver.options['mu_strategy'] = 'adaptive'
     solver.options['nlp_scaling_method'] = 'gradient-based'
+    solver.options['option_file_name'] = 'ipopt.opt'
     obj_init = model.obj()
     solver.solve(model, tee=True)
 
@@ -164,20 +259,20 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
             u_sol[j, i] = pyo.value(model.u[j,i])
             l_sol[j, i] = pyo.value(model.l[j,i])
 
-    return x_sol, u_sol, l_sol, model, obj_init, xt, blow, bhigh
+    return x_sol, u_sol, l_sol, model, obj_init
 
-def plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, gll_nodes, x_solt, l_solt, u_solt, pdf_filename="bounds_plots.pdf"):
+def plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, nodes, bern,  pdf_filename="bounds_plots.pdf"):
     """
     x_sol: 1D array (length M) of shared interval breakpoints.
     u_sol: (N x M) array, with u_sol[j,i] = upper bound for basis j at x_sol[i].
     l_sol: (N x M) array, with l_sol[j,i] = lower bound for basis j at x_sol[i].
-    gll_nodes: the GLL nodes used for the Lagrange basis polynomials.
+    nodes: the GLL nodes used for the Lagrange basis polynomials.
     pdf_filename: name of the output PDF file.
     """
-    N = len(gll_nodes)
+    N = len(nodes)
 
     # We'll create a dense grid in [-1, 1] for plotting each polynomial
-    x_dense = np.linspace(-1, 1, 400)
+    x_dense = np.linspace(-1 if not bern else 0.0, 1, 400)
 
     with PdfPages(pdf_filename) as pdf:
         # Loop over each basis polynomial j
@@ -186,7 +281,10 @@ def plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, gll_nodes, x_solt, l_
             fig, ax = plt.subplots(figsize=(6,4))
 
             # 2) Compute the polynomial L_j on the dense grid
-            L_vals = [lagrange_basis_polynomial(j, xd, gll_nodes) for xd in x_dense]
+            if bern:
+                L_vals = [bernstein_basis(N-1, j, xd) for xd in x_dense]
+            else:
+                L_vals = [lagrange_basis_polynomial(j, xd, nodes) for xd in x_dense]
             ax.plot(x_dense, L_vals, 'k-', label=f'Lagrange basis $L_{j}$')
 
             # 3) Plot the piecewise-linear bounds for basis j
@@ -194,16 +292,13 @@ def plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, gll_nodes, x_solt, l_
             ax.plot(x_sol, l_sol[j,:], 'bo--', label='Lower bound', linewidth=1)
             ax.plot(x_sol, u_sol[j,:], 'ro--', label='Upper bound', linewidth=1)
 
-            ax.plot(x_solt, l_solt[j,:], 'bo-', label='Lower bound T', linewidth=1)
-            ax.plot(x_solt, u_solt[j,:], 'ro-', label='Upper bound T', linewidth=1)
-
             # 4) Styling
             ax.set_title(f'Bounds for Lagrange basis j={j}')
             ax.set_xlabel('x')
             ax.set_ylabel('value')
             ax.grid(True)
             ax.legend(loc='best')
-            ax.plot(gll_nodes,0*gll_nodes,'ko-')
+            ax.plot(nodes,0*nodes,'ko-')
 
             # 5) Add the figure to the PDF
             pdf.savefig(fig)
@@ -213,31 +308,40 @@ def plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, gll_nodes, x_solt, l_
 
 # Example usage
 if __name__ == '__main__':
-    global N, M
+    global N, M, nt
     parser = argparse.ArgumentParser(description="A script that processes some arguments")
 
 	# Add arguments
     parser.add_argument('--N', type=int, help='Number of rows (N)', default=7)
     parser.add_argument('--M', type=int, help='Number of columns (M)', default=12)
+    parser.add_argument('--nt', type=int, help='node type: 0 (GL), 1 (GLL), 2 (Uniform for Bernstein)', default=1)
 
     args = parser.parse_args()
     N = args.N
     M = args.M
-    gll_nodes = lobatto_nodes(N)
+    nodetype = args.nt
+    if args.nt == 0:
+        nodes, _ = np.polynomial.legendre.leggauss(N)
+    elif args.nt == 1:
+        nodes = lobatto_nodes(N)
+    elif args.nt == 2:
+        nodes = np.linspace(0.0, 1.0, N)
+    else:
+        raise ValueError("Unknown node type. Choose 0 (GL), 1 (GLL), 2 (Uniform for Bernstein)")
 
     nsamples = 30 #samples per sub-interval
 
-    x_sol, u_sol, l_sol, model, obj_init, xt, blow, bhigh = build_and_solve_model_L2_bounds(N, M, gll_nodes, nsamples)
+    x_sol, u_sol, l_sol, model, obj_init = build_and_solve_model_L2_bounds(N, M, nodes, nsamples, nodetype == 2)
 
     filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.pdf"
 
-    plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, gll_nodes,
-                                      xt, blow, bhigh, pdf_filename=filename)
+    plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, nodes, nodetype == 2,
+                                      pdf_filename=filename)
 
     filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
     np.savetxt(filename, [N], fmt="%d", newline="\n")
     with open(filename, "a") as f:
-        np.savetxt(f, gll_nodes, fmt="%.15f", newline="\n")
+        np.savetxt(f, nodes, fmt="%.15f", newline="\n")
         np.savetxt(f, [M], fmt="%d", newline="\n")
         np.savetxt(f, x_sol, fmt="%.15f", newline="\n")
         for i in range(N):

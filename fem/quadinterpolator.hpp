@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,6 +138,10 @@ public:
    using GradKernelType = void(*)(const int, const real_t *, const real_t *,
                                   const real_t *, const real_t *, real_t *,
                                   const int, const int, const int, const int);
+   using CollocatedGradKernelType = void(*)(const int, const real_t *,
+                                            const real_t *, const real_t *,
+                                            real_t *, const int, const int,
+                                            const int);
    using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
                                  const real_t *, real_t *, const int, const int,
                                  Vector *);
@@ -152,8 +156,8 @@ public:
                          (int, QVectorLayout, bool, int, int, int), (int));
    MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int, int));
    MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int, int));
-
-   static struct Kernels { Kernels(); } kernels;
+   MFEM_REGISTER_KERNELS(CollocatedGradKernels, CollocatedGradKernelType,
+                         (int, QVectorLayout, bool, int, int), (int));
 };
 
 }

@@ -25,6 +25,7 @@ def lagrange_poly(gll, i, xi):
             num *= (xi - gll[j])
             den *= (gll[i] - gll[j])
     return num/den
+
 def NormalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
@@ -147,6 +148,7 @@ def main():
     sample_locs = np.zeros(npts)
     mylagpoly = np.zeros((npts,N))
     mylagpolyscaled = np.zeros((npts,N))
+    solgAimation = np.zeros((N,N))
     for j in range(npts):
         sample_locs[j] = rmin + (rmax-rmin)*j/npts
 
@@ -155,7 +157,13 @@ def main():
             mylagpoly[j,i] = lagrange_poly(gllG, i, sample_locs[j])
             mylagpolyscaled[j,i] = mylagpoly[j,i]*solG[i]
             upoly[j] += mylagpolyscaled[j,i]
-
+        for j in range(N):
+            val = solG[i]*lagrange_poly(gllG, i, gllG[j])
+            # print(i,j,val)
+            if i == 0:
+                solgAimation[i,j] += val
+            else:
+                solgAimation[i,j] = solgAimation[i-1,j] + val
     mindepth = int(np.min(np.abs(depth)))
     maxdepth = int(np.max(np.abs(depth)))
 
@@ -238,6 +246,39 @@ def main():
         plotindex += 1
         plt.ylim([-0.3, 1.3])
         pdf_pages.savefig()
+
+    # Plot first bounds and mark interval points
+    pos_indices = np.array([], dtype=int)
+    for d in range(mindepth, mindepth+1, 1):
+        # print(d)
+        new_indices = np.reshape((np.argwhere(depth == d)), -1)
+        pos_indices = np.append(pos_indices, new_indices)
+        pos_indices = np.reshape(pos_indices, -1)
+        neg_indices = np.reshape((np.argwhere(depth == -d)), -1)
+        nplots = int(len(pos_indices)/2)
+        plt.figure(plotindex)
+        plt.plot(sample_locs, upoly, 'r-', label='Solution', linewidth=2)
+        plt.plot(sample_locs, upoly*0, 'k--', linewidth=1)
+        plt.plot(gllG, solG, 'ko',markersize=ms*5)
+
+        deb_indices = np.reshape((np.argwhere(np.abs(depth) == d)), -1)
+        if (d == mindepth):
+            int_locs = np.unique(pts[deb_indices])
+        for i in range(nplots):
+            ids = pos_indices[2*i:2*i+2]
+            # print(ids)
+            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='-',marker='o', markersize=ms*5,linewidth=2)
+            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='-',marker='o', markersize=ms*5,linewidth=2)
+        nplots = int(len(neg_indices)/2)
+        for i in range(nplots):
+            ids = neg_indices[2*i:2*i+2]
+            plt.plot(pts[ids], minG[ids], color=colors[0],marker='o', markersize=ms*5,linewidth=2)
+            plt.plot(pts[ids], maxG[ids], color=colors[1],marker='o', markersize=ms*5,linewidth=2)
+        plt.savefig('rec_bnd_d='+str(d)+'_N='+str(N)+'_M='+str(M)+ "_out=" + str(O)+'.pdf',format='pdf',bbox_inches='tight')
+        plotindex += 1
+        plt.ylim([-0.3, 1.3])
+        pdf_pages.savefig()
+
     pdf_pages.close()
 
     plt.rcParams['lines.linewidth'] = 2  # Sets the default linewidth to 2
@@ -370,16 +411,21 @@ def main():
         ubound_cumul_val[:] += solG[i]*dummy
         dummy = np.reshape(lboundTT[i,:],(-1))
         lbound_cumul_val[:] += solG[i]*dummy
-        plt.plot(sample_locs, basis_cumul_val,color=colors[0],label=fr'$\sum_{{i=0}}^{{{i}}} u_i \phi_i(r)$')
-        llabel = fr'$\sum_{{i=0}}^{{{i}}} u_i \underline{{\phi}}_i(r)$'
-        plt.plot(intTT, ubound_cumul_val,color=colors[1],label=llabel)
-        llabel = fr'$\sum_{{i=0}}^{{{i}}} u_i \bar{{\phi}}_i(r)$'
-        plt.plot(intTT, lbound_cumul_val,color=colors[2],label=llabel)
+        plt.plot(sample_locs, basis_cumul_val,'r-',label=fr'$\sum_{{i=1}}^{{{i+1}}} u_i \phi_i(r)$')
+        llabel = fr'$\sum_{{i=1}}^{{{i+1}}} u_i \underline{{\phi}}_i(r)$'
+        plt.plot(intTT, ubound_cumul_val,color=colors[1],marker='o',label=llabel)
+        llabel = fr'$\sum_{{i=1}}^{{{i+1}}} u_i \bar{{\phi}}_i(r)$'
+        plt.plot(intTT, lbound_cumul_val,color=colors[0],marker='o',label=llabel)
         plt.plot(sample_locs, upoly*0, 'k--', linewidth=1)
+        plt.plot(gllG,solgAimation[i,:],'ko')
         # if (i == 0)
         plt.legend(loc='upper right')
         pdf_pages.savefig()
         plotindex += 1
+
+    #hide legend
+    plt.legend().set_visible(False)
+    pdf_pages.savefig()
 
     pdf_pages.close()
 

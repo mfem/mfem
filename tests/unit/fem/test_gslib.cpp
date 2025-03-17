@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -320,8 +320,7 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    mesh.SetCurvature(mesh_order);
 
    // Set GridFunction to be interpolated
-   int func_order = 3;
-   FiniteElementCollection *c_fec = new L2_FECollection(func_order, dim);
+   FiniteElementCollection *c_fec = new L2_FECollection(3, dim);
    FiniteElementSpace c_fespace =
       FiniteElementSpace(&mesh, c_fec, 1);
    GridFunction field_vals(&c_fespace);
@@ -416,8 +415,7 @@ TEST_CASE("GSLIBCustomInterpolation",
    };
 
    // Set GridFunction to be interpolated
-   int func_order = 3;
-   H1_FECollection c_fec(func_order, dim);
+   H1_FECollection c_fec(3, dim);
    FiniteElementSpace c_fespace(&pmesh, &c_fec, 1);
    GridFunction field_vals(&c_fespace);
 
@@ -428,6 +426,10 @@ TEST_CASE("GSLIBCustomInterpolation",
    int npt = 101;
    Vector xyz(npt*dim);
    xyz.Randomize(myid + 1);
+   if (myid == 1) // zero out # of points on rank 1
+   {
+      xyz.SetSize(0);
+   }
 
    // Find points on the ParMesh
    Vector interp_vals(npt);

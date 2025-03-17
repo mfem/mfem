@@ -17,39 +17,62 @@ def main():
     intp = args.intp
     nodep = args.nodep
 
-    fname = "minmr_bnd_comp.txt"
+    fname = "minmr_lobatto_bnd_comp.txt"
+    if nodep == 0:
+        fname = "minmr_legendre_bnd_comp.txt"
     data = np.loadtxt(fname)
     data = np.reshape(data, (-1, 9))
+    #the 9 columns are
+    # nr,mr,kk(this is int pt type),
+    # errors - l1,linf,l2
+    # sizes - dxmin, dxmax, dxavg
     nmin = int(np.min(data[:, 0]))
     nmax = int(np.max(data[:, 0]))
 
     rc('text', usetex=True)
 
-    pdf_pages = PdfPages('bndcompeff.pdf')
-    for i in range(nmin, nmax+1):
+    pdf_pages = None
+    if nodep == 0:
+        pdf_pages = PdfPages('bndcompeff_legendre.pdf')
+    else:
+        pdf_pages = PdfPages('bndcompeff_lobatto.pdf')
+    for i in range(nmin, nmax+1): #loop over all the Ns in the file
         count = 1
         plt.figure(figsize=(12, 12))
-        for xc in [1,6,7,8]:
-            plt.subplot(2, 2, count)
+        # for xc in [1,6,7,8]: #1 = mr, 6-7-8 are dxmin,dxmax,dxavg
+        # plt.subplot(2, 2, count)
+        for xc in [1]: #1 = mr, 6-7-8 are dxmin,dxmax,dxavg
+            plt.subplot(1, 1, count)
             for et in range(2,3):  #error type
+                mmin = 100
+                mmax = 0
                 dataf = data[data[:, 0] == i] #get data for that N
-                # plt.figure()
                 dataf2 = dataf[dataf[:, 2] == 0]
                 plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ro-', label='GL+End')
+                mmin = min(np.min(dataf2[:,xc]), mmin)
+                mmax = max(np.max(dataf2[:,xc]), mmax)
                 dataf2 = dataf[dataf[:, 2] == 1]
                 plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'go-', label='GLL')
+                mmin = min(np.min(dataf2[:,xc]), mmin)
+                mmax = max(np.max(dataf2[:,xc]), mmax)
                 dataf2 = dataf[dataf[:, 2] == 2]
                 plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'bo-', label='Chebyshev')
-                dataf2 = dataf[dataf[:, 2] == 3]
-                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ro--', label='Optimal GL+End')
-                dataf2 = dataf[dataf[:, 2] == 4]
-                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'go--', label='Optimal GLL')
-                dataf2 = dataf[dataf[:, 2] == 5]
-                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'bo--', label='Optimal Chebyshev')
-                dataf2 = dataf[dataf[:, 2] == 6]
-                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'co--', label='Optimal Uniform')
-                dataf2 = dataf[dataf[:, 2] == 7]
-                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ko--', label='Optimal')
+                mmin = min(np.min(dataf2[:,xc]), mmin)
+                mmax = max(np.max(dataf2[:,xc]), mmax)
+                # print(dataf2)
+                # dataf2 = dataf[dataf[:, 2] == 3]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ro-', label='Uniform')
+
+                # dataf2 = dataf[dataf[:, 2] == 3]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ro--', label='Optimal GL+End')
+                # dataf2 = dataf[dataf[:, 2] == 4]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'go--', label='Optimal GLL')
+                # dataf2 = dataf[dataf[:, 2] == 5]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'bo--', label='Optimal Chebyshev')
+                # dataf2 = dataf[dataf[:, 2] == 6]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'co--', label='Optimal Uniform')
+                # dataf2 = dataf[dataf[:, 2] == 7]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ko--', label='Optimal')
 
                 dataf2 = dataf[dataf[:, 2] == 0]
                 x1 = dataf2[1, xc]
@@ -73,32 +96,38 @@ def main():
                 # print(yrate)
                 # if (xc == 6):
                     # input(' ')
-                plt.plot(xrate, yrate, 'c--', label=f'rate: {rate}')
+                # plt.plot(xrate, yrate, 'c--', label=f'rate: {rate}')
 
                 plt.legend()
                 plt.yscale('log')
                 if (xc == 6 or xc ==7 or xc ==8):
                     plt.xscale('log')
-                plt.title('N='+str(i))
+                plt.title('N='+str(i),fontsize=20)
                 if xc == 1:
-                    plt.xlabel('M')
+                    plt.xlabel('M',fontsize=20)
                 elif xc == 6:
-                    plt.xlabel(r"$\Delta x_{min}$")
+                    plt.xlabel(r"$\Delta x_{min}$",fontsize=20)
                 elif xc == 7:
-                    plt.xlabel(r"$\Delta x_{max}$")
+                    plt.xlabel(r"$\Delta x_{max}$",fontsize=20)
                 elif xc == 8:
-                    plt.xlabel(r"$\Delta x_{avg}$")
+                    plt.xlabel(r"$\Delta x_{avg}$",fontsize=20)
 
                 if et == 0:
-                    plt.ylabel('Error (Area)')
+                    plt.ylabel('Error (Area)',fontsize=20)
                 elif et == 1:
-                    plt.ylabel('Compactness (Linf)')
+                    plt.ylabel('Compactness (Linf)',fontsize=20)
                 elif et == 2:
-                    plt.ylabel(r"$l_2\qquad\,\, \sum_{j=1}^{p+1}\sqrt{\frac{1}{N_{\tt samp}}\sum_{i=1}^{N_{\tt samp}}\left(\bar{\phi}_j(x_i)- \phi_j(x_i)\right)^2 + \left(\underline{\phi}_j(x_i) - \phi_j(x_i)\right)^2 }$")
+                    plt.ylabel(r"$l_2\qquad\,\, \sum_{j=1}^{p+1}\sqrt{\frac{1}{N_{\tt samp}}\sum_{i=1}^{N_{\tt samp}}\left(\bar{\phi}_j(x_i)- \phi_j(x_i)\right)^2 + \left(\underline{\phi}_j(x_i) - \phi_j(x_i)\right)^2 }$",fontsize=20)
                     # plt.ylabel(r"$l_2\,\, \sum_{j=1}^{p+1}\sqrt{\frac{1}{N_{\tt samp}}\sum_{i=1}^{N_{\tt samp}}(\bar{\phi}_j(x_i) - \phi_j(x_i))^2 + (\underline{\phi}_j(x_i) - \phi_j(x_i))^2}$")
                     # plt.ylabel(r${\tt l2} \sqrt{\frac{1}{N_{\tt samp}}\sum_{i=1}^{N_{\tt samp}}\big(LB_j(x_i) - L(x_i)\big)^2}$')
                 # pdf_pages.savefig()
                 # plt.close()
+
+                plt.xticks(fontsize=24)
+                plt.yticks(fontsize=24)
+                plt.legend(fontsize=20)
+                plt.xticks(np.arange(mmin, mmax+1, 2))
+                plt.grid(True)
             count += 1
         pdf_pages.savefig()
         plt.close()

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,10 +68,11 @@ class Hypre
 public:
    /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
    /// After calling Hypre::Init(), hypre will be finalized automatically at
-   /// program exit.
+   /// program exit. May be re-initialized after finalize.
    ///
-   /// Calling HYPRE_Finalize() manually is not compatible with this class.
-   static void Init() { Instance(); }
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
+   static void Init();
 
    /// @brief Configure HYPRE's compute and memory policy.
    ///
@@ -94,6 +95,9 @@ public:
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
    /// called manually to more precisely control when hypre is finalized.
+   ///
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
    static void Finalize();
 
    /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
@@ -104,14 +108,20 @@ public:
    static bool configure_runtime_policy_from_mfem;
 
 private:
-   /// Calls HYPRE_Init() when the singleton is constructed.
-   Hypre();
+   /// Default constructor. Singleton object; private.
+   Hypre() = default;
+
+   /// Copy constructor. Deleted.
+   Hypre(Hypre&) = delete;
+
+   /// Move constructor. Deleted.
+   Hypre(Hypre&&) = delete;
 
    /// The singleton destructor (called at program exit) finalizes hypre.
    ~Hypre() { Finalize(); }
 
    /// Set the default hypre global options (mostly GPU-relevant).
-   void SetDefaultOptions();
+   static void SetDefaultOptions();
 
    /// Create and return the Hypre singleton object.
    static Hypre &Instance()
@@ -120,7 +130,10 @@ private:
       return hypre;
    }
 
-   bool finalized = false; ///< Has Hypre::Finalize() been called already?
+   enum class State { UNINITIALIZED, INITIALIZED };
+
+   /// Tracks whether Hypre was initialized or finalized by this class.
+   static State state;
 };
 
 
@@ -247,6 +260,12 @@ public:
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, real_t *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
+   /** @brief Creates a vector that uses the data of the Vector @a base,
+       starting at the given @a offset. */
+   /** The @a base Vector must have memory types compatible with the MemoryClass
+       returned by GetHypreMemoryClass(). */
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, Vector &base,
+                  int offset, HYPRE_BigInt *col);
    /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
    /// Move constructor for HypreParVector. "Steals" data from its argument.
@@ -312,7 +331,8 @@ public:
    /// Sets the data of the Vector and the hypre_ParVector to @a data_.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
+   */
    void SetData(real_t *data_);
 
    /** @brief Prepare the HypreParVector for read access in hypre's device
@@ -332,7 +352,7 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -343,7 +363,7 @@ public:
        space, HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -354,7 +374,7 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -393,7 +413,7 @@ private:
    /// Auxiliary vectors for typecasting
    mutable HypreParVector *X, *Y;
    /** @brief Auxiliary buffers for the case when the input or output arrays in
-       methods like Mult(double, const Vector &, double, Vector &) need to be
+       methods like Mult(real_t, const Vector &, real_t, Vector &) need to be
        deep copied in order to be used by hypre. */
    mutable Memory<real_t> auxX, auxY;
 
@@ -937,6 +957,10 @@ public:
        HypreParMatrix that can be used to compare matrices from different runs
        without the need to save the whole matrix. */
    void PrintHash(std::ostream &out) const;
+
+   /// @brief Return the Frobenius norm of the matrix (or 0 if the underlying
+   /// hypre matrix is NULL)
+   real_t FNorm() const;
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }

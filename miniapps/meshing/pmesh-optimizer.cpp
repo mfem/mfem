@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,6 +42,8 @@
 
 using namespace mfem;
 using namespace std;
+
+void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf);
 
 double GetMeshMinDet(Mesh *mesh, int order, int type = 0)
 {
@@ -187,6 +189,8 @@ int main (int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
@@ -411,10 +415,37 @@ int main (int argc, char *argv[])
    //     num_mpi_tasks".
    {
       ostringstream mesh_name;
-      mesh_name << "perturbed.mesh";
+      mesh_name << "bladeinput.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
+   }
+
+   //
+   int det_order = dim*mesh_poly_deg-1;
+   L2_FECollection fec_det(det_order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fespace_det(pmesh, &fec_det);
+   ParGridFunction detgf(&fespace_det);
+   GetDeterminantJacobianGF(pmesh, &detgf);
+   ParaViewDataCollection *pd = NULL;
+   if (true)
+   {
+      if (det_bound)
+      {
+         pd = new ParaViewDataCollection("BladeDet", pmesh);
+      }
+      else
+      {
+         pd = new ParaViewDataCollection("Blade", pmesh);
+      }
+      pd->SetPrefixPath("ParaView");
+      pd->SetLevelsOfDetail(mesh_poly_deg);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->RegisterField("determinant", &detgf);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -469,7 +500,9 @@ int main (int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 49: metric = new TMOP_AMetric_049(0.9); break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -553,7 +586,9 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   int ind_fec_order = (target_id >= 5 && target_id <= 8 && !fdscheme) ?
+                       1 : mesh_poly_deg;
+   H1_FECollection ind_fec(ind_fec_order, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
@@ -594,6 +629,7 @@ int main (int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          target_c = tc;
          break;
       }
@@ -696,6 +732,7 @@ int main (int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          tc->SetParDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -742,6 +779,7 @@ int main (int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
@@ -960,7 +998,7 @@ int main (int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(pmesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
       real_t h0min = h0.Min(), h0min_all;
@@ -971,7 +1009,6 @@ int main (int argc, char *argv[])
    }
 
    int order = pfespace->GetMaxElementOrder();
-   int det_order = dim*order-1;
    int n1D = det_order+1;
    int mr = n1D+1;
    std::string filename = "../../scripts/bounds/bnddata_spts_lobatto_" +
@@ -1138,7 +1175,7 @@ int main (int argc, char *argv[])
    // Perform the nonlinear optimization.
    //
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    if (det_bound) { solver.SetBoundedDet(&plb); }
    // Provide all integration rules in case of a mixed mesh.
@@ -1156,8 +1193,8 @@ int main (int argc, char *argv[])
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0)
-   { newton_print.Errors().Warnings().Iterations(); }
+   if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
+   else { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
@@ -1180,12 +1217,60 @@ int main (int argc, char *argv[])
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   Mesh serial_mesh = pmesh->GetSerialMesh(0);
    {
       ostringstream mesh_name;
-      mesh_name << "optimized.mesh";
+      if (det_bound)
+      {
+         mesh_name << "bladeoptimizeddet.mesh";
+      }
+      else
+      {
+         mesh_name << "bladeoptimized.mesh";
+      }
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
+   }
+
+   int elem = 13;
+   if (myid == 0)
+   {
+      ofstream xyzfile;
+      if (det_bound) { xyzfile.open ("bladedetoptxyz_qp.txt"); }
+      else { xyzfile.open ("bladeoptxyz_qp.txt"); }
+      xyzfile << "x,y,color" << std::endl;
+      const IntegrationRule irule = irules->Get(serial_mesh.GetElement(0)->GetGeometryType(), quad_order);
+      // loop over integration points and get the location of the point
+      for (int q = 0; q < irule.GetNPoints(); q++)
+      {
+         const IntegrationPoint ip = irule.IntPoint(q);
+         ElementTransformation *transf = serial_mesh.GetElementTransformation(elem);
+         transf->SetIntPoint(&ip);
+         Vector xy(dim);
+         transf->Transform(ip, xy);
+         xyzfile << xy[0] << "," << xy[1] << "," << 0 << std::endl;
+      }
+      xyzfile.close();
+   }
+   if (myid == 0)
+   {
+      ofstream xyzfile;
+      if (det_bound) { xyzfile.open ("bladedetoptxyz_nodes.txt"); }
+      else { xyzfile.open ("bladeoptxyz_nodes.txt"); }
+      xyzfile << "x,y,color" << std::endl;
+      const IntegrationRule irule = serial_mesh.GetNodes()->FESpace()->GetFE(elem)->GetNodes();
+      // loop over integration points and get the location of the point
+      for (int q = 0; q < irule.GetNPoints(); q++)
+      {
+         const IntegrationPoint ip = irule.IntPoint(q);
+         ElementTransformation *transf = serial_mesh.GetElementTransformation(elem);
+         transf->SetIntPoint(&ip);
+         Vector xy(dim);
+         transf->Transform(ip, xy);
+         xyzfile << xy[0] << "," << xy[1] << "," << 0 << std::endl;
+      }
+      xyzfile.close();
    }
 
    // Report the final energy of the functional.
@@ -1297,6 +1382,14 @@ int main (int argc, char *argv[])
       }
    }
 
+   if (true)
+   {
+      GetDeterminantJacobianGF(pmesh, &detgf);
+      pd->SetCycle(1);
+      pd->SetTime(1.0);
+      pd->Save();
+   }
+
    delete S;
    delete S_prec;
    delete target_c2;
@@ -1314,4 +1407,49 @@ int main (int argc, char *argv[])
    delete pmesh;
 
    return 0;
+}
+
+void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf)
+{
+   int dim = mesh->Dimension();
+   FiniteElementSpace *fespace = detgf->FESpace();
+   Array<int> dofs;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      const IntegrationRule ir = fe->GetNodes();
+      ElementTransformation *transf = mesh->GetElementTransformation(e);
+      DenseMatrix Jac(fe->GetDim());
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                      (fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir2 = irordering.Size() ?
+                            ir.Permute(irordering) :
+                            ir;
+
+      Vector detvals(ir2.GetNPoints());
+      Vector loc(dim);
+      for (int q = 0; q < ir2.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir2.IntPoint(q);
+         transf->SetIntPoint(&ip);
+         transf->Transform(ip, loc);
+         Jac = transf->Jacobian();
+         detvals(q) = Jac.Weight();
+      }
+
+      fespace->GetElementDofs(e, dofs);
+      if (irordering.Size())
+      {
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            (*detgf)(dofs[i]) = detvals(irordering[i]);
+         }
+      }
+      else
+      {
+         detgf->SetSubVector(dofs, detvals);
+      }
+   }
 }

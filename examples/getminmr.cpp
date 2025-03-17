@@ -14,6 +14,15 @@
 using namespace std;
 using namespace mfem;
 
+inline bool file_exits (const std::string& name) {
+   if (FILE *file = fopen(name.c_str(), "r")) {
+       fclose(file);
+       return true;
+   } else {
+       return false;
+   }
+}
+
 // Piecewise linear values given by (x,y), interpolate at xv
 double GetPLValue(const Vector &x, const Vector &y, double xv)
 {
@@ -46,7 +55,7 @@ double GetPLValue(const Vector &x, const Vector &y, double xv)
 bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, bool print, Vector &errors, Vector &dxvals)
 {
    PLBound plb;
-   std::string fname = "../scripts/bnddata_spts_";
+   std::string fname = "../scripts/bounds/bnddata_spts_";
    if (nodetype == 1)
    {
       fname += "lobatto_" + std::to_string(nr);
@@ -60,33 +69,37 @@ bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, boo
       std::cout << "Invalid nodetype\n";
       MFEM_ABORT(" ");
    }
-   // intp = 0,1,2 - we use default bounds
-   // 3,4,5 we use optimized bounds
+   // intp = 0,1,2,3 - we use default bounds
+   // 4,5,6,7 we use optimized bounds
    // std::cout << intptype << " " << fname << std::endl;
    double read_eps = 0.0;
-   if (intptype == 3)
+   if (intptype == 4)
    {
       fname += "_bpts_legendre_" + std::to_string(mr)+ ".txt";
       plb.Setup(fname, read_eps);
    }
-   else if (intptype == 4)
+   else if (intptype == 5)
    {
       fname += "_bpts_lobatto_" + std::to_string(mr)+ ".txt";
       plb.Setup(fname, read_eps);
    }
-   else if (intptype == 5)
+   else if (intptype == 6)
    {
       fname += "_bpts_chebyshev_" + std::to_string(mr)+ ".txt";
       plb.Setup(fname, read_eps);
    }
-   else if (intptype == 6)
+   else if (intptype == 7)
    {
       fname += "_bpts_equispaced_" + std::to_string(mr)+ ".txt";
       plb.Setup(fname, read_eps);
    }
-   else if (intptype == 7)
+   else if (intptype == 8)
    {
       fname += "_bpts_opt_" + std::to_string(mr)+ ".txt";
+      if (!file_exits(fname))
+      {
+         return false;
+      }
       plb.Setup(fname, read_eps);
    }
    else
@@ -258,7 +271,10 @@ int main(int argc, char *argv[])
    }
 
    Array<Array<int>*> minmra;
-   minmra.SetSize(8); //set to 7 if you want to exclude optimal point location set, 8 if you want to include.
+   minmra.SetSize(4);
+   // set to 4 if you just want to do default method.
+   // set to 8 if you want to include optimized bounds for different points set
+   // set to 9 for optimal locations
    Array<int> nrva;
    double area;
    Vector errors;
@@ -273,7 +289,7 @@ int main(int argc, char *argv[])
          int nr = i;
          nrvals.Append(nr);
          if (kk == 0) { nrva.Append(nr); }
-         for (int j = (kk > 2 ? 3 : i); j < 4*i; j++)
+         for (int j = (kk > 2 ? 3 : i); j < 10*i; j++)
          {
             int mr = j;
             bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, true, errors, dxv);
@@ -293,10 +309,11 @@ int main(int argc, char *argv[])
       }
 
       std::string nt = nodetype == 0 ? "N_{GL}" : "N_{GLL}";
-      std::string itp = (inttype == 2 || inttype == 5)  ? "M_{Cheb}" :
-                        (inttype == 0 || inttype == 3) ? "M_{GL+End}" :
-                        (inttype == 1 || inttype == 4)  ? "M_{GLL}" :
-                        (inttype == 6)  ? "M_{Uniform}" : "M_{opt}";
+      std::string itp = (inttype == 2 || inttype == 6)  ? "M_{Cheb}" :
+                        (inttype == 0 || inttype == 4) ? "M_{GL+End}" :
+                        (inttype == 1 || inttype == 5)  ? "M_{GLL}" :
+                        (inttype == 3 || inttype == 7)  ? "M_{Uniform}" :
+                        "M_{opt}";
       std::cout << std::setw(15) << std::left << nt
                      << std::setw(15) << std::left << std::fixed << std::setprecision(2) << itp << std::endl;
 
@@ -313,11 +330,14 @@ int main(int argc, char *argv[])
                   << std::setw(15) << std::left << std::fixed << "M_{GL+End}"
                   << std::setw(15) << std::left << std::fixed << "M_{GLL}"
                   << std::setw(15) << std::left << std::fixed << "M_{Cheb}"
-                  << std::setw(15) << std::left << std::fixed << "M_{OPT,GL+End}"
-                  << std::setw(15) << std::left << std::fixed << "M_{OPT,GLL}"
-                  << std::setw(15) << std::left << std::fixed << "M_{OPT,Cheb}"
-                  << std::setw(15) << std::left << std::fixed << "M_{OPT,Uniform}"
-                  << std::setw(15) << std::left << std::fixed << "M_{OPT}"
+                  << std::setw(15) << std::left << std::fixed << "M_{Uniform}"
+
+
+                  << std::setw(15) << std::left << std::fixed << "M_{Opt,GL+End}"
+                  << std::setw(15) << std::left << std::fixed << "M_{Opt,GLL}"
+                  << std::setw(15) << std::left << std::fixed << "M_{Opt,Cheb}"
+                  << std::setw(15) << std::left << std::fixed << "M_{Opt,Uniform}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT,Opt}"
                   << std::endl;
    for (int i = 0; i < nrva.Size() ;i++)
    {
@@ -354,7 +374,7 @@ int main(int argc, char *argv[])
          int mrme = (*minmra[kk])[i];
          if (mrme == -1) { continue; }
          // for (int j = mrme; j < std::min(39,mrmax+1+2); j++)
-         for (int j = mrme; j < std::min(20,20); j++)
+         for (int j = mrme; j < std::min(35,35); j++)
          {
             int mr = j;
             bool good =  ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, false, errors, dxv);
@@ -377,7 +397,8 @@ int main(int argc, char *argv[])
    std::setprecision(12);
 
    std::ostringstream filename;
-   filename << "minmr_bnd_comp.txt";
+   std::string fname = (nodetype == 0 ? "legendre" : "lobatto");
+   filename << "minmr_" + fname + "_bnd_comp.txt";
    ofstream myfile;
    myfile.open(filename.str());
 
@@ -392,13 +413,13 @@ int main(int argc, char *argv[])
       myfile << std::setprecision(12) << info_size1[i] << std::endl;
       myfile << std::setprecision(12) << info_size2[i] << std::endl;
       myfile << std::setprecision(12) << info_size3[i] << std::endl;
-      std::cout << (*info_nmk[i])[0] << " " <<
-                   (*info_nmk[i])[1] << " " <<
-                   (*info_nmk[i])[2] << " " <<
-                  std::setprecision(12) <<
-                   info_error1[i] << " " <<
-                   info_error2[i] << " " <<
-                   info_error3[i] << " " <<  " k10info\n";
+      // std::cout << (*info_nmk[i])[0] << " " <<
+      //              (*info_nmk[i])[1] << " " <<
+      //              (*info_nmk[i])[2] << " " <<
+      //             std::setprecision(12) <<
+      //              info_error1[i] << " " <<
+      //              info_error2[i] << " " <<
+      //              info_error3[i] << " " <<  " k10info\n";
    }
 
    return 0;
