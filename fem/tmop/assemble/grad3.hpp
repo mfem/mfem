@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#pragma once
 
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
@@ -60,7 +61,6 @@ public:
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
       const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
       auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
-
 
       const bool const_m0 = ti->PA.MC.Size() == 1;
       const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
@@ -139,13 +139,14 @@ public:
       }
       const real_t *w = mp.Read();
 
-      const auto B = Reshape(ti->PA.maps->B.Read(), Q1D, D1D);
-      const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
+      const real_t *B_r = ti->PA.maps->B.Read();
+      const real_t *G_r = ti->PA.maps->G.Read();
+      // const auto B = Reshape(ti->PA.maps->B.Read(), Q1D, D1D);
+      // const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
       const real_t *x_r = ker.x.Read();
       auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
-
 
       const bool const_m0 = ti->PA.MC.Size() == 1;
       const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
@@ -164,13 +165,13 @@ public:
          using regs2d_t = kernels::internal::regs::Registers<real_t,MDQ,MDQ>;
          regs2d_t r_u[VDIM*MD1], r_gu[VDIM * DIM * MQ1];
 
-         kernels::internal::regs::loadMatrix<MD1, MQ1>(B, sB);
-         kernels::internal::regs::loadMatrix<MD1, MQ1>(G, sG);
+         kernels::internal::regs::LoadMatrix<MD1, MQ1>(B_r, sB);
+         kernels::internal::regs::LoadMatrix<MD1, MQ1>(G_r, sG);
 
-         kernels::internal::regs::readDofsOffset3dXD<VDIM, MD1, MDQ>(e, NE, x_r, r_u);
-         kernels::internal::regs::grad3d<DIM,VDIM, MD1,MQ1,MDQ>(sm, sB, sG, r_u, r_gu);
+         kernels::internal::regs::ReadDofsOffset3dXD<VDIM, MD1, MDQ>(e, NE, x_r, r_u);
+         kernels::internal::regs::Grad3d<DIM,VDIM, MD1,MQ1,MDQ>(sm, sB, sG, r_u, r_gu);
 
-         for (int qz=0; qz < Q1D; ++qz)
+         for (int qz = 0; qz < Q1D; ++qz)
          {
             MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
@@ -209,6 +210,7 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPSetupGradPA3D &ker)
    {
+      // return Mult_sm<METRIC, T_D1D, T_Q1D>(ker);
       return Mult_regs<METRIC, T_D1D, T_Q1D>(ker);
    }
 };

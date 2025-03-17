@@ -8,8 +8,8 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#pragma once
 
-#include <cstddef>
 #include <utility>
 #include "../general/backends.hpp" // IWYU pragma: keep
 
@@ -36,34 +36,54 @@ namespace mfem
 {
 
 #if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
+
 template <int N, typename F> inline MFEM_HOST_DEVICE
-void foreach_thread(F&& func)
+void foreach_thread_x(F&& func)
 {
-   if (hipThreadIdx_ ##k < hipBlockDim_ ##k)
+   if (hipThreadIdx_x < hipBlockDim_x)
    {
-      func(hipThreadIdx_ ##k);
+      func(hipThreadIdx_x);
    }
 }
+
+template <int N, typename F> inline MFEM_HOST_DEVICE
+void foreach_thread_y(F&& func)
+{
+   if (hipThreadIdx_y < hipBlockDim_y)
+   {
+      func(hipThreadIdx_y);
+   }
+}
+
+template <int N, typename F> inline MFEM_HOST_DEVICE
+void foreach_thread_z(F&& func)
+{
+   if (hipThreadIdx_z < hipBlockDim_z)
+   {
+      func(hipThreadIdx_z);
+   }
+}
+
 #else
+
 template <int I, int N, typename F>
-struct StaticFor
+struct ForeachThread
 {
    static inline MFEM_HOST_DEVICE void apply(F&& func)
    {
       func(I);
-      StaticFor<I + 1, N, F>::apply(std::forward<F>(func));
+      ForeachThread<I + 1, N, F>::apply(std::forward<F>(func));
    }
 };
 
 template <int N, typename F>
-struct StaticFor<N, N, F> { static inline MFEM_HOST_DEVICE void apply(F&&) {} };
+struct ForeachThread<N, N, F> { static inline MFEM_HOST_DEVICE void apply(F&&) {} };
 
 template <int N, typename F> inline MFEM_HOST_DEVICE
 void foreach_thread(F&& func)
 {
-   StaticFor<0, N, F>::apply(std::forward<F>(func));
+   ForeachThread<0, N, F>::apply(std::forward<F>(func));
 }
-#endif
 
 template <int N, typename F> inline MFEM_HOST_DEVICE
 void foreach_thread_x(F&& func) { foreach_thread<N>(func); }
@@ -73,5 +93,7 @@ void foreach_thread_y(F&& func) { foreach_thread<N>(func); }
 
 template <int N, typename F> inline MFEM_HOST_DEVICE
 void foreach_thread_z(F&& func) { foreach_thread<N>(func); }
+
+#endif
 
 } // namespace mfem

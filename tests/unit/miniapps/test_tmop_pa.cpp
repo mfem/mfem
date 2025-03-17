@@ -1201,8 +1201,8 @@ int main(int argc, char *argv[])
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
-#ifdef MFEM_TMOP_DEVICE
-   Device device(MFEM_TMOP_DEVICE);
+#ifdef MFEM_TMOP_PA_DEVICE
+   Device device(MFEM_TMOP_PA_DEVICE);
 #else
    Device device("cpu"); // make sure hypre runs on CPU, if possible
 #endif

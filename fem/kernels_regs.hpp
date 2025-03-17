@@ -123,22 +123,25 @@ recast_as(real_t (&base)[P*Q])
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int P, int Q>
-inline MFEM_HOST_DEVICE void loadMatrix(const real_t *m, real_t *A)
+template <int D1D, int Q1D>
+inline MFEM_HOST_DEVICE void LoadMatrix(const real_t *m, real_t *A)
 {
-   auto M = Reshape(m, Q, P);
-   mfem::foreach_thread_y<P>([&](int dy)
+   auto M = Reshape(m, Q1D, D1D);
+   // mfem::foreach_thread_y<D1D>([&](int dy)
+   MFEM_FOREACH_THREAD2(dy, y, D1D)
    {
-      mfem::foreach_thread_x<Q>([&](int qx)
+      // mfem::foreach_thread_x<Q1D>([&](int qx)
+      MFEM_FOREACH_THREAD2(qx, x, Q1D)
       {
-         A[qx * P + dy] = M(qx, dy);
-      });
-   });
+         A[qx * D1D + dy] = M(qx, dy);
+      }//);
+   }//);
+   MFEM_SYNC_THREAD;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void readDofsOffset3d(const int elem, const int stride,
+inline MFEM_HOST_DEVICE void ReadDofsOffset3d(const int elem, const int stride,
                                               const int *map, const real_t *d_u,
                                               regs2d_t<T1D> (&r_u)[VDIM * D1D])
 {
@@ -166,7 +169,7 @@ inline MFEM_HOST_DEVICE void readDofsOffset3d(const int elem, const int stride,
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void readDofsOffset3dXD(const int e, const int NE,
+inline MFEM_HOST_DEVICE void ReadDofsOffset3dXD(const int e, const int NE,
                                                 const real_t *d_u,
                                                 regs2d_t<T1D> (&r_u)[VDIM * D1D])
 {
@@ -186,12 +189,11 @@ inline MFEM_HOST_DEVICE void readDofsOffset3dXD(const int e, const int NE,
          }
       }
    }
-   MFEM_SYNC_THREAD;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void readDofsOffset3dXEByNodes(const int e,
+inline MFEM_HOST_DEVICE void ReadDofsOffset3dXEByNodes(const int e,
                                                        const int NE,
                                                        const real_t *d_u,
                                                        regs2d_t<T1D> (&r_u)[VDIM * D1D])
@@ -212,12 +214,11 @@ inline MFEM_HOST_DEVICE void readDofsOffset3dXEByNodes(const int e,
          }
       }
    }
-   MFEM_SYNC_THREAD;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void readDofsOffset3dByNodes(const int e, const int ND,
+inline MFEM_HOST_DEVICE void ReadDofsOffset3dByNodes(const int e, const int ND,
                                                      const int *map, const real_t *d_u,
                                                      regs2d_t<T1D> (&r_u)[VDIM * D1D])
 {
@@ -239,7 +240,6 @@ inline MFEM_HOST_DEVICE void readDofsOffset3dByNodes(const int e, const int ND,
          }
       }
    }
-   MFEM_SYNC_THREAD;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -365,7 +365,7 @@ Contract3d(real_t *smem, const real_t *basis_X, const real_t *basis_Y,
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void eval3d(real_t *smem, const real_t *c_B,
+inline MFEM_HOST_DEVICE void Eval3d(real_t *smem, const real_t *c_B,
                                     const regs2d_t<T1D> (&r_U)[VDIM * D1D],
                                     regs2d_t<T1D> (&r_V)[VDIM * Q1D])
 {
@@ -380,7 +380,7 @@ inline MFEM_HOST_DEVICE void eval3d(real_t *smem, const real_t *c_B,
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int DIM, int VDIM, int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void grad3d(real_t *smem, const real_t *c_B,
+inline MFEM_HOST_DEVICE void Grad3d(real_t *smem, const real_t *c_B,
                                     const real_t *c_G,
                                     const regs2d_t<T1D> (&r_U)[VDIM * D1D],
                                     regs2d_t<T1D> (&r_V)[VDIM * DIM * Q1D])
