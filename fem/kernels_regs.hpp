@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../general/backends.hpp"
 #include "../linalg/dtensor.hpp"
+#include "kernels_foreach.hpp"
 
 namespace mfem
 {
@@ -126,13 +127,13 @@ template <int P, int Q>
 inline MFEM_HOST_DEVICE void loadMatrix(const real_t *m, real_t *A)
 {
    auto M = Reshape(m, Q, P);
-   MFEM_FOREACH_THREAD2(dy, y, P)
+   mfem::foreach_thread_y<P>([&](int dy)
    {
-      MFEM_FOREACH_THREAD2(qx, x, Q)
+      mfem::foreach_thread_x<Q>([&](int qx)
       {
          A[qx * P + dy] = M(qx, dy);
-      }
-   }
+      });
+   });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
