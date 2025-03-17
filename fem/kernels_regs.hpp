@@ -321,10 +321,10 @@ inline MFEM_HOST_DEVICE void ReadDofsOffset3dByNodes(const int e, const int ND,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void ContractX3d(real_t *smem,
-                                         const regs2d_t<T1D> (&U)[D1D], const real_t *b,
-                                         regs2d_t<T1D> (&V)[T1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractX3d(real_t *smem,
+                 const regs2d_t<T1D> (&U)[D1D], const real_t *b,
+                 regs2d_t<T1D> (&V)[T1D])
 {
    regs2d_t<T1D> r_B[D1D];
    auto &B = Recast<Q1D,D1D>(b);
@@ -366,10 +366,9 @@ inline MFEM_HOST_DEVICE void ContractX3d(real_t *smem,
    }
 }
 
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void
-ContractY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D], const real_t *b,
-            regs2d_t<T1D> (&V)[T1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D], const real_t *b,
+                 regs2d_t<T1D> (&V)[T1D])
 {
    regs2d_t<T1D> r_B[D1D];
    auto &B = Recast<Q1D,D1D>(b);
@@ -411,10 +410,10 @@ ContractY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D], const real_t *b,
    }
 }
 
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void ContractZ3d(const regs2d_t<T1D> (&U)[T1D],
-                                         const real_t *b,
-                                         regs2d_t<T1D> (&V)[Q1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractZ3d(const regs2d_t<T1D> (&U)[T1D],
+                 const real_t *b,
+                 regs2d_t<T1D> (&V)[Q1D])
 {
    auto &B = Recast<Q1D,D1D>(b);
    for (int k = 0; k < Q1D; ++k)
@@ -434,11 +433,10 @@ inline MFEM_HOST_DEVICE void ContractZ3d(const regs2d_t<T1D> (&U)[T1D],
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void
-Contract3d(real_t *smem, const real_t *basis_X, const real_t *basis_Y,
-           const real_t *basis_Z, const regs2d_t<T1D> (&r_U)[D1D],
-           regs2d_t<T1D> (&r_V)[T1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void Contract3d(real_t *smem, const real_t *basis_X, const real_t *basis_Y,
+                const real_t *basis_Z, const regs2d_t<T1D> (&r_U)[D1D],
+                regs2d_t<T1D> (&r_V)[T1D])
 {
    regs2d_t<T1D> r_t1[T1D], r_t2[T1D];
    ContractX3d<D1D, Q1D, T1D>(smem, r_U, basis_X, r_t1);
@@ -447,10 +445,10 @@ Contract3d(real_t *smem, const real_t *basis_X, const real_t *basis_Y,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void Eval3d(real_t *smem, const real_t *c_B,
-                                    const regs2d_t<T1D> (&r_U)[VDIM * D1D],
-                                    regs2d_t<T1D> (&r_V)[VDIM * Q1D])
+template <int VDIM, int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void Eval3d(real_t *smem, const real_t *c_B,
+            const regs2d_t<T1D> (&r_U)[VDIM * D1D],
+            regs2d_t<T1D> (&r_V)[VDIM * Q1D])
 {
    for (int comp = 0; comp < VDIM; comp++)
    {
@@ -462,12 +460,11 @@ inline MFEM_HOST_DEVICE void Eval3d(real_t *smem, const real_t *c_B,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// 🔥🔥🔥🔥 swaped Y and X 🔥🔥🔥🔥
-template <int DIM, int VDIM, int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void Grad3d(real_t *smem, const real_t *c_B,
-                                    const real_t *c_G,
-                                    const regs2d_t<T1D> (&r_U)[VDIM * D1D],
-                                    regs2d_t<T1D> (&r_V)[VDIM * DIM * Q1D])
+template <int DIM, int VDIM, int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void Grad3d(real_t *smem, const real_t *c_B,
+            const real_t *c_G,
+            const regs2d_t<T1D> (&r_U)[VDIM * D1D],
+            regs2d_t<T1D> (&r_V)[VDIM * DIM * Q1D])
 {
    for (int comp = 0; comp < VDIM; comp++)
    {
@@ -485,38 +482,42 @@ inline MFEM_HOST_DEVICE void Grad3d(real_t *smem, const real_t *c_B,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void ContractTransposeZ3d(const regs2d_t<T1D> (&U)[Q1D],
-                                                  const real_t *B,
-                                                  regs2d_t<T1D> (&V)[T1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractTransposeZ3d(const regs2d_t<T1D> (&U)[Q1D],
+                          const real_t *b,
+                          regs2d_t<T1D> (&V)[T1D])
 {
+   auto &B = Recast<Q1D,D1D>(b);
    for (int k = 0; k < D1D; ++k)
    {
       mfem::foreach_thread_y<Q1D>([&](int y)
       {
          mfem::foreach_thread_x<Q1D>([&](int x)
          {
-            V[k][x][y] = 0.0;
+            V[k][y][x] = 0.0;
             for (int i = 0; i < Q1D; ++i)
             {
-               V[k][x][y] += B[k + i * D1D] * U[i][x][y];
+               V[k][y][x] += B[i][k] * U[i][y][x];
             }
          });
       });
    }
 }
 
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void
-ContractTransposeY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D],
-                     const real_t *B, regs2d_t<T1D> (&V)[T1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractTransposeY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D],
+                          const real_t *b, regs2d_t<T1D> (&V)[T1D])
 {
    regs2d_t<T1D> r_B[Q1D];
+   auto &B = Recast<Q1D,D1D>(b);
    mfem::foreach_thread_y<D1D>([&](int y)
    {
       mfem::foreach_thread_x<T1D>([&](int x)
       {
-         for (int i = 0; i < Q1D; ++i) { r_B[i][x][y] = B[y + i * D1D]; }
+         for (int i = 0; i < Q1D; ++i)
+         {
+            r_B[i][y][x] = B[i][y];
+         }
       });
    });
 
@@ -525,7 +526,9 @@ ContractTransposeY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D],
       mfem::foreach_thread_y<T1D>([&](int y)
       {
          mfem::foreach_thread_x<T1D>([&](int x)
-         { smem[x + y * T1D] = U[k][x][y]; });
+         {
+            smem[x + y * T1D] = U[k][y][x];
+         });
       });
       MFEM_SYNC_THREAD;
 
@@ -533,10 +536,10 @@ ContractTransposeY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D],
       {
          mfem::foreach_thread_x<Q1D>([&](int x)
          {
-            V[k][x][y] = 0.0;
+            V[k][y][x] = 0.0;
             for (int i = 0; i < Q1D; ++i)
             {
-               V[k][x][y] += r_B[i][x][y] * smem[x + i * T1D];
+               V[k][y][x] += r_B[i][y][x] * smem[x + i * T1D];
             }
          });
       });
@@ -544,19 +547,22 @@ ContractTransposeY3d(real_t *smem, const regs2d_t<T1D> (&U)[T1D],
    }
 }
 
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void ContractTransposeX3d(real_t *smem, const bool zero,
-                                                  const regs2d_t<T1D> (&U)[T1D],
-                                                  const real_t *B,
-                                                  regs2d_t<T1D> (&V)[D1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractTransposeX3d(real_t *smem, const bool zero,
+                          const regs2d_t<T1D> (&U)[T1D],
+                          const real_t *b,
+                          regs2d_t<T1D> (&V)[D1D])
 {
    regs2d_t<T1D> r_B[Q1D];
+   auto &B = Recast<Q1D,D1D>(b);
    mfem::foreach_thread_y<D1D>([&](int y)
    {
       mfem::foreach_thread_x<D1D>([&](int x)
       {
          for (int i = 0; i < Q1D; ++i)
-         { r_B[i][x][y] = B[x + i * D1D]; }
+         {
+            r_B[i][y][x] = B[i][x];
+         }
       });
    });
 
@@ -565,7 +571,9 @@ inline MFEM_HOST_DEVICE void ContractTransposeX3d(real_t *smem, const bool zero,
       mfem::foreach_thread_y<T1D>([&](int y)
       {
          mfem::foreach_thread_x<T1D>([&](int x)
-         { smem[x + y * T1D] = U[k][x][y]; });
+         {
+            smem[x + y * T1D] = U[k][y][x];
+         });
       });
       MFEM_SYNC_THREAD;
 
@@ -573,10 +581,10 @@ inline MFEM_HOST_DEVICE void ContractTransposeX3d(real_t *smem, const bool zero,
       {
          mfem::foreach_thread_x<D1D>([&](int x)
          {
-            if (zero) { V[k][x][y] = 0.0; }
+            if (zero) { V[k][y][x] = 0.0; }
             for (int i = 0; i < Q1D; ++i)
             {
-               V[k][x][y] += r_B[i][x][y] * smem[i + y * T1D];
+               V[k][y][x] += r_B[i][y][x] * smem[i + y * T1D];
             }
          });
       });
@@ -585,11 +593,10 @@ inline MFEM_HOST_DEVICE void ContractTransposeX3d(real_t *smem, const bool zero,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void
-ContractTranspose3d(real_t *smem, const bool zero, const real_t *basis_X,
-                    const real_t *basis_Y, const real_t *basis_Z,
-                    const regs2d_t<T1D> (&r_U)[Q1D], regs2d_t<T1D> (&r_V)[D1D])
+template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void ContractTranspose3d(real_t *smem, const bool zero, const real_t *basis_X,
+                         const real_t *basis_Y, const real_t *basis_Z,
+                         const regs2d_t<T1D> (&r_U)[Q1D], regs2d_t<T1D> (&r_V)[D1D])
 {
    regs2d_t<T1D> r_t1[T1D], r_t2[T1D];
    ContractTransposeZ3d<D1D, Q1D, T1D>(r_U, basis_X, r_t1);
@@ -598,11 +605,10 @@ ContractTranspose3d(real_t *smem, const bool zero, const real_t *basis_X,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void
-EvalTranspose3d(real_t *smem, const real_t *c_B,
-                const regs2d_t<T1D> (&r_U)[VDIM * Q1D],
-                regs2d_t<T1D> (&r_V)[VDIM * D1D])
+template <int VDIM, int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void EvalTranspose3d(real_t *smem, const real_t *c_B,
+                     const regs2d_t<T1D> (&r_U)[VDIM * Q1D],
+                     regs2d_t<T1D> (&r_V)[VDIM * D1D])
 {
    for (int c = 0; c < VDIM; c++)
    {
@@ -613,21 +619,20 @@ EvalTranspose3d(real_t *smem, const real_t *c_B,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int DIM, int VDIM, int D1D, int Q1D, int T1D>
-inline MFEM_HOST_DEVICE void
-GradTranspose3d(real_t *smem, const regs2d_t<T1D> (&r_U)[DIM * Q1D],
-                const real_t *c_B, const real_t *c_G,
-                regs2d_t<T1D> (&r_V)[VDIM * D1D])
+template <int DIM, int VDIM, int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
+void GradTranspose3d(real_t *smem, const regs2d_t<T1D> (&r_U)[DIM * Q1D],
+                     const real_t *c_B, const real_t *c_G,
+                     regs2d_t<T1D> (&r_V)[VDIM * D1D])
 {
    for (int comp = 0; comp < VDIM; comp++)
    {
       auto &r_V_sub = subregs_ref<T1D, D1D>(&r_V[comp * D1D]);
       for (int d = 0; d < DIM; d++)
       {
-         const int c = comp * Q1D + d * VDIM * Q1D;
          const real_t *bZ = (d == 0) ? c_G : c_B;
          const real_t *bY = (d == 1) ? c_G : c_B;
          const real_t *bX = (d == 2) ? c_G : c_B;
+         const int c = comp * Q1D + d * VDIM * Q1D;
          const auto &r_U_sub = subregs_const_ref<T1D, Q1D>(r_U + c);
          ContractTranspose3d<D1D, Q1D, T1D>(smem, d == 0,
                                             bX, bY, bZ, r_U_sub, r_V_sub);
@@ -636,10 +641,9 @@ GradTranspose3d(real_t *smem, const regs2d_t<T1D> (&r_U)[DIM * Q1D],
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void
-WriteDofsOffset3d(const int e, const int stride, const int *indices,
-                  regs2d_t<T1D> (&r_v)[VDIM * D1D], real_t *d_v)
+template <int VDIM, int D1D, int T1D> inline MFEM_HOST_DEVICE
+void WriteDofsOffset3d(const int e, const int stride, const int *map,
+                       regs2d_t<T1D> (&r_v)[VDIM * D1D], real_t *d_v)
 {
    for (int dz = 0; dz < D1D; ++dz)
    {
@@ -648,12 +652,12 @@ WriteDofsOffset3d(const int e, const int stride, const int *indices,
          mfem::foreach_thread_x<D1D>([&](int x)
          {
             const int node = x + y * D1D + dz * D1D * D1D;
-            const int gid = indices[node + e * D1D * D1D * D1D];
+            const int gid = map[node + e * D1D * D1D * D1D];
             assert(gid >= 0);
             for (int comp = 0; comp < VDIM; ++comp)
             {
                const int idx = gid + stride * comp;
-               const real_t value = r_v[dz + comp * D1D][x][y];
+               const real_t value = r_v[dz + comp * D1D][y][x];
                AtomicAdd(d_v[idx], value);
             }
          });
@@ -662,12 +666,10 @@ WriteDofsOffset3d(const int e, const int stride, const int *indices,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void
-WriteDofsOffset3d_bt(const int elem, const int stride, const int *map,
-                     regs2d_t<T1D> (&r_v)[VDIM * D1D],
-                     real_t *d_v,
-                     const real_t bt)
+template <int VDIM, int D1D, int T1D> inline MFEM_HOST_DEVICE
+void WriteDofsOffset3d_bt(const int elem, const int stride, const int *map,
+                          regs2d_t<T1D> (&r_v)[VDIM * D1D], real_t *d_v,
+                          const real_t bt)
 {
    for (int dz = 0; dz < D1D; ++dz)
    {
@@ -681,7 +683,7 @@ WriteDofsOffset3d_bt(const int elem, const int stride, const int *map,
             for (int comp = 0; comp < VDIM; ++comp)
             {
                const int idx = gid + stride * comp;
-               const real_t value = r_v[dz + comp * D1D][x][y];
+               const real_t value = r_v[dz + comp * D1D][y][x];
                AtomicAdd(d_v[idx], bt * value);
             }
          });
@@ -690,32 +692,30 @@ WriteDofsOffset3d_bt(const int elem, const int stride, const int *map,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int D1D, int T1D>
-inline MFEM_HOST_DEVICE void
-WriteDofsOffset3dYEab(const int e,
-                      regs2d_t<T1D> (&r_evalt_ym)[VDIM * D1D],
-                      const DeviceTensor<5> &Y,
-                      const real_t am, const real_t bm)
+template <int VDIM, int D1D, int T1D> inline MFEM_HOST_DEVICE
+void WriteDofsOffset3dYEab(const int e, regs2d_t<T1D> (&r_evalt_ym)[VDIM * D1D],
+                           const DeviceTensor<5> &Y,
+                           const real_t am, const real_t bm)
 {
    const bool zero_am = (am == 0);
    const auto idx = [&](int c, int dz) { return dz + c * D1D; };
 
    for (int dz = 0; dz < D1D; ++dz)
    {
-      mfem::foreach_thread_y<D1D>([&](int y)
+      mfem::foreach_thread_y<D1D>([&](int dy)
       {
-         mfem::foreach_thread_x<D1D>([&](int x)
+         mfem::foreach_thread_x<D1D>([&](int dx)
          {
             for (int c = 0; c < VDIM; ++c)
             {
-               const real_t r_evalt_m = r_evalt_ym[idx(c,dz)][x][y];
+               const real_t r_evalt_m = r_evalt_ym[idx(c,dz)][dy][dx];
                if (zero_am)  // Skip the read operation
                {
-                  Y(x,y,dz,e,c) = bm * r_evalt_m;
+                  Y(dx,dy,dz,e,c) = bm * r_evalt_m;
                }
                else
                {
-                  Y(x,y,dz,e,c) = am * Y(x,y,dz,e,c) + bm * r_evalt_m;
+                  Y(dx,dy,dz,e,c) = am * Y(dx,dy,dz,e,c) + bm * r_evalt_m;
                }
             }
          });
