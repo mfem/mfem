@@ -227,8 +227,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::Center);
 
       orig_ref_space.SetSize(npts * dim);
@@ -329,8 +328,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::Center);
 
       orig_ref_space.SetSize(npts * dim);
@@ -432,8 +430,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::Center);
 
       orig_ref_space.SetSize(npts * dim);
@@ -533,8 +530,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       // itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
       // itransform.SetInitGuessRelOrder(3);
       // itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
@@ -638,8 +634,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::Center);
 
       orig_ref_space.SetSize(npts * dim);
@@ -717,8 +712,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
       itransform.SetInitGuessRelOrder(3 - 20);
       itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
@@ -806,8 +800,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
       itransform.SetInitGuessRelOrder(3 - 20);
       itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
@@ -889,8 +882,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
 
       orig_ref_space.SetSize(npts * dim);
       phys_space.SetSize(npts * dim);
@@ -975,8 +967,7 @@ TEST_CASE("BatchInverseElementTransformation",
       Array<int> res_type;
       Vector res_ref_space;
 
-      BatchInverseElementTransformation itransform;
-      itransform.UpdateNodes(*mesh.GetNodes());
+      BatchInverseElementTransformation itransform(mesh);
 
       orig_ref_space.SetSize(npts * dim);
       phys_space.SetSize(npts * dim);
