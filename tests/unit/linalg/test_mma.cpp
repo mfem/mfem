@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-real_t obj0(mfem::Vector& x)
+real_t obj0(Vector& x)
 {
    const int n=x.Size();
    real_t rez=0.0;
@@ -33,7 +33,7 @@ real_t obj0(mfem::Vector& x)
    return rez;
 }
 
-real_t dobj0(mfem::Vector& x, mfem::Vector& dx)
+real_t dobj0(Vector& x, Vector& dx)
 {
    const int n=x.Size();
    real_t rez=0.0;
@@ -52,7 +52,7 @@ real_t dobj0(mfem::Vector& x, mfem::Vector& dx)
    return rez;
 }
 
-real_t g0(mfem::Vector& x)
+real_t g0(Vector& x)
 {
    int n=x.Size();
    real_t rez=0.0;
@@ -74,7 +74,7 @@ real_t g0(mfem::Vector& x)
    return rez-2.0;
 }
 
-real_t dg0(mfem::Vector& x, mfem::Vector& dx)
+real_t dg0(Vector& x, Vector& dx)
 {
    const int n=x.Size();
 
@@ -122,22 +122,22 @@ TEST_CASE("MMA Test", "[MMA]")
 
    int num_var=12 / world_size;
 
-   mfem::Vector x(num_var);
-   mfem::Vector dx(num_var);
-   mfem::Vector xmin(num_var); xmin=-1.0;
-   mfem::Vector xmax(num_var); xmax=2.0;
+   Vector x(num_var);
+   Vector dx(num_var);
+   Vector xmin(num_var); xmin=-1.0;
+   Vector xmax(num_var); xmax=2.0;
    x=xmin; x+=0.5;
 
-   mfem::MMA* mma = nullptr;
+   MMA* mma = nullptr;
 
 #ifdef MFEM_USE_MPI
-   mma = new mfem::MMA(MPI_COMM_WORLD,num_var,1,x);
+   mma = new MMA(MPI_COMM_WORLD,num_var,1,x);
 #else
-   mma = new mfem::MMA(num_var,1,x);
+   mma = new MMA(num_var,1,x);
 #endif
 
-   mfem::Vector g(1); g=-1.0;
-   mfem::Vector dg(num_var); dg=0.0;
+   Vector g(1); g=-1.0;
+   Vector dg(num_var); dg=0.0;
 
    real_t o;
    for (int it=0; it<30; it++)
@@ -155,7 +155,7 @@ TEST_CASE("MMA Test", "[MMA]")
    REQUIRE( std::fabs(o - 0.0005790847638021212) < 1e-12 );
 }
 
-real_t obj0_c(mfem::Vector& x)
+real_t obj0_c(Vector& x)
 {
    const int n=x.Size();
    real_t rez=0.0;
@@ -174,7 +174,7 @@ real_t obj0_c(mfem::Vector& x)
    return rez;
 }
 
-real_t dobj0_c(mfem::Vector& x, mfem::Vector& dx)
+real_t dobj0_c(Vector& x, Vector& dx)
 {
    const int n=x.Size();
    real_t rez=0.0;
@@ -212,18 +212,18 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 
    const int num_var=12 / world_size;
 
-   mfem::Vector x(num_var);
-   mfem::Vector dx(num_var);
-   mfem::Vector xmin(num_var); xmin=0.0;
-   mfem::Vector xmax(num_var); xmax=2.0;
+   Vector x(num_var);
+   Vector dx(num_var);
+   Vector xmin(num_var); xmin=0.0;
+   Vector xmax(num_var); xmax=2.0;
    x=xmin; x+=1.5;
 
-   mfem::MMA* mma = nullptr;
+   MMA* mma = nullptr;
 
 #ifdef MFEM_USE_MPI
-   mma = new mfem::MMA(MPI_COMM_WORLD,num_var,0,x);
+   mma = new MMA(MPI_COMM_WORLD,num_var,0,x);
 #else
-   mma = new mfem::MMA(num_var,x);
+   mma = new MMA(num_var,x);
 #endif
 
    real_t o;
