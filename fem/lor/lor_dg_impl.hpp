@@ -370,7 +370,7 @@ void BatchedLOR_DG::Assemble3D()
                V(0, ix, iy, iz, iel_ho) = mq * detJ(ix, iy, iz, iel_ho) * W(ix, iy, iz);
                for (int i = 1; i < 7; ++i)
                {
-                  V(0, ix, iy, iz, iel_ho) -= V(i, ix, iy, iz, iel_ho);
+                  V(0, ix, iy, iz, iel_ho) -= V(i, ix, iy, iz, iel_ho); 
                }
             }
          }
