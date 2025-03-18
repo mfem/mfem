@@ -67,6 +67,8 @@ public:
        int iterationNumber = 0);
    MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval,
        int iterationNumber = 0);
+   MMA(MPI_Comm comm_, const int & nVar, const Vector & xval,
+       int iterationNumber = 0);
 #endif
 
    /// Destructor
@@ -79,10 +81,9 @@ public:
    /// dgdx[nCon*nVar] - gradients of the constraints ordered
    ///                   constraint by constraint, e.g. {dg0dx0, dg0dx1, ... ,}
    ///                                                  {dg1dx0, dg1dx1, ... ,}
-   /// xxmin[nVar] - lower bounds
-   /// xxmax[nVar] - upper bounds
-   /// xval[nVar] - (input: current optimization parameters)
-   /// xval[nVar] - (output: updated optimization parameters)
+   /// xmin[nVar] - lower bounds
+   /// xmax[nVar] - upper bounds
+   /// xval[nVar] - input/output for optimization parameters
    void Update(const Vector& dfdx,
                const Vector& gx, const Vector& dgdx,
                const Vector& xmin, const Vector& xmax,
