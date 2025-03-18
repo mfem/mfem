@@ -438,7 +438,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
             }
          }
       }
-      I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
+      I[i+1] = I[i] + (nnz_per_row - loc_border_counter); 
    }
 
    auto I_d = A.ReadI();
