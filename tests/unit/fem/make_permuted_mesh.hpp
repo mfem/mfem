@@ -148,8 +148,6 @@ inline Mesh Mesh3D_Orientation(int face_perm_1, int face_perm_2)
    mesh.AddHex(el);
 
    mesh.FinalizeHexMesh(true);
-   mesh.GenerateBoundaryElements();
-   mesh.Finalize();
    return mesh;
 }
 
