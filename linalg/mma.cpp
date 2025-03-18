@@ -159,7 +159,7 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    delete[] X;
 }
 
-void MMA::MMASubParallel::AllocSubData(int nvar, int ncon)
+void MMA::MMASubSvanberg::AllocSubData(int nvar, int ncon)
 {
    epsi = 1.0;
    ittt = itto = itera = 0;
@@ -231,7 +231,7 @@ void MMA::MMASubParallel::AllocSubData(int nvar, int ncon)
    }
 }
 
-void MMA::MMASubParallel::FreeSubData()
+void MMA::MMASubSvanberg::FreeSubData()
 {
    delete[] sum1;
    delete[] ux1;
@@ -291,7 +291,7 @@ void MMA::MMASubParallel::FreeSubData()
 
 }
 
-void MMA::MMASubParallel::Update(const real_t* dfdx,
+void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                                  const real_t* gx,
                                  const real_t* dgdx,
                                  const real_t* xmin,
@@ -1053,14 +1053,11 @@ MMA::MMA(int nVar, int nCon, real_t *xval, int iter)
    AllocData(nVar,nCon);
    InitData(xval);
    // allocate the serial subproblem
-   mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
+   mSubProblem = new MMA::MMASubSvanberg(this, nVar,nCon);
 }
 
 MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon,
                                                                     xval.GetData(), iter)
-{}
-
-MMA::MMA(int nVar, Vector &xval, int iter) : MMA(nVar, 0, xval.GetData(), iter)
 {}
 
 #ifdef MFEM_USE_MPI
@@ -1087,7 +1084,7 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    AllocData(nVar,nCon);
    InitData(xval);
    // allocate the serial subproblem
-   mSubProblem = new MMA::MMASubParallel(this, nVar,nCon);
+   mSubProblem = new MMA::MMASubSvanberg(this, nVar,nCon);
 }
 
 MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon,
