@@ -1753,16 +1753,23 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::TDofsListByVDim(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    Vector& ML_inv) const
 {
-   Vector ML_inv_full(fes_lor.GetVSize());
+#ifdef MFEM_USE_MPI
+   auto * fes = pfes_lor_scalar.get();
+#else
+   auto * fes = fes_lor_scalar.get();
+#endif
+   MFEM_ASSERT(fes != nullptr, "[p]fes_lor_scalar is nullptr");
+
+   Vector ML_inv_full(fes->GetVSize());
 
    // set ML_inv on dofs for vdim = 0
-   Array<int> vdofs_list(fes_lor.GetNDofs());
+   Array<int> vdofs_list(fes->GetNDofs());
 
-   fes_lor.GetVDofs(0, vdofs_list);
+   fes->GetVDofs(0, vdofs_list);
    ML_inv_full.SetSubVector(vdofs_list, ML_inv);
 
-   Vector ML_inv_true(fes_lor.GetTrueVSize());
-   const Operator *P = fes_lor.GetProlongationMatrix();
+   Vector ML_inv_true(fes->GetTrueVSize());
+   const Operator *P = fes->GetProlongationMatrix();
    if (P) { P->MultTranspose(ML_inv_full, ML_inv_true); }
    else { ML_inv_true = ML_inv_full; }
 
