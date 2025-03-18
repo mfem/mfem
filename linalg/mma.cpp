@@ -963,17 +963,19 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             {
                for (int i = 0; i < ncon; i++)
                {
-                  residu[nvar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
-                                     mma->lam[i]; //rey
-                  residu[nvar + ncon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
-                                                mma->s[i] - b[i]; //relam
-                  residu[nvar + ncon + 1 + ncon + 2 * nvar + i] = mma->mu[i] * mma->y[i] -
+                  residu[nvar + i] = mma->c[i] + mma->d[i] * mma->y[i]
+                                     - mma->mu[i] - mma->lam[i]; //rey
+                  residu[nvar + ncon + 1 + i] = gvec[i] - mma->a[i] * mma->z
+                                                - mma->y[i] + mma->s[i] - b[i];
+                  //relam
+                  residu[nvar + ncon + 1 + ncon + 2 * nvar + i] = mma->mu[i]
+                                                                  * mma->y[i] -
                                                                   epsi; //remu
-                  residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon + 1 + i] = mma->lam[i] * mma->s[i]
-                                                                          - epsi; //res
+                  residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon + 1 + i] =
+                     mma->lam[i] * mma->s[i] - epsi; //res
                }
-               residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon] = mma->zet * mma->z -
-                                                               epsi; //rezet
+               residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon] =
+                  mma->zet * mma->z - epsi; //rezet
             }
 
             //Get vector product and maximum absolute value
@@ -1012,7 +1014,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       }
       if (ittt > 198 && mma->print_level>=2)
       {
-         out << "Warning: Maximum number of iterations reached in MMA subsolve.\n";
+         out << "Warning: Max number of iterations reached in MMA subsolve.\n";
       }
       epsi = 0.1 * epsi;
    }
@@ -1181,7 +1183,7 @@ void MMA::Update( const Vector& dfdx,
                   Vector& xval)
 {
    MFEM_ASSERT(0 == nCon,
-               "MMA::Update() number of constraint != 0. Provide constraint values and gradients");
+               "MMA nCon != 0. Provide constraint values and gradients");
 
    this->Update(dfdx.GetData(),
                 nullptr,nullptr,

@@ -98,7 +98,7 @@ real_t dg0(Vector& x, Vector& dx)
 #endif
 
    rez=rez/gn;
-   return rez-1.0;
+   return rez-2.0;
 }
 
 
@@ -152,7 +152,7 @@ TEST_CASE("MMA Test", "[MMA]")
 
    delete mma;
 
-   REQUIRE( std::fabs(o - 0.0005790847638021212) < 1e-12 );
+   REQUIRE( std::fabs(o - 0.00233310583131376) < 1e-12 );
 }
 
 real_t obj0_c(Vector& x)
