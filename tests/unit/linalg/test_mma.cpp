@@ -223,7 +223,7 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 #ifdef MFEM_USE_MPI
    mma = new MMA(MPI_COMM_WORLD,num_var,0,x);
 #else
-   mma = new MMA(num_var,x);
+   mma = new MMA(num_var,0,x);
 #endif
 
    real_t o;

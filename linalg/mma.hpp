@@ -58,7 +58,6 @@ public:
    /// xval[nVar] - initial parameter values
    MMA(int nVar, int nCon, real_t *xval, int iterationNumber = 0);
    MMA(const int nVar, int nCon, Vector & xval, int iterationNumber = 0);
-   MMA(int nVar, Vector & xval, int iterationNumber = 0); /// Unconstrained
 
 #ifdef MFEM_USE_MPI
    /// Parallel constructor:
@@ -180,14 +179,14 @@ private:
 
    MMASubBase* mSubProblem;
 
-   friend class MMASubParallel;
+   friend class MMASubSvanberg;
 
-   class MMASubParallel:public MMASubBase
+   class MMASubSvanberg:public MMASubBase
    {
    public:
 
       /// Constructor
-      MMASubParallel(MMA* mma, int nVar, int nCon):MMASubBase(mma)
+      MMASubSvanberg(MMA* mma, int nVar, int nCon):MMASubBase(mma)
       {
          AllocSubData(nVar,nCon);
 
@@ -199,7 +198,7 @@ private:
 
       /// Destructor
       virtual
-      ~MMASubParallel()
+      ~MMASubSvanberg()
       {
          FreeSubData();
       }
