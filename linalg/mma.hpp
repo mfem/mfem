@@ -24,27 +24,27 @@
 
 namespace mfem
 {
-/** \brief MMA (Method of Moving Asymptotes) solves an optimization problem 
+/** \brief MMA (Method of Moving Asymptotes) solves an optimization problem
  *         of the form:
  *
  *    Find       x that minimizes the objective function F(x),
  *    subject to C(x)_i <= 0,         for all i = 1, ... m
  *               x_lo <= x <= x_hi.
- * 
- *    The objective functions are replaced by convex functions 
+ *
+ *    The objective functions are replaced by convex functions
  *    chosen based on gradient information, and solved using a dual method.
  *    The unique optimal solution of this subproblem is returned as the next
  *    iteration point. Optimality is determined by the KKT conditions.
  *
  *  The "Update" function in MMA advances the optimization and must be called
- *  in every optimization iteratiorn
+ *  in every optimization iteration
  *
- *  1. Update - current and previous iteration points construct the 
+ *  1. Update - current and previous iteration points construct the
  *     "moving asymptotes". The design variables, objective function,
  *     constraints are passed to an approximating subproblem. The design
  *     variables are updated and returned.
  *
- *  When used in parallel, all Vectors are assumed to be true dof vectors, 
+ *  When used in parallel, all Vectors are assumed to be true dof vectors,
  *  and the operators are expected to be defined for tdof vectors.
  * */
 
@@ -63,7 +63,8 @@ public:
 #ifdef MFEM_USE_MPI
    /// Parallel constructor:
    /// comm_ - communicator
-   MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iterationNumber = 0);
+   MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval,
+       int iterationNumber = 0);
    MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval,
        int iterationNumber = 0);
 #endif
@@ -75,7 +76,7 @@ public:
    /// Update the optimization parameters
    /// dfdx[nVar] - gradients of the objective
    /// gx[nCon] - values of the constraints
-   /// dgdx[nCon*nVar] - gradients of the constraints
+   /// dgdx[nCon*nVar] - gradients of the constraints (row-based)
    /// xxmin[nVar] - lower bounds
    /// xxmax[nVar] - upper bounds
    /// xval[nVar] - (input: current optimization parameters)
