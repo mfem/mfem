@@ -369,9 +369,12 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_ij.Size()/ndof_per_el/nel_ho;
+   const int dim = fes_ho.GetMesh()->Dimension(); 
    const int num_rows = nel_ho*ndof_per_el;
    const int p = fes_ho.GetMaxElementOrder();
    const int nnz = num_rows*nnz_per_row;
+   static const int lex_map_2[] = {3, 1, 0, 2};
+   static const int lex_map_3[] = {4,2,1,3,0,5};
    auto I = A.HostWriteI();
 
    EnsureCapacity(A.GetMemoryJ(), nnz);
@@ -382,9 +385,9 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    auto J = A.WriteJ();
    auto AV = A.WriteData();
 
-   Array<int> neighbor_info_arr(nel_ho*3*4);
-   auto h_neighbor_info_arr = Reshape(neighbor_info_arr.HostWrite(), nel_ho, 4, 3);
-   int global_border_counter = 0;
+   Array<int> neighbor_info_arr(nel_ho*3*2*dim);
+   auto h_neighbor_info_arr = Reshape(neighbor_info_arr.HostWrite(), nel_ho, 2*dim, 3);
+   //int global_border_counter = 0;
    int num_faces = fes_ho.GetMesh()->GetNumFaces();
    for (int f = 0; f< num_faces; f++)
    {
@@ -396,7 +399,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          h_neighbor_info_arr(i,k,0) = -1;
          h_neighbor_info_arr(i,k,1)= -1;
          h_neighbor_info_arr(i,k,2)= -1;
-         global_border_counter = global_border_counter + (p+1);
+         //global_border_counter = global_border_counter + (p+1);
       }
       else
       {
@@ -406,7 +409,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          h_neighbor_info_arr(i,k,1)= face.element[1].orientation;
          h_neighbor_info_arr(i,k,2)= l;
          h_neighbor_info_arr(j,l,0) = i;
-         h_neighbor_info_arr(j,l,1) = face.element[0].orientation;
+         h_neighbor_info_arr(j,l,1) = face.element[1].orientation;
          h_neighbor_info_arr(j,l,2) = k;
       }
    };
@@ -417,17 +420,21 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
-      const int local_y = iloc/(p+1);
-      for (int j = 1; j < nnz_per_row; ++j)
-      {
-         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) ||
-                         (local_y == 0 && j == 1) || (local_y == p && j == 3);
-         if (boundary)
-         {
-            int neighbor_idx = h_neighbor_info_arr(iel_ho, j-1, 0);
-            if (neighbor_idx == -1)
+      const int local_y = (iloc/(p+1))%(p+1);
+      const int local_z = iloc/(p+1)/(p+1); 
+      int local_i[3] = {local_x, local_y, local_z};
+      for (int n_idx = 0; n_idx < dim; ++n_idx){
+         for (int e_i = 0; e_i < 2; ++e_i){
+            const int j_lex = e_i + n_idx*2;
+            const int j = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
+            const bool boundary = (local_i[n_idx] == e_i * p);
+            if (boundary)
             {
-               loc_border_counter = loc_border_counter + 1;
+               int neighbor_idx = h_neighbor_info_arr(iel_ho, j, 0);
+               if (neighbor_idx == -1)
+               {
+                  loc_border_counter = loc_border_counter + 1;
+               }
             }
          }
       }
@@ -435,52 +442,56 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    }
 
    auto I_d = A.ReadI();
-   auto d_neighbor_info_arr = Reshape(neighbor_info_arr.Read(), nel_ho, 4, 3);
+   auto d_neighbor_info_arr = Reshape(neighbor_info_arr.Read(), nel_ho, 2*dim, 3);
    
    mfem::forall(num_rows, [=] MFEM_HOST_DEVICE (int i)
    {
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
-      const int local_y = iloc/(p+1);
+      const int local_y = (iloc/(p+1))%(p+1);
+      const int local_z = iloc/(p+1)/(p+1); 
+      int local_i[3] = {local_x, local_y, local_z};
       const int nnz_so_far_current = I_d[i];
       AV[nnz_so_far_current] = V(0, iloc, iel_ho);
       J[nnz_so_far_current] = i;
       int k = 1;
-      for (int j = 1; j < nnz_per_row; ++j)
-      {
-         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) ||
-                         (local_y == 0 && j == 1) || (local_y == p && j == 3);
-         if (boundary)
-         {
-            int neighbor_idx = d_neighbor_info_arr(iel_ho, j-1, 0);
-            int neighbor_face = d_neighbor_info_arr(iel_ho, j-1, 2);
-            if (neighbor_idx != -1)
-            {
-               int x_n; int y_n;
-               if (j == 4 || j == 2)
+      for (int n_idx = 0; n_idx < dim; ++n_idx){
+         for (int e_i = 0; e_i < 2; ++e_i){
+            const int j_lex = e_i + n_idx*2;
+            const int j = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
+            const bool boundary = (local_i[n_idx] == e_i * p);
+            if (boundary){
+               int neighbor_idx = d_neighbor_info_arr(iel_ho, j, 0);
+               int neighbor_face = d_neighbor_info_arr(iel_ho, j, 2);
+               int neighbor_orientation = d_neighbor_info_arr(iel_ho, j, 1); 
+               if (neighbor_idx != -1)
                {
-                  internal::FaceIdxToVolIdx2D(local_y, p+1, j-1, neighbor_face, 1, x_n, y_n);
+                  int x_n; int y_n; int z_n;
+                  if (dim == 3){
+                     int qi = (n_idx == 0) ? (local_y + (p+1)*local_z) 
+                     : ((n_idx == 1) ? ((p+1)*local_z + local_x) 
+                     : (local_x + (p+1)*local_y));
+                     internal::FaceIdxToVolIdx3D(qi, p+1, j, neighbor_face, 1, neighbor_orientation, x_n, y_n, z_n);
+                  }
+                  else{
+                     int qi = (n_idx == 0) ? local_y : local_x;
+                     internal::FaceIdxToVolIdx2D(qi, p+1, j, neighbor_face, 1, x_n, y_n);
+                     z_n = 0;
+                  }
+                  int neighbor_loc_idx = x_n + (p+1)*y_n + (p+1)*(p+1)*z_n;
+                  int neighbor_lor_entry = neighbor_idx*ndof_per_el + neighbor_loc_idx;
+                  J[nnz_so_far_current + k] = neighbor_lor_entry;
+                  AV[nnz_so_far_current + k] = V(j+1, iloc, iel_ho);
+                  k=k+1;
                }
-               else
-               {
-                  internal::FaceIdxToVolIdx2D(local_x, p+1, j-1, neighbor_face, 1, x_n, y_n);
-               }
-               int neighbor_loc_idx = x_n + (p+1)*y_n;
-               int neighbor_lor_entry = neighbor_idx*ndof_per_el + neighbor_loc_idx;
-               J[nnz_so_far_current + k] = neighbor_lor_entry;
-               AV[nnz_so_far_current + k] = V(j, iloc, iel_ho);
+            }
+            else{
+               int pm = (e_i == 0) ? -pow(p+1, n_idx) : pow(p+1, n_idx);
+               J[nnz_so_far_current + k] = i + pm; 
+               AV[nnz_so_far_current + k] = V(j+1, iloc, iel_ho);
                k = k+1;
             }
-         }
-         else
-         {
-            if (j == 4) {J[nnz_so_far_current + k] = i - 1;}
-            if (j == 2) {J[nnz_so_far_current + k] = i + 1;}
-            if (j == 1) {J[nnz_so_far_current + k] = i - (p+1);}
-            if (j == 3) {J[nnz_so_far_current + k] = i + (p+1);}
-            AV[nnz_so_far_current + k] = V(j, iloc, iel_ho);
-            k = k+1;
          }
       }
    });
