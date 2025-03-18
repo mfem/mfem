@@ -67,8 +67,6 @@ public:
        int iterationNumber = 0);
    MMA(MPI_Comm comm_, const int & nVar, const int & nCon, const Vector & xval,
        int iterationNumber = 0);
-   MMA(MPI_Comm comm_, const int & nVar, const Vector & xval,
-       int iterationNumber = 0);
 #endif
 
    /// Destructor
