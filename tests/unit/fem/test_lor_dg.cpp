@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "make_permuted_mesh.hpp"
 #include "../linalg/test_same_matrices.hpp"
 //#include "lor_dg_impl.hpp"
 
@@ -307,16 +308,34 @@ public:
 TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 {
    const int order = 2;
-   const auto mesh_fname = GENERATE(
-                              //"../../data/star-q3.mesh"
-                              //"../../data/star-surf.mesh",
-                              // "../../data/fichera-q3.mesh"
-                              "../../data/inline-quad.mesh"
-                              //"../../data/ref-square.mesh"
-                           );
+   // const auto mesh_fname = GENERATE(
+   //                            //"../../data/star-q3.mesh"
+   //                            //"../../data/star-surf.mesh",
+   //                            // "../../data/fichera-q3.mesh"
+   //                            "../../data/inline-quad.mesh"
+   //                            //"../../data/ref-square.mesh"
+   //                         );
    // const bool add_diffusion = GENERATE(true, false);
+
+   // const int dim = 3;
+   // const int orientation1 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+   // const int orientation2 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+   // CAPTURE(orientation1, orientation2);
+   // Mesh mesh = [dim,orientation1,orientation2]()
+   // {
+   //    if (dim == 2)
+   //    {
+   //       return Mesh2D_Orientation(orientation1, orientation2);
+   //    }
+   //    else
+   //    {
+   //       return Mesh3D_Orientation(orientation1, orientation2);
+   //    }
+   // }();
+   // Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, Element::HEXAHEDRON);
+
    const bool add_diffusion = true;
-   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   Mesh mesh = Mesh::LoadFromFile("../../data/fichera.mesh");
 
    DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fespace(&mesh, &fec);
