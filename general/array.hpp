@@ -106,7 +106,8 @@ public:
    inline ~Array() { data.Delete(); }
 
    /// Apply function
-   void Apply(std::function<T(T)> function);
+   void Apply(std::function<T(T)> function)
+   { HostReadWrite(); for (T &e : *this) { e = function(e); } }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }

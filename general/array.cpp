@@ -141,16 +141,6 @@ int Array<T>::IsSorted() const
 }
 
 template <class T>
-void Array<T>::Apply(std::function<T(T)> function)
-{
-   static_assert(std::is_arithmetic<T>::value, "Apply to arithmetric types!");
-   const bool use_device = UseDevice();
-   const int N = size;
-   auto y = ReadWrite(use_device);
-   mfem::forall_switch(use_device, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = function(y[i]); });
-}
-
-template <class T>
 void Array2D<T>::Load(const char *filename, int fmt)
 {
    std::ifstream in;
