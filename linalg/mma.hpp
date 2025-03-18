@@ -37,12 +37,12 @@ namespace mfem
  *    iteration point. Optimality is determined by the KKT conditions.
  *
  *  The "Update" function in MMA advances the optimization and must be called
- *  in every optimization iteration
- *
- *  1. Update - current and previous iteration points construct the
- *     "moving asymptotes". The design variables, objective function,
- *     constraints are passed to an approximating subproblem. The design
- *     variables are updated and returned.
+ *  in every optimization iteration. Current and previous iteration points
+ *  construct the "moving asymptotes". The design variables, objective function,
+ *  constraints are passed to an approximating subproblem. The design variables
+ *  are updated and returned. Its implementation closely follows the original
+ *  formulation of 'Svanberg, K. (2007). MMA and GCMMA-two methods
+ *  for nonlinear optimization. vol, 1, 1-15.'
  *
  *  When used in parallel, all Vectors are assumed to be true dof vectors,
  *  and the operators are expected to be defined for tdof vectors.
@@ -76,7 +76,9 @@ public:
    /// Update the optimization parameters
    /// dfdx[nVar] - gradients of the objective
    /// gx[nCon] - values of the constraints
-   /// dgdx[nCon*nVar] - gradients of the constraints (row-based)
+   /// dgdx[nCon*nVar] - gradients of the constraints ordered
+   ///                   constraint by constraint, e.g. {dg0dx0, dg0dx1, ... ,}
+   ///                                                  {dg1dx0, dg1dx1, ... ,}
    /// xxmin[nVar] - lower bounds
    /// xxmax[nVar] - upper bounds
    /// xval[nVar] - (input: current optimization parameters)
