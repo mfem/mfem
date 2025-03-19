@@ -271,28 +271,3 @@ public:
       return r * (flip_sign ? -1 : 1);
    }
 };
-
-/// @brief Return $1/r$
-class OneOverRGridFunctionCoefficient : public Coefficient
-{
-private:
-   bool flip_sign;
-
-public:
-   int counter = 0;
-   OneOverRGridFunctionCoefficient(bool flip_sign = false)
-       : Coefficient(), flip_sign(flip_sign)
-   {
-   }
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override
-   {
-      // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
-      real_t r = x[0];
-      counter++;
-      return 1/(1e-10 + r) * (flip_sign ? -1 : 1);
-   }
-};
