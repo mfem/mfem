@@ -692,14 +692,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    }
    else
    {
-      if (Mnl && opM.Ptr())
-      {
-         A.Reset(this, false);
-      }
-      else
-      {
-         A.Reset(block_op, false);
-      }
+      A.Reset(this, false);
    }
 }
 

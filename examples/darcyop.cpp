@@ -484,20 +484,12 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       {
          if ((Mqnl || Mtnl || Mnl) && solver_type != SolverType::Default)
          {
-            SetupNonlinearSolver(rtol, atol, maxIter);
+            if (prec && ess_flux_tdofs_list.Size() > 0)
+            {
+               MFEM_ABORT("Gradient is not implemented with essential DOFs!");
+            }
 
-            if (prec)
-            {
-               if (ess_flux_tdofs_list.Size() > 0)
-               {
-                  MFEM_ABORT("Gradient is not implemented with essential DOFs!");
-               }
-               solver->SetOperator(*darcy);
-            }
-            else
-            {
-               solver->SetOperator(*op);
-            }
+            SetupNonlinearSolver(rtol, atol, maxIter);
          }
          else
          {
@@ -507,9 +499,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             }
 
             SetupLinearSolver(rtol, atol, maxIter);
-
-            solver->SetOperator(*op);
          }
+         solver->SetOperator(*op);
       }
 
       chrono.Stop();
