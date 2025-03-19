@@ -26,7 +26,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = ["@hypre", "@metis"],
 )""",
-        # path = "/opt/homebrew/Cellar/open-mpi/5.0.3_1",
         path = "/usr/lib/x86_64-linux-gnu/openmpi"
     )
     new_local_repository(
@@ -42,7 +41,6 @@ cc_library(
     includes = ["include/hypre"],
     visibility = ["//visibility:public"],
 )""",
-        # path = "/opt/homebrew/Cellar/hypre/2.31.0",
         path = "/usr"
     )
     new_local_repository(

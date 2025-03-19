@@ -5,7 +5,7 @@ Bazel configuration helper functions
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 ### Examples ##################################################################
-def mfem_examples():
+def mfem_serial_examples():
     for n in range(1, 40):
         example = "ex" + str(n)
         cc_binary(

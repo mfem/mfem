@@ -1,3 +1,9 @@
+# Bazel configuration file
+# https://docs.bazel.build/versions/main/guide.html#bazelrc
+# --compilation_mode [-c] (fastbuild, dbg or opt; default: "fastbuild")
+# --[no]subcommands [-s] (true, pretty_print or false; default: "false")
+# bazel clean --expunge
+
 # Enable Bzlmod for every Bazel command
 common --enable_bzlmod
 
@@ -8,7 +14,7 @@ build --color=yes
 build --disk_cache=/tmp/bazel_disk_cache
 
 # Alias definition ############################################################
-# Allow the user to specify the build mode and precision with:
+# Allow  to specify the build mode and precision with the following flags:
 # --mode=[serial|parallel]
 # --precision=[single|double]
 build --flag_alias=mode=//:mode
@@ -17,12 +23,13 @@ build --flag_alias=precision=//:precision
 # Compilation options #########################################################
 build --copt=-g
 build --copt=-Wall
-build --copt=-Wextra
-build --copt=-Werror
+# build --copt=-Wextra
+# build --copt=-Werror
 build --copt=-std=c++17
 build --cxxopt=-Wno-unused-parameter
 build --strip=never
 
+# build:macos --copt=-Werror
 # build:macos --cxxopt=-Wno-error=deprecated-declarations
 # build:macos --cxxopt=-Wno-error=deprecated-enum-enum-conversion
 # build:macos --cxxopt=-Wno-error=deprecated-anon-enum-enum-conversion
@@ -34,4 +41,4 @@ build --strip=never
 # build --incompatible_strict_action_env=true
 
 # Enable the CC toolchain resolution based on platforms.
-build --incompatible_enable_cc_toolchain_resolution
+# build --incompatible_enable_cc_toolchain_resolution

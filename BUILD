@@ -4,11 +4,13 @@ load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 ### Load rules ################################################################
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
-### MFEM configuration ########################################################
-load("//config/bazel:config.bzl", "mfem_examples", "mfem_parallel_examples", "mfem_use")
+### Load config/bazel/config ##################################################
+load("//config/bazel:config.bzl", "mfem_serial_examples",
+                                  "mfem_parallel_examples", "mfem_use")
 
+### Load config/bazel/settings ################################################
 ### https://bazel.build/docs/configurable-attributes
-load("//config/bazel:settings.bzl", "mode", "precision", "print_mode")
+load("//config/bazel:settings.bzl", "mode", "precision", "print_mode", "print_precision")
 
 # FLAG: Serial/Parallel MODE ##################################################
 string_flag(
@@ -22,26 +24,27 @@ mode(name = "serial")
 mode(name = "parallel")
 
 config_setting(
-    name = "serial_build",
+    name = "serial_mode",
     flag_values = {":mode": "serial"},
 )
 
 config_setting(
-    name = "parallel_build",
+    name = "parallel_mode",
     flag_values = {":mode": "parallel"},
 )
 
 print_mode(
     name = "print_mode",
     mode = select({
-        ":serial_build": "serial",
-        ":parallel_build": "parallel",
+        ":serial_mode": "serial",
+        ":parallel_mode": "parallel",
     }),
 )
 
 # FLAG: Double/Single PRECISION ###############################################
 string_flag(
     name = "precision",
+    values = ["single", "double"],
     build_setting_default = "double",
 )
 
@@ -57,6 +60,14 @@ config_setting(
 config_setting(
     name = "double_precision",
     flag_values = {":precision": "double"},
+)
+
+print_precision(
+    name = "print_precision",
+    precision = select({
+        ":single_precision": "single",
+        ":double_precision": "double",
+    }),
 )
 
 # MFEM_USE_* definitions ######################################################
@@ -138,7 +149,7 @@ genrule(
     srcs = ["BUILD"],
     outs = ["config/bazel.hpp"],
     cmd = """cat <<EOF > $@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -190,8 +201,8 @@ $(MFEM_USE_METIS)
 $(MFEM_USE_METIS_5)
 
 // Version of HYPRE used for building MFEM.
-// macOS: 23100, ubuntu: 21821
-$(MFEM_HYPRE_VERSION) 21821
+// macOS: 23200, ubuntu: 21821
+$(MFEM_HYPRE_VERSION) 23200
 
 // Use single/double-precision floating point type
 $(MFEM_USE_DOUBLE)
@@ -211,13 +222,13 @@ EOF""",
     local = False,
     message = "Generating config bazel.hpp file",
     toolchains = select({
-        ":serial_build": [
+        ":serial_mode": [
             ":mfem_not_mpi",
             ":mfem_not_metis",
             ":mfem_not_metis_5",
             ":no_mfem_hypre_version",
         ],
-        ":parallel_build": [
+        ":parallel_mode": [
             ":mfem_use_mpi",
             ":mfem_use_metis",
             ":mfem_use_metis_5",
@@ -250,8 +261,7 @@ cc_library(
 )
 
 ### MFEM Examples #############################################################
-mfem_examples()
-
+mfem_serial_examples()
 mfem_parallel_examples()
 
 ### MFEM library ##############################################################
@@ -265,7 +275,7 @@ cc_library(
         "mesh",
         "@config",
     ] + select({
-        ":parallel_build": ["@mpi"],
+        ":parallel_mode": ["@mpi"],
         "//conditions:default": [],
     }),
 )
@@ -291,7 +301,7 @@ cc_library(
         "linalg_hpp",
         "mesh_hpp",
     ] + select({
-        ":parallel_build": ["@mpi"],
+        ":parallel_mode": ["@mpi"],
         "//conditions:default": [],
     }),
 )
@@ -304,7 +314,7 @@ cc_library(
         "general_hpp",
         "linalg_hpp",
     ] + select({
-        ":parallel_build": ["@mpi"],
+        ":parallel_mode": ["@mpi"],
         "//conditions:default": [],
     }),
 )
@@ -319,7 +329,7 @@ cc_library(
         "linalg_hpp",
         "mesh_hpp",
     ] + select({
-        ":parallel_build": ["@mpi"],
+        ":parallel_mode": ["@mpi"],
         "//conditions:default": [],
     }),
 )
@@ -337,7 +347,7 @@ cc_library(
         "linalg_hpp",
         "mesh_hpp",
     ] + select({
-        ":parallel_build": ["@mpi"],
+        ":parallel_mode": ["@mpi"],
         "//conditions:default": [],
     }),
 )
