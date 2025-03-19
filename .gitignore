@@ -57,6 +57,7 @@ doc/warnings.log
 # Bazel specific
 bazel-*
 *.bazel_cache
+MODULE.bazel.lock
 
 # Example and miniapp binaries and outputs
 
