@@ -240,15 +240,15 @@ protected:
    Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these three tables, only face_edge and
-   // edge_vertex are returned by access functions.
-   mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
-   mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
-   mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
-   mutable Table *vertex_to_el;
-   mutable Table *vertex_to_face;
-   mutable Table *face_to_vertex;
-   mutable Table *vertex_to_edge;
+   // deleted by the caller. Of these three tables, only face_to_edge and
+   // edge_to_vertex are returned by access functions.
+   mutable Table face_to_el;       // Used by FindFaceNeighbors, not returned.
+   mutable Table face_to_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table edge_to_vertex;   // Returned by GetEdgeVertexTable().
+   mutable Table vertex_to_el;
+   mutable Table vertex_to_face;
+   mutable Table face_to_vertex;
+   mutable Table vertex_to_edge;
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -1558,28 +1558,28 @@ public:
    void GetBdrElementFace(int i, int *f, int *o) const;
 
    /// Return the indices of the faces connected to vertex vi.
-   void FacesWithVert(Array<int> &faces, int vi);
+   void FacesWithVert(int vi, Array<int> &faces);
 
    /// Return the indices of the elements connected to vertex vi.
-   void ElemsWithVert(Array<int> &elems, int vi);
+   void ElemsWithVert(int vi, Array<int> &elems);
 
    /// Return the indices of the edges conected to vertex vi.
-   void EdgesWithVert(Array<int> &edges, int vi);
+   void EdgesWithVert(int vi, Array<int> &edges);
 
    /** @brief Return the indices of the elements with all of their vertices
        covered in the @a verts array. */
-   void ElemsWithAllVerts(Array<int> &elems, const Array<int> &verts);
+   void ElemsWithAllVerts(const Array<int> &verts, Array<int> &elems);
 
    /** @brief Return the indices of the faces with all of their vertices
        covered in the @a verts array. */
-   void FacesWithAllVerts(Array<int> &faces, const Array<int> &verts);
+   void FacesWithAllVerts(const Array<int> &verts, Array<int> &faces);
 
    /** @brief Return the indices of the edges with all of their vertices
        covered in the @a verts array. */
-   void EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts);
+   void EdgesWithAllVerts(const Array<int> &verts, Array<int> &edges);
 
    /// Return the edges found in the list of boundary elements
-   void EdgesInBdrElems(Array<int> &edges, const Array<int> &belems);
+   void EdgesInBdrElems(const Array<int> &belems, Array<int> &edges);
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
        element and its info, i.e. 64*local_bdr_index+bdr_orientation.
