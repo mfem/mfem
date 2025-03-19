@@ -63,6 +63,7 @@ private:
 #ifdef MFEM_USE_MPI
       const ParDarcyForm *pdarcy {};
 #endif
+      const Operator *op {};
       bool nonlinear;
 
       const char *prec_str;
@@ -87,17 +88,10 @@ private:
 
       const char *GetString() const { return prec_str; }
 
-      void SetOperator(const Operator &op) override { reconstruct = true; }
+      void SetOperator(const Operator &op_) override
+      { op = &op_; reconstruct = true; }
 
-      void Mult(const Vector &x, Vector &y) const override
-      {
-         if (nonlinear && reconstruct)
-         {
-            Construct(x);
-            reconstruct = false;
-         }
-         darcyPrec->Mult(x,y);
-      }
+      void Mult(const Vector &x, Vector &y) const override;
    };
 
    class IterativeGLVis : public IterativeSolverMonitor

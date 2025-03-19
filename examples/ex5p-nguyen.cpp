@@ -423,20 +423,20 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   ParBilinearForm *Mq =(!nonlinear &&
-                         !bnldiff)?(darcy->GetParFluxMassForm()):(NULL);
-   //NonlinearForm *Mqnl = (nonlinear && !bnldiff)?
-   //                      (darcy->GetFluxMassNonlinearForm()):(NULL);
+   ParBilinearForm *Mq =(!nonlinear && !bnldiff)?
+                        (darcy->GetParFluxMassForm()):(NULL);
+   NonlinearForm *Mqnl = (nonlinear && !bnldiff)?
+                         (darcy->GetFluxMassNonlinearForm()):(NULL);
    //BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    ParMixedBilinearForm *B = darcy->GetParFluxDivForm();
    ParBilinearForm *Mt = (!nonlinear && ((dg /*&& (!Mnl || hybridization)*/ &&
                                           td > 0.) ||
                                          bconv || btime))?(darcy->GetParPotentialMassForm()):(NULL);
-   //NonlinearForm *Mtnl = (nonlinear && ((dg && (!Mnl || hybridization) &&
-   //                                      td > 0.) || bconv || bnlconv || btime))?
-   //                      (darcy->GetPotentialMassNonlinearForm()):(NULL);
-   //FluxFunction *FluxFun = NULL;
-   //RiemannSolver *FluxSolver = NULL;
+   NonlinearForm *Mtnl = (nonlinear && ((dg /*&& (!Mnl || hybridization)*/ &&
+                                         td > 0.) || bconv || bnlconv || btime))?
+                         (darcy->GetPotentialMassNonlinearForm()):(NULL);
+   FluxFunction *FluxFun = NULL;
+   RiemannSolver *FluxSolver = NULL;
    //MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
@@ -450,10 +450,10 @@ int main(int argc, char *argv[])
          {
             Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
          }
-         /*if (Mqnl)
+         if (Mqnl)
          {
             Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
-         }*/
+         }
       }
       else
       {
@@ -461,10 +461,10 @@ int main(int argc, char *argv[])
          {
             Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
          }
-         /*if (Mqnl)
+         if (Mqnl)
          {
             Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
-         }*/
+         }
       }
    }
    /*else
@@ -511,12 +511,12 @@ int main(int argc, char *argv[])
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
                                      bdr_is_neumann);
          }
-         /*if (Mtnl)
+         if (Mtnl)
          {
             Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
             Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
                                        bdr_is_neumann);
-         }*/
+         }
       }
       else if (!upwinded && td > 0.)
       {
@@ -526,12 +526,12 @@ int main(int argc, char *argv[])
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                      bdr_is_neumann);
          }
-         /*if (Mtnl)
+         if (Mtnl)
          {
             Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                        bdr_is_neumann);
-         }*/
+         }
       }
    }
 
@@ -589,7 +589,7 @@ int main(int argc, char *argv[])
 
    //linear convection in the nonlinear regime
 
-   /*if (bconv && Mtnl)
+   if (bconv && Mtnl)
    {
       Mtnl->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
       if (upwinded)
@@ -612,11 +612,11 @@ int main(int argc, char *argv[])
             Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
          }
       }
-   }*/
+   }
 
    //nonlinear convection in the nonlinear regime
 
-   /*if (bnlconv && Mtnl)
+   if (bnlconv && Mtnl)
    {
       FluxFun = GetFluxFun(problem, ccoeff);
       switch (hdg_scheme)
@@ -634,7 +634,7 @@ int main(int argc, char *argv[])
                                          *FluxSolver, 0, -1.));
       Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(
                                     *FluxSolver, 0, -1.));
-   }*/
+   }
 
    //set hybridization / assembly level
 
@@ -1095,9 +1095,9 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
 
    delete ode_solver;
-   /*delete HeatFluxFun;
+   //delete HeatFluxFun;
    delete FluxFun;
-   delete FluxSolver;*/
+   delete FluxSolver;
    delete fform;
    delete gform;
    delete hform;

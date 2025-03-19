@@ -18,6 +18,7 @@
 
 #include "darcyform.hpp"
 #include "../pbilinearform.hpp"
+#include "../pnonlinearform.hpp"
 
 namespace mfem
 {
@@ -30,7 +31,7 @@ protected:
    ParFiniteElementSpace *pfes_u, *pfes_p;
 
    ParBilinearForm *pM_u{}, *pM_p{};
-   //NonlinearForm *Mnl_u{}, *Mnl_p{};
+   ParNonlinearForm *pMnl_u{}, *pMnl_p{};
    ParMixedBilinearForm *pB{};
    //BlockNonlinearForm *Mnl{};
 
@@ -41,7 +42,22 @@ protected:
    void AssemblePotHDGSharedFaces(int skip_zeros);
 
    using DarcyForm::ConstructBT;
-   const Operator* ConstructBT(const HypreParMatrix *opB);
+   const Operator* ConstructBT(const HypreParMatrix *opB) const;
+
+   friend class ParOperator;
+   class ParOperator : public Operator
+   {
+      const ParDarcyForm &darcy;
+      mutable BlockOperator *block_grad{};
+
+   public:
+      ParOperator(const ParDarcyForm &darcy)
+         : Operator(darcy.toffsets.Last()), darcy(darcy) { }
+      ~ParOperator() { delete block_grad; }
+
+      void Mult(const Vector &x, Vector &y) const override;
+      Operator& GetGradient(const Vector &x) const override;
+   };
 
 public:
    ParDarcyForm(ParFiniteElementSpace *fes_u, ParFiniteElementSpace *fes_p,
@@ -51,25 +67,27 @@ public:
 
    using DarcyForm::GetFluxMassForm;
    BilinearForm *GetFluxMassForm();
-
    ParBilinearForm *GetParFluxMassForm()
    { return static_cast<ParBilinearForm*>(GetFluxMassForm()); }
-
    const ParBilinearForm *GetParFluxMassForm() const { return pM_u; }
 
    using DarcyForm::GetPotentialMassForm;
    BilinearForm *GetPotentialMassForm();
-
    ParBilinearForm *GetParPotentialMassForm()
    { return static_cast<ParBilinearForm*>(GetPotentialMassForm()); }
-
    const ParBilinearForm *GetParPotentialMassForm() const { return pM_p; }
 
-   //NonlinearForm *GetFluxMassNonlinearForm();
-   //const NonlinearForm *GetFluxMassNonlinearForm() const;
+   using DarcyForm::GetFluxMassNonlinearForm;
+   NonlinearForm *GetFluxMassNonlinearForm();
+   ParNonlinearForm *GetParFluxMassNonlinearForm()
+   { return static_cast<ParNonlinearForm*>(GetFluxMassNonlinearForm()); }
+   const ParNonlinearForm *GetParFluxMassNonlinearForm() const { return pMnl_u; }
 
-   //NonlinearForm *GetPotentialMassNonlinearForm();
-   //const NonlinearForm *GetPotentialMassNonlinearForm() const;
+   using DarcyForm::GetPotentialMassNonlinearForm;
+   NonlinearForm *GetPotentialMassNonlinearForm();
+   ParNonlinearForm *GetParPotentialMassNonlinearForm()
+   { return static_cast<ParNonlinearForm*>(GetPotentialMassNonlinearForm()); }
+   const ParNonlinearForm *GetParPotentialMassNonlinearForm() const { return pMnl_p; }
 
    using DarcyForm::GetFluxDivForm;
    MixedBilinearForm *GetFluxDivForm();

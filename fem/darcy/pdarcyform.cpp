@@ -40,6 +40,18 @@ BilinearForm *ParDarcyForm::GetPotentialMassForm()
    return pM_p;
 }
 
+NonlinearForm *ParDarcyForm::GetFluxMassNonlinearForm()
+{
+   if (!pMnl_u) { Mnl_u = pMnl_u = new ParNonlinearForm(pfes_u); }
+   return pMnl_u;
+}
+
+NonlinearForm *ParDarcyForm::GetPotentialMassNonlinearForm()
+{
+   if (!pMnl_p) { Mnl_p = pMnl_p = new ParNonlinearForm(pfes_p); }
+   return pMnl_p;
+}
+
 MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
 {
    if (!pB) { B = pB = new ParMixedBilinearForm(pfes_u, pfes_p); }
@@ -89,10 +101,10 @@ void ParDarcyForm::Assemble(int skip_zeros)
          pM_u->Assemble(skip_zeros);
       }
    }
-   /*else if (Mnl_u)
+   else if (Mnl_u)
    {
       Mnl_u->Setup();
-   }*/
+   }
 
    if (pB)
    {
@@ -174,10 +186,10 @@ void ParDarcyForm::Assemble(int skip_zeros)
          pM_p->Assemble(skip_zeros);
       }
    }
-   /*else if (Mnl_p)
+   else if (Mnl_p)
    {
       Mnl_p->Setup();
-   }*/
+   }
 }
 
 void ParDarcyForm::Finalize(int skip_zeros)
@@ -309,14 +321,12 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          pM_u->FormSystemMatrix(ess_flux_tdof_list, opM_u);
          block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
-      /*else if (Mnl_u)
+      else if (Mnl_u)
       {
-         Operator *oper_M;
-         Mnl_u->FormSystemOperator(ess_flux_tdof_list, oper_M);
-         opM_u.Reset(oper_M);
-         block_op->SetDiagonalBlock(0, opM_u.Ptr());
+         pMnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
+         block_op->SetDiagonalBlock(0, Mnl_u);
       }
-      else if (Mnl)
+      /*else if (Mnl)
       {
          Operator *oper_M;
          Mnl->FormSystemOperator(ess_flux_tdof_list, oper_M);
@@ -328,10 +338,10 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          pM_p->FormSystemMatrix(ess_pot_tdof_list, opM_p);
          block_op->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
-      /*else if (Mnl_p)
+      else if (Mnl_p)
       {
          block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
-      }*/
+      }
 
       if (pB)
       {
@@ -364,14 +374,7 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    }
    else
    {
-      if (Mnl && opM.Ptr())
-      {
-         A.Reset(this, false);
-      }
-      else
-      {
-         A.Reset(block_op, false);
-      }
+      A.Reset(new ParOperator(*this));
    }
 }
 
@@ -466,11 +469,11 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
    {
       pM_u->ParallelEliminateTDofsInRHS(tdofs_flux, x.GetBlock(0), b.GetBlock(0));
    }
-   /*else if (Mnl_u && opM_u.Ptr())
+   else if (Mnl_u && opM_u.Ptr())
    {
       opM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
    }
-   else if (Mnl && opM.Ptr())
+   /*else if (Mnl && opM.Ptr())
    {
       opM.As<ConstrainedOperator>()->EliminateRHS(x, b);
    }*/
@@ -496,6 +499,72 @@ void ParDarcyForm::Mult(const Vector &x, Vector &y) const
       pB->AddMult(xb.GetBlock(1), yb.GetBlock(0), (bsym)?(-1.):(+1.));
       pB->AddMultTranspose(xb.GetBlock(0), yb.GetBlock(1), (bsym)?(-1.):(+1.));
    }
+}
+
+void ParDarcyForm::ParOperator::Mult(const Vector &x, Vector &y) const
+{
+   darcy.block_op->Mult(x, y);
+}
+
+Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
+{
+   const BlockVector bx(const_cast<Vector&>(x), darcy.toffsets);
+
+   if (!darcy.Mnl && !darcy.Mnl_u && !darcy.Mnl_p) { return *darcy.block_op; }
+
+   if (darcy.Mnl_u || darcy.Mnl_p)
+   {
+      if (!block_grad)
+      {
+         block_grad = new BlockOperator(darcy.toffsets);
+      }
+
+      if (darcy.pM_u)
+      {
+         block_grad->SetDiagonalBlock(0, darcy.opM_u.Ptr());
+      }
+      else if (darcy.pM_u)
+      {
+         block_grad->SetDiagonalBlock(0, darcy.pM_u->ParallelAssembleInternal());
+      }
+      else if (darcy.pMnl_u)
+      {
+         block_grad->SetDiagonalBlock(0, &darcy.pMnl_u->GetGradient(bx.GetBlock(0)));
+      }
+
+      if (darcy.opM_p.Ptr())
+      {
+         block_grad->SetDiagonalBlock(1, darcy.opM_p.Ptr(), (darcy.bsym)?(-1.):(+1.));
+      }
+      else if (darcy.pM_p)
+      {
+         block_grad->SetDiagonalBlock(1, darcy.pM_p->ParallelAssembleInternal(),
+                                      (darcy.bsym)?(-1.):(+1.));
+      }
+      else if (darcy.pMnl_p)
+      {
+         block_grad->SetDiagonalBlock(1, &darcy.pMnl_p->GetGradient(bx.GetBlock(1)),
+                                      (darcy.bsym)?(-1.):(+1.));
+      }
+
+      if (darcy.pB)
+      {
+         if (!darcy.opB.Ptr() || !darcy.opBt.Ptr())
+         {
+            HypreParMatrix *hB = darcy.pB->ParallelAssembleInternal();
+            darcy.opB.Reset(hB, false);
+            darcy.ConstructBT(hB);
+         }
+         block_grad->SetBlock(0, 1, darcy.opBt.Ptr(), (darcy.bsym)?(-1.):(+1.));
+         block_grad->SetBlock(1, 0, darcy.opB.Ptr(), (darcy.bsym)?(-1.):(+1.));
+      }
+
+      if (!darcy.Mnl) { return *block_grad; }
+   }
+
+   //opG.Reset(new Gradient(*this, x));
+   MFEM_ABORT("Not implemented");
+   return *block_grad;//*opG.Ptr();
 }
 
 ParDarcyForm::~ParDarcyForm()
@@ -612,7 +681,7 @@ void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
    }
 }
 
-const Operator *ParDarcyForm::ConstructBT(const HypreParMatrix *opB)
+const Operator *ParDarcyForm::ConstructBT(const HypreParMatrix *opB) const
 {
    opBt.Reset(opB->Transpose());
    return opBt.Ptr();
