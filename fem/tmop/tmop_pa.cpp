@@ -182,8 +182,15 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
+   Vector x_loc(*x_0);
+   if (periodic)
+   {
+      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
+   }
+   else { x_loc += d_loc; }
+
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
 
@@ -246,6 +253,17 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.maps = &fe.GetDofToQuad(ir, mode);
    // Note - initial mesh. TODO delete this?
    PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+
+   // Initial node positions.
+   // PA.X0 is also updated in TMOP_Integrator::SetInitialMeshPos.
+   if (x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      auto n0_R = x_0->FESpace()->GetElementRestriction(ord);
+      PA.X0.UseDevice(true);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      n0_R->Mult(*x_0, PA.X0);
+   }
 
    // Energy vector, scalar Q-vector
    PA.E.UseDevice(true);

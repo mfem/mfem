@@ -1893,8 +1893,7 @@ protected:
    // When x_0 != nullptr, the integrator works on the displacements.
    // TODO in MFEM-5.0 make it always work with displacements.
    const GridFunction *x_0;
-   // Called with nullptr to unset the x_0 after the problem is solved.
-   void SetInitialMeshPos(const GridFunction *x0);
+   bool periodic = false;
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
@@ -1950,8 +1949,8 @@ protected:
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
-   real_t dx;
-   real_t dxscale;
+   real_t fd_h;
+   real_t fd_h_scale;
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
@@ -2071,11 +2070,11 @@ protected:
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &d, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &x_new,
-                                      const FiniteElementSpace &x_fes);
+   void UpdateAfterMeshPositionChange(const Vector &d,
+                                      const FiniteElementSpace &d_fes);
 
    void DisableLimiting()
    {
@@ -2133,7 +2132,7 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
-   void UpdateCoefficientsPA(const Vector &x_loc);
+   void UpdateCoefficientsPA(const Vector &d_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -2164,7 +2163,7 @@ public:
         surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
+        fdflag(false), fd_h_scale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
@@ -2183,6 +2182,9 @@ public:
       IntegRules = &irules;
       integ_order = order;
    }
+
+   // Called with nullptr to unset the x_0 after the problem is solved.
+   void SetInitialMeshPos(const GridFunction *x0);
 
    /// The TMOP integrals can be computed over the reference element or the
    /// target elements. This function is used to switch between the two options.
@@ -2321,7 +2323,7 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &pos,
+   void GetSurfaceFittingErrors(const Vector &d_loc,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
    {
@@ -2399,9 +2401,9 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(real_t dxscale_) { dxscale = dxscale_; }
+   void   SetFDhScale(real_t scale) { fd_h_scale = scale; }
    bool   GetFDFlag() const { return fdflag; }
-   real_t GetFDh()    const { return dx; }
+   real_t GetFDh()    const { return fd_h; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
@@ -2415,7 +2417,7 @@ public:
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
-   void ComputeUntangleMetricQuantiles(const Vector &x,
+   void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
 };
 
