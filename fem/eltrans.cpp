@@ -11,6 +11,8 @@
 
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
+#include "eltrans/eltrans_basis.hpp"
+
 #include <cmath>
 
 namespace mfem
@@ -65,7 +67,6 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    EvalState |= INVERSE_MASK;
    return invJ;
 }
-
 
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
@@ -180,12 +181,13 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    const int dim = T->GetDimension();
    const int sdim = T->GetSpaceDim();
    IntegrationPoint xip, prev_xip;
-   real_t xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm = -1.0;
-   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
+   real_t xd[3], yd[3], dxd[3], dxpd[3], dx_norm = -1.0, err_phys,
+                                         real_dx_norm = -1.0;
+   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim), dx_prev(dxpd, dim);
    bool hit_bdr = false, prev_hit_bdr = false;
 
    // Use ip0 as initial guess:
-   xip = *ip0;
+   xip = ip0;
    xip.Get(xd, dim); // xip -> x
    if (print_level >= 3)
    {
@@ -342,7 +344,7 @@ int InverseElementTransformation::Transform(const Vector &pt,
    switch (init_guess_type)
    {
       case Center:
-         ip0 = &Geometries.GetCenter(T->GetGeometryType());
+         ip0 = Geometries.GetCenter(T->GetGeometryType());
          break;
 
       case ClosestPhysNode:
@@ -351,7 +353,7 @@ int InverseElementTransformation::Transform(const Vector &pt,
          const int order = std::max(T->Order()+rel_qpts_order, 0);
          if (order == 0)
          {
-            ip0 = &Geometries.GetCenter(T->GetGeometryType());
+            ip0 = Geometries.GetCenter(T->GetGeometryType());
          }
          else
          {
@@ -359,11 +361,42 @@ int InverseElementTransformation::Transform(const Vector &pt,
             int closest_idx = (init_guess_type == ClosestPhysNode) ?
                               FindClosestPhysPoint(pt, RefG.RefPts) :
                               FindClosestRefPoint(pt, RefG.RefPts);
-            ip0 = &RefG.RefPts.IntPoint(closest_idx);
+            ip0 = RefG.RefPts.IntPoint(closest_idx);
          }
          break;
       }
-
+      case EdgeScan:
+      {
+         const int order = std::max(T->Order() + rel_qpts_order, 0);
+         if (order == 0)
+         {
+            ip0 = Geometries.GetCenter(T->GetGeometryType());
+         }
+         else
+         {
+            auto &ir = *refiner.EdgeScan(T->GetGeometryType(), order + 1);
+            int res = Outside;
+            int npts = ir.GetNPoints();
+            // will only return Outside if all test points report Outside
+            for (int i = 0; i < npts; ++i)
+            {
+               ip0 = ir.IntPoint(i);
+               int tmp_res = NewtonSolve(pt, ip);
+               switch (tmp_res)
+               {
+                  case Inside:
+                     return Inside;
+                  case Outside:
+                     break;
+                  case Unknown:
+                     res = Unknown;
+                     break;
+               }
+            }
+            return res;
+         }
+         break;
+      }
       case GivenPoint:
          break;
 
@@ -712,5 +745,4 @@ real_t FaceElementTransformations::CheckConsistency(int print_level,
 
    return max_dist;
 }
-
 }
