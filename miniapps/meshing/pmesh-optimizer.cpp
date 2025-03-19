@@ -1010,7 +1010,7 @@ int main (int argc, char *argv[])
 
    int order = pfespace->GetMaxElementOrder();
    int n1D = det_order+1;
-   int mr = n1D+1;
+   int mr = 2*(n1D+1);
    std::string filename = "../../scripts/bounds/bnddata_spts_lobatto_" +
                            std::to_string(n1D) + "_bdpts_opt_" +
                            std::to_string(mr) + ".txt";

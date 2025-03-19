@@ -130,7 +130,10 @@ def build_and_solve_model_L2_bounds(N, M, nodes, K_sub, bern):
     # 2) Variables: x[i], etc.
     # -------------------------
     # x[i] are the subinterval breakpoints in [-1,1]
-    model.x = pyo.Var(model.i_set, bounds=(-1,1) if not bern else (0,1))
+    if bern:
+        model.x = pyo.Var(model.i_set, bounds=(0,1))
+    else:
+        model.x = pyo.Var(model.i_set, bounds=(-1,1))
     model.symmetry_c = pyo.ConstraintList()
 
     xinit = generate_symmetric_random_points(M, random_seed=20)
@@ -152,12 +155,21 @@ def build_and_solve_model_L2_bounds(N, M, nodes, K_sub, bern):
 
     else:
         half = M // 2
-        for i in range(half):
-            model.symmetry_c.add(model.x[M - 1 - i]-0.5 == 0.5-model.x[i])
+        if bern:
+            for i in range(half):
+                model.symmetry_c.add(model.x[M - 1 - i]-0.5 == 0.5-model.x[i])
+        else:
+            for i in range(half):
+                model.symmetry_c.add(model.x[M - 1 - i] == -model.x[i])
 
     for i in range(1,M-1):
         model.x[i].value = xinit[i]
         # print(model.x[i].value)
+
+    # for i in range(M):
+        # model.x[i].value = xinit[i]
+        # print(model.x[i].value)
+    # print(bern)
 
     # For each polynomial j, define nodal values l[j,i] and u[j,i]
     model.l = pyo.Var(model.j_set, model.i_set)
@@ -258,7 +270,8 @@ def build_and_solve_model_L2_bounds(N, M, nodes, K_sub, bern):
         for i in range(M):
             u_sol[j, i] = pyo.value(model.u[j,i])
             l_sol[j, i] = pyo.value(model.l[j,i])
-
+    # print(x_sol)
+    # input(" ")
     return x_sol, u_sol, l_sol, model, obj_init
 
 def plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, nodes, bern,  pdf_filename="bounds_plots.pdf"):
@@ -333,12 +346,12 @@ if __name__ == '__main__':
 
     x_sol, u_sol, l_sol, model, obj_init = build_and_solve_model_L2_bounds(N, M, nodes, nsamples, nodetype == 2)
 
-    filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.pdf"
+    filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}_nt_{nodetype}.pdf"
 
     plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, nodes, nodetype == 2,
                                       pdf_filename=filename)
 
-    filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
+    filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}_nt_{nodetype}.txt"
     np.savetxt(filename, [N], fmt="%d", newline="\n")
     with open(filename, "a") as f:
         np.savetxt(f, nodes, fmt="%.15f", newline="\n")
