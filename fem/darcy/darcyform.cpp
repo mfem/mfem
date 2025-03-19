@@ -808,7 +808,11 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
          block_grad = new BlockOperator(offsets);
       }
 
-      if (M_u)
+      if (opM_u.Ptr())
+      {
+         block_grad->SetDiagonalBlock(0, opM_u.Ptr());
+      }
+      else if (M_u)
       {
          block_grad->SetDiagonalBlock(0, M_u);
       }
@@ -817,7 +821,11 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
          block_grad->SetDiagonalBlock(0, &Mnl_u->GetGradient(bx.GetBlock(0)));
       }
 
-      if (M_p)
+      if (opM_p.Ptr())
+      {
+         block_grad->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
+      }
+      else if (M_p)
       {
          block_grad->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
       }
@@ -829,8 +837,13 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
 
       if (B)
       {
+         if (!opB.Ptr() || !opBt.Ptr())
+         {
+            opB.Reset(B, false);
+            ConstructBT(B);
+         }
          block_grad->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
-         block_grad->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
+         block_grad->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
       }
 
       if (!Mnl) { return *block_grad; }
@@ -1204,13 +1217,13 @@ void DarcyForm::AllocBlockOp()
    }
 }
 
-const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B)
+const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B) const
 {
    opBt.Reset(Transpose(B->SpMat()));
    return opBt.Ptr();
 }
 
-const Operator* DarcyForm::ConstructBT(const Operator *opB)
+const Operator* DarcyForm::ConstructBT(const Operator *opB) const
 {
    opBt.Reset(new TransposeOperator(opB));
    return opBt.Ptr();

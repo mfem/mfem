@@ -35,8 +35,7 @@ protected:
    MixedBilinearForm *B{};
    BlockNonlinearForm *Mnl{};
 
-   OperatorHandle opM_u, opM_p, opB, opBt, opM;
-   mutable OperatorHandle opG;
+   mutable OperatorHandle opM_u, opM_p, opB, opBt, opM, opG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
@@ -67,8 +66,8 @@ protected:
    void AssemblePotHDGFaces(int skip_zeros);
 
    void AllocBlockOp();
-   const Operator* ConstructBT(const MixedBilinearForm *B);
-   const Operator* ConstructBT(const Operator *opB);
+   const Operator* ConstructBT(const MixedBilinearForm *B) const;
+   const Operator* ConstructBT(const Operator *opB) const;
 
 public:
    DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
