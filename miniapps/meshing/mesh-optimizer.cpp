@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    int barrier_type       = 0;
    int worst_case_type    = 0;
 
-   // 1. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -325,17 +325,17 @@ int main(int argc, char *argv[])
    Device device(devopt);
    device.Print();
 
-   // 2. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
 
-   // 3. Define a finite element space on the mesh-> Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   // Define a finite element space on the mesh-> Here we use vector finite
+   // elements which are tensor products of quadratic finite elements. The
+   // number of components in the vector finite element space is specified by
+   // the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -346,25 +346,25 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
                                                         mesh_node_ordering);
 
-   // 4. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the mesh curved based on the above finite element space. This
+   // means that we define the mesh elements through a fespace-based
+   // transformation of the reference element.
    mesh->SetNodalFESpace(fespace);
 
-   // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
+   // Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
 
-   // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other degrees of freedom in the finite
+   // element space) as a finite element grid function in fespace. Note that
+   // changing x automatically changes the shapes of the mesh elements.
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
 
-   // 7. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in fespace. Note: this is partition-dependent.
+   // Define a vector representing the minimal local mesh size in the mesh
+   // nodes. We index the nodes using the scalar version of the degrees of
+   // freedom in fespace. Note: this is partition-dependent.
    //
-   //    In addition, compute average mesh size and total volume.
+   // In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
    real_t mesh_volume = 0.0;
@@ -383,48 +383,50 @@ int main(int argc, char *argv[])
    }
    const real_t small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
-   // 8. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in fespace.
-   GridFunction rdm(fespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < fespace->GetNDofs(); i++)
+   // Add a random perturbation to the nodes in the interior of the domain.
+   // We define a random grid function of fespace and make sure that it is
+   // zero on the boundary and its values are locally of the order of h0.
+   // The latter is based on the DofToVDof() method which maps the scalar to
+   // the vector degrees of freedom in fespace.
+   if (jitter > 0)
    {
-      for (int d = 0; d < dim; d++)
+      GridFunction rdm(fespace);
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < fespace->GetNDofs(); i++)
       {
-         rdm(fespace->DofToVDof(i,d)) *= h0(i);
+         for (int d = 0; d < dim; d++)
+         {
+            rdm(fespace->DofToVDof(i,d)) *= h0(i);
+         }
       }
+      Array<int> vdofs;
+      for (int i = 0; i < fespace->GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         fespace->GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
+      x -= rdm;
    }
-   Array<int> vdofs;
-   for (int i = 0; i < fespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      fespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
    x.SetTrueVector();
    x.SetFromTrueVector();
 
-   // 9. Save the starting (prior to the optimization) mesh to a file. This
-   //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
+   // Save the starting (prior to the optimization) mesh to a file. This
+   // output can be viewed later using GLVis: "glvis -m perturbed.mesh".
    {
       ofstream mesh_ofs("perturbed.mesh");
       mesh->Print(mesh_ofs);
    }
 
-   // 10. Store the starting (prior to the optimization) positions.
-   GridFunction x0(fespace);
-   x0 = x;
+   // Store the starting (prior to the optimization) positions.
+   GridFunction x0(x);
 
-   // 11. Form the integrator that uses the chosen metric and target.
+   // Form the integrator that uses the chosen metric and target.
    real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
@@ -872,12 +874,12 @@ int main(int argc, char *argv[])
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->EnableNormalization(x0); }
 
-   // 12. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights. Note that there are no
-   //     command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
+   // Setup the final NonlinearForm (which defines the integral of interest,
+   // its first and second derivatives). Here we can use a combination of
+   // metrics, i.e., optimize the sum of two integrals, where both are
+   // scaled by used-defined space-dependent weights. Note that there are no
+   // command-line options for the weights and the type of the second
+   // metric; one should update those in the code.
    NonlinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *metric_coeff1 = NULL;
@@ -983,11 +985,11 @@ int main(int argc, char *argv[])
       vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
    }
 
-   // 13. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh. Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node. Attribute 4 corresponds to an
-   //     entirely fixed node. Other boundary attributes do not affect the node
-   //     movement boundary conditions.
+   // Fix all boundary nodes, or fix only a given component depending on the
+   // boundary attributes of the given mesh. Attributes 1/2/3 correspond to
+   // fixed x/y/z components of the node. Attribute 4 corresponds to an
+   // entirely fixed node. Other boundary attributes do not affect the node
+   // movement boundary conditions.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -1008,7 +1010,7 @@ int main(int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n);
+      Array<int> vdofs, ess_vdofs(n);
       n = 0;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
@@ -1136,8 +1138,8 @@ int main(int argc, char *argv[])
    }
    hr_solver.Mult();
 
-   // 15. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized.mesh".
+   // Save the optimized mesh to a file. This output can be viewed later
+   // using GLVis: "glvis -m optimized.mesh".
    {
       ofstream mesh_ofs("optimized.mesh");
       mesh_ofs.precision(14);

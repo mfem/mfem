@@ -170,6 +170,10 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Starting mesh positions (tdofs). Updated by the call to Mult().
+   // This solver solves for d, where the final mesh is x = x_0 + d.
+   mutable Vector x_0;
+
    // Line search step is rejected if min(detJ) <= min_detJ_limit.
    real_t min_detJ_limit = 0.0;
 
@@ -235,11 +239,11 @@ protected:
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(comm), solver_type(type), parallel(true),
+      : LBFGSSolver(comm), solver_type(type), parallel(true), x_0(0),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(), solver_type(type), parallel(false),
+      : LBFGSSolver(), solver_type(type), parallel(false), x_0(0),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
@@ -259,11 +263,11 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override;
+   real_t ComputeScalingFactor(const Vector &d, const Vector &b) const override;
 
    /// Update (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   void ProcessNewState(const Vector &x) const override;
+   void ProcessNewState(const Vector &d) const override;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -355,18 +359,8 @@ public:
       min_detJ_limit = threshold;
    }
 
-   void Mult(const Vector &b, Vector &x) const override
-   {
-      if (solver_type == 0)
-      {
-         NewtonSolver::Mult(b, x);
-      }
-      else if (solver_type == 1)
-      {
-         LBFGSSolver::Mult(b, x);
-      }
-      else { MFEM_ABORT("Invalid type"); }
-   }
+   /// Optimizes the mesh positions given by @a x.
+   void Mult(const Vector &b, Vector &x) const override;
 
    void SetSolver(Solver &solver) override
    {
