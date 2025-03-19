@@ -156,12 +156,12 @@ int main(int argc, char *argv[])
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
-   lambda = 1.0;
-   lambda(0) = lambda(1)*50;
+   lambda = 10.0;
+   // lambda(0) = lambda(1)*50;
    PWConstCoefficient lambda_func(lambda);
    Vector mu(mesh.attributes.Max());
-   mu = 1.0;
-   mu(0) = mu(1)*50;
+   mu = 10.0;
+   // mu(0) = mu(1)*50;
    PWConstCoefficient mu_func(mu);
 
    // Bilinear integrator

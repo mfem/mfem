@@ -10,7 +10,8 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/cube-nurbs.mesh";
+   // const char *mesh_file = "../../data/cube-nurbs.mesh";
+   const char *mesh_file = "../../../miniapps/nurbs/meshes/cuboid-nurbs.mesh";
    bool low_order = false;
    int ref_levels = 1;
    int order = 1;
@@ -46,7 +47,31 @@ int main(int argc, char *argv[])
    // Set boundary attributes
    for (int i = 0; i < mesh.GetNBE(); ++i)
    {
-      mesh.SetPatchBdrAttribute(i, i+1);
+      // Get the average x-coordinate of the boundary element
+      Array<int> fv;
+      real_t avg_xcoord = 0.0;
+      mesh.GetBdrElementVertices(i, fv);
+      for (int j = 0; j < fv.Size(); ++j)
+      {
+         avg_xcoord += mesh.GetVertex(fv[j])[0];
+      }
+      avg_xcoord /= fv.Size();
+      // Set attribute based on x-coordinate
+      if (avg_xcoord < 1e-12)
+      {
+         cout << "Setting attribute 0" << endl;
+         mesh.SetPatchBdrAttribute(i, 1);
+      }
+      else if (avg_xcoord > 4.0 - 1e-12)
+      {
+         cout << "Setting attribute 1" << endl;
+         mesh.SetPatchBdrAttribute(i, 2);
+      }
+      else
+      {
+         cout << "Setting attribute 2" << endl;
+         mesh.SetPatchBdrAttribute(i, 3);
+      }
    }
 
    // Refine the mesh to increase the resolution.
