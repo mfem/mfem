@@ -348,14 +348,7 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    if (hybridization)
    {
       hybridization->Finalize();
-      //if (!Mnl_u && !Mnl_p && !Mnl)
-      {
-         hybridization->GetParallelMatrix(A);
-      }
-      /*else
-      {
-         A.Reset(reduction, false);
-      }*/
+      hybridization->GetParallelOperator(A);
    }
    else if (reduction)
    {

@@ -1674,6 +1674,10 @@ void DarcyHybridization::Finalize()
    if (!IsNonlinear())
    {
       ComputeH();
+
+#ifdef MFEM_USE_MPI
+      pOp = pH;
+#endif //MFEM_USE_MPI
    }
    else
    {
