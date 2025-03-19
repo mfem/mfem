@@ -25,7 +25,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = ["@hypre", "@metis"],
 )""",
-        path = "/opt/homebrew/Cellar/open-mpi/5.0.3_1",
+        path = "/opt/homebrew/opt/open-mpi",
     )
     new_local_repository(
         name = "hypre",
@@ -37,7 +37,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
 )""",
-        path = "/opt/homebrew/Cellar/hypre/2.31.0",
+        path = "/opt/homebrew/opt/hypre",
     )
     new_local_repository(
         name = "metis",
@@ -49,7 +49,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
 )""",
-        path = "/opt/homebrew/Cellar/metis/5.1.0",
+        path = "/opt/homebrew/opt/metis",
     )
 
 external = module_extension(implementation = _external)

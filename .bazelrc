@@ -1,20 +1,27 @@
 # Enable Bzlmod for every Bazel command
 common --enable_bzlmod
 
-# Disk cache setup ###########################################################
-build --disk_cache=~/.bazel_cache
+# Build options ###############################################################
+build --color=yes
 
-# Alias definition ###########################################################
+# Disk cache setup ############################################################
+build --disk_cache=/tmp/bazel_disk_cache
+
+# Alias definition ############################################################
+# Allow the user to specify the build mode and precision with:
+# --mode=[serial|parallel]
+# --precision=[single|double]
 build --flag_alias=mode=//:mode
 build --flag_alias=precision=//:precision
 
-# Compilation options ########################################################
+# Compilation options #########################################################
 build --copt=-g
 build --copt=-Wall
 build --copt=-Wextra
 build --copt=-Werror
 build --copt=-std=c++17
 build --cxxopt=-Wno-unused-parameter
+build --strip=never
 
 # build:macos --cxxopt=-Wno-error=deprecated-declarations
 # build:macos --cxxopt=-Wno-error=deprecated-enum-enum-conversion

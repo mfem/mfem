@@ -17,9 +17,9 @@ string_flag(
     build_setting_default = "serial",
 )
 
-# mode(name = "serial")
+mode(name = "serial")
 
-# mode(name = "parallel")
+mode(name = "parallel")
 
 config_setting(
     name = "serial_build",
