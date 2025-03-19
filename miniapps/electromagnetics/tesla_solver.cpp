@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,9 +74,9 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
 
-   int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
+   int irOrder = pmesh.GetTypicalElementTransformation()->OrderW()
                  + 2 * order;
-   int geom = H1FESpace_->GetFE(0)->GetGeomType();
+   Geometry::Type geom = pmesh.GetTypicalElementGeometry();
    const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
 
    // Select surface attributes for Dirichlet BCs

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,10 +26,13 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
    field0 = init_field;
 }
 
-void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                       Vector &new_field,
-                                      int new_nodes_ordering)
+                                      int nodes_ordering)
 {
+   MFEM_VERIFY(nodes0.Size() == new_mesh_nodes.Size(),
+               "AdvectorCG assumes fixed mesh topology!");
+
    FiniteElementSpace *space = fes;
 #ifdef MFEM_USE_MPI
    if (pfes) { space = pfes; }
@@ -37,8 +40,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    int fes_ordering = space->GetOrdering(),
        ncomp = space->GetVDim();
 
-   // TODO: Implement for AMR meshes.
-   const int pnt_cnt = field0.Size() / ncomp;
+   const int dof_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
@@ -46,20 +48,20 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    {
       if (fes_ordering == Ordering::byNODES)
       {
-         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+         new_field_temp.MakeRef(new_field, i*dof_cnt, dof_cnt);
       }
       else
       {
-         new_field_temp.SetSize(pnt_cnt);
-         for (int j = 0; j < pnt_cnt; j++)
+         new_field_temp.SetSize(dof_cnt);
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field_temp(j) = new_field(i + j*ncomp);
          }
       }
-      ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
       if (fes_ordering == Ordering::byVDIM)
       {
-         for (int j = 0; j < pnt_cnt; j++)
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field(i + j*ncomp) = new_field_temp(j);
          }
@@ -67,10 +69,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    field0 = new_field;
-   nodes0 = new_nodes;
+   nodes0 = new_mesh_nodes;
 }
 
-void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
                                             Vector &new_field)
 {
    Mesh *m = mesh;
@@ -87,7 +89,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
-   subtract(new_nodes, nodes0, u);
+   subtract(new_mesh_nodes, nodes0, u);
 
    // Define a scalar FE space for the solution, and the advection operator.
    TimeDependentOperator *oper = NULL;
@@ -375,81 +377,52 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   // Check if the mesh nodes and the field nodes coincide.
-   const bool nodes_mismatch = init_nodes.Size() / m->Dimension() !=
-                               field0_gf.Size()  / f->GetVDim();
-   if (nodes_mismatch)
-   {
-      delete fes_field_nodes;
-      fes_field_nodes = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
-   }
 }
 
-void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
-                                          Vector &new_field,
-                                          int new_nodes_ordering)
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
+                                          Vector &new_field, int nodes_ordering)
 {
-   // Get physical node locations corresponding to field0_gf
-   if (fes_field_nodes)
+   // TODO - this is here only to prevent breaking user codes. To be removed.
+   // If the meshes are different, one has to call SetNewFieldFESpace().
+   // If only some positions are interpolated, use ComputeAtGivenPositions().
+   if (fes_new_field == nullptr && new_mesh_nodes.Size() != nodes0.Size())
    {
+      MFEM_WARNING("Deprecated -- use ComputeAtGivenPositions() instead!");
+      ComputeAtGivenPositions(new_mesh_nodes, new_field, nodes_ordering);
+      return;
+   }
+
+   const FiniteElementSpace *fes_field =
+      (fes_new_field) ? fes_new_field : field0_gf.FESpace();
+   const int dim = fes_field->GetMesh()->Dimension();
+
+   if (new_mesh_nodes.Size() / dim != fes_field->GetNDofs())
+   {
+      // The nodes of the FE space don't coincide with the mesh nodes.
       Vector mapped_nodes;
-      GetFieldNodesPosition(new_nodes, mapped_nodes);
-      finder->Interpolate(mapped_nodes, field0_gf, new_field,
-                          fes_field_nodes->GetOrdering());
+      fes_field->GetNodePositions(new_mesh_nodes, mapped_nodes);
+      finder->Interpolate(mapped_nodes, field0_gf, new_field);
    }
    else
    {
-      finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
+      finder->Interpolate(new_mesh_nodes, field0_gf, new_field, nodes_ordering);
    }
 }
 
-void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
-                                           Vector &nodes_pos) const
+void InterpolatorFP::ComputeAtGivenPositions(const Vector &positions,
+                                             Vector &values, int p_ordering)
 {
-   MFEM_VERIFY(fes_field_nodes, "InterpolatorFP: fes_field_nodes is not set.");
-
-   Mesh *m = fes_field_nodes->GetMesh();
-   const int nelem     = fes_field_nodes->GetNE();
-   const int n_f_nodes = fes_field_nodes->GetNDofs();
-   const int dim       = m->Dimension();
-   if (nelem == 0) { return; }
-   Array<int> dofs;
-   Vector e_xyz;
-   nodes_pos.SetSize(n_f_nodes*dim);
-   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
-
-   for (int e = 0; e < nelem; e++)
-   {
-      mesh_fes->GetElementVDofs(e, dofs);
-      int n_mdofs = dofs.Size()/dim;
-      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
-      const FiniteElement *mfe = mesh_fes->GetFE(e);
-      Vector shape(n_mdofs);
-
-      auto ir = fes_field_nodes->GetFE(e)->GetNodes();
-      const int n_gf_pts = ir.GetNPoints();
-      Vector gf_xyz(n_gf_pts*dim);
-      for (int q = 0; q < n_gf_pts; q++)
-      {
-         IntegrationPoint ip = ir.IntPoint(q);
-         mfe->CalcShape(ip, shape);
-         for (int d = 0; d < dim; d++)
-         {
-            Vector x(e_xyz.GetData() + d*n_mdofs, n_mdofs);
-            gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
-         }
-      }
-      fes_field_nodes->GetElementVDofs(e, dofs);
-      nodes_pos.SetSubVector(dofs, gf_xyz);
-   }
+   finder->Interpolate(positions, field0_gf, values, p_ordering);
 }
 
 #endif
 
-real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
+real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
                                               const Vector &b) const
 {
+   Vector x_in(x_0.Size());
+   add(x_0, d_in, x_in);
+
    const FiniteElementSpace *fes = NULL;
    real_t energy_in = 0.0;
 #ifdef MFEM_USE_MPI
@@ -458,7 +431,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (parallel)
    {
       fes = p_nlf->FESpace();
-      energy_in = p_nlf->GetEnergy(x);
+      energy_in = p_nlf->GetEnergy(d_in);
    }
 #endif
    const bool serial = !parallel;
@@ -467,7 +440,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (serial)
    {
       fes = nlf->FESpace();
-      energy_in = nlf->GetEnergy(x);
+      energy_in = nlf->GetEnergy(d_in);
    }
 
    // Get the local prolongation of the solution vector.
@@ -476,13 +449,13 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
-      if (!cP) { x_out_loc = x; }
-      else     { cP->Mult(x, x_out_loc); }
+      if (!cP) { x_out_loc = x_in; }
+      else     { cP->Mult(x_in, x_out_loc); }
    }
 #ifdef MFEM_USE_MPI
    else
    {
-      fes->GetProlongationMatrix()->Mult(x, x_out_loc);
+      fes->GetProlongationMatrix()->Mult(x_in, x_out_loc);
    }
 #endif
 
@@ -535,7 +508,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    const bool have_b = (b.Size() == Height());
 
-   Vector x_out(x.Size());
+   Vector x_out(x_in.Size()), d_out(d_in.Size());
    bool x_out_ok = false;
    real_t energy_out = 0.0, min_detT_out;
    const real_t norm_in = Norm(r);
@@ -553,8 +526,13 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       avg_fit_err = 0.0;
       max_fit_err = 0.0;
 
+      //
       // Update the mesh and get the L-vector in x_out_loc.
-      add(x, -scale, c, x_out);
+      //
+      // Form limited (line-search) displacement d_out = d_in - scale * c,
+      // and the corresponding mesh positions x_out = x_0 + d_out.
+      add(d_in, -scale, c, d_out);
+      add(x_0, d_out, x_out);
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -591,8 +569,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // energy and residual, so their increase/decrease is not relevant.
       if (untangling) { x_out_ok = true; break; }
 
-      // Check the changes in total energy.
-      ProcessNewState(x_out);
+      // Update mesh-dependent quantities.
+      ProcessNewState(d_out);
 
       // Ensure sufficient decrease in fitting error if we are trying to
       // converge based on error.
@@ -609,14 +587,15 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          }
       }
 
+      // Check the changes in total energy.
       if (serial)
       {
-         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+         energy_out = nlf->GetEnergy(d_out);
       }
 #ifdef MFEM_USE_MPI
       else
       {
-         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+         energy_out = p_nlf->GetEnergy(d_out);
       }
 #endif
       if (energy_out > energy_in + 0.2*fabs(energy_in) ||
@@ -631,7 +610,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 
       // Check the changes in the Newton residual.
-      oper->Mult(x_out, r);
+      oper->Mult(d_out, r);
       if (have_b) { r -= b; }
       real_t norm_out = Norm(r);
 
@@ -684,6 +663,49 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    compute_metric_quantile_flag = true;
 
    return scale;
+}
+
+void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
+{
+   x_0 = x;
+
+   //
+   // Pass down the initial position to the integrators.
+   //
+   // Prolongate x to ldofs.
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   GridFunction x_0_loc(const_cast<FiniteElementSpace *>(nlf->FESpace()));
+   const Operator *P = nlf->GetProlongation();
+   // TODO if (periodic) { x_0_loc = x }
+   if (P) { P->Mult(x, x_0_loc); }
+   else   { x_0_loc = x; }
+   // Pass the positions to the integrators.
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti) { ti->SetInitialMeshPos(&x_0_loc); }
+      auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co) { co->SetInitialMeshPos(&x_0_loc); }
+   }
+
+   // We solve for the displacement, which always starts from zero.
+   Vector d(x.Size()); d = 0.0;
+   if (solver_type == 0)      { NewtonSolver::Mult(b, d); }
+   else if (solver_type == 1) { LBFGSSolver::Mult(b, d); }
+   else { MFEM_ABORT("Invalid solver_type"); }
+
+   // Form the final mesh using the computed displacement.
+   x += d;
+
+   // Make sure the pointers don't use invalid memory (x_0_loc is gone).
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti) { ti->SetInitialMeshPos(nullptr); }
+      auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co) { co->SetInitialMeshPos(nullptr); }
+   }
 }
 
 void TMOPNewtonSolver::UpdateSurfaceFittingWeight(real_t factor) const
@@ -818,8 +840,11 @@ bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
    return false;
 }
 
-void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
+void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
 {
+   Vector x(x_0.Size());
+   add(x_0, d, x);
+
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
 
@@ -849,30 +874,15 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 
    Vector x_loc;
-   const FiniteElementSpace *x_fes = nullptr;
-   if (parallel)
+   const Operator *P = nlf->GetProlongation();
+   if (P)
    {
-#ifdef MFEM_USE_MPI
-      const ParNonlinearForm *pnlf =
-         dynamic_cast<const ParNonlinearForm *>(oper);
-
-      x_fes = pnlf->ParFESpace();
-      x_loc.SetSize(x_fes->GetVSize());
-      x_fes->GetProlongationMatrix()->Mult(x, x_loc);
-#endif
+      x_loc.SetSize(P->Height());
+      P->Mult(x, x_loc);
    }
-   else
-   {
-      x_fes = nlf->FESpace();
-      const Operator *P = nlf->GetProlongation();
-      if (P)
-      {
-         x_loc.SetSize(P->Height());
-         P->Mult(x,x_loc);
-      }
-      else { x_loc = x; }
-   }
+   else { x_loc = x; }
 
+   const FiniteElementSpace *x_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
@@ -991,7 +1001,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    }
 #endif
    const DenseMatrix &Wideal =
-      Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
+      Geometries.GetGeomToPerfGeomJac(fes.GetMesh()->GetTypicalElementGeometry());
    min_detT_all /= Wideal.Det();
 
    return min_detT_all;

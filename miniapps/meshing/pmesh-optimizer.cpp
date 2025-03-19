@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,8 +36,8 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic shape+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation (AD):
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
@@ -50,6 +50,8 @@
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size NC mesh;
 //     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//   Adapted discrete size NC mesh (GPU+GSLIB);
+//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
@@ -58,8 +60,8 @@
 //     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//   Adapted discrete size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
+//   Adapted discrete size+orientation (AD):
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
@@ -67,15 +69,13 @@
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape (AD):
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
 //   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
-//   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -219,6 +219,8 @@ int main (int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
@@ -337,26 +339,19 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   // 3. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++)
-   {
-      mesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
-
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   for (int lev = 0; lev < rp_levels; lev++)
-   {
-      pmesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   // Define a finite element space on the mesh. Here we use vector finite
+   // elements which are tensor products of quadratic finite elements. The
+   // number of components in the vector finite element space is specified by
+   // the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -364,25 +359,26 @@ int main (int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
-                                                               mesh_node_ordering);
+   //else { fec = new L2_FECollection(mesh_poly_deg, dim); }
+   auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
+                                             mesh_node_ordering);
 
-   // 5. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the mesh curved based on the above finite element space. This
+   // means that we define the mesh elements through a fespace-based
+   // transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other degrees of freedom in the finite
+   // element space) as a finite element grid function in fespace. Note that
+   // changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   // 8. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
+   // Define a vector representing the minimal local mesh size in the mesh
+   // nodes. We index the nodes using the scalar version of the degrees of
+   // freedom in pfespace. Note: this is partition-dependent.
    //
-   //    In addition, compute average mesh size and total volume.
+   // In addition, compute average mesh size and total volume.
    Vector h0(pfespace->GetNDofs());
    h0 = infinity();
    real_t vol_loc = 0.0;
@@ -405,39 +401,43 @@ int main (int argc, char *argv[])
    const real_t small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in pfespace.
-   ParGridFunction rdm(pfespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < pfespace->GetNDofs(); i++)
+   // We define a random grid function of fespace and make sure that it is
+   // zero on the boundary and its values are locally of the order of h0.
+   // The latter is based on the DofToVDof() method which maps the scalar to
+   // the vector degrees of freedom in pfespace.
+   if (jitter > 0.0)
    {
-      for (int d = 0; d < dim; d++)
+      ParGridFunction rdm(pfespace);
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < pfespace->GetNDofs(); i++)
       {
-         rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+         for (int d = 0; d < dim; d++)
+         {
+            rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+         }
       }
+      Array<int> vdofs;
+      for (int i = 0; i < pfespace->GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         pfespace->GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
+      x -= rdm;
    }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
+
    // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
    x.SetFromTrueVector();
 
-   // 10. Save the starting (prior to the optimization) mesh to a file. This
-   //     output can be viewed later using GLVis: "glvis -m perturbed -np
-   //     num_mpi_tasks".
+   // Save the starting (prior to the optimization) mesh to a file. This
+   // output can be viewed later using GLVis: "glvis -m perturbed -np
+   // num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -446,9 +446,8 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 11. Store the starting (prior to the optimization) positions.
-   ParGridFunction x0(pfespace);
-   x0 = x;
+   // Store the starting (prior to the optimization) positions.
+   ParGridFunction x0(x);
 
    // 12. Form the integrator that uses the chosen metric and target.
    real_t min_detJ = -0.1;
@@ -498,7 +497,9 @@ int main (int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 49: metric = new TMOP_AMetric_049(0.9); break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -907,12 +908,12 @@ int main (int argc, char *argv[])
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
-   // 13. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights.  Note that there are
-   //     no command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
+   // Setup the final NonlinearForm (which defines the integral of interest,
+   // its first and second derivatives). Here we can use a combination of
+   // metrics, i.e., optimize the sum of two integrals, where both are
+   // scaled by used-defined space-dependent weights.  Note that there are
+   // no command-line options for the weights and the type of the second
+   // metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *metric_coeff1 = NULL;
@@ -994,7 +995,7 @@ int main (int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(pmesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
       real_t h0min = h0.Min(), h0min_all;
@@ -1026,10 +1027,10 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
-   // 14. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node.  Attribute dim+1 corresponds to
-   //     an entirely fixed node.
+   // Fix all boundary nodes, or fix only a given component depending on the
+   // boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
+   // fixed x/y/z components of the node.  Attribute dim+1 corresponds to
+   // an entirely fixed node.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -1050,7 +1051,7 @@ int main (int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n);
+      Array<int> vdofs, ess_vdofs(n);
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
@@ -1141,7 +1142,7 @@ int main (int argc, char *argv[])
    // Perform the nonlinear optimization.
    //
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
@@ -1180,8 +1181,8 @@ int main (int argc, char *argv[])
    }
    hr_solver.Mult();
 
-   // 16. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh to a file. This output can be viewed later
+   // using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
