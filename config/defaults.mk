@@ -568,7 +568,11 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+ifdef FMT_DIR
+   UMPIRE_OPT += -I$(FMT_DIR)/include
+   UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
+endif
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
