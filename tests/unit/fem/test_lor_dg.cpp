@@ -317,25 +317,14 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    //                         );
    // const bool add_diffusion = GENERATE(true, false);
 
-   // const int dim = 3;
-   // const int orientation1 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
-   // const int orientation2 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
-   // CAPTURE(orientation1, orientation2);
-   // Mesh mesh = [dim,orientation1,orientation2]()
-   // {
-   //    if (dim == 2)
-   //    {
-   //       return Mesh2D_Orientation(orientation1, orientation2);
-   //    }
-   //    else
-   //    {
-   //       return Mesh3D_Orientation(orientation1, orientation2);
-   //    }
-   // }();
-   // Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, Element::HEXAHEDRON);
+   const int dim = 3;
+   const int orientation1 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+   const int orientation2 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+   CAPTURE(orientation1, orientation2);
+   Mesh mesh = MeshOrientation(dim, orientation1, orientation2);
 
    const bool add_diffusion = true;
-   Mesh mesh = Mesh::LoadFromFile("../../data/fichera.mesh");
+   // Mesh mesh = Mesh::LoadFromFile("../../data/inline-hex.mesh");
 
    DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fespace(&mesh, &fec);
@@ -367,6 +356,12 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    SparseMatrix &A1 = lor.GetAssembledMatrix();
    FiniteElementSpace &fes_lor = lor.GetFESpace();
    Mesh &mesh_lor = *fes_lor.GetMesh();
+
+   {
+      mesh.Save("orig.mesh");
+      mesh_lor.Save("lor.mesh");
+   }
+
    BilinearForm a_lor(&fes_lor);
    if (add_diffusion)
    {
