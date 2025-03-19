@@ -287,13 +287,16 @@ public:
    void FindNeighborPoints(const PointND &pt,Tfloat R, std::vector<Tindex> & res,
                            std::vector<Tfloat> & dist)
    {
+      res.clear();
+      dist.clear();
       FindNeighborPoints(pt,R,data.begin(),data.end(),0,res,dist);
    }
 
    /// Finds all points within a distance R from point pt. The indices are
-   /// returned in the vector res and the correponding distances in vector dist.
+   /// returned in the vector res.
    void FindNeighborPoints(const PointND &pt,Tfloat R, std::vector<Tindex> & res)
    {
+      res.clear();
       FindNeighborPoints(pt,R,data.begin(),data.end(),0,res);
    }
 
@@ -302,6 +305,8 @@ public:
                                std::vector<Tindex> &res,
                                std::vector<Tfloat> &dist)
    {
+      res.clear();
+      dist.clear();
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
       {
@@ -318,6 +323,7 @@ public:
    void FindNeighborPointsSlow(const PointND &pt,Tfloat R,
                                std::vector<Tindex> &res)
    {
+      res.clear();
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
       {
@@ -537,7 +543,7 @@ private:
    }
 
    /// Finds the set of indices of points within a distance R of a point pt.
-   void FindNeighborPoints(PointND& pt, Tfloat R,
+   void FindNeighborPoints(const PointND& pt, Tfloat R,
                            typename std::vector<NodeND>::iterator itb,
                            typename std::vector<NodeND>::iterator ite,
                            size_t level,
@@ -586,7 +592,7 @@ private:
    }
 
    /// Finds the set of indices of points within a distance R of a point pt.
-   void FindNeighborPoints(PointND& pt, Tfloat R,
+   void FindNeighborPoints(const PointND& pt, Tfloat R,
                            typename std::vector<NodeND>::iterator itb,
                            typename std::vector<NodeND>::iterator ite,
                            size_t level,
