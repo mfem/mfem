@@ -123,13 +123,19 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult_regs(TMOPSetupGradPA3D &ker)
    {
+      mfem::out << "\x1b[33mT_D1D: " << T_D1D << "\x1b[m" << std::endl;
+      mfem::out << "\x1b[33mT_Q1D: " << T_Q1D << "\x1b[m" << std::endl;
+
       constexpr int DIM = 3, VDIM = 3;
       const TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
+      mfem::out << "\x1b[33md1d: " << d1d << " q1d: " << q1d << "\x1b[m" << std::endl;
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      mfem::out << "\x1b[33mD1D: " << D1D << "\x1b[m" << std::endl;
+      mfem::out << "\x1b[33mQ1D: " << Q1D << "\x1b[m" << std::endl;
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
       MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
 
@@ -140,8 +146,8 @@ public:
       }
       const real_t *w = mp.Read();
 
-      const real_t *x_r = ker.x.Read();
-      const real_t *B = ti->PA.maps->B.Read(), *G = ti->PA.maps->G.Read();
+      const auto *B = ti->PA.maps->B.Read(), *G = ti->PA.maps->G.Read();
+      const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
       auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
@@ -152,21 +158,28 @@ public:
 
       mfem::forall_3D(NE, Q1D, Q1D, 1, [=] MFEM_HOST_DEVICE(int e)
       {
-         const int Q1D = T_Q1D ? T_Q1D : q1d;
+#if 0
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
+         assert(MQ1 == Q1D);
+         assert(MD1 == D1D);
+#else
+         constexpr int MQ1 = /*T_Q1D ? T_Q1D :*/ DofQuadLimits::MAX_TMOP_1D; // 🔥🔥
+         constexpr int MD1 = /*T_D1D ? T_D1D :*/ DofQuadLimits::MAX_TMOP_1D; // 🔥🔥
+#endif
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+
+         assert(MDQ == MQ1);
 
          MFEM_SHARED real_t smem[MDQ][MDQ];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs::regs5d_t<VDIM, DIM, MDQ> r0, r1;
 
-         regs::LoadMatrix<MD1, MQ1>(B, sB);
-         regs::LoadMatrix<MD1, MQ1>(G, sG);
+         regs::LoadMatrix<MD1, MQ1>(D1D, Q1D, B, sB);
+         regs::LoadMatrix<MD1, MQ1>(D1D, Q1D, G, sG);
 
-         regs::ReadDofsOffset3dXE<VDIM, DIM, MD1, MDQ>(e, x_r, r0);
-         regs::Grad3d<VDIM,DIM, MD1,MQ1,MDQ>(smem, sB, sG, r0, r1);
-         // 🔥 tensor hpp to change to handle 0 dimensions
+         regs::ReadDofsOffset3dXE<VDIM, DIM, MDQ>(e, D1D, X, r0);
+         regs::Grad3d<VDIM,DIM, MD1,MQ1,MDQ>(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; ++qz)
          {

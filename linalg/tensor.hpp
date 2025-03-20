@@ -69,6 +69,19 @@ struct tensor<T, n0>
    T values[n0];
 };
 
+template < typename T >
+struct tensor<T, 0>
+{
+   using type = T;
+   static constexpr int ndim      = 1;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE T& operator[](int /**/) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /**/) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int /**/) const { return values; }
+   T values;
+};
+
 template < typename T, int n0, int n1 >
 struct tensor<T, n0, n1>
 {
@@ -82,6 +95,21 @@ struct tensor<T, n0, n1>
    MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
    tensor < T, n1 > values[n0];
+};
+
+template < typename T, int n1 >
+struct tensor<T, 0, n1>
+{
+   using type = T;
+   static constexpr int ndim      = 2;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /**/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /**/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /**/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /**/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const T& operator()(int /**/, int j) const { return values[j]; }
+   tensor < T, n1 > values;
 };
 
 template < typename T, int n0, int n1, int n2 >
