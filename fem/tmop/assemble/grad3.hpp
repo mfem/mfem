@@ -14,6 +14,7 @@
 #include "../../kernels.hpp"
 #include "../../kernels_smem.hpp"
 #include "../../kernels_regs.hpp"
+using namespace mfem::kernels::internal;
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -156,17 +157,16 @@ public:
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
 
-         MFEM_SHARED real_t sm[MDQ * MDQ];
-         MFEM_SHARED real_t sB[MD1 * MQ1], sG[MD1 * MQ1];
+         MFEM_SHARED real_t smem[MDQ][MDQ];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         regs::regs5d_t<VDIM, DIM, MDQ> r0, r1;
 
-         using regs2d_t = kernels::internal::regs::Registers<real_t,MDQ,MDQ>;
-         regs2d_t r_u[VDIM*MD1], r_gu[VDIM * DIM * MQ1];
+         regs::LoadMatrix<MD1, MQ1>(B, sB);
+         regs::LoadMatrix<MD1, MQ1>(G, sG);
 
-         kernels::internal::regs::LoadMatrix<MD1, MQ1>(B, sB);
-         kernels::internal::regs::LoadMatrix<MD1, MQ1>(G, sG);
-
-         kernels::internal::regs::ReadDofsOffset3dXE<VDIM, MD1, MDQ>(e, x_r, r_u);
-         kernels::internal::regs::Grad3d<DIM,VDIM, MD1,MQ1,MDQ>(sm, sB, sG, r_u, r_gu);
+         regs::ReadDofsOffset3dXE<VDIM, DIM, MD1, MDQ>(e, x_r, r0);
+         regs::Grad3d<VDIM,DIM, MD1,MQ1,MDQ>(smem, sB, sG, r0, r1);
+         // 🔥 tensor hpp to change to handle 0 dimensions
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
@@ -186,10 +186,9 @@ public:
                   kernels::CalcInverse<3>(Jtr, Jrt);
 
                   // Jpr = X^T.DSh
-                  auto idx = [&](int comp, int d, int qz) {return qz + d * VDIM * Q1D + comp * Q1D;};
-                  real_t Jpr[9] = {r_gu[idx(0,0,qz)][qy][qx], r_gu[idx(1,0,qz)][qy][qx], r_gu[idx(2,0,qz)][qy][qx],
-                                   r_gu[idx(0,1,qz)][qy][qx], r_gu[idx(1,1,qz)][qy][qx], r_gu[idx(2,1,qz)][qy][qx],
-                                   r_gu[idx(0,2,qz)][qy][qx], r_gu[idx(1,2,qz)][qy][qx], r_gu[idx(2,2,qz)][qy][qx]
+                  real_t Jpr[9] = {r1[0][0][qz][qy][qx], r1[1][0][qz][qy][qx], r1[2][0][qz][qy][qx],
+                                   r1[0][1][qz][qy][qx], r1[1][1][qz][qy][qx], r1[2][1][qz][qy][qx],
+                                   r1[0][2][qz][qy][qx], r1[1][2][qz][qy][qx], r1[2][2][qz][qy][qx]
                                   };
 
                   // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
