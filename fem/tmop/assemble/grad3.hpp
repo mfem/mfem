@@ -123,19 +123,13 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult_regs(TMOPSetupGradPA3D &ker)
    {
-      mfem::out << "\x1b[33mT_D1D: " << T_D1D << "\x1b[m" << std::endl;
-      mfem::out << "\x1b[33mT_Q1D: " << T_Q1D << "\x1b[m" << std::endl;
-
       constexpr int DIM = 3, VDIM = 3;
       const TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
-      mfem::out << "\x1b[33md1d: " << d1d << " q1d: " << q1d << "\x1b[m" << std::endl;
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      mfem::out << "\x1b[33mD1D: " << D1D << "\x1b[m" << std::endl;
-      mfem::out << "\x1b[33mQ1D: " << Q1D << "\x1b[m" << std::endl;
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
       MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
 
@@ -158,18 +152,9 @@ public:
 
       mfem::forall_3D(NE, Q1D, Q1D, 1, [=] MFEM_HOST_DEVICE(int e)
       {
-#if 0
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-         assert(MQ1 == Q1D);
-         assert(MD1 == D1D);
-#else
-         constexpr int MQ1 = /*T_Q1D ? T_Q1D :*/ DofQuadLimits::MAX_TMOP_1D; // 🔥🔥
-         constexpr int MD1 = /*T_D1D ? T_D1D :*/ DofQuadLimits::MAX_TMOP_1D; // 🔥🔥
-#endif
          constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-
-         assert(MDQ == MQ1);
 
          MFEM_SHARED real_t smem[MDQ][MDQ];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];

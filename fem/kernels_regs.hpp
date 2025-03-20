@@ -120,9 +120,10 @@ inline MFEM_HOST_DEVICE void ReadDofsOffset3dXE(const int e,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
-void ContractX3d(real_t (&smem)[T1D][T1D],
-                 const real_t (&B)[D1D][Q1D],
+template <int MD1, int MQ1, int T1D> inline MFEM_HOST_DEVICE
+void ContractX3d(const int D1D, const int Q1D,
+                 real_t (&smem)[T1D][T1D],
+                 const real_t (&B)[MD1][MQ1],
                  const regs3d_t<T1D> &X,
                  regs3d_t<T1D> &Y,
                  const bool transpose = false)
@@ -154,9 +155,10 @@ void ContractX3d(real_t (&smem)[T1D][T1D],
    }
 }
 
-template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
-void ContractY3d(real_t (&smem)[T1D][T1D],
-                 const real_t (&B)[D1D][Q1D],
+template <int MD1, int MQ1, int T1D> inline MFEM_HOST_DEVICE
+void ContractY3d(const int D1D, const int Q1D,
+                 real_t (&smem)[T1D][T1D],
+                 const real_t (&B)[MD1][MQ1],
                  const regs3d_t<T1D> &X,
                  regs3d_t<T1D> &Y,
                  const bool transpose = false)
@@ -188,8 +190,9 @@ void ContractY3d(real_t (&smem)[T1D][T1D],
    }
 }
 
-template <int D1D, int Q1D, int T1D> inline MFEM_HOST_DEVICE
-void ContractZ3d(const real_t (&B)[D1D][Q1D],
+template <int MD1, int MQ1, int T1D> inline MFEM_HOST_DEVICE
+void ContractZ3d(const int D1D, const int Q1D,
+                 const real_t (&B)[MD1][MQ1],
                  const regs3d_t<T1D> &X,
                  regs3d_t<T1D> &Y,
                  const bool transpose = false)
@@ -212,31 +215,32 @@ void ContractZ3d(const real_t (&B)[D1D][Q1D],
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int D1D, int Q1D, int T1D, bool TRANSPOSE> inline MFEM_HOST_DEVICE
-void Contract3d(real_t (&smem)[T1D][T1D],
-                const real_t (&Bx)[D1D][Q1D],
-                const real_t (&By)[D1D][Q1D],
-                const real_t (&Bz)[D1D][Q1D],
+template <int MD1, int MQ1, int T1D, bool TRANSPOSE> inline MFEM_HOST_DEVICE
+void Contract3d(const int D1D, const int Q1D,
+                real_t (&smem)[T1D][T1D],
+                const real_t (&Bx)[MD1][MQ1],
+                const real_t (&By)[MD1][MQ1],
+                const real_t (&Bz)[MD1][MQ1],
                 regs3d_t<T1D> &X,
                 regs3d_t<T1D> &Y)
 {
    if (!TRANSPOSE)
    {
-      ContractX3d<D1D, Q1D, T1D>(smem, Bx, X, Y, false);
-      ContractY3d<D1D, Q1D, T1D>(smem, By, Y, X, false);
-      ContractZ3d<D1D, Q1D, T1D>(      Bz, X, Y, false);
+      ContractX3d<MD1, MQ1, T1D>(D1D, Q1D, smem, Bx, X, Y, false);
+      ContractY3d<MD1, MQ1, T1D>(D1D, Q1D, smem, By, Y, X, false);
+      ContractZ3d<MD1, MQ1, T1D>(D1D, Q1D,       Bz, X, Y, false);
    }
    else
    {
-      ContractZ3d<D1D, Q1D, T1D>(      Bz, X, Y, true);
-      ContractY3d<D1D, Q1D, T1D>(smem, By, Y, X, true);
-      ContractX3d<D1D, Q1D, T1D>(smem, Bx, X, Y, true);
+      ContractZ3d<MD1, MQ1, T1D>(D1D, Q1D,       Bz, X, Y, true);
+      ContractY3d<MD1, MQ1, T1D>(D1D, Q1D, smem, By, Y, X, true);
+      ContractX3d<MD1, MQ1, T1D>(D1D, Q1D, smem, Bx, X, Y, true);
    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MD1, int MQ1, int T1D, bool TRANSPOSE = false>
-inline MFEM_HOST_DEVICE void Grad3d(const int D1D, const int Q1D
+inline MFEM_HOST_DEVICE void Grad3d(const int D1D, const int Q1D,
                                     real_t (&smem)[T1D][T1D],
                                     const real_t (&B)[MD1][MQ1],
                                     const real_t (&G)[MD1][MQ1],
@@ -250,7 +254,9 @@ inline MFEM_HOST_DEVICE void Grad3d(const int D1D, const int Q1D
          const auto &Bx = (d == 0) ? G : B;
          const auto &By = (d == 1) ? G : B;
          const auto &Bz = (d == 2) ? G : B;
-         Contract3d<MD1, MQ1, T1D, TRANSPOSE>(smem, Bx, By, Bz, X[c][d], Y[c][d]);
+         Contract3d<MD1, MQ1, T1D, TRANSPOSE>(D1D, Q1D,
+                                              smem, Bx, By, Bz,
+                                              X[c][d], Y[c][d]);
       }
    }
 }
