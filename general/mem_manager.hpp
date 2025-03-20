@@ -1346,7 +1346,6 @@ inline int Memory<T>::CompareHostAndDevice(int size) const
    return MemoryManager::CompareHostAndDevice_(h_ptr, size*sizeof(T), flags);
 }
 
-
 /// The (single) global memory manager object
 extern MFEM_EXPORT MemoryManager mm;
 
