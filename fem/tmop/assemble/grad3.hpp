@@ -154,17 +154,17 @@ public:
       {
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-         constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+         static_assert(MD1 <= MQ1, "");
 
-         MFEM_SHARED real_t smem[MDQ][MDQ];
+         MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         regs::regs5d_t<VDIM, DIM, MDQ> r0, r1;
+         regs::regs5d_t<VDIM, DIM, MQ1> r0, r1;
 
          regs::LoadMatrix<MD1, MQ1>(D1D, Q1D, B, sB);
          regs::LoadMatrix<MD1, MQ1>(D1D, Q1D, G, sG);
 
-         regs::ReadDofsOffset3dXE<VDIM, DIM, MDQ>(e, D1D, X, r0);
-         regs::Grad3d<VDIM,DIM, MD1,MQ1,MDQ>(D1D, Q1D, smem, sB, sG, r0, r1);
+         regs::ReadDofsOffset3dXE<VDIM, DIM, MQ1>(e, D1D, X, r0);
+         regs::Grad3d<VDIM,DIM, MD1,MQ1>(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
