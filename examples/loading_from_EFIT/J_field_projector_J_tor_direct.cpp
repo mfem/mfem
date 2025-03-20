@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(psi.FESpace(), &fespace);
+   // ConstantCoefficient neg_one(-1.0);
    OneOverRGridFunctionCoefficient neg_one(true);
    b_bi.AddDomainIntegrator(new MixedGradGradIntegrator(neg_one));
    b_bi.Assemble();
