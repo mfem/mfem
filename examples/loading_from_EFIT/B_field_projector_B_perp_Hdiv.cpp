@@ -43,11 +43,11 @@ int main(int argc, char *argv[])
       // solving (f, B_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
       // 1. make the linear form
-      PsiGridFunctionCoefficient psi_coef(dim, &psi, false);
-      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
+      PsiGridFunctionVectorCoefficient psi_coef(dim, &psi, false);
+      b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(psi_coef));
 
-      PsiGridFunctionCoefficient neg_psi_coef(dim, &psi, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
+      // PsiGridFunctionVectorCoefficient neg_psi_coef(dim, &psi, true);
+      // b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
       b.Assemble();
    }
    else
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
       // 1.b form linear form from bilinear form
       LinearForm b_li(&fespace);
       b_bi.Mult(psi, b_li);
-      PsiGridFunctionCoefficient neg_psi_coef(dim, &psi, true);
+      PsiGridFunctionVectorCoefficient neg_psi_coef(dim, &psi, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
       b.Assemble();
       b += b_li;

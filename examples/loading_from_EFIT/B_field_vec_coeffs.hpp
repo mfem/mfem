@@ -123,7 +123,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi / r n^\perp$ if v is 2D and $\Psi / r$ if v is 1D
-class PsiOverRGridFunctionCoefficient : public VectorCoefficient
+class PsiOverRGridFunctionVectorCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -133,9 +133,9 @@ private:
 public:
    int counter = 0;
 
-   PsiOverRGridFunctionCoefficient() = delete;
+   PsiOverRGridFunctionVectorCoefficient() = delete;
 
-   PsiOverRGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   PsiOverRGridFunctionVectorCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -169,7 +169,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi / r^2$
-class PsiOverRSquareGridFunctionCoefficient : public VectorCoefficient
+class PsiOverRSquareGridFunctionVectorCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -179,9 +179,9 @@ private:
 public:
    int counter = 0;
 
-   PsiOverRSquareGridFunctionCoefficient() = delete;
+   PsiOverRSquareGridFunctionVectorCoefficient() = delete;
 
-   PsiOverRSquareGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   PsiOverRSquareGridFunctionVectorCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -203,7 +203,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi$
-class PsiGridFunctionCoefficient : public VectorCoefficient
+class PsiGridFunctionVectorCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -213,9 +213,9 @@ private:
 public:
    int counter = 0;
 
-   PsiGridFunctionCoefficient() = delete;
+   PsiGridFunctionVectorCoefficient() = delete;
 
-   PsiGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
+   PsiGridFunctionVectorCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
