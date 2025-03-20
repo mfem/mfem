@@ -13,6 +13,7 @@
 #define MFEM_BILININTEG
 
 #include "../config/config.hpp"
+#include "integrator.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
@@ -62,6 +63,8 @@ public:
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalNURBSPA(Vector &diag);
 
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -3136,6 +3139,9 @@ private:
 #endif
 
    // PA extension
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
+
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
 
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
@@ -3151,6 +3157,23 @@ private:
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
+   // Data for NURBS patch PA
+   // Set in PatchElasticitySetup3D: [numPatches x [ NQ[patch] x 12 ]]
+   std::vector<Vector> pa_data;
+   // Vector [numPatches] of structs containing basis info for each patch
+   std::vector<PatchBasisInfo> pbinfo;
+
+   // Type for a variable-row-length 2D array, used for data related to 1D
+   // quadrature rules in each dimension.
+   typedef std::vector<std::vector<int>> IntArrayVar2D;
+
+   int numPatches = 0;
+   static constexpr int numTypes = 2;  // Number of rule types
+
+   std::vector<std::vector<Vector>> reducedWeights;
+   std::vector<IntArrayVar2D> reducedIDs;
+
+
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
    { lambda = &l; mu = &m; }
@@ -3163,14 +3186,29 @@ public:
                               ElementTransformation &Tr,
                               DenseMatrix &elmat) override;
 
+   void AssembleNURBSPA(const FiniteElementSpace &fes) override;
+
+   void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+
+   void AssembleDiagonalPatchPA(const Vector&pa_data, const PatchBasisInfo &pb, Vector &diag) const;
+
+   void AssembleDiagonalNURBSPA(Vector &diag) override;
 
    void AssembleDiagonalPA(Vector &diag) override;
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   void AddMultNURBSPA(const Vector&, Vector&) const override;
+
+   void AddMultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb,
+                         const Vector &x, Vector &y) const;
+
+   void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
