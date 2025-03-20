@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int ir_order = -1;
-   bool reorder_space = false;
+   int preconditioner = 0;
    int visport = 19916;
    bool visualization = 1;
 
@@ -62,8 +62,8 @@ int main(int argc, char *argv[])
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&ir_order, "-iro", "--integration-order",
                   "Order of integration rule.");
-   args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
-                  "Default ordering is byVDIM");
+   args.AddOption(&preconditioner, "-pc", "--preconditioner",
+                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -79,16 +79,17 @@ int main(int argc, char *argv[])
    bool isNURBS = mesh.NURBSext;
 
    // Verify mesh is valid for this problem
-   MFEM_VERIFY(!(isNURBS && !mesh.GetNodes()), "NURBS mesh must have nodes");
-   if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
+   MFEM_VERIFY(isNURBS, "Example is for NURBS meshes");
+   MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
+   if (mesh.bdr_attributes.Max() < 2)
    {
-      cout << "\nInput mesh should have at least two materials and "
-           << "two boundary attributes! (See schematic in ex2.cpp)\n"
+      cout << "\nInput mesh should have at least two boundary"
+           << "attributes! (See schematic in ex2.cpp)\n"
            << endl;
    }
 
    // 3. Optionally, increase the NURBS degree.
-   if (isNURBS && nurbs_degree_increase>0)
+   if (nurbs_degree_increase>0)
    {
       mesh.DegreeElevate(nurbs_degree_increase);
    }
@@ -101,11 +102,10 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh.
    // Node ordering is important - right now, only works with byVDIM
-   const Ordering::Type fes_ordering =
-      reorder_space ? Ordering::byNODES : Ordering::byVDIM;
+   const Ordering::Type fes_ordering = Ordering::byVDIM;
 
    FiniteElementCollection * fec = nullptr;
-   fec = isNURBS ? mesh.GetNodes()->OwnFEC() : new H1_FECollection(1, dim);
+   fec = mesh.GetNodes()->OwnFEC();
    FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec, dim,
                                                         fes_ordering);
    // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
@@ -114,10 +114,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << Ndof <<
         endl;
    cout << "Number of elements: " << fespace->GetNE() << std::endl;
-   if (isNURBS)
-   {
-      cout << "Number of patches: " << mesh.NURBSext->GetNP() << std::endl;
-   }
+   cout << "Number of patches: " << mesh.NURBSext->GetNP() << std::endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
@@ -172,13 +169,11 @@ int main(int argc, char *argv[])
    }
 
    // Patch rule
-   NURBSMeshRules *patchRule = nullptr;
-   if (isNURBS)
    {
       if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
       cout << "Integration rule order: " << ir_order << endl;
 
-      patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
+      NURBSMeshRules * patchRule  = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
       // Loop over patches and set a different rule for each patch.
       for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
       {
@@ -221,23 +216,32 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
+   // Get the preconditioner
+   CGSolver solver;
+   if (preconditioner == 1)
+   {
+      cout << "Getting diagonal for Jacobi PC ... " << endl;
+      OperatorJacobiSmoother M(a, ess_tdof_list);
+      solver.SetPreconditioner(M);
+   }
+   else if (preconditioner == 2)
+   {
+      cout << "Getting LOR PC ... " << endl;
+      MFEM_ABORT("Not implemented yet.");
+   }
+
    sw.Stop();
    const real_t timeAssemble = sw.RealTime();
    sw.Clear();
    sw.Start();
 
-   cout << "Getting diagonal ... " << endl;
-   OperatorJacobiSmoother M(a, ess_tdof_list);
-
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
-   CGSolver solver;
    solver.SetMaxIter(1e5);
    solver.SetPrintLevel(1);
    solver.SetRelTol(sqrt(1e-8));
    solver.SetAbsTol(sqrt(1e-14));
    solver.SetOperator(*A);
-   solver.SetPreconditioner(M);
 
    solver.Mult(B, X);
 
@@ -287,7 +291,6 @@ int main(int argc, char *argv[])
                << Niter << ", "
                << solver.GetFinalNorm() << ", "
                << solver.GetFinalRelNorm() << ", "
-               << solver.GetConverged() << ", "
                << x.Normlinf() << ", "
                << x.Norml2() << ", "
                << timeAssemble << ", "
@@ -298,13 +301,6 @@ int main(int argc, char *argv[])
 
    results_ofs.close();
 
-   // 11. For non-NURBS meshes, make the mesh curved based on the finite element
-   //     space. This means that we define the mesh elements through a fespace
-   //     based transformation of the reference element.
-   if (!isNURBS)
-   {
-      mesh.SetNodalFESpace(fespace);
-   }
    // 12. Save the displaced mesh and the inverted solution
    {
       GridFunction *nodes = mesh.GetNodes();
@@ -333,7 +329,6 @@ int main(int argc, char *argv[])
 
    // 14. Free the used memory.
    delete fespace;
-   delete patchRule;
 
    return 0;
 }

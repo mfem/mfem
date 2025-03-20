@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    // const char *mesh_file = "../../data/cube-nurbs.mesh";
-   const char *mesh_file = "../../../miniapps/nurbs/meshes/cuboid-nurbs.mesh";
+   const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
    bool low_order = false;
    int ref_levels = 1;
    int order = 1;
@@ -44,36 +44,6 @@ int main(int argc, char *argv[])
       mesh.DegreeElevate(order-1);
    }
 
-   // Set boundary attributes
-   for (int i = 0; i < mesh.GetNBE(); ++i)
-   {
-      // Get the average x-coordinate of the boundary element
-      Array<int> fv;
-      real_t avg_xcoord = 0.0;
-      mesh.GetBdrElementVertices(i, fv);
-      for (int j = 0; j < fv.Size(); ++j)
-      {
-         avg_xcoord += mesh.GetVertex(fv[j])[0];
-      }
-      avg_xcoord /= fv.Size();
-      // Set attribute based on x-coordinate
-      if (avg_xcoord < 1e-12)
-      {
-         cout << "Setting attribute 0" << endl;
-         mesh.SetPatchBdrAttribute(i, 1);
-      }
-      else if (avg_xcoord > 4.0 - 1e-12)
-      {
-         cout << "Setting attribute 1" << endl;
-         mesh.SetPatchBdrAttribute(i, 2);
-      }
-      else
-      {
-         cout << "Setting attribute 2" << endl;
-         mesh.SetPatchBdrAttribute(i, 3);
-      }
-   }
-
    // Refine the mesh to increase the resolution.
    // In the high-order mesh, we want this many divisions
    int divisions = pow(2,ref_levels);
@@ -92,7 +62,7 @@ int main(int argc, char *argv[])
 
    // Write to file
    string lo_or_ho = low_order ? "lo" : "ho";
-   string filename = "cube_" + lo_or_ho +
+   string filename = lo_or_ho +
                      "_p" + std::to_string(order) +
                      "_i" + std::to_string(divisions) +
                      ".mesh";
