@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("J_tor", &J_tor);
+      paraview_dc.RegisterField("J_tor_direct", &J_tor);
       paraview_dc.Save();
    }
 
