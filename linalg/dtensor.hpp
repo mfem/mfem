@@ -87,7 +87,9 @@ protected:
 
 public:
    /// Default constructor
-   DeviceTensor() = delete;
+   // DeviceTensor() = delete;
+   MFEM_HOST_DEVICE
+   DeviceTensor() {}
 
    /// Constructor to initialize a tensor from the Scalar array data_
    template <typename... Args> MFEM_HOST_DEVICE
@@ -121,6 +123,17 @@ public:
    MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
    {
       return data[i];
+   }
+
+   /// Returns the shape of the tensor.
+   MFEM_HOST_DEVICE inline std::array<int, Dim> GetShape() const
+   {
+      std::array<int, Dim> s;
+      for (int i = 0; i < Dim; i++)
+      {
+         s[i] = sizes[i];
+      }
+      return s;
    }
 };
 

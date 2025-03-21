@@ -17,6 +17,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 # The following list can be updated using (in bash):
 #    for d in general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
+  dfem/test_diffusion.cpp
   general/test_array.cpp
   general/test_reduction.cpp
   general/test_arrays_by_name.cpp
