@@ -15,13 +15,13 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_perp.gf");
+   ifstream temp_log("output/B_perp_Hcurl.gf");
    GridFunction B_perp(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
    // make a L2 space with the mesh
-   L2_FECollection fec(0, dim);
+   H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    // make a grid function with the H1 space

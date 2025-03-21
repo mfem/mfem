@@ -106,18 +106,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("B_perp", new_mesh);
+      ParaViewDataCollection paraview_dc("B_perp_Hcurl", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("B_perp", &B_perp);
+      paraview_dc.RegisterField("B_perp_Hcurl", &B_perp);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/B_perp.gf");
+   ofstream sol_ofs("output/B_perp_Hcurl.gf");
    sol_ofs.precision(8);
    B_perp.Save(sol_ofs);
 

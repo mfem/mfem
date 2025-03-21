@@ -203,6 +203,37 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi$
+class PsiGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   PsiGridFunctionCoefficient() = delete;
+
+   PsiGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : Coefficient(), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      return interp_val[0] * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Input $\Psi$ and return $\Psi$
 class PsiGridFunctionVectorCoefficient : public VectorCoefficient
 {
 private:
@@ -269,5 +300,53 @@ public:
       real_t r = x[0];
       counter++;
       return r * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Input $V$ and return $V^perp$
+class PerpVectorCoefficient : public VectorGridFunctionCoefficient
+{
+public:
+   PerpVectorCoefficient() : VectorGridFunctionCoefficient() {}
+
+   PerpVectorCoefficient(const GridFunction *gf) : VectorGridFunctionCoefficient(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+
+      VectorGridFunctionCoefficient::Eval(V, T, ip);
+      swap(V(0), V(1));
+      V(1) *= -1;
+   }
+};
+
+/// @brief Input $V$ and return $V^perp r$
+class PerpRVectorCoefficient : public VectorGridFunctionCoefficient
+{
+public:
+   PerpRVectorCoefficient() : VectorGridFunctionCoefficient() {}
+
+   PerpRVectorCoefficient(const GridFunction *gf) : VectorGridFunctionCoefficient(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+
+      VectorGridFunctionCoefficient::Eval(V, T, ip);
+      V *= r;
+      swap(V(0), V(1));
+      V(1) *= -1;
    }
 };
