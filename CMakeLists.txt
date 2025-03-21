@@ -526,9 +526,11 @@ if (MFEM_USE_TRIBOL)
   endif()
 endif()
 
-# Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
+    message(STATUS "Enzyme found in ${ENZYME_DIR}.")
+    set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
+    set(ENZYME_FOUND 1)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -679,6 +681,9 @@ if (MFEM_USE_MPI)
   if (MPI_CXX_LINK_FLAGS)
     target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
   endif()
+endif()
+if (MFEM_USE_ENZYME)
+  target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
