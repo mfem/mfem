@@ -81,11 +81,12 @@ real_t ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
    return local_err.Normlp(total_norm_p);
 }
 
-int ThresholdRefiner::ApplyImpl(Mesh &mesh)
+int ThresholdRefiner::MarkWithoutRefining(Mesh & mesh,
+                                          Array<Refinement> & refinements)
 {
    threshold = 0.0;
    num_marked_elements = 0LL;
-   marked_elements.SetSize(0);
+   refinements.SetSize(0);
    current_sequence = mesh.GetSequence();
 
    const long long num_elements = mesh.GetGlobalNE();
@@ -113,7 +114,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    {
       if (local_err(el) > threshold)
       {
-         marked_elements.Append(Refinement(el));
+         refinements.Append(Refinement(el));
       }
    }
 
@@ -122,13 +123,21 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       const Array<int> &aniso_flags = aniso_estimator->GetAnisotropicFlags();
       if (aniso_flags.Size() > 0)
       {
-         for (int i = 0; i < marked_elements.Size(); i++)
+         for (int i = 0; i < refinements.Size(); i++)
          {
-            Refinement &ref = marked_elements[i];
+            Refinement &ref = refinements[i];
             ref.SetType(aniso_flags[ref.index]);
          }
       }
    }
+
+   return NONE;
+}
+
+int ThresholdRefiner::ApplyImpl(Mesh &mesh)
+{
+   const int action = MarkWithoutRefining(mesh, marked_elements);
+   if (action == STOP) { return STOP; }
 
    num_marked_elements = mesh.ReduceInt(marked_elements.Size());
    if (num_marked_elements == 0LL) { return STOP; }

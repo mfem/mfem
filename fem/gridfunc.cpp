@@ -15,6 +15,7 @@
 #include "linearform.hpp"
 #include "bilinearform.hpp"
 #include "quadinterpolator.hpp"
+#include "transfer.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
@@ -177,21 +178,48 @@ void GridFunction::Update()
    }*/
    fes_sequence = fes->GetSequence();
 
-   const Operator *T = fes->GetUpdateOperator();
-   if (T)
+   if (fes->LastUpdatePRef())
    {
-      Vector old_data;
-      old_data.Swap(*this);
-      SetSize(T->Height());
-      UseDevice(true);
-      T->Mult(old_data, *this);
+      UpdatePRef();
    }
    else
    {
-      SetSize(fes->GetVSize());
+      const Operator *T = fes->GetUpdateOperator();
+      if (T)
+      {
+         Vector old_data;
+         old_data.Swap(*this);
+         SetSize(T->Height());
+         UseDevice(true);
+         T->Mult(old_data, *this);
+      }
+      else
+      {
+         SetSize(fes->GetVSize());
+      }
    }
 
    if (t_vec.Size() > 0) { SetTrueVector(); }
+}
+
+void GridFunction::UpdatePRef()
+{
+   const std::shared_ptr<const PRefinementTransferOperator> Tp =
+      fes->GetPrefUpdateOperator();
+   if (Tp)
+   {
+      Vector old_data;
+      old_data.Swap(*this);
+      MFEM_VERIFY(Tp->Width() == old_data.Size(),
+                  "Wrong size of PRefinementTransferOperator in UpdatePRef");
+      SetSize(Tp->Height());
+      UseDevice(true);
+      Tp->Mult(old_data, *this);
+   }
+   else
+   {
+      MFEM_ABORT("Transfer operator undefined in GridFunction::UpdatePRef");
+   }
 }
 
 void GridFunction::SetSpace(FiniteElementSpace *f)
@@ -3973,6 +4001,30 @@ void GridFunction::LegacyNCReorder()
    }
 
    Vector::Swap(tmp);
+}
+
+std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
+{
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElementCollection *fesc = fes->FEColl();
+   const int vdim = fes->GetVDim();
+
+   // Find the max order in the space
+   int maxOrder = fes->GetMaxElementOrder();
+
+   // Create a space of maximum order over all elements for output
+   FiniteElementCollection *fecMax = fesc->Clone(maxOrder);
+   FiniteElementSpace *fesMax = new FiniteElementSpace(mesh, fecMax, vdim,
+                                                       fes->GetOrdering());
+
+   GridFunction *xMax = new GridFunction(fesMax);
+
+   // Interpolate in the maximum-order space
+   PRefinementTransferOperator P(*fes, *fesMax);
+   P.Mult(*this, *xMax);
+
+   xMax->MakeOwner(fecMax);
+   return std::unique_ptr<GridFunction>(xMax);
 }
 
 real_t ZZErrorEstimator(BilinearFormIntegrator &blfi,
