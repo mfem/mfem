@@ -1,66 +1,74 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "J_field_vec_coeffs.hpp"
+#include "B_field_vec_coeffs.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *new_mesh_file = "mesh/2d_mesh.mesh";
+   const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = true;
+   bool mixed_bilinear_form = false;
 
-   Mesh mesh(new_mesh_file, 1, 1);
+   Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_tor.gf");
-   GridFunction B_tor(&mesh, temp_log);
+   ifstream temp_log("input/psi.gf");
+   GridFunction psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
+
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
+   Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
+
+   // refine the mesh
+   // new_mesh->UniformRefinement();
 
    // make a Hcurl space with the mesh
    // L2_FECollection fec(0, dim);
    ND_FECollection fec(1, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+   FiniteElementSpace fespace(new_mesh, &fec);
 
    // make a grid function with the H1 space
-   GridFunction J_perp(&fespace);
-   cout << J_perp.FESpace()->GetTrueVSize() << endl;
-   J_perp = 0.0;
+   GridFunction B_pol(&fespace);
+   cout << B_pol.FESpace()->GetTrueVSize() << endl;
+   B_pol = 0.0;
    LinearForm b(&fespace);
    if (!mixed_bilinear_form)
    {
       cout << "Using linear form" << endl;
       // project the grid function onto the new space
-      // solving (f, J_perp) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
+      // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
       // 1. make the linear form
-      BTorRVectorGridFunctionCoefficient B_tor_r_coef(dim, &B_tor, false);
-      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(B_tor_r_coef));
+      PsiGridFunctionVectorCoefficient psi_coef(dim, &psi, false);
+      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
 
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
+      PsiGridFunctionVectorCoefficient neg_psi_coef(dim, &psi, true);
+      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
       b.Assemble();
    }
    else
    {
       cout << "Using bilinear form" << endl;
       // project the grid function onto the new space
-      // solving (f, J_perp) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
+      // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
       // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
-      RGridFunctionCoefficient r_coef;
-      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(r_coef));
+      // Assert that the two spaces are on the same mesh
+      MFEM_ASSERT(psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
+      MixedBilinearForm b_bi(psi.FESpace(), &fespace);
+      ConstantCoefficient one(1.0);
+      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(one));
       b_bi.Assemble();
 
       // 1.b form linear form from bilinear form
       LinearForm b_li(&fespace);
-      b_bi.Mult(B_tor, b_li);
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
+      b_bi.Mult(psi, b_li);
+      PsiGridFunctionVectorCoefficient neg_psi_coef(dim, &psi, true);
+      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
       b.Assemble();
       b += b_li;
    }
@@ -80,11 +88,11 @@ int main(int argc, char *argv[])
    M_solver.SetPrintLevel(1);
    M_solver.SetOperator(a.SpMat());
 
-   Vector X(J_perp.Size());
+   Vector X(B_pol.Size());
    X = 0.0;
    M_solver.Mult(b, X);
 
-   J_perp.SetFromTrueDofs(X);
+   B_pol.SetFromTrueDofs(X);
 
    if (visualization)
    {
@@ -93,25 +101,27 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << J_perp << flush;
+               << *new_mesh << B_pol << flush;
    }
 
-   // // paraview
+   // paraview
    {
-      ParaViewDataCollection paraview_dc("J_perp", &mesh);
+      ParaViewDataCollection paraview_dc("B_pol_Hcurl", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("J_perp", &J_perp);
+      paraview_dc.RegisterField("B_pol_Hcurl", &B_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/J_perp.gf");
+   ofstream sol_ofs("output/B_pol_Hcurl.gf");
    sol_ofs.precision(8);
-   J_perp.Save(sol_ofs);
+   B_pol.Save(sol_ofs);
+
+   delete new_mesh;
 
    return 0;
 }

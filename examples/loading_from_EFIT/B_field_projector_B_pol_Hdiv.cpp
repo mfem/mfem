@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = true;
+   bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -32,16 +32,16 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(new_mesh, &fec);
 
    // make a grid function with the H1 space
-   GridFunction B_perp(&fespace);
-   cout << B_perp.FESpace()->GetTrueVSize() << endl;
-   B_perp = 0.0;
+   GridFunction B_pol(&fespace);
+   cout << B_pol.FESpace()->GetTrueVSize() << endl;
+   B_pol = 0.0;
    {
       LinearForm b(&fespace);
       if (!mixed_bilinear_form)
       {
          cout << "Using linear form" << endl;
          // project the grid function onto the new space
-         // solving (f, B_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+         // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
          // 1. make the linear form
          PsiGridFunctionCoefficient neg_psi_coef(&psi, true);
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
       {
          cout << "Using bilinear form" << endl;
          // project the grid function onto the new space
-         // solving (f, B_perp) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+         // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
          // 1.a make the RHS bilinear form
          // Assert that the two spaces are on the same mesh
@@ -89,35 +89,35 @@ int main(int argc, char *argv[])
       M_solver.SetPrintLevel(1);
       M_solver.SetOperator(a.SpMat());
 
-      Vector X(B_perp.Size());
+      Vector X(B_pol.Size());
       X = 0.0;
       M_solver.Mult(b, X);
 
-      B_perp.SetFromTrueDofs(X);
+      B_pol.SetFromTrueDofs(X);
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("B_perp_perp_Hdiv", new_mesh);
+      ParaViewDataCollection paraview_dc("B_pol_perp_Hdiv", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("B_perp_perp_Hdiv", &B_perp);
+      paraview_dc.RegisterField("B_pol_perp_Hdiv", &B_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/B_perp_perp_Hdiv.gf");
+   ofstream sol_ofs("output/B_pol_perp_Hdiv.gf");
    sol_ofs.precision(8);
-   B_perp.Save(sol_ofs);
+   B_pol.Save(sol_ofs);
 
    {
       LinearForm b(&fespace);
       // 1. make the linear form
-      PerpRVectorCoefficient B_perp_perp_r(&B_perp);
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(B_perp_perp_r));
+      PerpRVectorCoefficient B_pol_perp_r(&B_pol);
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(B_pol_perp_r));
       b.Assemble();
 
       // 2. make the bilinear form
@@ -136,11 +136,11 @@ int main(int argc, char *argv[])
       M_solver.SetPrintLevel(1);
       M_solver.SetOperator(a.SpMat());
 
-      Vector X(B_perp.Size());
+      Vector X(B_pol.Size());
       X = 0.0;
       M_solver.Mult(b, X);
 
-      B_perp.SetFromTrueDofs(X);
+      B_pol.SetFromTrueDofs(X);
    }
 
    if (visualization)
@@ -150,26 +150,26 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << *new_mesh << B_perp << flush;
+               << *new_mesh << B_pol << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("B_perp_Hdiv", new_mesh);
+      ParaViewDataCollection paraview_dc("B_pol_Hdiv", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("B_perp_Hdiv", &B_perp);
+      paraview_dc.RegisterField("B_pol_Hdiv", &B_pol);
       paraview_dc.Save();
    }
 
    sol_ofs.close();
-   sol_ofs.open("output/B_perp_Hdiv.gf");
+   sol_ofs.open("output/B_pol_Hdiv.gf");
    sol_ofs.precision(8);
-   B_perp.Save(sol_ofs);
+   B_pol.Save(sol_ofs);
 
    delete new_mesh;
 

@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_perp_Hcurl.gf");
-   GridFunction B_perp(&mesh, temp_log);
+   ifstream temp_log("output/B_pol_Hcurl.gf");
+   GridFunction B_pol(&mesh, temp_log);
 
    temp_log.close();            // Close previous file
    temp_log.open("output/B_tor.gf"); // Open new file
@@ -105,22 +105,22 @@ int main(int argc, char *argv[])
       B_tor_grad_B_tor_r.SetFromTrueDofs(X);
    }
 
-   // C. compute r Curl B_perp
+   // C. compute r Curl B_pol
    // make a grid function with the H1 space
-   GridFunction R_Curl_B_perp(B_tor.FESpace());
-   cout << R_Curl_B_perp.FESpace()->GetTrueVSize() << endl;
-   R_Curl_B_perp = 0.0;
+   GridFunction R_Curl_B_pol(B_tor.FESpace());
+   cout << R_Curl_B_pol.FESpace()->GetTrueVSize() << endl;
+   R_Curl_B_pol = 0.0;
 
    {
       // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(B_perp.FESpace(), B_tor.FESpace());
+      MixedBilinearForm b_bi(B_pol.FESpace(), B_tor.FESpace());
       RSquareGridFunctionCoefficient r_sq_coef;
       b_bi.AddDomainIntegrator(new MixedScalarCurlIntegrator(r_sq_coef));
       b_bi.Assemble();
 
       // 1.b form linear form from bilinear form
       LinearForm b(B_tor.FESpace());
-      b_bi.Mult(B_perp, b);
+      b_bi.Mult(B_pol, b);
 
       // 2. make the bilinear form
       BilinearForm a(B_tor.FESpace());
@@ -138,21 +138,21 @@ int main(int argc, char *argv[])
       M_solver.SetPrintLevel(1);
       M_solver.SetOperator(a.SpMat());
 
-      Vector X(R_Curl_B_perp.Size());
+      Vector X(R_Curl_B_pol.Size());
       X = 0.0;
       M_solver.Mult(b, X);
-      R_Curl_B_perp.SetFromTrueDofs(X);
+      R_Curl_B_pol.SetFromTrueDofs(X);
    }
 
-   // D. (r Curl B_perp) B_perp^perp
-   GridFunction R_Curl_B_perp_B_perp_perp(&fespace);
-   cout << R_Curl_B_perp_B_perp_perp.FESpace()->GetTrueVSize() << endl;
-   R_Curl_B_perp_B_perp_perp = 0.0;
+   // D. (r Curl B_pol) B_pol^perp
+   GridFunction R_Curl_B_pol_B_pol_perp(&fespace);
+   cout << R_Curl_B_pol_B_pol_perp.FESpace()->GetTrueVSize() << endl;
+   R_Curl_B_pol_B_pol_perp = 0.0;
    {
       // 1. make the RHS linear form
       LinearForm b(&fespace);
-      RCurlBPerpBPerpPerpVectorGridFunctionCoefficient r_curl_b_perp_b_perp_perp_coef(&R_Curl_B_perp, &B_perp);
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(r_curl_b_perp_b_perp_perp_coef));
+      RCurlBPerpBPerpPerpVectorGridFunctionCoefficient r_curl_B_pol_B_pol_perp_coef(&R_Curl_B_pol, &B_pol);
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(r_curl_B_pol_B_pol_perp_coef));
       b.Assemble();
 
       // 2. make the bilinear form
@@ -170,16 +170,16 @@ int main(int argc, char *argv[])
       M_solver.SetPrintLevel(1);
       M_solver.SetOperator(a.SpMat());
 
-      Vector X(R_Curl_B_perp_B_perp_perp.Size());
+      Vector X(R_Curl_B_pol_B_pol_perp.Size());
       X = 0.0;
       M_solver.Mult(b, X);
-      R_Curl_B_perp_B_perp_perp.SetFromTrueDofs(X);
+      R_Curl_B_pol_B_pol_perp.SetFromTrueDofs(X);
    }
 
-   // E. JxB_perp = B_tor_grad_B_tor_r - R_Curl_B_perp_B_perp_perp
-   GridFunction JxB_perp(&fespace);
-   JxB_perp = B_tor_grad_B_tor_r;
-   JxB_perp -= R_Curl_B_perp_B_perp_perp;
+   // E. JxB_pol = B_tor_grad_B_tor_r - R_Curl_B_pol_B_pol_perp
+   GridFunction JxB_pol(&fespace);
+   JxB_pol = B_tor_grad_B_tor_r;
+   JxB_pol -= R_Curl_B_pol_B_pol_perp;
 
    if (visualization)
    {
@@ -188,25 +188,25 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << JxB_perp << flush;
+               << mesh << JxB_pol << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB_perp", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_pol", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB_perp", &JxB_perp);
+      paraview_dc.RegisterField("JxB_pol", &JxB_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/JxB_perp.gf");
+   ofstream sol_ofs("output/JxB_pol.gf");
    sol_ofs.precision(8);
-   JxB_perp.Save(sol_ofs);
+   JxB_pol.Save(sol_ofs);
 
    return 0;
 }

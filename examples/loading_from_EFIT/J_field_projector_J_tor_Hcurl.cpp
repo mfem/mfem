@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_perp_Hcurl.gf");
-   GridFunction B_perp(&mesh, temp_log);
+   ifstream temp_log("output/B_pol_Hcurl.gf");
+   GridFunction B_pol(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
@@ -30,14 +30,14 @@ int main(int argc, char *argv[])
    J_tor = 0.0;
 
    // 1.a make the RHS bilinear form
-   MixedBilinearForm b_bi(B_perp.FESpace(), &fespace);
+   MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
    RGridFunctionCoefficient neg_r_coef(true);
    b_bi.AddDomainIntegrator(new MixedScalarCurlIntegrator(neg_r_coef));
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
    LinearForm b(&fespace);
-   b_bi.Mult(B_perp, b);
+   b_bi.Mult(B_pol, b);
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);

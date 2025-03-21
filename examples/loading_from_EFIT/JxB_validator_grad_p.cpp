@@ -114,14 +114,14 @@ int main(int argc, char *argv[])
       grad_p.SetFromTrueDofs(X);
    }
 
-   // load JxB_perp on the new mesh
+   // load JxB_pol on the new mesh
    temp_log.close(); // close the file
-   temp_log.open("output/JxB_perp.gf");
-   GridFunction JxB_perp(new_mesh, temp_log);
+   temp_log.open("output/JxB_pol.gf");
+   GridFunction JxB_pol(new_mesh, temp_log);
 
    cout << grad_p.FESpace()->GetTrueVSize() << endl;
-   cout << JxB_perp.FESpace()->GetTrueVSize() << endl;
-   grad_p += JxB_perp;
+   cout << JxB_pol.FESpace()->GetTrueVSize() << endl;
+   grad_p += JxB_pol;
 
    if (visualization)
    {

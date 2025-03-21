@@ -33,7 +33,7 @@ public:
    }
 };
 
-/// @brief Input $J_perp$ and return $J_perp*r$
+/// @brief Input $J_pol$ and return $J_pol*r$
 class JPerpRVectorGridFunctionCoefficient : public VectorGridFunctionCoefficient
 {
 public:
@@ -106,25 +106,25 @@ public:
    }
 };
 
-/// @brief Compute r*(curl B_perp × B_perp_perp)
+/// @brief Compute r*(curl B_pol × B_pol_perp)
 class RCurlBPerpBPerpPerpVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
-   VectorGridFunctionCoefficient B_perp;
-   GridFunctionCoefficient R_Curl_B_perp;
+   VectorGridFunctionCoefficient B_pol;
+   GridFunctionCoefficient R_Curl_B_pol;
 
 public:
-   RCurlBPerpBPerpPerpVectorGridFunctionCoefficient(GridFunction *R_Curl_B_perp, GridFunction *B_perp)
-       : VectorCoefficient(2), B_perp(B_perp), R_Curl_B_perp(R_Curl_B_perp) {}
+   RCurlBPerpBPerpPerpVectorGridFunctionCoefficient(GridFunction *R_Curl_B_pol, GridFunction *B_pol)
+       : VectorCoefficient(2), B_pol(B_pol), R_Curl_B_pol(R_Curl_B_pol) {}
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
       Vector x;
-      Vector B_perp_val;
-      B_perp.Eval(B_perp_val, T, ip);
-      real_t R_Curl_B_perp_val = R_Curl_B_perp.Eval(T, ip);
-      V(0) = -R_Curl_B_perp_val * B_perp_val(1);
-      V(1) = R_Curl_B_perp_val * B_perp_val(0);
+      Vector B_pol_val;
+      B_pol.Eval(B_pol_val, T, ip);
+      real_t R_Curl_B_pol_val = R_Curl_B_pol.Eval(T, ip);
+      V(0) = -R_Curl_B_pol_val * B_pol_val(1);
+      V(1) = R_Curl_B_pol_val * B_pol_val(0);
    }
 };
 

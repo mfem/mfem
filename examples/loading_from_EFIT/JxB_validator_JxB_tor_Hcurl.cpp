@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_perp_Hcurl.gf");
-   GridFunction B_perp(&mesh, temp_log);
+   ifstream temp_log("output/B_pol_Hcurl.gf");
+   GridFunction B_pol(&mesh, temp_log);
 
    temp_log.close();            // Close previous file
    temp_log.open("output/B_tor.gf"); // Open new file
@@ -77,8 +77,8 @@ int main(int argc, char *argv[])
    {
       // 1.a make the RHS bilinear form
       MixedBilinearForm b_bi(B_tor_r.FESpace(), &fespace);
-      VectorGridFunctionCoefficient B_perp_coeff(&B_perp);
-      b_bi.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(B_perp_coeff));
+      VectorGridFunctionCoefficient B_pol_coeff(&B_pol);
+      b_bi.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(B_pol_coeff));
       b_bi.Assemble();
 
       // 1.b form linear form from bilinear form
