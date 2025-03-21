@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_perp_Hcurl.gf");
-   GridFunction B_perp(&mesh, temp_log);
+   ifstream temp_log("output/B_perp_perp_Hdiv.gf");
+   GridFunction B_perp_perp(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
@@ -29,22 +29,18 @@ int main(int argc, char *argv[])
    cout << J_tor.FESpace()->GetTrueVSize() << endl;
    J_tor = 0.0;
 
-   // project the grid function onto the new space
-   // solving (f, J_tor) = (curl f, B_perp/R e_φ) + <f, n x B_perp/R e_φ>
-
    // 1.a make the RHS bilinear form
-   MixedBilinearForm b_bi(B_perp.FESpace(), &fespace);
-   RGridFunctionCoefficient neg_r_coef(true);
-   b_bi.AddDomainIntegrator(new MixedScalarCurlIntegrator(neg_r_coef));
+   MixedBilinearForm b_bi(B_perp_perp.FESpace(), &fespace);
+   RGridFunctionCoefficient r_coef;
+   b_bi.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(r_coef));
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
    LinearForm b(&fespace);
-   b_bi.Mult(B_perp, b);
+   b_bi.Mult(B_perp_perp, b);
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   RGridFunctionCoefficient r_coef;
    a.AddDomainIntegrator(new MassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();

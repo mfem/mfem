@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_perp.gf");
+   ifstream temp_log("output/B_perp_Hcurl.gf");
    GridFunction B_perp(&mesh, temp_log);
 
    temp_log.close();            // Close previous file
