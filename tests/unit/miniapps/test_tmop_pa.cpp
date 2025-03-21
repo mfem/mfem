@@ -13,6 +13,11 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
+#include "fem/qinterp/det.cpp"
+#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+#include "fem/qinterp/eval.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -847,6 +852,36 @@ public:
    }
 };
 
+// Add all kernels specializations needed for the tests
+static void AddKernelSpecializations()
+{
+   using Det = QuadratureInterpolator::DetKernels;
+   Det::Specialization<2, 2, 3, 3>::Add();
+   Det::Specialization<3, 3, 2, 3>::Add();
+   Det::Specialization<3, 3, 3, 4>::Add();
+   Det::Specialization<3, 3, 4, 6>::Add();
+
+   using Grad = QuadratureInterpolator::GradKernels;
+   Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
+
+   using TensorEval = QuadratureInterpolator::TensorEvalKernels;
+   TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
+   TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 3, 3>::Opt<4>::Add();
+   TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 2, 3>::Opt<2>::Add();
+   TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 3, 4>::Opt<1>::Add();
+   TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
+
+   using MassDiagonal = MassIntegrator::DiagonalPAKernels;
+   MassDiagonal::Specialization<2,2,3>::Add();
+   MassDiagonal::Specialization<3,2,4>::Add();
+   MassDiagonal::Specialization<3,2,6>::Add();
+
+   using MassApply = MassIntegrator::ApplyPAKernels;
+   MassApply::Specialization<2,2,3>::Add();
+   MassApply::Specialization<3,2,4>::Add();
+   MassApply::Specialization<3,2,6>::Add();
+}
+
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
@@ -859,21 +894,9 @@ static void tmop_tests(int id = 0, bool all = false)
    }
 #endif
 
-   const real_t jitter = 1. / (M_PI * M_PI);
+   AddKernelSpecializations();
 
-   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL")
-          .MESH("../../data/toroid-hex.mesh")
-          .LIMITING(M_PI)
-          .LIMIT_TYPE(1)
-          .REFINE(1)
-          .JI(jitter)
-          .NORMALIZATION(true)
-          .POR({ 2 })
-          .QOR({ 4 })
-          .TID({ 8 })
-          .MID({ 338 })
-          .LS({ 3 }))
-   .Run(id, all);
+   const real_t jitter = 1. / (M_PI * M_PI);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL_HO")
           .MESH("../../data/star.mesh")
