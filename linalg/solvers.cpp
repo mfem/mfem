@@ -355,12 +355,18 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
+                                                     int order_, MPI_Comm comm,
+                                                     int power_iterations,
+                                                     real_t power_tolerance,
+                                                     int power_seed)
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, real_t power_tolerance)
+                                                     int order_,
+                                                     int power_iterations,
+                                                     real_t power_tolerance,
+                                                     int power_seed)
 #endif
    : Solver(d.Size()),
      order(order_),
@@ -381,8 +387,11 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    PowerMethod powerMethod;
 #endif
    Vector ev(oper->Width());
+   MFEM_VERIFY(power_seed != 0, "invalid seed!");
    max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
-                                                            power_iterations, power_tolerance);
+                                                            power_iterations,
+                                                            power_tolerance,
+                                                            power_seed);
 
    Setup();
 }
@@ -542,7 +551,11 @@ void SLISolver::UpdateVectors()
 
 void SLISolver::Mult(const Vector &b, Vector &x) const
 {
+   const bool zero_b = (b.Size() == 0);
    int i;
+
+   MFEM_VERIFY(!zero_b || iterative_mode || width == 0,
+               "empty 'b' can be used only in iterative mode!");
 
    // Optimized preconditioned SLI with fixed number of iterations and given
    // initial guess
@@ -551,9 +564,10 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       for (i = 0; i < max_iter; i++)
       {
          oper->Mult(x, r);  // r = A x
-         subtract(b, r, r); // r = b - A x
+         if (!zero_b) { subtract(b, r, r); } // r = b - A x
          prec->Mult(r, z);  // z = B r
-         add(x, 1.0, z, x); // x = x + B (b - A x)
+         if (!zero_b) { x += z; } // x = x + B (b - A x)
+         else { x -= z; }         // x = x - B (A x)
       }
       converged = true;
       final_iter = i;
@@ -570,7 +584,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          oper->Mult(x, r);  // r = A x
          subtract(b, r, r); // r = b - A x
          prec->Mult(r, z);  // z = B r
-         add(x, 1.0, z, x); // x = x + B (b - A x)
+         x += z;            // x = x + B (b - A x)
       }
       converged = true;
       final_iter = i;
@@ -584,7 +598,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (iterative_mode)
    {
       oper->Mult(x, r);
-      subtract(b, r, r); // r = b - A x
+      if (!zero_b) { subtract(b, r, r); } // r = b - A x
    }
    else
    {
@@ -623,17 +637,19 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
-      if (prec) //  x = x + B (b - A x)
+      if (prec)
       {
-         add(x, 1.0, z, x);
+         if (!zero_b) { x += z; }  // x = x + B (b - A x)
+         else { x -= z; }          // x = x - B (A x)
       }
       else
       {
-         add(x, 1.0, r, x);
+         if (!zero_b) { x += r; }  // x = x + (b - A x)
+         else { x -= r; }          // x = x - (A x)
       }
 
       oper->Mult(x, r);
-      subtract(b, r, r); // r = b - A x
+      if (!zero_b) { subtract(b, r, r); } // r = b - A x
 
       if (prec)
       {

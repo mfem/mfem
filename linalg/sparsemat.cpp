@@ -54,9 +54,9 @@ using namespace std;
 #ifdef MFEM_USE_CUDA_OR_HIP
 int SparseMatrix::SparseMatrixCount = 0;
 // doxygen doesn't like the macro-assisted typename so let's skip parsing it:
-// \cond false
+/// @cond Suppress_Doxygen_warnings
 MFEM_cu_or_hip(sparseHandle_t) SparseMatrix::handle = nullptr;
-// \endcond
+/// @endcond
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif // MFEM_USE_CUDA_OR_HIP

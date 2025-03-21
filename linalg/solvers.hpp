@@ -441,7 +441,8 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -454,7 +455,8 @@ public:
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -514,6 +516,9 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /// Iterative solution of the linear system using Stationary Linear Iteration
+   /** When using iterative mode (see Solver::iterative_mode), the case of zero
+       r.h.s., @a b = 0, can be optimized by calling this method with empty
+       @a b, i.e. b.Size() == 0. */
    void Mult(const Vector &b, Vector &x) const override;
 };
 
