@@ -96,6 +96,23 @@ int main(int argc, char *argv[])
       B_perp.SetFromTrueDofs(X);
    }
 
+   // paraview
+   {
+      ParaViewDataCollection paraview_dc("B_perp_perp_Hdiv", new_mesh);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(1);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetTime(0.0); // set the time
+      paraview_dc.RegisterField("B_perp_perp_Hdiv", &B_perp);
+      paraview_dc.Save();
+   }
+
+   ofstream sol_ofs("output/B_perp_perp_Hdiv.gf");
+   sol_ofs.precision(8);
+   B_perp.Save(sol_ofs);
+
    {
       LinearForm b(&fespace);
       // 1. make the linear form
@@ -149,7 +166,8 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/B_perp_Hdiv.gf");
+   sol_ofs.close();
+   sol_ofs.open("output/B_perp_Hdiv.gf");
    sol_ofs.precision(8);
    B_perp.Save(sol_ofs);
 
