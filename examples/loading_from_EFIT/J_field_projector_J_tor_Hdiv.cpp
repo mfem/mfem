@@ -72,18 +72,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("J_tor", &mesh);
+      ParaViewDataCollection paraview_dc("J_tor_Hdiv", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("J_tor", &J_tor);
+      paraview_dc.RegisterField("J_tor_Hdiv", &J_tor);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/J_tor.gf");
+   ofstream sol_ofs("output/J_tor_Hdiv.gf");
    sol_ofs.precision(8);
    J_tor.Save(sol_ofs);
 
