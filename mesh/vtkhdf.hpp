@@ -47,9 +47,12 @@ class VTKHDF
    hid_t vtk = H5I_INVALID_HID;
    /// Data transfer property list.
    hid_t dxpl = H5I_INVALID_HID;
+   /// The group to cell data (element attributes).
+   hid_t cell_data = H5I_INVALID_HID;
    /// The group to store point data (e.g. grid functions).
    hid_t point_data = H5I_INVALID_HID;
 
+   /// Wrapper for storing dataset dimensions (max ndims is 2D in VTKHDF).
    struct Dims
    {
       static constexpr size_t MAX_NDIMS = 2;
@@ -58,7 +61,8 @@ class VTKHDF
       Dims() = default;
       Dims(int ndims_) : ndims(ndims_) { MFEM_ASSERT(ndims <= MAX_NDIMS, ""); }
       Dims(int ndims_, hsize_t val) : Dims(ndims_) { data.fill(val); }
-      Dims(std::initializer_list<hsize_t> data_) : Dims(data_.size())
+      template <typename T>
+      Dims(std::initializer_list<T> data_) : Dims(data_.size())
       { std::copy(data_.begin(), data_.end(), data.begin()); }
       operator hsize_t*() { return data.data(); }
       hsize_t &operator[](int i) { return data[i]; }
@@ -73,6 +77,10 @@ class VTKHDF
    /// Number of time steps saved.
    int nsteps = 0;
 
+   /// Compression level (-1 means disabled, 0 through 9 enabled). Default is 6.
+   int compression_level = 6;
+
+   /// Keep track of the offsets into the data arrays at each time step.
    struct Offsets
    {
       hsize_t current = 0;
@@ -84,10 +92,13 @@ class VTKHDF
       }
    };
 
-   Offsets point_offsets;
-   Offsets cell_offsets;
-   Offsets connectivity_offsets;
-   std::unordered_map<std::string, Offsets> point_data_offsets;
+   hsize_t part_offset; ///< Offset into the "NumberOf" arrays.
+   Offsets point_offsets; ///< Offsets into the point-sized arrays.
+   Offsets cell_offsets; ///< Offsets into the cell-sized arrays.
+   Offsets connectivity_offsets; ///< Offsets into the connectivity arrays.
+
+   /// Offsets into named point data arrays (for saved GridFunctions).
+   std::unordered_map<std::string,Offsets> point_data_offsets;
 
    /// Track when the mesh has changed (enable reusing the previous saved mesh).
    class MeshId
@@ -108,8 +119,8 @@ class VTKHDF
       {
          if (mesh_ptr == &mesh)
          {
-            return sequence == mesh.GetSequence() &&
-                   nodes_sequence == mesh.GetNodesSequence();
+            return sequence != mesh.GetSequence() ||
+                   nodes_sequence != mesh.GetNodesSequence();
          }
          return true;
       }
@@ -127,30 +138,37 @@ class VTKHDF
 
    ///@}
 
+   /// Hold rank-offset and total size for parallel I/O.
+   struct OffsetTotal { int64_t offset; int64_t total; };
+
    /// Common setup (VTK group creation, etc.) for serial and parallel.
    void SetupVTKHDF();
 
-   /// Ensure that the 'Steps' group and associated datasets exist.
+   /// Ensure that the 'Steps' group and 'PointDataOffsets' subgroup exist.
    void EnsureSteps();
 
-   /// @brief Ensure that the dataset @a name in @a f exists.
+   /// @brief Ensure that the dataset named @a name in @a f exists.
    ///
    /// If the dataset does not exist, create it and return the ID. If the
    /// dataset exists, open it and return the ID.
    ///
    /// The rank (number of dimensions) of the dataset is given by @a ndims and
    /// its data type is given by @a type.
+   ///
+   /// The dataset will initially have zero size and unlimited maximum size.
    hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, int ndims);
 
+   /// Appends data in parallel to the dataset named @a name in @a f.
+   ///
+   /// Data is appended along the zeroth dimension. Data of length @a locsize
+   /// will be written at offset @a offset. The sum over all MPI ranks of @a
+   /// locsize is equal to the zeroth dimension of @a globsize. The data is
+   /// written in row-major order.
    template <typename T>
    void AppendParData(hid_t f, const std::string &name, hsize_t locsize,
-                      hsize_t offset, Dims globsize, T *data, hid_t dxpl);
+                      hsize_t offset, Dims globsize, T *data);
 
-   template <typename T>
-   void WriteParData(hid_t f, const std::string &name, hsize_t locsize,
-                     hsize_t offset, hsize_t globsize, T *data, hid_t dxpl);
-
-   /// Appends data in parallel to the dataset @a name in @a f.
+   /// Appends data in parallel to the dataset named @a name in @a f.
    ///
    /// The input parameter @a dims is used to determine the rank of the data to
    /// be written, and the extent of all but the first dimension. For example,
@@ -158,13 +176,15 @@ class VTKHDF
    /// sum of the size of @a data across all MPI ranks. If dims = (0, m), then
    /// the written dimensions will be (N/m, m). The data will be written in
    /// row-major ordering.
+   ///
+   /// The row offset and total are returned.
    template <typename T>
-   void AppendParVector(hid_t f, const std::string &name,
-                        const std::vector<T> &data, hid_t dxpl,
-                        Dims dims = Dims(1));
+   OffsetTotal AppendParVector(hid_t f, const std::string &name,
+                               const std::vector<T> &data, Dims dims = Dims(1));
 
+   /// @brief Append a single value to the dataset named @a name in @a f.
    template <typename T>
-   void AppendValue(const hid_t loc_id, const std::string &name, T value);
+   void AppendValue(const hid_t f, const std::string &name, T value);
 
    /// Gather the value 'loc' from all MPI ranks and return the resulting array.
    template <typename T>
@@ -178,8 +198,7 @@ class VTKHDF
    /// returned total is the sum over all MPI ranks.
    ///
    /// Requires performing 'gather all' operation.
-   template <typename T>
-   std::pair<T, T> GetOffsetAndTotal(const T loc) const;
+   OffsetTotal GetOffsetAndTotal(const int64_t loc) const;
 
    /// @brief Return true if the VTKHDF file is using MPI, false otherwise.
    ///
@@ -187,6 +206,8 @@ class VTKHDF
    /// constructor. This is only possible if MFEM_USE_MPI is enabled. Even with
    /// MPI enabled, a non-MPI VTKHDF object may be created.
    bool UsingMpi() const;
+
+   void Barrier() const;
 
    /// Return the HDF5 type ID corresponding to type @a T.
    template <typename T> hid_t GetTypeID();
@@ -209,6 +230,9 @@ public:
    ~VTKHDF(); ///< Destructor. Close the file.
 
    void UpdateSteps(real_t t);
+
+   void DisableCompression() { compression_level = -1; }
+   void EnableCompression(int level = 6) { compression_level = level; }
 
    void SaveMesh(const Mesh &mesh);
    void SaveGridFunction(const GridFunction &gf, const std::string &name);

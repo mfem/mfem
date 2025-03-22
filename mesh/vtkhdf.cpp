@@ -107,37 +107,19 @@ void VTKHDF::EnsureSteps()
    // Otherwise, create the group and its datasets.
    steps = H5Gcreate2(vtk, "Steps", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-   const hsize_t dim = 0;
-   const hsize_t maxdim = H5S_UNLIMITED;
-   // const hsize_t maxdim = 1;
-   const hid_t fspace = H5Screate_simple(1, &dim, &maxdim);
-
-   const hsize_t chunk = 1024;
-   const hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
-   H5Pset_chunk(dcpl, 1, &chunk);
-
-   auto create_offset_dataset = [&](const char *name, const hid_t type_id)
-   {
-      const hid_t d = H5Dcreate2(steps, name, type_id, fspace, H5P_DEFAULT,
-                                 dcpl, H5P_DEFAULT);
-      H5Dclose(d);
-   };
-
-   create_offset_dataset("PartOffsets", H5T_NATIVE_HSIZE);
-   create_offset_dataset("Values", GetTypeID<real_t>());
-   create_offset_dataset("CellOffsets", H5T_NATIVE_HSIZE);
-   create_offset_dataset("PointOffsets", H5T_NATIVE_HSIZE);
-   create_offset_dataset("ConnectivityIdOffsets", H5T_NATIVE_HSIZE);
-
-   H5Pclose(dcpl);
-   H5Sclose(fspace);
+   // Create the 'PointDataOffsets' subgroup.
+   const hid_t pd_offsets = H5Gcreate2(steps, "PointDataOffsets", H5P_DEFAULT,
+                                       H5P_DEFAULT, H5P_DEFAULT);
+   H5Gclose(pd_offsets);
 }
 
 hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
                             int ndims)
 {
    const char *name_c = name.c_str();
+
    const herr_t status = H5LTfind_dataset(f, name_c);
+   Barrier();
 
    if (status == 0)
    {
@@ -147,10 +129,11 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       const hid_t fspace = H5Screate_simple(ndims, dims, maxdims);
 
       Dims chunk(ndims);
-      chunk[0] = 1024;
+      chunk[0] = 1024 * 1024 / H5Tget_size(type);
       for (int i = 1; i < ndims; ++i) { chunk[i] = 16; }
       const hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
       H5Pset_chunk(dcpl, ndims, chunk);
+      H5Pset_deflate(dcpl, compression_level);
 
       const hid_t d = H5Dcreate2(f, name_c, type, fspace, H5P_DEFAULT,
                                  dcpl, H5P_DEFAULT);
@@ -171,7 +154,7 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
 
 template <typename T>
 void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
-                           hsize_t offset, Dims globsize, T *data, hid_t dxpl)
+                           hsize_t offset, Dims globsize, T *data)
 {
    const int ndims = globsize.ndims;
    const hid_t d = EnsureDataset(f, name, GetTypeID<T>(), ndims);
@@ -186,7 +169,7 @@ void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
       H5Sget_simple_extent_dims(dspace, dims, NULL);
       H5Sclose(dspace);
       old_size = dims[0];
-      dims[0] += locsize;
+      dims[0] += globsize[0];
       for (int i = 1; i < ndims; ++i) { dims[i] = globsize[i]; }
       H5Dset_extent(d, dims);
    }
@@ -211,22 +194,6 @@ void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
 }
 
 template <typename T>
-void VTKHDF::WriteParData(hid_t f, const std::string &name, hsize_t locsize,
-                          hsize_t offset, hsize_t globsize, T *data, hid_t dxpl)
-{
-   const hid_t fspace = H5Screate_simple(1, &globsize, NULL);
-   const hid_t memspace = H5Screate_simple(1, &locsize, NULL);
-   H5Sselect_hyperslab(fspace, H5S_SELECT_SET, &offset, NULL, &locsize, NULL);
-   const auto type_id = GetTypeID<T>();
-   const hid_t d = H5Dcreate2(f, name.c_str(), type_id, fspace, H5P_DEFAULT,
-                              H5P_DEFAULT, H5P_DEFAULT);
-   H5Dwrite(d, type_id, memspace, fspace, dxpl, data);
-   H5Dclose(d);
-   H5Sclose(memspace);
-   H5Sclose(fspace);
-}
-
-template <typename T>
 std::vector<T> VTKHDF::AllGather(const T loc) const
 {
    std::vector<T> all(mpi_size);
@@ -244,39 +211,40 @@ std::vector<T> VTKHDF::AllGather(const T loc) const
    return all;
 }
 
-template <typename T>
-std::pair<T, T> VTKHDF::GetOffsetAndTotal(const T loc) const
+VTKHDF::OffsetTotal VTKHDF::GetOffsetAndTotal(const int64_t loc) const
 {
    const auto all = AllGather(loc);
 
-   T offset = 0;
+   int64_t offset = 0;
    for (int i = 0; i < mpi_rank; ++i)
    {
       offset += all[i];
    }
-   T total = offset;
+   int64_t total = offset;
    for (int i = mpi_rank; i < mpi_size; ++i)
    {
       total += all[i];
    }
 
-   return std::make_pair(offset, total);
+   return {offset, total};
 }
 
 template <typename T>
-void VTKHDF::AppendParVector(hid_t f, const std::string &name,
-                             const std::vector<T> &data, hid_t dxpl, Dims dims)
+VTKHDF::OffsetTotal VTKHDF::AppendParVector(
+   hid_t f, const std::string &name, const std::vector<T> &data, Dims dims)
 {
-   const uint64_t locsize = data.size();
+   const size_t locsize = data.size();
    const auto offset_total = GetOffsetAndTotal(locsize);
-   const auto offset = offset_total.first;
-   const auto total = offset_total.second;
+   const auto offset = offset_total.offset;
+   const auto total = offset_total.total;
 
-   size_t m = 1;
+   hsize_t m = 1;
    for (int i = 1; i < dims.ndims; ++i) { m *= dims[i]; }
    dims[0] = total/m;
 
-   AppendParData(f, name, locsize/m, offset/m, dims, data.data(), dxpl);
+   AppendParData(f, name, locsize/m, offset/m, dims, data.data());
+
+   return {int64_t(offset/m), int64_t(total/m)};
 }
 
 bool VTKHDF::UsingMpi() const
@@ -285,6 +253,13 @@ bool VTKHDF::UsingMpi() const
    return false;
 #else
    return comm != MPI_COMM_NULL;
+#endif
+}
+
+void VTKHDF::Barrier() const
+{
+#ifdef MFEM_USE_MPI
+   if (UsingMpi()) { MPI_Barrier(comm); }
 #endif
 }
 
@@ -326,39 +301,14 @@ VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_)
    SetupVTKHDF();
 
    dxpl = H5Pcreate(H5P_DATASET_XFER);
-   // H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_COLLECTIVE);
-   H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_INDEPENDENT);
+   H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_COLLECTIVE);
 }
 
 template <typename T>
-void VTKHDF::AppendValue(const hid_t loc_id, const std::string &name, T value)
+void VTKHDF::AppendValue(const hid_t f, const std::string &name, T value)
 {
-   const hid_t d = H5Dopen2(loc_id, name.c_str(), H5P_DEFAULT);
-
-   // Resize the dataset, set dim to its new size.
-   hsize_t dim;
-   {
-      const hid_t dspace = H5Dget_space(d);
-      const int ndims = H5Sget_simple_extent_ndims(dspace);
-      MFEM_VERIFY(ndims == 1, "");
-      H5Sget_simple_extent_dims(dspace, &dim, NULL);
-      H5Sclose(dspace);
-      dim += 1;
-      H5Dset_extent(d, &dim);
-   }
-
-   // Write the new entry.
-   const hid_t dspace = H5Dget_space(d);
-   const hsize_t coord = dim - 1;
-   H5Sselect_elements(dspace, H5S_SELECT_SET, 1, &coord);
-   const hsize_t one = 1;
-   const hid_t memspace = H5Screate_simple(1, &one, &one);
-
-   H5Dwrite(d, GetTypeID<T>(), memspace, dspace, dxpl, &value);
-
-   H5Sclose(memspace);
-   H5Sclose(dspace);
-   H5Dclose(d);
+   const hsize_t locsize = (mpi_rank == 0) ? 1 : 0;
+   AppendParData(f, name, 1, 0, Dims({1}), &value);
 }
 
 void VTKHDF::UpdateSteps(real_t t)
@@ -370,58 +320,102 @@ void VTKHDF::UpdateSteps(real_t t)
    H5LTset_attribute_int(steps, ".", "NSteps", &nsteps, 1);
 
    AppendValue(steps, "Values", t);
-   AppendValue(steps, "PartOffsets", (nsteps - 1)*mpi_size);
+   AppendValue(steps, "PartOffsets", part_offset);
    AppendValue(steps, "PointOffsets", point_offsets.current);
    AppendValue(steps, "CellOffsets", cell_offsets.current);
    AppendValue(steps, "ConnectivityIdOffsets", connectivity_offsets.current);
+
+   if (!point_data_offsets.empty())
+   {
+      const hid_t g = H5Gopen2(steps, "PointDataOffsets", H5P_DEFAULT);
+      for (const auto &pd : point_data_offsets)
+      {
+         const char *name = pd.first.c_str();
+         AppendValue(g, name, pd.second.current);
+      }
+      H5Gclose(g);
+   }
 }
 
 void VTKHDF::SaveMesh(const Mesh &mesh)
 {
+   const Dims mpi_dims({mpi_size});
+
    // If the mesh hasn't changed, we can return early.
    if (!mesh_id.HasChanged(mesh))
    {
+      // The HDF5 format assumes that the "NumberOf" datasets will have size
+      // given by the number of parts (number of MPI ranks) times the number of
+      // time steps (see
+      // https://gitlab.kitware.com/vtk/vtk/-/issues/18981#note_1366124).
+      //
+      // If the mesh doesn't change, we don't increment the value in
+      // 'PartOffsets', and so these values in the "NumberOf" datasets will
+      // never be read, so we just fill them with a dummy value.
+      const hsize_t zero = 0;
+      AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &zero);
+      AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &zero);
+      AppendParData(vtk, "NumberOfConnectivityIds", 1, mpi_rank, mpi_dims, &zero);
       return;
    }
+
    // Set the cached MeshId.
    mesh_id.Set(mesh);
 
+   // Update the part offsets
+   part_offset = nsteps * mpi_size;
+
    // Get and count the points
    using T = real_t;
-   std::vector<T> points = vtkhdf::GetPointsBuffer<T>(mesh);
-   const int64_t np = points.size() / 3;
-   const int64_t ne = mesh.GetNE();
+   std::vector<T> points;
+   {
+      const int ne = mesh.GetNE();
+      int np = 0;
+      for (int i = 0; i < ne; i++)
+      {
+         const Geometry::Type geom = mesh.GetElementGeometry(i);
+         np += Geometries.GetVertices(geom)->GetNPoints();
+      }
 
-   WriteParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_size, &np, dxpl);
-   WriteParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_size, &ne, dxpl);
+      points.reserve(np * 3);
 
-   // const auto p_offset_total = GetOffsetAndTotal(np);
-   // const auto p_offset = p_offset_total.first;
-   // const auto np_total = p_offset_total.second;
+      IsoparametricTransformation Tr;
+      DenseMatrix pmat;
+      for (int i = 0; i < ne; ++i)
+      {
+         const Geometry::Type geom = mesh.GetElementGeometry(i);
+         RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(geom, 1, 1);
+         mesh.GetElementTransformation(i, &Tr);
+         Tr.Transform(ref_geom.RefPts, pmat);
+
+         for (int j = 0; j < pmat.Width(); j++)
+         {
+            points.push_back(pmat(0,j));
+            if (pmat.Height() > 1) { points.push_back(pmat(1,j)); }
+            else { points.push_back(0.0); }
+            if (pmat.Height() > 2) { points.push_back(pmat(2,j)); }
+            else { points.push_back(0.0); }
+         }
+      }
+   }
+
+   const hsize_t np = points.size() / 3;
+   const hsize_t ne = mesh.GetNE();
+
+   AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &np);
+   AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &ne);
 
    // Write out 2D data for points
-   AppendParVector(vtk, "Points", points, dxpl, Dims({0, 3}));
-   {
-      // const hsize_t globsize[2] = { hsize_t(np_total), 3 };
-      // const hsize_t locsize[2] = { hsize_t(np), 3 };
-      // const hsize_t offset[2] = { hsize_t(p_offset), 0 };
-      // const hid_t fspace = H5Screate_simple(2, globsize, NULL);
-      // const hid_t memspace = H5Screate_simple(2, locsize, NULL);
-      // H5Sselect_hyperslab(fspace, H5S_SELECT_SET, offset, NULL, locsize, NULL);
-      // const auto type_id = GetTypeID<T>();
-      // const hid_t d = H5Dcreate2(vtk, "Points", type_id, fspace, H5P_DEFAULT,
-      //                            H5P_DEFAULT, H5P_DEFAULT);
-      // H5Dwrite(d, type_id, memspace, fspace, dxpl, points.data());
-      // H5Dclose(d);
-      // H5Sclose(memspace);
-      // H5Sclose(fspace);
-   }
+   auto point_offset_total = AppendParVector(vtk, "Points", points, Dims({0, 3}));
+   point_offsets.Update(point_offset_total.total);
 
    // Cell data
    {
       const auto e_offset_total = GetOffsetAndTotal(ne);
-      const auto e_offset = e_offset_total.first;
-      const auto ne_total = e_offset_total.second;
+      const auto e_offset = e_offset_total.offset;
+      const auto ne_total = e_offset_total.total;
+
+      cell_offsets.Update(ne_total);
 
       // Offsets and connectivity
       {
@@ -444,12 +438,16 @@ void VTKHDF::SaveMesh(const Mesh &mesh)
          }
          offsets.back() = coff;
 
-         const size_t n = connectivity.size();
-         WriteParData(vtk, "NumberOfConnectivityIds", 1, mpi_rank, mpi_size, &n, dxpl);
+         const hsize_t n = connectivity.size();
+         AppendParData(vtk, "NumberOfConnectivityIds", 1, mpi_rank, mpi_dims, &n);
 
-         AppendParVector(vtk, "Connectivity", connectivity, dxpl);
-         WriteParData(vtk, "Offsets", ne + 1, e_offset + mpi_rank,
-                      ne_total + mpi_size, offsets.data(), dxpl);
+         auto connectivity_offset_total
+            = AppendParVector(vtk, "Connectivity", connectivity);
+         connectivity_offsets.Update(connectivity_offset_total.total);
+
+         AppendParData(vtk, "Offsets", ne + 1, e_offset + mpi_rank,
+                       Dims({ne_total + mpi_size}), offsets.data());
+
       }
 
       // Cell types
@@ -460,22 +458,27 @@ void VTKHDF::SaveMesh(const Mesh &mesh)
          {
             cell_types[i] = vtk_geom_map[mesh.GetElementGeometry(i)];
          }
-         WriteParData(vtk, "Types", ne, e_offset, ne_total, cell_types.data(), dxpl);
+         AppendParData(vtk, "Types", ne, e_offset, Dims({ne_total}),
+                       cell_types.data());
       }
 
       // Attributes
       {
+         // Ensure cell data group exists
+         if (cell_data == H5I_INVALID_HID)
+         {
+            cell_data = H5Gcreate2(vtk, "CellData", H5P_DEFAULT, H5P_DEFAULT,
+                                   H5P_DEFAULT);
+         }
+
          std::vector<int> attributes(ne);
          for (int i = 0; i < ne; i++)
          {
             attributes[i] = mesh.GetAttribute(i);
          }
 
-         const hid_t cell_data = H5Gcreate2(vtk, "CellData", H5P_DEFAULT,
-                                            H5P_DEFAULT, H5P_DEFAULT);
-         WriteParData(cell_data, "attribute", ne, e_offset, ne_total,
-                      attributes.data(), dxpl);
-         H5Gclose(cell_data);
+         AppendParData(cell_data, "attribute", ne, e_offset, Dims({ne_total}),
+                       attributes.data());
       }
    }
 }
@@ -504,9 +507,8 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
       std::copy(val.begin(), val.end(), std::back_inserter(point_values));
    }
 
-   AppendParVector(point_data, name, point_values, dxpl);
-
-   point_data_offsets[name].Update(point_values.size());
+   auto offset_total = AppendParVector(point_data, name, point_values);
+   point_data_offsets[name].Update(offset_total.total);
 }
 
 void VTKHDF::Flush()
@@ -517,6 +519,7 @@ void VTKHDF::Flush()
 VTKHDF::~VTKHDF()
 {
    if (steps != H5I_INVALID_HID) { H5Gclose(steps); }
+   if (cell_data != H5I_INVALID_HID) { H5Gclose(cell_data); }
    if (point_data != H5I_INVALID_HID) { H5Gclose(point_data); }
    H5Pclose(dxpl);
    H5Gclose(vtk);
