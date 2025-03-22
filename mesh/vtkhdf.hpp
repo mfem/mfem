@@ -16,9 +16,10 @@
 
 #ifdef MFEM_USE_HDF5
 
-#include "mesh.hpp"
 #include "../fem/gridfunc.hpp"
+
 #include <hdf5.h>
+#include <cstdint>
 #include <unordered_map>
 
 namespace mfem
@@ -207,6 +208,7 @@ class VTKHDF
    /// MPI enabled, a non-MPI VTKHDF object may be created.
    bool UsingMpi() const;
 
+   /// MPI Barrier if using MPI (no-op otherwise).
    void Barrier() const;
 
    /// Return the HDF5 type ID corresponding to type @a T.
@@ -216,27 +218,44 @@ class VTKHDF
    template <typename T> struct TypeID { };
 
 public:
-   // If it's a data collection, support appending.
-   // If it's a mesh or a single gridfunction, we should overwrite.
-   // For now, just overwrite. "Restart mode" will be later.
+   /// Create a new VTKHDF file for serial I/O.
    VTKHDF(const std::string &filename);
+
 #ifdef MFEM_USE_MPI
+   /// Create a new VTKHDF file for parallel I/O.
    VTKHDF(const std::string &filename, MPI_Comm comm_);
 #endif
+
    VTKHDF(const VTKHDF &) = delete;
    VTKHDF(VTKHDF &&) = delete;
    VTKHDF &operator=(const VTKHDF &) = delete;
    VTKHDF &operator=(VTKHDF &&) = delete;
-   ~VTKHDF(); ///< Destructor. Close the file.
 
+   /// Update the time step data after saving the mesh and grid functions.
    void UpdateSteps(real_t t);
 
+   /// Disable zlib compression.
    void DisableCompression() { compression_level = -1; }
+
+   /// @brief Enable zlib compression at the specified level.
+   ///
+   /// @a level must be between 0 and 9, in increasing order of compression.
    void EnableCompression(int level = 6) { compression_level = level; }
 
+   /// @brief Save the mesh, appending as a new time step.
+   ///
+   /// If the mesh has not changed since the previous time step, this will
+   /// avoid duplication.
    void SaveMesh(const Mesh &mesh);
+
+   /// Save the grid function with the given name, appending as a new time step.
    void SaveGridFunction(const GridFunction &gf, const std::string &name);
+
+   /// Flush the file.
    void Flush();
+
+   ///< Destructor. Close the file.
+   ~VTKHDF();
 };
 
 } // namespace mfem

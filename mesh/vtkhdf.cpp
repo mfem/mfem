@@ -16,51 +16,9 @@
 #include "../general/binaryio.hpp"
 
 #include <hdf5_hl.h>
-#include <cstdint>
 
 namespace mfem
 {
-
-namespace vtkhdf
-{
-
-template <typename T>
-std::vector<T> GetPointsBuffer(const Mesh &mesh)
-{
-   const int ne = mesh.GetNE();
-   int np = 0;
-   for (int i = 0; i < ne; i++)
-   {
-      const Geometry::Type geom = mesh.GetElementGeometry(i);
-      np += Geometries.GetVertices(geom)->GetNPoints();
-   }
-
-   std::vector<T> points;
-   points.reserve(np * 3);
-
-   IsoparametricTransformation Tr;
-   DenseMatrix pmat;
-   for (int i = 0; i < ne; ++i)
-   {
-      const Geometry::Type geom = mesh.GetElementGeometry(i);
-      RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(geom, 1, 1);
-      mesh.GetElementTransformation(i, &Tr);
-      Tr.Transform(ref_geom.RefPts, pmat);
-
-      for (int j = 0; j < pmat.Width(); j++)
-      {
-         points.push_back(pmat(0,j));
-         if (pmat.Height() > 1) { points.push_back(pmat(1,j)); }
-         else { points.push_back(0.0); }
-         if (pmat.Height() > 2) { points.push_back(pmat(2,j)); }
-         else { points.push_back(0.0); }
-      }
-   }
-
-   return points;
-}
-
-} // namespace vtkhdf
 
 template <> struct VTKHDF::TypeID<float> { static hid_t Get() { return H5T_NATIVE_FLOAT; } };
 template <> struct VTKHDF::TypeID<double> { static hid_t Get() { return H5T_NATIVE_DOUBLE; } };
@@ -133,7 +91,7 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       for (int i = 1; i < ndims; ++i) { chunk[i] = 16; }
       const hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
       H5Pset_chunk(dcpl, ndims, chunk);
-      H5Pset_deflate(dcpl, compression_level);
+      if (compression_level >= 0) { H5Pset_deflate(dcpl, compression_level); }
 
       const hid_t d = H5Dcreate2(f, name_c, type, fspace, H5P_DEFAULT,
                                  dcpl, H5P_DEFAULT);
@@ -270,7 +228,7 @@ VTKHDF::VTKHDF(const std::string &filename)
    fapl = H5P_DEFAULT;
    file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
    SetupVTKHDF();
-   dxpl = H5Pcreate(H5P_DATASET_XFER);
+   dxpl = H5P_DEFAULT;
 }
 
 static int MpiCommSize(MPI_Comm comm)
@@ -308,7 +266,7 @@ template <typename T>
 void VTKHDF::AppendValue(const hid_t f, const std::string &name, T value)
 {
    const hsize_t locsize = (mpi_rank == 0) ? 1 : 0;
-   AppendParData(f, name, 1, 0, Dims({1}), &value);
+   AppendParData(f, name, locsize, 0, Dims({1}), &value);
 }
 
 void VTKHDF::UpdateSteps(real_t t)
@@ -488,8 +446,8 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
    // Create the point data group if needed
    if (point_data == H5I_INVALID_HID)
    {
-      point_data = H5Gcreate2(vtk, "PointData", H5P_DEFAULT, H5P_DEFAULT,
-                              H5P_DEFAULT);
+      point_data = H5Gcreate2(
+                      vtk, "PointData", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
    }
 
    const Mesh &mesh = *gf.FESpace()->GetMesh();
@@ -521,10 +479,10 @@ VTKHDF::~VTKHDF()
    if (steps != H5I_INVALID_HID) { H5Gclose(steps); }
    if (cell_data != H5I_INVALID_HID) { H5Gclose(cell_data); }
    if (point_data != H5I_INVALID_HID) { H5Gclose(point_data); }
-   H5Pclose(dxpl);
+   if (dxpl != H5P_DEFAULT) { H5Pclose(dxpl); }
    H5Gclose(vtk);
    H5Fclose(file);
-   H5Pclose(fapl);
+   if (fapl != H5P_DEFAULT) { H5Pclose(fapl); }
 }
 
 } // namespace mfem
