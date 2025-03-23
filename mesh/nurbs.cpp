@@ -1072,7 +1072,7 @@ void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
    }
 }
 
-void NURBSPatch::UniformRefinement(std::vector<Array<int>> const& rf,
+void NURBSPatch::UniformRefinement(const std::vector<Array<int>> &rf,
                                    int multiplicity)
 {
    Vector new_knots;
@@ -6016,7 +6016,7 @@ void NURBSExtension::UpdateKVF()
    }
 }
 
-void NURBSExtension::UniformRefinement(Array<int> const& rf)
+void NURBSExtension::UniformRefinement(const Array<int> &rf)
 {
    MFEM_VERIFY(!nonconforming,
                "NURBS NC-patch meshes cannot use this method of refinement");
@@ -6034,10 +6034,10 @@ void NURBSExtension::UniformRefinement(Array<int> const& rf)
       ref_factors = rf;
    }
 
-   Refine();
+   Refine(&rf);
 }
 
-void NURBSExtension::Refine()
+void NURBSExtension::Refine(const Array<int> *rf)
 {
    const int maxOrder = mOrders.Max();
    const int dim = Dimension();
@@ -6085,7 +6085,7 @@ void NURBSExtension::Refine()
       }
       else
       {
-         patches[p]->UniformRefinement(ref_factors, nonconforming ? maxOrder : 1);
+         patches[p]->UniformRefinement(*rf);
       }
    }
 
@@ -6165,7 +6165,7 @@ void NURBSExtension::RefineWithKVFactors(int rf,
    Refine();
 }
 
-void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
+void NURBSExtension::Coarsen(const Array<int> &cf, real_t tol)
 {
    // First, mark all knot vectors on all patches as not coarse. This prevents
    // coarsening the same knot vector twice.
