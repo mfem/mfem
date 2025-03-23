@@ -4575,12 +4575,19 @@ void ParMesh::NURBSUniformRefinement(int rf, real_t tol)
    }
 }
 
-void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol,
-                                     const std::string &kvf)
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
 {
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nRefineNURBSWithKVFactors : Not supported yet!\n";
    }
 }
 

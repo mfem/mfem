@@ -2206,7 +2206,14 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      bel_to_patch(orig.bel_to_patch),
      el_to_IJK(orig.el_to_IJK),
      bel_to_IJK(orig.bel_to_IJK),
-     patches(orig.patches.Size()) // patches are copied in the body
+     patches(orig.patches.Size()), // patches are copied in the body
+     npatch(orig.npatch),
+     patchCP(orig.patchCP),
+     validV2K(orig.validV2K),
+     kvf(orig.kvf),
+     kvf_coarse(orig.kvf_coarse),
+     auxef(orig.auxef),
+     dof2patch(orig.dof2patch)
 {
    // Copy the knot vectors:
    for (int i = 0; i < knotVectors.Size(); i++)
@@ -6009,27 +6016,11 @@ void NURBSExtension::UpdateKVF()
    }
 }
 
-void NURBSExtension::SetKVP(Array<bool> &kvp)
+void NURBSExtension::UniformRefinement(Array<int> const& rf)
 {
-   kvp.SetSize(NumOfKnotVectors);
-   kvp = false;
+   MFEM_VERIFY(!nonconforming,
+               "NURBS NC-patch meshes cannot use this method of refinement");
 
-   for (int p=0; p<npatch; ++p)
-   {
-      Array<int> edges, orient;
-      patchTopo->GetElementEdges(p, edges, orient);
-
-      for (auto edge : edges)
-      {
-         const int kv = KnotInd(edge);
-         kvp[kv] = true;
-      }
-   }
-}
-
-void NURBSExtension::UniformRefinement(Array<int> const& rf,
-                                       const std::string &kvf_filename)
-{
    if (ref_factors.Size())
    {
       MFEM_VERIFY(ref_factors.Size() == rf.Size(), "");
@@ -6043,16 +6034,11 @@ void NURBSExtension::UniformRefinement(Array<int> const& rf,
       ref_factors = rf;
    }
 
-   const bool varyingFactors = true;  // TODO: input this?
-   if (varyingFactors)
-   {
-      LoadFactorsForKV(kvf_filename);
-      PropagateFactorsForKV(rf[0]);  // TODO: better way to input a default factor
+   Refine();
+}
 
-      Array<bool> kvp;
-      SetKVP(kvp);
-   }
-
+void NURBSExtension::Refine()
+{
    const int maxOrder = mOrders.Max();
    const int dim = Dimension();
 
@@ -6099,14 +6085,14 @@ void NURBSExtension::UniformRefinement(Array<int> const& rf,
       }
       else
       {
-         patches[p]->UniformRefinement(rf, nonconforming ? maxOrder : 1);
+         patches[p]->UniformRefinement(ref_factors, nonconforming ? maxOrder : 1);
       }
    }
 
    if (nonconforming)
    {
       patchTopo->ncmesh->RefineVertexToKnot(kvf, knotVectors, parentToKV);
-      RefineKnotIndices(rf);
+      RefineKnotIndices(ref_factors);
       UpdateCoarseKVF();
    }
 }
@@ -6156,6 +6142,29 @@ void NURBSExtension::UniformRefinement(int rf)
    UniformRefinement(rf_array);
 }
 
+void NURBSExtension::RefineWithKVFactors(int rf,
+                                         const std::string &kvf_filename)
+{
+   if (ref_factors.Size() > 0)
+   {
+      MFEM_VERIFY(ref_factors.Size() == Dimension(), "");
+      for (int i=0; i<ref_factors.Size(); ++i)
+      {
+         ref_factors[i] *= rf;
+      }
+   }
+   else
+   {
+      ref_factors.SetSize(Dimension());
+      ref_factors = rf;
+   }
+
+   LoadFactorsForKV(kvf_filename);
+   PropagateFactorsForKV(rf);
+
+   Refine();
+}
+
 void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
 {
    // First, mark all knot vectors on all patches as not coarse. This prevents
@@ -6168,6 +6177,15 @@ void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
    for (int p = 0; p < patches.Size(); p++)
    {
       patches[p]->Coarsen(cf, tol);
+   }
+
+   if (ref_factors.Size() > 0)
+   {
+      MFEM_VERIFY(cf.Size() == ref_factors.Size(), "");
+      for (int i=0; i<cf.Size(); ++i)
+      {
+         ref_factors[i] /= cf[i];
+      }
    }
 }
 
@@ -6221,7 +6239,6 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
    {
       Array<int> pf;
       patch->GetCoarseningFactors(pf);
-
       if (f.Size() == 0)
       {
          f = pf; // Initialize
@@ -6231,17 +6248,21 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
          MFEM_VERIFY(f.Size() == pf.Size(), "");
          for (int i=0; i<f.Size(); ++i)
          {
-            /*
-                  MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
-                              "Inconsistent patch coarsening factors");
-                  if (f[i] == 1 && pf[i] != 1)
-                  {
-                     f[i] = pf[i];
-                  }
-            */
-            if ((f[i] == 1 && pf[i] != 1) || (pf[i] < f[i] && pf[i] != 1))
+            if (nonconforming)
             {
-               f[i] = pf[i];
+               if ((f[i] == 1 && pf[i] != 1) || (pf[i] < f[i] && pf[i] != 1))
+               {
+                  f[i] = pf[i];
+               }
+            }
+            else
+            {
+               MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
+                           "Inconsistent patch coarsening factors");
+               if (f[i] == 1 && pf[i] != 1)
+               {
+                  f[i] = pf[i];
+               }
             }
          }
       }
@@ -6565,6 +6586,8 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
    Array<const KnotVector *> kv(2);
    NURBSPatchMap p2g(this);
 
+   const bool d2p = dof2patch.Size() > 0;
+
    weights.SetSize(GetNDof());
    for (int p = 0; p < GetNP(); p++)
    {
@@ -6577,7 +6600,7 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
             const int l = p2g(i,j);
-            if (dof2patch[l] >= 0 && dof2patch[l] != p)
+            if (d2p && dof2patch[l] >= 0 && dof2patch[l] != p)
             {
                continue;
             }
@@ -6598,6 +6621,8 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
    Array<const KnotVector *> kv(3);
    NURBSPatchMap p2g(this);
 
+   const bool d2p = dof2patch.Size() > 0;
+
    weights.SetSize(GetNDof());
    for (int p = 0; p < GetNP(); p++)
    {
@@ -6612,7 +6637,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
                const int l = p2g(i,j,k);
-               if (dof2patch[l] >= 0 && dof2patch[l] != p)
+               if (d2p && dof2patch[l] >= 0 && dof2patch[l] != p)
                {
                   continue;
                }

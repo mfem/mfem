@@ -835,6 +835,19 @@ private:
 
    void SetDofToPatch();
 
+   void Refine();
+
+   int npatch = 0;
+   Array3D<double> patchCP;
+
+   bool validV2K = true;
+
+   static constexpr int unsetFactor = 0;
+
+   std::vector<Array<int>> kvf, kvf_coarse;
+   std::vector<Array<int>> auxef;
+   Array<int> dof2patch;
+
 public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
@@ -1034,8 +1047,10 @@ public:
    spacing functions may be used.
    */
    void UniformRefinement(int rf = 2);
-   void UniformRefinement(Array<int> const& rf,
-                          const std::string &kvf_filename="");
+   // For meshes with conforming patches only.
+   void UniformRefinement(Array<int> const& rf);
+   void RefineWithKVFactors(int rf, const std::string &kvf_filename);
+
    void Coarsen(int cf = 2, real_t tol = 1.0e-12);
    void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
 
@@ -1100,20 +1115,7 @@ public:
 
    void PrintCoarsePatches(std::ostream &os);
 
-   int npatch;
-   Array3D<double> patchCP;
-
    void FullyCoarsen();
-
-   void SetKVP(Array<bool> &kvp);
-
-   bool validV2K = true;
-
-   static constexpr int unsetFactor = 0;
-
-   std::vector<Array<int>> kvf, kvf_coarse;
-   std::vector<Array<int>> auxef;
-   Array<int> dof2patch;
 };
 
 

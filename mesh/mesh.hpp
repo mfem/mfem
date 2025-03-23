@@ -479,6 +479,9 @@ protected:
 
    void UpdateNURBS();
 
+   void RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
+                    const std::string &kvf);
+
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
        patch topology. Optional file comments can be provided in @a comments.
 
@@ -2317,8 +2320,9 @@ public:
        @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
                       "The NURBS Book", 2nd ed, Piegl and Tiller. */
    virtual void NURBSUniformRefinement(int rf = 2, real_t tol = 1.0e-12);
-   virtual void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12,
-                                       const std::string &kvf="");
+   virtual void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12);
+
+   virtual void RefineNURBSWithKVFactors(int rf, const std::string &kvf);
 
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
    /// which divides the number of elements in each dimension.

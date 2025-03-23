@@ -6015,58 +6015,73 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
-void Mesh::NURBSUniformRefinement(int rf, real_t tol)
+void Mesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
 {
-   Array<int> rf_array(Dim);
-   rf_array = rf;
-   NURBSUniformRefinement(rf_array, tol);
+  RefineNURBS(true, 0.0, Array<int>(&rf, 1), kvf);
 }
 
-void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol, const std::string &kvf)
+void Mesh::NURBSUniformRefinement(int rf, real_t tol)
 {
-   MFEM_VERIFY(rf.Size() == Dim,
-               "Refinement factors must be defined for each dimension");
+  Array<int> rf_array(Dim);
+  rf_array = rf;
+  NURBSUniformRefinement(rf_array, tol);
+}
 
-   MFEM_VERIFY(NURBSext, "NURBSUniformRefinement is only for NURBS meshes");
+void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
+{
+  MFEM_VERIFY(rf.Size() == Dim,
+	      "Refinement factors must be defined for each dimension");
 
-   NURBSext->ConvertToPatches(*Nodes);
+  RefineNURBS(false, tol, rf, "");
+}
 
-   Array<int> cf;
-   NURBSext->GetCoarseningFactors(cf);
+void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
+		       const std::string &kvf)
+{
+  MFEM_VERIFY(NURBSext, "This type of refinement is only for NURBS meshes");
+  NURBSext->ConvertToPatches(*Nodes);
 
-   bool cf1 = true;
-   for (auto f : cf)
-   {
+  Array<int> cf;
+  NURBSext->GetCoarseningFactors(cf);
+
+  bool cf1 = true;
+  for (auto f : cf)
+    {
       cf1 = (cf1 && f == 1);
-   }
+    }
 
-   if (cf1)
-   {
-     NURBSext->UniformRefinement(rf, kvf);
-   }
-   else if (NURBSext->Nonconforming())
-   {
-     NURBSext->FullyCoarsen();
-     last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-     NURBSext->UniformRefinement(rf, kvf);
-   }
-   else
-   {
-     NURBSext->Coarsen(cf, tol);
+  if (!cf1 && NURBSext->Nonconforming())
+    {
+      NURBSext->FullyCoarsen();
+      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+    }
+  else if (!cf1 && !NURBSext->Nonconforming())
+    {
+      MFEM_VERIFY(!usingKVF, "This refinement type is not supported for this"
+		  " NURBS mesh type");
+      NURBSext->Coarsen(cf, tol);
 
-     last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-     sequence++;
+      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+      sequence++;
       UpdateNURBS();
 
       NURBSext->ConvertToPatches(*Nodes);
       for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
       NURBSext->UniformRefinement(cf);
-   }
+    }
 
-   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-   sequence++;
+  if (cf1 || NURBSext->Nonconforming())
+    {
+      if (usingKVF)
+	NURBSext->RefineWithKVFactors(rf[0], kvf);
+      else
+	NURBSext->UniformRefinement(rf);
+    }
 
-   UpdateNURBS();
+  last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+  sequence++;
+
+  UpdateNURBS();
 }
 
 void Mesh::DegreeElevate(int rel_degree, int degree)
