@@ -351,8 +351,8 @@ public:
                      for all dimensions. If an array, factors can be specified
                      for each dimension. */
    void UniformRefinement(int rf = 2);
-   void UniformRefinement(Array<int> const& rf, int multiplicity = 1);
-   void UniformRefinement(std::vector<Array<int>> const& rf, int multiplicity = 1);
+   void UniformRefinement(const Array<int> &rf, int multiplicity = 1);
+   void UniformRefinement(const std::vector<Array<int>> &rf, int multiplicity = 1);
 
    /** @brief Coarsen with optional coarsening factor @a cf which divides the
        number of elements in each dimension. Nonuniform spacing functions may be
@@ -364,7 +364,7 @@ public:
        @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
        "The NURBS Book", 2nd ed, Piegl and Tiller. */
    void Coarsen(int cf = 2, real_t tol = 1.0e-12);
-   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
+   void Coarsen(const Array<int> &cf, real_t tol = 1.0e-12);
 
    /// Calls KnotVector::GetCoarseningFactor for each direction.
    void GetCoarseningFactors(Array<int> & f) const;
@@ -835,7 +835,7 @@ private:
 
    void SetDofToPatch();
 
-   void Refine();
+   void Refine(const Array<int> *rf=nullptr);
 
    int npatch = 0;
    Array3D<double> patchCP;
@@ -1196,10 +1196,10 @@ private:
    inline static int Or2D(const int n1, const int n2,
                           const int N1, const int N2, const int Or);
 
-   inline int EC(const int e, const int n, const int N) const
+   inline int EC(const int e, const int n, const int N, const int s=1) const
    {
-      return !edgeMaster[e] ? edges[e] + Or1D(n, N, oedge[e]) :
-             GetMasterEdgeDof(e, Or1D(n, N, oedge[e]));
+      return !edgeMaster[e] ? edges[e] + Or1D(n, N, s*oedge[e]) :
+             GetMasterEdgeDof(e, Or1D(n, N, s*oedge[e]));
    }
 
    inline int FC(const int f, const int m, const int n,
@@ -1456,18 +1456,13 @@ inline int NURBSPatchMap::operator()(const int i, const int j) const
    switch (3*F(j1, J) + F(i1, I))
    {
       case 0: return verts[0];
-      // TODO: refactor with EC?
-      case 1: return !edgeMaster[0] ? edges[0] + Or1D(i1, I, oedge[0]) :
-                        GetMasterEdgeDof(0, Or1D(i1, I, oedge[0]));
+      case 1: return EC(0, i1, I);
       case 2: return verts[1];
-      case 3: return !edgeMaster[3] ? edges[3] + Or1D(j1, J, -oedge[3]):
-                        GetMasterEdgeDof(3, Or1D(j1, J, -oedge[3]));
+      case 3: return EC(3, j1, J, -1);
       case 4: return FCP(0, i1, j1, I, J);
-      case 5: return !edgeMaster[1] ? edges[1] + Or1D(j1, J, oedge[1]) :
-                        GetMasterEdgeDof(1, Or1D(j1, J, oedge[1]));
+      case 5: return EC(1, j1, J);
       case 6: return verts[3];
-      case 7: return !edgeMaster[2] ? edges[2] + Or1D(i1, I, -oedge[2]) :
-                        GetMasterEdgeDof(2, Or1D(i1, I, -oedge[2]));  // TODO: refactor with EC(2,i1,I)
+      case 7: return EC(2, i1, I, -1);
       case 8: return verts[2];
    }
 #ifdef MFEM_DEBUG
