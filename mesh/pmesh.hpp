@@ -189,8 +189,9 @@ protected:
                       for each dimension.
        @param[in] tol NURBS geometry deviation tolerance. */
    void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
-   void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12,
-                               const std::string &kvf="") override;
+   void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
+
+   void RefineNURBSWithKVFactors(int rf, const std::string &kvf) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;

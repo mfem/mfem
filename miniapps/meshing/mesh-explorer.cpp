@@ -417,8 +417,9 @@ int main (int argc, char *argv[])
               "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
-              "n) NURBS refinement (uniform or by formula) with a factor\n"
-              "c) NURBS coarsening (uniform or by formula) with a factor\n"
+              "n) NURBS refinement with factors\n"
+              "p) NURBS NC-patch refinement with factors\n"
+              "c) NURBS coarsening with a factor\n"
               "l) refine locally using the region() function\n"
               "r) random refinement with a probability\n"
               "--> " << flush;
@@ -463,26 +464,36 @@ int main (int argc, char *argv[])
                   if (ref_factor <= 1 || ref_factor > 32) { break; }
 
                char input_tol = 'n';
-               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cout << "enter NURBS tolerance? [y/n] --> " << flush;
                cin >> input_tol;
 
                real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
-                  cout << "enter NURBS tolerance ---> " << flush;
+                  cout << "enter NURBS tolerance --> " << flush;
                   cin >> tol;
                }
 
+               mesh->NURBSUniformRefinement(ref_factors, tol);
+               break;
+            }
+            case 'p':
+            {
+               int ref_factor;
+               cout << "enter default refinement factor --> " << flush;
+               cin >> ref_factor;
+               if (ref_factor <= 1 || ref_factor > 32) { break; }
+
                cout << "enter knot vector refinement factor filename? [y/n] ---> " << flush;
-               cin >> input_tol;
+               char input_kvf = 'n';
+               cin >> input_kvf;
                std::string kvf;
-               if (input_tol == 'y')
+               if (input_kvf == 'y')
                {
                   cout << "enter filename ---> " << flush;
                   cin >> kvf;
                }
-
-               mesh->NURBSUniformRefinement(ref_factors, tol, kvf);
+               mesh->RefineNURBSWithKVFactors(ref_factor, kvf);
                break;
             }
             case 'c':
@@ -493,13 +504,13 @@ int main (int argc, char *argv[])
                if (coarsen_factor <= 1 || coarsen_factor > 32) { break; }
 
                char input_tol = 'n';
-               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cout << "enter NURBS tolerance? [y/n] --> " << flush;
                cin >> input_tol;
 
                real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
-                  cout << "enter NURBS tolerance ---> " << flush;
+                  cout << "enter NURBS tolerance --> " << flush;
                   cin >> tol;
                }
 
