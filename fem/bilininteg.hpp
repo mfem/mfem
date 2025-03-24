@@ -2935,7 +2935,7 @@ private:
    Vector pa_data;
    const DofToQuad *trial_maps, *test_maps; ///< Not owned
    const GeometricFactors *geom;            ///< Not owned
-   int dim, ne, nq;
+   int dim, sdim, ne, nq;
    int trial_dofs1D, test_dofs1D, quad1D;
 
 public:
