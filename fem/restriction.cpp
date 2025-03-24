@@ -55,7 +55,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       auto el_t = dynamic_cast<const TensorBasisElement*>(fe);
       auto el_n = dynamic_cast<const NodalFiniteElement*>(fe);
       const Array<int> &fe_dof_map =
-          (el_t) ? el_t->GetDofMap() : el_n->GetLexicographicOrdering();
+         (el_t) ? el_t->GetDofMap() : el_n->GetLexicographicOrdering();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
       dof_map = fe_dof_map.GetData();
    }
