@@ -1018,7 +1018,7 @@ int main(int argc, char *argv[])
    // Fix all boundary nodes, or fix only a given component depending on the
    // boundary attributes of the given mesh.
    // Attributes 1/2/3 correspond to fixed x/y/z components of the node.
-   // Attribute dim+1 corresponds to an entirely fixed node.
+   // Attribute 4 corresponds to an entirely fixed node.
    // All other attributes represent unconstrained boundary nodes.
    if (move_bnd == false)
    {
