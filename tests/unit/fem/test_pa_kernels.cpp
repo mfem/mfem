@@ -188,7 +188,7 @@ void pa_divergence_transpose_testnd(int dim)
    pa_mixed_transpose_test<VectorDivergenceIntegrator>(fes1, fes2);
 }
 
-TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA VectorDivergence", "[PartialAssembly], [GPU]")
 {
    SECTION("2D")
    {
@@ -280,7 +280,7 @@ void pa_gradient_transpose_testnd(int dim, FECType fec_type)
    pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
 }
 
-TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Gradient", "[PartialAssembly], [GPU]")
 {
    auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
                             FECType::L2_INTEGRAL);
@@ -329,7 +329,7 @@ real_t test_nl_convection_nd(int dim)
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [GPU]")
 {
    SECTION("2D")
    {
@@ -371,7 +371,7 @@ real_t test_vector_pa_integrator(int dim)
    return difference;
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
+TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [GPU]")
 {
    SECTION("2D")
    {
@@ -384,7 +384,7 @@ TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
    }
 }
 
-TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [CUDA]")
+TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [GPU]")
 {
    SECTION("2D")
    {
@@ -507,7 +507,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 }
 
 // Basic unit tests for convection
-TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Convection", "[PartialAssembly], [GPU]")
 {
    // prob:
    // - 0: CG,
@@ -533,7 +533,7 @@ TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
 } // test case
 
 // Advanced unit tests for convection
-TEST_CASE("PA Convection advanced", "[PartialAssembly], [MFEMData], [CUDA]")
+TEST_CASE("PA Convection advanced", "[PartialAssembly], [MFEMData], [GPU]")
 {
    if (launch_all_non_regression_tests)
    {
@@ -612,17 +612,17 @@ static void test_pa_integrator()
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("PA Mass", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Mass", "[PartialAssembly], [GPU]")
 {
    test_pa_integrator<MassIntegrator>();
 } // PA Mass test case
 
-TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Diffusion", "[PartialAssembly], [GPU]")
 {
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
 
-TEST_CASE("PA Markers", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Markers", "[PartialAssembly], [GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
@@ -678,7 +678,7 @@ TEST_CASE("PA Markers", "[PartialAssembly], [CUDA]")
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Boundary Mass", "[PartialAssembly], [GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -792,7 +792,7 @@ std::vector<std::string> get_dg_test_meshes()
    return mesh_filenames;
 }
 
-TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA DG Diffusion", "[PartialAssembly], [GPU]")
 {
    const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
    const int order = GENERATE(1, 2);
@@ -809,7 +809,7 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
+TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
 {
    const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
    const int order = GENERATE(1, 2);
