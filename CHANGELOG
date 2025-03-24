@@ -37,6 +37,10 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added capabilities for optimization and adaptation of periodic meshes with
+  TMOP. The internals of TMOP were modified so that the optimization problem is
+  always solved with respect to mesh displacements.
+
 - Added native AD support for numerous TMOP metrics that didn't have first or
   second derivative implementations.
 

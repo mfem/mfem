@@ -2183,7 +2183,11 @@ public:
       integ_order = order;
    }
 
-   // Called with nullptr to unset the x_0 after the problem is solved.
+   /// As the integrator operates on mesh displacements, this function is needed
+   /// to set the initial mesh positions. For periodic meshes, the function is
+   /// called with L2 positions.
+   /// Called with nullptr to unset the x_0 after the problem is solved.
+   // TODO should not be public in mfem 5.0.
    void SetInitialMeshPos(const GridFunction *x0);
 
    /// The TMOP integrals can be computed over the reference element or the
@@ -2334,7 +2338,7 @@ public:
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
-       @param[in] el     Type of FiniteElement.
+       @param[in] el     Type of FiniteElement (TMOP assumes H1 elements).
        @param[in] T      Mesh element transformation.
        @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
    real_t GetElementEnergy(const FiniteElement &el,
@@ -2357,10 +2361,12 @@ public:
                                                ElementTransformation &T,
                                                const Vector &elfun);
 
+   /// First defivative of GetElementEnergy() w.r.t. each local H1 DOF.
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &T,
                               const Vector &d_el, Vector &elvect) override;
 
+   /// Second derivative of GetElementEnergy() w.r.t. each local H1 DOF.
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &T,
                             const Vector &d_el, DenseMatrix &elmat) override;

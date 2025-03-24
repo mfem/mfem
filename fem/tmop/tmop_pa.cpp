@@ -184,12 +184,16 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
-   Vector x_loc(*x_0);
+   Vector x_loc;
    if (periodic)
    {
       GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
    }
-   else { x_loc += d_loc; }
+   else
+   {
+      x_loc.SetSize(x_0->Size());
+      add(*x_0, d_loc, x_loc);
+   }
 
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }

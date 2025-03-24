@@ -5235,6 +5235,8 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
+   MFEM_VERIFY(periodic == false, "Periodic not implemented yet.");
+
    if (!surf_fit_gf) { return; }
 
    if (surf_fit_marker_dof_index.Size())
@@ -5370,16 +5372,20 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    // Update the finite difference delta if FD are used.
    if (fdflag) { ComputeFDh(d, d_fes); }
 
+   Vector x_loc;
+   if (periodic)
+   {
+      GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
+   }
+   else
+   {
+      x_loc.SetSize(x_0->Size());
+      add(*x_0, d, x_loc);
+   }
+
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
    {
-      Vector x_loc(*x_0);
-      if (periodic)
-      {
-         GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
-      }
-      else { x_loc += d; }
-
       discr_tc->UpdateTargetSpecification(x_loc, true, ordering);
       if (fdflag)
       {
@@ -5392,13 +5398,6 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      Vector x_loc(*x_0);
-      if (periodic)
-      {
-         GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
-      }
-      else { x_loc += d; }
-
       adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
    }
 
@@ -5406,11 +5405,6 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    // fitting is enabled.
    if (surf_fit_gf)
    {
-      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
-
-      Vector x_loc(*x_0);
-      x_loc += d;
-
       RemapSurfaceFittingLevelSetAtNodes(x_loc, ordering);
    }
 }

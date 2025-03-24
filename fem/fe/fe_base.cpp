@@ -976,6 +976,7 @@ void NodalFiniteElement::ProjectDiv(
 void NodalFiniteElement::ReorderLexToNative(int ncomp,
                                             Vector &dofs) const
 {
+   MFEM_ASSERT(lex_ordering.Size() == dof, "Permutation is not defined by FE.");
    MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
 
    Vector dofs_native(ncomp * dof);
