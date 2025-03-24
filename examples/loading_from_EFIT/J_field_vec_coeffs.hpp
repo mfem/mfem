@@ -33,6 +33,33 @@ public:
    }
 };
 
+/// @brief Input $\Psi$ and return $1/r \nabla \Psi_r$
+class GradPsiOverRRComponentGridFunctionCoefficient : public Coefficient
+{
+private:
+   const bool flip_sign;
+   GradientGridFunctionCoefficient grad_psi_coef;
+
+public:
+   GradPsiOverRRComponentGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : Coefficient(), flip_sign(flip_sign), grad_psi_coef(gf)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      Vector grad_psi;
+      grad_psi_coef.Eval(grad_psi, T, ip);
+      return grad_psi[0] / (1e-14 + r) * (flip_sign ? -1 : 1);
+   }
+};
+
+
 /// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
 class BTorVectorGridFunctionCoefficient : public VectorCoefficient
 {
