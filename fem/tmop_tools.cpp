@@ -1084,6 +1084,7 @@ void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
                           const FiniteElementSpace &fesL2,
                           const FiniteElementSpace &fesH1, Vector &x)
 {
+   x = x_0;
    Vector dx_r(x.Size());
    const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
    auto R_H1 = fesH1.GetElementRestriction(ord);
