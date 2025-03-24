@@ -65,6 +65,7 @@
 //
 //   Periodic 2D + adapted discrete size:
 //     mesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
+//     mesh-optimizer -m periodic-tri.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
 //   Periodic 3D + adapted discrete size + PA:
 //     mesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
 //   Periodic 2D NC mesh + adapted discrete size + PA:
