@@ -40,11 +40,16 @@ SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
 CUDA_MAIN_OBJ = cunit_test_main.o
 PCUDA_MAIN_OBJ = pcunit_test_main.o
+HIP_MAIN_OBJ = hunit_test_main.o
+PHIP_MAIN_OBJ = phunit_test_main.o
+GPU_MAIN_OBJ = gpu_unit_test_main.o
+PGPU_MAIN_OBJ = pgpu_unit_test_main.o
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 
 USE_CUDA := $(MFEM_USE_CUDA:NO=)
+USE_HIP := $(MFEM_USE_HIP:NO=)
 SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
 SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda)
 SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda_uvm)
@@ -80,9 +85,9 @@ PAR_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
 # seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(if $(USE_CUDA),cunit_tests)
+SEQ_UNIT_TESTS = unit_tests $(if $(USE_CUDA),cunit_tests gpu_unit_tests) $(if $(USE_HIP),hunit_tests gpu_unit_tests)
 SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
-PAR_UNIT_TESTS = punit_tests $(if $(USE_CUDA),pcunit_tests)
+PAR_UNIT_TESTS = punit_tests $(if $(USE_CUDA),pcunit_tests pgpu_unit_tests) $(if $(USE_HIP),phunit_tests pgpu_unit_tests)
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
 # Ceed tests
@@ -119,6 +124,19 @@ cunit_tests: $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA
 
 pcunit_tests: $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+hunit_tests: $(HIP_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(HIP_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+phunit_tests: $(PHIP_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PHIP_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+
+gpu_unit_tests: $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+pgpu_unit_tests: $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)

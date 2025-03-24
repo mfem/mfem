@@ -172,7 +172,7 @@ void test_assembly_level(const char *meshname,
    delete fec;
 }
 
-TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
+TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -228,7 +228,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
    }
 } // H1 Assembly Levels test case
 
-TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
+TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
 {
    const bool dg = true;
    auto pb = GENERATE(Problem::Mass, Problem::Convection);
@@ -438,7 +438,7 @@ void TestH1FullAssembly(Mesh &mesh, int order)
    REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
+TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [GPU]")
 {
    auto order = GENERATE(1, 2, 3);
    auto mesh_fname = GENERATE(
@@ -449,7 +449,7 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
    TestH1FullAssembly(mesh, order);
 }
 
-TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [CUDA]")
+TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [GPU]")
 {
    const int order = GENERATE(1, 2, 3);
    const int ne = GENERATE(4, 8, 16, 32);
@@ -479,7 +479,7 @@ TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [CUDA]")
    TestH1FullAssembly(mesh, order);
 }
 
-TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
+TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
 {
    auto order = GENERATE(1, 2, 3);
    auto mesh_fname = GENERATE(
