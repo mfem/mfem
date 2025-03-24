@@ -34,19 +34,27 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(psi.FESpace(), &fespace);
-   // ConstantCoefficient neg_one(-1.0);
-   OneOverRGridFunctionCoefficient neg_one(true);
+   ConstantCoefficient neg_one(-1.0);
    b_bi.AddDomainIntegrator(new MixedGradGradIntegrator(neg_one));
+
+   GradPsiOverRRComponentGridFunctionCoefficient grad_psi_over_r_coef(&psi, true);
+   b_bi.AddDomainIntegrator(new MixedScalarMassIntegrator(grad_psi_over_r_coef));
+
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
    LinearForm b(&fespace);
-   b_bi.Mult(psi, b);
+
+   LinearForm b_li(&fespace);
+   b_bi.Mult(psi, b_li);
+   GradientGridFunctionCoefficient grad_psi_coef(&psi);
+   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(grad_psi_coef));
+   b.Assemble();
+   b += b_li;
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   // RGridFunctionCoefficient r_coef;
-   ConstantCoefficient r_coef(1.0);
+   RGridFunctionCoefficient r_coef;
    a.AddDomainIntegrator(new MassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();
@@ -54,7 +62,7 @@ int main(int argc, char *argv[])
    // 3. solve the system
    CGSolver M_solver;
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-24);
+   M_solver.SetRelTol(1e-32);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(1e5);
    M_solver.SetPrintLevel(1);
