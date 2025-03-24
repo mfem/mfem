@@ -1172,6 +1172,7 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
       {
          f->Mult(x, dxdt, state[0]);
       }
+      state.Increment();
    }
    f->SetTime(t + dt);
 
