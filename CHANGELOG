@@ -35,6 +35,15 @@ Discretization improvements
   (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
   are implemented. [PR #4669]
 
+- Added arbitrary order basis functions (H1, H(curl), H(div), and L2) on
+  pyramid-shaped elements based on the paper "Orientation embedded high order
+  shape functions for the exact sequence elements of all shapes" by Federico
+  Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram Nagaraj,
+  see https://doi.org/10.1016/j.camwa.2015.04.027.
+
+- Added arbitrary order H1 and L2 positive basis functions utilizing Bernstein
+  polynomials on pyramid-shaped elements.
+
 Meshing improvements
 --------------------
 - Added native AD support for numerous TMOP metrics that didn't have first or
