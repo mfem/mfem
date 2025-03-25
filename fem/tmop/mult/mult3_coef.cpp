@@ -11,10 +11,11 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
-#include "../../kernels_smem.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
+
+using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -38,62 +39,53 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto *bld_ptr = (const real_t*) bld;
+   const auto *b_ptr = (const real_t*) b;
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED real_t B[MQ1 * MD1];
-      MFEM_SHARED real_t sBLD[MQ1 * MD1];
-      kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, bld, sBLD);
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1];
+      regs::LoadMatrix(D1D, Q1D, bld_ptr, sB);
 
-      MFEM_SHARED real_t sm0[MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[MDQ * MDQ * MDQ];
+      regs::regs5d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      regs::LoadDofs3d(e, D1D, LD, rm0);
+      regs::Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
 
-      MFEM_SHARED real_t s00[3][MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t s01[3][MDQ * MDQ * MDQ];
+      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
 
-      MFEM_SHARED real_t s10[3][MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t s11[3][MDQ * MDQ * MDQ];
+      regs::regs5d_t<3,1,MQ1> r00, r01; // vector X0
+      regs::LoadDofs3d(e, D1D, X0, r00);
+      regs::Eval3d(D1D, Q1D, smem, sB, r00, r01);
 
-      kernels::internal::sm::LoadX<MDQ>(e, D1D, LD, sm0);
-      kernels::internal::sm::LoadX<MDQ>(e, D1D, X0, s00);
-      kernels::internal::sm::LoadX<MDQ>(e, D1D, X1, s10);
+      regs::regs5d_t<3,1,MQ1> r10, r11; // vector X1
+      regs::LoadDofs3d(e, D1D, X1, r10);
+      regs::Eval3d(D1D, Q1D, smem, sB, r10, r11);
 
-      kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, b, B);
-
-      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, sBLD, sm0, sm1);
-      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, sBLD, sm1, sm0);
-      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, sBLD, sm0, sm1);
-
-      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, B, s00, s01);
-      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, B, s01, s00);
-      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, B, s00, s01);
-
-      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, B, s10, s11);
-      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, B, s11, s10);
-      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, B, s10, s11);
-
-      MFEM_FOREACH_THREAD(qz, z, Q1D)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         mfem::foreach_y_thread(Q1D, [&](int qy)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            mfem::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
-
-               real_t D, p0[3], p1[3];
-               const real_t coeff0 =
-                  const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
-               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, sm1, D);
-               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, s01, p0);
-               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, s11, p1);
+               const real_t D = rm1(0, 0, qz, qy, qx);
+               const real_t p0[3] = { r01(0, 0, qz, qy, qx),
+                                      r01(1, 0, qz, qy, qx),
+                                      r01(2, 0, qz, qy, qx)
+                                    };
+               const real_t p1[3] = { r11(0, 0, qz, qy, qx),
+                                      r11(1, 0, qz, qy, qx),
+                                      r11(2, 0, qz, qy, qx)
+                                    };
+               const real_t coeff0 = const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
 
                real_t d1[3];
                // Eval_d1 (Quadratic Limiter)
@@ -121,15 +113,15 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                }
 
                kernels::Subtract<3>(w * a, p1, p0, d1);
-               kernels::internal::sm::PushEval<MDQ>(Q1D, qx, qy, qz, d1, s00);
-            }
-         }
+               r00(0,0, qz,qy,qx) = d1[0];
+               r00(0,1, qz,qy,qx) = d1[1];
+               r00(0,2, qz,qy,qx) = d1[2];
+            });
+         });
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::LoadBt<MD1, MQ1>(D1D, Q1D, b, B);
-      kernels::internal::sm::EvalXt<MD1, MQ1>(D1D, Q1D, B, s00, s01);
-      kernels::internal::sm::EvalYt<MD1, MQ1>(D1D, Q1D, B, s01, s00);
-      kernels::internal::sm::EvalZt<MD1, MQ1>(D1D, Q1D, B, s00, Y, e);
+      regs::EvalTranspose3d(D1D, Q1D, smem, sB, r00, r01);
+      regs::WriteDofs3d(e, D1D, r01, Y);
    });
 }
 

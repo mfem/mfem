@@ -85,10 +85,10 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
                                       r01(1, 0, qz, qy, qx),
                                       r01(2, 0, qz, qy, qx)
                                     };
-               real_t p1[3] = { r11(0, 0, qz, qy, qx),
-                                r11(1, 0, qz, qy, qx),
-                                r11(2, 0, qz, qy, qx)
-                              };
+               const real_t p1[3] = { r11(0, 0, qz, qy, qx),
+                                      r11(1, 0, qz, qy, qx),
+                                      r11(2, 0, qz, qy, qx)
+                                    };
 
                const real_t dist = D; // GetValues, default comp set to 0
 

@@ -59,11 +59,11 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
       regs::Eval2d(D1D, Q1D, smem, sB, rm0, rm1);
 
       regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
-      regs::regs4d_t<3,1,MQ1> r00, r01; // vector X0
+      regs::regs4d_t<2,1,MQ1> r00, r01; // vector X0
       regs::LoadDofs2d(e, D1D, X0, r00);
       regs::Eval2d(D1D, Q1D, smem, sB, r00, r01);
 
-      regs::regs4d_t<3,1,MQ1> r10, r11; // vector X1
+      regs::regs4d_t<2,1,MQ1> r10, r11; // vector X1
       regs::LoadDofs2d(e, D1D, X1, r10);
       regs::Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
