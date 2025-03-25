@@ -143,7 +143,7 @@ void KnotVector::UniformRefinement(Vector &newknots, int rf) const
       {
          for (int m = 1; m < rf; ++m)
          {
-            newknots(j) = m * h * (knot(i) + knot(i+1));
+            newknots(j) = ((1.0 - (m * h)) * knot(i)) + (m * h * knot(i+1));
             j++;
          }
       }
