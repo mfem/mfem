@@ -29,8 +29,13 @@ CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
 
    //plasma
 
-   const bool dg = u_space->FEColl()->GetContType() ==
-                   FiniteElementCollection::DISCONTINUOUS;
+   const int dim = u_space->GetMesh()->Dimension();
+   const bool fec_disc = (u_space->FEColl()->GetContType() ==
+                          FiniteElementCollection::DISCONTINUOUS);
+   const bool fec_vec = (u_space->FEColl()->GetRangeType(dim) ==
+                         FiniteElement::VECTOR);
+   const bool dg = (fec_disc && !fec_vec);
+   const bool brt = (fec_disc && fec_vec);
 
    if (!dg)
    {
@@ -66,6 +71,13 @@ CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
    else
    {
       Du->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+      if (brt)
+      {
+         Du->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                          new DGNormalTraceIntegrator(-1.)));
+         Du->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                             -1.)), const_cast<Array<int>&>(bdr_u_is_ess));
+      }
    }
 
    if (dg && td > 0.)

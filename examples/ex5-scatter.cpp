@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
    real_t sy = 1.;
    int order = 1;
    bool dg = false;
-   //bool upwinded = false;
+   bool brt = false;
    int iproblem = Problem::WaveDumping;
    real_t tf = 1.;
    int nt = 0;
@@ -132,8 +132,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
-   //args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
-   //               "Switches between upwinded (1) and centered (0=default) stabilization.");
+   args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
+                  "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
                   "1=dumping\n\t\t"
@@ -309,13 +309,18 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *V_coll;
+   FiniteElementCollection *V_coll, *V_coll_dg = NULL;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
       V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else if (brt)
+   {
+      V_coll = new BrokenRT_FECollection(order, dim);
+      V_coll_dg = new L2_FECollection(order+1, dim);
    }
    else
    {
@@ -329,6 +334,8 @@ int main(int argc, char *argv[])
 
    FiniteElementSpace *V_space = new FiniteElementSpace(mesh, V_coll,
                                                         (dg)?(dim):(1));
+   FiniteElementSpace *V_space_dg = (V_coll_dg)?(new FiniteElementSpace(
+                                                    mesh, V_coll_dg, dim)):(NULL);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
    FiniteElementSpace *E_space = new FiniteElementSpace(mesh, E_coll);
    FiniteElementSpace *B_space = new FiniteElementSpace(mesh, B_coll);
@@ -354,6 +361,7 @@ int main(int argc, char *argv[])
    auto nFun = GetNFun(problem, t_0, k, c);
    FunctionCoefficient ncoeff(nFun); //density
    SumCoefficient gcoeff(0., ncoeff, 1., -1.); //boundary velocity rhs
+   ProductCoefficient ghcoeff(0.5, gcoeff);
 
    auto fFun = GetFFun(problem, t_0, k, c);
    FunctionCoefficient fcoeff(fFun); //density rhs
@@ -423,7 +431,7 @@ int main(int argc, char *argv[])
       n_h.ProjectCoefficient(ncoeff); //initial condition
    }
 
-   if (!dg)
+   if (!dg && !brt)
    {
       u_h.ProjectBdrCoefficientNormal(ucoeff,
                                       bdr_u_is_neumann);   //essential Neumann BC
@@ -443,8 +451,21 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                   bdr_u_is_dirichlet);
+      if (brt)
+      {
+         gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                     bdr_u_is_dirichlet);
+         if (!hybridization)
+         {
+            gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(
+                                           ghcoeff), bdr_u_is_neumann);
+         }
+      }
+      else
+      {
+         gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                      bdr_u_is_dirichlet);
+      }
    }
 
    LinearForm *fform(new LinearForm);
@@ -452,7 +473,7 @@ int main(int argc, char *argv[])
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
    //Neumann
-   if (!hybridization && dg)
+   if (!hybridization && (dg || brt))
    {
       fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, ucoeff, +1., 0.),
                                   bdr_u_is_neumann);
@@ -514,7 +535,7 @@ int main(int argc, char *argv[])
 
       real_t t = tf * ti / nt;
 
-      if (!dg)
+      if (!dg && !brt)
       {
          ucoeff.SetTime(t);
          u_h.ProjectBdrCoefficientNormal(ucoeff,
@@ -557,6 +578,20 @@ int main(int argc, char *argv[])
          cout << "|| n_h - n_ex || / || n_ex || = " << err_n / norm_n << "\n";
       }
 
+      // Project the broken space
+
+      GridFunction u_v;
+      if (V_space_dg)
+      {
+         VectorGridFunctionCoefficient coeff(&u_h);
+         u_v.SetSpace(V_space_dg);
+         u_v.ProjectCoefficient(coeff);
+      }
+      else
+      {
+         u_v.MakeRef(V_space, u_h, 0);
+      }
+
       // Project the analytic solution
 
       static GridFunction u_a, n_a, c_gf;
@@ -587,7 +622,7 @@ int main(int argc, char *argv[])
          ss << ".gf";
          ofstream q_ofs(ss.str());
          q_ofs.precision(8);
-         u_h.Save(q_ofs);
+         u_v.Save(q_ofs);
 
          ss.str("");
          ss << "sol_t";
@@ -647,7 +682,7 @@ int main(int argc, char *argv[])
          const int  visport   = 19916;
          static socketstream u_sock(vishost, visport);
          u_sock.precision(8);
-         u_sock << "solution\n" << *mesh << u_h << endl;
+         u_sock << "solution\n" << *mesh << u_v << endl;
          if (ti == 0)
          {
             u_sock << "window_title 'Velocity'" << endl;
@@ -707,11 +742,13 @@ int main(int argc, char *argv[])
    delete hform;
    delete W_space;
    delete V_space;
+   delete V_space_dg;
    delete E_space;
    delete B_space;
    delete trace_space;
    delete W_coll;
    delete V_coll;
+   delete V_coll_dg;
    delete E_coll;
    delete B_coll;
    delete trace_coll;
