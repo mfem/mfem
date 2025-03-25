@@ -102,6 +102,7 @@ ex5-nguyen: darcyop.o
 ex5p-nguyen: darcyop.o
 ex5-plasma: darcyop.o
 ex5-aniso: darcyop.o
+ex5-scatter: coupledop.o
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp
