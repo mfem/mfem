@@ -11,11 +11,11 @@
 #pragma once
 
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
 #include "../../kernels_regs.hpp"
-using namespace mfem::kernels::internal;
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
+
+using namespace mfem::kernels::internal;
 
 namespace mfem
 {

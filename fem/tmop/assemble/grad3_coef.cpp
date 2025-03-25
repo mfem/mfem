@@ -11,11 +11,10 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
-#include "../../kernels_smem.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-#include "../../kernels_regs.hpp"
+
 using namespace mfem::kernels::internal;
 
 namespace mfem
@@ -40,15 +39,13 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    const auto *b_ptr = (const real_t*) b;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 

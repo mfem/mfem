@@ -115,7 +115,24 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// last default argument allowes device compilation inference
+// last default argument used for device compilation inference
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e,
+                                        const int d1d,
+                                        const DeviceTensor<3, const real_t> &X,
+                                        regs4d_t<VDIM, DIM, MQ1> &Y)
+{
+   mfem::foreach_y_thread(d1d, [&](int dy)
+   {
+      mfem::foreach_x_thread(d1d, [&](int dx)
+      {
+         Y[0][0][dy][dx] = X(dx,dy,e);
+      });
+   });
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// last default argument used for device compilation inference
 template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e,
                                         const int d1d,
@@ -276,6 +293,25 @@ void Contract2d(const int d1d, const int q1d,
       Copy2d<MD1, MQ1>(d1d, q1d, X, Y);
       ContractY2d<MD1, MQ1, true>(d1d, q1d, smem, By, Y, X);
       ContractX2d<MD1, MQ1, true>(d1d, q1d, smem, Bx, X, Y);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <int VDIM, int DIM, int MD1, int MQ1, bool transpose = false>
+inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (&B)[MD1][MQ1],
+                                    regs4d_t<VDIM, DIM, MQ1> &X,
+                                    regs4d_t<VDIM, DIM, MQ1> &Y)
+{
+   for (int c = 0; c < VDIM; c++)
+   {
+      for (int d = 0; d < DIM; d++)
+      {
+         Contract2d<MD1, MQ1, transpose>(d1d, q1d,
+                                         smem, B, B,
+                                         X[c][d], Y[c][d]);
+      }
    }
 }
 
