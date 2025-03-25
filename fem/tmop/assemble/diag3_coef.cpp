@@ -24,11 +24,11 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
                                    const ConstDeviceMatrix &B,
                                    const DeviceTensor<6, const real_t> &H0,
                                    DeviceTensor<5> &D,
-                                   const int d1d,
-                                   const int q1d)
+                                   const int _d1d,
+                                   const int _q1d)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = T_D1D ? T_D1D : _d1d;
+   const int Q1D = T_Q1D ? T_Q1D : _q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
 
@@ -37,6 +37,7 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
       constexpr int DIM = 3;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
+      MFEM_SHARED real_t smem[MQ1][MQ1];
       regs::regs3d_t<MQ1> r0, r1;
 
       for (int v = 0; v < DIM; ++v)
@@ -63,6 +64,15 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
          // second tensor contraction, along y direction
          for (int dz = 0; dz < D1D; ++dz)
          {
+            mfem::foreach_y_thread(Q1D, [&](int qy)
+            {
+               mfem::foreach_x_thread(Q1D, [&](int qx)
+               {
+                  smem[qy][qx] = r0[dz][qy][qx];
+               });
+            });
+            MFEM_SYNC_THREAD;
+
             mfem::foreach_y_thread(D1D, [&](int dy)
             {
                mfem::foreach_x_thread(Q1D, [&](int qx)
@@ -71,7 +81,7 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      const real_t By = B(qy, dy);
-                     u += By * r0[dz][qy][qx] * By;
+                     u += By * smem[qy][qx] * By;
                   }
                   r1[dz][dy][qx] = u;
                });
@@ -84,13 +94,22 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
          {
             mfem::foreach_y_thread(D1D, [&](int dy)
             {
+               mfem::foreach_x_thread(Q1D, [&](int qx)
+               {
+                  smem[dy][qx] = r1[dz][dy][qx];
+               });
+            });
+            MFEM_SYNC_THREAD;
+
+            mfem::foreach_y_thread(D1D, [&](int dy)
+            {
                mfem::foreach_x_thread(D1D, [&](int dx)
                {
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const real_t Bx = B(qx, dx);
-                     u += Bx * r1[dz][dy][qx] * Bx;
+                     u += Bx * smem[dy][qx] * Bx;
                   }
                   D(dx, dy, dz, v, e) += u;
                });
