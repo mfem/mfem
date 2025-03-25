@@ -11,11 +11,12 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
-#include "../../kernels_smem.hpp"
 #include "../../gridfunc.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
+
+using namespace mfem::kernels::internal;
 
 using namespace mfem;
 
@@ -64,41 +65,44 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto *b = (const real_t*) B, *g = (const real_t*) G;
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 3;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      constexpr int DIM = 3, VDIM = 3;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
-      MFEM_SHARED real_t sBG[2][MQ1 * MD1];
-      MFEM_SHARED real_t sm0[9][MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[9][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+      regs::regs5d_t<VDIM, DIM, MQ1> r0, r1;
 
-      kernels::internal::sm::LoadX<MDQ>(e, D1D, X, sm0);
-      kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, sBG);
+      regs::LoadMatrix(D1D, Q1D, b, sB);
+      regs::LoadMatrix(D1D, Q1D, g, sG);
 
-      kernels::internal::sm::GradX<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
-      kernels::internal::sm::GradY<MD1, MQ1>(D1D, Q1D, sBG, sm1, sm0);
-      kernels::internal::sm::GradZ<MD1, MQ1>(D1D, Q1D, sBG, sm0, sm1);
+      regs::LoadDofs3d(e, D1D, X, r0);
+      regs::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-      MFEM_FOREACH_THREAD(qz, z, Q1D)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         mfem::foreach_y_thread(Q1D, [&](int qy)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            mfem::foreach_x_thread(Q1D, [&](int qx)
             {
-               real_t Jtr[9];
                const real_t *Wid = &W(0, 0);
-               kernels::internal::PullGrad<MDQ>(Q1D, qx, qy, qz, sm1, Jtr);
+               const real_t Jtr[9] =
+               {
+                  r1(0, 0, qz, qy, qx), r1(1, 0, qz, qy, qx), r1(2, 0, qz, qy, qx),
+                  r1(0, 1, qz, qy, qx), r1(1, 1, qz, qy, qx), r1(2, 1, qz, qy, qx),
+                  r1(0, 2, qz, qy, qx), r1(1, 2, qz, qy, qx), r1(2, 2, qz, qy, qx)
+               };
                const real_t detJ = kernels::Det<3>(Jtr);
                const real_t alpha = std::pow(detJ / detW, 1. / 3);
                kernels::Set(DIM, DIM, alpha, Wid, &J(0, 0, qx, qy, qz, e));
-            }
-         }
+            });
+         });
       }
    });
 }

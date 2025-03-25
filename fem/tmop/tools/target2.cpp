@@ -11,10 +11,12 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
 #include "../../gridfunc.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
+
+using namespace mfem::kernels::internal;
 
 using namespace mfem;
 
@@ -27,20 +29,19 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
                                   DeviceTensor<5> &J,
                                   const int q1d)
 {
-   constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      mfem::foreach_y_thread(Q1D, [&](int qy)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         mfem::foreach_x_thread(Q1D, [&](int qx)
          {
             kernels::Set(DIM, DIM, 1.0, &W(0, 0), &J(0, 0, qx, qy, e));
-         }
-      }
+         });
+      });
    });
 }
 
@@ -55,41 +56,42 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
                                    const int d1d,
                                    const int q1d)
 {
-   constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2, NBZ = 1;
+      constexpr int DIM = 2, VDIM = 2;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
 
-      MFEM_SHARED real_t BG[2][MQ1 * MD1];
-      MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
-      MFEM_SHARED real_t DQ[4][NBZ][MD1 * MQ1];
-      MFEM_SHARED real_t QQ[4][NBZ][MQ1 * MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+      regs::regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-      kernels::internal::LoadX<MD1, NBZ>(e, D1D, X, XY);
-      kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
+      regs::LoadMatrix(D1D, Q1D, B, sB);
+      regs::LoadMatrix(D1D, Q1D, G, sG);
 
-      kernels::internal::GradX<MD1, MQ1, NBZ>(D1D, Q1D, BG, XY, DQ);
-      kernels::internal::GradY<MD1, MQ1, NBZ>(D1D, Q1D, BG, DQ, QQ);
+      regs::LoadDofs2d(e, D1D, X, r0);
+      regs::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      mfem::foreach_y_thread(Q1D, [&](int qy)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         mfem::foreach_x_thread(Q1D, [&](int qx)
          {
-            real_t Jtr[4];
             const real_t *Wid = &W(0, 0);
-            kernels::internal::PullGrad<MQ1, NBZ>(Q1D, qx, qy, QQ, Jtr);
+            const real_t Jtr[4] =
+            {
+               r1[0][0][qy][qx], r1[1][0][qy][qx],
+               r1[0][1][qy][qx], r1[1][1][qy][qx]
+            };
             const real_t detJ = kernels::Det<2>(Jtr);
             const real_t alpha = std::pow(detJ / detW, 1. / 2);
             kernels::Set(DIM, DIM, alpha, Wid, &J(0, 0, qx, qy, e));
-         }
-      }
+         });
+      });
    });
 }
 
