@@ -36,6 +36,8 @@ class CoupledOperator : public TimeDependentOperator
       Array<int> offsets, offsets_x;
       Coefficient *sigma;
       DarcyForm *darcy;
+      BlockVector *darcy_rhs{};
+      Vector darcy_rhs_lin;
       FiniteElementSpace *fes_E;
       OperatorHandle op;
       Array<int> ess_tdofs_list;
@@ -48,6 +50,7 @@ class CoupledOperator : public TimeDependentOperator
 
       void SetEssentialTDOFs(const Array<int> &u_tdofs_list,
                              const Array<int> &E_tdofs_list);
+      void SetDarcyRHS(BlockVector &rhs) { darcy_rhs = &rhs; darcy_rhs_lin = rhs; }
       void EliminateRHS(const Vector &x, Vector &b) const;
 
       void Mult(const Vector &x, Vector &y) const override;

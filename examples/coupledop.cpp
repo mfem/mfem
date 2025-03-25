@@ -359,6 +359,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    {
       Array<int> ess_tr_tdofs_list;//dummy
       bop.SetEssentialTDOFs(ess_tr_tdofs_list, ess_E_tdofs_list);
+      bop.SetDarcyRHS(darcy_rhs);
    }
    else
    {
@@ -382,6 +383,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    newton.SetRelTol(1e-5);
    newton.SetOperator(bop);
    newton.SetSolver(solver);
+   newton.SetPrintLevel(1);
 
    if (time_track)
    {
@@ -546,11 +548,23 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
 {
    op->Mult(x, y);
 
-   //TODO: hybridization
-   if (darcy->GetHybridization()) { return; }
+   const bool hybr = darcy->GetHybridization() != NULL;
 
    BlockVector bx(const_cast<Vector&>(x), offsets_x);
    BlockVector by(const_cast<Vector&>(y), offsets_x);
+   BlockVector darcy_x;
+
+   if (hybr)
+   {
+      darcy_x.Update(darcy->GetOffsets());
+      darcy->GetHybridization()->ComputeSolution(*darcy_rhs, x, darcy_x);
+      darcy_rhs->Vector::operator=(darcy_rhs_lin);
+   }
+
+   const Vector &xn = ((hybr)?(darcy_x):(bx)).GetBlock(1);
+   const Vector &xE = bx.GetBlock((hybr)?(1):(2));
+   Vector &yu = ((hybr)?(*darcy_rhs):(by)).GetBlock(0);
+   Vector &yE = by.GetBlock((hybr)?(1):(2));
 
    Mesh *mesh = fes_E->GetMesh();
    FiniteElementSpace *fes_u = darcy->FluxFESpace();
@@ -588,8 +602,8 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
       bu_z = 0.;
       bE_z = 0.;
 
-      bx.GetBlock(1).GetSubVector(dofs_n, n_z);
-      bx.GetBlock(2).GetSubVector(vdofs_E, E_z);
+      xn.GetSubVector(dofs_n, n_z);
+      xE.GetSubVector(vdofs_E, E_z);
 
       const int order = std::max(fe_E->GetOrder(), fe_n->GetOrder()) * 2 + 1;
       const IntegrationRule &ir = IntRules.Get(fe_n->GetGeomType(), order);
@@ -625,14 +639,28 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
          bE_z.Add(w, shape_E);
       }
 
-      by.GetBlock(0).AddElementVector(vdofs_u, bu_z);
-      by.GetBlock(2).AddElementVector(vdofs_E, bE_z);
+      if (hybr) { bu_z.Neg(); bE_z.Neg(); }
+
+      yu.AddElementVector(vdofs_u, bu_z);
+      yE.AddElementVector(vdofs_E, bE_z);
+   }
+
+   if (hybr)
+   {
+      BlockVector darcy_Xrhs(darcy->GetOffsets());
+      add(darcy_rhs_lin, -1., *darcy_rhs, darcy_Xrhs);
+      darcy->GetHybridization()->ReduceRHS(darcy_Xrhs, by.GetBlock(0));
    }
 }
 
 Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
 {
-   MFEM_ASSERT(!darcy->GetHybridization(), "Not implemented");
+   if (darcy->GetHybridization())
+   {
+      //TODO: coupling terms
+      return const_cast<Operator&>(*op);
+   }
+
    grad.Clear();
 
    FiniteElementSpace *fes_u = darcy->FluxFESpace();
