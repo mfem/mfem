@@ -78,8 +78,8 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
             const real_t weight_m = weight * lim_normal * coeff0;
 
             const real_t D = rm1(0, 0, qy, qx);
-            const real_t p0[2] = { r01[0][0][qy][qx], r01[1][0][qy][qx] };
-            const real_t p1[2] = { r11[0][0][qy][qx], r11[1][0][qy][qx] };
+            const real_t p0[2] = { r01(0, 0, qy, qx), r01(1, 0, qy, qx) };
+            const real_t p1[2] = { r11(0, 0, qy, qx), r11(1, 0, qy, qx) };
 
             const real_t dist = D; // GetValues, default comp set to 0
 

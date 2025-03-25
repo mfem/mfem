@@ -145,8 +145,10 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e,
       {
          mfem::foreach_x_thread(d1d, [&](int dx)
          {
-            Y[c][0][dy][dx] = X(dx,dy,c,e);
-            Y[c][1][dy][dx] = X(dx,dy,c,e);
+            for (int d = 0; d < DIM; d++)
+            {
+               Y[c][d][dy][dx] = X(dx,dy,c,e);
+            }
          });
       });
    }
