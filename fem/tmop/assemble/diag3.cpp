@@ -34,21 +34,9 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      // This kernel uses its own CUDA/ROCM limits: compile time values:
-#if defined(__CUDA_ARCH__)
-      constexpr int MAX_D1D = 6;
-      constexpr int MAX_Q1D = 7;
-#elif defined(__HIP_DEVICE_COMPILE__)
-      constexpr int MAX_D1D = 7;
-      constexpr int MAX_Q1D = 7;
-#else
-      constexpr int MAX_D1D = DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MAX_Q1D = DofQuadLimits::MAX_TMOP_1D;
-#endif
-
       constexpr int DIM = 3;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t bg[2 * MQ1 * MD1];
       DeviceMatrix B_sm(bg, MQ1, MD1);
