@@ -2847,17 +2847,18 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    DenseMatrix &elmat)
 {
    dim  = trial_fe.GetDim();
+   sdim = Trans.GetSpaceDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
    real_t c;
 
    dshape.SetSize (trial_dof, dim);
-   gshape.SetSize (trial_dof, dim);
-   Jadj.SetSize (dim);
-   divshape.SetSize (dim*trial_dof);
+   gshape.SetSize (trial_dof, sdim);
+   Jadj.SetSize (dim, sdim);
+   divshape.SetSize (sdim*trial_dof);
    shape.SetSize (test_dof);
 
-   elmat.SetSize (test_dof, dim*trial_dof);
+   elmat.SetSize (test_dof, sdim*trial_dof);
 
    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
 
@@ -2871,13 +2872,15 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
       trial_fe.CalcDShape (ip, dshape);
       test_fe.CalcPhysShape (Trans, shape);
 
+      // AdjugateJacobian = / adj(J),         if J is square
+      //                    \ adj(J^t.J).J^t, otherwise
       CalcAdjugate(Trans.Jacobian(), Jadj);
-
       Mult (dshape, Jadj, gshape);
 
       gshape.GradToDiv (divshape);
 
       c = ip.weight;
+      if (dim != sdim) { c /= Trans.Weight(); }
       if (Q)
       {
          c *= Q -> Eval (Trans, ip);

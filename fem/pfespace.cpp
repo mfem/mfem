@@ -731,8 +731,7 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
    // Combine results
    int loc_nd_strias = strias ? 1 : 0;
    int glb_nd_strias = 0;
-   MPI_Allreduce(&loc_nd_strias, &glb_nd_strias, 1,
-                 MPI_INTEGER, MPI_SUM, MyComm);
+   MPI_Allreduce(&loc_nd_strias, &glb_nd_strias, 1, MPI_INT, MPI_SUM, MyComm);
    nd_strias = glb_nd_strias > 0;
 }
 
