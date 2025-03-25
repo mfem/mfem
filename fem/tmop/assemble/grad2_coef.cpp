@@ -11,7 +11,6 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
 #include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
@@ -46,50 +45,29 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2, NBZ = 1;
+      constexpr int DIM = 2;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-
-      MFEM_SHARED real_t B[MQ1 * MD1];
-      MFEM_SHARED real_t BLD[MQ1 * MD1];
-
-      // MFEM_SHARED real_t XY[NBZ][MD1 * MD1];
-      // MFEM_SHARED real_t DQ[NBZ][MD1 * MQ1];
-      // MFEM_SHARED real_t QQ[NBZ][MQ1 * MQ1];
-
-      MFEM_SHARED real_t XY0[2][NBZ][MD1 * MD1];
-      MFEM_SHARED real_t DQ0[2][NBZ][MD1 * MQ1];
-      MFEM_SHARED real_t QQ0[2][NBZ][MQ1 * MQ1];
-
-      MFEM_SHARED real_t XY1[2][NBZ][MD1 * MD1];
-      MFEM_SHARED real_t DQ1[2][NBZ][MD1 * MQ1];
-      MFEM_SHARED real_t QQ1[2][NBZ][MQ1 * MQ1];
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
       regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
 
-      kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, b, B);
-      kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, bld, BLD);
-
       regs::regs4d_t<1,1,MQ1> rm0, rm1; // scalar LD
       regs::LoadDofs2d(e, D1D, LD, rm0);
       regs::Eval2d(D1D, Q1D, smem, sB, rm0, rm1);
-      // kernels::internal::LoadX<MD1, NBZ>(e, D1D, LD, XY);
-      // kernels::internal::EvalX<MD1, MQ1, NBZ>(D1D, Q1D, BLD, XY, DQ);
-      // kernels::internal::EvalY<MD1, MQ1, NBZ>(D1D, Q1D, BLD, DQ, QQ);
 
-      kernels::internal::LoadX<MD1, NBZ>(e, D1D, X0, XY0);
-      kernels::internal::EvalX<MD1, MQ1, NBZ>(D1D, Q1D, B, XY0, DQ0);
-      kernels::internal::EvalY<MD1, MQ1, NBZ>(D1D, Q1D, B, DQ0, QQ0);
+      regs::regs4d_t<3,1,MQ1> r00, r01; // vector X0
+      regs::LoadDofs2d(e, D1D, X0, r00);
+      regs::Eval2d(D1D, Q1D, smem, sB, r00, r01);
 
-      kernels::internal::LoadX<MD1, NBZ>(e, D1D, X1, XY1);
-      kernels::internal::EvalX<MD1, MQ1, NBZ>(D1D, Q1D, B, XY1, DQ1);
-      kernels::internal::EvalY<MD1, MQ1, NBZ>(D1D, Q1D, B, DQ1, QQ1);
+      regs::regs4d_t<3,1,MQ1> r10, r11; // vector X1
+      regs::LoadDofs2d(e, D1D, X1, r10);
+      regs::Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      mfem::foreach_y_thread(Q1D, [&](int qy)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         mfem::foreach_x_thread(Q1D, [&](int qx)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
             const real_t detJtr = kernels::Det<2>(Jtr);
@@ -97,11 +75,9 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
             const real_t weight_m = weight * lim_normal * coeff0;
 
-            real_t p0[2], p1[2];
-            // kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ, D);
             const real_t D = rm1(0, 0, qx, qy);
-            kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ0, p0);
-            kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ1, p1);
+            const real_t p0[2] = { r01(0, 0, qy, qx), r01(1, 0, qy, qx) };
+            const real_t p1[2] = { r11(0, 0, qy, qx), r11(1, 0, qy, qx) };
 
             const real_t dist = D; // GetValues, default comp set to 0
 
@@ -141,8 +117,8 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
                   H0(i, j, qx, qy, e) = weight_m * gg(i, j);
                }
             }
-         }
-      }
+         });
+      });
    });
 }
 
