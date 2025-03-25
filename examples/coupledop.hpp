@@ -18,17 +18,18 @@ namespace mfem
 {
 class CoupledOperator : public TimeDependentOperator
 {
+   Array<int> ess_u_tdofs_list, ess_E_tdofs_list;
+   Coefficient *sigma;
+   const Array<LinearForm*> &lfs;
+   const Array<Coefficient*> &coeffs;
    FiniteElementSpace *u_space, *n_space, *E_space, *B_space, *tr_space;
    Array<int> offsets;
    BilinearForm *ME{}, *Mu{}, *Mn{};
    MixedBilinearForm *CE{}, *Du{};
    DiscreteLinearOperator *CdE{};
    DarcyForm *darcy{};
-   Array<int> ess_u_tdofs_list, ess_E_tdofs_list;
    real_t idt{};
    Coefficient *idtcoeff{}, *dtcoeff{};
-   const Array<LinearForm*> &lfs;
-   const Array<Coefficient*> &coeffs;
 
    class ReducedOperator : public Operator
    {
@@ -56,6 +57,7 @@ class CoupledOperator : public TimeDependentOperator
 
 public:
    CoupledOperator(const Array<int> &bdr_u_ess, const Array<int> &bdr_E_is_ess,
+                   Coefficient *sigma,
                    const Array<LinearForm*> &lfs, const Array<Coefficient*> &coeffs,
                    FiniteElementSpace *u_space, FiniteElementSpace *n_space,
                    FiniteElementSpace *E_space, FiniteElementSpace *B_space,

@@ -74,6 +74,7 @@ enum Problem
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
+TFunc GetSigFun(Problem prob, real_t f);
 TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c);
 VecTFunc GetUFun(Problem prob, real_t f);
 VecTFunc GetEFun(Problem prob, real_t f);
@@ -347,6 +348,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient kcoeff(k); //conductivity
    ConstantCoefficient ikcoeff(1./k); //inverse conductivity
 
+   auto sigFun = GetSigFun(problem, freq);
+   FunctionCoefficient sigcoeff(sigFun); //coupling
+
    auto nFun = GetNFun(problem, t_0, k, c);
    FunctionCoefficient ncoeff(nFun); //density
    SumCoefficient gcoeff(0., ncoeff, 1., -1.); //boundary velocity rhs
@@ -478,7 +482,7 @@ int main(int argc, char *argv[])
                                (Coefficient*)&fcoeff,
                                (Coefficient*)&ucoeff});
 
-   CoupledOperator op(bdr_u_is_neumann, bdr_E_is_neumann, lfs, coeffs,
+   CoupledOperator op(bdr_u_is_neumann, bdr_E_is_neumann, &sigcoeff, lfs, coeffs,
                       V_space, W_space, E_space, B_space, trace_space, td);
 
    //construct the time solver
@@ -714,6 +718,25 @@ int main(int argc, char *argv[])
    delete mesh;
 
    return 0;
+}
+
+TFunc GetSigFun(Problem prob, real_t f)
+{
+   switch (prob)
+   {
+      case Problem::WaveDumping:
+      case Problem::Maxwell:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return 0.;
+         };
+      case Problem::WaveCoupling:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return sin(.5 * M_PI * x(0)) * sin(M_PI * x(1)) * 1e-3;
+         };
+   }
+   return TFunc();
 }
 
 TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c)

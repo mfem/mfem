@@ -14,14 +14,14 @@
 namespace mfem
 {
 CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
-                                 const Array<int> &bdr_E_is_ess,
+                                 const Array<int> &bdr_E_is_ess, Coefficient *sigma_,
                                  const Array<LinearForm*> &lfs_, const Array<Coefficient*> &coeffs_,
                                  FiniteElementSpace *u_space_, FiniteElementSpace *n_space_,
                                  FiniteElementSpace *E_space_, FiniteElementSpace *B_space_,
                                  FiniteElementSpace *tr_space_, real_t td)
-   : TimeDependentOperator(0, IMPLICIT), u_space(u_space_), n_space(n_space_),
-     E_space(E_space_), B_space(B_space_), tr_space(tr_space_), lfs(lfs_),
-     coeffs(coeffs_)
+   : TimeDependentOperator(0, IMPLICIT), sigma(sigma_), lfs(lfs_),
+     coeffs(coeffs_), u_space(u_space_), n_space(n_space_),
+     E_space(E_space_), B_space(B_space_), tr_space(tr_space_)
 {
    offsets = ConstructOffsets(u_space, n_space, E_space, B_space, tr_space);
 
@@ -342,8 +342,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    }*/
 
-   ConstantCoefficient sigma(1e-3);
-   ReducedOperator bop(&sigma, darcy, E_space, *op_pl.Ptr(), op_max);
+   ReducedOperator bop(sigma, darcy, E_space, *op_pl.Ptr(), op_max);
    if (tr_space)
    {
       Array<int> ess_tr_tdofs_list;//dummy
