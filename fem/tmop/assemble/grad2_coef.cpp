@@ -41,6 +41,7 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto *bld_ptr = (const real_t*) bld;
    const auto *b_ptr = (const real_t*) b;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
@@ -51,12 +52,13 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
-      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
+      regs::LoadMatrix(D1D, Q1D, bld_ptr, sB);
 
       regs::regs4d_t<1,1,MQ1> rm0, rm1; // scalar LD
       regs::LoadDofs2d(e, D1D, LD, rm0);
       regs::Eval2d(D1D, Q1D, smem, sB, rm0, rm1);
 
+      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
       regs::regs4d_t<3,1,MQ1> r00, r01; // vector X0
       regs::LoadDofs2d(e, D1D, X0, r00);
       regs::Eval2d(D1D, Q1D, smem, sB, r00, r01);
@@ -75,9 +77,9 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
             const real_t weight_m = weight * lim_normal * coeff0;
 
-            const real_t D = rm1(0, 0, qx, qy);
-            const real_t p0[2] = { r01(0, 0, qy, qx), r01(1, 0, qy, qx) };
-            const real_t p1[2] = { r11(0, 0, qy, qx), r11(1, 0, qy, qx) };
+            const real_t D = rm1(0, 0, qy, qx);
+            const real_t p0[2] = { r01[0][0][qy][qx], r01[1][0][qy][qx] };
+            const real_t p1[2] = { r11[0][0][qy][qx], r11[1][0][qy][qx] };
 
             const real_t dist = D; // GetValues, default comp set to 0
 

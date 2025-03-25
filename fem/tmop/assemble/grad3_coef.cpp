@@ -41,6 +41,7 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto *bld_ptr = (const real_t*) bld;
    const auto *b_ptr = (const real_t*) b;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
@@ -51,11 +52,13 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
-      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
+      regs::LoadMatrix(D1D, Q1D, bld_ptr, sB);
 
       regs::regs5d_t<1,1,MQ1> rm0, rm1; // scalar LD
       regs::LoadDofs3d(e, D1D, LD, rm0);
       regs::Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
+
+      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
 
       regs::regs5d_t<3,1,MQ1> r00, r01; // vector X0
       regs::LoadDofs3d(e, D1D, X0, r00);
