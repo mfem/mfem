@@ -134,7 +134,6 @@ public:
             });
          });
          MFEM_SYNC_THREAD;
-
          regs::GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
          regs::WriteDofs2d(e, D1D, r1, Y);
       });

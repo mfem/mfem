@@ -91,9 +91,11 @@ public:
                kernels::CalcInverse<2>(Jtr, Jrt);
 
                // Jpr = X^t.DSh
-               real_t Jpr[4] = {r1[0][0][qy][qx], r1[1][0][qy][qx],
-                                r1[0][1][qy][qx], r1[1][1][qy][qx]
-                               };
+               const real_t Jpr[4] =
+               {
+                  r1[0][0][qy][qx], r1[1][0][qy][qx],
+                  r1[0][1][qy][qx], r1[1][1][qy][qx]
+               };
 
                // Jpt = Jpr.Jrt
                real_t Jpt[4];
