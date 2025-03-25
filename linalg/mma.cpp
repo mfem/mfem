@@ -167,56 +167,56 @@ void MMA::MMASubSvanberg::AllocSubData(int nvar, int ncon)
    move = 0.5;
    albefa = 0.1;
    xmamieps = 1e-5;
-   ux1 = new real_t[nvar]; //ini
-   xl1 = new real_t[nvar]; //ini
-   plam = new real_t[nvar]; //ini
-   qlam = new real_t[nvar]; //ini
-   gvec = new real_t[ncon]; //ini
-   residu = new real_t[3 * nvar + 4 * ncon + 2]; //ini
-   GG = new real_t[nvar * ncon]; //ini
-   delx = new real_t[nvar]; //init
-   dely = new real_t[ncon]; //ini
-   dellam = new real_t[ncon]; //ini
+   ux1 = new real_t[nvar]; // ini
+   xl1 = new real_t[nvar]; // ini
+   plam = new real_t[nvar]; // ini
+   qlam = new real_t[nvar]; // ini
+   gvec = new real_t[ncon]; // ini
+   residu = new real_t[3 * nvar + 4 * ncon + 2]; // ini
+   GG = new real_t[nvar * ncon]; // ini
+   delx = new real_t[nvar]; // ini
+   dely = new real_t[ncon]; // ini
+   dellam = new real_t[ncon]; // ini
    dellamyi = new real_t[ncon];
-   diagx = new real_t[nvar];//ini
-   diagy = new real_t[ncon];//ini
-   diaglamyi = new real_t[ncon]; //ini
+   diagx = new real_t[nvar]; // ini
+   diagy = new real_t[ncon]; // ini
+   diaglamyi = new real_t[ncon]; // ini
    bb = new real_t[nvar + 1];
-   bb1 = new real_t[ncon + 1];//ini
-   Alam = new real_t[ncon * ncon];//ini
+   bb1 = new real_t[ncon + 1]; // ini
+   Alam = new real_t[ncon * ncon]; // ini
    AA = new real_t[(nvar + 1) * (nvar + 1)];
-   AA1 = new real_t[(ncon + 1) * (ncon + 1)];//ini
-   dlam = new real_t[ncon]; //ini
-   dx = new real_t[nvar]; //ini
-   dy = new real_t[ncon]; //ini
-   dxsi = new real_t[nvar]; //ini
-   deta = new real_t[nvar]; //ini
-   dmu = new real_t[ncon]; //ini
-   Axx = new real_t[nvar * ncon]; //ini
-   axz = new real_t[nvar]; //ini
-   ds = new real_t[ncon]; //ini
-   xx = new real_t[4 * ncon + 2 * nvar + 2]; //ini
-   dxx = new real_t[4 * ncon + 2 * nvar + 2]; //ini
-   stepxx = new real_t[4 * ncon + 2 * nvar + 2]; //ini
+   AA1 = new real_t[(ncon + 1) * (ncon + 1)]; // ini
+   dlam = new real_t[ncon]; // ini
+   dx = new real_t[nvar]; // ini
+   dy = new real_t[ncon]; // ini
+   dxsi = new real_t[nvar]; // ini
+   deta = new real_t[nvar]; // ini
+   dmu = new real_t[ncon]; // ini
+   Axx = new real_t[nvar * ncon]; // ini
+   axz = new real_t[nvar]; // ini
+   ds = new real_t[ncon]; // ini
+   xx = new real_t[4 * ncon + 2 * nvar + 2]; // ini
+   dxx = new real_t[4 * ncon + 2 * nvar + 2]; // ini
+   stepxx = new real_t[4 * ncon + 2 * nvar + 2]; // ini
    sum = 0;
    sum1 = new real_t[nvar];
-   stepalfa = new real_t[nvar]; //ini
-   stepbeta = new real_t[nvar]; //ini
-   xold = new real_t[nvar]; //ini
-   yold = new real_t[ncon]; //ini
-   lamold = new real_t[ncon];//ini
-   xsiold = new real_t[nvar];//ini
-   etaold = new real_t[nvar];//ini
-   muold = new real_t[ncon]; //ini
-   sold = new real_t[ncon]; //ini
-   q0 = new real_t[nvar]; //ini
-   p0 = new real_t[nvar]; //ini
-   P = new real_t[ncon * nvar]; //ini
-   Q = new real_t[ncon * nvar]; //ini
-   alfa = new real_t[nvar]; //ini
-   beta = new real_t[nvar]; //ini
+   stepalfa = new real_t[nvar]; // ini
+   stepbeta = new real_t[nvar]; // ini
+   xold = new real_t[nvar]; // ini
+   yold = new real_t[ncon]; // ini
+   lamold = new real_t[ncon]; // ini
+   xsiold = new real_t[nvar]; // ini
+   etaold = new real_t[nvar]; // ini
+   muold = new real_t[ncon]; // ini
+   sold = new real_t[ncon]; // ini
+   q0 = new real_t[nvar]; // ini
+   p0 = new real_t[nvar]; // ini
+   P = new real_t[ncon * nvar]; // ini
+   Q = new real_t[ncon * nvar]; // ini
+   alfa = new real_t[nvar]; // ini
+   beta = new real_t[nvar]; // ini
    xmami = new real_t[nvar];
-   b = new real_t[ncon]; //ini
+   b = new real_t[ncon]; // ini
 
    b_local = new real_t[ncon];
    gvec_local = new real_t[ncon];
@@ -409,7 +409,7 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
 
    while (epsi > mma->epsimin)
    {
-      residu[nvar + ncon] = mma->a0 - mma->zet; //rez
+      residu[nvar + ncon] = mma->a0 - mma->zet; // rez
       for (int i = 0; i < nvar; i++)
       {
          ux1[i] = mma->upp[i] - mma->x[i];
@@ -431,19 +431,19 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
          {
             plam[i] += P[j * nvar + i] * mma->lam[j];
             qlam[i] += Q[j * nvar + i] * mma->lam[j];
-            residu[nvar + ncon] -= mma->a[j] * mma->lam[j]; //rez
+            residu[nvar + ncon] -= mma->a[j] * mma->lam[j]; // rez
          }
          residu[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) -
-                     mma->xsi[i] + mma->eta[i]; //rex
-         //residu[nvar + ncon] -= mma->a[i] * mma->lam[i]; //rez
+                     mma->xsi[i] + mma->eta[i]; // rex
+         // residu[nvar + ncon] -= mma->a[i] * mma->lam[i]; // rez
          residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * (mma->x[i] - alfa[i]) -
-                                              epsi; //rexsi
+                                              epsi; // rexsi
          if (std::fabs(mma->x[i]-alfa[i]) < mma->machineEpsilon)
          {
             residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
          }
          residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] *
-                                                     (beta[i] - mma->x[i]) - epsi; //reeta
+                                                     (beta[i] - mma->x[i]) - epsi; // reeta
          if (std::fabs(beta[i] - mma->x[i]) < mma->machineEpsilon)
          {
             residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] * mma->machineEpsilon -
@@ -473,18 +473,18 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
          for (int i = 0; i < ncon; i++)
          {
             residu[nvar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
-                               mma->lam[i]; //rey
+                               mma->lam[i]; // rey
             residu[nvar + ncon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
-                                          mma->s[i] - b[i]; //relam
+                                          mma->s[i] - b[i]; // relam
             residu[nvar + ncon + 1 + ncon + 2 * nvar + i] = mma->mu[i] * mma->y[i] -
-                                                            epsi; //remu
+                                                            epsi; // remu
             residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon + 1 + i] = mma->lam[i] * mma->s[i]
-                                                                    - epsi; //res
+                                                                    - epsi; // res
          }
          residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon] = mma->zet * mma->z - epsi;
       }
 
-      //Get vector product and maximum absolute value
+      // Get vector product and maximum absolute value
       residunorm = 0.0;
       residumax = 0.0;
       for (int i = 0; i < (3 * nvar + 4 * ncon + 2); i++)
@@ -665,8 +665,8 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                      }
                   }
                }
-               // AA1 = [Alam     a
-               //       a'    -zet/z];
+               // AA1 = [Alam     a   ]
+               //       [ a'    -zet/z]
                for (int i = 0; i < ncon; i++)
                {
                   for (int j = 0; j < ncon; j++)
@@ -682,7 +682,7 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                AA1[(ncon + 1) * (ncon + 1) - 1] = -mma->zet / mma->z;
 
 #ifdef MFEM_USE_LAPACK
-               //bb1 = AA1\bb1 --> solve linear system of equations using LAPACK
+               // bb1 = AA1\bb1 --> solve linear system of equations using LAPACK
                int info;
                int nLAP = ncon + 1;
                int nrhs = 1;
@@ -723,8 +723,7 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
             }
             dz = bb1[ncon];
 
-            // ----------------------------------------------------------------------------
-            //dx = -(GG'*dlam)./diagx - delx./diagx;
+            // dx = -(GG'*dlam)./diagx - delx./diagx;
             for (int i = 0; i < nvar; i++)
             {
                sum = 0.0;
@@ -818,7 +817,7 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
          stmbeta = 0.0;
          for (int i = 0; i < nvar; i++)
          {
-            //NaN-Avoidance
+            // NaN-Avoidance
             if (std::fabs(mma->x[i] - alfa[i]) < mma->machineEpsilon)
             {
                stepalfa[i] = -1.01*dx[i] / mma->machineEpsilon;
@@ -835,7 +834,6 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
             {
                stepbeta[i] = 1.01*dx[i] / (beta[i] - mma->x[i]);
             }
-            // --------------
             stmalfa = std::max(stepalfa[i], stmalfa);
             stmbeta = std::max(stepbeta[i], stmbeta);
          }
@@ -890,7 +888,7 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                mma->s[i] = sold[i] + steg * ds[i];
             }
 
-            residu[nvar + ncon] = mma->a0 - mma->zet; //rez
+            residu[nvar + ncon] = mma->a0 - mma->zet; // rez
             for (int i = 0; i < nvar; ++i)
             {
                mma->x[i] = xold[i] + steg * dx[i];
@@ -914,22 +912,22 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                {
                   plam[i] += P[j * nvar + i] * mma->lam[j];
                   qlam[i] += Q[j * nvar + i] * mma->lam[j];
-                  residu[nvar + ncon] -= mma->a[j] * mma->lam[j]; //rez
+                  residu[nvar + ncon] -= mma->a[j] * mma->lam[j]; // rez
                }
 
                // Assembly starts here
 
                residu[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) -
-                           mma->xsi[i] + mma->eta[i]; //rex
-               //residu[nvar + ncon] -= mma->a[i] * mma->lam[i]; //rez
+                           mma->xsi[i] + mma->eta[i]; // rex
+               // residu[nvar + ncon] -= mma->a[i] * mma->lam[i]; // rez
                residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * (mma->x[i] - alfa[i]) -
-                                                    epsi; //rexsi
+                                                    epsi; // rexsi
                if (std::fabs(mma->x[i] - alfa[i]) < mma->machineEpsilon)
                {
                   residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
                }
                residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] *
-                                                           (beta[i] - mma->x[i]) - epsi; //reeta
+                                                           (beta[i] - mma->x[i]) - epsi; // reeta
                if (std::fabs(beta[i] - mma->x[i]) < mma->machineEpsilon)
                {
                   residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] * mma->machineEpsilon -
@@ -964,21 +962,21 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                for (int i = 0; i < ncon; i++)
                {
                   residu[nvar + i] = mma->c[i] + mma->d[i] * mma->y[i]
-                                     - mma->mu[i] - mma->lam[i]; //rey
+                                     - mma->mu[i] - mma->lam[i]; // rey
                   residu[nvar + ncon + 1 + i] = gvec[i] - mma->a[i] * mma->z
                                                 - mma->y[i] + mma->s[i] - b[i];
-                  //relam
+                  // relam
                   residu[nvar + ncon + 1 + ncon + 2 * nvar + i] = mma->mu[i]
                                                                   * mma->y[i] -
-                                                                  epsi; //remu
+                                                                  epsi; // remu
                   residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon + 1 + i] =
-                     mma->lam[i] * mma->s[i] - epsi; //res
+                     mma->lam[i] * mma->s[i] - epsi; // res
                }
                residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon] =
-                  mma->zet * mma->z - epsi; //rezet
+                  mma->zet * mma->z - epsi; // rezet
             }
 
-            //Get vector product and maximum absolute value
+            // Get vector product and maximum absolute value
             resinew = 0.0;
             for (int i = 0; i < (3 * nvar + 4 * ncon + 2); i++)
             {
@@ -1020,7 +1018,6 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
    }
 
    // returns x, y, z, lam, xsi, eta, mu, zet, s
-
 }
 
 void MMA::InitData(real_t *xval)
@@ -1040,7 +1037,6 @@ void MMA::InitData(real_t *xval)
       d[i] = 1.0;
    }
    a0 = 1.0;
-
 }
 
 /// Serial MMA
@@ -1101,40 +1097,40 @@ MMA::~MMA()
 
 void MMA::AllocData(int nVariables,int nConstr)
 {
-   //accessed by the subproblems
+   // accessed by the subproblems
    nVar = nVariables;
    nCon = nConstr;
 
-   x= new real_t[nVar]; //ini
-   xo1 = new real_t[nVar]; //ini
-   xo2 = new real_t[nVar]; //ini
+   x= new real_t[nVar]; // ini
+   xo1 = new real_t[nVar]; // ini
+   xo2 = new real_t[nVar]; // ini
 
-   y = new real_t[nCon]; //ini
-   c = new real_t[nCon]; //ini
-   d = new real_t[nCon]; //ini
-   a = new real_t[nCon]; //ini
+   y = new real_t[nCon]; // ini
+   c = new real_t[nCon]; // ini
+   d = new real_t[nCon]; // ini
+   a = new real_t[nCon]; // ini
 
-   lam = new real_t[nCon]; //ini
+   lam = new real_t[nCon]; // ini
 
-   xsi = new real_t[nVar];//ini
-   eta = new real_t[nVar];//ini
+   xsi = new real_t[nVar]; // ini
+   eta = new real_t[nVar]; // ini
 
-   mu = new real_t[nCon]; //ini
-   s = new real_t[nCon]; //ini
+   mu = new real_t[nCon]; // ini
+   s = new real_t[nCon]; // ini
 
    z = zet = 1.0;
    kktnorm = 10;
    machineEpsilon = 1e-10;
 
 
-   //accessed by MMA
+   // accessed by MMA
    epsimin = 1e-7;
    asyinit = 0.5;
    asyincr = 1.1;
    asydecr = 0.7;
-   low = new real_t[nVar]; //ini
-   upp = new real_t[nVar]; //ini
-   factor = new real_t[nVar]; //ini
+   low = new real_t[nVar]; // ini
+   upp = new real_t[nVar]; // ini
+   factor = new real_t[nVar]; // ini
    lowmin = lowmax = uppmin = uppmax = zz = 0.0;
 
 }
@@ -1142,7 +1138,7 @@ void MMA::AllocData(int nVariables,int nConstr)
 void MMA::FreeData()
 {
 
-   //accessed from the subproblems
+   // accessed from the subproblems
    delete[] x;
    delete[] xo1;
    delete[] xo2;
@@ -1158,7 +1154,7 @@ void MMA::FreeData()
    delete[] mu;
    delete[] s;
 
-   //accessed only from MMA
+   // accessed only from MMA
    delete[] factor;
    delete[] low;
    delete[] upp;
@@ -1206,7 +1202,7 @@ void MMA::Update(const real_t* dfdx,
    {
       for (int i = 0; i < nVar; i++)
       {
-         //Determine sign
+         // Determine sign
          zz = (xval[i] - xo1[i]) * (xo1[i] - xo2[i]);
          if ( zz > 0.0)
          {
@@ -1222,7 +1218,7 @@ void MMA::Update(const real_t* dfdx,
          }
 
 
-         //Find new asymptote
+         // Find new asymptote
          low[i] = xval[i] - factor[i] * (xo1[i] - low[i]);
          upp[i] = xval[i] + factor[i] * (upp[i] - xo1[i]);
 
@@ -1249,6 +1245,5 @@ void MMA::Update(const real_t* dfdx,
 
    iter++;
 }
-
 
 }

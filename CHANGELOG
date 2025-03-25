@@ -144,8 +144,8 @@ Miscellaneous
   which now allows for declaring convergence by a user defined criterion. For
   backward compatibility, the old name is still available.
 
-- Added a self-contained Method of Moving Asymptotes (MMA) for optimization 
-  capabilities
+- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
+  for solving optimization problems.
 
 API changes
 -----------
