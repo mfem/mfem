@@ -77,8 +77,9 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
-               const real_t coeff0 =
-                  const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
+               const real_t coeff0 = const_c0
+                                     ? C0(0, 0, 0, 0)
+                                     : C0(qx, qy, qz, e);
                const real_t weight_m = weight * lim_normal * coeff0;
                const real_t D = rm1(0, 0, qz, qy, qx);
                const real_t p0[3] = { r01(0, 0, qz, qy, qx),

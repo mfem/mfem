@@ -95,10 +95,12 @@ public:
                   kernels::CalcInverse<3>(Jtr, Jrt);
 
                   // Jpr = X^T.DSh
-                  real_t Jpr[9] = {r1(0, 0, qz, qy, qx), r1(1, 0, qz, qy, qx), r1(2, 0, qz, qy, qx),
-                                   r1(0, 1, qz, qy, qx), r1(1, 1, qz, qy, qx), r1(2, 1, qz, qy, qx),
-                                   r1(0, 2, qz, qy, qx), r1(1, 2, qz, qy, qx), r1(2, 2, qz, qy, qx)
-                                  };
+                  real_t Jpr[9] =
+                  {
+                     r1(0, 0, qz, qy, qx), r1(1, 0, qz, qy, qx), r1(2, 0, qz, qy, qx),
+                     r1(0, 1, qz, qy, qx), r1(1, 1, qz, qy, qx), r1(2, 1, qz, qy, qx),
+                     r1(0, 2, qz, qy, qx), r1(1, 2, qz, qy, qx), r1(2, 2, qz, qy, qx)
+                  };
 
                   // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
                   real_t Jpt[9];

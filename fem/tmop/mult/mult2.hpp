@@ -11,7 +11,6 @@
 #pragma once
 
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
 #include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
@@ -67,25 +66,14 @@ public:
 
       const Vector &mc = ti->PA.MC;
       const bool const_m0 = mc.Size() == 1;
-      const auto MC = const_m0 ? Reshape(mc.Read(), 1, 1, 1)
+      const auto MC = const_m0
+                      ? Reshape(mc.Read(), 1, 1, 1)
                       : Reshape(mc.Read(), Q1D, Q1D, NE);
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int NBZ = 1;
          constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-
-         MFEM_SHARED real_t BG[2][MQ1 * MD1];
-         MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
-         MFEM_SHARED real_t DQ[4][NBZ][MD1 * MQ1];
-         MFEM_SHARED real_t QQ[4][NBZ][MQ1 * MQ1];
-
-         kernels::internal::LoadX<MD1, NBZ>(e, D1D, X, XY);
-         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
-
-         kernels::internal::GradX<MD1, MQ1, NBZ>(D1D, Q1D, BG, XY, DQ);
-         kernels::internal::GradY<MD1, MQ1, NBZ>(D1D, Q1D, BG, DQ, QQ);
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -104,17 +92,18 @@ public:
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);
                const real_t m_coef = const_m0 ? MC(0, 0, 0) : MC(qx, qy, e);
-               const real_t weight =
-                  metric_normal * m_coef * W(qx, qy) * detJtr;
+               const real_t weight = metric_normal * m_coef * W(qx, qy) * detJtr;
 
                // Jrt = Jtr^{-1}
                real_t Jrt[4];
                kernels::CalcInverse<2>(Jtr, Jrt);
 
                // Jpr = X{^T}.DSh
-               const real_t Jpr[4] = {r1[0][0][qy][qx], r1[1][0][qy][qx],
-                                      r1[0][1][qy][qx], r1[1][1][qy][qx]
-                                     };
+               const real_t Jpr[4] =
+               {
+                  r1[0][0][qy][qx], r1[1][0][qy][qx],
+                  r1[0][1][qy][qx], r1[1][1][qy][qx]
+               };
 
                // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
                real_t Jpt[4];
@@ -128,7 +117,6 @@ public:
                // PMatO += DS . P^t += DSh . (Jrt . P^t)
                real_t A[4];
                kernels::MultABt(2, 2, 2, Jrt, P, A);
-
                r0[0][0][qy][qx] = A[0], r0[0][1][qy][qx] = A[1];
                r0[1][0][qy][qx] = A[2], r0[1][1][qy][qx] = A[3];
             });

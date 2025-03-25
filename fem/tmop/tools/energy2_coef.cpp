@@ -78,11 +78,6 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
             const real_t weight = W(qx, qy) * detJtr;
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
 
-            // real_t ld, p0[2], p1[2];
-            // kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ, ld);
-            // kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ0, p0);
-            // kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ1, p1);
-
             const real_t ld = rm1(0, 0, qy, qx);
             const real_t p0[2] = { r01(0, 0, qy, qx), r01(1, 0, qy, qx) };
             const real_t p1[2] = { r11(0, 0, qy, qx), r11(1, 0, qy, qx) };
