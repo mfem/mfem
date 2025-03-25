@@ -2929,14 +2929,14 @@ public:
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
 
-   virtual void AssemblePA(const FiniteElementSpace &fes) override;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes) override;
-   virtual void AddMultPA(const Vector &x, Vector &y) const override;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const override;
-   virtual void AssembleDiagonalPA(Vector& diag) override;
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add) override;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+   void AssembleDiagonalPA(Vector& diag) override;
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
