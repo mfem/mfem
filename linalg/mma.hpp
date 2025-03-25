@@ -51,7 +51,6 @@ namespace mfem
 class MMA
 {
 public:
-
    /// Serial constructor:
    /// nVar - number of design parameters;
    /// nCon - number of constraints;
@@ -70,7 +69,6 @@ public:
 
    /// Destructor
    ~MMA();
-
 
    /// Update the optimization parameters
    /// dfdx[nVar] - gradients of the objective
@@ -113,7 +111,6 @@ protected:
    real_t *x, *y, *xsi, *eta, *lam, *mu, *s;
 
 private:
-
    // MMA-specific
    real_t asyinit, asyincr, asydecr;
    real_t xmamieps, lowmin, lowmax, uppmin, uppmax, zz;
@@ -184,7 +181,6 @@ private:
    class MMASubSvanberg:public MMASubBase
    {
    public:
-
       /// Constructor
       MMASubSvanberg(MMA* mma, int nVar, int nCon):MMASubBase(mma)
       {
@@ -239,7 +235,7 @@ private:
       /// Allocate the memory for the subproblem
       void AllocSubData(int nVar, int nCon);
 
-      /// Free the memeory for the subproblem
+      /// Free the memory for the subproblem
       void FreeSubData();
    };
 };
