@@ -35,11 +35,14 @@
 using namespace std;
 using namespace mfem;
 
+void SetPatchIntegrationRules(const int ir_order,
+                              const Mesh &mesh,
+                              BilinearFormIntegrator * bfi);
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
+   const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
    bool pa = false;
    bool patchAssembly = false;
    int ref_levels = 0;
@@ -72,11 +75,16 @@ int main(int argc, char *argv[])
    // Print & verify options
    args.PrintOptions(cout);
    MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
+   if (preconditioner == 2)
+   {
+      MFEM_VERIFY(nurbs_degree_increase > 0,
+                  "LOR preconditioner requires degree increase");
+   }
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
-   bool isNURBS = mesh.NURBSext;
+   const int dim = mesh.Dimension();
+   const bool isNURBS = mesh.NURBSext;
 
    // Verify mesh is valid for this problem
    MFEM_VERIFY(isNURBS, "Example is for NURBS meshes");
@@ -102,19 +110,16 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh.
    // Node ordering is important - right now, only works with byVDIM
-   const Ordering::Type fes_ordering = Ordering::byVDIM;
+   FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
+   cout << "fec order = " << fec->GetOrder() << endl;
 
-   FiniteElementCollection * fec = nullptr;
-   fec = mesh.GetNodes()->OwnFEC();
-   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec, dim,
-                                                        fes_ordering);
-   // FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, mesh.NURBSext, fec, dim,
+                                                        Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    const real_t Ndof = fespace->GetTrueVSize();
-   cout << "Number of finite element unknowns: " << Ndof <<
-        endl;
-   cout << "Number of elements: " << fespace->GetNE() << std::endl;
-   cout << "Number of patches: " << mesh.NURBSext->GetNP() << std::endl;
+   cout << "Number of finite element unknowns: " << Ndof << endl;
+   cout << "Number of elements: " << fespace->GetNE() << endl;
+   cout << "Number of patches: " << mesh.NURBSext->GetNP() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
@@ -142,23 +147,17 @@ int main(int argc, char *argv[])
    cout << "done." << endl;
 
    // 8. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the linear elasticity integrator with piece-wise
-   //    constants coefficient lambda and mu.
+   // 9. Set up the bilinear form a(.,.)
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
    lambda = 10.0;
-   // lambda(0) = lambda(1)*50;
    PWConstCoefficient lambda_func(lambda);
    Vector mu(mesh.attributes.Max());
    mu = 10.0;
-   // mu(0) = mu(1)*50;
    PWConstCoefficient mu_func(mu);
 
    // Bilinear integrator
@@ -166,40 +165,18 @@ int main(int argc, char *argv[])
    if (patchAssembly)
    {
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
-   }
 
-   // Patch rule
-   {
-      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
+      // Set the patch integration rules
+      // If we specified ir_order, use it. Otherwise, set to 2*order
+      if (ir_order == -1) { ir_order = 2*(fec->GetOrder()+nurbs_degree_increase); }
       cout << "Integration rule order: " << ir_order << endl;
-
-      NURBSMeshRules * patchRule  = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
-      // Loop over patches and set a different rule for each patch.
-      for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
-      {
-         Array<const KnotVector*> kv(dim);
-         mesh.NURBSext->GetPatchKnotVectors(p, kv);
-
-         std::vector<const IntegrationRule*> ir1D(dim);
-         const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
-
-         // Construct 1D integration rules by applying the rule ir to each knot span.
-         for (int i=0; i<dim; ++i)
-         {
-            ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
-         }
-
-         patchRule->SetPatchRules1D(p, ir1D);
-      }  // loop (p) over patches
-
-      patchRule->Finalize(mesh);
-      ei->SetNURBSPatchIntRule(patchRule);
+      SetPatchIntegrationRules(ir_order, mesh, ei);
    }
 
-   StopWatch sw;
-   sw.Start();
 
    // 10. Assemble and solve the linear system
+   StopWatch sw;
+   sw.Start();
 
    // Define and assemble bilinear form
    cout << "Assembling a ... " << flush;
@@ -221,13 +198,66 @@ int main(int argc, char *argv[])
    if (preconditioner == 1)
    {
       cout << "Getting diagonal for Jacobi PC ... " << endl;
-      OperatorJacobiSmoother M(a, ess_tdof_list);
-      solver.SetPreconditioner(M);
+      OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
+      solver.SetPreconditioner(*P);
    }
    else if (preconditioner == 2)
    {
       cout << "Getting LOR PC ... " << endl;
-      MFEM_ABORT("Not implemented yet.");
+      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
+      Mesh lo_mesh(mesh_file, 1, 1);
+      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
+      int divisions = pow(2,ref_levels);
+      lo_mesh.NURBSUniformRefinement(divisions + nurbs_degree_increase);
+
+      FiniteElementCollection * lo_fec = lo_mesh.GetNodes()->OwnFEC();
+      FiniteElementSpace *lo_fespace = new FiniteElementSpace(&lo_mesh, lo_fec, dim,
+                                                         Ordering::byVDIM);
+      const int lo_Ndof = lo_fespace->GetTrueVSize();
+      cout << "Number of low-order finite element unknowns: " << lo_Ndof << endl;
+      MFEM_VERIFY(Ndof == lo_Ndof, "Low-order problem requires same Ndof");
+
+      // We can reuse some variables: ess_bdr, f, lambda, mu
+      Array<int> lo_ess_tdof_list;
+      lo_fespace->GetEssentialTrueDofs(ess_bdr, lo_ess_tdof_list);
+
+      LinearForm lo_b(lo_fespace);
+      lo_b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
+      lo_b.Assemble();
+
+      GridFunction lo_x(lo_fespace);
+      lo_x = 0.0;
+
+      ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
+      if (patchAssembly)
+      {
+         lo_ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+
+         // Set the patch integration rules
+         // if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
+         const int lo_ir_order = 2;//*lo_fec->GetOrder();
+         cout << "Integration rule order: " << lo_ir_order << endl;
+         SetPatchIntegrationRules(lo_ir_order, lo_mesh, lo_ei);
+      }
+      // Set up problem
+      BilinearForm lo_a(lo_fespace);
+      if (pa) { lo_a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      lo_a.AddDomainIntegrator(lo_ei);
+      lo_a.Assemble();
+
+      // Define linear system
+      OperatorPtr lo_A;
+      Vector lo_B, lo_X;
+      lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
+
+      // Set up solver, use it as preconditioner for high-order problem
+      CGSolver *P = new CGSolver();
+      P->SetOperator(*lo_A);
+      P->SetMaxIter(1e2);
+      P->SetPrintLevel(-1);
+      P->SetRelTol(1e-4);
+      solver.SetPreconditioner(*P);
+
    }
 
    sw.Stop();
@@ -237,11 +267,11 @@ int main(int argc, char *argv[])
 
    // Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
+   solver.SetOperator(*A);
    solver.SetMaxIter(1e5);
    solver.SetPrintLevel(1);
-   solver.SetRelTol(sqrt(1e-8));
-   solver.SetAbsTol(sqrt(1e-14));
-   solver.SetOperator(*A);
+   solver.SetRelTol(1e-8);
+   solver.SetAbsTol(1e-14);
 
    solver.Mult(B, X);
 
@@ -259,7 +289,6 @@ int main(int argc, char *argv[])
 
    // Collect results and write to file
    const int Niter = solver.GetNumIterations();
-   // const int Niter = 1;
    const int dof_per_sec_solve = Ndof * Niter / timeSolve;
    const int dof_per_sec_total = Ndof * Niter / timeTotal;
    cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
@@ -303,6 +332,7 @@ int main(int argc, char *argv[])
 
    // 12. Save the displaced mesh and the inverted solution
    {
+      cout << "Saving mesh and solution to file..." << endl;
       GridFunction *nodes = mesh.GetNodes();
       *nodes += x;
       x *= -1;
@@ -328,7 +358,38 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete fespace;
+   // delete fespace;
+
+   cout << "Done." << endl;
 
    return 0;
+}
+
+
+void SetPatchIntegrationRules(const int ir_order,
+                              const Mesh &mesh,
+                              BilinearFormIntegrator * bfi)
+{
+   const int dim = mesh.Dimension();
+   NURBSMeshRules * patchRule  = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
+   // Loop over patches and set a different rule for each patch.
+   for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
+   {
+      Array<const KnotVector*> kv(dim);
+      mesh.NURBSext->GetPatchKnotVectors(p, kv);
+
+      std::vector<const IntegrationRule*> ir1D(dim);
+      const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
+
+      // Construct 1D integration rules by applying the rule ir to each knot span.
+      for (int i=0; i<dim; ++i)
+      {
+         ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
+      }
+
+      patchRule->SetPatchRules1D(p, ir1D);
+   }  // loop (p) over patches
+
+   patchRule->Finalize(mesh);
+   bfi->SetNURBSPatchIntRule(patchRule);
 }
