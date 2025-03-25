@@ -136,6 +136,10 @@ Miscellaneous
   Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
   CMake option to just MFEM_ENABLE_BENCHMARKS.
 
+- Changed the name of `IterativeSolverMonitor` to `IterativeSolverController`
+  which now allows for declaring convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
+
 API changes
 -----------
 - API change: 'TMOP_Metric_skew2D' has been marked as deprecated.
