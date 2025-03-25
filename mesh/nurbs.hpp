@@ -156,8 +156,7 @@ public:
    void UniformRefinement(Vector &new_knots, int rf) const;
 
    /// Refine with refinement factor @a rf.
-   void Refinement(Vector &new_knots, int rf,
-                   const Array<int> *rf_elem = nullptr) const;
+   void Refinement(Vector &new_knots, int rf) const;
 
    /** Returns the coarsening factor needed for non-nested nonuniform spacing
        functions, to result in a single element from which refinement can be

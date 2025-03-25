@@ -241,25 +241,14 @@ Vector KnotVector::GetFineKnots(const int cf) const
    return mfine;
 }
 
-void KnotVector::Refinement(Vector &new_knots, int rf,
-                            const Array<int> *rf_elem) const
+void KnotVector::Refinement(Vector &new_knots, int rf) const
 {
    MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
 
    if (spacing)
    {
-      if (rf_elem)
-      {
-         // Note that ScaleParameters is not called here, because
-         // ScalePartition is assumed to have already done that.
-         MFEM_VERIFY(rf_elem->Size() == NumOfElements, "");
-         spacing->SetSize(NumOfElements);
-      }
-      else // Use scalar factor rf
-      {
-         spacing->ScaleParameters(1.0 / ((real_t) rf));
-         spacing->SetSize(rf * NumOfElements);
-      }
+      spacing->ScaleParameters(1.0 / ((real_t) rf));
+      spacing->SetSize(rf * NumOfElements);
 
       Vector s;
       spacing->EvalAll(s);
@@ -298,18 +287,17 @@ void KnotVector::Refinement(Vector &new_knots, int rf,
          // a sufficiently large refinement factor to produce the desired mesh
          // with only one refinement.
 
-         const int rf_i = rf_elem ? (*rf_elem)[i] : rf;
          s0 += s[os];
 
-         for (j = 0; j < rf_i - 1; ++j)
+         for (j = 0; j < rf - 1; ++j)
          {
             // Define a new knot between the coarse knots
             new_knots(os1 + j) = ((1.0 - s0) * k0) + (s0 * k1);
             s0 += s[os + j + 1];
          }
 
-         os += rf_i;
-         os1 += rf_i - 1;
+         os += rf;
+         os1 += rf - 1;
       }
    }
    else
@@ -1078,16 +1066,7 @@ void NURBSPatch::UniformRefinement(const std::vector<Array<int>> &rf,
    Vector new_knots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      if (fully_coarsened)
-      {
-         // Note that ScalePartition is used to modify the relative number of
-         // elements per piece in a PiecewiseSpacingFunction.
-         kv[dir]->Refinement(new_knots, rf[dir].Sum());
-      }
-      else
-      {
-         kv[dir]->Refinement(new_knots, rf[dir].Sum(), &rf[dir]);
-      }
+      kv[dir]->Refinement(new_knots, rf[dir].Sum());
 
       for (int i=0; i<multiplicity; ++i)
       {
@@ -5689,6 +5668,10 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
    const int dim = Dimension();
    if (dim == 1 || npatch < 1)
    {
+      for (int i=0; i<kvf.size(); ++i)
+      {
+         kvf[i] = rf_default;
+      }
       return;
    }
 
