@@ -175,8 +175,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e,
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void LoadDofs3d(const int e,
-                                        const int d1d,
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &X,
                                         regs5d_t<VDIM, DIM, MQ1> &Y)
 {
@@ -457,45 +456,43 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/*template <int VDIM, int DIM, int D1D, int Q1D, int T1D> inline
+template <int VDIM, int DIM, int MD1, int MQ1> inline
 MFEM_HOST_DEVICE
-void GradTranspose3d(real_t (&smem)[T1D][T1D],
-                     const real_t (&B)[D1D][Q1D],
-                     const real_t (&G)[D1D][Q1D],
-                     regs5d_t<VDIM, DIM, T1D> &X,
-                     regs5d_t<VDIM, DIM, T1D> &Y)
+void GradTranspose3d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (&B)[MD1][MQ1],
+                     const real_t (&G)[MD1][MQ1],
+                     regs5d_t<VDIM, DIM, MQ1> &X,
+                     regs5d_t<VDIM, DIM, MQ1> &Y)
 {
-   Grad3d<VDIM, DIM, D1D, Q1D, T1D, true>(smem, B, G, X, Y);
-}*/
+   Grad3d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, G, X, Y);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
-/*template <int VDIM, int DIM, int D1D, int T1D> inline MFEM_HOST_DEVICE
-void WriteDofsOffset3d(const int e, const int ND, const int *map,
-                       regs5d_t<VDIM, DIM, T1D> &X,
-                       real_t *Y)
+template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
+void WriteDofs3d(const int e, const int d1d,
+                 regs5d_t<VDIM, DIM, MQ1> &X,
+                 const DeviceTensor<5, real_t> &Y)
 {
-   for (int dz = 0; dz < D1D; ++dz)
+   for (int dz = 0; dz < d1d; ++dz)
    {
-      mfem::foreach_y_thread(D1D, [&](int dy)
+      mfem::foreach_y_thread(d1d, [&](int dy)
       {
-         mfem::foreach_x_thread(D1D, [&](int dx)
+         mfem::foreach_x_thread(d1d, [&](int dx)
          {
-            const int node = dx + dy * D1D + dz * D1D * D1D;
-            const int gid = map[node + e * D1D * D1D * D1D];
-            assert(gid >= 0);
             for (int c = 0; c < VDIM; ++c)
             {
                real_t value = 0.0;
                for (int d = 0; d < DIM; d++)
                {
-                  value += X[c][d][dz][dy][dx];
+                  value += X(c, d, dz, dy, dx);
                }
-               AtomicAdd(Y[gid + ND * c], value);
+               Y(dx, dy, dz, c, e) += value;
             }
          });
       });
    }
-}*/
+}
 
 } // namespace regs
 
