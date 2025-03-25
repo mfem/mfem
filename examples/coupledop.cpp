@@ -639,7 +639,7 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
          bE_z.Add(w, shape_E);
       }
 
-      if (hybr) { bu_z.Neg(); bE_z.Neg(); }
+      if (hybr) { bu_z.Neg(); }
 
       yu.AddElementVector(vdofs_u, bu_z);
       yE.AddElementVector(vdofs_E, bE_z);
