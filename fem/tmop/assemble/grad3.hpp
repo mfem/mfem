@@ -25,15 +25,11 @@ class TMOPSetupGradPA3D
    const Vector &x;
 
 public:
-   TMOPSetupGradPA3D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x)
-   {
-   }
+   TMOPSetupGradPA3D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x) {}
 
    int Ndof() const { return ti->PA.maps->ndof; }
-
    int Nqpt() const { return ti->PA.maps->nqpt; }
 
-   ////////////////////////////////////////////////////////////////////////////
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPSetupGradPA3D &ker)
    {
@@ -42,10 +38,9 @@ public:
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
 
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+      const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
       Array<real_t> mp;
       if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
@@ -60,14 +55,16 @@ public:
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
       auto H = Reshape(ti->PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
-      const bool const_m0 = ti->PA.MC.Size() == 1;
-      const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
-                      : Reshape(ti->PA.MC.Read(), Q1D, Q1D, Q1D, NE);
+      const Vector &mc = ti->PA.MC;
+      const bool const_m0 = mc.Size() == 1;
+      const auto MC = const_m0
+                      ? Reshape(mc.Read(), 1, 1, 1, 1)
+                      : Reshape(mc.Read(), Q1D, Q1D, Q1D, NE);
 
-      mfem::forall_3D(NE, Q1D, Q1D, 1, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MQ1 = regs::SetMaxOf(T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D);
-         constexpr int MD1 = regs::SetMaxOf(T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D);
+         constexpr int MQ1 = regs::SetMaxOf(T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D);
+         constexpr int MD1 = regs::SetMaxOf(T_D1D ? T_D1D : DofQuadLimits::MAX_D1D);
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -76,7 +73,7 @@ public:
          regs::LoadMatrix(D1D, Q1D, B, sB);
          regs::LoadMatrix(D1D, Q1D, G, sG);
 
-         regs::LoadDofs(e, D1D, X, r0);
+         regs::LoadDofs3d(e, D1D, X, r0);
          regs::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; ++qz)
