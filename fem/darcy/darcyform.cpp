@@ -82,8 +82,6 @@ void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
                                 DarcyReduction *reduction_)
 {
    MFEM_ASSERT(!Mnl, "Reduction cannot be used with block nonlinear forms");
-   MFEM_ASSERT((M_u || Mnl_u) && (M_p || Mnl_p),
-               "Mass forms for the fluxes and potentials must be set prior to this call!");
 
    delete reduction;
    if (assembly != AssemblyLevel::LEGACY)
@@ -129,6 +127,23 @@ void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
    }
 
    reduction->Init(ess_flux_tdof_list);
+}
+
+void DarcyForm::EnableFluxReduction()
+{
+   MFEM_ASSERT(M_u || Mnl_u,
+               "Mass forms for the fluxes must be set prior to this call!");
+
+   Array<int> ess_flux_tdof_list; //empty
+   EnableReduction(ess_flux_tdof_list, new DarcyFluxReduction(fes_u, fes_p));
+}
+
+void DarcyForm::EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
+{
+   MFEM_ASSERT((M_u || Mnl_u) && (M_p || Mnl_p),
+               "Mass forms for the fluxes and potentials must be set prior to this call!");
+
+   EnableReduction(ess_flux_tdof_list, new DarcyPotentialReduction(fes_u, fes_p));
 }
 
 void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,

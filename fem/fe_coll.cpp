@@ -320,6 +320,16 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                 BasisType::GetType(name[3]),
                                 BasisType::GetType(name[4]));
    }
+   else if (!strncmp(name, "BRT_", 4))
+   {
+      fec = new BrokenRT_FECollection(atoi(name + 8), atoi(name + 4));
+   }
+   else if (!strncmp(name, "BRT@", 4))
+   {
+      fec = new BrokenRT_FECollection(atoi(name + 11), atoi(name + 7),
+                                      BasisType::GetType(name[4]),
+                                      BasisType::GetType(name[5]));
+   }
    else if (!strncmp(name, "ND_Trace_", 9))
    {
       fec = new ND_Trace_FECollection(atoi(name + 13), atoi(name + 9));
@@ -2676,6 +2686,126 @@ RT_FECollection::~RT_FECollection()
    delete [] SegDofOrd[0];
    delete [] TriDofOrd[0];
    delete [] QuadDofOrd[0];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      delete RT_Elements[g];
+   }
+}
+
+BrokenRT_FECollection::BrokenRT_FECollection(
+   const int order, const int dim, const int cb_type, const int ob_type)
+   : FiniteElementCollection(order + 1)
+   , dim(dim)
+   , cb_type(cb_type)
+   , ob_type(ob_type)
+{
+   int p = order;
+   MFEM_VERIFY(p >= 0, "BrokenRT_FECollection requires order >= 0.");
+
+   int cp_type = BasisType::GetQuadrature1D(cb_type);
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
+   {
+      const char *cb_name = BasisType::Name(cb_type); // this may abort
+      MFEM_ABORT("unknown closed BasisType: " << cb_name);
+   }
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::IntegratedGLL)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("unknown open BasisType: " << ob_name);
+   }
+
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(fec_name, 32, "BRT_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(fec_name, 32, "BRT@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      RT_Elements[g] = nullptr;
+      RT_dof[g] = 0;
+   }
+
+   const int pp1 = p + 1;
+   const int pp2 = p + 2;
+   if (dim == 2)
+   {
+      // TODO: cb_type, ob_type for triangles
+      RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
+      RT_dof[Geometry::TRIANGLE] = pp1*pp2;
+
+      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
+                                                                  ob_type);
+      // two vector components * n_unk_face *
+      RT_dof[Geometry::SQUARE] = 2*pp1*pp2;
+   }
+   else if (dim == 3)
+   {
+      // TODO: cb_type, ob_type for tets
+      RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
+      RT_dof[Geometry::TETRAHEDRON] = pp1*pp2*(pp1 + 2)/2;
+
+      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
+      RT_dof[Geometry::CUBE] = 3*pp1*pp2*pp2;
+
+      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
+      RT_dof[Geometry::PRISM] = pp1*pp2*(3*pp1 + 4)/2;
+
+      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
+      RT_dof[Geometry::PYRAMID] = 0;
+   }
+   else
+   {
+      MFEM_ABORT("invalid dim = " << dim);
+   }
+}
+
+const FiniteElement *
+BrokenRT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+   {
+      return RT_Elements[GeomType];
+   }
+   else
+   {
+      if (error_mode == RETURN_NULL) { return nullptr; }
+      MFEM_ABORT("RT Pyramid basis functions are not yet supported "
+                 "for order > 0.");
+      return NULL;
+   }
+}
+
+const int *BrokenRT_FECollection::DofOrderForOrientation(
+   Geometry::Type GeomType,
+   int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   else if (GeomType == Geometry::TRIANGLE)
+   {
+      return TriDofOrd[Or%6];
+   }
+   else if (GeomType == Geometry::SQUARE)
+   {
+      return QuadDofOrd[Or%8];
+   }
+   return NULL;
+}
+
+BrokenRT_FECollection::~BrokenRT_FECollection()
+{
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       delete RT_Elements[g];
