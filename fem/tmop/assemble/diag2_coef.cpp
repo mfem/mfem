@@ -11,6 +11,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 
 namespace mfem
@@ -32,42 +33,40 @@ void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t qd[MQ1 * MD1];
       DeviceTensor<2, real_t> QD(qd, MQ1, MD1);
 
       for (int v = 0; v < DIM; v++)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         mfem::foreach_x_thread(Q1D, [&](int qx)
          {
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            mfem::foreach_y_thread(D1D, [&](int dy)
             {
                QD(qx, dy) = 0.0;
-               MFEM_UNROLL(MQ1)
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const real_t bb = B(qy, dy) * B(qy, dy);
                   QD(qx, dy) += bb * H0(v, v, qx, qy, e);
                }
-            }
-         }
+            });
+         });
          MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dy, y, D1D)
+         mfem::foreach_y_thread(D1D, [&](int dy)
          {
-            MFEM_FOREACH_THREAD(dx, x, D1D)
+            mfem::foreach_x_thread(D1D, [&](int dx)
             {
                real_t d = 0.0;
-               MFEM_UNROLL(MQ1)
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const real_t bb = B(qx, dx) * B(qx, dx);
                   d += bb * QD(qx, dy);
                }
                D(dx, dy, v, e) += d;
-            }
-         }
+            });
+         });
          MFEM_SYNC_THREAD;
       }
    });

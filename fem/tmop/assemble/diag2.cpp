@@ -11,6 +11,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -60,23 +61,23 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       // Takes into account Jtr by replacing H with Href at all quad points.
       MFEM_SHARED real_t Href_data[DIM * DIM * DIM * MQ1 * MQ1];
       DeviceTensor<5, real_t> Href(Href_data, DIM, DIM, DIM, MQ1, MQ1);
       for (int v = 0; v < DIM; v++)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         mfem::foreach_x_thread(Q1D, [&](int qx)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            mfem::foreach_y_thread(Q1D, [&](int qy)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                real_t Jrt_data[4];
@@ -100,8 +101,8 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
                      }
                   }
                }
-            }
-         }
+            });
+         });
       }
 
       MFEM_SHARED real_t qd[DIM * DIM * MQ1 * MD1];
@@ -110,16 +111,14 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
       for (int v = 0; v < DIM; v++)
       {
          // Contract in y.
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         mfem::foreach_x_thread(Q1D, [&](int qx)
          {
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            mfem::foreach_y_thread(D1D, [&](int dy)
             {
                for (int m = 0; m < DIM; m++)
                {
                   for (int n = 0; n < DIM; n++) { QD(m, n, qx, dy) = 0.0; }
                }
-
-               MFEM_UNROLL(MQ1)
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const real_t By = B(qy, dy);
@@ -134,14 +133,14 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
                      }
                   }
                }
-            }
-         }
+            });
+         });
          MFEM_SYNC_THREAD;
 
          // Contract in x.
-         MFEM_FOREACH_THREAD(dy, y, D1D)
+         mfem::foreach_y_thread(D1D, [&](int dy)
          {
-            MFEM_FOREACH_THREAD(dx, x, D1D)
+            mfem::foreach_x_thread(D1D, [&](int dx)
             {
                real_t d = 0.0;
                MFEM_UNROLL(MQ1)
@@ -161,8 +160,8 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
                   }
                }
                D(dx, dy, v, e) += d;
-            }
-         }
+            });
+         });
          MFEM_SYNC_THREAD;
       }
    });
