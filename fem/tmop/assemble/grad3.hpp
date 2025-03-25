@@ -35,7 +35,7 @@ public:
 
    ////////////////////////////////////////////////////////////////////////////
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
-   static void Mult_regs(TMOPSetupGradPA3D &ker)
+   static void Mult(TMOPSetupGradPA3D &ker)
    {
       constexpr int DIM = 3, VDIM = 3;
       const TMOP_Integrator *ti = ker.ti;
@@ -73,11 +73,11 @@ public:
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs::regs5d_t<VDIM, DIM, MQ1> r0, r1;
 
-         regs::LoadMatrix<MD1, MQ1>(D1D, Q1D, B, sB);
-         regs::LoadMatrix<MD1, MQ1>(D1D, Q1D, G, sG);
+         regs::LoadMatrix(D1D, Q1D, B, sB);
+         regs::LoadMatrix(D1D, Q1D, G, sG);
 
-         regs::ReadDofsOffset3dXE<VDIM, DIM, MQ1>(e, D1D, X, r0);
-         regs::Grad3d<VDIM,DIM, MD1,MQ1>(D1D, Q1D, smem, sB, sG, r0, r1);
+         regs::LoadDofs(e, D1D, X, r0);
+         regs::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
@@ -111,12 +111,6 @@ public:
             } );
          }
       });
-   }
-
-   template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
-   static void Mult(TMOPSetupGradPA3D &ker)
-   {
-      return Mult_regs<METRIC, T_D1D, T_Q1D>(ker);
    }
 };
 

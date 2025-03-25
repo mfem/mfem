@@ -108,10 +108,10 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void ReadDofsOffset3dXE(const int e,
-                                                const int d1d,
-                                                const DeviceTensor<5, const real_t> &X,
-                                                regs5d_t<VDIM, DIM, MQ1> &Y)
+inline MFEM_HOST_DEVICE void LoadDofs(const int e,
+                                      const int d1d,
+                                      const DeviceTensor<5, const real_t> &X,
+                                      regs5d_t<VDIM, DIM, MQ1> &Y)
 {
    for (int c = 0; c < VDIM; ++c)
    {
