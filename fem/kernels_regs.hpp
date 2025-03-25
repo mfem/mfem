@@ -506,7 +506,8 @@ void EvalTranspose3d(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
+// last default argument used for device compilation inference
+template <int VDIM, int DIM, int MQ1 = 0> inline MFEM_HOST_DEVICE
 void WriteDofs2d(const int e, const int d1d,
                  regs4d_t<VDIM, DIM, MQ1> &X,
                  const DeviceTensor<4, real_t> &Y)
