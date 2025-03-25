@@ -70,13 +70,14 @@ enum Problem
    WaveDumping = 1,
    Maxwell,
    WaveCoupling,
+   Scattering,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
-TFunc GetSigFun(Problem prob, real_t f);
+TFunc GetSigFun(Problem prob, real_t f, real_t s0);
 TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c);
-VecTFunc GetUFun(Problem prob, real_t f);
+VecTFunc GetUFun(Problem prob, real_t f, real_t a0);
 VecTFunc GetEFun(Problem prob, real_t f);
 TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
 
@@ -100,6 +101,8 @@ int main(int argc, char *argv[])
    real_t k = 1.;
    real_t c = 1.;
    real_t freq = 1.;
+   real_t s0 = 1.;
+   real_t a0 = 1e-3;
    real_t td = 0.5;
    bool bc_neumann = false;
    //bool reduction = false;
@@ -150,6 +153,10 @@ int main(int argc, char *argv[])
                   "Convection velocity");
    args.AddOption(&freq, "-f", "--frequency",
                   "Harmonic frequency");
+   args.AddOption(&s0, "-s0", "--sigma0",
+                  "Coupling factor");
+   args.AddOption(&a0, "-a0", "--amplitude0",
+                  "Amplitude factor");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
@@ -204,6 +211,7 @@ int main(int argc, char *argv[])
       case Problem::WaveDumping:
       case Problem::Maxwell:
       case Problem::WaveCoupling:
+      case Problem::Scattering:
          btime = true;
          break;
       default:
@@ -291,6 +299,18 @@ int main(int argc, char *argv[])
             bdr_E_is_neumann[2] = -1;//outflow
          }
          break;
+      case Problem::Scattering:
+         bdr_u_is_dirichlet = -1;
+         bdr_u_is_neumann[0] = -1;//inflow
+         bdr_E_is_neumann[3] = -1;//inflow
+         if (bc_neumann)
+         {
+            bdr_u_is_neumann[1] = -1;//outflow
+            bdr_u_is_neumann[3] = -1;//outflow
+            bdr_E_is_neumann[0] = -1;//outflow
+            bdr_E_is_neumann[2] = -1;//outflow
+         }
+         break;
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -355,7 +375,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient kcoeff(k); //conductivity
    ConstantCoefficient ikcoeff(1./k); //inverse conductivity
 
-   auto sigFun = GetSigFun(problem, freq);
+   auto sigFun = GetSigFun(problem, freq, s0);
    FunctionCoefficient sigcoeff(sigFun); //coupling
 
    auto nFun = GetNFun(problem, t_0, k, c);
@@ -366,7 +386,7 @@ int main(int argc, char *argv[])
    auto fFun = GetFFun(problem, t_0, k, c);
    FunctionCoefficient fcoeff(fFun); //density rhs
 
-   auto uFun = GetUFun(problem, freq);
+   auto uFun = GetUFun(problem, freq, a0);
    VectorFunctionCoefficient ucoeff(dim, uFun); //velocity
    ConstantCoefficient one;
 
@@ -757,7 +777,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetSigFun(Problem prob, real_t f)
+TFunc GetSigFun(Problem prob, real_t f, real_t s0)
 {
    switch (prob)
    {
@@ -772,6 +792,12 @@ TFunc GetSigFun(Problem prob, real_t f)
          {
             return sin(.5 * M_PI * x(0)) * sin(M_PI * x(1)) * 1e-3;
          };
+      case Problem::Scattering:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            const real_t r = hypot(x(0) - .5, x(1) - .5) / 0.5;
+            return exp(-r*r) * s0;
+         };
    }
    return TFunc();
 }
@@ -782,6 +808,7 @@ TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c)
    {
       case Problem::WaveDumping:
       case Problem::Maxwell:
+      case Problem::Scattering:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;
@@ -795,7 +822,7 @@ TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-VecTFunc GetUFun(Problem prob, real_t f)
+VecTFunc GetUFun(Problem prob, real_t f, real_t a0)
 {
    switch (prob)
    {
@@ -817,6 +844,21 @@ VecTFunc GetUFun(Problem prob, real_t f)
             v.SetSize(vdim);
             v = 0.;
          };
+      case Problem::Scattering:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            v = 0.;
+            constexpr real_t w = 0.15;
+            const real_t r = x(0) - 0.5;
+            const real_t rw = r / w;
+            constexpr real_t z_R = 0.5;
+            const real_t z = x(1) - 0.5;
+            const real_t R = z / (z*z + z_R*z_R);
+            v(1) = exp(-rw*rw) * sin(M_PI * (f * t - r*r / R)) * cos(M_PI * x(1)) * a0;
+         };
    }
    return VecTFunc();
 }
@@ -837,6 +879,21 @@ VecTFunc GetEFun(Problem prob, real_t f)
             const real_t dy = (x(1) - 0.5) / 0.25;
             v(1) = exp(-dy*dy) * sin(M_PI * f * t) * cos(M_PI * x(0));
          };
+      case Problem::Scattering:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            v = 0.;
+            constexpr real_t w = 0.15;
+            const real_t r = x(1) - 0.5;
+            const real_t rw = r / w;
+            constexpr real_t z_R = 0.5;
+            const real_t z = x(0) - 0.5;
+            const real_t R = z / (z*z + z_R*z_R);
+            v(1) = exp(-rw*rw) * sin(M_PI * (f * t - r*r / R)) * cos(M_PI * x(0));
+         };
    }
    return VecTFunc();
 }
@@ -848,6 +905,7 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
       case Problem::WaveDumping:
       case Problem::Maxwell:
       case Problem::WaveCoupling:
+      case Problem::Scattering:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;
