@@ -66,7 +66,6 @@ void TMOP_AddMultGradPA_3D(const int NE,
                kernels::CalcInverse<3>(Jtr, Jrt);
 
                // Jpr = X^T.DSh
-               // real_t Jpr[9];
                const real_t Jpr[9] =
                {
                   r1(0, 0, qz, qy, qx), r1(1, 0, qz, qy, qx), r1(2, 0, qz, qy, qx),
