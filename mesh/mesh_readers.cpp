@@ -1523,11 +1523,17 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 {
    string buff;
    real_t version;
+   int iversion;
    int binary, dsize;
    input >> version >> binary >> dsize;
-   if (version < 2.2)
+   iversion = static_cast<int>(round(10*version));
+   if (iversion != 41 && iversion != 22)
    {
-      MFEM_ABORT("Gmsh file version < 2.2");
+      MFEM_ABORT("Gmsh file version is different of 2.2 and of 4.1");
+   }
+   if (binary && iversion == 41)
+   {
+      MFEM_ABORT("Gmsh4.1 format is supported only in ASCII, not in binary");
    }
    if (dsize != sizeof(double))
    {
@@ -1579,44 +1585,93 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // Vector field to store uniformly spaced Gmsh high order mesh coords
    GridFunction Nodes_gf;
 
+   // Specific to GMSH 4.1 format (begin)
+   typedef std::vector<int> Vectint_;
+   typedef std::map<int, Vectint_> Vectintmap_;
+   Vectintmap_ PointsGPhysical;
+   Vectintmap_ CurvesGPhysical;
+   Vectintmap_ SurfacesGPhysical;
+   Vectintmap_ VolumesGPhysical;
+   // Specific to GMSH 4.1 format (end)
+
+   
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
    {
       if (buff == "$Nodes") // reading mesh vertices
       {
-         input >> NumOfVertices;
-         getline(input, buff);
-         vertices.SetSize(NumOfVertices);
-         int serial_number;
-         const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
-         real_t coord[gmsh_dim];
-         for (int ver = 0; ver < NumOfVertices; ++ver)
-         {
-            if (binary)
-            {
-               input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
-               input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
-            }
-            else // ASCII
-            {
-               input >> serial_number;
-               for (int ci = 0; ci < gmsh_dim; ++ci)
-               {
-                  input >> coord[ci];
-               }
-            }
-            vertices[ver] = Vertex(coord, gmsh_dim);
-            vertices_map[serial_number] = ver;
+        int serial_number;
+        const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
+        real_t coord[gmsh_dim];
 
-            for (int ci = 0; ci < gmsh_dim; ++ci)
+        if (iversion == 22)
+        {
+          input >> NumOfVertices;
+          getline(input, buff);
+          vertices.SetSize(NumOfVertices);
+          for (int ver = 0; ver < NumOfVertices; ++ver)
             {
-               bb_min[ci] = (ver == 0) ? coord[ci] :
-                            std::min(bb_min[ci], coord[ci]);
-               bb_max[ci] = (ver == 0) ? coord[ci] :
-                            std::max(bb_max[ci], coord[ci]);
+              if (binary)
+                {
+                  input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
+                  input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
+                }
+              else // ASCII
+                {
+                  input >> serial_number;
+                  for (int ci = 0; ci < gmsh_dim; ++ci)
+                    {
+                      input >> coord[ci];
+                    }
+                }
+              vertices[ver] = Vertex(coord, gmsh_dim);
+              vertices_map[serial_number] = ver;
+              
+              for (int ci = 0; ci < gmsh_dim; ++ci)
+                {
+                  bb_min[ci] = (ver == 0) ? coord[ci] :
+                    std::min(bb_min[ci], coord[ci]);
+                  bb_max[ci] = (ver == 0) ? coord[ci] :
+                    std::max(bb_max[ci], coord[ci]);
+                }
             }
-         }
+        }
+        if (iversion == 41)
+        {
+          int DimEntity, NumOfEntities, TagEntity, MinTagV, MaxTagV;
+          int NumVertPerBlock, par, tag;
+          input >> NumOfEntities >>NumOfVertices >> MinTagV >> MaxTagV;
+          getline(input, buff);
+          vertices.SetSize(NumOfVertices);
+          for (int i = 0, ver = 0; i < NumOfEntities; i = i + 1)
+            { 
+              input >> DimEntity >> TagEntity >> par >> NumVertPerBlock;
+              std::vector<int> index(NumVertPerBlock);
+              for (int j = 0; j < NumVertPerBlock; j = j + 1)
+                {
+                  input >> tag;
+                  index[j] = tag;
+                }
+              for (int j = 0; j < NumVertPerBlock; j = j + 1)
+                {
+                  for (int k = 0; k < gmsh_dim; k = k + 1)
+                    {
+                      input >> coord[k];
+                    } 
+                  vertices[ver] = Vertex(coord, gmsh_dim);
+                  vertices_map[index[j]] = ver;
+                  for (int ci = 0; ci < gmsh_dim; ++ci)
+                    {
+                      bb_min[ci] = (ver == 0) ? coord[ci] :
+                        std::min(bb_min[ci], coord[ci]);
+                      bb_max[ci] = (ver == 0) ? coord[ci] :
+                        std::max(bb_max[ci], coord[ci]);
+                    }
+                  ver++;
+                }
+            }
+        }
          real_t bb_size = std::max(bb_max[0] - bb_min[0],
                                    std::max(bb_max[1] - bb_min[1],
                                             bb_max[2] - bb_min[2]));
@@ -1635,19 +1690,85 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             MFEM_ABORT("Gmsh file : vertices indices are not unique");
          }
       } // section '$Nodes'
+      else if (buff == "$Entities") //Entities section is optional
+      {
+           int tag,tag_i;
+           size_t n_tags, n_bnd;
+           double xmin,ymin,zmin,xmax,ymax,zmax;
+           int NumPoints, NumCurves, NumSurfaces, NumVolumes;
+           
+           getline(input, buff);
+           input >> NumPoints >> NumCurves >> NumSurfaces >> NumVolumes;
+
+           for (int i = 0; i < NumPoints; ++i) {
+             input >> tag >> xmax >> ymax >> zmax >> n_tags;
+             for (int j = 0; j < n_tags; ++j) {
+               input >> tag_i;
+               PointsGPhysical[tag].push_back(tag_i);
+             }
+           }
+
+           for (int i = 0; i < NumCurves; ++i) {
+             input >> tag >> xmin >> ymin >> zmin >> \
+               xmax >> ymax >> zmax >> n_tags;
+             for (int j = 0; j < n_tags; ++j) {
+               input >> tag_i;
+               CurvesGPhysical[tag].push_back(tag_i);
+             }
+             input >> n_bnd;
+             for (int k = 0; k < n_bnd; ++k) {
+               input >> tag_i;
+             }
+           }
+
+           for (int i = 0; i < NumSurfaces; ++i) {
+             input >> tag >> xmin >> ymin >> zmin >> \
+               xmax >> ymax >> zmax >> n_tags;
+             for (int j = 0; j < n_tags; ++j) {
+               input >> tag_i;
+               SurfacesGPhysical[tag].push_back(tag_i);
+             }
+             input >> n_bnd;
+             for (int k = 0; k < n_bnd; ++k) {
+               input >> tag_i;
+             }
+           }
+
+           for (int i = 0; i < NumVolumes; ++i) {
+             input >> tag >> xmin >> ymin >> zmin >> \
+               xmax >> ymax >> zmax >> n_tags;
+             for (int j = 0; j < n_tags; ++j) {
+               input >> tag_i;
+               VolumesGPhysical[tag].push_back(tag_i);
+             }
+             input >> n_bnd;
+             for (int k = 0; k < n_bnd; ++k) {
+               input >> tag_i;
+             }
+           }
+      }
       else if (buff == "$Elements") // reading mesh elements
       {
-         int num_of_all_elements;
-         input >> num_of_all_elements;
-         // = NumOfElements + NumOfBdrElements + (maybe, PhysicalPoints)
+         int num_of_block_elements, num_of_all_elements;
+         int minTagElement, maxTagElement;
+         if (iversion == 22)
+         {
+           input >> num_of_all_elements;
+           // = NumOfElements + NumOfBdrElements + (maybe, PhysPoints)
+         }
+         if (iversion == 41)
+         {
+           input >> num_of_block_elements >> num_of_all_elements \
+                 >> minTagElement >> maxTagElement;
+         }
          getline(input, buff);
 
          int serial_number; // serial number of an element
          int type_of_element; // ID describing a type of a mesh element
          int n_tags; // number of different tags describing an element
          int phys_domain; // element's attribute
-         int elem_domain; // another element's attribute (rarely used)
-         int n_partitions; // number of partitions where an element takes place
+         int elem_domain = 0; // another element's attribute (rarely used)
+         int n_partitions = 0; // number of partitions where an element takes place
 
          // number of nodes for each type of Gmsh elements, type is the index of
          // the array + 1
@@ -1943,7 +2064,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          bool has_nonpositive_phys_domain = false;
          bool has_positive_phys_domain = false;
 
-         if (binary)
+         if (binary && iversion == 22)
          {
             int n_elem_part = 0; // partial sum of elements that are read
             const int header_size = 3;
@@ -2186,8 +2307,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   } // switch (type_of_element)
                } // el (elements of one type)
             } // all elements
-         } // if binary
-         else // ASCII
+         } // if binary format 2.2
+         if ((!binary) && iversion == 22)
          {
             for (int el = 0; el < num_of_all_elements; ++el)
             {
@@ -2411,8 +2532,254 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
                } // switch (type_of_element)
             } // el (all elements)
-         } // if ASCII
+         } // if ASCII format 2.2
+         if ((!binary) && iversion == 41)
+         {
+           int DimEntity, Tag, TagEntity, nb_Elements, totelt;
+           
+           totelt = 0;
+           for (int bk = 0; bk < num_of_block_elements; ++bk)
+             {
+               input >> DimEntity >> TagEntity >> type_of_element >> nb_Elements;
+               const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
+               vector<int> vert_indices(n_elem_nodes);
+               Vectintmap_ *data = NULL;
 
+               if (DimEntity == 0) {
+                 data = &(PointsGPhysical);
+               }
+               
+               if (DimEntity == 1) {
+                 data = &(CurvesGPhysical);
+               }
+               
+               if (DimEntity == 2) {
+                 data = &(SurfacesGPhysical);
+               }
+               
+               if (DimEntity == 3) {
+                 data = &(VolumesGPhysical);
+               }
+
+               for (int el = 0; el < nb_Elements; ++el, ++totelt)
+                 {
+                   int no_elt;
+                   input >> no_elt;
+        
+                   for (int vi = 0; vi < n_elem_nodes; ++vi)
+                     {
+                       int index;
+                       input >> index;
+                       map<int, int>::const_iterator it = vertices_map.find(index);
+                       if (it == vertices_map.end())
+                         {
+                           MFEM_ABORT("Gmsh file : vertex index doesn't exist");
+                         }
+                       vert_indices[vi] = it->second;
+                     }
+
+                   phys_domain = 0;
+                   elem_domain = TagEntity;
+                   if( (*data).size() > 0 ) {
+                     if( ((*data)[TagEntity]).size() > 0 ) {
+                       phys_domain = ((*data)[TagEntity])[0];
+                     }
+                   }
+             
+                   // Non-positive attributes are not allowed in MFEM. However,
+                   // by default, Gmsh sets the physical domain of all elements
+                   // to zero. In the case that all elements have physical domain
+                   // zero, we will given them attribute 1. If only some elements
+                   // have physical domain zero, we will throw an error.
+                   if (phys_domain <= 0)
+                   { 
+                      has_nonpositive_phys_domain = true;
+                      phys_domain = 1;
+                   }
+                   else
+                   {
+                     has_positive_phys_domain = true;
+                   }
+
+                   // initialize the mesh element
+                   int el_order = 11;
+                   switch (type_of_element)
+                     {
+                  case  1: //  2-node line
+                  case  8: //  3-node line (2nd order)
+                  case 26: //  4-node line (3rd order)
+                  case 27: //  5-node line (4th order)
+                  case 28: //  6-node line (5th order)
+                  case 62: //  7-node line (6th order)
+                  case 63: //  8-node line (7th order)
+                  case 64: //  9-node line (8th order)
+                  case 65: // 10-node line (9th order)
+                  case 66: // 11-node line (10th order)
+                  {
+                     elements_1D.push_back(
+                        new Segment(&vert_indices[0], phys_domain));
+                     if (type_of_element != 1)
+                     {
+                        Array<int> * hov = new Array<int>;
+                        hov->Append(&vert_indices[0], n_elem_nodes);
+                        ho_verts_1D.push_back(hov);
+                        el_order = n_elem_nodes - 1;
+                        ho_el_order_1D.push_back(el_order);
+                     }
+                     break;
+                  }
+                  case  2: el_order--; //  3-node triangle
+                  case  9: el_order--; //  6-node triangle (2nd order)
+                  case 21: el_order--; // 10-node triangle (3rd order)
+                  case 23: el_order--; // 15-node triangle (4th order)
+                  case 25: el_order--; // 21-node triangle (5th order)
+                  case 42: el_order--; // 28-node triangle (6th order)
+                  case 43: el_order--; // 36-node triangle (7th order)
+                  case 44: el_order--; // 45-node triangle (8th order)
+                  case 45: el_order--; // 55-node triangle (9th order)
+                  case 46: el_order--; // 66-node triangle (10th order)
+                     {
+                        elements_2D.push_back(
+                           new Triangle(&vert_indices[0], phys_domain));
+                        if (el_order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_2D.push_back(hov);
+                           ho_el_order_2D.push_back(el_order);
+                        }
+                        break;
+                     }
+                  case  3: el_order--; //   4-node quadrangle
+                  case 10: el_order--; //   9-node quadrangle (2nd order)
+                  case 36: el_order--; //  16-node quadrangle (3rd order)
+                  case 37: el_order--; //  25-node quadrangle (4th order)
+                  case 38: el_order--; //  36-node quadrangle (5th order)
+                  case 47: el_order--; //  49-node quadrangle (6th order)
+                  case 48: el_order--; //  64-node quadrangle (7th order)
+                  case 49: el_order--; //  81-node quadrangle (8th order)
+                  case 50: el_order--; // 100-node quadrangle (9th order)
+                  case 51: el_order--; // 121-node quadrangle (10th order)
+                     {
+                        elements_2D.push_back(
+                           new Quadrilateral(&vert_indices[0], phys_domain));
+                        if (el_order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_2D.push_back(hov);
+                           ho_el_order_2D.push_back(el_order);
+                        }
+                        break;
+                     }
+                  case  4: el_order--; //   4-node tetrahedron
+                  case 11: el_order--; //  10-node tetrahedron (2nd order)
+                  case 29: el_order--; //  20-node tetrahedron (3rd order)
+                  case 30: el_order--; //  35-node tetrahedron (4th order)
+                  case 31: el_order--; //  56-node tetrahedron (5th order)
+                  case 71: el_order--; //  84-node tetrahedron (6th order)
+                  case 72: el_order--; // 120-node tetrahedron (7th order)
+                  case 73: el_order--; // 165-node tetrahedron (8th order)
+                  case 74: el_order--; // 220-node tetrahedron (9th order)
+                  case 75: el_order--; // 286-node tetrahedron (10th order)
+                     {
+#ifdef MFEM_USE_MEMALLOC
+                        elements_3D.push_back(TetMemory.Alloc());
+                        elements_3D.back()->SetVertices(&vert_indices[0]);
+                        elements_3D.back()->SetAttribute(phys_domain);
+#else
+                        elements_3D.push_back(
+                           new Tetrahedron(&vert_indices[0], phys_domain));
+#endif
+                        if (el_order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
+                        }
+                        break;
+                     }
+                  case  5: el_order--; //    8-node hexahedron
+                  case 12: el_order--; //   27-node hexahedron (2nd order)
+                  case 92: el_order--; //   64-node hexahedron (3rd order)
+                  case 93: el_order--; //  125-node hexahedron (4th order)
+                  case 94: el_order--; //  216-node hexahedron (5th order)
+                  case 95: el_order--; //  343-node hexahedron (6th order)
+                  case 96: el_order--; //  512-node hexahedron (7th order)
+                  case 97: el_order--; //  729-node hexahedron (8th order)
+                  case 98: el_order--; // 1000-node hexahedron (9th order)
+                     {
+                        el_order--;
+                        elements_3D.push_back(
+                           new Hexahedron(&vert_indices[0], phys_domain));
+                        if (el_order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
+                        }
+                        break;
+                     }
+                  case   6: el_order--; //   6-node wedge
+                  case  13: el_order--; //  18-node wedge (2nd order)
+                  case  90: el_order--; //  40-node wedge (3rd order)
+                  case  91: el_order--; //  75-node wedge (4th order)
+                  case 106: el_order--; // 126-node wedge (5th order)
+                  case 107: el_order--; // 196-node wedge (6th order)
+                  case 108: el_order--; // 288-node wedge (7th order)
+                  case 109: el_order--; // 405-node wedge (8th order)
+                  case 110: el_order--; // 550-node wedge (9th order)
+                     {
+                        el_order--;
+                        elements_3D.push_back(
+                           new Wedge(&vert_indices[0], phys_domain));
+                        if (el_order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
+                        }
+                        break;
+                     }
+                  case   7: el_order--; //   5-node pyramid
+                  case  14: el_order--; //  14-node pyramid (2nd order)
+                  case 118: el_order--; //  30-node pyramid (3rd order)
+                  case 119: el_order--; //  55-node pyramid (4th order)
+                  case 120: el_order--; //  91-node pyramid (5th order)
+                  case 121: el_order--; // 140-node pyramid (6th order)
+                  case 122: el_order--; // 204-node pyramid (7th order)
+                  case 123: el_order--; // 285-node pyramid (8th order)
+                  case 124: el_order--; // 385-node pyramid (9th order)
+                     {
+                        el_order--;
+                        elements_3D.push_back(
+                           new Pyramid(&vert_indices[0], phys_domain));
+                        if (el_order > 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                           ho_el_order_3D.push_back(el_order);
+                        }
+                        break;
+                     }
+                  case 15: // 1-node point
+                  {
+                     elements_0D.push_back(
+                        new Point(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  default: // any other element
+                     MFEM_WARNING("Unsupported Gmsh element type.");
+                     break;
+
+               } // switch (type_of_element)
+             } // el (all elements)
+             }
+         } // if ASCII format 4.1
          if (has_positive_phys_domain && has_nonpositive_phys_domain)
          {
             MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
