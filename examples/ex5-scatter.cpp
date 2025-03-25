@@ -629,7 +629,7 @@ int main(int argc, char *argv[])
       {
          stringstream ss;
          ss.str("");
-         ss << "ex5";
+         ss << "mesh";
          if (btime) { ss << "_" << ti; }
          ss << ".mesh";
          ofstream mesh_ofs(ss.str());
@@ -637,20 +637,36 @@ int main(int argc, char *argv[])
          mesh->Print(mesh_ofs);
 
          ss.str("");
-         ss << "sol_q";
+         ss << "sol_u";
          if (btime) { ss << "_" << ti; }
          ss << ".gf";
-         ofstream q_ofs(ss.str());
-         q_ofs.precision(8);
-         u_v.Save(q_ofs);
+         ofstream u_ofs(ss.str());
+         u_ofs.precision(8);
+         u_v.Save(u_ofs);
 
          ss.str("");
-         ss << "sol_t";
+         ss << "sol_n";
          if (btime) { ss << "_" << ti; }
          ss << ".gf";
-         ofstream t_ofs(ss.str());
-         t_ofs.precision(8);
-         n_h.Save(t_ofs);
+         ofstream n_ofs(ss.str());
+         n_ofs.precision(8);
+         n_h.Save(n_ofs);
+
+         ss.str("");
+         ss << "sol_E";
+         if (btime) { ss << "_" << ti; }
+         ss << ".gf";
+         ofstream E_ofs(ss.str());
+         E_ofs.precision(8);
+         E_h.Save(E_ofs);
+
+         ss.str("");
+         ss << "sol_B";
+         if (btime) { ss << "_" << ti; }
+         ss << ".gf";
+         ofstream B_ofs(ss.str());
+         B_ofs.precision(8);
+         B_h.Save(B_ofs);
       }
 
       // 14. Save data in the VisIt format
