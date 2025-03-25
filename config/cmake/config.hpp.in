@@ -210,4 +210,7 @@
 // Enable Enzyme for AD
 #cmakedefine MFEM_USE_ENZYME
 
+// Enable Proteus JIT compilation
+#cmakedefine MFEM_USE_PROTEUS
+
 #endif // MFEM_CONFIG_HEADER
