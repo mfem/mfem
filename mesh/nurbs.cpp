@@ -15,6 +15,7 @@
 
 #include <fstream>
 #include <algorithm>
+#include <utility>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define copysign _copysign
@@ -167,6 +168,38 @@ int KnotVector::GetCoarseningFactor() const
    {
       return 1;
    }
+}
+
+std::pair<Vector, Vector> KnotVector::GetUniqueKnots() const
+{
+   Vector uknots(NumOfElements+1);
+   Vector multiplicities(NumOfElements+1);
+
+   real_t x0 = knot[0];
+   uknots[0] = x0;
+   int idx = 1;
+   int mult = 1;
+
+   for (int i=1; i<knot.Size(); ++i)
+   {
+      if (knot[i] != x0)
+      {
+         uknots[idx] = knot[i];
+         multiplicities[idx-1] = mult;
+
+         // Reset
+         x0 = knot[i];
+         idx++;
+         mult = 1;
+      }
+      else
+      {
+         mult++;
+      }
+   }
+   multiplicities[idx-1] = mult;
+
+   return std::make_pair(uknots, multiplicities);
 }
 
 Vector KnotVector::GetFineKnots(const int cf) const
