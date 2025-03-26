@@ -654,7 +654,6 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
                                                    const PatchBasisInfo &pb,
                                                    Vector &diag) const
 {
-   // MFEM_VERIFY(false, "Not implemented");
    // Unpack patch basis info
    const Array<int>& D1D = pb.D1D;
    const Array<int>& Q1D = pb.Q1D;

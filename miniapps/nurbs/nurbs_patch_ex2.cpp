@@ -111,7 +111,8 @@ int main(int argc, char *argv[])
    // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
-      mesh.UniformRefinement();
+      // mesh.UniformRefinement();
+      mesh.NURBSUniformRefinement();
    }
 
    // 5. Define a finite element space on the mesh.
@@ -160,10 +161,12 @@ int main(int argc, char *argv[])
 
    // Lame parameters
    Vector lambda(mesh.attributes.Max());
-   lambda = 10.0;
-   PWConstCoefficient lambda_func(lambda);
    Vector mu(mesh.attributes.Max());
-   mu = 10.0;
+   lambda = 1.0; lambda(0) = lambda(1)*50;
+   mu = 1.0; mu(0) = mu(1)*50;
+   // lambda = 10.0; mu = 10.0;
+
+   PWConstCoefficient lambda_func(lambda);
    PWConstCoefficient mu_func(mu);
 
    // Bilinear integrator
@@ -258,11 +261,10 @@ int main(int argc, char *argv[])
 
       CGSolver *P = new CGSolver();
       P->SetOperator(*lo_A);
-      P->SetMaxIter(1e2);
+      P->SetMaxIter(1e4);
       P->SetPrintLevel(-1);
-      P->SetRelTol(1e-6);
+      P->SetRelTol(1e-4);
       solver.SetPreconditioner(*P);
-
    }
 
    sw.Stop();
@@ -276,7 +278,7 @@ int main(int argc, char *argv[])
    solver.SetMaxIter(1e5);
    solver.SetPrintLevel(1);
    solver.SetRelTol(1e-8);
-   solver.SetAbsTol(1e-14);
+   solver.SetAbsTol(1e-12);
 
    solver.Mult(B, X);
 
@@ -307,17 +309,19 @@ int main(int argc, char *argv[])
    // header
    if (!file_exists)
    {
-      results_ofs << "int.patch, int.pa, "
-                  << "problem.mesh, problem.refs, problem.degree_inc, problem.ndof, "
-                  << "solver.iter, solver.absnorm, solver.relnorm, "
-                  << "solution.linf, solution.l2, "
-                  << "time.assemble, time.solve, time.total, "
+      results_ofs << "patcha, pa, precon_setting, reduced_int, "
+                  << "mesh, refinements, degree_inc, ndof, "
+                  << "iter, absnorm, relnorm, "
+                  << "linf, l2, "
+                  << "time_assemble, time_solve, time_total, "
                   << "dof_per_sec_solve, "
                   << "dof_per_sec_total" << endl;
    }
 
    results_ofs << patchAssembly << ", "
                << pa << ", "
+               << preconditioner << ", "
+               << reduced_integration << ", "
                << mesh_file << ", "
                << ref_levels << ", "
                << nurbs_degree_increase << ", "
@@ -395,7 +399,6 @@ void SetPatchIntegrationRules(const Mesh &mesh,
          }
 
       }
-
 
       patchRule->SetPatchRules1D(p, ir1D);
    }  // loop (p) over patches
