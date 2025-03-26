@@ -108,6 +108,45 @@ using TMOPFunction = void (*)(T &);
 template <int Metric, typename Ker>
 void Kernel(Ker &);
 
+// Max & two templated arguments: MD1, MQ1, T_D1D, T_Q1D
+#define MFEM_TMOP_REGISTER_MDQ_KERNEL(Name, Ker)      \
+   using Ker##_t = decltype(&Ker<0,0,0,0>);           \
+   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));  \
+   template <int D, int Q>                            \
+   Ker##_t Name::Kernel() { return Ker<D,Q, D,Q>; }   \
+   Ker##_t Name::Fallback(int, int) {                 \
+      return Ker<DofQuadLimits::MAX_D1D,              \
+                 DofQuadLimits::MAX_Q1D, 0, 0>; }
+
+template <typename Kernel>
+int KernelSpecializationsM()
+{
+   Kernel::template Specialization<2, 2>::Add();
+   Kernel::template Specialization<2, 3>::Add();
+   Kernel::template Specialization<2, 4>::Add();
+   Kernel::template Specialization<2, 5>::Add();
+   Kernel::template Specialization<2, 6>::Add();
+
+   Kernel::template Specialization<3, 3>::Add();
+   Kernel::template Specialization<3, 4>::Add();
+   Kernel::template Specialization<3, 5>::Add();
+   Kernel::template Specialization<3, 6>::Add();
+
+   Kernel::template Specialization<4, 4>::Add();
+   Kernel::template Specialization<4, 5>::Add();
+   Kernel::template Specialization<4, 6>::Add();
+
+   Kernel::template Specialization<5, 5>::Add();
+   Kernel::template Specialization<5, 6>::Add();
+   Kernel::template Specialization<6, 6>::Add();
+   return 0;
+}
+#define MFEM_TMOP_ADD_SPECIALIZED_MDQ_KERNEL(Name)                      \
+   namespace                                                            \
+   {                                                                    \
+   static bool k##Name{ (tmop::KernelSpecializationsM<Name>(), true) }; \
+   }
+
 // Two templated arguments: T_D1D, T_Q1D
 #define MFEM_TMOP_REGISTER_KERNELS(Name, Ker)         \
    using Ker##_t = decltype(&Ker<>);                  \

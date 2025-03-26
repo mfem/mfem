@@ -19,7 +19,7 @@ using mfem::internal::tensor;
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagPA_C0_3D(const int NE,
                                const ConstDeviceMatrix &B,
                                const DeviceTensor<6, const real_t> &H0,
@@ -33,11 +33,10 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       static constexpr int DIM = 3;
-      static constexpr int MQ1 = (T_Q1D > 0) ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      // regs3d_t<MQ1> r0, r1;
-      mfem::internal::tensor<real_t, MQ1, MQ1, MQ1> r0, r1;
+      regs3d_t<MQ1> r0, r1;
+      // mfem::internal::tensor<real_t, MQ1, MQ1, MQ1> r0, r1;
 
       for (int v = 0; v < DIM; ++v)
       {
@@ -119,8 +118,9 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef3D);
+MFEM_TMOP_REGISTER_MDQ_KERNEL(TMOPAssembleDiagCoef3D,
+                              TMOP_AssembleDiagPA_C0_3D);
+MFEM_TMOP_ADD_SPECIALIZED_MDQ_KERNEL(TMOPAssembleDiagCoef3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
 {
