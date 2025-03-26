@@ -255,7 +255,7 @@ function(add_serial_miniapp_test name test_uvm)
     endif(MFEM_USE_HIP)
 endfunction(add_serial_miniapp_test)
 
-# add_serial_miniapp_test(sedov ON)  # UVM ON
+add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)

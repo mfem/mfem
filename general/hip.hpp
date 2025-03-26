@@ -48,9 +48,7 @@
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
-   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
-#define MFEM_FOREACH_THREAD2(i,k,N) \
-   int i = hipThreadIdx_ ##k; if (i<N)
+    for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
 #endif
 
 namespace mfem

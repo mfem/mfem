@@ -61,13 +61,13 @@ if (!chdir $mfem_dir) {
 # Maximum number of acceptable commits in the branch
 my $branch_max_commits = 200;
 # Maximum number of acceptable files changed in any commit in the branch
-my $commit_max_files_changed = 5000; # 🔥
+my $commit_max_files_changed = 50;
 # Maximum acceptable size (in K) of any git blob in the branch
 my $max_blob_kb = 200;
 # Maximum acceptable size (in K) of any commit in the branch
-my $max_commit_kb = 4000; # 🔥
+my $max_commit_kb = 400;
 # Maximum acceptable size (in K) of the sum of the commit sizes in the branch
-my $max_branch_kb = 10000; # 🔥
+my $max_branch_kb = 1000;
 
 my $status = 0; # Return code
 
