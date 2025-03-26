@@ -8,11 +8,13 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#pragma once
 
+#include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
+
 
 namespace mfem
 {
@@ -37,11 +39,11 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPAddMultPA2D &ker)
    {
+      constexpr int DIM = 2, VDIM = 2;
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ti->PA.maps->ndof, q1d = ti->PA.maps->nqpt;
 
-      constexpr int DIM = 2, NBZ = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -53,53 +55,53 @@ public:
          m->GetWeights(mp);
       }
       const real_t *w = mp.Read();
+      const auto *b = ti->PA.maps->B.Read(), *g = ti->PA.maps->G.Read();
 
+      const auto X = Reshape(ker.x.Read(), D1D, D1D, DIM, NE);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D);
-      const auto B = Reshape(ti->PA.maps->B.Read(), Q1D, D1D);
-      const auto G = Reshape(ti->PA.maps->G.Read(), Q1D, D1D);
-      const auto X = Reshape(ker.x.Read(), D1D, D1D, DIM, NE);
       auto Y = Reshape(ker.y.ReadWrite(), D1D, D1D, DIM, NE);
 
-      const Vector &mc_ = ti->PA.MC;
-      const bool const_m0 = mc_.Size() == 1;
-      const auto MC = const_m0 ? Reshape(mc_.Read(), 1, 1, 1)
-                      : Reshape(mc_.Read(), Q1D, Q1D, NE);
+      const Vector &mc = ti->PA.MC;
+      const bool const_m0 = mc.Size() == 1;
+      const auto MC = const_m0
+                      ? Reshape(mc.Read(), 1, 1, 1)
+                      : Reshape(mc.Read(), Q1D, Q1D, NE);
 
-      mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int NBZ = 1;
-         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
          constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-         MFEM_SHARED real_t BG[2][MQ1 * MD1];
-         MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
-         MFEM_SHARED real_t DQ[4][NBZ][MD1 * MQ1];
-         MFEM_SHARED real_t QQ[4][NBZ][MQ1 * MQ1];
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-         kernels::internal::LoadX<MD1, NBZ>(e, D1D, X, XY);
-         kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
+         LoadMatrix(D1D, Q1D, b, sB);
+         LoadMatrix(D1D, Q1D, g, sG);
 
-         kernels::internal::GradX<MD1, MQ1, NBZ>(D1D, Q1D, BG, XY, DQ);
-         kernels::internal::GradY<MD1, MQ1, NBZ>(D1D, Q1D, BG, DQ, QQ);
+         LoadDofs2d(e, D1D, X, r0);
+         Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);
                const real_t m_coef = const_m0 ? MC(0, 0, 0) : MC(qx, qy, e);
-               const real_t weight =
-                  metric_normal * m_coef * W(qx, qy) * detJtr;
+               const real_t weight = metric_normal * m_coef * W(qx, qy) * detJtr;
 
                // Jrt = Jtr^{-1}
                real_t Jrt[4];
                kernels::CalcInverse<2>(Jtr, Jrt);
 
                // Jpr = X{^T}.DSh
-               real_t Jpr[4];
-               kernels::internal::PullGrad<MQ1, NBZ>(Q1D, qx, qy, QQ, Jpr);
+               const real_t Jpr[4] =
+               {
+                  r1[0][0][qy][qx], r1[1][0][qy][qx],
+                  r1[0][1][qy][qx], r1[1][1][qy][qx]
+               };
 
                // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
                real_t Jpt[4];
@@ -113,13 +115,13 @@ public:
                // PMatO += DS . P^t += DSh . (Jrt . P^t)
                real_t A[4];
                kernels::MultABt(2, 2, 2, Jrt, P, A);
-               kernels::internal::PushGrad<MQ1, NBZ>(Q1D, qx, qy, A, QQ);
-            }
-         }
+               r0[0][0][qy][qx] = A[0], r0[0][1][qy][qx] = A[1];
+               r0[1][0][qy][qx] = A[2], r0[1][1][qy][qx] = A[3];
+            });
+         });
          MFEM_SYNC_THREAD;
-         kernels::internal::LoadBGt<MD1, MQ1>(D1D, Q1D, B, G, BG);
-         kernels::internal::GradYt<MD1, MQ1, NBZ>(D1D, Q1D, BG, QQ, DQ);
-         kernels::internal::GradXt<MD1, MQ1, NBZ>(D1D, Q1D, BG, DQ, Y, e);
+         GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
+         WriteDofs2d(e, D1D, r1, Y);
       });
    }
 };

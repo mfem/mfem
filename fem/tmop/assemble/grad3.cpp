@@ -19,7 +19,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &x) const
 {
    const int mid = metric->Id();
 
-   TMOPSetupGradPA3D ker(this, x);
+   TMOPAssembleGradPA3D ker(this, x);
 
    if (mid == 302) { return tmop::Kernel<302>(ker); }
    if (mid == 303) { return tmop::Kernel<303>(ker); }

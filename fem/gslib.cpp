@@ -256,7 +256,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                (mesh->GetElementType(0)==Element::QUADRILATERAL ||
                                 mesh->GetElementType(0) == Element::HEXAHEDRON));
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MPI_C_BOOL,
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
 
@@ -1722,7 +1722,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                (mesh->GetElementType(0)==Element::QUADRILATERAL ||
                                 mesh->GetElementType(0) == Element::HEXAHEDRON));
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MPI_C_BOOL,
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
 

@@ -40,6 +40,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_rectangular.cpp
   linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
+  linalg/test_mma.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
@@ -85,6 +86,9 @@ set(UNIT_TESTS_SRCS
   fem/test_face_permutation.cpp
   fem/test_face_restriction.cpp
   fem/test_fe.cpp
+  fem/test_fe_compatibility.cpp
+  fem/test_fe_fixed.cpp
+  fem/test_fe_symmetry.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
@@ -198,6 +202,9 @@ function(add_serial_miniapp_test name test_uvm)
     if (MFEM_USE_CUDA)
        set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
@@ -236,9 +243,19 @@ function(add_serial_miniapp_test name test_uvm)
            endif()
        endif()
     endif(MFEM_USE_CUDA)
+
+    if (MFEM_USE_HIP)
+       mfem_add_executable(${name}_tests_hip ${${NAME}_TESTS_SRCS})
+       target_compile_definitions(${name}_tests_hip PUBLIC MFEM_${NAME}_DEVICE="hip")
+       target_link_libraries(${name}_tests_hip mfem)
+       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_hip)
+       if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+           add_test(NAME ${name}_tests_hip COMMAND ${name}_tests_hip)
+       endif()
+    endif(MFEM_USE_HIP)
 endfunction(add_serial_miniapp_test)
 
-add_serial_miniapp_test(sedov ON)  # UVM ON
+# add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)

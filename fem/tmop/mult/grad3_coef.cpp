@@ -11,7 +11,6 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -20,7 +19,7 @@ namespace mfem
 
 template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_C0_3D(const int NE,
-                              const ConstDeviceMatrix &b,
+                              const real_t *b,
                               const DeviceTensor<6, const real_t> &H0,
                               const DeviceTensor<5, const real_t> &X,
                               DeviceTensor<5> &Y,
@@ -29,36 +28,35 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED real_t B[MQ1 * MD1];
-      MFEM_SHARED real_t sm0[3][MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[3][MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::LoadX_v<MDQ>(e, D1D, X, sm0);
-      kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, b, B);
+      LoadMatrix(D1D, Q1D, b, sB);
 
-      kernels::internal::EvalX<MD1, MQ1>(D1D, Q1D, B, sm0, sm1);
-      kernels::internal::EvalY<MD1, MQ1>(D1D, Q1D, B, sm1, sm0);
-      kernels::internal::EvalZ<MD1, MQ1>(D1D, Q1D, B, sm0, sm1);
+      regs5d_t<3,1,MQ1> r0, r1; // vector X
+      LoadDofs3d(e, D1D, X, r0);
+      Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
-      MFEM_FOREACH_THREAD(qz, z, Q1D)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                // Xh = X^T . Sh
-               real_t Xh[3];
-               kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, sm1, Xh);
+               const real_t Xh[3] =
+               {
+                  r1(0, 0, qz, qy, qx),
+                  r1(1, 0, qz, qy, qx),
+                  r1(2, 0, qz, qy, qx)
+               };
 
                real_t H_data[9];
                DeviceMatrix H(H_data, 3, 3);
@@ -73,15 +71,15 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
                // p2 = H . Xh
                real_t p2[3];
                kernels::Mult(3, 3, H_data, Xh, p2);
-               kernels::internal::PushEval<MQ1>(Q1D, qx, qy, qz, p2, sm0);
-            }
-         }
+               r0(0,0, qz,qy,qx) = p2[0];
+               r0(0,1, qz,qy,qx) = p2[1];
+               r0(0,2, qz,qy,qx) = p2[2];
+            });
+         });
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::LoadBt<MD1, MQ1>(D1D, Q1D, b, B);
-      kernels::internal::EvalXt<MD1, MQ1>(D1D, Q1D, B, sm0, sm1);
-      kernels::internal::EvalYt<MD1, MQ1>(D1D, Q1D, B, sm1, sm0);
-      kernels::internal::EvalZt<MD1, MQ1>(D1D, Q1D, B, sm0, Y, e);
+      EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
+      WriteDofs3d(e, D1D, r1, Y);
    });
 }
 
@@ -93,12 +91,15 @@ void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
    constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, q, NE);
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
+   const auto *b = PA.maps->B.Read();
    const auto X = Reshape(R.Read(), d, d, d, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, d, DIM, NE);
 
-   TMOPMultGradCoefKernels3D::Run(d, q, NE, B, H0, X, Y, d, q);
+   TMOPMultGradCoefKernels3D::Run(d, q, NE, b, H0, X, Y, d, q);
 }
 
 } // namespace mfem

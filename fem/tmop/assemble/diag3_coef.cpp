@@ -17,98 +17,113 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
-                                   const ConstDeviceMatrix &B,
-                                   const DeviceTensor<6, const real_t> &H0,
-                                   DeviceTensor<5> &D,
-                                   const int d1d,
-                                   const int q1d)
+void TMOP_AssembleDiagPA_C0_3D(const int NE,
+                               const ConstDeviceMatrix &B,
+                               const DeviceTensor<6, const real_t> &H0,
+                               DeviceTensor<5> &D,
+                               const int d1d,
+                               const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED real_t qqd[MQ1 * MQ1 * MD1];
-      MFEM_SHARED real_t qdd[MQ1 * MD1 * MD1];
-      DeviceTensor<3, real_t> QQD(qqd, MQ1, MQ1, MD1);
-      DeviceTensor<3, real_t> QDD(qdd, MQ1, MD1, MD1);
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      regs3d_t<MQ1> r0, r1;
 
       for (int v = 0; v < DIM; ++v)
       {
          // first tensor contraction, along z direction
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            foreach_y_thread(Q1D, [&](int qy)
             {
-               MFEM_FOREACH_THREAD(dz, z, D1D)
+               foreach_x_thread(Q1D, [&](int qx)
                {
-                  QQD(qx, qy, dz) = 0.0;
-                  MFEM_UNROLL(MQ1)
+                  real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      const real_t Bz = B(qz, dz);
-                     QQD(qx, qy, dz) += Bz * H0(v, v, qx, qy, qz, e) * Bz;
+                     u += Bz * H0(v, v, qx, qy, qz, e) * Bz;
                   }
-               }
-            }
+                  r0[dz][qy][qx] = u;
+               });
+            });
+            MFEM_SYNC_THREAD;
          }
-         MFEM_SYNC_THREAD;
+
          // second tensor contraction, along y direction
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(dz, z, D1D)
+            foreach_y_thread(Q1D, [&](int qy)
             {
-               MFEM_FOREACH_THREAD(dy, y, D1D)
+               foreach_x_thread(Q1D, [&](int qx)
                {
-                  QDD(qx, dy, dz) = 0.0;
-                  MFEM_UNROLL(MQ1)
+                  smem[qy][qx] = r0[dz][qy][qx];
+               });
+            });
+            MFEM_SYNC_THREAD;
+
+            foreach_y_thread(D1D, [&](int dy)
+            {
+               foreach_x_thread(Q1D, [&](int qx)
+               {
+                  real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      const real_t By = B(qy, dy);
-                     QDD(qx, dy, dz) += By * QQD(qx, qy, dz) * By;
+                     u += By * smem[qy][qx] * By;
                   }
-               }
-            }
+                  r1[dz][dy][qx] = u;
+               });
+            });
+            MFEM_SYNC_THREAD;
          }
-         MFEM_SYNC_THREAD;
+
          // third tensor contraction, along x direction
-         MFEM_FOREACH_THREAD(dz, z, D1D)
+         for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            foreach_y_thread(D1D, [&](int dy)
             {
-               MFEM_FOREACH_THREAD(dx, x, D1D)
+               foreach_x_thread(Q1D, [&](int qx)
                {
-                  real_t d = 0.0;
-                  MFEM_UNROLL(MQ1)
+                  smem[dy][qx] = r1[dz][dy][qx];
+               });
+            });
+            MFEM_SYNC_THREAD;
+
+            foreach_y_thread(D1D, [&](int dy)
+            {
+               foreach_x_thread(D1D, [&](int dx)
+               {
+                  real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const real_t Bx = B(qx, dx);
-                     d += Bx * QDD(qx, dy, dz) * Bx;
+                     u += Bx * smem[dy][qx] * Bx;
                   }
-                  D(dx, dy, dz, v, e) += d;
-               }
-            }
+                  D(dx, dy, dz, v, e) += u;
+               });
+            });
+            MFEM_SYNC_THREAD;
          }
-         MFEM_SYNC_THREAD;
       }
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D,
-                           TMOP_AssembleDiagonalPA_C0_3D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D);
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
 {
    constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, q, NE);
