@@ -13,6 +13,8 @@
 #include "../../tmop.hpp"
 #include "../../../general/forall.hpp"
 
+using mfem::internal::tensor;
+
 namespace mfem
 {
 
@@ -33,7 +35,8 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      regs3d_t<MQ1> r0, r1;
+      // regs3d_t<MQ1> r0, r1;
+      mfem::internal::tensor<real_t, MQ1, MQ1, MQ1> r0, r1;
 
       for (int v = 0; v < DIM; ++v)
       {
@@ -51,6 +54,7 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
                      u += Bz * H0(v, v, qx, qy, qz, e) * Bz;
                   }
                   // r0[dz][qy][qx] = u;
+                  MFEM_CONTRACT_VAR(u);
                });
             });
             MFEM_SYNC_THREAD;
