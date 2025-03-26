@@ -61,6 +61,44 @@ struct TMOP_PA_Metric_3D
                                            const DeviceTensor<5 + DIM> &H) const = 0;
 };
 
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
+     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+template <int N>
+using regs2d_t = mfem::internal::tensor<real_t, 0, 0>;
+
+template <int N>
+using regs3d_t = mfem::internal::tensor<real_t, N, 0, 0>;
+
+template <int VDIM, int DIM, int N>
+using regs4d_t = mfem::internal::tensor<real_t, VDIM, DIM, 0, 0>;
+
+template <int VDIM, int DIM, int N>
+using regs5d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, 0, 0>;
+
+constexpr int SetMaxOf(int n) { return n; }
+#else
+template <int N>
+using regs2d_t = mfem::internal::tensor<real_t, N, N>;
+
+template <int N>
+using regs3d_t = mfem::internal::tensor<real_t, N, N, N>;
+
+template <int VDIM, int DIM, int N>
+using regs4d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, N>;
+
+template <int VDIM, int DIM, int N>
+using regs5d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, N, N>;
+
+template<int N>
+constexpr int NextMultipleOf(int n)
+{
+   static_assert(N > 0 && (N & (N - 1)) == 0, "N must be a power of 2");
+   return (n + (N - 1)) & ~(N - 1);
+}
+
+constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
+#endif // CUDA/HIP && DEVICE_COMPILE
+
 namespace tmop
 {
 
@@ -182,44 +220,6 @@ void foreach_y_thread(const int N, F&& func)
    for (int i = 0; i < N; ++i) { func(i); }
 #endif
 }
-
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
-template <int N>
-using regs2d_t = mfem::internal::tensor<real_t, 0, 0>;
-
-template <int N>
-using regs3d_t = mfem::internal::tensor<real_t, N, 0, 0>;
-
-template <int VDIM, int DIM, int N>
-using regs4d_t = mfem::internal::tensor<real_t, VDIM, DIM, 0, 0>;
-
-template <int VDIM, int DIM, int N>
-using regs5d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, 0, 0>;
-
-constexpr int SetMaxOf(int n) { return n; }
-#else
-template <int N>
-using regs2d_t = mfem::internal::tensor<real_t, N, N>;
-
-template <int N>
-using regs3d_t = mfem::internal::tensor<real_t, N, N, N>;
-
-template <int VDIM, int DIM, int N>
-using regs4d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, N>;
-
-template <int VDIM, int DIM, int N>
-using regs5d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, N, N>;
-
-template<int N>
-constexpr int NextMultipleOf(int n)
-{
-   static_assert(N > 0 && (N & (N - 1)) == 0, "N must be a power of 2");
-   return (n + (N - 1)) & ~(N - 1);
-}
-
-constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
-#endif // CUDA/HIP && DEVICE_COMPILE
 
 template <int MD1, int MQ1> inline MFEM_HOST_DEVICE
 void LoadMatrix(const int d1d, const int q1d,
