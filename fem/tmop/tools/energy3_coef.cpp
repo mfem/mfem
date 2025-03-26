@@ -137,8 +137,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto BLD = Reshape(PA.maps_lim->B.Read(), q, d);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto X0 = Reshape(PA.X0.Read(), d, d, d, DIM, NE);
-   const auto X1 = Reshape(x.Read(), d, d, d, DIM, NE);
+   const auto XL = Reshape(PA.XL.Read(), d, d, d, DIM, NE);
+   const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
    auto E = Reshape(PA.E.Write(), q, q, q, NE);
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
@@ -146,7 +146,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
 
    TMOPEnergyPAC03D::Run(d, q,
                          ln, LD, const_c0, C0, NE, J, W,
-                         B, BLD, X0, X1, E, exp_lim, d, q);
+                         B, BLD, XL, X, E, exp_lim, d, q);
 
    return PA.E * PA.O;
 }

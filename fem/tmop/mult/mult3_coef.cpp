@@ -145,14 +145,14 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto BLD = Reshape(PA.maps_lim->B.Read(), q, d);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto X0 = Reshape(PA.X0.Read(), d, d, d, DIM, NE);
+   const auto XL = Reshape(PA.XL.Read(), d, d, d, DIM, NE);
    const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
    auto Y = Reshape(y.ReadWrite(), d, d, d, DIM, NE);
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPMultCoefKernels3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0,
+   TMOPMultCoefKernels3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, XL,
                               X, Y, exp_lim, d, q);
 }
 

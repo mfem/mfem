@@ -122,14 +122,14 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto BLD = Reshape(PA.maps_lim->B.Read(), q, d);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-   const auto X0 = Reshape(PA.X0.Read(), d, d, DIM, NE);
+   const auto XL = Reshape(PA.XL.Read(), d, d, DIM, NE);
    const auto X = Reshape(x.Read(), d, d, DIM, NE);
    auto E = Reshape(PA.E.Write(), q, q, NE);
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPEnergyCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, E,
+   TMOPEnergyCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, XL, X, E,
                          exp_lim, d, q);
    return PA.E * PA.O;
 }
