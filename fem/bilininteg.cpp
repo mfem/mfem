@@ -2921,6 +2921,11 @@ void DivDivIntegrator::AssembleElementMatrix(
    if (ir == NULL)
    {
       int order = 2 * el.GetOrder() - 2; // <--- OK for RTk
+      if (el.Space() == FunctionSpace::Uk)
+      {
+         order += 2;
+      }
+
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
