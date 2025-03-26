@@ -30,8 +30,6 @@ void TMOP_MinDetJpr_2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -79,6 +77,9 @@ real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
    const DofToQuad &maps = fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
    const int NE = fes->GetMesh()->GetNE(), NQ = ir.GetNPoints();
    const int d = maps.ndof, q = maps.nqpt;
+
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    constexpr int DIM = 2;
    const auto *b = maps.B.Read(), *g = maps.G.Read();

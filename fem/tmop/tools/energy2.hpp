@@ -37,11 +37,12 @@ public:
    static void Mult(TMOPEnergyPA2D &ker)
    {
       constexpr int DIM = 2, VDIM = 2;
+
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
-
       const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
+
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
       MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
@@ -50,8 +51,10 @@ public:
       {
          m->GetWeights(mp);
       }
+
       const auto *w = mp.Read();
-      const auto *b = ti->PA.maps->B.Read(), *g = ti->PA.maps->G.Read();
+      const auto *b = ti->PA.maps->B.Read();
+      const auto *g = ti->PA.maps->G.Read();
 
       const auto X = Reshape(ker.x.Read(), D1D, D1D, DIM, NE);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);

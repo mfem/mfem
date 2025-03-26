@@ -50,7 +50,7 @@ public:
       }
       const real_t *w = mp.Read();
 
-      const auto *B = ti->PA.maps->B.Read(), *G = ti->PA.maps->G.Read();
+      const auto *b = ti->PA.maps->B.Read(), *g = ti->PA.maps->G.Read();
       const auto X = Reshape(ker.x.Read(), D1D, D1D, DIM, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
@@ -71,8 +71,8 @@ public:
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs::regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-         regs::LoadMatrix(D1D, Q1D, B, sB);
-         regs::LoadMatrix(D1D, Q1D, G, sG);
+         regs::LoadMatrix(D1D, Q1D, b, sB);
+         regs::LoadMatrix(D1D, Q1D, g, sG);
 
          regs::LoadDofs2d(e, D1D, X, r0);
          regs::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);

@@ -37,11 +37,12 @@ public:
    static void Mult(TMOPEnergyPA3D &ker)
    {
       constexpr int DIM = 3, VDIM = 3;
+
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ker.Nqpt();
-
       const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
+
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
       MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
@@ -50,9 +51,10 @@ public:
       {
          metric->GetWeights(mp);
       }
-      const auto *w = mp.Read();
 
-      const auto *B = ti->PA.maps->B.Read(), *G = ti->PA.maps->G.Read();
+      const auto *w = mp.Read();
+      const auto *b = ti->PA.maps->B.Read(), *g = ti->PA.maps->G.Read();
+
       const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
@@ -73,8 +75,8 @@ public:
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs::regs5d_t<VDIM, DIM, MQ1> r0, r1;
 
-         regs::LoadMatrix(D1D, Q1D, B, sB);
-         regs::LoadMatrix(D1D, Q1D, G, sG);
+         regs::LoadMatrix(D1D, Q1D, b, sB);
+         regs::LoadMatrix(D1D, Q1D, g, sG);
 
          regs::LoadDofs3d(e, D1D, X, r0);
          regs::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);

@@ -26,20 +26,16 @@ void TMOP_DatcSize_3D(const int NE,
                       const real_t input_min_size,
                       const real_t *nc_red,
                       const ConstDeviceMatrix &W,
-                      const ConstDeviceMatrix &B,
+                      const real_t *b,
                       const DeviceTensor<5, const real_t> &X,
                       DeviceTensor<6> &J,
                       const int d1d = 0,
                       const int q1d = 0)
 {
-   MFEM_VERIFY(ncomp == 1, "");
-   MFEM_VERIFY(sizeidx == 0, "");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    MFEM_VERIFY(Q1D <= 8, "TMOP_DatcSize_3D can use max Q1D == 8");
-   const auto *b_ptr = (const real_t*) B;
    constexpr int BLOCK_DIM = 512;
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
@@ -86,7 +82,7 @@ void TMOP_DatcSize_3D(const int NE,
       real_t min = min_size[0];
       if (input_min_size > 0.0) { min = input_min_size; }
 
-      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
+      regs::LoadMatrix(D1D, Q1D, b, sB);
       regs::Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -123,8 +119,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                                                DenseTensor &Jtr) const
 {
    MFEM_VERIFY(target_type == IDEAL_SHAPE_GIVEN_SIZE ||
-               target_type == GIVEN_SHAPE_AND_SIZE,
-               "");
+               target_type == GIVEN_SHAPE_AND_SIZE, "");
 
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
    const FiniteElementSpace *fes = tspec_fesv;
@@ -151,6 +146,11 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const int d = maps.ndof, q = maps.nqpt;
    const real_t min_size = lim_min_size;
 
+   MFEM_VERIFY(ncomp == 1, "");
+   MFEM_VERIFY(sizeidx == 0, "");
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
    nc_size_red.HostWrite();
    NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
@@ -163,20 +163,19 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    Vector tspec_e;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
-   MFEM_VERIFY(R && R->Height() == NE * ncomp * d * d * d,
-               "Restriction error!");
+   MFEM_VERIFY(R && R->Height() == NE * ncomp * d * d * d, "Restriction error!");
    tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
    tspec_e.UseDevice(true);
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
 
    constexpr int DIM = 3;
-   const auto B = Reshape(maps.B.Read(), q, d);
+   const auto *b = maps.B.Read();
    const auto W = Reshape(w.Read(), DIM, DIM);
    const auto X = Reshape(tspec_e.Read(), d, d, d, ncomp, NE);
    auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
 
-   TMOPDatcSize::Run(d, q, NE, ncomp, sizeidx, min_size, nc_red, W, B, X, J, d, q);
+   TMOPDatcSize::Run(d, q, NE, ncomp, sizeidx, min_size, nc_red, W, b, X, J, d, q);
 }
 
 } // namespace mfem

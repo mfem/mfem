@@ -48,8 +48,8 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
 template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_TcIdealShapeGivenSize_2D(const int NE,
                                    const real_t detW,
-                                   const ConstDeviceMatrix &B,
-                                   const ConstDeviceMatrix &G,
+                                   const real_t *b,
+                                   const real_t *g,
                                    const ConstDeviceMatrix &W,
                                    const DeviceTensor<4, const real_t> &X,
                                    DeviceTensor<5> &J,
@@ -58,8 +58,6 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -71,8 +69,8 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
       regs::regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-      regs::LoadMatrix(D1D, Q1D, B, sB);
-      regs::LoadMatrix(D1D, Q1D, G, sG);
+      regs::LoadMatrix(D1D, Q1D, b, sB);
+      regs::LoadMatrix(D1D, Q1D, g, sG);
 
       regs::LoadDofs2d(e, D1D, X, r0);
       regs::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
@@ -127,10 +125,12 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const int d = maps.ndof, q = maps.nqpt;
 
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
    constexpr int DIM = 2;
    const auto W = Reshape(w.Read(), DIM, DIM);
-   const auto B = Reshape(maps.B.Read(), q, d);
-   const auto G = Reshape(maps.G.Read(), q, d);
+   const auto *b = maps.B.Read(), *g = maps.G.Read();
    auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, NE);
 
    switch (target_type)
@@ -152,7 +152,7 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
          const auto X = Reshape(x.Read(), d, d, DIM, NE);
 
-         TMOPTcIdealShapeGivenSize2D::Run(d, q, NE, detW, B, G, W, X, J, d, q);
+         TMOPTcIdealShapeGivenSize2D::Run(d, q, NE, detW, b, g, W, X, J, d, q);
          return true;
       }
       case GIVEN_SHAPE_AND_SIZE: return false;

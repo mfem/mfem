@@ -55,8 +55,8 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize3D);
 template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_TcIdealShapeGivenSize_3D(const int NE,
                                    const real_t detW,
-                                   const ConstDeviceMatrix &B,
-                                   const ConstDeviceMatrix &G,
+                                   const real_t *b,
+                                   const real_t *g,
                                    const ConstDeviceMatrix &W,
                                    const DeviceTensor<5, const real_t> &X,
                                    DeviceTensor<6> &J,
@@ -65,9 +65,6 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   const auto *b = (const real_t*) B, *g = (const real_t*) G;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -135,10 +132,12 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const int d = maps.ndof, q = maps.nqpt;
 
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
    constexpr int DIM = 3;
    const auto W = Reshape(w.Read(), DIM, DIM);
-   const auto B = Reshape(maps.B.Read(), q, d);
-   const auto G = Reshape(maps.G.Read(), q, d);
+   const auto *b = maps.B.Read(), *g = maps.G.Read();
    auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
 
    switch (target_type)
@@ -160,7 +159,7 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 3, "");
          const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
 
-         TMOPTcIdealShapeGivenSize3D::Run(d, q, NE, detW, B, G, W, X, J, d, q);
+         TMOPTcIdealShapeGivenSize3D::Run(d, q, NE, detW, b, g, W, X, J, d, q);
          return true;
       }
       case GIVEN_SHAPE_AND_SIZE: return false;

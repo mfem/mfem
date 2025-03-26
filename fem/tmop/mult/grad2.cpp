@@ -22,8 +22,8 @@ namespace mfem
 
 template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_2D(const int NE,
-                           const ConstDeviceMatrix &B,
-                           const ConstDeviceMatrix &G,
+                           const real_t *b,
+                           const real_t *g,
                            const DeviceTensor<5, const real_t> &J,
                            const DeviceTensor<7, const real_t> &H,
                            const DeviceTensor<4, const real_t> &X,
@@ -33,8 +33,6 @@ void TMOP_AddMultGradPA_2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -46,8 +44,8 @@ void TMOP_AddMultGradPA_2D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
       regs::regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-      regs::LoadMatrix(D1D, Q1D, B, sB);
-      regs::LoadMatrix(D1D, Q1D, G, sG);
+      regs::LoadMatrix(D1D, Q1D, b, sB);
+      regs::LoadMatrix(D1D, Q1D, g, sG);
 
       regs::LoadDofs2d(e, D1D, X, r0);
       regs::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
@@ -112,14 +110,16 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
    constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto G = Reshape(PA.maps->G.Read(), q, d);
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto *b = PA.maps->B.Read(), *g = PA.maps->G.Read();
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, q, q, NE);
    const auto X = Reshape(R.Read(), d, d, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, DIM, NE);
 
-   TMOPMultGradKernels::Run(d, q, NE, B, G, J, H, X, Y, d, q);
+   TMOPMultGradKernels::Run(d, q, NE, b, g, J, H, X, Y, d, q);
 }
 
 } // namespace mfem

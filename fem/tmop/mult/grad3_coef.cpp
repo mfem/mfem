@@ -22,7 +22,7 @@ namespace mfem
 
 template <int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_C0_3D(const int NE,
-                              const ConstDeviceMatrix &b,
+                              const real_t *b,
                               const DeviceTensor<6, const real_t> &H0,
                               const DeviceTensor<5, const real_t> &X,
                               DeviceTensor<5> &Y,
@@ -31,9 +31,6 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   const auto *b_ptr = (const real_t*) b;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -43,7 +40,8 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
+
+      regs::LoadMatrix(D1D, Q1D, b, sB);
 
       regs::regs5d_t<3,1,MQ1> r0, r1; // vector X
       regs::LoadDofs3d(e, D1D, X, r0);
@@ -96,12 +94,15 @@ void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
    constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, q, NE);
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
+   const auto *b = PA.maps->B.Read();
    const auto X = Reshape(R.Read(), d, d, d, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, d, DIM, NE);
 
-   TMOPMultGradCoefKernels3D::Run(d, q, NE, B, H0, X, Y, d, q);
+   TMOPMultGradCoefKernels3D::Run(d, q, NE, b, H0, X, Y, d, q);
 }
 
 } // namespace mfem

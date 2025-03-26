@@ -30,9 +30,8 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
                                 const int d1d = 0,
                                 const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -221,6 +220,8 @@ void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {
    constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto G = Reshape(PA.maps->G.Read(), q, d);

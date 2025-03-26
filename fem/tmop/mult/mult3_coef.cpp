@@ -28,8 +28,8 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                           const int NE,
                           const DeviceTensor<6, const real_t> &J,
                           const ConstDeviceCube &W,
-                          const ConstDeviceMatrix &b,
-                          const ConstDeviceMatrix &bld,
+                          const real_t *b,
+                          const real_t *bld,
                           const DeviceTensor<5, const real_t> &X0,
                           const DeviceTensor<5, const real_t> &X1,
                           DeviceTensor<5> &Y,
@@ -39,10 +39,6 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   const auto *bld_ptr = (const real_t*) bld;
-   const auto *b_ptr = (const real_t*) b;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -51,13 +47,13 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
-      regs::LoadMatrix(D1D, Q1D, bld_ptr, sB);
+      regs::LoadMatrix(D1D, Q1D, bld, sB);
 
       regs::regs5d_t<1,1,MQ1> rm0, rm1; // scalar LD
       regs::LoadDofs3d(e, D1D, LD, rm0);
       regs::Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
 
-      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
+      regs::LoadMatrix(D1D, Q1D, b, sB);
 
       regs::regs5d_t<3,1,MQ1> r00, r01; // vector X0
       regs::LoadDofs3d(e, D1D, X0, r00);
@@ -135,15 +131,17 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    MFEM_VERIFY(PA.maps_lim->ndof == d, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == q, "");
 
-   const auto C0 = const_c0 ? Reshape(PA.C0.Read(), 1, 1, 1, 1)
+   const auto C0 = const_c0
+                   ? Reshape(PA.C0.Read(), 1, 1, 1, 1)
                    : Reshape(PA.C0.Read(), q, q, q, NE);
    const auto LD = Reshape(PA.LD.Read(), d, d, d, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto BLD = Reshape(PA.maps_lim->B.Read(), q, d);
+   const auto *b = PA.maps->B.Read(), *bld = PA.maps_lim->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
    const auto XL = Reshape(PA.XL.Read(), d, d, d, DIM, NE);
    const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
@@ -152,7 +150,7 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPMultCoefKernels3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, XL,
+   TMOPMultCoefKernels3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, b, bld, XL,
                               X, Y, exp_lim, d, q);
 }
 
