@@ -56,9 +56,9 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SYNC_THREAD;
       for (int dz = 0; dz < D1D; ++dz)
       {
-         foreach_y_thread(D1D, [&](int dy)
+         mfem::tmop::foreach_y_thread(D1D, [&](int dy)
          {
-            foreach_x_thread(D1D, [&](int dx)
+            mfem::tmop::foreach_x_thread(D1D, [&](int dx)
             {
                M(dz, dy, dx) = r0(sizeidx, 0, dz, dy, dx);
             });
@@ -84,9 +84,9 @@ void TMOP_DatcSize_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         foreach_y_thread(Q1D, [&](int qy)
+         mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
          {
-            foreach_x_thread(Q1D, [&](int qx)
+            mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t T = r1(0, 0, qz, qy, qx);
 

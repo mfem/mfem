@@ -43,9 +43,9 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
       LoadDofs2d(e, D1D, X, r0);
       Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      foreach_y_thread(Q1D, [&](int qy)
+      mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
       {
-         foreach_x_thread(Q1D, [&](int qx)
+         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
          {
             // Xh = X^T . Sh
             const real_t Xh[2] = { r1(0, 0, qy, qx), r1(1, 0, qy, qx) };

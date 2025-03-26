@@ -40,9 +40,9 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // first tensor contraction, along z direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            foreach_y_thread(Q1D, [&](int qy)
+            mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
             {
-               foreach_x_thread(Q1D, [&](int qx)
+               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
@@ -59,18 +59,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // second tensor contraction, along y direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            foreach_y_thread(Q1D, [&](int qy)
+            mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
             {
-               foreach_x_thread(Q1D, [&](int qx)
+               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   smem[qy][qx] = r0[dz][qy][qx];
                });
             });
             MFEM_SYNC_THREAD;
 
-            foreach_y_thread(D1D, [&](int dy)
+            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               foreach_x_thread(Q1D, [&](int qx)
+               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
@@ -87,18 +87,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // third tensor contraction, along x direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            foreach_y_thread(D1D, [&](int dy)
+            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               foreach_x_thread(Q1D, [&](int qx)
+               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   smem[dy][qx] = r1[dz][dy][qx];
                });
             });
             MFEM_SYNC_THREAD;
 
-            foreach_y_thread(D1D, [&](int dy)
+            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               foreach_x_thread(D1D, [&](int dx)
+               mfem::tmop::foreach_x_thread(D1D, [&](int dx)
                {
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)

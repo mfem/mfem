@@ -62,9 +62,9 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         foreach_y_thread(Q1D, [&](int qy)
+         mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
          {
-            foreach_x_thread(Q1D, [&](int qx)
+            mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);

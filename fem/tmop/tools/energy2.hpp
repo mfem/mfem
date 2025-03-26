@@ -81,9 +81,9 @@ public:
          LoadDofs2d(e, D1D, X, r0);
          Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-         foreach_y_thread(Q1D, [&](int qy)
+         mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
          {
-            foreach_x_thread(Q1D, [&](int qx)
+            mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);

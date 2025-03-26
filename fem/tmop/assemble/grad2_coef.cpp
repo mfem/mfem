@@ -60,9 +60,9 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
       LoadDofs2d(e, D1D, X1, r10);
       Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
-      foreach_y_thread(Q1D, [&](int qy)
+      mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
       {
-         foreach_x_thread(Q1D, [&](int qx)
+         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
             const real_t detJtr = kernels::Det<2>(Jtr);

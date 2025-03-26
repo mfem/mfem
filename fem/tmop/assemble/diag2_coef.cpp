@@ -38,9 +38,9 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
 
       for (int v = 0; v < DIM; v++)
       {
-         foreach_x_thread(Q1D, [&](int qx)
+         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
          {
-            foreach_y_thread(D1D, [&](int dy)
+            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
             {
                QD(qx, dy) = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
@@ -51,9 +51,9 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
             });
          });
          MFEM_SYNC_THREAD;
-         foreach_y_thread(D1D, [&](int dy)
+         mfem::tmop::foreach_y_thread(D1D, [&](int dy)
          {
-            foreach_x_thread(D1D, [&](int dx)
+            mfem::tmop::foreach_x_thread(D1D, [&](int dx)
             {
                real_t d = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)

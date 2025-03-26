@@ -46,9 +46,9 @@ void TMOP_MinDetJpr_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         foreach_y_thread(Q1D, [&](int qy)
+         mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
          {
-            foreach_x_thread(Q1D, [&](int qx)
+            mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t J[9] =
                {
