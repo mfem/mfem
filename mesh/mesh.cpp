@@ -6502,8 +6502,16 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    }
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
+
+   const int old_space_dim = spaceDim;
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+
+   if (spaceDim != old_space_dim)
+   {
+      // Fix dimension of the vertices if the space dimension changes
+      SetVerticesFromNodes(Nodes);
+   }
 }
 
 void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
