@@ -11,10 +11,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -50,18 +47,18 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      regs::regs5d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      regs5d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
 
-      regs::LoadDofs3d(e, D1D, X, r0);
+      LoadDofs3d(e, D1D, X, r0);
 
       DeviceTensor<3, real_t> M((real_t *)(min_size), D1D, D1D, D1D);
       MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
       for (int dz = 0; dz < D1D; ++dz)
       {
-         mfem::foreach_y_thread(D1D, [&](int dy)
+         foreach_y_thread(D1D, [&](int dy)
          {
-            mfem::foreach_x_thread(D1D, [&](int dx)
+            foreach_x_thread(D1D, [&](int dx)
             {
                M(dz, dy, dx) = r0(sizeidx, 0, dz, dy, dx);
             });
@@ -82,14 +79,14 @@ void TMOP_DatcSize_3D(const int NE,
       real_t min = min_size[0];
       if (input_min_size > 0.0) { min = input_min_size; }
 
-      regs::LoadMatrix(D1D, Q1D, b, sB);
-      regs::Eval3d(D1D, Q1D, smem, sB, r0, r1);
+      LoadMatrix(D1D, Q1D, b, sB);
+      Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         mfem::foreach_y_thread(Q1D, [&](int qy)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::foreach_x_thread(Q1D, [&](int qx)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t T = r1(0, 0, qz, qy, qx);
 

@@ -11,11 +11,8 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -40,15 +37,15 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      regs::LoadMatrix(D1D, Q1D, b, sB);
+      LoadMatrix(D1D, Q1D, b, sB);
 
-      regs::regs4d_t<2,1,MQ1> r0, r1;
-      regs::LoadDofs2d(e, D1D, X, r0);
-      regs::Eval2d(D1D, Q1D, smem, sB, r0, r1);
+      regs4d_t<2,1,MQ1> r0, r1;
+      LoadDofs2d(e, D1D, X, r0);
+      Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      mfem::foreach_y_thread(Q1D, [&](int qy)
+      foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::foreach_x_thread(Q1D, [&](int qx)
+         foreach_x_thread(Q1D, [&](int qx)
          {
             // Xh = X^T . Sh
             const real_t Xh[2] = { r1(0, 0, qy, qx), r1(1, 0, qy, qx) };
@@ -68,8 +65,8 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
          });
       });
       MFEM_SYNC_THREAD;
-      regs::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
-      regs::WriteDofs2d(e, D1D, r1, Y);
+      EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
+      WriteDofs2d(e, D1D, r1, Y);
    });
 }
 

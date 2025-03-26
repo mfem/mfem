@@ -10,12 +10,11 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -76,17 +75,17 @@ public:
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         regs::regs4d_t<VDIM, DIM, MQ1> r0, r1;
+         regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-         regs::LoadMatrix(D1D, Q1D, b, sB);
-         regs::LoadMatrix(D1D, Q1D, g, sG);
+         LoadMatrix(D1D, Q1D, b, sB);
+         LoadMatrix(D1D, Q1D, g, sG);
 
-         regs::LoadDofs2d(e, D1D, X, r0);
-         regs::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
+         LoadDofs2d(e, D1D, X, r0);
+         Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-         mfem::foreach_y_thread(Q1D, [&](int qy)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::foreach_x_thread(Q1D, [&](int qx)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);
@@ -121,8 +120,8 @@ public:
             });
          });
          MFEM_SYNC_THREAD;
-         regs::GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
-         regs::WriteDofs2d(e, D1D, r1, Y);
+         GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
+         WriteDofs2d(e, D1D, r1, Y);
       });
    }
 };

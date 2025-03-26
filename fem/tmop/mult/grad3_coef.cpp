@@ -11,11 +11,8 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -41,17 +38,17 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      regs::LoadMatrix(D1D, Q1D, b, sB);
+      LoadMatrix(D1D, Q1D, b, sB);
 
-      regs::regs5d_t<3,1,MQ1> r0, r1; // vector X
-      regs::LoadDofs3d(e, D1D, X, r0);
-      regs::Eval3d(D1D, Q1D, smem, sB, r0, r1);
+      regs5d_t<3,1,MQ1> r0, r1; // vector X
+      LoadDofs3d(e, D1D, X, r0);
+      Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         mfem::foreach_y_thread(Q1D, [&](int qy)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::foreach_x_thread(Q1D, [&](int qx)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                // Xh = X^T . Sh
                const real_t Xh[3] =
@@ -81,8 +78,8 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
          });
       }
       MFEM_SYNC_THREAD;
-      regs::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
-      regs::WriteDofs3d(e, D1D, r1, Y);
+      EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
+      WriteDofs3d(e, D1D, r1, Y);
    });
 }
 

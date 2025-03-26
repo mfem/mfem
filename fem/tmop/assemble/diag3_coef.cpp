@@ -11,10 +11,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -36,16 +33,16 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      regs::regs3d_t<MQ1> r0, r1;
+      regs3d_t<MQ1> r0, r1;
 
       for (int v = 0; v < DIM; ++v)
       {
          // first tensor contraction, along z direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
@@ -62,18 +59,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // second tensor contraction, along y direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   smem[qy][qx] = r0[dz][qy][qx];
                });
             });
             MFEM_SYNC_THREAD;
 
-            mfem::foreach_y_thread(D1D, [&](int dy)
+            foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
@@ -90,18 +87,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // third tensor contraction, along x direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::foreach_y_thread(D1D, [&](int dy)
+            foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   smem[dy][qx] = r1[dz][dy][qx];
                });
             });
             MFEM_SYNC_THREAD;
 
-            mfem::foreach_y_thread(D1D, [&](int dy)
+            foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::foreach_x_thread(D1D, [&](int dx)
+               foreach_x_thread(D1D, [&](int dx)
                {
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)

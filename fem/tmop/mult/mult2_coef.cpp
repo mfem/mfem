@@ -11,11 +11,8 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -49,25 +46,25 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      regs::LoadMatrix(D1D, Q1D, bld, sB);
+      LoadMatrix(D1D, Q1D, bld, sB);
 
-      regs::regs4d_t<1,1,MQ1> rm0, rm1; // scalar LD
-      regs::LoadDofs2d(e, D1D, LD, rm0);
-      regs::Eval2d(D1D, Q1D, smem, sB, rm0, rm1);
+      regs4d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      LoadDofs2d(e, D1D, LD, rm0);
+      Eval2d(D1D, Q1D, smem, sB, rm0, rm1);
 
-      regs::LoadMatrix(D1D, Q1D, b, sB);
+      LoadMatrix(D1D, Q1D, b, sB);
 
-      regs::regs4d_t<VDIM,1,MQ1> r00, r01; // vector X0
-      regs::LoadDofs2d(e, D1D, X0, r00);
-      regs::Eval2d(D1D, Q1D, smem, sB, r00, r01);
+      regs4d_t<VDIM,1,MQ1> r00, r01; // vector X0
+      LoadDofs2d(e, D1D, X0, r00);
+      Eval2d(D1D, Q1D, smem, sB, r00, r01);
 
-      regs::regs4d_t<VDIM,1,MQ1> r10, r11; // vector X1
-      regs::LoadDofs2d(e, D1D, X1, r10);
-      regs::Eval2d(D1D, Q1D, smem, sB, r10, r11);
+      regs4d_t<VDIM,1,MQ1> r10, r11; // vector X1
+      LoadDofs2d(e, D1D, X1, r10);
+      Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
-      mfem::foreach_y_thread(Q1D, [&](int qy)
+      foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::foreach_x_thread(Q1D, [&](int qx)
+         foreach_x_thread(Q1D, [&](int qx)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
             const real_t detJtr = kernels::Det<2>(Jtr);
@@ -109,8 +106,8 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
          });
       });
       MFEM_SYNC_THREAD;
-      regs::EvalTranspose2d(D1D, Q1D, smem, sB, r00, r01);
-      regs::WriteDofs2d(e, D1D, r01, Y);
+      EvalTranspose2d(D1D, Q1D, smem, sB, r00, r01);
+      WriteDofs2d(e, D1D, r01, Y);
    });
 }
 

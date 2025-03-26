@@ -12,14 +12,8 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../gridfunc.hpp" // IWYU pragma: keep
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-
-using namespace mfem::kernels::internal;
-
-using namespace mfem;
 
 namespace mfem
 {
@@ -36,9 +30,9 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
    {
       constexpr int DIM = 2;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      mfem::foreach_y_thread(Q1D, [&](int qy)
+      foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::foreach_x_thread(Q1D, [&](int qx)
+         foreach_x_thread(Q1D, [&](int qx)
          {
             kernels::Set(DIM, DIM, 1.0, &W(0, 0), &J(0, 0, qx, qy, e));
          });
@@ -68,17 +62,17 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      regs::regs4d_t<VDIM, DIM, MQ1> r0, r1;
+      regs4d_t<VDIM, DIM, MQ1> r0, r1;
 
-      regs::LoadMatrix(D1D, Q1D, b, sB);
-      regs::LoadMatrix(D1D, Q1D, g, sG);
+      LoadMatrix(D1D, Q1D, b, sB);
+      LoadMatrix(D1D, Q1D, g, sG);
 
-      regs::LoadDofs2d(e, D1D, X, r0);
-      regs::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
+      LoadDofs2d(e, D1D, X, r0);
+      Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-      mfem::foreach_y_thread(Q1D, [&](int qy)
+      foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::foreach_x_thread(Q1D, [&](int qx)
+         foreach_x_thread(Q1D, [&](int qx)
          {
             const real_t *Wid = &W(0, 0);
             const real_t Jtr[4] =

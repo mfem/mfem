@@ -12,11 +12,8 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../tmop_tools.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -41,19 +38,19 @@ void TMOP_MinDetJpr_3D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      regs::regs5d_t<VDIM, DIM, MQ1> r0, r1;
+      regs5d_t<VDIM, DIM, MQ1> r0, r1;
 
-      regs::LoadMatrix(D1D, Q1D, b, sB);
-      regs::LoadMatrix(D1D, Q1D, g, sG);
+      LoadMatrix(D1D, Q1D, b, sB);
+      LoadMatrix(D1D, Q1D, g, sG);
 
-      regs::LoadDofs3d(e, D1D, X, r0);
-      regs::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+      LoadDofs3d(e, D1D, X, r0);
+      Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         mfem::foreach_y_thread(Q1D, [&](int qy)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::foreach_x_thread(Q1D, [&](int qx)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t J[9] =
                {

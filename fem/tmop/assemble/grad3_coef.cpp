@@ -11,11 +11,8 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -48,27 +45,27 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
 
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      regs::LoadMatrix(D1D, Q1D, bld, sB);
+      LoadMatrix(D1D, Q1D, bld, sB);
 
-      regs::regs5d_t<1,1,MQ1> rm0, rm1; // scalar LD
-      regs::LoadDofs3d(e, D1D, LD, rm0);
-      regs::Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
+      regs5d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      LoadDofs3d(e, D1D, LD, rm0);
+      Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
 
-      regs::LoadMatrix(D1D, Q1D, b, sB);
+      LoadMatrix(D1D, Q1D, b, sB);
 
-      regs::regs5d_t<3,1,MQ1> r00, r01; // vector X0
-      regs::LoadDofs3d(e, D1D, X0, r00);
-      regs::Eval3d(D1D, Q1D, smem, sB, r00, r01);
+      regs5d_t<3,1,MQ1> r00, r01; // vector X0
+      LoadDofs3d(e, D1D, X0, r00);
+      Eval3d(D1D, Q1D, smem, sB, r00, r01);
 
-      regs::regs5d_t<3,1,MQ1> r10, r11; // vector X1
-      regs::LoadDofs3d(e, D1D, X1, r10);
-      regs::Eval3d(D1D, Q1D, smem, sB, r10, r11);
+      regs5d_t<3,1,MQ1> r10, r11; // vector X1
+      LoadDofs3d(e, D1D, X1, r10);
+      Eval3d(D1D, Q1D, smem, sB, r10, r11);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         mfem::foreach_y_thread(Q1D, [&](int qy)
+         foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::foreach_x_thread(Q1D, [&](int qx)
+            foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);

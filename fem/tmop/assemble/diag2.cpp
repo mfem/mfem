@@ -11,7 +11,6 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -73,9 +72,9 @@ void TMOP_AssembleDiagPA_2D(const int NE,
       DeviceTensor<5, real_t> Href(Href_data, DIM, DIM, DIM, MQ1, MQ1);
       for (int v = 0; v < DIM; v++)
       {
-         mfem::foreach_x_thread(Q1D, [&](int qx)
+         foreach_x_thread(Q1D, [&](int qx)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            foreach_y_thread(Q1D, [&](int qy)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                real_t Jrt_data[4];
@@ -109,9 +108,9 @@ void TMOP_AssembleDiagPA_2D(const int NE,
       for (int v = 0; v < DIM; v++)
       {
          // Contract in y.
-         mfem::foreach_x_thread(Q1D, [&](int qx)
+         foreach_x_thread(Q1D, [&](int qx)
          {
-            mfem::foreach_y_thread(D1D, [&](int dy)
+            foreach_y_thread(D1D, [&](int dy)
             {
                for (int m = 0; m < DIM; m++)
                {
@@ -136,9 +135,9 @@ void TMOP_AssembleDiagPA_2D(const int NE,
          MFEM_SYNC_THREAD;
 
          // Contract in x.
-         mfem::foreach_y_thread(D1D, [&](int dy)
+         foreach_y_thread(D1D, [&](int dy)
          {
-            mfem::foreach_x_thread(D1D, [&](int dx)
+            foreach_x_thread(D1D, [&](int dx)
             {
                real_t d = 0.0;
                MFEM_UNROLL(MQ1)

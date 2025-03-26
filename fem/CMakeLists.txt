@@ -215,7 +215,6 @@ set(HDRS
   kernel_dispatch.hpp
   kernel_reporter.hpp
   kernels.hpp
-  kernels_regs.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp

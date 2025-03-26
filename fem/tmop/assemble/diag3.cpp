@@ -11,11 +11,8 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
-
-using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -39,16 +36,16 @@ void TMOP_AssembleDiagPA_3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[DIM][DIM][MQ1][MQ1];
-      regs::regs5d_t<DIM, DIM, MQ1> rH, r0, r1;
+      regs5d_t<DIM, DIM, MQ1> rH, r0, r1;
 
       for (int v = 0; v < DIM; ++v)
       {
          // Takes into account Jtr by replacing H with Href at all quad points.
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   real_t Jrt_data[9];
@@ -88,9 +85,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Contract in z.
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   for (int m = 0; m < DIM; m++)
                   {
@@ -125,9 +122,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < DIM; n++)
                {
-                  mfem::foreach_y_thread(Q1D, [&](int qy)
+                  foreach_y_thread(Q1D, [&](int qy)
                   {
-                     mfem::foreach_x_thread(Q1D, [&](int qx)
+                     foreach_x_thread(Q1D, [&](int qx)
                      {
                         smem[m][n][qy][qx] = r0(m, n, dz, qy, qx);
                      });
@@ -136,9 +133,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             }
             MFEM_SYNC_THREAD;
 
-            mfem::foreach_y_thread(D1D, [&](int dy)
+            foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               foreach_x_thread(Q1D, [&](int qx)
                {
                   for (int m = 0; m < DIM; m++)
                   {
@@ -174,9 +171,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < DIM; n++)
                {
-                  mfem::foreach_y_thread(D1D, [&](int dy)
+                  foreach_y_thread(D1D, [&](int dy)
                   {
-                     mfem::foreach_x_thread(Q1D, [&](int qx)
+                     foreach_x_thread(Q1D, [&](int qx)
                      {
                         smem[m][n][dy][qx] = r1(m, n, dz, dy, qx);
                      });
@@ -185,9 +182,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             }
             MFEM_SYNC_THREAD;
 
-            mfem::foreach_y_thread(D1D, [&](int dy)
+            foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::foreach_x_thread(D1D, [&](int dx)
+               foreach_x_thread(D1D, [&](int dx)
                {
                   real_t d = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
