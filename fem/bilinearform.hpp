@@ -222,7 +222,7 @@ public:
 
    /** @brief Check if static condensation was actually enabled by a previous
        call to EnableStaticCondensation(). */
-   bool StaticCondensationIsEnabled() const { return static_cond.get() != nullptr; }
+   bool StaticCondensationIsEnabled() const { return static_cond != nullptr; }
 
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const

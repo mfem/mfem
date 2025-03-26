@@ -111,7 +111,7 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    {
       d_emat = emat.ReadWrite();
    }
-   if (!add)
+   else
    {
       d_emat = emat.Write();
       mfem::forall(emat.Size(), [=] MFEM_HOST_DEVICE (int i) { d_emat[i] = 0.0; });
