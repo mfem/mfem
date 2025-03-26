@@ -50,7 +50,7 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
                      const real_t Bz = B(qz, dz);
                      u += Bz * H0(v, v, qx, qy, qz, e) * Bz;
                   }
-                  r0[dz][qy][qx] = u;
+                  // r0[dz][qy][qx] = u;
                });
             });
             MFEM_SYNC_THREAD;
