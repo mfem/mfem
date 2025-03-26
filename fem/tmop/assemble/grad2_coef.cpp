@@ -37,8 +37,7 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
                             const int d1d,
                             const int q1d)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    const auto *bld_ptr = (const real_t*) bld;
@@ -47,11 +46,11 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
       regs::LoadMatrix(D1D, Q1D, bld_ptr, sB);
 
       regs::regs4d_t<1,1,MQ1> rm0, rm1; // scalar LD

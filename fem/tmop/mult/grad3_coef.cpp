@@ -38,11 +38,11 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
       regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
 
       regs::regs5d_t<3,1,MQ1> r0, r1; // vector X

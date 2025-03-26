@@ -27,18 +27,16 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
                                 const DeviceTensor<6, const real_t> &J,
                                 const DeviceTensor<8, const real_t> &H,
                                 DeviceTensor<5> &D,
-                                const int _d1d = 0,
-                                const int _q1d = 0)
+                                const int d1d = 0,
+                                const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : _d1d;
-   const int Q1D = T_Q1D ? T_Q1D : _q1d;
+   const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[DIM][DIM][MQ1][MQ1];

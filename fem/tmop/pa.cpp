@@ -72,7 +72,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    // lim_coeff -> PA.C0 (Q-vector)
    PA.C0.UseDevice(true);
-   if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient *>(lim_coeff))
+   if (auto *cQ = dynamic_cast<ConstantCoefficient *>(lim_coeff))
    {
       PA.C0.SetSize(1, Device::GetMemoryType());
       PA.C0.HostWrite();
@@ -276,8 +276,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
-   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD,
-   // PA.H0
+   // Limiting:
+   //  - lim_coeff   -> PA.C0,
+   //  - lim_nodes0  -> PA.X0,
+   //  - lim_dist    -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
 }
 
