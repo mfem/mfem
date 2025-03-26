@@ -308,6 +308,14 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                           FiniteElement::INTEGRAL,
                                           BasisType::GetType(name[12]));
    }
+   else if (!strncmp(name, "RT_R1D",6))
+   {
+      fec = new RT_R1D_FECollection(atoi(name+11),atoi(name + 7));
+   }
+   else if (!strncmp(name, "RT_R2D",6))
+   {
+      fec = new RT_R2D_FECollection(atoi(name+11),atoi(name + 7));
+   }
    else if (!strncmp(name, "RT_", 3))
    {
       fec = new RT_FECollection(atoi(name + 7), atoi(name + 3));
@@ -327,6 +335,14 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new ND_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
+   }
+   else if (!strncmp(name, "ND_R1D",6))
+   {
+      fec = new ND_R1D_FECollection(atoi(name+11),atoi(name + 7));
+   }
+   else if (!strncmp(name, "ND_R2D",6))
+   {
+      fec = new ND_R2D_FECollection(atoi(name+11),atoi(name + 7));
    }
    else if (!strncmp(name, "ND_", 3))
    {
