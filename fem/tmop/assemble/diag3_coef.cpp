@@ -120,7 +120,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
 {
-   constexpr int DIM = 3;
+   static constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");

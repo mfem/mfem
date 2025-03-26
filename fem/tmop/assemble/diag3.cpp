@@ -32,7 +32,7 @@ void TMOP_AssembleDiagPA_3D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 3;
+      static constexpr int DIM = 3;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[DIM][DIM][MQ1][MQ1];
@@ -215,7 +215,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiag3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {
-   constexpr int DIM = 3;
+   static constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");

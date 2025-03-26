@@ -39,7 +39,7 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2;
+      static constexpr int DIM = 2;
       static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -122,7 +122,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef2D);
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 {
-   constexpr int DIM = 2;
+   static constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");

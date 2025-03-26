@@ -30,7 +30,7 @@ void TMOP_MinDetJpr_2D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2, VDIM = 2;
+      static constexpr int DIM = 2, VDIM = 2;
       static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -78,7 +78,7 @@ real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   constexpr int DIM = 2;
+   static constexpr int DIM = 2;
    const auto *b = maps.B.Read(), *g = maps.G.Read();
    const auto XE = Reshape(xe.Read(), d, d, DIM, NE);
 

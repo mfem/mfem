@@ -39,7 +39,7 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 3;
+      static constexpr int DIM = 3;
       static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -143,7 +143,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef3D);
 
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
-   constexpr int DIM = 3;
+   static constexpr int DIM = 3;
    const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;

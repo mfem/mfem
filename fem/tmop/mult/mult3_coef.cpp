@@ -123,7 +123,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMultCoefKernels3D);
 
 void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
 {
-   constexpr int DIM = 3;
+   static constexpr int DIM = 3;
    const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;

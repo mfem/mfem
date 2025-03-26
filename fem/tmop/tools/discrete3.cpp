@@ -39,7 +39,7 @@ void TMOP_DatcSize_3D(const int NE,
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, 1, BLOCK_DIM, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 3, BLOCK_DIM = 512;
+      static constexpr int DIM = 3, BLOCK_DIM = 512;
       static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -166,7 +166,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
 
-   constexpr int DIM = 3;
+   static constexpr int DIM = 3;
    const auto *b = maps.B.Read();
    const auto W = Reshape(w.Read(), DIM, DIM);
    const auto X = Reshape(tspec_e.Read(), d, d, d, ncomp, NE);

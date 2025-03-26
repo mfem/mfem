@@ -33,7 +33,7 @@ void TMOP_AddMultGradPA_2D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2, VDIM = 2;
+      static constexpr int DIM = 2, VDIM = 2;
       static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -104,7 +104,7 @@ MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMultGradKernels);
 
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
 {
-   constexpr int DIM = 2;
+   static constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
