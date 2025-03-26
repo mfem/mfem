@@ -42,7 +42,8 @@ void SetPatchIntegrationRules(const int ir_order,
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
+   const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
+   // const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
    bool pa = false;
    bool patchAssembly = false;
    int ref_levels = 0;
@@ -168,13 +169,14 @@ int main(int argc, char *argv[])
 
       // Set the patch integration rules
       // If we specified ir_order, use it. Otherwise, set to 2*order
-      if (ir_order == -1) { ir_order = 2*(fec->GetOrder()+nurbs_degree_increase); }
+      // if (ir_order == -1) { ir_order = 2*(fec->GetOrder()+nurbs_degree_increase); }
+      if (ir_order == -1) { ir_order = 2*(fec->GetOrder()); }//+nurbs_degree_increase); }
       cout << "Integration rule order: " << ir_order << endl;
       SetPatchIntegrationRules(ir_order, mesh, ei);
    }
 
 
-   // 10. Assemble and solve the linear system
+   // 10. Assemble the linear system
    StopWatch sw;
    sw.Start();
 
@@ -193,7 +195,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
-   // Get the preconditioner
+   // 11. Get the preconditioner
    CGSolver solver;
    if (preconditioner == 1)
    {
@@ -201,6 +203,7 @@ int main(int argc, char *argv[])
       OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
       solver.SetPreconditioner(*P);
    }
+   // LOR Preconditioner
    else if (preconditioner == 2)
    {
       cout << "Getting LOR PC ... " << endl;
@@ -251,12 +254,16 @@ int main(int argc, char *argv[])
       lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
 
       // Set up solver, use it as preconditioner for high-order problem
-      CGSolver *P = new CGSolver();
-      P->SetOperator(*lo_A);
-      P->SetMaxIter(1e2);
-      P->SetPrintLevel(-1);
-      P->SetRelTol(1e-4);
+      // Hypre
+      OperatorJacobiSmoother *P = new OperatorJacobiSmoother(lo_a, ess_tdof_list);
       solver.SetPreconditioner(*P);
+
+      // CGSolver *P = new CGSolver();
+      // P->SetOperator(*lo_A);
+      // P->SetMaxIter(1e2);
+      // P->SetPrintLevel(-1);
+      // P->SetRelTol(1e-4);
+      // solver.SetPreconditioner(*P);
 
    }
 
@@ -265,7 +272,7 @@ int main(int argc, char *argv[])
    sw.Clear();
    sw.Start();
 
-   // Solve the linear system A X = B.
+   // 12. Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
    solver.SetOperator(*A);
    solver.SetMaxIter(1e5);
@@ -287,7 +294,7 @@ int main(int argc, char *argv[])
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // Collect results and write to file
+   // 13. Collect results and write to file
    const int Niter = solver.GetNumIterations();
    const int dof_per_sec_solve = Ndof * Niter / timeSolve;
    const int dof_per_sec_total = Ndof * Niter / timeTotal;
@@ -330,7 +337,7 @@ int main(int argc, char *argv[])
 
    results_ofs.close();
 
-   // 12. Save the displaced mesh and the inverted solution
+   // 14. Save the displaced mesh and the inverted solution
    {
       cout << "Saving mesh and solution to file..." << endl;
       GridFunction *nodes = mesh.GetNodes();
@@ -344,7 +351,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 13. Send the above data by socket to a GLVis server.
+   // 15. Send the above data by socket to a GLVis server.
    if (visualization)
    {
       // send to socket
@@ -356,11 +363,6 @@ int main(int argc, char *argv[])
                << 800 << " " << 800 << "\n"
                << "keys agc\n" << std::flush;
    }
-
-   // 14. Free the used memory.
-   // delete fespace;
-
-   cout << "Done." << endl;
 
    return 0;
 }
@@ -384,6 +386,7 @@ void SetPatchIntegrationRules(const int ir_order,
       // Construct 1D integration rules by applying the rule ir to each knot span.
       for (int i=0; i<dim; ++i)
       {
+         cout << "knot vector order: " << kv[i]->GetOrder() << endl;
          ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
       }
 
