@@ -33,7 +33,7 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPAssembleGradPA3D &ker)
    {
-      constexpr int DIM = 3, VDIM = 3;
+      static constexpr int DIM = 3, VDIM = 3;
       const TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
@@ -106,7 +106,7 @@ public:
 
                   METRIC{}.AssembleH(qx, qy, qz, e, weight, Jrt, Jpr, Jpt, w, H);
                });
-            } );
+            });
          }
       });
    }

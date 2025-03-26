@@ -22,7 +22,7 @@ template <int T_Q1D = 0>
 void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
                                   DeviceTensor<6> &J, const int q1d = 0)
 {
-   constexpr int DIM = 3;
+   static constexpr int DIM = 3;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D,

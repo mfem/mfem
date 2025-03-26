@@ -39,7 +39,7 @@ public:
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPAddMultPA2D &ker)
    {
-      constexpr int DIM = 2, VDIM = 2;
+      static constexpr int DIM = 2, VDIM = 2;
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ti->PA.maps->ndof, q1d = ti->PA.maps->nqpt;

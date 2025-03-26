@@ -33,7 +33,7 @@ void TMOP_DatcSize_3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_VERIFY(Q1D <= 8, "TMOP_DatcSize_3D can use max Q1D == 8");
-   constexpr int BLOCK_DIM = 512;
+   static constexpr int BLOCK_DIM = 512;
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
 
