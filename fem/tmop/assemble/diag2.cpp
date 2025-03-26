@@ -64,8 +64,8 @@ void TMOP_AssembleDiagPA_2D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       // Takes into account Jtr by replacing H with Href at all quad points.
       MFEM_SHARED real_t Href_data[DIM * DIM * DIM * MQ1 * MQ1];

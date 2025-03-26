@@ -62,8 +62,8 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = SetMaxOf(T_D1D ? T_D1D : DofQuadLimits::MAX_D1D);
-         constexpr int MQ1 = SetMaxOf(T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D);
+         static constexpr int MD1 = SetMaxOf(T_D1D ? T_D1D : DofQuadLimits::MAX_D1D);
+         static constexpr int MQ1 = SetMaxOf(T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D);
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];

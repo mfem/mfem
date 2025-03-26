@@ -33,7 +33,7 @@ void TMOP_AssembleDiagPA_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 3;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[DIM][DIM][MQ1][MQ1];
       regs5d_t<DIM, DIM, MQ1> rH, r0, r1;
