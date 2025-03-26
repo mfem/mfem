@@ -28,6 +28,8 @@
 //               patch-wise matrix assembly and partial assembly on NURBS
 //               meshes.
 
+#include "fem/intrules.hpp"
+#include "general/error.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -35,8 +37,9 @@
 using namespace std;
 using namespace mfem;
 
-void SetPatchIntegrationRules(const int ir_order,
-                              const Mesh &mesh,
+enum class PatchIntegrationRule1D { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
+void SetPatchIntegrationRules(const Mesh &mesh,
+                              const PatchIntegrationRule1D &patch_rule_1d,
                               BilinearFormIntegrator * bfi);
 
 int main(int argc, char *argv[])
@@ -48,7 +51,7 @@ int main(int argc, char *argv[])
    bool patchAssembly = false;
    int ref_levels = 0;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
-   int ir_order = -1;
+   bool reduced_integration = 1;
    int preconditioner = 0;
    int visport = 19916;
    bool visualization = 1;
@@ -64,8 +67,8 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
-   args.AddOption(&ir_order, "-iro", "--integration-order",
-                  "Order of integration rule.");
+   args.AddOption(&reduced_integration, "-ri", "--reduced-integration",
+   "-fi", "--full-integration", "Use reduced integration.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -81,6 +84,8 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(nurbs_degree_increase > 0,
                   "LOR preconditioner requires degree increase");
    }
+
+   auto patch_rule_1d = reduced_integration ? PatchIntegrationRule1D::REDUCED_GAUSSIAN : PatchIntegrationRule1D::FULL_GAUSSIAN;
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -168,11 +173,7 @@ int main(int argc, char *argv[])
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
 
       // Set the patch integration rules
-      // If we specified ir_order, use it. Otherwise, set to 2*order
-      // if (ir_order == -1) { ir_order = 2*(fec->GetOrder()+nurbs_degree_increase); }
-      if (ir_order == -1) { ir_order = 2*(fec->GetOrder()); }//+nurbs_degree_increase); }
-      cout << "Integration rule order: " << ir_order << endl;
-      SetPatchIntegrationRules(ir_order, mesh, ei);
+      SetPatchIntegrationRules(mesh, patch_rule_1d, ei);
    }
 
 
@@ -232,19 +233,16 @@ int main(int argc, char *argv[])
       lo_x = 0.0;
 
       ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
-      if (patchAssembly)
-      {
-         lo_ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      // if (patchAssembly)
+      // {
+      //    lo_ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
 
-         // Set the patch integration rules
-         // if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
-         const int lo_ir_order = 2;//*lo_fec->GetOrder();
-         cout << "Integration rule order: " << lo_ir_order << endl;
-         SetPatchIntegrationRules(lo_ir_order, lo_mesh, lo_ei);
-      }
+      //    // Set the patch integration rules
+      //    SetPatchIntegrationRules(lo_mesh, patch_rule_1d, lo_ei);
+      // }
       // Set up problem
       BilinearForm lo_a(lo_fespace);
-      if (pa) { lo_a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      // if (pa) { lo_a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       lo_a.AddDomainIntegrator(lo_ei);
       lo_a.Assemble();
 
@@ -254,16 +252,16 @@ int main(int argc, char *argv[])
       lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
 
       // Set up solver, use it as preconditioner for high-order problem
-      // Hypre
-      OperatorJacobiSmoother *P = new OperatorJacobiSmoother(lo_a, ess_tdof_list);
-      solver.SetPreconditioner(*P);
-
-      // CGSolver *P = new CGSolver();
-      // P->SetOperator(*lo_A);
-      // P->SetMaxIter(1e2);
-      // P->SetPrintLevel(-1);
-      // P->SetRelTol(1e-4);
+      // Use Hypre AMG here?
+      // OperatorJacobiSmoother *P = new OperatorJacobiSmoother(lo_a, ess_tdof_list);
       // solver.SetPreconditioner(*P);
+
+      CGSolver *P = new CGSolver();
+      P->SetOperator(*lo_A);
+      P->SetMaxIter(1e2);
+      P->SetPrintLevel(-1);
+      P->SetRelTol(1e-6);
+      solver.SetPreconditioner(*P);
 
    }
 
@@ -367,9 +365,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-
-void SetPatchIntegrationRules(const int ir_order,
-                              const Mesh &mesh,
+void SetPatchIntegrationRules(const Mesh &mesh,
+                              const PatchIntegrationRule1D &patch_rule_1d,
                               BilinearFormIntegrator * bfi)
 {
    const int dim = mesh.Dimension();
@@ -381,14 +378,24 @@ void SetPatchIntegrationRules(const int ir_order,
       mesh.NURBSext->GetPatchKnotVectors(p, kv);
 
       std::vector<const IntegrationRule*> ir1D(dim);
-      const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
-
       // Construct 1D integration rules by applying the rule ir to each knot span.
       for (int i=0; i<dim; ++i)
       {
-         cout << "knot vector order: " << kv[i]->GetOrder() << endl;
-         ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
+         if ( patch_rule_1d == PatchIntegrationRule1D::FULL_GAUSSIAN )
+         {
+            const int order = kv[i]->GetOrder();
+            const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*order);
+            ir1D[i] = IntegrationRule::ApplyToKnotIntervals(ir,*kv[i]);
+         }
+         else if ( patch_rule_1d == PatchIntegrationRule1D::REDUCED_GAUSSIAN ) {
+            ir1D[i] = IntegrationRule::GetIsogeometricReducedGaussianRule(*kv[i]);
+         }
+         else {
+            MFEM_ABORT("Unknown PatchIntegrationRule1D")
+         }
+
       }
+
 
       patchRule->SetPatchRules1D(p, ir1D);
    }  // loop (p) over patches

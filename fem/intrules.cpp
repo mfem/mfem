@@ -178,13 +178,13 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
 }
 
 IntegrationRule*
-IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
+IntegrationRule::ApplyToKnotIntervals(const IntegrationRule &ir, const KnotVector &kv)
 {
-   const int np = this->GetNPoints();
+   const int np = ir.GetNPoints();
    const int ne = kv.GetNE();
 
    IntegrationRule *kvir = new IntegrationRule(ne * np);
-   kvir->SetOrder(GetOrder());
+   kvir->SetOrder(ir.GetOrder());
 
    real_t x0 = kv[0];
    real_t x1 = x0;
@@ -214,12 +214,54 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
 
       const real_t s = x1 - x0;
 
-      for (int j=0; j<this->GetNPoints(); ++j)
+      for (int j=0; j<ir.GetNPoints(); ++j)
       {
-         const real_t x = x0 + (s * (*this)[j].x);
-         (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
+         const real_t x = x0 + (s * ir[j].x);
+         (*kvir)[(e * np) + j].Set1w(x, ir[j].weight);
       }
    }
+
+   return kvir;
+}
+
+IntegrationRule*
+IntegrationRule::GetIsogeometricReducedGaussianRule(const KnotVector &kv)
+{
+   const int ne = kv.GetNE();
+   // Get the unique knot vectors and their multiplicities
+   auto result = kv.GetUniqueKnots();
+   const Vector ukv = result.first;
+   const Vector m = result.second;
+   const int p = kv.GetOrder();
+
+   // For each knot span, the number of points we need is:
+   // np = max{ ceil( (m_{e} + m_{e+1}) / 2 ), ceil( (p + 1) / 2 ) }
+   const int np2 = ceil((p+1)/2);
+   int idx = 0;
+
+   // We don't know the size of ips yet but 2*ne*np2 is an upper bound
+   IntegrationRule *kvir = new IntegrationRule(2*ne*np2);
+   // This shouldn't really matter?
+   kvir->SetOrder(kv.GetOrder());
+
+   // Loop through knot spans
+   for (int e=0; e<ne; ++e)
+   {
+      const int np1 = ceil((m[e] + m[e+1])/2);
+      const int np = max(np1, np2);
+      const real_t x0 = ukv[e];
+      const real_t x1 = ukv[e+1];
+      const real_t s = x1 - x0;
+
+      const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*np-1);
+      for (int j=0; j<np; ++j)
+      {
+         const real_t x = x0 + (s * ir[j].x);
+         (*kvir)[idx].Set1w(x, ir[j].weight);
+         idx++;
+      }
+   }
+   kvir->SetSize(idx);
 
    return kvir;
 }
