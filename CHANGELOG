@@ -140,6 +140,9 @@ Miscellaneous
   which now allows for declaring convergence by a user defined criterion. For
   backward compatibility, the old name is still available.
 
+- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
+  for solving optimization problems.
+
 API changes
 -----------
 - API change: 'TMOP_Metric_skew2D' has been marked as deprecated.
