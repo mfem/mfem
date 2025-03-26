@@ -70,9 +70,12 @@ protected:
    /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
    /// The constraint boundary face integrators
-   std::vector<std::unique_ptr<BilinearFormIntegrator>> boundary_constraint_integs;
+   std::vector<BilinearFormIntegrator*> boundary_constraint_integs;
    /// Boundary markers for constraint face integrators
    std::vector<Array<int>*> boundary_constraint_integs_marker;
+   /// Indicates if the boundary_constraint_integs integrators are owned externally
+   bool extern_bdr_constr_integs{false};
+
    /// The constraint matrix.
    std::unique_ptr<SparseMatrix> Ct;
    /// The Schur complement system for the Lagrange multiplier.
@@ -133,13 +136,13 @@ public:
        integrator, i.e. it will delete the integrator when destroyed. */
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
-      boundary_constraint_integs.emplace_back(c_integ);
+      boundary_constraint_integs.push_back(c_integ);
       boundary_constraint_integs_marker.push_back(nullptr);
    }
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker)
    {
-      boundary_constraint_integs.emplace_back(c_integ);
+      boundary_constraint_integs.push_back(c_integ);
       boundary_constraint_integs_marker.push_back(&bdr_marker);
    }
 
@@ -152,6 +155,9 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<int>* GetBdrConstraintIntegratorMarker(int i)
    { return boundary_constraint_integs_marker[i]; }
+
+   /// Indicate that boundary constraint integrators are not owned
+   void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = true; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);

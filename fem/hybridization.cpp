@@ -37,6 +37,15 @@ Hybridization::Hybridization(FiniteElementSpace *fespace,
 #endif
 }
 
+Hybridization::~Hybridization()
+{
+   if (!extern_bdr_constr_integs)
+   {
+      for (size_t k=0; k < boundary_constraint_integs.size(); k++)
+      { delete boundary_constraint_integs[k]; }
+   }
+}
+
 void Hybridization::EnableDeviceExecution()
 {
    ext.reset(new HybridizationExtension(*this));
@@ -1003,9 +1012,5 @@ void Hybridization::Reset()
 #endif
    if (ext) { ext->Reset(); }
 }
-
-// Set to default in cpp file because of use of incomplete type
-// (HybridizationExtension) in unique_ptr member data.
-Hybridization::~Hybridization() = default;
 
 }
