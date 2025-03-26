@@ -162,14 +162,19 @@ static void Values3D(const int NE,
       MFEM_SHARED real_t sm1[MDQ*MDQ*MDQ];
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
+      ConstDeviceMatrix B(sB, D1D,Q1D);
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
       DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
       for (int c = 0; c < VDIM; c++)
       {
-         kernels::internal::LoadX<MDQ>(e, D1D, c, x, sm0);
-         kernels::internal::EvalX<MD1, MQ1>(D1D,Q1D,sB,sm0,sm1);
-         kernels::internal::EvalY<MD1, MQ1>(D1D,Q1D,sB,sm1,sm0);
-         kernels::internal::EvalZ<MD1, MQ1>(D1D,Q1D,sB,sm0,sm1);
+         kernels::internal::LoadX(e,D1D,c,x,DDD);
+         kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
+         kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
+         kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
