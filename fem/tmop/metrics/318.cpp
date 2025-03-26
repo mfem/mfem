@@ -88,10 +88,10 @@ struct TMOP_PA_Metric_318 : TMOP_PA_Metric_3D
 
 using metric = TMOP_PA_Metric_318;
 
-using setup = TMOPSetupGradPA3D;
+using assemble = TMOPAssembleGradPA3D;
 using energy = TMOPEnergyPA3D;
 using mult = TMOPAddMultPA3D;
 
-MFEM_TMOP_REGISTER_METRIC(metric, setup, energy, mult, 318);
+MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 318);
 
 } // namespace mfem

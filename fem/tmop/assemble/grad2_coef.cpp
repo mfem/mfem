@@ -21,21 +21,21 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
-                            const ConstDeviceCube &LD,
-                            const bool const_c0,
-                            const DeviceTensor<3, const real_t> &C0,
-                            const int NE,
-                            const DeviceTensor<5, const real_t> &J,
-                            const ConstDeviceMatrix &W,
-                            const real_t *b,
-                            const real_t *bld,
-                            const DeviceTensor<4, const real_t> &X0,
-                            const DeviceTensor<4, const real_t> &X1,
-                            DeviceTensor<5> &H0,
-                            const bool exp_lim,
-                            const int d1d,
-                            const int q1d)
+void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
+                               const ConstDeviceCube &LD,
+                               const bool const_c0,
+                               const DeviceTensor<3, const real_t> &C0,
+                               const int NE,
+                               const DeviceTensor<5, const real_t> &J,
+                               const ConstDeviceMatrix &W,
+                               const real_t *b,
+                               const real_t *bld,
+                               const DeviceTensor<4, const real_t> &X0,
+                               const DeviceTensor<4, const real_t> &X1,
+                               DeviceTensor<5> &H0,
+                               const bool exp_lim,
+                               const int d1d,
+                               const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -120,7 +120,7 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef2D, TMOP_SetupGradPA_C0_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D);
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef2D);
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
@@ -143,8 +143,8 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const auto X = Reshape(x.Read(), d, d, DIM, NE);
    auto H0 = Reshape(PA.H0.Write(), DIM, DIM, q, q, NE);
 
-   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
-   const bool exp_lim = (el) ? true : false;
+   const auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = el ? true : false;
 
    TMOPAssembleGradCoef2D::Run(d, q, ln, LD, const_c0, C0, NE,
                                J, W, b, bld, XL, X, H0, exp_lim, d, q);

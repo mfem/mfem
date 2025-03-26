@@ -20,12 +20,12 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
-                                   const ConstDeviceMatrix &B,
-                                   const DeviceTensor<6, const real_t> &H0,
-                                   DeviceTensor<5> &D,
-                                   const int d1d,
-                                   const int q1d)
+void TMOP_AssembleDiagPA_C0_3D(const int NE,
+                               const ConstDeviceMatrix &B,
+                               const DeviceTensor<6, const real_t> &H0,
+                               DeviceTensor<5> &D,
+                               const int d1d,
+                               const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -118,8 +118,7 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D,
-                           TMOP_AssembleDiagonalPA_C0_3D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D);
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const

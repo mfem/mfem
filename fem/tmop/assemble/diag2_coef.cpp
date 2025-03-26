@@ -18,12 +18,12 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
-                                   const ConstDeviceMatrix &B,
-                                   const DeviceTensor<5, const real_t> &H0,
-                                   DeviceTensor<4> &D,
-                                   const int d1d,
-                                   const int q1d)
+void TMOP_AssembleDiagPA_C0_2D(const int NE,
+                               const ConstDeviceMatrix &B,
+                               const DeviceTensor<5, const real_t> &H0,
+                               DeviceTensor<4> &D,
+                               const int d1d,
+                               const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -70,9 +70,8 @@ void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagonalCoefKernels,
-                           TMOP_AssembleDiagonalPA_C0_2D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagonalCoefKernels);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {
@@ -85,7 +84,7 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
-   TMOPAssembleDiagonalCoefKernels::Run(d, q, NE, B, H0, D, d, q);
+   TMOPAssembleDiagCoef2D::Run(d, q, NE, B, H0, D, d, q);
 }
 
 } // namespace mfem

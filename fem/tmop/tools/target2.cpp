@@ -11,10 +11,11 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../gridfunc.hpp"
+#include "../../gridfunc.hpp" // IWYU pragma: keep
 #include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
+
 
 using namespace mfem::kernels::internal;
 
@@ -143,12 +144,12 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
       case IDEAL_SHAPE_EQUAL_SIZE: return false;
       case IDEAL_SHAPE_GIVEN_SIZE:
       {
-         MFEM_VERIFY(nodes, "");
+         MFEM_VERIFY(GetNodes(), "No target-matrix nodes!");
          const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
          const Operator *R = fes.GetElementRestriction(ordering);
          Vector x(R->Height(), Device::GetDeviceMemoryType());
          x.UseDevice(true);
-         R->Mult(*nodes, x);
+         R->Mult(*GetNodes(), x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
          const auto X = Reshape(x.Read(), d, d, DIM, NE);
 

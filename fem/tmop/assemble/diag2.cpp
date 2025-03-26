@@ -50,14 +50,14 @@ namespace mfem
    }*/
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void TMOP_AssembleDiagonalPA_2D(const int NE,
-                                const ConstDeviceMatrix &B,
-                                const ConstDeviceMatrix &G,
-                                const DeviceTensor<5, const real_t> &J,
-                                const DeviceTensor<7, const real_t> &H,
-                                DeviceTensor<4> &D,
-                                const int d1d = 0,
-                                const int q1d = 0)
+void TMOP_AssembleDiagPA_2D(const int NE,
+                            const ConstDeviceMatrix &B,
+                            const ConstDeviceMatrix &G,
+                            const DeviceTensor<5, const real_t> &J,
+                            const DeviceTensor<7, const real_t> &H,
+                            DeviceTensor<4> &D,
+                            const int d1d = 0,
+                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -165,26 +165,20 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiag2D, TMOP_AssembleDiagonalPA_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiag2D, TMOP_AssembleDiagPA_2D);
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiag2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 {
-   const int NE = PA.ne;
    constexpr int DIM = 2;
-   const int d = PA.maps->ndof, q = PA.maps->nqpt;
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const DenseTensor &j = PA.Jtr;
-   const Array<real_t> &b = PA.maps->B;
-   const Array<real_t> &g = PA.maps->G;
-   const Vector &h = PA.H;
-
-   const auto B = Reshape(b.Read(), q, d);
-   const auto G = Reshape(g.Read(), q, d);
-   const auto J = Reshape(j.Read(), DIM, DIM, q, q, NE);
-   const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, q, q, NE);
+   const auto B = Reshape(PA.maps->B.Read(), q, d);
+   const auto G = Reshape(PA.maps->G.Read(), q, d);
+   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
+   const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
    TMOPAssembleDiag2D::Run(d, q, NE, B, G, J, H, D, d, q);

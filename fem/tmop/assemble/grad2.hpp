@@ -20,19 +20,20 @@ using namespace mfem::kernels::internal;
 namespace mfem
 {
 
-class TMOPSetupGradPA2D
+class TMOPAssembleGradPA2D
 {
    const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
 
 public:
-   TMOPSetupGradPA2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x) {}
+   TMOPAssembleGradPA2D(const TMOP_Integrator *ti, const Vector &x): ti(ti),
+      x(x) {}
 
    int Ndof() const { return ti->PA.maps->ndof; }
    int Nqpt() const { return ti->PA.maps->nqpt; }
 
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0>
-   static void Mult(TMOPSetupGradPA2D &ker)
+   static void Mult(TMOPAssembleGradPA2D &ker)
    {
       constexpr int DIM = 2, VDIM = 2;
       const mfem::TMOP_Integrator *ti = ker.ti;
