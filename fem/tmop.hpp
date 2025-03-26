@@ -1893,6 +1893,15 @@ protected:
    friend class TMOPAddMultPA2D;
    friend class TMOPAddMultPA3D;
 
+   // Initial positions of the mesh nodes. Not owned. The pointer is set at the
+   // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
+   // When x_0 == nullptr, the integrator works on the mesh positions.
+   // When x_0 != nullptr, the integrator works on the displacements.
+   // TODO in MFEM-5.0 make it always work with displacements.
+   const GridFunction *x_0;
+   // Called with nullptr to unset the x_0 after the problem is solved.
+   void SetInitialMeshPos(const GridFunction *x0);
+
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
@@ -1979,7 +1988,9 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
-   // X0: E-vector for initial nodal coordinates used for limiting.
+   // X0: E-vector for initial nodal coordinates.
+   //     Does not change during the TMOP iteration.
+   // XL: E-vector for nodal coordinates used for limiting.
    //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
    //     Updated by every call to PANonlinearFormExtension::GetGradient().
@@ -2012,7 +2023,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -2026,20 +2037,20 @@ protected:
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
-                                   const Vector &elfun, Vector &elvect);
+                                   const Vector &d_el, Vector &elvect);
 
    void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
-                                 const Vector &elfun, DenseMatrix &elmat);
+                                 const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElementVectorFD(const FiniteElement &el,
                                 ElementTransformation &T,
-                                const Vector &elfun, Vector &elvect);
+                                const Vector &d_el, Vector &elvect);
 
    // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, DenseMatrix &elmat);
+                              const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
@@ -2062,7 +2073,7 @@ protected:
 
    real_t GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun, const int nodenum,const int idir,
+                          Vector &d_el, const int nodenum, const int idir,
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
@@ -2147,7 +2158,7 @@ public:
        @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
-      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+      : x_0(nullptr), h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
         integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
         lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -2329,10 +2340,10 @@ public:
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
        @param[in] T      Mesh element transformation.
-       @param[in] elfun  Physical coordinates of the zone. */
+       @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
    real_t GetElementEnergy(const FiniteElement &el,
                            ElementTransformation &T,
-                           const Vector &elfun) override;
+                           const Vector &d_el) override;
 
    /** @brief Computes the mean of the energies of the given element's children.
 
@@ -2352,11 +2363,11 @@ public:
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, Vector &elvect) override;
+                              const Vector &d_el, Vector &elvect) override;
 
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &T,
-                            const Vector &elfun, DenseMatrix &elmat) override;
+                            const Vector &d_el, DenseMatrix &elmat) override;
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
@@ -2369,7 +2380,7 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace&) override;
 
-   void AssembleGradPA(const Vector&, const FiniteElementSpace&) override;
+   void AssembleGradPA(const Vector &, const FiniteElementSpace &) override;
 
    real_t GetLocalStateEnergyPA(const Vector&) const override;
 
@@ -2417,8 +2428,16 @@ public:
 class TMOPComboIntegrator : public NonlinearFormIntegrator
 {
 protected:
+   friend class TMOPNewtonSolver;
+
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;
+
+   void SetInitialMeshPos(const GridFunction *x0)
+   {
+      for (int i = 0; i < tmopi.Size(); i++)
+      { tmopi[i]->SetInitialMeshPos(x0); }
+   }
 
 public:
    TMOPComboIntegrator() : tmopi(0) { }
