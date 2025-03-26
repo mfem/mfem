@@ -161,12 +161,11 @@ int KernelSpecializations1()
    MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, setup)           \
    MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, mult)
 
-///////////////////////////////////////////////////////////////////////////////
 template <typename F> inline MFEM_HOST_DEVICE
 void foreach_x_thread(const int N, F&& func)
 {
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-        (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
    if (MFEM_THREAD_ID(x) < N) { func(MFEM_THREAD_ID(x)); }
 #else
    for (int i = 0; i < N; ++i) { func(i); }
@@ -177,14 +176,13 @@ template <typename F> inline MFEM_HOST_DEVICE
 void foreach_y_thread(const int N, F&& func)
 {
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-        (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
    if (MFEM_THREAD_ID(y) < N) { func(MFEM_THREAD_ID(y)); }
 #else
    for (int i = 0; i < N; ++i) { func(i); }
 #endif
 }
 
-///////////////////////////////////////////////////////////////////////////////
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 template <int N>
