@@ -28,6 +28,7 @@
 //               patch-wise matrix assembly and partial assembly on NURBS
 //               meshes.
 
+#include "fem/coefficient.hpp"
 #include "fem/intrules.hpp"
 #include "general/error.hpp"
 #include "mfem.hpp"
@@ -70,7 +71,7 @@ int main(int argc, char *argv[])
    args.AddOption(&reduced_integration, "-ri", "--reduced-integration",
    "-fi", "--full-integration", "Use reduced integration.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
-                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR.");
+                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR., 3 - LOR (patch+pa)");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -208,7 +209,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(*P);
    }
    // LOR Preconditioner
-   else if (preconditioner == 2)
+   else if (preconditioner == 2 || preconditioner == 3)
    {
       cout << "Getting LOR PC ... " << endl;
       // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
@@ -236,16 +237,16 @@ int main(int argc, char *argv[])
       lo_x = 0.0;
 
       ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
-      // if (patchAssembly)
-      // {
-      //    lo_ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      if (preconditioner == 3)
+      {
+         lo_ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
 
-      //    // Set the patch integration rules
-      //    SetPatchIntegrationRules(lo_mesh, patch_rule_1d, lo_ei);
-      // }
+         // Set the patch integration rules
+         SetPatchIntegrationRules(lo_mesh, PatchIntegrationRule1D::REDUCED_GAUSSIAN, lo_ei);
+      }
       // Set up problem
       BilinearForm lo_a(lo_fespace);
-      // if (pa) { lo_a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      if (preconditioner == 3) { lo_a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       lo_a.AddDomainIntegrator(lo_ei);
       lo_a.Assemble();
 
@@ -263,7 +264,7 @@ int main(int argc, char *argv[])
       P->SetOperator(*lo_A);
       P->SetMaxIter(1e4);
       P->SetPrintLevel(-1);
-      P->SetRelTol(1e-4);
+      P->SetRelTol(1e-2);
       solver.SetPreconditioner(*P);
    }
 
@@ -309,13 +310,13 @@ int main(int argc, char *argv[])
    // header
    if (!file_exists)
    {
-      results_ofs << "patcha, pa, precon_setting, reduced_int, "
-                  << "mesh, refinements, degree_inc, ndof, "
-                  << "iter, absnorm, relnorm, "
+      results_ofs << "patcha, pa, pc, ri, "
+                  << "mesh, refs, deg_inc, ndof, "
+                  << "niter, absnorm, relnorm, "
                   << "linf, l2, "
-                  << "time_assemble, time_solve, time_total, "
-                  << "dof_per_sec_solve, "
-                  << "dof_per_sec_total" << endl;
+                  << "t_assemble, t_solve, t_total, "
+                  << "dof/s_solve, "
+                  << "dof/s_total" << endl;
    }
 
    results_ofs << patchAssembly << ", "
@@ -349,9 +350,17 @@ int main(int argc, char *argv[])
       mesh_ofs.precision(8);
       mesh.Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
-      sol_ofs.precision(8);
+      sol_ofs.precision(16);
       x.Save(sol_ofs);
    }
+
+   // Compare with another saved solution
+   // {
+   //    ifstream sol_ifs("sol_ri.gf");
+   //    GridFunction x2(&mesh, sol_ifs);
+   //    GridFunctionCoefficient x2_gfc(&x2);
+   //    cout << "L2 error w.r.t sol_ri.gf = " << x.ComputeL2Error(x2_gfc) << endl;
+   // }
 
    // 15. Send the above data by socket to a GLVis server.
    if (visualization)
@@ -397,7 +406,6 @@ void SetPatchIntegrationRules(const Mesh &mesh,
          else {
             MFEM_ABORT("Unknown PatchIntegrationRule1D")
          }
-
       }
 
       patchRule->SetPatchRules1D(p, ir1D);

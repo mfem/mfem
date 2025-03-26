@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
    {
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         mesh.NURBSUniformRefinement();
       }
    }
    else
