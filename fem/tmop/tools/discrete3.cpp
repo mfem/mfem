@@ -11,9 +11,10 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../kernels.hpp"
-#include "../../kernels_smem.hpp"
+#include "../../kernels_regs.hpp"
 #include "../../../general/forall.hpp"
+
+using namespace mfem::kernels::internal;
 
 namespace mfem
 {
@@ -32,47 +33,48 @@ void TMOP_DatcSize_3D(const int NE,
                       const int q1d = 0)
 {
    MFEM_VERIFY(ncomp == 1, "");
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_TMOP_1D, "");
+   MFEM_VERIFY(sizeidx == 0, "");
+
+   const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(Q1D <= 8, "TMOP_DatcSize_3D can use max Q1D == 8");
+   const auto *b_ptr = (const real_t*) B;
+   constexpr int BLOCK_DIM = 512;
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
-   MFEM_VERIFY(sizeidx == 0, "");
-   MFEM_VERIFY(MFEM_CUDA_BLOCKS == 256, "Wrong CUDA block size used!");
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D_grid(NE, Q1D, Q1D, 1, BLOCK_DIM, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 3;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_TMOP_1D;
-      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      constexpr int DIM = 3, BLOCK_DIM = 512;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
-      MFEM_SHARED real_t sB[MQ1 * MD1];
-      MFEM_SHARED real_t sm0[MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      kernels::internal::LoadB<MD1, MQ1>(D1D, Q1D, B, sB);
-      kernels::internal::sm::LoadX<MDQ>(e, D1D, sizeidx, X, sm0);
+      regs::regs5d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
 
-      real_t min;
-      MFEM_SHARED real_t min_size[MFEM_CUDA_BLOCKS];
+      regs::LoadDofs3d(e, D1D, X, r0);
+
       DeviceTensor<3, real_t> M((real_t *)(min_size), D1D, D1D, D1D);
-      const DeviceTensor<3, const real_t> D((real_t *)(sm0 + sizeidx), D1D, D1D,
-                                            D1D);
-      MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS) { min_size[t] = infinity; }
+      MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz, z, D1D)
+      for (int dz = 0; dz < D1D; ++dz)
       {
-         MFEM_FOREACH_THREAD(dy, y, D1D)
+         mfem::foreach_y_thread(D1D, [&](int dy)
          {
-            MFEM_FOREACH_THREAD(dx, x, D1D) { M(dx, dy, dz) = D(dx, dy, dz); }
-         }
+            mfem::foreach_x_thread(D1D, [&](int dx)
+            {
+               M(dz, dy, dx) = r0(sizeidx, 0, dz, dy, dx);
+            });
+         });
       }
       MFEM_SYNC_THREAD;
-      for (int wrk = MFEM_CUDA_BLOCKS >> 1; wrk > 0; wrk >>= 1)
+      for (int wrk = BLOCK_DIM >> 1; wrk > 0; wrk >>= 1)
       {
-         MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS)
+         MFEM_FOREACH_THREAD(t, x, BLOCK_DIM)
          {
             if (t < wrk && MFEM_THREAD_ID(y) == 0 && MFEM_THREAD_ID(z) == 0)
             {
@@ -81,19 +83,20 @@ void TMOP_DatcSize_3D(const int NE,
          }
          MFEM_SYNC_THREAD;
       }
-      min = min_size[0];
-      if (input_min_size > 0.) { min = input_min_size; }
-      kernels::internal::sm::EvalX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-      kernels::internal::sm::EvalY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
-      kernels::internal::sm::EvalZ<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-      MFEM_FOREACH_THREAD(qx, x, Q1D)
+      real_t min = min_size[0];
+      if (input_min_size > 0.0) { min = input_min_size; }
+
+      regs::LoadMatrix(D1D, Q1D, b_ptr, sB);
+      regs::Eval3d(D1D, Q1D, smem, sB, r0, r1);
+
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         mfem::foreach_y_thread(Q1D, [&](int qy)
          {
-            MFEM_FOREACH_THREAD(qz, z, Q1D)
+            mfem::foreach_x_thread(Q1D, [&](int qx)
             {
-               real_t T;
-               kernels::internal::sm::PullEval<MDQ>(Q1D, qx, qy, qz, sm1, T);
+               const real_t T = r1(0, 0, qz, qy, qx);
+
                const real_t shape_par_vals = T;
                const real_t size = fmax(shape_par_vals, min) / nc_red[e];
                const real_t alpha = std::pow(size, 1.0 / DIM);
@@ -104,8 +107,8 @@ void TMOP_DatcSize_3D(const int NE,
                      J(i, j, qx, qy, qz, e) = alpha * W(i, j);
                   }
                }
-            }
-         }
+            });
+         });
       }
    });
 }
@@ -173,8 +176,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const auto X = Reshape(tspec_e.Read(), d, d, d, ncomp, NE);
    auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
 
-   TMOPDatcSize::Run(d, q,
-                     NE, ncomp, sizeidx, min_size, nc_red, W, B, X, J, d, q);
+   TMOPDatcSize::Run(d, q, NE, ncomp, sizeidx, min_size, nc_red, W, B, X, J, d, q);
 
 }
 
