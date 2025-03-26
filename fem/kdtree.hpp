@@ -96,7 +96,7 @@ public:
       minbb.SetSize(dim);
       maxbb.SetSize(dim);
 
-      //set the loocal coordinates
+      // set the local coordinates
       {
          ElementTransformation *trans;
          const IntegrationRule* ir=nullptr;
