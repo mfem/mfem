@@ -951,12 +951,9 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       return;
    }
 
-   if (!use_dev)
-   {
-      goto backend_cpu;
-   }
 #if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
-   if (mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
+   if (use_dev &&
+       mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
                             Backend::RAJA_HIP))
    {
       using red_type = internal::reduction_kernel<typename std::decay<B>::type,
