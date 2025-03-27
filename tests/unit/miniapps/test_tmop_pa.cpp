@@ -13,13 +13,14 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
-#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
-#include "fem/qinterp/eval.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep
-
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
+#else
+// Avoiding MSVC error C2491: 'definition of dllimport function not allowed'
+#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+#include "fem/qinterp/eval.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #endif
 
 #include <iostream>
@@ -851,30 +852,6 @@ public:
    }
 };
 
-// Add all kernels specializations needed for the tests
-static void AddKernelSpecializations()
-{
-   using Grad = QuadratureInterpolator::GradKernels;
-   Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
-
-   using TensorEval = QuadratureInterpolator::TensorEvalKernels;
-   TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
-   TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 3, 3>::Opt<4>::Add();
-   TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 2, 3>::Opt<2>::Add();
-   TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 3, 4>::Opt<1>::Add();
-   TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
-
-   using MassDiagonal = MassIntegrator::DiagonalPAKernels;
-   MassDiagonal::Specialization<2,2,3>::Add();
-   MassDiagonal::Specialization<3,2,4>::Add();
-   MassDiagonal::Specialization<3,2,6>::Add();
-
-   using MassApply = MassIntegrator::ApplyPAKernels;
-   MassApply::Specialization<2,2,3>::Add();
-   MassApply::Specialization<3,2,4>::Add();
-   MassApply::Specialization<3,2,6>::Add();
-}
-
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
@@ -887,7 +864,29 @@ static void tmop_tests(int id = 0, bool all = false)
    }
 #endif
 
-   AddKernelSpecializations();
+#ifndef _WIN32
+   {
+      using Grad = QuadratureInterpolator::GradKernels;
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
+
+      using TensorEval = QuadratureInterpolator::TensorEvalKernels;
+      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
+      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 3, 3>::Opt<4>::Add();
+      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 2, 3>::Opt<2>::Add();
+      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 3, 4>::Opt<1>::Add();
+      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
+
+      using MassDiagonal = MassIntegrator::DiagonalPAKernels;
+      MassDiagonal::Specialization<2,2,3>::Add();
+      MassDiagonal::Specialization<3,2,4>::Add();
+      MassDiagonal::Specialization<3,2,6>::Add();
+
+      using MassApply = MassIntegrator::ApplyPAKernels;
+      MassApply::Specialization<2,2,3>::Add();
+      MassApply::Specialization<3,2,4>::Add();
+      MassApply::Specialization<3,2,6>::Add();
+   }
+#endif
 
    const real_t jitter = 1. / (M_PI * M_PI);
 
