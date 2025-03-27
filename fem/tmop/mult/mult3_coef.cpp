@@ -104,8 +104,8 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
 
                kernels::Subtract<3>(w * a, p1, p0, d1);
                r00(0,0, qz,qy,qx) = d1[0];
-               r00(0,1, qz,qy,qx) = d1[1];
-               r00(0,2, qz,qy,qx) = d1[2];
+               r00(1,0, qz,qy,qx) = d1[1];
+               r00(2,0, qz,qy,qx) = d1[2];
             });
          });
       }

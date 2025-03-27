@@ -98,7 +98,7 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
             }
             kernels::Subtract<2>(w * a, p1, p0, d1);
             r00(0,0, qy,qx) = d1[0];
-            r00(0,1, qy,qx) = d1[1];
+            r00(1,0, qy,qx) = d1[1];
          });
       });
       MFEM_SYNC_THREAD;

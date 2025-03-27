@@ -68,8 +68,8 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
                real_t p2[3];
                kernels::Mult(3, 3, H_data, Xh, p2);
                r0(0,0, qz,qy,qx) = p2[0];
-               r0(0,1, qz,qy,qx) = p2[1];
-               r0(0,2, qz,qy,qx) = p2[2];
+               r0(1,0, qz,qy,qx) = p2[1];
+               r0(2,0, qz,qy,qx) = p2[2];
             });
          });
       }

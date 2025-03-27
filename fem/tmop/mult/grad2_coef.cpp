@@ -57,7 +57,7 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
             real_t p2[2];
             kernels::Mult(2, 2, H_data, Xh, p2);
             r0(0,0, qy,qx) = p2[0];
-            r0(0,1, qy,qx) = p2[1];
+            r0(1,0, qy,qx) = p2[1];
          });
       });
       MFEM_SYNC_THREAD;
