@@ -202,6 +202,9 @@ function(add_serial_miniapp_test name test_uvm)
     if (MFEM_USE_CUDA)
        set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
@@ -240,6 +243,16 @@ function(add_serial_miniapp_test name test_uvm)
            endif()
        endif()
     endif(MFEM_USE_CUDA)
+
+    if (MFEM_USE_HIP)
+       mfem_add_executable(${name}_tests_hip ${${NAME}_TESTS_SRCS})
+       target_compile_definitions(${name}_tests_hip PUBLIC MFEM_${NAME}_DEVICE="hip")
+       target_link_libraries(${name}_tests_hip mfem)
+       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_hip)
+       if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+           add_test(NAME ${name}_tests_hip COMMAND ${name}_tests_hip)
+       endif()
+    endif(MFEM_USE_HIP)
 endfunction(add_serial_miniapp_test)
 
 add_serial_miniapp_test(sedov ON)  # UVM ON

@@ -1886,6 +1886,12 @@ class TMOP_Integrator : public NonlinearFormIntegrator
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
+   friend class TMOPEnergyPA2D;
+   friend class TMOPEnergyPA3D;
+   friend class TMOPAssembleGradPA2D;
+   friend class TMOPAssembleGradPA3D;
+   friend class TMOPAddMultPA2D;
+   friend class TMOPAddMultPA3D;
 
    // Initial positions of the mesh nodes. Not owned. The pointer is set at the
    // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
