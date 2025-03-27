@@ -796,9 +796,9 @@ public:
        elements. */
    const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
 
-   /// @brief Given a lexicographically ordered Vector @a dofs, containing
-   /// @a ncomp components of the size of the scalar FiniteElement, reorder its
-   /// entries into native (H1) ordering.
+   /// Given a lexicographically ordered Vector @a dofs, containing @a ncomp
+   /// components of the size of the scalar FiniteElement, reorder its entries
+   /// into native (H1) ordering.
    /// The function assumes that GetLexicographicOrdering() is not empty.
    void ReorderLexToNative(int ncomp, Vector &dofs) const;
 };
