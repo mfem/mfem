@@ -463,18 +463,10 @@ inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
    {
       for (int d = 0; d < DIM; d++)
       {
-         Contract2d<MD1, MQ1, transpose>(d1d, q1d,
-                                         smem, B, B,
-                                         X[c][d], Y[c][d]);
+         Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem,
+                                         B, B, X[c][d], Y[c][d]);
       }
    }
-}
-
-template <int M>
-inline MFEM_HOST_DEVICE auto as_regs2d_ref(regs2d_t<M> *r)
--> regs2d_t<M> (&)
-{
-   return *reinterpret_cast<regs2d_t<M>(*)>(r);
 }
 
 template <int VDIM, int DIM, int MD1, int MQ1, bool transpose = false>
@@ -489,11 +481,9 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
    {
       for (int d = 0; d < DIM; d++)
       {
-         const auto &Bx = (d == 0) ? G : B;
-         const auto &By = (d == 1) ? G : B;
-         regs2d_t<MQ1> &Xcd = as_regs2d_ref<MQ1>(&X[c][d]);
-         regs2d_t<MQ1> &Ycd = as_regs2d_ref<MQ1>(&Y[c][d]);
-         Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, Bx, By, Xcd, Ycd);
+         const real_t (&Bx)[MD1][MQ1] = (d == 0) ? G : B;
+         const real_t (&By)[MD1][MQ1] = (d == 1) ? G : B;
+         Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, Bx, By, X[c][d], Y[c][d]);
       }
    }
 }
@@ -622,9 +612,9 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    {
       for (int d = 0; d < DIM; d++)
       {
-         const auto &Bx = (d == 0) ? G : B;
-         const auto &By = (d == 1) ? G : B;
-         const auto &Bz = (d == 2) ? G : B;
+         const real_t (&Bx)[MD1][MQ1] = (d == 0) ? G : B;
+         const real_t (&By)[MD1][MQ1] = (d == 1) ? G : B;
+         const real_t (&Bz)[MD1][MQ1] = (d == 2) ? G : B;
          Contract3d<MD1, MQ1, transpose>(d1d, q1d,
                                          smem, Bx, By, Bz,
                                          X[c][d], Y[c][d]);
