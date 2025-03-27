@@ -183,6 +183,7 @@ const real_t &Vector::Elem(int i) const
 
 real_t Vector::operator*(const real_t *v) const
 {
+   HostRead();
    real_t dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
@@ -939,145 +940,61 @@ real_t Vector::Norml2() const
       return 0.0;
    }
 
-   if (UseDevice())
+   auto m_data = Read(UseDevice());
+   using value_type = DevicePair<real_t, real_t>;
+   value_type res;
+   res.first = 0;
+   res.second = 0;
+   // first compute sum (|m_data|/scale)^2
+   reduce(
+      size, res,
+      [=] MFEM_HOST_DEVICE(int i, value_type &r)
    {
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+      real_t n = fabs(m_data[i]);
+      if (n > 0)
       {
-         auto m_data = Read();
-         using value_type = DevicePair<real_t, real_t>;
-         value_type res;
-         res.first = 0;
-         res.second = 0;
-         // first compute sum (|m_data|/scale)^2
-         reduce(
-            size, res,
-            [=] MFEM_HOST_DEVICE(int i, value_type &r)
+         if (r.second <= n)
          {
-            real_t n = fabs(m_data[i]);
-            if (n > 0)
-            {
-               if (r.second <= n)
-               {
-                  real_t arg = r.second / n;
-                  r.first = r.first * (arg * arg) + 1;
-                  r.second = n;
-               }
-               else
-               {
-                  real_t arg = n / r.second;
-                  r.first += arg * arg;
-               }
-            }
-         },
-         L2Reducer{}, true, Lpvector_workspace());
-         // final answer
-         return res.second * sqrt(res.first);
+            real_t arg = r.second / n;
+            r.first = r.first * (arg * arg) + 1;
+            r.second = n;
+         }
+         else
+         {
+            real_t arg = n / r.second;
+            r.first += arg * arg;
+         }
       }
-#endif
-   }
-
-   auto ptr = data.Read(MemoryClass::HOST, size);
-   if (1 == size)
-   {
-      return std::abs(ptr[0]);
-   } // end if 1 == size
-   return kernels::Norml2(size, ptr);
+   },
+   L2Reducer{}, UseDevice(), Lpvector_workspace());
+   // final answer
+   return res.second * sqrt(res.first);
 }
 
 real_t Vector::Normlinf() const
 {
    if (size == 0) { return 0; }
 
-   const bool use_dev = UseDevice();
-
-   if (!use_dev) { goto vector_linf_cpu; }
-
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-   {
-      auto m_data = Read();
-      real_t res = 0;
-      reduce(
-         size, res,
-         [=] MFEM_HOST_DEVICE(int i, real_t &r)
-      {
-         r = fmax(r, fabs(m_data[i]));
-      },
-      MaxReducer<real_t> {}, true, vector_workspace());
-      return res;
-   }
-#endif
-
-   if (Device::Allows(Backend::DEBUG_DEVICE))
-   {
-      const int N = size;
-      auto m_data_ = Read();
-      Vector max(1);
-      max = 0.;
-      max.UseDevice(true);
-      auto d_max = max.ReadWrite();
-      mfem::forall(N, [=] MFEM_HOST_DEVICE(int i)
-      {
-         d_max[0] = fmax(d_max[0], fabs(m_data_[i]));
-      });
-      max.HostReadWrite();
-      return max[0];
-   }
-
-vector_linf_cpu:
-   HostRead();
-   real_t maximum = fabs(data[0]);
-   for (int i = 1; i < size; i++)
-   {
-      maximum = fmax(maximum, fabs(data[i]));
-   }
-   return maximum;
+   auto m_data = Read(UseDevice());
+   real_t res = 0;
+   reduce(
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, fabs(m_data[i])); },
+   MaxReducer<real_t> {}, UseDevice(), vector_workspace());
+   return res;
 }
 
 real_t Vector::Norml1() const
 {
    if (size == 0) { return 0.0; }
 
-   if (UseDevice())
-   {
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         auto m_data = Read();
-         real_t res = 0;
-         reduce(
-            size, res,
-         [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
-         SumReducer<real_t> {}, true, vector_workspace());
-         return res;
-      }
-#endif
-      if (Device::Allows(Backend::DEBUG_DEVICE))
-      {
-         const int N = size;
-         auto d_data = Read();
-         Vector sum(1);
-         sum.UseDevice(true);
-         auto d_sum = sum.Write();
-         d_sum[0] = 0.0;
-         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
-         {
-            d_sum[0] += fabs(d_data[i]);
-         });
-         sum.HostReadWrite();
-         return sum[0];
-      }
-   }
-
-   // CPU fallback
-   const real_t *h_data = HostRead();
-   real_t sum = 0.0;
-   for (int i = 0; i < size; i++)
-   {
-      sum += fabs(h_data[i]);
-   }
-   return sum;
+   auto m_data = Read(UseDevice());
+   real_t res = 0;
+   reduce(
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
+   SumReducer<real_t> {}, UseDevice(), vector_workspace());
+   return res;
 }
 
 real_t Vector::Normlp(real_t p) const
@@ -1102,68 +1019,35 @@ real_t Vector::Normlp(real_t p) const
          return 0.0;
       }
 
-      if (UseDevice())
+      auto m_data = Read(UseDevice());
+      using value_type = DevicePair<real_t, real_t>;
+      value_type res;
+      res.first = 0;
+      res.second = 0;
+      // first compute sum (|m_data|/scale)^p
+      reduce(
+         size, res,
+         [=] MFEM_HOST_DEVICE(int i, value_type &r)
       {
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-         if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+         real_t n = fabs(m_data[i]);
+         if (n > 0)
          {
-            auto m_data = Read();
-            using value_type = DevicePair<real_t, real_t>;
-            value_type res;
-            res.first = 0;
-            res.second = 0;
-            // first compute sum (|m_data|/scale)^p
-            reduce(
-               size, res,
-               [=] MFEM_HOST_DEVICE(int i, value_type &r)
+            if (r.second <= n)
             {
-               real_t n = fabs(m_data[i]);
-               if (n > 0)
-               {
-                  if (r.second <= n)
-                  {
-                     real_t arg = r.second / n;
-                     r.first = r.first * pow(arg, p) + 1;
-                     r.second = n;
-                  }
-                  else
-                  {
-                     real_t arg = n / r.second;
-                     r.first += pow(arg, p);
-                  }
-               }
-            },
-            LpReducer{p}, true, Lpvector_workspace());
-            // final answer
-            return res.second * pow(res.first, 1.0 / p);
+               real_t arg = r.second / n;
+               r.first = r.first * pow(arg, p) + 1;
+               r.second = n;
+            }
+            else
+            {
+               real_t arg = n / r.second;
+               r.first += pow(arg, p);
+            }
          }
-#endif
-      }
-
-      auto ptr = data.Read(MemoryClass::HOST, size);
-      if (1 == size)
-      {
-         return std::abs(ptr[0]);
-      } // end if 1 == size
-
-      real_t scale = 0.0;
-      real_t sum = 0.0;
-
-      for (int i = 0; i < size; i++)
-      {
-         if (ptr[i] != 0.0)
-         {
-            const real_t absdata = std::abs(ptr[i]);
-            if (scale <= absdata)
-            {
-               sum = 1.0 + sum * std::pow(scale / absdata, p);
-               scale = absdata;
-               continue;
-            } // end if scale <= absdata
-            sum += std::pow(absdata / scale, p); // else scale > absdata
-         } // end if ptr[i] != 0
-      }
-      return scale * std::pow(sum, 1.0/p);
+      },
+      LpReducer{p}, UseDevice(), Lpvector_workspace());
+      // final answer
+      return res.second * pow(res.first, 1.0 / p);
    } // end if p < infinity()
 
    return Normlinf(); // else p >= infinity()
@@ -1175,93 +1059,67 @@ real_t Vector::operator*(const Vector &v) const
    if (size == 0) { return 0.0; }
 
    const bool use_dev = UseDevice() || v.UseDevice();
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP)
+
    auto m_data = Read(use_dev);
-#else
-   Read(use_dev);
-#endif
    auto v_data = v.Read(use_dev);
 
-   if (!use_dev) { goto vector_dot_cpu; }
-
+   if (use_dev)
+   {
+      // special path for OCCA and OpenMP
 #ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      return occa::linalg::dot<real_t,real_t,real_t>(
-                OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
-   }
-#endif
-
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-   {
-      real_t res = 0;
-      reduce(
-         size, res,
-         [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      if (DeviceCanUseOcca())
       {
-         r += m_data[i] * v_data[i];
-      },
-      SumReducer<real_t> {}, true, vector_workspace());
-      return res;
-   }
+         return occa::linalg::dot<real_t, real_t, real_t>(
+                   OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
+      }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-   if (Device::Allows(Backend::OMP_MASK))
-   {
+      if (Device::Allows(Backend::OMP_MASK))
+      {
 #define MFEM_USE_OPENMP_DETERMINISTIC_DOT
 #ifdef MFEM_USE_OPENMP_DETERMINISTIC_DOT
-      // By default, use a deterministic way of computing the dot product
-      static Vector th_dot;
-      #pragma omp parallel
-      {
-         const int nt = omp_get_num_threads();
-         #pragma omp master
-         th_dot.SetSize(nt);
-         const int tid    = omp_get_thread_num();
-         const int stride = (size + nt - 1)/nt;
-         const int start  = tid*stride;
-         const int stop   = std::min(start + stride, size);
-         real_t my_dot = 0.0;
-         for (int i = start; i < stop; i++)
+         // By default, use a deterministic way of computing the dot product
+         static Vector th_dot;
+         #pragma omp parallel
          {
-            my_dot += m_data[i] * v_data[i];
+            const int nt = omp_get_num_threads();
+            #pragma omp master
+            th_dot.SetSize(nt);
+            const int tid = omp_get_thread_num();
+            const int stride = (size + nt - 1) / nt;
+            const int start = tid * stride;
+            const int stop = std::min(start + stride, size);
+            real_t my_dot = 0.0;
+            for (int i = start; i < stop; i++)
+            {
+               my_dot += m_data[i] * v_data[i];
+            }
+            #pragma omp barrier
+            th_dot(tid) = my_dot;
          }
-         #pragma omp barrier
-         th_dot(tid) = my_dot;
-      }
-      return th_dot.Sum();
+         return th_dot.Sum();
 #else
-      // The standard way of computing the dot product is non-deterministic
-      real_t prod = 0.0;
-      #pragma omp parallel for reduction(+:prod)
-      for (int i = 0; i < size; i++)
-      {
-         prod += m_data[i] * v_data[i];
-      }
-      return prod;
+         // The standard way of computing the dot product is non-deterministic
+         real_t prod = 0.0;
+         #pragma omp parallel for reduction(+ : prod)
+         for (int i = 0; i < size; i++)
+         {
+            prod += m_data[i] * v_data[i];
+         }
+         return prod;
 #endif // MFEM_USE_OPENMP_DETERMINISTIC_DOT
-   }
+      }
 #endif // MFEM_USE_OPENMP
-   if (Device::Allows(Backend::DEBUG_DEVICE))
-   {
-      const int N = size;
-      auto v_data_ = v.Read();
-      auto m_data_ = Read();
-      Vector dot(1);
-      dot.UseDevice(true);
-      auto d_dot = dot.Write();
-      dot = 0.0;
-      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_dot[0] += m_data_[i] * v_data_[i];
-      });
-      dot.HostReadWrite();
-      return dot[0];
    }
-vector_dot_cpu:
-   return operator*(v_data);
+
+   // normal path for everything else (cuda, hip, debug, cpu)
+   real_t res = 0;
+   reduce(
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i] * v_data[i]; },
+   SumReducer<real_t> {}, use_dev, vector_workspace());
+   return res;
 }
 
 real_t Vector::Min() const
@@ -1271,64 +1129,38 @@ real_t Vector::Min() const
    const bool use_dev = UseDevice();
    auto m_data = Read(use_dev);
 
-   if (!use_dev) { goto vector_min_cpu; }
+   if (use_dev)
+   {
+      // special case for OCCA and OpenMP
 
 #ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      return occa::linalg::min<real_t,real_t>(OccaMemoryRead(data, size));
-   }
-#endif
-
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-   {
-      auto m_data = Read();
-      real_t res = infinity();
-      reduce(
-         size, res,
-      [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
-      MinReducer<real_t> {}, true, vector_workspace());
-      return res;
-   }
+      if (DeviceCanUseOcca())
+      {
+         return occa::linalg::min<real_t,real_t>(OccaMemoryRead(data, size));
+      }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-   if (Device::Allows(Backend::OMP_MASK))
-   {
-      real_t minimum = m_data[0];
-      #pragma omp parallel for reduction(min:minimum)
-      for (int i = 0; i < size; i++)
+      if (Device::Allows(Backend::OMP_MASK))
       {
-         minimum = std::min(minimum, m_data[i]);
+         real_t minimum = m_data[0];
+         #pragma omp parallel for reduction(min:minimum)
+         for (int i = 0; i < size; i++)
+         {
+            minimum = std::min(minimum, m_data[i]);
+         }
+         return minimum;
       }
-      return minimum;
-   }
 #endif
-
-   if (Device::Allows(Backend::DEBUG_DEVICE))
-   {
-      const int N = size;
-      auto m_data_ = Read();
-      Vector min(1);
-      min = infinity();
-      min.UseDevice(true);
-      auto d_min = min.ReadWrite();
-      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_min[0] = fmin(d_min[0], m_data_[i]);
-      });
-      min.HostReadWrite();
-      return min[0];
    }
 
-vector_min_cpu:
-   real_t minimum = data[0];
-   for (int i = 1; i < size; i++)
-   {
-      minimum = fmin(minimum, m_data[i]);
-   }
-   return minimum;
+   // normal path for everything else (cuda, hip, debug, cpu)
+   real_t res = infinity();
+   reduce(
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
+   MinReducer<real_t> {}, use_dev, vector_workspace());
+   return res;
 }
 
 real_t Vector::Max() const
@@ -1338,109 +1170,49 @@ real_t Vector::Max() const
    const bool use_dev = UseDevice();
    auto m_data = Read(use_dev);
 
-   if (!use_dev) { goto vector_max_cpu; }
-
+   if (use_dev)
+   {
+      // special cases where OCCA or OenMP are used
 #ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      return occa::linalg::max<real_t,real_t>(OccaMemoryRead(data, size));
-   }
-#endif
-
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-   {
-      auto m_data = Read();
-      real_t res = -infinity();
-      reduce(
-         size, res,
-      [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
-      MaxReducer<real_t> {}, true, vector_workspace());
-      return res;
-   }
+      if (DeviceCanUseOcca())
+      {
+         return occa::linalg::max<real_t, real_t>(OccaMemoryRead(data, size));
+      }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-   if (Device::Allows(Backend::OMP_MASK))
-   {
-      real_t maximum = m_data[0];
-      #pragma omp parallel for reduction(max:maximum)
-      for (int i = 0; i < size; i++)
+      if (Device::Allows(Backend::OMP_MASK))
       {
-         maximum = fmax(maximum, m_data[i]);
+         real_t maximum = m_data[0];
+         #pragma omp parallel for reduction(max : maximum)
+         for (int i = 0; i < size; i++)
+         {
+            maximum = fmax(maximum, m_data[i]);
+         }
+         return maximum;
       }
-      return maximum;
-   }
 #endif
-
-   if (Device::Allows(Backend::DEBUG_DEVICE))
-   {
-      const int N = size;
-      auto m_data_ = Read();
-      Vector max(1);
-      max = -infinity();
-      max.UseDevice(true);
-      auto d_max = max.ReadWrite();
-      mfem::forall(N, [=] MFEM_HOST_DEVICE(int i)
-      {
-         d_max[0] = fmax(d_max[0], m_data_[i]);
-      });
-      max.HostReadWrite();
-      return max[0];
    }
 
-vector_max_cpu:
-   real_t maximum = data[0];
-   for (int i = 1; i < size; i++)
-   {
-      maximum = fmax(maximum, m_data[i]);
-   }
-   return maximum;
+   // normal path for everything else (cuda, hip, debug, cpu)
+   real_t res = -infinity();
+   reduce(
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
+   MaxReducer<real_t> {}, use_dev, vector_workspace());
+   return res;
 }
 
 real_t Vector::Sum() const
 {
    if (size == 0) { return 0.0; }
 
-   if (UseDevice())
-   {
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         auto m_data = Read();
-         real_t res = 0;
-         reduce(
-            size, res,
-         [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
-         SumReducer<real_t> {}, true, vector_workspace());
-         return res;
-      }
-#endif
-      if (Device::Allows(Backend::DEBUG_DEVICE))
-      {
-         const int N = size;
-         auto d_data = Read();
-         Vector sum(1);
-         sum.UseDevice(true);
-         auto d_sum = sum.Write();
-         d_sum[0] = 0.0;
-         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
-         {
-            d_sum[0] += d_data[i];
-         });
-         sum.HostReadWrite();
-         return sum[0];
-      }
-   }
-
-   // CPU fallback
-   const real_t *h_data = HostRead();
-   real_t sum = 0.0;
-   for (int i = 0; i < size; i++)
-   {
-      sum += h_data[i];
-   }
-   return sum;
+   auto m_data = Read(UseDevice());
+   real_t res = 0;
+   reduce(
+   size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
+   SumReducer<real_t> {}, UseDevice(), vector_workspace());
+   return res;
 }
 
 }
