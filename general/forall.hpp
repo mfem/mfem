@@ -253,7 +253,6 @@ template <typename DBODY>
 void RajaCuWrap2D(const int N, DBODY &&d_body,
                   const int X, const int Y, const int BZ)
 {
-   MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
@@ -288,7 +287,6 @@ template <typename DBODY>
 void RajaCuWrap3D(const int N, DBODY &&d_body,
                   const int X, const int Y, const int Z, const int G)
 {
-   MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
    using namespace RAJA;
    using RAJA::RangeSegment;
@@ -355,7 +353,6 @@ template <typename DBODY>
 void RajaHipWrap2D(const int N, DBODY &&d_body,
                    const int X, const int Y, const int BZ)
 {
-   MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
@@ -390,7 +387,6 @@ template <typename DBODY>
 void RajaHipWrap3D(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
 {
-   MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
    using namespace RAJA;
    using RAJA::RangeSegment;
