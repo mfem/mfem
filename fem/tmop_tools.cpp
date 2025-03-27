@@ -977,7 +977,8 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (true || dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
+   if (dim == 1 || mixed_mesh ||
+       UsesTensorBasis(fes) == false || fes.IsVariableOrder())
    {
       for (int i = 0; i < NE; i++)
       {
