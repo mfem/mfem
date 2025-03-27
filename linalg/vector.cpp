@@ -28,7 +28,6 @@
 namespace mfem
 {
 
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
 /**
  * Reducer for helping to compute L2-norms. Given two partial results:
  * a0 = sum_i (|v_i|/a1)^2
@@ -105,7 +104,6 @@ static Array<DevicePair<real_t, real_t>> &Lpvector_workspace()
    static Array<DevicePair<real_t, real_t>> instance;
    return instance;
 }
-#endif
 
 Vector::Vector(const Vector &v)
 {
