@@ -15,6 +15,7 @@
 #include "array.hpp"
 #include "../general/forall.hpp"
 #include <fstream>
+#include <type_traits>
 
 namespace mfem
 {
@@ -108,6 +109,16 @@ void Array<T>::PartialSum()
       sum+=operator[](i);
       operator[](i) = sum;
    }
+}
+
+template <class T>
+void Array<T>::Abs()
+{
+   static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
+   const bool useDevice = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(useDevice);
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::abs(y[i]); });
 }
 
 // Sum

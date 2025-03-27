@@ -298,6 +298,9 @@ public:
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
+   /// @brief Compute the absolute value of the entries
+   void Abs();
+
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
    T Sum() const;
 
