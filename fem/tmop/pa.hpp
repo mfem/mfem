@@ -470,6 +470,13 @@ inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
    }
 }
 
+template <int M>
+inline MFEM_HOST_DEVICE auto as_regs2d_ref(regs2d_t<M> *r)
+-> regs2d_t<M> (&)
+{
+   return *reinterpret_cast<regs2d_t<M>(*)>(r);
+}
+
 template <int VDIM, int DIM, int MD1, int MQ1, bool transpose = false>
 inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
                                     real_t (&smem)[MQ1][MQ1],
@@ -484,7 +491,8 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
       {
          const auto &Bx = (d == 0) ? G : B;
          const auto &By = (d == 1) ? G : B;
-         regs2d_t<MQ1> &Xcd = X[c][d], &Ycd = Y[c][d];
+         regs2d_t<MQ1> &Xcd = as_regs2d_ref<MQ1>(&X[c][d]);
+         regs2d_t<MQ1> &Ycd = as_regs2d_ref<MQ1>(&Y[c][d]);
          Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, Bx, By, Xcd, Ycd);
       }
    }
