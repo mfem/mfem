@@ -75,13 +75,20 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, MinDetJpr_Kernel_3D,
 }
 
 real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
-                                      const Vector &X) const
+                                      const Vector &D) const
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *R = fes->GetElementRestriction(ordering);
-   Vector XE(R->Height(), Device::GetDeviceMemoryType());
+
+   const Operator *RD = fes->GetElementRestriction(ordering);
+   Vector DE(RD->Height(), Device::GetDeviceMemoryType());
+   DE.UseDevice(true);
+   RD->Mult(D, DE);
+
+   const Operator *RX = x_0.FESpace()->GetElementRestriction(ordering);
+   Vector XE(RX->Height(), Device::GetDeviceMemoryType());
    XE.UseDevice(true);
-   R->Mult(X, XE);
+   RX->Mult(x_0, XE);
+   XE += DE;
 
    const DofToQuad &maps = fes->GetTypicalFE()->GetDofToQuad(ir,
                                                              DofToQuad::TENSOR);

@@ -219,8 +219,8 @@ protected:
    real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
-   real_t MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   real_t MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
+   real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
 
    /** @name Methods for adaptive surface fitting weight. */
    ///@{
@@ -391,7 +391,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        char *title, int position);
 #endif
 
-// Compute x = x_0 + d, where x and x_0 are L2, d is H1p.
+// Compute x = x_0 + d, where x and x_0 are L2, d is H1p, all ldof vectors.
 void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
                           const FiniteElementSpace &fesL2,
                           const FiniteElementSpace &fesH1, Vector &x);
