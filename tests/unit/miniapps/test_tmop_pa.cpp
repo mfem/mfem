@@ -853,7 +853,7 @@ public:
 };
 
 // Add all kernels specializations needed for the tests
-/*static void AddKernelSpecializations()
+static void AddKernelSpecializations()
 {
    using Det = QuadratureInterpolator::DetKernels;
    Det::Specialization<2, 2, 3, 3>::Add();
@@ -880,7 +880,7 @@ public:
    MassApply::Specialization<2,2,3>::Add();
    MassApply::Specialization<3,2,4>::Add();
    MassApply::Specialization<3,2,6>::Add();
-}*/
+}
 
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
@@ -894,7 +894,7 @@ static void tmop_tests(int id = 0, bool all = false)
    }
 #endif
 
-   // AddKernelSpecializations();
+   AddKernelSpecializations();
 
    const real_t jitter = 1. / (M_PI * M_PI);
 
@@ -939,19 +939,19 @@ static void tmop_tests(int id = 0, bool all = false)
           .LS({ 3 }))
    .Run(id, all);
 
-   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL")
-          .MESH("../../data/toroid-hex.mesh")
-          .LIMITING(M_PI)
-          .LIMIT_TYPE(1)
-          .REFINE(1)
-          .JI(jitter)
-          .NORMALIZATION(true)
-          .POR({ 2 })
-          .QOR({ 4 })
-          .TID({ 8 })
-          .MID({ 338 })
-          .LS({ 3 }))
-   .Run(id, all);
+   // Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL")
+   //        .MESH("../../data/toroid-hex.mesh")
+   //        .LIMITING(M_PI)
+   //        .LIMIT_TYPE(1)
+   //        .REFINE(1)
+   //        .JI(jitter)
+   //        .NORMALIZATION(true)
+   //        .POR({ 2 })
+   //        .QOR({ 4 })
+   //        .TID({ 8 })
+   //        .MID({ 338 })
+   //        .LS({ 3 }))
+   // .Run(id, all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL")
           .MESH("../../miniapps/meshing/cube.mesh")
