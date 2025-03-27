@@ -353,6 +353,9 @@ public:
    /// (*this)(i) = 1.0 / (*this)(i)
    void Reciprocal();
 
+   /// (*this)(i) = abs((*this)(i))
+   void Abs();
+
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
 
