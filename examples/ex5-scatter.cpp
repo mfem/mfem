@@ -804,10 +804,6 @@ TFunc GetSigFun(Problem prob, real_t f, real_t s0)
             return 0.;
          };
       case Problem::WaveCoupling:
-         return [=](const Vector &x, real_t) -> real_t
-         {
-            return sin(.5 * M_PI * x(0)) * sin(M_PI * x(1)) * 1e-3;
-         };
       case Problem::Scattering:
          return [=](const Vector &x, real_t) -> real_t
          {
