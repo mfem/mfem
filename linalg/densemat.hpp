@@ -154,7 +154,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
 
    // Absolute-value matrix vector multiplication.
-   void AbsMult(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const override;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const real_t *x, real_t *y, bool useAbs = false) const;
@@ -169,7 +169,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override;
 
    /// Multiply a vector with the absolute-value transpose matrix.
-   void AbsMultTranspose(const Vector &x, Vector &y) const;
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    using Operator::Mult;
    using Operator::MultTranspose;
