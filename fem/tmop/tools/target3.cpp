@@ -22,7 +22,6 @@ template <int T_Q1D = 0>
 void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
                                   DeviceTensor<6> &J, const int q1d = 0)
 {
-   static constexpr int DIM = 3;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D,
@@ -35,8 +34,7 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
          {
             MFEM_FOREACH_THREAD(qz, z, Q1D)
             {
-               kernels::Set(DIM, DIM, 1.0, &W(0, 0),
-                            &J(0, 0, qx, qy, qz, e));
+               kernels::Set(3, 3, 1.0, &W(0, 0), &J(0, 0, qx, qy, qz, e));
             }
          }
       }
@@ -62,11 +60,9 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 3, VDIM = 3;
-
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      regs5d_t<VDIM, DIM, MQ1> r0, r1;
+      regs5d_t<3, 3, MQ1> r0, r1;
 
       LoadMatrix(D1D, Q1D, b, sB);
       LoadMatrix(D1D, Q1D, g, sG);
@@ -89,7 +85,7 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
                };
                const real_t detJ = kernels::Det<3>(Jtr);
                const real_t alpha = std::pow(detJ / detW, 1. / 3);
-               kernels::Set(DIM, DIM, alpha, Wid, &J(0, 0, qx, qy, qz, e));
+               kernels::Set(3, 3, alpha, Wid, &J(0, 0, qx, qy, qz, e));
             });
          });
       }

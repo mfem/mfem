@@ -56,11 +56,9 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 2, VDIM = 2;
-
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      regs4d_t<VDIM, DIM, MQ1> r0, r1;
+      regs4d_t<2, 2, MQ1> r0, r1;
 
       LoadMatrix(D1D, Q1D, b, sB);
       LoadMatrix(D1D, Q1D, g, sG);
@@ -80,7 +78,7 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
             };
             const real_t detJ = kernels::Det<2>(Jtr);
             const real_t alpha = std::pow(detJ / detW, 1. / 2);
-            kernels::Set(DIM, DIM, alpha, Wid, &J(0, 0, qx, qy, e));
+            kernels::Set(2, 2, alpha, Wid, &J(0, 0, qx, qy, e));
          });
       });
    });

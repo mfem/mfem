@@ -69,14 +69,13 @@ MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {
-   static constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, NE);
-   auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
+   const auto H0 = Reshape(PA.H0.Read(), 2, 2, q, q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d, d, 2, NE);
 
    TMOPAssembleDiagCoef2D::Run(d, q, NE, B, H0, D, d, q);
 }

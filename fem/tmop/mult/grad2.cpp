@@ -33,11 +33,9 @@ void TMOP_AddMultGradPA_2D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 2, VDIM = 2;
-
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      regs4d_t<VDIM, DIM, MQ1> r0, r1;
+      regs4d_t<2, 2, MQ1> r0, r1;
 
       LoadMatrix(D1D, Q1D, b, sB);
       LoadMatrix(D1D, Q1D, g, sG);
@@ -70,14 +68,14 @@ void TMOP_AddMultGradPA_2D(const int NE,
             real_t B[4];
             DeviceMatrix M(B, 2, 2);
             ConstDeviceMatrix J(Jpt, 2, 2);
-            for (int i = 0; i < DIM; i++)
+            for (int i = 0; i < 2; i++)
             {
-               for (int j = 0; j < DIM; j++)
+               for (int j = 0; j < 2; j++)
                {
                   M(i, j) = 0.0;
-                  for (int r = 0; r < DIM; r++)
+                  for (int r = 0; r < 2; r++)
                   {
-                     for (int c = 0; c < DIM; c++)
+                     for (int c = 0; c < 2; c++)
                      {
                         M(i, j) += H(r, c, i, j, qx, qy, e) * J(r, c);
                      }

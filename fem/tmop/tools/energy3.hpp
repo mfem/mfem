@@ -34,8 +34,6 @@ public:
    template <int MD1, int MQ1, typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPEnergyPA3D &ker)
    {
-      static constexpr int DIM = 3, VDIM = 3;
-
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ker.Nqpt();
@@ -53,9 +51,9 @@ public:
       const auto *w = mp.Read();
       const auto *b = ti->PA.maps->B.Read(), *g = ti->PA.maps->G.Read();
 
-      const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, DIM, NE);
+      const auto X = Reshape(ker.x.Read(), D1D, D1D, D1D, 3, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
-      const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+      const auto J = Reshape(ti->PA.Jtr.Read(), 3, 3, Q1D, Q1D, Q1D, NE);
       auto E = Reshape(ti->PA.E.Write(), Q1D, Q1D, Q1D, NE);
 
       const Vector &mc = ti->PA.MC;
@@ -67,7 +65,7 @@ public:
       {
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         regs5d_t<VDIM, DIM, MQ1> r0, r1;
+         regs5d_t<3, 3, MQ1> r0, r1;
 
          LoadMatrix(D1D, Q1D, b, sB);
          LoadMatrix(D1D, Q1D, g, sG);

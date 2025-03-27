@@ -33,13 +33,12 @@ void TMOP_DatcSize_3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_VERIFY(Q1D <= 8, "TMOP_DatcSize_3D can use max Q1D == 8");
-   static constexpr int BLOCK_DIM = 512;
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
 
-   mfem::forall_3D_grid(NE, Q1D, Q1D, 1, BLOCK_DIM, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D_grid(NE, Q1D, Q1D, 1, 512, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 3, BLOCK_DIM = 512;
+      static constexpr int BLOCK_DIM = 512;
 
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -90,10 +89,10 @@ void TMOP_DatcSize_3D(const int NE,
 
                const real_t shape_par_vals = T;
                const real_t size = fmax(shape_par_vals, min) / nc_red[e];
-               const real_t alpha = std::pow(size, 1.0 / DIM);
-               for (int i = 0; i < DIM; i++)
+               const real_t alpha = std::pow(size, 1.0 / 3);
+               for (int i = 0; i < 3; i++)
                {
-                  for (int j = 0; j < DIM; j++)
+                  for (int j = 0; j < 3; j++)
                   {
                      J(i, j, qx, qy, qz, e) = alpha * W(i, j);
                   }
@@ -164,11 +163,10 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
 
-   static constexpr int DIM = 3;
    const auto *b = maps.B.Read();
-   const auto W = Reshape(w.Read(), DIM, DIM);
+   const auto W = Reshape(w.Read(), 3, 3);
    const auto X = Reshape(tspec_e.Read(), d, d, d, ncomp, NE);
-   auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
+   auto J = Reshape(Jtr.Write(), 3, 3, q, q, q, NE);
 
    TMOPDatcSize::Run(d, q, NE, ncomp, sizeidx, min_size, nc_red, W, b, X, J, d, q);
 }
