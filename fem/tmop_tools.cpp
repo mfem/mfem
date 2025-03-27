@@ -1010,25 +1010,22 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    }
    else
    {
-      MFEM_ABORT("to fix");
       min_detJ = dim == 2 ? MinDetJpr_2D(&fes, d_loc) :
                  dim == 3 ? MinDetJpr_3D(&fes, d_loc) : 0.0;
    }
-   real_t min_detT_all = min_detJ;
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
       auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_MIN,
-                    p_nlf->ParFESpace()->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, p_nlf->ParFESpace()->GetComm());
    }
 #endif
    const DenseMatrix &Wideal =
       Geometries.GetGeomToPerfGeomJac(fes.GetMesh()->GetTypicalElementGeometry());
-   min_detT_all /= Wideal.Det();
+   min_detJ /= Wideal.Det();
 
-   return min_detT_all;
+   return min_detJ;
 }
 
 #ifdef MFEM_USE_MPI
