@@ -1000,7 +1000,6 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
    }
 #endif
 
-backend_cpu:
    for (int i = 0; i < N; ++i)
    {
       body(i, res);
