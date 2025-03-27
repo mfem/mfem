@@ -90,8 +90,7 @@ real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    RX->Mult(x_0, XE);
    XE += DE;
 
-   const DofToQuad &maps = fes->GetTypicalFE()->GetDofToQuad(ir,
-                                                             DofToQuad::TENSOR);
+   auto maps = fes->GetTypicalFE()->GetDofToQuad(ir, DofToQuad::TENSOR);
    const int NE = fes->GetMesh()->GetNE();
    const int NQ = ir.GetNPoints();
    const int D1D = maps.ndof;
