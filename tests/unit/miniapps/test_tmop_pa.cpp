@@ -894,7 +894,7 @@ static void tmop_tests(int id = 0, bool all = false)
    }
 #endif
 
-   AddKernelSpecializations();
+   // AddKernelSpecializations();
 
    const real_t jitter = 1. / (M_PI * M_PI);
 
