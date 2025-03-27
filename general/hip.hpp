@@ -31,9 +31,9 @@
 // result is not hipSuccess.
 #define MFEM_GPU_CHECK(x)                                                      \
   do {                                                                         \
-    hipError_t mfem_internal_name_err = (x);                                   \
-    if (mfem_internal_name_err != hipSuccess) {                                \
-      ::mfem::mfem_hip_error(mfem_internal_name_err, #x, _MFEM_FUNC_NAME,      \
+    hipError_t mfem_err_internal_var_name = (x);                               \
+    if (mfem_err_internal_var_name != hipSuccess) {                            \
+      ::mfem::mfem_hip_error(mfem_err_internal_var_name, #x, _MFEM_FUNC_NAME,  \
                              __FILE__, __LINE__);                              \
     }                                                                          \
   } while (0)

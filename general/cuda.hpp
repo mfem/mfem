@@ -31,9 +31,9 @@
 // result is not cudaSuccess.
 #define MFEM_GPU_CHECK(x)                                                      \
   do {                                                                         \
-    cudaError_t mfem_internal_name_err = (x);                                  \
-    if (mfem_internal_name_err != cudaSuccess) {                               \
-      ::mfem::mfem_cuda_error(mfem_internal_name_err, #x, _MFEM_FUNC_NAME,     \
+    cudaError_t mfem_err_internal_var_name = (x);                              \
+    if (mfem_err_internal_var_name != cudaSuccess) {                           \
+      ::mfem::mfem_cuda_error(mfem_err_internal_var_name, #x, _MFEM_FUNC_NAME, \
                               __FILE__, __LINE__);                             \
     }                                                                          \
   } while (0)
