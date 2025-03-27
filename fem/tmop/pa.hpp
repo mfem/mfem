@@ -110,13 +110,13 @@ void Kernel(Ker &);
 
 // Max & two templated arguments: MD1, MQ1, T_D1D, T_Q1D
 #define MFEM_TMOP_MDQ_REGISTER(Name, Ker)             \
-   using Ker##_t = decltype(&Ker<0,0,0,0>);           \
+   using Ker##_t = decltype(&Ker<1,1,1,1>);           \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));  \
    template <int D, int Q>                            \
    Ker##_t Name::Kernel() { return Ker<D,Q, D,Q>; }   \
    Ker##_t Name::Fallback(int, int) {                 \
       return Ker<DofQuadLimits::MAX_D1D,              \
-                 DofQuadLimits::MAX_Q1D, 0, 0>; }
+                 DofQuadLimits::MAX_Q1D>; }
 
 template <typename Kernel>
 int KernelSpecializationsMDQ()
@@ -235,9 +235,9 @@ int KernelSpecializations1()
       Name##_##i::Run(ker.Ndof(), ker.Nqpt(), ker);                       \
    }
 
-#define MFEM_TMOP_REGISTER_METRIC(metric, setup, energy, mult, i) \
-   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, energy)          \
-   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, setup)           \
+#define MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, i) \
+   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, assemble)           \
+   MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, energy)             \
    MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, mult)
 
 template <typename F> inline MFEM_HOST_DEVICE
@@ -484,9 +484,8 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
       {
          const auto &Bx = (d == 0) ? G : B;
          const auto &By = (d == 1) ? G : B;
-         Contract2d<MD1, MQ1, transpose>(d1d, q1d,
-                                         smem, Bx, By,
-                                         X[c][d], Y[c][d]);
+         regs2d_t<MQ1> &Xcd = X[c][d], &Ycd = Y[c][d];
+         Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, Bx, By, Xcd, Ycd);
       }
    }
 }
