@@ -557,29 +557,6 @@ void ContractZ3d(const int d1d, const int q1d,
    }
 }
 
-template <int MD1, int MQ1, bool transpose> inline MFEM_HOST_DEVICE
-void Contract3d(const int d1d, const int q1d,
-                real_t (&smem)[MQ1][MQ1],
-                const int d,
-                const real_t (&B)[MD1][MQ1],
-                const real_t (&G)[MD1][MQ1],
-                regs3d_t<MQ1> &X,
-                regs3d_t<MQ1> &Y)
-{
-   if (!transpose)
-   {
-      ContractX3d<MD1, MQ1, false>(d1d, q1d, smem, (d == 0) ? G : B, X, Y);
-      ContractY3d<MD1, MQ1, false>(d1d, q1d, smem, (d == 1) ? G : B, Y, X);
-      ContractZ3d<MD1, MQ1, false>(d1d, q1d,       (d == 2) ? G : B, X, Y);
-   }
-   else
-   {
-      ContractZ3d<MD1, MQ1, true>(d1d, q1d,       (d == 2) ? G : B, X, Y);
-      ContractY3d<MD1, MQ1, true>(d1d, q1d, smem, (d == 1) ? G : B, Y, X);
-      ContractX3d<MD1, MQ1, true>(d1d, q1d, smem, (d == 0) ? G : B, X, Y);
-   }
-}
-
 template <int VDIM, int DIM, int MD1, int MQ1, bool transpose = false>
 inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
                                     real_t (&smem)[MQ1][MQ1],
@@ -587,12 +564,28 @@ inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
                                     regs5d_t<VDIM, DIM, MQ1> &X,
                                     regs5d_t<VDIM, DIM, MQ1> &Y)
 {
+   static_assert(DIM == 1, "DIM must be 1");
    for (int c = 0; c < VDIM; c++)
    {
-      for (int d = 0; d < DIM; d++)
-      {
-         Contract3d<MD1, MQ1, transpose>(d1d, q1d, smem, d, B, B, X[c][d], Y[c][d]);
-      }
+      ContractX3d<MD1, MQ1, false>(d1d, q1d, smem, B, X[c][0], Y[c][0]);
+      ContractY3d<MD1, MQ1, false>(d1d, q1d, smem, B, Y[c][0], X[c][0]);
+      ContractZ3d<MD1, MQ1, false>(d1d, q1d,       B, X[c][0], Y[c][0]);
+   }
+}
+
+template <int VDIM, int DIM, int MD1, int MQ1> inline MFEM_HOST_DEVICE
+void EvalTranspose3d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (&B)[MD1][MQ1],
+                     regs5d_t<VDIM, DIM, MQ1> &X,
+                     regs5d_t<VDIM, DIM, MQ1> &Y)
+{
+   static_assert(DIM == 1, "DIM must be 1");
+   for (int c = 0; c < VDIM; c++)
+   {
+      ContractZ3d<MD1, MQ1, true>(d1d, q1d,       B, X[c][0], Y[c][0]);
+      ContractY3d<MD1, MQ1, true>(d1d, q1d, smem, B, Y[c][0], X[c][0]);
+      ContractX3d<MD1, MQ1, true>(d1d, q1d, smem, B, X[c][0], Y[c][0]);
    }
 }
 
@@ -608,7 +601,24 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    {
       for (int d = 0; d < DIM; d++)
       {
-         Contract3d<MD1, MQ1, transpose>(d1d, q1d, smem, d, B, G, X[c][d], Y[c][d]);
+         if (d == 0)
+         {
+            ContractX3d<MD1, MQ1, false>(d1d, q1d, smem, G, X[c][d], Y[c][d]);
+            ContractY3d<MD1, MQ1, false>(d1d, q1d, smem, B, Y[c][d], X[c][d]);
+            ContractZ3d<MD1, MQ1, false>(d1d, q1d,       B, X[c][d], Y[c][d]);
+         }
+         if (d == 1)
+         {
+            ContractX3d<MD1, MQ1, false>(d1d, q1d, smem, B, X[c][d], Y[c][d]);
+            ContractY3d<MD1, MQ1, false>(d1d, q1d, smem, G, Y[c][d], X[c][d]);
+            ContractZ3d<MD1, MQ1, false>(d1d, q1d,       B, X[c][d], Y[c][d]);
+         }
+         if (d == 2)
+         {
+            ContractX3d<MD1, MQ1, false>(d1d, q1d, smem, B, X[c][d], Y[c][d]);
+            ContractY3d<MD1, MQ1, false>(d1d, q1d, smem, B, Y[c][d], X[c][d]);
+            ContractZ3d<MD1, MQ1, false>(d1d, q1d,       G, X[c][d], Y[c][d]);
+         }
       }
    }
 }
@@ -621,17 +631,30 @@ void GradTranspose3d(const int d1d, const int q1d,
                      regs5d_t<VDIM, DIM, MQ1> &X,
                      regs5d_t<VDIM, DIM, MQ1> &Y)
 {
-   Grad3d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, G, X, Y);
-}
-
-template <int VDIM, int DIM, int MD1, int MQ1> inline MFEM_HOST_DEVICE
-void EvalTranspose3d(const int d1d, const int q1d,
-                     real_t (&smem)[MQ1][MQ1],
-                     const real_t (&B)[MD1][MQ1],
-                     regs5d_t<VDIM, DIM, MQ1> &X,
-                     regs5d_t<VDIM, DIM, MQ1> &Y)
-{
-   Eval3d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, X, Y);
+   for (int c = 0; c < VDIM; c++)
+   {
+      for (int d = 0; d < DIM; d++)
+      {
+         if (d == 0)
+         {
+            ContractZ3d<MD1, MQ1, true>(d1d, q1d,       B, X[c][d], Y[c][d]);
+            ContractY3d<MD1, MQ1, true>(d1d, q1d, smem, B, Y[c][d], X[c][d]);
+            ContractX3d<MD1, MQ1, true>(d1d, q1d, smem, G, X[c][d], Y[c][d]);
+         }
+         if (d == 1)
+         {
+            ContractZ3d<MD1, MQ1, true>(d1d, q1d,       B, X[c][d], Y[c][d]);
+            ContractY3d<MD1, MQ1, true>(d1d, q1d, smem, G, Y[c][d], X[c][d]);
+            ContractX3d<MD1, MQ1, true>(d1d, q1d, smem, B, X[c][d], Y[c][d]);
+         }
+         if (d == 2)
+         {
+            ContractZ3d<MD1, MQ1, true>(d1d, q1d,       G, X[c][d], Y[c][d]);
+            ContractY3d<MD1, MQ1, true>(d1d, q1d, smem, B, Y[c][d], X[c][d]);
+            ContractX3d<MD1, MQ1, true>(d1d, q1d, smem, B, X[c][d], Y[c][d]);
+         }
+      }
+   }
 }
 
 template <int VDIM, int DIM, int MQ1 = 0> inline MFEM_HOST_DEVICE
