@@ -74,6 +74,11 @@ New and updated examples and miniapps
 - Added a command line option to all miniapps (`-p` or `--send-port`) for
   specifying the GLVis server socket port (19916 by default).
 
+- Added miniapp to demonstrate an implementation of the absolute-value
+  L(1)-Jacobi preconditioners in partially assembled operators. This includes
+  Multigrid wrappers to demonstrate the effectiveness of these Jacobi-type
+  operators as smoothers.
+
 GPU computing
 -------------
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
@@ -177,6 +182,8 @@ API changes
   * The constants `SUN_PREC_*`, introduced by SUNDIALS v6 are now introduced by
     MFEM when using SUNDIALS < v6 to avoid tedious version checks.
 
+- API addition: in class `Operator`, added virtual functions: `AbsMult`,
+  `AbsMultTranspose`, `AddAbsMult`, and `AddAbsMultTranspose`.
 
 Version 4.7, released on May 7, 2024
 ====================================
