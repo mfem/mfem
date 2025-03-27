@@ -18,8 +18,9 @@
 #include <cmath>
 #else
 // Avoiding MSVC error C2491: 'definition of dllimport function not allowed'
-#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
-#include "fem/qinterp/eval.hpp" // IWYU pragma: keep
+#include "fem/qinterp/det.cpp"
+#include "fem/qinterp/grad.hpp"                  // IWYU pragma: keep
+#include "fem/qinterp/eval.hpp"                  // IWYU pragma: keep
 #include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #endif
 
@@ -287,9 +288,9 @@ int tmop(int id, Req &res, int argc, char *argv[])
    const int geom_type = pmesh->GetTypicalElementGeometry();
    switch (quad_type)
    {
-      case 1:  ir = &IntRulesLo.Get(geom_type, quad_order); break;
-      case 2:  ir = &IntRules.Get(geom_type, quad_order); break;
-      case 3:  ir = &IntRulesCU.Get(geom_type, quad_order); break;
+      case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
+      case 2: ir = &IntRules.Get(geom_type, quad_order); break;
+      case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
       {
          cout << "Unknown quad_type: " << quad_type << endl;
@@ -311,10 +312,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    FunctionCoefficient lim_coeff(coeff_lim_func);
    if (lim_const != 0.0)
    {
-      if (lim_type == 0)
-      {
-         he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
-      }
+      if (lim_type == 0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
       else
       {
          he_nlf_integ->EnableLimiting(x0, dist, lim_coeff,
@@ -336,14 +334,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
       coeff1 = new FunctionCoefficient(coeff_1_func);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
-      if (dim == 2)
-      {
-         metric2 = new TMOP_Metric_077;
-      }
-      else
-      {
-         metric2 = new TMOP_Metric_315;
-      }
+      if (dim == 2) { metric2 = new TMOP_Metric_077; }
+      else { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = nullptr;
       if (combo == 1)
       {
@@ -354,10 +346,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
          he_nlf_integ2->SetCoefficient(coeff2);
       }
-      else
-      {
-         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c.get());
-      }
+      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c.get()); }
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
@@ -371,10 +360,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       }
       nlf.AddDomainIntegrator(combo_integ);
    }
-   else
-   {
-      nlf.AddDomainIntegrator(he_nlf_integ);
-   }
+   else { nlf.AddDomainIntegrator(he_nlf_integ); }
    nlf.Setup();
 
    const real_t init_energy = nlf.GetParGridFunctionEnergy(x);
@@ -392,10 +378,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    res.diag = 0.0;
    if (diag && combo == 0)
    {
-      if (pa)
-      {
-         nlf.GetGradient(xt).AssembleDiagonal(d);
-      }
+      if (pa) { nlf.GetGradient(xt).AssembleDiagonal(d); }
       else
       {
          ParNonlinearForm nlf_fa(&fes);
@@ -404,10 +387,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          if (normalization == 1) { nlfi_fa->ParEnableNormalization(x0); }
          if (lim_const != 0.0)
          {
-            if (lim_type == 0)
-            {
-               nlfi_fa->EnableLimiting(x0, dist, lim_coeff);
-            }
+            if (lim_type == 0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
             else
             {
                nlfi_fa->EnableLimiting(x0, dist, lim_coeff,
@@ -424,10 +404,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    // Linear solver for the system's Jacobian
    Solver *S = nullptr, *S_prec = nullptr;
    constexpr real_t linsol_rtol = 1e-12;
-   if (lin_solver == 0)
-   {
-      S = new DSmoother(1, 1.0, max_lin_iter);
-   }
+   if (lin_solver == 0) { S = new DSmoother(1, 1.0, max_lin_iter); }
    else if (lin_solver == 1)
    {
       auto cg = new CGSolver(PFesGetParMeshGetComm(fes));
@@ -461,10 +438,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
             S_prec = hs;
          }
 #else
-         else
-         {
-            S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
-         }
+         else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
 #endif
          minres->SetPreconditioner(*S_prec);
       }
@@ -667,7 +641,6 @@ static inline const char *dtoa(const real_t d, char *buf)
 
 class Launch
 {
-
 public:
    class Args
    {
@@ -780,7 +753,8 @@ public:
    int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
    bool NORMALIZATION;
    double NEWTON_RTOLERANCE, LIMITING, JITTER;
-   list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
+   list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS,
+          NEWTON_LOOPS;
 
 public:
    Launch(Args a = Args()):
@@ -790,7 +764,9 @@ public:
       NEWTON_RTOLERANCE(a.newton_rtol), LIMITING(a.lim_const), JITTER(a.jitter),
       P_ORDERS(a.order), TARGET_IDS(a.target_id), METRIC_IDS(a.metric_id),
       Q_ORDERS(a.quad_order), LINEAR_SOLVERS(a.lin_solver),
-      NEWTON_LOOPS(a.newton_loop) {}
+      NEWTON_LOOPS(a.newton_loop)
+   {
+   }
 
    void Run(const int id = 0, bool all = false) const
    {
@@ -866,6 +842,12 @@ static void tmop_tests(int id = 0, bool all = false)
 
 #ifndef _WIN32
    {
+      using Det = QuadratureInterpolator::DetKernels;
+      Det::Specialization<2, 2, 3, 3>::Add();
+      Det::Specialization<3, 3, 2, 3>::Add();
+      Det::Specialization<3, 3, 3, 4>::Add();
+      Det::Specialization<3, 3, 4, 6>::Add();
+
       using Grad = QuadratureInterpolator::GradKernels;
       Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
 
@@ -877,14 +859,14 @@ static void tmop_tests(int id = 0, bool all = false)
       TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
 
       using MassDiagonal = MassIntegrator::DiagonalPAKernels;
-      MassDiagonal::Specialization<2,2,3>::Add();
-      MassDiagonal::Specialization<3,2,4>::Add();
-      MassDiagonal::Specialization<3,2,6>::Add();
+      MassDiagonal::Specialization<2, 2, 3>::Add();
+      MassDiagonal::Specialization<3, 2, 4>::Add();
+      MassDiagonal::Specialization<3, 2, 6>::Add();
 
       using MassApply = MassIntegrator::ApplyPAKernels;
-      MassApply::Specialization<2,2,3>::Add();
-      MassApply::Specialization<3,2,4>::Add();
-      MassApply::Specialization<3,2,6>::Add();
+      MassApply::Specialization<2, 2, 3>::Add();
+      MassApply::Specialization<3, 2, 4>::Add();
+      MassApply::Specialization<3, 2, 6>::Add();
    }
 #endif
 
