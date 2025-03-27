@@ -161,7 +161,7 @@ void DenseMatrix::AbsMult(const Vector &x, Vector &y) const
 
    x.HostRead();
    y.HostReadWrite();
-   const bool useAbs = true;
+   constexpr bool useAbs = true;
    Mult(x.GetData(), y.GetData(), useAbs);
 }
 
@@ -249,7 +249,7 @@ void DenseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
 
    x.HostRead();
    y.HostReadWrite();
-   const bool useAbs = true;
+   constexpr bool useAbs = true;
    MultTranspose(x.GetData(), y.GetData(), useAbs);
 }
 
