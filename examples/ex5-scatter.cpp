@@ -17,31 +17,32 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
-//               problem in the mixed formulation corresponding to the system
+// Description:  This example code solves a simple 2D coupled Maxwell + compression
+//               wave interaction problem in the mixed formulation corresponding to
+//               the system
 //
-//                                 1/k*q +           grad T =  g
-//                                 div q + div(T*c) + dT/dt = -f
+//                                 du/dt + grad n =  sigma0 * n * E
+//                                 div u +  dn/dt = 0
+//                                 dE/dt - curl B = -sigma0 * n * E
+//                                 dB/dt + curl E = 0
 //
-//               with natural boundary condition -T = <given density> and/or
-//               essential (RT) / natural (DG) boundary condition qT.n = (q + T*c).n
-//               = <given total flux>. The scalar k is the heat conductivity and c the
-//               given velocity field. Multiple problems are offered based on the paper:
-//               N.C. Nguyen et al., Journal of Computational Physics 228 (2009) 3232–3254.
-//               In particular, they are (corresponding to the subsections of section 5):
-//               1) steady-state diffusion - with zero Dirichlet density BCs
-//               2) steady-state advection-diffusion - with zero Dirichlet density BCs
-//               3) steady-state advection  - with Dirichlet density inflow BC and
-//                                            Neumann total flux outflow BC
-//               4) non-steady advection(-diffusion) - with Dirichlet density BCs
-//               5) Kovasznay flow - with Dirichlet density inflow BC and Neumann
-//                                   total flux outflow BCs
-//               6) steady-state Burgers flow - with zero Dirichlet density BCs
-//               7) non-steady Burgers flow - with zero Dirichlet density BCs
-//               Here, we use a given exact solution (q,T) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity q) and piecewise discontinuous
-//               polynomials (density T).
+//               with natural boundary condition n = <given density> and/or
+//               essential (RT) / natural (DG) boundary condition u.n = <given
+//               velocity>. Similarly, essential boundary condition Exnxn =
+//               <given electric field> can be set or natural boundary condition
+//               for the magnetic field. Multiple problems are offered:
+//               1) material wave - compression wave in medium (left u b.c.)
+//               2) Maxwell - electromagnetic wave (left E b.c.)
+//               3) excitation - electromagnetic wave exciting the medium (left
+//                               E b.c.)
+//               4) scaterring - interaction of electromagnetic and compression
+//                               Gaussian beams (bottom u and left E b.c.)
+//               The waves are harmonic in time with the given frequency. We
+//               discretize the problem with normally continuous or broken
+//               Raviart-Thomas, or piecewise discontinuous finite elements the
+//               velocity u; piecewise discontinuous polynomials the density n;
+//               tangentially continuous Nedelec the electric field; and
+//               piecewise discountinuous polynomials the magnetic field B.
 //
 //               The example demonstrates the use of the DarcyForm class, as
 //               well as hybridization of mixed systems and the collective saving
@@ -67,9 +68,9 @@ typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
 
 enum Problem
 {
-   WaveDumping = 1,
+   MaterialWave = 1,
    Maxwell,
-   WaveCoupling,
+   Excitation,
    Scattering,
 };
 
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool brt = false;
-   int iproblem = Problem::WaveDumping;
+   int iproblem = Problem::MaterialWave;
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
@@ -208,9 +209,9 @@ int main(int argc, char *argv[])
    bool btime = false;
    switch (problem)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
       case Problem::Maxwell:
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
       case Problem::Scattering:
          btime = true;
          break;
@@ -280,7 +281,7 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
          bdr_u_is_neumann[3] = -1;//inflow
          if (bc_neumann)
          {
@@ -289,7 +290,7 @@ int main(int argc, char *argv[])
          }
          break;
       case Problem::Maxwell:
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
          bdr_u_is_dirichlet = -1;
          bdr_u_is_neumann[3] = -1;
          bdr_E_is_neumann[3] = -1;//inflow
@@ -797,17 +798,20 @@ TFunc GetSigFun(Problem prob, real_t f, real_t s0)
 {
    switch (prob)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
       case Problem::Maxwell:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;
          };
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
       case Problem::Scattering:
          return [=](const Vector &x, real_t) -> real_t
          {
-            const real_t r = hypot(x(0) - .5, x(1) - .5) / 0.5;
+            constexpr real_t x0 = 0.5;
+            constexpr real_t y0 = 0.5;
+            constexpr real_t w = 0.5;
+            const real_t r = hypot(x(0) - x0, x(1) - y0) / w;
             return exp(-r*r) * s0;
          };
    }
@@ -818,14 +822,14 @@ TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
       case Problem::Maxwell:
       case Problem::Scattering:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;
          };
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 1.;
@@ -838,18 +842,20 @@ VecTFunc GetUFun(Problem prob, real_t f, real_t a0)
 {
    switch (prob)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
             v.SetSize(vdim);
 
             v = 0.;
-            const real_t dy = (x(1) - 0.5) / 0.25;
+            constexpr real_t w = 0.25;
+            constexpr real_t y0 = 0.5;
+            const real_t dy = (x(1) - y0) / w;
             v(0) = exp(-dy*dy) * sin(M_PI * f * t) * cos(M_PI * x(0));
          };
       case Problem::Maxwell:
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
@@ -864,11 +870,13 @@ VecTFunc GetUFun(Problem prob, real_t f, real_t a0)
 
             v = 0.;
             constexpr real_t w = 0.15;
-            const real_t r = x(0) - 0.5;
+            constexpr real_t r0 = 0.5;
+            const real_t r = x(0) - r0;
             const real_t rw = r / w;
-            constexpr real_t z_R = 0.5;
-            const real_t z = x(1) - 0.5;
-            const real_t R = z / (z*z + z_R*z_R);
+            constexpr real_t zR = 0.5;
+            constexpr real_t z0 = 0.5;
+            const real_t dz = x(1) - z0;
+            const real_t R = dz / (dz*dz + zR*zR);
             v(1) = exp(-rw*rw) * sin(M_PI * (f * t - r*r / R)) * cos(M_PI * x(1)) * a0;
          };
    }
@@ -879,16 +887,18 @@ VecTFunc GetEFun(Problem prob, real_t f)
 {
    switch (prob)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
       case Problem::Maxwell:
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
             v.SetSize(vdim);
 
             v = 0.;
-            const real_t dy = (x(1) - 0.5) / 0.25;
+            constexpr real_t w = 0.25;
+            constexpr real_t y0 = 0.5;
+            const real_t dy = (x(1) - y0) / w;
             v(1) = exp(-dy*dy) * sin(M_PI * f * t) * cos(M_PI * x(0));
          };
       case Problem::Scattering:
@@ -901,9 +911,10 @@ VecTFunc GetEFun(Problem prob, real_t f)
             constexpr real_t w = 0.15;
             const real_t r = x(1) - 0.5;
             const real_t rw = r / w;
-            constexpr real_t z_R = 0.5;
-            const real_t z = x(0) - 0.5;
-            const real_t R = z / (z*z + z_R*z_R);
+            constexpr real_t zR = 0.5;
+            constexpr real_t z0 = 0.5;
+            const real_t dz = x(0) - z0;
+            const real_t R = dz / (dz*dz + zR*zR);
             v(1) = exp(-rw*rw) * sin(M_PI * (f * t - r*r / R)) * cos(M_PI * x(0));
          };
    }
@@ -914,9 +925,9 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
-      case Problem::WaveDumping:
+      case Problem::MaterialWave:
       case Problem::Maxwell:
-      case Problem::WaveCoupling:
+      case Problem::Excitation:
       case Problem::Scattering:
          return [=](const Vector &x, real_t) -> real_t
          {
