@@ -159,9 +159,10 @@ real_t Norml2(const int size, const T *data)
     @a height x @a width with given @a data, while @a x and @a y specify the
     data of the input and output vectors.
     It can apply the absolute-value operator version y = |A| x. */
-template<typename TA, typename TX, typename TY, bool useAbs = false>
+template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, const TA *data, const TX *x, TY *y,
+          bool useAbs = false)
 {
    if (width == 0)
    {
@@ -217,10 +218,10 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
 /** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
     is of size @a height x @a width with given @a data, while @a x and @a y
     specify the data of the input and output vectors. */
-template<typename TA, typename TX, typename TY, bool useAbs = false>
+template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void MultTranspose(const int height, const int width, const TA *data,
-                   const TX *x, TY *y)
+                   const TX *x, TY *y, bool useAbs = false)
 {
    if (height == 0)
    {

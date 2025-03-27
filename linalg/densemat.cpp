@@ -122,26 +122,26 @@ const real_t &DenseMatrix::Elem(int i, int j) const
    return (*this)(i,j);
 }
 
-void DenseMatrix::Mult(const real_t *x, real_t *y) const
+void DenseMatrix::Mult(const real_t *x, real_t *y, bool useAbs) const
 {
    HostRead();
-   kernels::Mult(height, width, Data(), x, y);
+   kernels::Mult(height, width, Data(), x, y, useAbs);
 }
 
-void DenseMatrix::Mult(const real_t *x, Vector &y) const
+void DenseMatrix::Mult(const real_t *x, Vector &y, bool useAbs) const
 {
    MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
 
    y.HostReadWrite();
-   Mult(x, y.GetData());
+   Mult(x, y.GetData(), useAbs);
 }
 
-void DenseMatrix::Mult(const Vector &x, real_t *y) const
+void DenseMatrix::Mult(const Vector &x, real_t *y, bool useAbs) const
 {
    MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
 
    x.HostRead();
-   Mult(x.GetData(), y);
+   Mult(x.GetData(), y, useAbs);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -152,6 +152,17 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    x.HostRead();
    y.HostReadWrite();
    Mult(x.GetData(), y.GetData());
+}
+
+void DenseMatrix::AbsMult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+
+   x.HostRead();
+   y.HostReadWrite();
+   const bool useAbs = true;
+   Mult(x.GetData(), y.GetData(), useAbs);
 }
 
 real_t DenseMatrix::operator *(const DenseMatrix &m) const
@@ -169,36 +180,56 @@ real_t DenseMatrix::operator *(const DenseMatrix &m) const
    return a;
 }
 
-void DenseMatrix::MultTranspose(const real_t *x, real_t *y) const
+void DenseMatrix::MultTranspose(const real_t *x, real_t *y,
+                                bool useAbs) const
 {
    HostRead();
    real_t *d_col = Data();
-   for (int col = 0; col < width; col++)
+   if (useAbs)
    {
-      real_t y_col = 0.0;
-      for (int row = 0; row < height; row++)
+      for (int col = 0; col < width; col++)
       {
-         y_col += x[row]*d_col[row];
+         real_t y_col = 0.0;
+         for (int row = 0; row < height; row++)
+         {
+            y_col += x[row]*std::abs(d_col[row]);
+         }
+         y[col] = y_col;
+         d_col += height;
       }
-      y[col] = y_col;
-      d_col += height;
+
+   }
+   else
+   {
+      for (int col = 0; col < width; col++)
+      {
+         real_t y_col = 0.0;
+         for (int row = 0; row < height; row++)
+         {
+            y_col += x[row]*d_col[row];
+         }
+         y[col] = y_col;
+         d_col += height;
+      }
    }
 }
 
-void DenseMatrix::MultTranspose(const real_t *x, Vector &y) const
+void DenseMatrix::MultTranspose(const real_t *x, Vector &y,
+                                bool useAbs) const
 {
    MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
 
    y.HostReadWrite();
-   MultTranspose(x, y.GetData());
+   MultTranspose(x, y.GetData(), useAbs);
 }
 
-void DenseMatrix::MultTranspose(const Vector &x, real_t *y) const
+void DenseMatrix::MultTranspose(const Vector &x, real_t *y,
+                                bool useAbs) const
 {
    MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
 
    x.HostRead();
-   MultTranspose(x.GetData(), y);
+   MultTranspose(x.GetData(), y, useAbs);
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
@@ -209,6 +240,17 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    x.HostRead();
    y.HostReadWrite();
    MultTranspose(x.GetData(), y.GetData());
+}
+
+void DenseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   x.HostRead();
+   y.HostReadWrite();
+   const bool useAbs = true;
+   MultTranspose(x.GetData(), y.GetData(), useAbs);
 }
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
