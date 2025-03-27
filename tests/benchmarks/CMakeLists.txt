@@ -56,6 +56,7 @@ endfunction(add_benchmark)
 #-------------------------------------------------------------------------------
 add_benchmark(assembly_levels)
 add_benchmark(ceed)
+add_benchmark(dfem)
 add_benchmark(dg_amr)
 add_benchmark(elasticity)
 add_benchmark(tmop)
