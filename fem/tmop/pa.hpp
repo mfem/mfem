@@ -430,7 +430,7 @@ void Copy2d(const int d1d, const int q1d,
    });
 }
 
-template <int MD1, int MQ1, bool transpose> inline MFEM_HOST_DEVICE
+/*template <int MD1, int MQ1, bool transpose> inline MFEM_HOST_DEVICE
 void Contract2d(const int d1d, const int q1d,
                 real_t (&smem)[MQ1][MQ1],
                 const int d,
@@ -451,7 +451,7 @@ void Contract2d(const int d1d, const int q1d,
       ContractY2d<MD1, MQ1, true>(d1d, q1d, smem, (d == 1) ? G : B, Y, X);
       ContractX2d<MD1, MQ1, true>(d1d, q1d, smem, (d == 0) ? G : B, X, Y);
    }
-}
+}*/
 
 template <int VDIM, int DIM, int MD1, int MQ1, bool transpose = false>
 inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
@@ -460,14 +460,32 @@ inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
                                     regs4d_t<VDIM, DIM, MQ1> &X,
                                     regs4d_t<VDIM, DIM, MQ1> &Y)
 {
+   static_assert(DIM == 1, "DIM must be 1");
    for (int c = 0; c < VDIM; c++)
    {
-      for (int d = 0; d < DIM; d++)
-      {
-         Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, d, B, B, X[c][d], Y[c][d]);
-      }
+      ContractX2d<MD1, MQ1, false>(d1d, q1d, smem, B, X[c][0], Y[c][0]);
+      ContractY2d<MD1, MQ1, false>(d1d, q1d, smem, B, Y[c][0], X[c][0]);
+      Copy2d<MD1, MQ1>(d1d, q1d, X[c][0], Y[c][0]);
    }
 }
+
+template <int VDIM, int DIM, int MD1, int MQ1> inline MFEM_HOST_DEVICE
+void EvalTranspose2d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (&B)[MD1][MQ1],
+                     regs4d_t<VDIM, DIM, MQ1> &X,
+                     regs4d_t<VDIM, DIM, MQ1> &Y)
+{
+   // Eval2d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, X, Y);
+   static_assert(DIM == 1, "DIM must be 1");
+   for (int c = 0; c < VDIM; c++)
+   {
+      Copy2d<MD1, MQ1>(d1d, q1d, X[c][0], Y[c][0]);
+      ContractY2d<MD1, MQ1, true>(d1d, q1d, smem, B, Y[c][0], X[c][0]);
+      ContractX2d<MD1, MQ1, true>(d1d, q1d, smem, B, X[c][0], Y[c][0]);
+   }
+}
+
 
 template <int VDIM, int DIM, int MD1, int MQ1, bool transpose = false>
 inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
@@ -481,7 +499,19 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
    {
       for (int d = 0; d < DIM; d++)
       {
-         Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, d, B, G, X[c][d], Y[c][d]);
+         // Contract2d<MD1, MQ1, transpose>(d1d, q1d, smem, d, B, G, X[c][d], Y[c][d]);
+         if (d == 0)
+         {
+            ContractX2d<MD1, MQ1, false>(d1d, q1d, smem, G, X[c][d], Y[c][d]);
+            ContractY2d<MD1, MQ1, false>(d1d, q1d, smem, B, Y[c][d], X[c][d]);
+            Copy2d<MD1, MQ1>(d1d, q1d, X[c][d], Y[c][d]);
+         }
+         if (d == 1)
+         {
+            ContractX2d<MD1, MQ1, false>(d1d, q1d, smem, B, X[c][d], Y[c][d]);
+            ContractY2d<MD1, MQ1, false>(d1d, q1d, smem, G, Y[c][d], X[c][d]);
+            Copy2d<MD1, MQ1>(d1d, q1d, X[c][d], Y[c][d]);
+         }
       }
    }
 }
@@ -494,17 +524,25 @@ void GradTranspose2d(const int d1d, const int q1d,
                      regs4d_t<VDIM, DIM, MQ1> &X,
                      regs4d_t<VDIM, DIM, MQ1> &Y)
 {
-   Grad2d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, G, X, Y);
-}
-
-template <int VDIM, int DIM, int MD1, int MQ1> inline MFEM_HOST_DEVICE
-void EvalTranspose2d(const int d1d, const int q1d,
-                     real_t (&smem)[MQ1][MQ1],
-                     const real_t (&B)[MD1][MQ1],
-                     regs4d_t<VDIM, DIM, MQ1> &X,
-                     regs4d_t<VDIM, DIM, MQ1> &Y)
-{
-   Eval2d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, X, Y);
+   // Grad2d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, G, X, Y);
+   for (int c = 0; c < VDIM; c++)
+   {
+      for (int d = 0; d < DIM; d++)
+      {
+         if (d == 0)
+         {
+            Copy2d<MD1, MQ1>(d1d, q1d, X[c][d], Y[c][d]);
+            ContractY2d<MD1, MQ1, true>(d1d, q1d, smem, B, Y[c][d], X[c][d]);
+            ContractX2d<MD1, MQ1, true>(d1d, q1d, smem, G, X[c][d], Y[c][d]);
+         }
+         if (d == 1)
+         {
+            Copy2d<MD1, MQ1>(d1d, q1d, X[c][d], Y[c][d]);
+            ContractY2d<MD1, MQ1, true>(d1d, q1d, smem, G, Y[c][d], X[c][d]);
+            ContractX2d<MD1, MQ1, true>(d1d, q1d, smem, B, X[c][d], Y[c][d]);
+         }
+      }
+   }
 }
 
 template <int MD1, int MQ1, bool transpose> inline MFEM_HOST_DEVICE
