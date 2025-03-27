@@ -17,8 +17,8 @@
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "general/forall.hpp"
-#include "linalg/kernels.hpp"
+// #include "general/forall.hpp"
+// #include "linalg/kernels.hpp"
 #include "fem/kernel_dispatch.hpp"
 
 #undef NVTX_COLOR
@@ -29,8 +29,8 @@ namespace mfem
 {
 
 ///////////////////////////////////////////////////////////////////////////////
-/*inline static void StiffnessSetup(const int Q1D, const int NE, const real_t *J0,
-                                  const real_t *w, real_t *dx)
+/*inline static void StiffnessSetup(const int Q1D, const int NE, const real_t
+*J0, const real_t *w, real_t *dx)
 {
    constexpr int DIM = 3, DX0 = 3, DX1 = 3;
    const auto W = Reshape(w, Q1D, Q1D, Q1D);
@@ -112,8 +112,8 @@ static void StiffnessMult(const int ND, const int NE, const real_t *b,
          });
       }
 
-      regs::GradTranspose3d<VDIM, DIM, MD1, MQ1>(D1D, Q1D, smem, sB, sG, r0, r1);
-      regs::WriteDofsOffset3d<VDIM, DIM, MQ1>(e, D1D, ND, map, r1, YD);
+      regs::GradTranspose3d<VDIM, DIM, MD1, MQ1>(D1D, Q1D, smem, sB, sG, r0,
+r1); regs::WriteDofsOffset3d<VDIM, DIM, MQ1>(e, D1D, ND, map, r1, YD);
    });
 }*/
 
@@ -305,20 +305,22 @@ struct Problem : public BakeOff<VDIM, GLL>
       a.Assemble();
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      cg.SetRelTol(rtol);
       cg.SetOperator(*A);
-      cg.SetMaxIter(max_it);
       cg.iterative_mode = false;
-      cg.SetPrintLevel(print_lvl);
-      MFEM_DEVICE_SYNC;
-
-      check();
-   }
-
-   void check()
-   {
-      cg.SetPrintLevel(3);
-      cg.Mult(B, X);
+      if constexpr (true) // check
+      {
+         cg.SetPrintLevel(3);
+         cg.SetMaxIter(1024);
+         cg.SetRelTol(1e-8);
+         cg.SetAbsTol(0.0);
+         cg.Mult(B, X);
+         MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
+         MFEM_DEVICE_SYNC;
+         mfem::out << "✅" << std::endl;
+      }
+      cg.SetAbsTol(0.0);
+      cg.SetRelTol(rtol);
+      cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
       MFEM_DEVICE_SYNC;
    }
@@ -361,9 +363,9 @@ Device *device_ptr = nullptr;
 ///////////////////////////////////////////////////////////////////////////////
 static void BP3Grad(bm::State &state)
 {
-   const int version = state.range(0);
-   const int order = state.range(1);
-   const int side = state.range(2);
+   const int version = static_cast<int>(state.range(0));
+   const auto order = static_cast<int>(state.range(1));
+   const auto side = static_cast<int>(state.range(2));
    //    Problem<StiffnessIntegrator, 1, false> ker(order, side);
    Problem<DiffusionIntegrator, 1, false> ker(order, side);
    //    device_ptr->SetKernelsVersion(version);
