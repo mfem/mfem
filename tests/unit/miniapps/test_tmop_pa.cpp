@@ -13,7 +13,6 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
-#include "fem/qinterp/det.cpp"
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/qinterp/eval.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep
@@ -855,12 +854,6 @@ public:
 // Add all kernels specializations needed for the tests
 static void AddKernelSpecializations()
 {
-   using Det = QuadratureInterpolator::DetKernels;
-   Det::Specialization<2, 2, 3, 3>::Add();
-   Det::Specialization<3, 3, 2, 3>::Add();
-   Det::Specialization<3, 3, 3, 4>::Add();
-   Det::Specialization<3, 3, 4, 6>::Add();
-
    using Grad = QuadratureInterpolator::GradKernels;
    Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
 
