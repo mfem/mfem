@@ -1566,6 +1566,10 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
             res = new NCL2FaceRestriction(*this, f_ordering, type, m);
          }
       }
+      else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
+      {
+         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+      }
       else
       {
          res = new ConformingFaceRestriction(*this, f_ordering, type);
