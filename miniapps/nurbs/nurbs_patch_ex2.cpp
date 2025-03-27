@@ -42,6 +42,10 @@ void SetPatchIntegrationRules(const Mesh &mesh,
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init();
+   Hypre::Init();
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
    // const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
@@ -68,7 +72,7 @@ int main(int argc, char *argv[])
    args.AddOption(&reduced_integration, "-ri", "--reduced-integration",
    "-fi", "--full-integration", "Use reduced integration.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
-                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR., 3 - LOR (patch+pa)");
+                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR., 3 - LOR (+AMG)");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -121,7 +125,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, mesh.NURBSext, fec, dim,
                                                         Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
-   const real_t Ndof = fespace->GetTrueVSize();
+   const int Ndof = fespace->GetTrueVSize();
    cout << "Number of finite element unknowns: " << Ndof << endl;
    cout << "Number of elements: " << fespace->GetNE() << endl;
    cout << "Number of patches: " << mesh.NURBSext->GetNP() << endl;
@@ -198,7 +202,9 @@ int main(int argc, char *argv[])
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
    // 11. Get the preconditioner
-   CGSolver solver;
+   CGSolver solver(MPI_COMM_WORLD);
+   // solver.SetOperator(*A);
+
    if (preconditioner == 1)
    {
       cout << "Getting diagonal for Jacobi PC ... " << endl;
@@ -206,7 +212,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(*P);
    }
    // LOR Preconditioner
-   else if (preconditioner == 2 || preconditioner == 3)
+   else if (preconditioner == 2)
    {
       cout << "Getting LOR PC ... " << endl;
       // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
@@ -234,16 +240,54 @@ int main(int argc, char *argv[])
       lo_x = 0.0;
 
       ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
-      if (preconditioner == 3)
-      {
-         lo_ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
-
-         // Set the patch integration rules
-         SetPatchIntegrationRules(lo_mesh, PatchIntegrationRule1D::REDUCED_GAUSSIAN, lo_ei);
-      }
       // Set up problem
       BilinearForm lo_a(lo_fespace);
-      if (preconditioner == 3) { lo_a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      lo_a.AddDomainIntegrator(lo_ei);
+      lo_a.Assemble();
+
+      // Define linear system
+      OperatorPtr lo_A;
+      Vector lo_B, lo_X;
+      lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
+
+      CGSolver *P = new CGSolver(MPI_COMM_WORLD);
+      P->SetOperator(*lo_A);
+      P->SetMaxIter(1e4);
+      P->SetPrintLevel(-1);
+      P->SetRelTol(1e-2);
+      solver.SetPreconditioner(*P);
+   }
+   // Combine some of this with case 2, later
+   else if (preconditioner == 3)
+   {
+      cout << "Getting LOR PC + AMG ... " << endl;
+      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
+      Mesh lo_mesh(mesh_file, 1, 1);
+      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
+      int divisions = pow(2,ref_levels);
+      lo_mesh.NURBSUniformRefinement(divisions + nurbs_degree_increase);
+
+      FiniteElementCollection * lo_fec = lo_mesh.GetNodes()->OwnFEC();
+      FiniteElementSpace *lo_fespace = new FiniteElementSpace(&lo_mesh, lo_fec, dim,
+                                                         Ordering::byVDIM);
+      const int lo_Ndof = lo_fespace->GetTrueVSize();
+      cout << "Number of low-order finite element unknowns: " << lo_Ndof << endl;
+      MFEM_VERIFY(Ndof == lo_Ndof, "Low-order problem requires same Ndof");
+
+      // We can reuse some variables: ess_bdr, f, lambda, mu
+      Array<int> lo_ess_tdof_list;
+      lo_fespace->GetEssentialTrueDofs(ess_bdr, lo_ess_tdof_list);
+
+      LinearForm lo_b(lo_fespace);
+      lo_b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
+      lo_b.Assemble();
+
+      GridFunction lo_x(lo_fespace);
+      lo_x = 0.0;
+
+      ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
+      // Set up problem
+      BilinearForm lo_a(lo_fespace);
       lo_a.AddDomainIntegrator(lo_ei);
       lo_a.Assemble();
 
@@ -253,17 +297,21 @@ int main(int argc, char *argv[])
       lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
 
       // Set up solver, use it as preconditioner for high-order problem
-      // Use Hypre AMG here?
-      // OperatorJacobiSmoother *P = new OperatorJacobiSmoother(lo_a, ess_tdof_list);
-      // solver.SetPreconditioner(*P);
+      HYPRE_BigInt row_starts[2] = {0, Ndof};
+      SparseMatrix lo_Amat(lo_a.SpMat());
+      HypreParMatrix *lo_A_hypre = new HypreParMatrix(MPI_COMM_WORLD, HYPRE_BigInt(Ndof),
+                             row_starts, &lo_Amat);
 
-      CGSolver *P = new CGSolver();
-      P->SetOperator(*lo_A);
+      HypreBoomerAMG *lo_P = new HypreBoomerAMG(*lo_A_hypre);
+      CGSolver *P = new CGSolver(MPI_COMM_WORLD);
+      P->SetOperator(*lo_A_hypre);
+      // P->SetOperator(*lo_A);
       P->SetMaxIter(1e4);
       P->SetPrintLevel(-1);
       P->SetRelTol(1e-2);
+      P->SetPreconditioner(*lo_P);
       solver.SetPreconditioner(*P);
-   }
+   } // setup preconditioner
 
    sw.Stop();
    const real_t timeAssemble = sw.RealTime();
@@ -273,6 +321,11 @@ int main(int argc, char *argv[])
    // 12. Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
    solver.SetOperator(*A);
+   // HYPRE_BigInt rows[2] = {0, Ndof};
+   // SparseMatrix Amat(a.SpMat());
+   // HypreParMatrix *A_hypre = new HypreParMatrix(MPI_COMM_WORLD, HYPRE_BigInt(Ndof),
+   //                         rows, &Amat);
+   // solver.SetOperator(*A_hypre);
    solver.SetMaxIter(1e5);
    solver.SetPrintLevel(1);
    solver.SetRelTol(1e-8);
