@@ -523,8 +523,6 @@ void AddMultPatchPA3D_SOL(const Vector &pa_data,
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
 
-   mfem::out << "d1d = " << std::endl;
-   D1D.Print();
    const int NQ = pb.NQ;
    const std::vector<std::vector<int>> minD = pb.minD;
    const std::vector<std::vector<int>> maxD = pb.maxD;
@@ -539,8 +537,6 @@ void AddMultPatchPA3D_SOL(const Vector &pa_data,
    // 1) Read dofs
    const auto U = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
    real_t sum = 0;
-   // mfem::out << "Q1D[2] = " << Q1D[2] << std::endl;
-   // mfem::out << "Q1D[2] = " << Q1D[2] << std::endl;
 
 // #pragma omp parallel for
    for (int dz = 0; dz < D1D[2]; ++dz)

@@ -19,7 +19,6 @@
 //               meshes. There is the option to compare run times of patch
 //               and element assembly, as well as relative error computation.
 
-#include "fem/intrules.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>

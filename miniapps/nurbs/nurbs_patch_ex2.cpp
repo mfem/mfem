@@ -28,9 +28,6 @@
 //               patch-wise matrix assembly and partial assembly on NURBS
 //               meshes.
 
-#include "fem/coefficient.hpp"
-#include "fem/intrules.hpp"
-#include "general/error.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
