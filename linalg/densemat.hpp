@@ -142,28 +142,34 @@ public:
    const real_t &Elem(int i, int j) const override;
 
    /// Matrix vector multiplication.
-   void Mult(const real_t *x, real_t *y) const;
+   void Mult(const real_t *x, real_t *y, bool useAbs = false) const;
 
    /// Matrix vector multiplication.
-   void Mult(const real_t *x, Vector &y) const;
+   void Mult(const real_t *x, Vector &y, bool useAbs = false) const;
 
    /// Matrix vector multiplication.
-   void Mult(const Vector &x, real_t *y) const;
+   void Mult(const Vector &x, real_t *y, bool useAbs = false) const;
 
-   /// Matrix vector multiplication.
+   /// Matrix vector multiplication
    void Mult(const Vector &x, Vector &y) const override;
 
-   /// Multiply a vector with the transpose matrix.
-   void MultTranspose(const real_t *x, real_t *y) const;
+   // Absolute-value matrix vector multiplication.
+   void AbsMult(const Vector &x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
-   void MultTranspose(const real_t *x, Vector &y) const;
+   void MultTranspose(const real_t *x, real_t *y, bool useAbs = false) const;
 
    /// Multiply a vector with the transpose matrix.
-   void MultTranspose(const Vector &x, real_t *y) const;
+   void MultTranspose(const real_t *x, Vector &y, bool useAbs = false) const;
+
+   /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const Vector &x, real_t *y, bool useAbs = false) const;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /// Multiply a vector with the absolute-value transpose matrix.
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    using Operator::Mult;
    using Operator::MultTranspose;
