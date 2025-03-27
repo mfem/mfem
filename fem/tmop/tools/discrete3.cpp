@@ -16,7 +16,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_DatcSize_3D(const int NE,
                       const int ncomp,
                       const int sizeidx,
@@ -40,8 +40,6 @@ void TMOP_DatcSize_3D(const int NE,
    mfem::forall_3D_grid(NE, Q1D, Q1D, 1, BLOCK_DIM, [=] MFEM_HOST_DEVICE(int e)
    {
       static constexpr int DIM = 3, BLOCK_DIM = 512;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -106,8 +104,8 @@ void TMOP_DatcSize_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPDatcSize, TMOP_DatcSize_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPDatcSize);
+MFEM_TMOP_MDQ_REGISTER(TMOPDatcSize, TMOP_DatcSize_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPDatcSize);
 
 // PA.Jtr Size = (dim, dim, PA.ne*PA.nq);
 void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,

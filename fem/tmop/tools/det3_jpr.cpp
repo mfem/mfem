@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_MinDetJpr_3D(const int NE,
                        const real_t *b,
                        const real_t *g,
@@ -31,8 +31,6 @@ void TMOP_MinDetJpr_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       static constexpr int DIM = 3, VDIM = 3;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -63,8 +61,8 @@ void TMOP_MinDetJpr_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPMinDetJpr3D, TMOP_MinDetJpr_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMinDetJpr3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr3D, TMOP_MinDetJpr_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMinDetJpr3D);
 
 real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
                                       const Vector &x) const
@@ -82,16 +80,14 @@ real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   static constexpr int DIM = 3;
    const auto *B = maps.B.Read(), *G = maps.G.Read();
-   const auto XE = Reshape(xe.Read(), d, d, d, DIM, NE);
+   const auto XE = Reshape(xe.Read(), d, d, d, 3, NE);
 
    Vector e(NE * NQ);
    e.UseDevice(true);
    auto E = Reshape(e.Write(), q, q, q, NE);
 
    TMOPMinDetJpr3D::Run(d, q, NE, B, G, XE, E, d, q);
-
    return e.Min();
 }
 

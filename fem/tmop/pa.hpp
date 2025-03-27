@@ -109,7 +109,7 @@ template <int Metric, typename Ker>
 void Kernel(Ker &);
 
 // Max & two templated arguments: MD1, MQ1, T_D1D, T_Q1D
-#define MFEM_TMOP_REGISTER_MDQ_KERNEL(Name, Ker)      \
+#define MFEM_TMOP_MDQ_REGISTER(Name, Ker)             \
    using Ker##_t = decltype(&Ker<0,0,0,0>);           \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));  \
    template <int D, int Q>                            \
@@ -119,7 +119,7 @@ void Kernel(Ker &);
                  DofQuadLimits::MAX_Q1D, 0, 0>; }
 
 template <typename Kernel>
-int KernelSpecializationsM()
+int KernelSpecializationsMDQ()
 {
    Kernel::template Specialization<2, 2>::Add();
    Kernel::template Specialization<2, 3>::Add();
@@ -141,10 +141,10 @@ int KernelSpecializationsM()
    Kernel::template Specialization<6, 6>::Add();
    return 0;
 }
-#define MFEM_TMOP_ADD_SPECIALIZED_MDQ_KERNEL(Name)                      \
-   namespace                                                            \
-   {                                                                    \
-   static bool k##Name{ (tmop::KernelSpecializationsM<Name>(), true) }; \
+#define MFEM_TMOP_MDQ_SPECIALIZE(Name)                                    \
+   namespace                                                              \
+   {                                                                      \
+   static bool k##Name{ (tmop::KernelSpecializationsMDQ<Name>(), true) }; \
    }
 
 // Two templated arguments: T_D1D, T_Q1D
@@ -216,17 +216,19 @@ int KernelSpecializations1()
    static bool k##Name{ (tmop::KernelSpecializations1<Name>(), true) }; \
    }
 
-// Register kernel instances for a given metric, setup, energy, and mult
+// Register kernel instances for a given metric, assemble, energy, and mult
 #define MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, Metric, Name)               \
    using Name##_t = tmop::TMOPFunction<Name>;                             \
    MFEM_REGISTER_KERNELS(Name##_##i, Name##_t, (int, int));               \
-   MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name##_##i);                         \
+   MFEM_TMOP_MDQ_SPECIALIZE(Name##_##i);                                  \
    template <int D, int Q>                                                \
    Name##_t Name##_##i::Kernel()                                          \
    {                                                                      \
-      return Name::Mult<Metric, D, Q>;                                    \
+      return Name::Mult<D, Q, Metric, D, Q>;                              \
    }                                                                      \
-   Name##_t Name##_##i::Fallback(int, int) { return Name::Mult<Metric>; } \
+   Name##_t Name##_##i::Fallback(int, int) {                              \
+      return Name::Mult<DofQuadLimits::MAX_D1D,                           \
+                        DofQuadLimits::MAX_Q1D, Metric>; }                \
    template <>                                                            \
    void tmop::Kernel<i>(Name & ker)                                       \
    {                                                                      \

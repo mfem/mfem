@@ -47,7 +47,7 @@ MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize3D,
                              TMOP_TcIdealShapeUnitSize_3D);
 MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize3D);
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_TcIdealShapeGivenSize_3D(const int NE,
                                    const real_t detW,
                                    const real_t *b,
@@ -63,8 +63,6 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       static constexpr int DIM = 3, VDIM = 3;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -98,9 +96,9 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPTcIdealShapeGivenSize3D,
-                           TMOP_TcIdealShapeGivenSize_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPTcIdealShapeGivenSize3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPTcIdealShapeGivenSize3D,
+                       TMOP_TcIdealShapeGivenSize_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPTcIdealShapeGivenSize3D);
 
 template <>
 bool TargetConstructor::ComputeAllElementTargets<3>(
@@ -127,10 +125,9 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   static constexpr int DIM = 3;
-   const auto W = Reshape(w.Read(), DIM, DIM);
+   const auto W = Reshape(w.Read(), 3, 3);
    const auto *b = maps.B.Read(), *g = maps.G.Read();
-   auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
+   auto J = Reshape(Jtr.Write(), 3, 3, q, q, q, NE);
 
    switch (target_type)
    {
@@ -149,7 +146,7 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
          x.UseDevice(true);
          R->Mult(*GetNodes(), x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 3, "");
-         const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
+         const auto X = Reshape(x.Read(), d, d, d, 3, NE);
 
          TMOPTcIdealShapeGivenSize3D::Run(d, q, NE, detW, b, g, W, X, J, d, q);
          return true;

@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
                                const ConstDeviceCube &LD,
                                const bool const_c0,
@@ -31,18 +31,13 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
                                const DeviceTensor<4, const real_t> &X1,
                                DeviceTensor<5> &H0,
                                const bool exp_lim,
-                               const int d1d,
-                               const int q1d)
+                               const int d1d, const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 2;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
       LoadMatrix(D1D, Q1D, bld, sB);
@@ -103,11 +98,11 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
                   ((400.0 * tmp[1] * tmp[1] * f) / dist_squared_squared) +
                   (20.0 * f / dist_squared);
             }
-            ConstDeviceMatrix gg(grad_grad, DIM, DIM);
+            ConstDeviceMatrix gg(grad_grad, 2, 2);
 
-            for (int i = 0; i < DIM; i++)
+            for (int i = 0; i < 2; i++)
             {
-               for (int j = 0; j < DIM; j++)
+               for (int j = 0; j < 2; j++)
                {
                   H0(i, j, qx, qy, e) = weight_m * gg(i, j);
                }
@@ -117,12 +112,11 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef2D);
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 {
-   static constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
@@ -132,13 +126,13 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const auto C0 = PA.C0.Size() == 1
                    ? Reshape(PA.C0.Read(), 1, 1, 1)
                    : Reshape(PA.C0.Read(), q, q, NE);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto *b = PA.maps->B.Read(), *bld = PA.maps_lim->B.Read();
    const auto LD = Reshape(PA.LD.Read(), d, d, NE);
-   const auto XL = Reshape(PA.XL.Read(), d, d, DIM, NE);
-   const auto X = Reshape(x.Read(), d, d, DIM, NE);
-   auto H0 = Reshape(PA.H0.Write(), DIM, DIM, q, q, NE);
+   const auto XL = Reshape(PA.XL.Read(), d, d, 2, NE);
+   const auto X = Reshape(x.Read(), d, d, 2, NE);
+   auto H0 = Reshape(PA.H0.Write(), 2, 2, q, q, NE);
 
    const auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = el ? true : false;

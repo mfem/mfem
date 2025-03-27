@@ -11,10 +11,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-#include "../../../linalg/tensor.hpp"
 #include "../../../general/forall.hpp"
-
-using mfem::internal::tensor;
 
 namespace mfem
 {
@@ -24,21 +21,17 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
                                const ConstDeviceMatrix &B,
                                const DeviceTensor<6, const real_t> &H0,
                                DeviceTensor<5> &D,
-                               const int d1d,
-                               const int q1d)
+                               const int d1d, const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 3;
-
       MFEM_SHARED real_t smem[MQ1][MQ1];
       regs3d_t<MQ1> r0, r1;
-      // mfem::internal::tensor<real_t, MQ1, MQ1, MQ1> r0, r1;
 
-      for (int v = 0; v < DIM; ++v)
+      for (int v = 0; v < 3; ++v)
       {
          // first tensor contraction, along z direction
          for (int dz = 0; dz < D1D; ++dz)
@@ -118,20 +111,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_MDQ_KERNEL(TMOPAssembleDiagCoef3D,
-                              TMOP_AssembleDiagPA_C0_3D);
-MFEM_TMOP_ADD_SPECIALIZED_MDQ_KERNEL(TMOPAssembleDiagCoef3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
 {
-   static constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, q, NE);
-   auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
+   const auto H0 = Reshape(PA.H0.Read(), 3, 3, q, q, q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d, d, d, 3, NE);
 
    TMOPAssembleDiagCoef3D::Run(d, q, NE, B, H0, D, d, q);
 }

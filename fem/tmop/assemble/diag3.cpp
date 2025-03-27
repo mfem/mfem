@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagPA_3D(const int NE,
                             const ConstDeviceMatrix &B,
                             const ConstDeviceMatrix &G,
@@ -32,13 +32,10 @@ void TMOP_AssembleDiagPA_3D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 3;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      MFEM_SHARED real_t smem[3][3][MQ1][MQ1];
+      regs5d_t<3, 3, MQ1> rH, r0, r1;
 
-      MFEM_SHARED real_t smem[DIM][DIM][MQ1][MQ1];
-      regs5d_t<DIM, DIM, MQ1> rH, r0, r1;
-
-      for (int v = 0; v < DIM; ++v)
+      for (int v = 0; v < 3; ++v)
       {
          // Takes into account Jtr by replacing H with Href at all quad points.
          for (int qz = 0; qz < Q1D; ++qz)
@@ -52,25 +49,25 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                   ConstDeviceMatrix Jrt(Jrt_data, 3, 3);
                   kernels::CalcInverse<3>(Jtr, Jrt_data);
 
-                  real_t h[DIM][DIM];
-                  for (int s = 0; s < DIM; s++)
+                  real_t h[3][3];
+                  for (int s = 0; s < 3; s++)
                   {
-                     for (int t = 0; t < DIM; t++)
+                     for (int t = 0; t < 3; t++)
                      {
                         h[s][t] = H(v, s, v, t, qx, qy, qz, e);
                      }
                   }
 
-                  for (int m = 0; m < DIM; m++)
+                  for (int m = 0; m < 3; m++)
                   {
-                     for (int n = 0; n < DIM; n++)
+                     for (int n = 0; n < 3; n++)
                      {
                         // Hr_{v,m,n,q} = \sum_{s,t=1}^d
                         //                Jrt_{m,s,q} H_{v,s,v,t,q} Jrt_{n,t,q}
                         rH(m, n, qz, qy, qx) = 0.0;
-                        for (int s = 0; s < DIM; s++)
+                        for (int s = 0; s < 3; s++)
                         {
-                           for (int t = 0; t < DIM; t++)
+                           for (int t = 0; t < 3; t++)
                            {
                               rH(m, n, qz, qy, qx) += Jrt(m, s) * h[s][t] * Jrt(n, t);
                            }
@@ -89,9 +86,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
-                  for (int m = 0; m < DIM; m++)
+                  for (int m = 0; m < 3; m++)
                   {
-                     for (int n = 0; n < DIM; n++)
+                     for (int n = 0; n < 3; n++)
                      {
                         r0(m, n, dz, qy, qx) = 0.0;
                      }
@@ -100,9 +97,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      const real_t Bz = B(qz, dz), Gz = G(qz, dz);
-                     for (int m = 0; m < DIM; m++)
+                     for (int m = 0; m < 3; m++)
                      {
-                        for (int n = 0; n < DIM; n++)
+                        for (int n = 0; n < 3; n++)
                         {
                            const real_t L = (m == 2 ? Gz : Bz);
                            const real_t R = (n == 2 ? Gz : Bz);
@@ -118,9 +115,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Contract in y.
          for (int dz = 0; dz < D1D; ++dz)
          {
-            for (int m = 0; m < DIM; m++)
+            for (int m = 0; m < 3; m++)
             {
-               for (int n = 0; n < DIM; n++)
+               for (int n = 0; n < 3; n++)
                {
                   mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
                   {
@@ -137,9 +134,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
-                  for (int m = 0; m < DIM; m++)
+                  for (int m = 0; m < 3; m++)
                   {
-                     for (int n = 0; n < DIM; n++)
+                     for (int n = 0; n < 3; n++)
                      {
                         r1(m, n, dz, dy, qx) = 0.0;
                      }
@@ -149,9 +146,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                   {
                      const real_t By = B(qy, dy);
                      const real_t Gy = G(qy, dy);
-                     for (int m = 0; m < DIM; m++)
+                     for (int m = 0; m < 3; m++)
                      {
-                        for (int n = 0; n < DIM; n++)
+                        for (int n = 0; n < 3; n++)
                         {
                            const real_t L = (m == 1 ? Gy : By);
                            const real_t R = (n == 1 ? Gy : By);
@@ -167,9 +164,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Contract in x.
          for (int dz = 0; dz < D1D; ++dz)
          {
-            for (int m = 0; m < DIM; m++)
+            for (int m = 0; m < 3; m++)
             {
-               for (int n = 0; n < DIM; n++)
+               for (int n = 0; n < 3; n++)
                {
                   mfem::tmop::foreach_y_thread(D1D, [&](int dy)
                   {
@@ -191,9 +188,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                   {
                      const real_t Bx = B(qx, dx);
                      const real_t Gx = G(qx, dx);
-                     for (int m = 0; m < DIM; m++)
+                     for (int m = 0; m < 3; m++)
                      {
-                        for (int n = 0; n < DIM; n++)
+                        for (int n = 0; n < 3; n++)
                         {
                            const real_t L = (m == 0 ? Gx : Bx);
                            const real_t R = (n == 0 ? Gx : Bx);
@@ -210,21 +207,20 @@ void TMOP_AssembleDiagPA_3D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiag3D, TMOP_AssembleDiagPA_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiag3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiag3D, TMOP_AssembleDiagPA_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiag3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {
-   static constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto G = Reshape(PA.maps->G.Read(), q, d);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-   const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, q, q, q, NE);
-   auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
+   const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
+   const auto H = Reshape(PA.H.Read(), 3, 3, 3, 3, q, q, q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d, d, d, 3, NE);
 
    TMOPAssembleDiag3D::Run(d, q, NE, B, G, J, H, D, d, q);
 }

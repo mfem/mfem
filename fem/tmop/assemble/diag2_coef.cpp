@@ -16,27 +16,22 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagPA_C0_2D(const int NE,
                                const ConstDeviceMatrix &B,
                                const DeviceTensor<5, const real_t> &H0,
                                DeviceTensor<4> &D,
-                               const int d1d,
-                               const int q1d)
+                               const int d1d, const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 2;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
       MFEM_SHARED real_t qd[MQ1 * MD1];
       DeviceTensor<2, real_t> QD(qd, MQ1, MD1);
 
-      for (int v = 0; v < DIM; v++)
+      for (int v = 0; v < 2; v++)
       {
          mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
          {
@@ -69,8 +64,8 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {

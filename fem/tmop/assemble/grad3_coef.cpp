@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
                                const DeviceTensor<4, const real_t> &LD,
                                const bool const_c0,
@@ -39,10 +39,6 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int DIM = 3;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
       LoadMatrix(D1D, Q1D, bld, sB);
@@ -123,11 +119,11 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
                      ((400.0 * tmp[2] * tmp[2] * f) / dist_squared_squared) +
                      (20.0 * f / dist_squared);
                }
-               ConstDeviceMatrix gg(grad_grad, DIM, DIM);
+               ConstDeviceMatrix gg(grad_grad, 3, 3);
 
-               for (int i = 0; i < DIM; i++)
+               for (int i = 0; i < 3; i++)
                {
-                  for (int j = 0; j < DIM; j++)
+                  for (int j = 0; j < 3; j++)
                   {
                      H0(i, j, qx, qy, qz, e) = weight_m * gg(i, j);
                   }
@@ -138,12 +134,11 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef3D, TMOP_AssembleGradPA_C0_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef3D, TMOP_AssembleGradPA_C0_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef3D);
 
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
-   static constexpr int DIM = 3;
    const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;
@@ -153,13 +148,13 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
    const auto C0 = const_c0
                    ? Reshape(PA.C0.Read(), 1, 1, 1, 1)
                    : Reshape(PA.C0.Read(), q, q, q, NE);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
    const auto *b = PA.maps->B.Read(), *bld = PA.maps_lim->B.Read();
    const auto LD = Reshape(PA.LD.Read(), d, d, d, NE);
-   const auto XL = Reshape(PA.XL.Read(), d, d, d, DIM, NE);
-   const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
-   auto H0 = Reshape(PA.H0.Write(), DIM, DIM, q, q, q, NE);
+   const auto XL = Reshape(PA.XL.Read(), d, d, d, 3, NE);
+   const auto X = Reshape(x.Read(), d, d, d, 3, NE);
+   auto H0 = Reshape(PA.H0.Write(), 3, 3, q, q, q, NE);
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;

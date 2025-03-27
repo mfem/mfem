@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
                           const ConstDeviceCube &LD,
                           const bool const_c0,
@@ -39,10 +39,6 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int VDIM = 2;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
@@ -54,11 +50,11 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
 
       LoadMatrix(D1D, Q1D, b, sB);
 
-      regs4d_t<VDIM,1,MQ1> r00, r01; // vector X0
+      regs4d_t<2,1,MQ1> r00, r01; // vector X0
       LoadDofs2d(e, D1D, X0, r00);
       Eval2d(D1D, Q1D, smem, sB, r00, r01);
 
-      regs4d_t<VDIM,1,MQ1> r10, r11; // vector X1
+      regs4d_t<2,1,MQ1> r10, r11; // vector X1
       LoadDofs2d(e, D1D, X1, r10);
       Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
@@ -111,12 +107,11 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMultCoefKernels);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels);
 
 void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 {
-   static constexpr int DIM = 2;
    const real_t ln = lim_normal;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
@@ -130,12 +125,12 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
                    ? Reshape(PA.C0.Read(), 1, 1, 1)
                    : Reshape(PA.C0.Read(), q, q, NE);
    const auto LD = Reshape(PA.LD.Read(), d, d, NE);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto *b = PA.maps->B.Read(), *bld = PA.maps_lim->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-   const auto XL = Reshape(PA.XL.Read(), d, d, DIM, NE);
-   const auto X = Reshape(x.Read(), d, d, DIM, NE);
-   auto Y = Reshape(y.ReadWrite(), d, d, DIM, NE);
+   const auto XL = Reshape(PA.XL.Read(), d, d, 2, NE);
+   const auto X = Reshape(x.Read(), d, d, 2, NE);
+   auto Y = Reshape(y.ReadWrite(), d, d, 2, NE);
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;

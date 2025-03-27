@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
                          const DeviceTensor<4, const real_t> &LD,
                          const bool const_c0,
@@ -39,9 +39,6 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
       LoadMatrix(D1D, Q1D, bld, sB);
@@ -109,8 +106,8 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_REGISTER_KERNELS(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPEnergyPAC03D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyPAC03D);
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
 {
