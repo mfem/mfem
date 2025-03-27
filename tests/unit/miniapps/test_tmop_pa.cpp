@@ -853,7 +853,7 @@ public:
 };
 
 // Add all kernels specializations needed for the tests
-static void AddKernelSpecializations()
+/*static void AddKernelSpecializations()
 {
    using Det = QuadratureInterpolator::DetKernels;
    Det::Specialization<2, 2, 3, 3>::Add();
@@ -880,7 +880,7 @@ static void AddKernelSpecializations()
    MassApply::Specialization<2,2,3>::Add();
    MassApply::Specialization<3,2,4>::Add();
    MassApply::Specialization<3,2,6>::Add();
-}
+}*/
 
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
