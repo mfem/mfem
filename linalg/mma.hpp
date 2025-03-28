@@ -186,7 +186,7 @@ private:
 
          nVar_global = nVar;
 #ifdef MFEM_USE_MPI
-         MPI_Allreduce(&nVar, &nVar_global, 1, MPI_INT, MPI_SUM, mma->comm);
+         MPI_Allreduce(&nVar, &nVar_global, 1, MPI_INT, MPI_SUM, mma.comm);
 #endif
       }
 
