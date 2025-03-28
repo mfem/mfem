@@ -461,7 +461,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         if (!domain_attributes[elem_attributes[e] - 1]) { return; }
+         if (domain_attributes.Size() > 0 &&
+             !domain_attributes[elem_attributes[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
@@ -667,7 +668,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
                                                        shadow_shmem, q);
 #else
-                           apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+                           assert(false);
+                           // apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
                            d_qp(j, m, q) = 0.0;
 

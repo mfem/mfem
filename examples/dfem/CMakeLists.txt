@@ -13,6 +13,7 @@ set(DFEM_EXAMPLES_SRCS)
 
 if (MFEM_USE_MPI)
     list(APPEND DFEM_EXAMPLES_SRCS
+        diffusion3d.cpp
         plasticity.cpp
     )
 endif()
