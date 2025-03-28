@@ -37,6 +37,7 @@ template <> struct GeometryUtils<Geometry::SEGMENT>
 
    /// @b Bound the reference coordinate @a x += dx to be inside the segment.
    /// @a dx is updated to be dx = project(x+dx) - x
+   /// @return true if x + dx hit a boundary
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &dx)
    {
       real_t tmp = x;
@@ -69,39 +70,12 @@ template <> struct GeometryUtils<Geometry::SQUARE>
    /// @b Bound the reference coordinate @a (x,y) += (dx,dy) to be inside the
    /// square.
    /// @a dx and @a dy are updated to be (dx,dy) = project(x+dx,y+dy) - (x,y)
+   /// @return true if (x,y) + (dx,dy) hit a boundary
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &dx,
                                         real_t &dy)
    {
-      bool res = false;
-      real_t tmp = x;
-      x += dx;
-      if (x < 0)
-      {
-         res = true;
-         x = 0;
-         dx = x - tmp;
-      }
-      else if (x > 1)
-      {
-         res = true;
-         x = 1;
-         dx = x - tmp;
-      }
-      tmp = y;
-      y += dy;
-      if (y < 0)
-      {
-         res = true;
-         y = 0;
-         dy = y - tmp;
-      }
-      else if (y > 1)
-      {
-         res = true;
-         y = 1;
-         dy = y - tmp;
-      }
-      return res;
+      return GeometryUtils<Geometry::SEGMENT>::project(x, dx) |
+             GeometryUtils<Geometry::SEGMENT>::project(y, dy);
    }
 };
 
@@ -118,53 +92,13 @@ template <> struct GeometryUtils<Geometry::CUBE>
    /// the cube.
    /// @a dx, @a dy, and @ dz are updated to be
    /// (dx,dy,dz) = project(x+dx,y+dy,z+dz) - (x,y,z)
+   /// @return true if (x,y,z) + (dx,dy,dz) hit a boundary
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &z,
                                         real_t &dx, real_t &dy, real_t &dz)
    {
-      bool res = false;
-      real_t tmp = x;
-      x += dx;
-      if (x < 0)
-      {
-         res = true;
-         x = 0;
-         dx = x - tmp;
-      }
-      else if (x > 1)
-      {
-         res = true;
-         x = 1;
-         dx = x - tmp;
-      }
-      tmp = y;
-      y += dy;
-      if (y < 0)
-      {
-         res = true;
-         y = 0;
-         dy = tmp - y;
-      }
-      else if (y > 1)
-      {
-         res = true;
-         y = 1;
-         dy = tmp - y;
-      }
-      tmp = z;
-      z += dz;
-      if (z < 0)
-      {
-         res = true;
-         z = 0;
-         dz = z - tmp;
-      }
-      else if (z > 1)
-      {
-         res = true;
-         z = 1;
-         dz = z - tmp;
-      }
-      return res;
+      return GeometryUtils<Geometry::SEGMENT>::project(x, dx) |
+             GeometryUtils<Geometry::SEGMENT>::project(y, dy) |
+             GeometryUtils<Geometry::SEGMENT>::project(z, dz);
    }
 };
 
