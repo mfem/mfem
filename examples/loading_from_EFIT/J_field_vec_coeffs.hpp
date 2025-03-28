@@ -59,6 +59,30 @@ public:
    }
 };
 
+/// @brief Input $\Psi$ and return $1/r \nabla \Psi_r$
+class GradPsiOverRVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const bool flip_sign;
+   GradientGridFunctionCoefficient grad_psi_coef;
+
+public:
+   GradPsiOverRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), flip_sign(flip_sign), grad_psi_coef(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      grad_psi_coef.Eval(V, T, ip);
+      V /= (1e-14 + r) * (flip_sign ? -1 : 1);
+   }
+};
 
 /// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
 class BTorVectorGridFunctionCoefficient : public VectorCoefficient
@@ -177,10 +201,10 @@ public:
          V(0) = -normal(1);
          V(1) = normal(0);
 
-         V *= interp_val[0] * r * (flip_sign ? -1 : 1);
+         V *= interp_val[0] * (1e-14 + r) * (flip_sign ? -1 : 1);
       }
       else
-         V(0) = interp_val[0] * r * (flip_sign ? -1 : 1);
+         V(0) = interp_val[0] * (1e-14 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -189,6 +213,7 @@ class RGridFunctionCoefficient : public Coefficient
 {
 private:
    bool flip_sign;
+
 public:
    int counter = 0;
    RGridFunctionCoefficient(bool flip_sign = false)
@@ -204,7 +229,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      return r * (flip_sign ? -1 : 1);
+      return (1e-14 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -229,6 +254,6 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      return 1/(1e-10 + r) * (flip_sign ? -1 : 1);
+      return 1 / (1e-14 + r) * (flip_sign ? -1 : 1);
    }
 };
