@@ -1869,7 +1869,6 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
 {
    constexpr int max_team_x = use_device ? 64 : 1;
    InvTNewtonEdgeScanner<Geom, SDim, SType, max_team_x> func;
-   // constexpr int max_dof1d = 32;
    MFEM_VERIFY(ndof1d <= func.solver.max_dof1d(),
                "exceeded max_dof1d limit (32 for 2D/3D)");
    func.solver.ref_tol = ref_tol;
