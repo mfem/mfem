@@ -332,7 +332,8 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
    std::copy(b_local.get(), b_local.get() + ncon, b.get());
 
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(b_local.get(), b.get(), ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+   MPI_Allreduce(b_local.get(), b.get(), ncon, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM,
                  mma.comm);
 #endif
 
@@ -418,7 +419,8 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
       std::copy(gvec_local.get(), gvec_local.get() + ncon, gvec.get());
 
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(gvec_local.get(), gvec.get(), ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+      MPI_Allreduce(gvec_local.get(), gvec.get(), ncon, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM,
                     mma.comm);
 #endif
 
