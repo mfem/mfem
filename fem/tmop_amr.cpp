@@ -603,6 +603,10 @@ void TMOPHRSolver::Mult()
       return;
    }
 
+   auto fes_mesh_nodes = nlf->FESpace()->GetMesh()->GetNodes()->FESpace();
+   if (fes_mesh_nodes->IsDGSpace())
+   { MFEM_ABORT("Periodic HR-adaptivity is not implemented yet."); }
+
    bool radaptivity = true;
 
    tmop_dr->Reset();
@@ -622,9 +626,9 @@ void TMOPHRSolver::Mult()
          tmopns->Mult(b, x->GetTrueVector());
          x->SetFromTrueVector();
 
-         mfem::out << "TMOP energy after r-adaptivity: " <<
-                   nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                   ", Elements: " << mesh->GetNE() << std::endl;
+         mfem::out << "TMOP energy after r-adaptivity: "
+                   << nlf->GetGridFunctionEnergy(*x) / mesh->GetNE()
+                   << ", Elements: " << mesh->GetNE() << std::endl;
 
          for (int i_h = 0; i_h < h_per_r_iter; i_h++)
          {
@@ -634,15 +638,15 @@ void TMOPHRSolver::Mult()
                tmop_dr->Apply(*mesh);
                Update();
             }
-            mfem::out << "TMOP energy after derefinement: " <<
-                      nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                      ", Elements: " << mesh->GetNE() << std::endl;
+            mfem::out << "TMOP energy after derefinement: "
+                      << nlf->GetGridFunctionEnergy(*x) / mesh->GetNE()
+                      << ", Elements: " << mesh->GetNE() << std::endl;
 
             // Refinement step.
             tmop_r->Apply(*mesh);
             Update();
             mfem::out << "TMOP energy after   refinement: " <<
-                      nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
+                      nlf->GetGridFunctionEnergy(*x) / mesh->GetNE() <<
                       ", Elements: " << mesh->GetNE() << std::endl;
 
             if (!tmop_dr->Derefined() && tmop_r->Stop())
@@ -837,7 +841,7 @@ void TMOPHRSolver::ParUpdate()
 
 void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh_, NonlinearForm *nlf_)
 {
-   const FiniteElementSpace &fes = *mesh_->GetNodalFESpace();
+   const FiniteElementSpace &fes = *nlf_->FESpace();
 
    // Update Nonlinear form and Set Essential BC
    nlf_->Update();
