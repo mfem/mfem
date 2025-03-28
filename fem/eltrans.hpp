@@ -462,6 +462,8 @@ public:
         will be selected. ClosestRefNode is currently not supported. */
    void SetInitialGuessType(InverseElementTransformation::InitGuessType itype)
    {
+      MFEM_ASSERT(itype != InverseElementTransformation::ClosestRefNode,
+                  "ClosestRefNode is currently not supported");
       init_guess_type = itype;
    }
 

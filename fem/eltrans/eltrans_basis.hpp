@@ -74,8 +74,9 @@ template <> struct GeometryUtils<Geometry::SQUARE>
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &dx,
                                         real_t &dy)
    {
-      return GeometryUtils<Geometry::SEGMENT>::project(x, dx) |
-             GeometryUtils<Geometry::SEGMENT>::project(y, dy);
+      bool x_cond = GeometryUtils<Geometry::SEGMENT>::project(x, dx);
+      bool y_cond = GeometryUtils<Geometry::SEGMENT>::project(y, dy);
+      return x_cond || y_cond;
    }
 };
 
@@ -96,9 +97,10 @@ template <> struct GeometryUtils<Geometry::CUBE>
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &z,
                                         real_t &dx, real_t &dy, real_t &dz)
    {
-      return GeometryUtils<Geometry::SEGMENT>::project(x, dx) |
-             GeometryUtils<Geometry::SEGMENT>::project(y, dy) |
-             GeometryUtils<Geometry::SEGMENT>::project(z, dz);
+      bool x_cond = GeometryUtils<Geometry::SEGMENT>::project(x, dx);
+      bool y_cond = GeometryUtils<Geometry::SEGMENT>::project(y, dy);
+      bool z_cond = GeometryUtils<Geometry::SEGMENT>::project(z, dz);
+      return x_cond || y_cond || z_cond;
    }
 };
 
