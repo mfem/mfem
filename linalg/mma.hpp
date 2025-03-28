@@ -12,11 +12,9 @@
 #ifndef MFEM_MMA
 #define MFEM_MMA
 
-#include <iostream>
 #include "../config/config.hpp"
-#include "vector.hpp"
-#include "../general/communication.hpp"
-#include "solvers.hpp"
+
+#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -24,6 +22,9 @@
 
 namespace mfem
 {
+// forward declaration
+class Vector;
+
 /** \brief MMA (Method of Moving Asymptotes) solves an optimization problem
  *         of the form:
  *
@@ -95,7 +96,7 @@ public:
 
 protected:
    // Local vectors
-   real_t *a, *b, *c, *d;
+   ::std::unique_ptr<real_t[]> a, b, c, d;
    real_t a0, machineEpsilon, epsimin;
    real_t z, zet;
    int nCon, nVar;
@@ -107,17 +108,17 @@ protected:
    int print_level = 1;
 
    // Global: Asymptotes, bounds, objective approx., constraint approx.
-   real_t *low, *upp;
-   real_t *x, *y, *xsi, *eta, *lam, *mu, *s;
+   ::std::unique_ptr<real_t[]> low, upp;
+   ::std::unique_ptr<real_t[]> x, y, xsi, eta, lam, mu, s;
 
 private:
    // MMA-specific
    real_t asyinit, asyincr, asydecr;
    real_t xmamieps, lowmin, lowmax, uppmin, uppmax, zz;
-   real_t *factor;
+   ::std::unique_ptr<real_t[]> factor;
 
    /// values from the previous two iterations
-   real_t *xo1, *xo2;
+   ::std::unique_ptr<real_t[]> xo1, xo2;
 
    /// KKT norm
    real_t kktnorm;
@@ -131,9 +132,6 @@ private:
 
    /// Allocate the memory for MMA
    void AllocData(int nVar, int nCon);
-
-   /// Free the memory for MMA
-   void FreeData();
 
    /// Initialize data
    void  InitData(real_t *xval);
@@ -156,7 +154,7 @@ private:
    {
    public:
       /// Constructor
-      MMASubBase(MMA* mma) {mma_ptr=mma;}
+      MMASubBase(MMA& mma) :mma_ref(mma) {}
 
       /// Destructor
       virtual ~MMASubBase() {}
@@ -171,10 +169,10 @@ private:
                   const real_t* xval)=0;
 
    protected:
-      MMA* mma_ptr;
+      MMA& mma_ref;
    };
 
-   MMASubBase* mSubProblem;
+   ::std::unique_ptr<MMASubBase> mSubProblem;
 
    friend class MMASubSvanberg;
 
@@ -182,7 +180,7 @@ private:
    {
    public:
       /// Constructor
-      MMASubSvanberg(MMA* mma, int nVar, int nCon):MMASubBase(mma)
+      MMASubSvanberg(MMA& mma, int nVar, int nCon):MMASubBase(mma)
       {
          AllocSubData(nVar,nCon);
 
@@ -194,10 +192,7 @@ private:
 
       /// Destructor
       virtual
-      ~MMASubSvanberg()
-      {
-         FreeSubData();
-      }
+      ~MMASubSvanberg() = default;
 
       /// Update the optimization parameters
       virtual
@@ -215,13 +210,14 @@ private:
              sum, stminv, steg, zold, zetold,
              residunorm, residumax, resinew, raa0, albefa, move, xmamieps;
 
-      real_t *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *delx, *dely,
-             *dellam,
-             *dellamyi, *diagx, *diagy, *diaglamyi, *bb, *bb1, *Alam, *AA, *AA1,
-             *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx,
-             *stepxx, *stepalfa, *stepbeta, *xold, *yold,
-             *lamold, *xsiold, *etaold, *muold, *sold, *p0, *q0, *P, *Q, *alfa,
-             *beta, *xmami, *b;
+      ::std::unique_ptr<real_t[]> sum1, ux1, xl1, plam, qlam, gvec, residu, GG, delx,
+      dely,
+      dellam,
+      dellamyi, diagx, diagy, diaglamyi, bb, bb1, Alam, AA, AA1,
+      dlam, dx, dy, dxsi, deta, dmu, Axx, axz, ds, xx, dxx,
+      stepxx, stepalfa, stepbeta, xold, yold,
+      lamold, xsiold, etaold, muold, sold, p0, q0, P, Q, alfa,
+      beta, xmami, b;
 
       // parallel helper variables
       real_t global_max = 0.0;
@@ -230,13 +226,12 @@ private:
       real_t stmalfa_global = 0.0;
       real_t stmbeta_global = 0.0;
 
-      real_t *b_local, *gvec_local, *Alam_local, *sum_local, *sum_global;
+      ::std::unique_ptr<real_t[]> b_local, gvec_local, Alam_local, sum_local,
+      sum_global;
 
       /// Allocate the memory for the subproblem
       void AllocSubData(int nVar, int nCon);
 
-      /// Free the memory for the subproblem
-      void FreeSubData();
    };
 };
 
