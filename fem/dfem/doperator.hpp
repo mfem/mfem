@@ -386,7 +386,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
 
    // TODO: Is this a hack?
-   width = GetTrueVSize(solutions[0]);
+   width = GetTrueVSize(fields[0]);
 
    std::vector<const DofToQuad*> dtq;
    for (const auto &field : fields)
