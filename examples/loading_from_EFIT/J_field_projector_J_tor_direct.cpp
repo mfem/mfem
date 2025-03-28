@@ -34,11 +34,12 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(psi.FESpace(), &fespace);
-   ConstantCoefficient neg_one(-1.0);
-   b_bi.AddDomainIntegrator(new MixedGradGradIntegrator(neg_one));
+   // ConstantCoefficient neg_one(-1.0);
+   OneOverRGridFunctionCoefficient one_over_r(true);
+   b_bi.AddDomainIntegrator(new MixedGradGradIntegrator(one_over_r));
 
-   GradPsiOverRRComponentGridFunctionCoefficient grad_psi_over_r_coef(&psi, true);
-   b_bi.AddDomainIntegrator(new MixedScalarMassIntegrator(grad_psi_over_r_coef));
+   // GradPsiOverRRComponentGridFunctionCoefficient grad_psi_over_r_coef(&psi, true);
+   // b_bi.AddDomainIntegrator(new MixedScalarMassIntegrator(grad_psi_over_r_coef));
 
    b_bi.Assemble();
 
@@ -47,15 +48,17 @@ int main(int argc, char *argv[])
 
    LinearForm b_li(&fespace);
    b_bi.Mult(psi, b_li);
-   GradientGridFunctionCoefficient grad_psi_coef(&psi);
-   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(grad_psi_coef));
+   GradPsiOverRVectorGridFunctionCoefficient grad_psi_over_r(&psi);
+   // GradientGridFunctionCoefficient grad_psi_over_r(&psi);
+   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(grad_psi_over_r));
    b.Assemble();
    b += b_li;
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   RGridFunctionCoefficient r_coef;
-   a.AddDomainIntegrator(new MassIntegrator(r_coef));
+   // RGridFunctionCoefficient r_coef;
+   ConstantCoefficient one(1.0);
+   a.AddDomainIntegrator(new MassIntegrator(one));
    a.Assemble();
    a.Finalize();
 
