@@ -12,6 +12,7 @@
 #include "mma.hpp"
 
 #include "vector.hpp"
+#include "../general/communication.hpp"
 #include "../general/error.hpp"
 
 #include <fstream>
@@ -1037,7 +1038,7 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    AllocData(nVar,nCon);
    InitData(xval);
    // allocate the serial subproblem
-   mSubProblem = new MMA::MMASubSvanberg(this, nVar,nCon);
+   mSubProblem = new MMA::MMASubSvanberg(*this, nVar,nCon);
 }
 
 MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon,
