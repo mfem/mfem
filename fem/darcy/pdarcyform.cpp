@@ -60,7 +60,7 @@ MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
 
 void ParDarcyForm::Assemble(int skip_zeros)
 {
-   if (pB || pM_p)
+   if (pB || pM_p || pMnl_p)
    {
       pfes_u->ExchangeFaceNbrData();
       pfes_p->ExchangeFaceNbrData();

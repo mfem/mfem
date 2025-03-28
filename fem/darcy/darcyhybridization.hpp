@@ -139,7 +139,7 @@ private:
       const DarcyHybridization &dh;
    public:
       ParGradient(const DarcyHybridization &dh)
-         : Operator(dh.Width()), dh(dh) { }
+         : Operator(dh.c_fes->GetTrueVSize()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
    };
@@ -234,6 +234,7 @@ private:
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
+   FaceElementTransformations *GetFaceTransformation(int f) const;
    void AssembleCtFaceMatrix(int face, int el1, int el2, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
@@ -264,9 +265,11 @@ private:
    void ConstructGrad(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &u_l,
                       const Vector &p_l) const;
-   void AssembleHDGGrad(int el, int f, NonlinearFormIntegrator &nlfi,
+   void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
+                        NonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &p_l) const;
-   void AssembleHDGGrad(int el, int f, BlockNonlinearFormIntegrator &nlfi,
+   void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
+                        BlockNonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &u_l, const Vector &p_l) const;
 
 public:

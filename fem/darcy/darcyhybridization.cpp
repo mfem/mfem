@@ -378,21 +378,24 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    c_fes->GetFaceDofs(face, c_dofs);
    const int c_dof = c_dofs.Size();
 
-   FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
-   fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
-   fe1 = fes_p->GetFE(ftr->Elem1No);
+   int el1, el2;
+   mesh->GetFaceElements(face, &el1, &el2);
+   fes_p->GetElementVDofs(el1, vdofs1);
+   fe1 = fes_p->GetFE(el1);
    ndof1 = fe1->GetDof();
    fe2 = NULL;
+   FaceElementTransformations *ftr;
 
-   if (ftr->Elem2No >= 0)
+   if (el2 >= 0)
    {
+      ftr = mesh->GetFaceElementTransformations(face);
       fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
       fe2 = fes_p->GetFE(ftr->Elem2No);
       save2 = true;
    }
+#ifdef MFEM_USE_MPI
    else if (ParallelP())
    {
-#ifdef MFEM_USE_MPI
       ParMesh *pmesh = pfes_p->GetParMesh();
       if (pmesh->FaceIsTrueInterior(face))
       {
@@ -401,20 +404,18 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
          pfes_p->GetFaceNbrElementVDofs(el2nbr, vdofs2);
          fe2 = pfes_p->GetFaceNbrFE(el2nbr);
       }
-#endif
    }
-   else
+   else if (ParallelC())
    {
-#ifdef MFEM_USE_MPI
-      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
-      if (pmesh && pmesh->FaceIsTrueInterior(face))
+      ParMesh *pmesh = c_pfes->GetParMesh();
+      if (pmesh->FaceIsTrueInterior(face))
       {
          ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(face);
          vdofs2.SetSize(0);
          fe2 = fe1;
       }
-#endif
    }
+#endif
 
    if (fe2)
    {
@@ -582,6 +583,31 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
+FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
+   int f) const
+{
+   int el1, el2;
+   fes->GetMesh()->GetFaceElements(f, &el1, &el2);
+
+   FaceElementTransformations *FTr;
+   if (el2 >= 0)
+   {
+      FTr = fes->GetMesh()->GetFaceElementTransformations(f);
+   }
+#ifdef MFEM_USE_MPI
+   else if (ParallelC() && c_pfes->GetParMesh()->FaceIsTrueInterior(f))
+   {
+      FTr = c_pfes->GetParMesh()->GetSharedFaceTransformationsByLocalIndex(f);
+   }
+#endif
+   else
+   {
+      FTr = fes->GetMesh()->GetFaceElementTransformations(f, 21);
+   }
+
+   return FTr;
+}
+
 void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
                                               const DenseMatrix &elmat)
 {
@@ -695,7 +721,9 @@ void DarcyHybridization::ConstructC()
 
 #ifdef MFEM_USE_MPI
       if (ParallelU()) { pfes->ExchangeFaceNbrData(); }
-      ParMesh *pmesh = (pfes) ? (pfes->GetParMesh()) : (dynamic_cast<ParMesh*>(mesh));
+      ParMesh *pmesh = NULL;
+      if (pfes) { pmesh = pfes->GetParMesh(); }
+      else if (c_pfes) { pmesh = c_pfes->GetParMesh(); }
       const int NE = mesh->GetNE();
 
       if (pmesh)
@@ -1451,8 +1479,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                           | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-               FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
-                                                    faces[f]);
+               FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
 
                if (FTr->Elem2No >= 0)
                {
@@ -1500,8 +1527,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
                           | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
 
-               FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
-                                                    faces[f]);
+               FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
 
                if (FTr->Elem2No >= 0)
                {
@@ -1563,9 +1589,11 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
                                    const Vector &x_t, Vector &y_t) const
 {
    Vector x;
+   const Operator *tr_cP;
+
    if (!ParallelC())
    {
-      const Operator *tr_cP = c_fes->GetConformingProlongation();
+      tr_cP = c_fes->GetConformingProlongation();
       if (!tr_cP)
       {
          x.MakeRef(const_cast<Vector&>(x_t), 0, x_t.Size());
@@ -1605,7 +1633,6 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
 
    const Vector &bp = b_t.GetBlock(1);
    Vector y;
-   const Operator *tr_cR;
 
    if (mode == MultNlMode::Sol)
    {
@@ -1620,6 +1647,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    }
    else
    {
+      const Operator *tr_cR;
       if (!ParallelC() && !(tr_cR = c_fes->GetRestrictionOperator()))
       {
          y.MakeRef(y_t, 0, c_fes->GetVSize());
@@ -1651,18 +1679,18 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
          yb_t.GetBlock(1) = yb.GetBlock(1);
       }
    }
-   else
+   else if (mode != MultNlMode::Grad)
    {
       if (!ParallelC())
       {
-         if (tr_cR)
+         if (tr_cP)
          {
-            tr_cR->Mult(y, y_t);
+            tr_cP->MultTranspose(y, y_t);
          }
       }
       else
       {
-         c_fes->GetRestrictionOperator()->Mult(y, y_t);
+         c_fes->GetProlongationMatrix()->MultTranspose(y, y_t);
       }
    }
 }
@@ -2146,15 +2174,14 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         int el1, el2;
-         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-
          const Vector &x_f = x_l.GetBlock(f);
 
-         if (el2 >= 0)
+         FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
+
+         if (FTr->Elem2No >= 0)
          {
             //interior
-            AssembleHDGGrad(el, faces[f], *c_nlfi_p, x_f, p_l);
+            AssembleHDGGrad(el, FTr, *c_nlfi_p, x_f, p_l);
          }
          else
          {
@@ -2166,7 +2193,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                if (boundary_constraint_pot_nonlin_integs_marker[i]
                    && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
-               AssembleHDGGrad(el, faces[f], *boundary_constraint_pot_nonlin_integs[i], x_f,
+               AssembleHDGGrad(el, FTr, *boundary_constraint_pot_nonlin_integs[i], x_f,
                                p_l);
             }
          }
@@ -2178,15 +2205,14 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         int el1, el2;
-         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-
          const Vector &x_f = x_l.GetBlock(f);
 
-         if (el2 >= 0)
+         FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
+
+         if (FTr->Elem2No >= 0)
          {
             //interior
-            AssembleHDGGrad(el, faces[f], *c_nlfi, x_f, u_l, p_l);
+            AssembleHDGGrad(el, FTr, *c_nlfi, x_f, u_l, p_l);
          }
          else
          {
@@ -2198,7 +2224,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                if (boundary_constraint_nonlin_integs_marker[i]
                    && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
-               AssembleHDGGrad(el, faces[f], *boundary_constraint_nonlin_integs[i], x_f,
+               AssembleHDGGrad(el, FTr, *boundary_constraint_nonlin_integs[i], x_f,
                                u_l, p_l);
             }
          }
@@ -2227,16 +2253,14 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 }
 
 void DarcyHybridization::AssembleHDGGrad(
-   int el, int f, NonlinearFormIntegrator &nlfi,
+   int el, FaceElementTransformations *FTr, NonlinearFormIntegrator &nlfi,
    const Vector &x_f, const Vector &p_l) const
 {
+   const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes->GetFaceElement(f);
    const FiniteElement *fe_p = fes_p->GetFE(el);
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
    const int c_dofs_size = x_f.Size();
-
-   FaceElementTransformations *FTr =
-      fes->GetMesh()->GetFaceElementTransformations(f);
 
    int type = NonlinearFormIntegrator::HDGFaceType::ELEM
               | NonlinearFormIntegrator::HDGFaceType::TRACE
@@ -2273,9 +2297,10 @@ void DarcyHybridization::AssembleHDGGrad(
 }
 
 void DarcyHybridization::AssembleHDGGrad(
-   int el, int f, BlockNonlinearFormIntegrator &nlfi,
+   int el, FaceElementTransformations *FTr, BlockNonlinearFormIntegrator &nlfi,
    const Vector &x_f, const Vector &u_l, const Vector &p_l) const
 {
+   const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes->GetFaceElement(f);
    const FiniteElement *fe_u = fes->GetFE(el);
    const FiniteElement *fe_p = fes_p->GetFE(el);
@@ -2284,9 +2309,6 @@ void DarcyHybridization::AssembleHDGGrad(
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
    const int c_dofs_size = x_f.Size();
    const Array<const Vector*> x_arr({&u_l, &p_l});
-
-   FaceElementTransformations *FTr =
-      fes->GetMesh()->GetFaceElementTransformations(f);
 
    int type = NonlinearFormIntegrator::HDGFaceType::ELEM
               | NonlinearFormIntegrator::HDGFaceType::TRACE
@@ -2750,11 +2772,13 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    fe_u = dh.fes->GetFE(el);
    fe_p = dh.fes_p->GetFE(el);
 
+   const Mesh *mesh = dh.fes->GetMesh();
+
    // element transformation
    Tr = new IsoparametricTransformation();
    if (faces.Size() <= 0)
    {
-      dh.fes_p->GetMesh()->GetElementTransformation(el, Tr);
+      mesh->GetElementTransformation(el, Tr);
    }
 
    // face transformations
@@ -2764,7 +2788,7 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    {
       FaceElementTransformations *&FTr = FTrs[f];
       FTr = new FaceElementTransformations();
-      dh.fes_p->GetMesh()->GetFaceElementTransformations(faces[f], *FTr, *Tr, *Tr, 0);
+      mesh->GetFaceElementTransformations(faces[f], *FTr, *Tr, *Tr, 0);
       IsoparametricTransformation *Tr1, *Tr2;
       if (FTr->Elem2No >= 0)
       {
@@ -2779,14 +2803,36 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
             Tr1 = NbrTrs[f];
             Tr2 = Tr;
          }
+
+         mesh->GetFaceElementTransformations(faces[f], *FTr, *Tr1, *Tr2);
       }
+#ifdef MFEM_USE_MPI
+      else if (dh.ParallelC() &&
+               dh.c_pfes->GetParMesh()->FaceIsTrueInterior(faces[f]))
+      {
+         NbrTrs[f] = new IsoparametricTransformation();
+         if (FTr->Elem1No == el)
+         {
+            Tr1 = Tr;
+            Tr2 = NbrTrs[f];
+         }
+         else
+         {
+            Tr1 = NbrTrs[f];
+            Tr2 = Tr;
+         }
+
+         dh.c_pfes->GetParMesh()->GetSharedFaceTransformationsByLocalIndex(faces[f],
+                                                                           *FTr, *Tr1, *Tr2);
+      }
+#endif
       else
       {
          NbrTrs[f] = NULL;
          Tr1 = Tr2 = Tr;
-      }
 
-      dh.fes_p->GetMesh()->GetFaceElementTransformations(faces[f], *FTr, *Tr1, *Tr2);
+         mesh->GetFaceElementTransformations(faces[f], *FTr, *Tr1, *Tr2, 21);
+      }
    }
 }
 
@@ -2831,7 +2877,7 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
 
          const Vector &trp_f = trps.GetBlock(f);
 
-         if (FTr->Elem2No >=0)
+         if (FTr->Elem2No >= 0)
          {
             //interior
             if (FTr->Elem1No != el) { type |= 1; }
