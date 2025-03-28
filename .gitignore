@@ -80,6 +80,7 @@ examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
 examples/ex6p-checkpoint.*
+examples/order.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
@@ -235,6 +236,8 @@ miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
 miniapps/meshing/mesh-quality
+miniapps/meshing/hpref
+miniapps/meshing/hpref_serial
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
@@ -252,6 +255,10 @@ miniapps/meshing/sol.gf
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
+miniapps/meshing/mesh.*
+miniapps/meshing/order.*
+miniapps/meshing/sol.*
+miniapps/meshing/refined.mesh
 
 miniapps/mtop/parheat
 miniapps/mtop/ParHeat*

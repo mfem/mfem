@@ -17,6 +17,10 @@ Version 4.7.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added support for p-refinement in parallel, on quadrilateral and hexahedral
+  meshes. Parallel hp-refinement is also supported, on isotropically refined
+  meshes with L2 or H1 spaces.
+
 - Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
   patch meshes. Only implemented for serial computations.
 
@@ -34,6 +38,15 @@ Discretization improvements
 - Added support for H(div) spaces in class QuadratureInterpolator. For now, only
   (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
   are implemented. [PR #4669]
+
+- Added arbitrary order basis functions (H1, H(curl), H(div), and L2) on
+  pyramid-shaped elements based on the paper "Orientation embedded high order
+  shape functions for the exact sequence elements of all shapes" by Federico
+  Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram Nagaraj,
+  see https://doi.org/10.1016/j.camwa.2015.04.027.
+
+- Added arbitrary order H1 and L2 positive basis functions utilizing Bernstein
+  polynomials on pyramid-shaped elements.
 
 Meshing improvements
 --------------------
@@ -153,6 +166,9 @@ Miscellaneous
 - Changed the name of `IterativeSolverMonitor` to `IterativeSolverController`
   which now allows for declaring convergence by a user defined criterion. For
   backward compatibility, the old name is still available.
+
+- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
+  for solving optimization problems.
 
 API changes
 -----------
