@@ -11,7 +11,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    // const char *mesh_file = "../../data/cube-nurbs.mesh";
-   const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
+   const char *mesh_file =
+      "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
    bool low_order = false;
    int ref_levels = 1;
    int order = 1;

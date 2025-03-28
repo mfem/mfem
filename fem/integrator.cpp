@@ -52,7 +52,8 @@ const IntegrationRule* Integrator::GetIntegrationRule(
 PatchBasisInfo::PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
                                NURBSMeshRules *patchRules)
    : patch(patch), vdim(vdim), B(vdim), G(vdim), ir1d(vdim), Q1D(vdim), D1D(vdim),
-     minD(vdim), maxD(vdim), minQ(vdim), maxQ(vdim), minDD(vdim), maxDD(vdim), accsize(vdim)
+     minD(vdim), maxD(vdim), minQ(vdim), maxQ(vdim), minDD(vdim), maxDD(vdim),
+     accsize(vdim)
 {
    Array<const KnotVector*> pkv;
    mesh->NURBSext->GetPatchKnotVectors(patch, pkv);

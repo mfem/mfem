@@ -3193,7 +3193,8 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
 
-   void AssembleDiagonalPatchPA(const Vector&pa_data, const PatchBasisInfo &pb, Vector &diag) const;
+   void AssembleDiagonalPatchPA(const Vector&pa_data, const PatchBasisInfo &pb,
+                                Vector &diag) const;
 
    void AssembleDiagonalNURBSPA(Vector &diag) override;
 

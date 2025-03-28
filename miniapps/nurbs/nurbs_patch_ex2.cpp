@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&reduced_integration, "-ri", "--reduced-integration",
-   "-fi", "--full-integration", "Use reduced integration.");
+                  "-fi", "--full-integration", "Use reduced integration.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR AMG");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
    // Integration rule for the 1d bases defined on each knotvector
    // Reduced Gaussian rule as in Zou 2022 - equation 14
    auto splineRule = reduced_integration
-      ? SplineIntegrationRule::REDUCED_GAUSSIAN
-      : SplineIntegrationRule::FULL_GAUSSIAN;
+                     ? SplineIntegrationRule::REDUCED_GAUSSIAN
+                     : SplineIntegrationRule::FULL_GAUSSIAN;
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -126,7 +126,8 @@ int main(int argc, char *argv[])
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
    cout << "fec order = " << fec->GetOrder() << endl;
 
-   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, mesh.NURBSext, fec, dim,
+   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, mesh.NURBSext, fec,
+                                                        dim,
                                                         Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    const int Ndof = fespace->GetTrueVSize();
@@ -232,7 +233,7 @@ int main(int argc, char *argv[])
 
       FiniteElementCollection * lo_fec = lo_mesh.GetNodes()->OwnFEC();
       FiniteElementSpace *lo_fespace = new FiniteElementSpace(&lo_mesh, lo_fec, dim,
-                                                         Ordering::byVDIM);
+                                                              Ordering::byVDIM);
       const int lo_Ndof = lo_fespace->GetTrueVSize();
       MFEM_VERIFY(Ndof == lo_Ndof, "Low-order problem requires same Ndof");
 
@@ -329,7 +330,8 @@ int main(int argc, char *argv[])
                   << endl;
    }
 
-   results_ofs << patchAssembly << ", "               // integration & solver settings
+   results_ofs << patchAssembly <<
+               ", "               // integration & solver settings
                << pa << ", "
                << preconditioner << ", "
                << reduced_integration << ", "
@@ -388,7 +390,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// For each patch, sets 
+// For each patch, sets
 void SetPatchIntegrationRules(const Mesh &mesh,
                               const SplineIntegrationRule &splineRule,
                               BilinearFormIntegrator * bfi)
@@ -411,10 +413,12 @@ void SetPatchIntegrationRules(const Mesh &mesh,
             const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*order);
             ir1D[i] = IntegrationRule::ApplyToKnotIntervals(ir,*kv[i]);
          }
-         else if ( splineRule == SplineIntegrationRule::REDUCED_GAUSSIAN ) {
+         else if ( splineRule == SplineIntegrationRule::REDUCED_GAUSSIAN )
+         {
             ir1D[i] = IntegrationRule::GetIsogeometricReducedGaussianRule(*kv[i]);
          }
-         else {
+         else
+         {
             MFEM_ABORT("Unknown PatchIntegrationRule1D")
          }
       }

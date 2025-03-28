@@ -282,9 +282,9 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
 template <int dim>
 tensor<mfem::real_t, dim, dim>
 LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
-                            const real_t lambda,
-                            const real_t mu,
-                            const tensor<mfem::real_t, dim, dim> grad_uhat)
+                       const real_t lambda,
+                       const real_t mu,
+                       const tensor<mfem::real_t, dim, dim> grad_uhat)
 {
    // Convert grad_uhat to physical space
    const auto grad_u = grad_uhat * transpose(Jinvt);
@@ -300,9 +300,9 @@ LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
  * Transforms grad_u into physical space, computes stress, then transforms back to reference space
  */
 void PatchApplyKernel3D(const PatchBasisInfo &pb,
-                      const Vector &pa_data,
-                      DeviceTensor<5, real_t> &grad,
-                      DeviceTensor<5, real_t> &S)
+                        const Vector &pa_data,
+                        DeviceTensor<5, real_t> &grad,
+                        DeviceTensor<5, real_t> &S)
 {
    static constexpr int dim = 3;
    // Unpack patch basis info
@@ -323,9 +323,9 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
             const real_t lambda  = qd(q,9);
             const real_t mu      = qd(q,10);
             const auto Jinvt = make_tensor<dim, dim>(
-               [&](int i, int j) { return qd(q, i*dim + j); });
+            [&](int i, int j) { return qd(q, i*dim + j); });
             const auto grad_uhat = make_tensor<dim, dim>(
-               [&](int i, int j) { return grad(i,j,qx,qy,qz); });
+            [&](int i, int j) { return grad(i,j,qx,qy,qz); });
             const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, grad_uhat);
 
             for (int i = 0; i < dim; ++i)
@@ -487,7 +487,8 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
    Vector grad_uhatv(vdim*vdim*NQ);
    grad_uhatv = 0.0;
-   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
+                            Q1D[2]);
 
    // S[i,j,q] = D( grad_u )
    //          = stress[i,j,q] * J^{-T}[q]
@@ -538,7 +539,7 @@ void AddMultPatchPA3D_SOL(const Vector &pa_data,
    const auto U = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
    real_t sum = 0;
 
-// #pragma omp parallel for
+   // #pragma omp parallel for
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       for (int dy = 0; dy < D1D[1]; ++dy)
@@ -574,7 +575,7 @@ void AddMultPatchPA3D_SOL(const Vector &pa_data,
    Vector Sv(vdim*vdim*NQ);
    Sv = 0.0;
    auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
-// #pragma omp parallel for
+   // #pragma omp parallel for
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -593,7 +594,7 @@ void AddMultPatchPA3D_SOL(const Vector &pa_data,
 
    // 3) Write dofs
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
-// #pragma omp parallel for
+   // #pragma omp parallel for
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       for (int dy = 0; dy < D1D[1]; ++dy)
@@ -630,7 +631,7 @@ void ElasticityIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
 {
    Vector xp, yp;
 
-// #pragma omp parallel for
+   // #pragma omp parallel for
    for (int p=0; p<numPatches; ++p)
    {
       Array<int> vdofs;
@@ -665,7 +666,8 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
    // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
    Vector grad_uhatv(vdim*vdim*NQ);
    grad_uhatv = 0.0;
-   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
+                            Q1D[2]);
 
    auto Y = Reshape(diag.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 
@@ -687,24 +689,26 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
                   {
                      const real_t Bx = B[0](qx,dx);
                      const real_t Gx = G[0](qx,dx);
-                     const real_t grad[3] = {
+                     const real_t grad[3] =
+                     {
                         Gx * By * Bz,
                         Bx * Gy * Bz,
-                        Bx * By * Gz};
+                        Bx * By * Gz
+                     };
 
                      const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
                      const real_t lambda  = qd(q,9);
                      const real_t mu      = qd(q,10);
                      const auto Jinvt = make_tensor<dim, dim>(
-                        [&](int i, int j) { return qd(q, i*dim + j); });
+                     [&](int i, int j) { return qd(q, i*dim + j); });
                      // As second order tensor: e[i] * grad_phi[j]
                      const auto grad_phi = make_tensor<dim, dim>(
-                        [&](int i, int j) { return grad[j]; });
+                     [&](int i, int j) { return grad[j]; });
 
                      const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, grad_phi);
 
                      const auto grad_phiv = make_tensor<dim>(
-                        [&](int i) { return grad[i]; });
+                     [&](int i) { return grad[i]; });
                      const auto Yq = dot(Sq, grad_phiv);
                      for (int c = 0; c < vdim; ++c)
                      {

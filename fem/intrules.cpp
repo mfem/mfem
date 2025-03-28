@@ -178,7 +178,8 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
 }
 
 IntegrationRule*
-IntegrationRule::ApplyToKnotIntervals(const IntegrationRule &ir, const KnotVector &kv)
+IntegrationRule::ApplyToKnotIntervals(const IntegrationRule &ir,
+                                      const KnotVector &kv)
 {
    const int np = ir.GetNPoints();
    const int ne = kv.GetNE();

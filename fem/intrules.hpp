@@ -268,9 +268,11 @@ public:
 
    /// @brief Return an integration rule for KnotVector @a kv, defined by
    /// applying this rule on each knot interval.
-   static IntegrationRule* ApplyToKnotIntervals(const IntegrationRule &ir, const KnotVector &kv);
+   static IntegrationRule* ApplyToKnotIntervals(const IntegrationRule &ir,
+                                                const KnotVector &kv);
 
-   static IntegrationRule* GetIsogeometricReducedGaussianRule(const KnotVector &kv);
+   static IntegrationRule* GetIsogeometricReducedGaussianRule(
+      const KnotVector &kv);
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
