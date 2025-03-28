@@ -76,6 +76,12 @@ New and updated examples and miniapps
 
 GPU computing
 -------------
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div) (illustrated in example 4).
+
+- Added GPU acceleration and element assembly for `DivDivIntegrator` and
+  `NormalTraceJumpIntegrator`.
+
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
   hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
 
