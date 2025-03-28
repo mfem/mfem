@@ -401,36 +401,10 @@ int main(int argc, char* argv[])
 
    ParGridFunction x(&h1fes), y(&h1fes);
 
-   {
-      auto diffusion_mf_kernel =
-         [] MFEM_HOST_DEVICE (
-            const tensor<real_t, DIM>& dudxi,
-            const tensor<real_t, DIM, DIM>& J,
-            const real_t& w)
-      {
-         auto invJ = inv(J);
-         return mfem::tuple{((dudxi * invJ)) * transpose(invJ) * det(J) * w};
-      };
 
-      constexpr int Potential = 0, Coordinates = 1;
-
-      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
-      auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes}};
-      DifferentiableOperator dop(solutions, parameters, pmesh);
-
-      auto input_operators = mfem::tuple{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
-      auto output_operator = mfem::tuple{Gradient<Potential>{}};
-      dop.AddDomainIntegrator(diffusion_mf_kernel,
-                              input_operators,
-                              output_operator,
-                              ir);
-      dop.SetParameters({nodes});
-      dop.Mult(x, y);
-   }
-
-   Array<int> ess_tdofs, ess_bdr(pmesh.bdr_attributes.Max());
+   Array<int> ess_tdof_list, ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdofs);
+   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    ConstantCoefficient one(1.0);
 
@@ -439,16 +413,79 @@ int main(int argc, char* argv[])
    b.UseFastAssembly(true);
    b.Assemble();
 
-   ParBilinearForm a(&h1fes);
-   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator()); }
-   if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator()); }
-   if (version == 2) { a.AddDomainIntegrator(new ∂DiffusionIntegrator()); }
-   a.Assemble();
+   std::unique_ptr<ParBilinearForm> a;
+   std::unique_ptr<DifferentiableOperator> dop;
 
-   OperatorPtr A;
+   if (version < 2)
+   {
+      a = std::make_unique<ParBilinearForm>(&h1fes);
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a->AddDomainIntegrator(new DiffusionIntegrator());
+      a->Assemble();
+   }
+   else if (version == 2) // MF ∂fem
+   {
+      auto diffusion_mf_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<real_t, DIM>& ∇u,
+            const tensor<real_t, DIM, DIM>& J,
+            const real_t& w)
+      {
+         auto invJ = inv(J);
+         return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
+      };
+      constexpr int Potential = 0, Coordinates = 1;
+      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes}};
+      dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+      auto input_operators = mfem::tuple{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
+      auto output_operator = mfem::tuple{Gradient<Potential>{}};
+      dop->AddDomainIntegrator(diffusion_mf_kernel, input_operators, output_operator,
+                               ir);
+      dop->SetParameters({nodes});
+   }
+   else if (version == 3) // PA ∂fem
+   {
+      ParametricSpace qdata_space(DIM, DIM * DIM, ir.GetNPoints(),
+                                  DIM * DIM * ir.GetNPoints() * pmesh.GetNE());
+      ParametricFunction qd(qdata_space);
+
+      constexpr int Ξ = 1, Δ = 2;
+
+      DifferentiableOperator ∂Setup({}, {{Ξ, &mesh_fes}, {Δ, &qd.space}}, pmesh);
+
+      auto qSetup = [] MFEM_HOST_DEVICE(const tensor<real_t, DIM, DIM> &J,
+                                        const real_t &w)
+      {
+         return mfem::tuple{ inv(J) * transpose(inv(J)) * det(J) * w };
+      };
+      ∂Setup.AddDomainIntegrator(qSetup,
+                                   mfem::tuple{ Gradient<Ξ>{}, Weight{} },
+                                   mfem::tuple{ None<Δ>{} },
+                                   ir);
+      ∂Setup.SetParameters({nodes, &qd });
+
+      Vector x(h1fes.GetTrueVSize());
+      ∂Setup.Mult(x, qd);
+      assert(false && "🔥🔥🔥");
+   }
+   else
+   {
+      MFEM_ABORT("Invalid version");
+   }
+
+   OperatorHandle A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdofs, x, b, A, X, B);
+   if (version == 2)
+   {
+      Operator *A_ptr;
+      dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+      A.Reset(A_ptr);
+   }
+   else
+   {
+      a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   }
 
    const real_t rtol = 0.0;
    const int max_it = 32, print_lvl = -1;
@@ -473,7 +510,14 @@ int main(int argc, char* argv[])
 
    if (visualization)
    {
-      a.RecoverFEMSolution(X, b, x);
+      if (version == 2)
+      {
+         dop->RecoverFEMSolution(X, b, x);
+      }
+      else
+      {
+         a->RecoverFEMSolution(X, b, x);
+      }
       int  visport   = 19916;
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
