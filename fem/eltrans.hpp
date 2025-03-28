@@ -494,6 +494,8 @@ public:
        is currently not supported. */
    void SetSolverType(InverseElementTransformation::SolverType stype)
    {
+      MFEM_ASSERT(stype != InverseElementTransformation::NewtonSegmentProject,
+                  "NewtonSegmentProject is currently not supported");
       solver_type = stype;
    }
 

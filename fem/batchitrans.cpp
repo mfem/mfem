@@ -1994,62 +1994,40 @@ BatchInverseElementTransformation::FindClosestRefDof::Fallback(int, int, bool)
 
 BatchInverseElementTransformation::Kernels::Kernels()
 {
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 1>();
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 2>();
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SEGMENT, 3>();
+   using BatchInvTr = BatchInverseElementTransformation;
 
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SQUARE, 2>();
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::SQUARE, 3>();
+   constexpr auto SEGMENT = Geometry::SEGMENT;
+   constexpr auto SQUARE = Geometry::SQUARE;
+   constexpr auto CUBE = Geometry::CUBE;
+   constexpr auto Newton = InverseElementTransformation::Newton;
+   constexpr auto NewtonElementProject =
+      InverseElementTransformation::NewtonElementProject;
 
-   BatchInverseElementTransformation::AddFindClosestSpecialization<
-   Geometry::CUBE, 3>();
+   BatchInvTr::AddFindClosestSpecialization<SEGMENT, 1>();
+   BatchInvTr::AddFindClosestSpecialization<SEGMENT, 2>();
+   BatchInvTr::AddFindClosestSpecialization<SEGMENT, 3>();
+
+   BatchInvTr::AddFindClosestSpecialization<SQUARE, 2>();
+   BatchInvTr::AddFindClosestSpecialization<SQUARE, 3>();
+
+   BatchInvTr::AddFindClosestSpecialization<CUBE, 3>();
 
    // NewtonSolve
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3, InverseElementTransformation::Newton>();
+   BatchInvTr::AddNewtonSolveSpecialization<SEGMENT, 1, Newton>();
+   BatchInvTr::AddNewtonSolveSpecialization<SEGMENT, 2, Newton>();
+   BatchInvTr::AddNewtonSolveSpecialization<SEGMENT, 3, Newton>();
 
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 1,
-            InverseElementTransformation::NewtonElementProject>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 2,
-            InverseElementTransformation::NewtonElementProject>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SEGMENT, 3,
-            InverseElementTransformation::NewtonElementProject>();
+   BatchInvTr::AddNewtonSolveSpecialization<SEGMENT, 1, NewtonElementProject>();
+   BatchInvTr::AddNewtonSolveSpecialization<SEGMENT, 2, NewtonElementProject>();
+   BatchInvTr::AddNewtonSolveSpecialization<SEGMENT, 3, NewtonElementProject>();
 
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 2, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 3, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 2,
-            InverseElementTransformation::NewtonElementProject>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::SQUARE, 3,
-            InverseElementTransformation::NewtonElementProject>();
+   BatchInvTr::AddNewtonSolveSpecialization<SQUARE, 2, Newton>();
+   BatchInvTr::AddNewtonSolveSpecialization<SQUARE, 3, Newton>();
+   BatchInvTr::AddNewtonSolveSpecialization<SQUARE, 2, NewtonElementProject>();
+   BatchInvTr::AddNewtonSolveSpecialization<SQUARE, 3, NewtonElementProject>();
 
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::Newton>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject>();
-   BatchInverseElementTransformation::AddNewtonSolveSpecialization<
-   Geometry::CUBE, 3, InverseElementTransformation::NewtonElementProject>();
+   BatchInvTr::AddNewtonSolveSpecialization<CUBE, 3, Newton>();
+   BatchInvTr::AddNewtonSolveSpecialization<CUBE, 3, NewtonElementProject>();
 }
 
 /// \endcond DO_NOT_DOCUMENT
