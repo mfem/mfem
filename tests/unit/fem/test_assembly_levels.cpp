@@ -257,7 +257,7 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][CUDA]")
                          "../../data/inline-quad.mesh",
                          "../../data/star-q3.mesh",
                          "../../data/inline-hex.mesh",
-                         "../../data/fichera-q3.mesh"
+                         "../../data/fichera-q2.mesh"
                       );
    const auto order = GENERATE(1, 2);
    const auto problem = GENERATE(Problem::Mass, Problem::Diffusion);
