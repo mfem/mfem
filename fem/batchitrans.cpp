@@ -131,7 +131,6 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
    const int dim = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE = fespace->GetNE();
-   // const int ND = fe->GetDof();
    const int order = fe->GetOrder();
    int npts = elems.Size();
    auto geom = fe->GetGeomType();
@@ -1394,7 +1393,6 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x, max_q1d>
    void MFEM_HOST_DEVICE operator()(int idx) const
    {
       constexpr int Dim = 1;
-      // int n = (nq < max_team_x) ? nq : max_team_x;
       // L-2 norm squared
       MFEM_SHARED real_t dists[max_team_x];
       MFEM_SHARED real_t ref_buf[Dim * max_team_x];
@@ -1671,7 +1669,6 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    constexpr int max_team_x = 64;
    constexpr int max_q1d = 128;
    PhysNodeFinder<Geom, SDim, max_team_x, max_q1d> func;
-   // constexpr int max_dof1d = 32;
    MFEM_VERIFY(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
    MFEM_VERIFY(nq1d <= max_q1d, "maximum of 128 test points per dim is allowed");
    func.basis1d.z = nptr;
@@ -1769,10 +1766,8 @@ static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
                             const int *eptr, const real_t *nptr, int *tptr,
                             int *iter_ptr, real_t *xptr)
 {
-   // constexpr int max_team_x = use_device ? 64 : 1;
    constexpr int max_team_x = use_device ? 64 : 1;
    InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
-   // constexpr int max_dof1d = 32;
    MFEM_VERIFY(ndof1d <= func.max_dof1d(),
                "exceeded max_dof1d limit (32 for 2D/3D)");
    func.ref_tol = ref_tol;
