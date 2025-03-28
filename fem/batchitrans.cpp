@@ -118,13 +118,13 @@ void BatchInverseElementTransformation::UpdateNodes(const GridFunction &gf,
 void BatchInverseElementTransformation::Transform(const Vector &pts,
                                                   const Array<int> &elems,
                                                   Array<int> &types,
-                                                  Vector &refs, bool use_dev,
+                                                  Vector &refs, bool use_device,
                                                   Array<int> *iters) const
 {
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       // no devices available
-      use_dev = false;
+      use_device = false;
    }
    const FiniteElementSpace *fespace = gf_->FESpace();
    const FiniteElement *fe = fespace->GetTypicalFE();
@@ -139,18 +139,18 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
    types.SetSize(npts);
    refs.SetSize(npts * dim);
 
-   auto pptr = pts.Read(use_dev);
-   auto eptr = elems.Read(use_dev);
-   auto mptr = node_pos.Read(use_dev);
-   auto tptr = types.Write(use_dev);
-   auto xptr = refs.ReadWrite(use_dev);
+   auto pptr = pts.Read(use_device);
+   auto eptr = elems.Read(use_device);
+   auto mptr = node_pos.Read(use_device);
+   auto tptr = types.Write(use_device);
+   auto xptr = refs.ReadWrite(use_device);
    int* iter_ptr = nullptr;
    if (iters != nullptr)
    {
       iters->SetSize(npts);
-      iter_ptr = iters->Write(use_dev);
+      iter_ptr = iters->Write(use_device);
    }
-   auto nptr = points1d->Read(use_dev);
+   auto nptr = points1d->Read(use_device);
    int ndof1d = points1d->Size();
 
    switch (init_guess_type)
@@ -165,18 +165,18 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
          switch (dim)
          {
             case 1:
-               forall_switch(use_dev, npts,
+               forall_switch(use_device, npts,
                [=] MFEM_HOST_DEVICE(int i) { xptr[i] = cx; });
                break;
             case 2:
-               forall_switch(use_dev, npts, [=] MFEM_HOST_DEVICE(int i)
+               forall_switch(use_device, npts, [=] MFEM_HOST_DEVICE(int i)
                {
                   xptr[i] = cx;
                   xptr[i + npts] = cy;
                });
                break;
             case 3:
-               forall_switch(use_dev, npts, [=] MFEM_HOST_DEVICE(int i)
+               forall_switch(use_device, npts, [=] MFEM_HOST_DEVICE(int i)
                {
                   xptr[i] = cx;
                   xptr[i + npts] = cy;
@@ -188,7 +188,9 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       case InverseElementTransformation::ClosestRefNode:
       case InverseElementTransformation::ClosestPhysNode:
       {
-         int nq1d = std::max(order + rel_qpts_order, 0) + 1;
+         int nq1d = (qpts_order >= 0 ? qpts_order
+                     : std::max(order + rel_qpts_order, 0)) +
+                    1;
          int btype = BasisType::GetNodalBasis(guess_points_type);
 
          if ((btype == BasisType::Invalid || btype == basis_type) &&
@@ -198,12 +200,12 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
             if (init_guess_type ==
                 InverseElementTransformation::ClosestPhysNode)
             {
-               FindClosestPhysDof::Run(geom, vdim, use_dev, npts, NE, ndof1d,
+               FindClosestPhysDof::Run(geom, vdim, use_device, npts, NE, ndof1d,
                                        mptr, pptr, eptr, nptr, xptr);
             }
             else
             {
-               FindClosestRefDof::Run(geom, vdim, use_dev, npts, NE, ndof1d, mptr,
+               FindClosestRefDof::Run(geom, vdim, use_device, npts, NE, ndof1d, mptr,
                                       pptr, eptr, nptr, xptr);
             }
          }
@@ -211,17 +213,17 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
          {
             BasisType::Check(btype);
             auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
-            auto qptr = qpoints->Read(use_dev);
+            auto qptr = qpoints->Read(use_device);
             if (init_guess_type ==
                 InverseElementTransformation::ClosestPhysNode)
             {
-               FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d,
+               FindClosestPhysPoint::Run(geom, vdim, use_device, npts, NE, ndof1d,
                                          nq1d, mptr, pptr, eptr, nptr, qptr,
                                          xptr);
             }
             else
             {
-               FindClosestRefPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d,
+               FindClosestRefPoint::Run(geom, vdim, use_device, npts, NE, ndof1d,
                                         nq1d, mptr, pptr, eptr, nptr, qptr, xptr);
             }
          }
@@ -231,7 +233,9 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
          break;
       case InverseElementTransformation::EdgeScan:
       {
-         int nq1d = std::max(order + rel_qpts_order, 0) + 1;
+         int nq1d = (qpts_order >= 0 ? qpts_order
+                     : std::max(order + rel_qpts_order, 0)) +
+                    1;
          int btype = BasisType::GetNodalBasis(guess_points_type);
          if (btype == BasisType::Invalid)
          {
@@ -239,8 +243,8 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
             btype = BasisType::ClosedUniform;
          }
          auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
-         auto qptr = qpoints->Read(use_dev);
-         NewtonEdgeScan::Run(geom, vdim, solver_type, use_dev, ref_tol,
+         auto qptr = qpoints->Read(use_device);
+         NewtonEdgeScan::Run(geom, vdim, solver_type, use_device, ref_tol,
                              phys_rtol, max_iter, npts, NE, ndof1d, mptr, pptr,
                              eptr, nptr, qptr, nq1d, tptr, iter_ptr,
                              xptr);
@@ -248,7 +252,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
       return;
    }
    // general case: for each point, use guess inside refs
-   NewtonSolve::Run(geom, vdim, solver_type, use_dev, ref_tol, phys_rtol,
+   NewtonSolve::Run(geom, vdim, solver_type, use_device, ref_tol, phys_rtol,
                     max_iter, npts, NE, ndof1d, mptr, pptr, eptr, nptr, tptr,
                     iter_ptr, xptr);
 }
@@ -297,11 +301,11 @@ template <> struct InvTLinSolve<1, 2>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = jac[0] * jac[0] +
-                   jac[1 * MFEM_THREAD_SIZE(x)] * jac[1 * MFEM_THREAD_SIZE(x)];
-      dx[0] = (jac[0] * rhs[0] +
-               jac[1 * MFEM_THREAD_SIZE(x)] * rhs[1 * MFEM_THREAD_SIZE(x)]) /
-              den;
+      auto a00 = jac[0];
+      auto a10 = jac[1 * MFEM_THREAD_SIZE(x)];
+      real_t den = a00 * a00 +
+                   a10 * a10;
+      dx[0] = (a00 * rhs[0] + a10 * rhs[1 * MFEM_THREAD_SIZE(x)]) / den;
    }
 };
 
@@ -310,12 +314,12 @@ template <> struct InvTLinSolve<1, 3>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = jac[0] * jac[0] +
-                   jac[1 * MFEM_THREAD_SIZE(x)] * jac[1 * MFEM_THREAD_SIZE(x)] +
-                   jac[2 * MFEM_THREAD_SIZE(x)] * jac[2 * MFEM_THREAD_SIZE(x)];
-      dx[0] = (jac[0] * rhs[0] +
-               jac[1 * MFEM_THREAD_SIZE(x)] * rhs[1 * MFEM_THREAD_SIZE(x)] +
-               jac[2 * MFEM_THREAD_SIZE(x)] * rhs[2 * MFEM_THREAD_SIZE(x)]) /
+      auto a00 = jac[0];
+      auto a10 = jac[1 * MFEM_THREAD_SIZE(x)];
+      auto a20 = jac[2 * MFEM_THREAD_SIZE(x)];
+      real_t den = a00 * a00 + a10 * a10 + a20 * a20;
+      dx[0] = (a00 * rhs[0] + a10 * rhs[1 * MFEM_THREAD_SIZE(x)] +
+               a20 * rhs[2 * MFEM_THREAD_SIZE(x)]) /
               den;
    }
 };
@@ -325,20 +329,17 @@ template <> struct InvTLinSolve<2, 2>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = 1 / (jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] -
-                        jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)]);
-      dx[0] =
-         (jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)] * rhs[0 * MFEM_THREAD_SIZE(x)] -
-          jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)] *
-          rhs[1 * MFEM_THREAD_SIZE(x)]) *
-         den;
-      dx[1] =
-         (jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)] * rhs[1 * MFEM_THREAD_SIZE(x)] -
-          jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)] *
-          rhs[0 * MFEM_THREAD_SIZE(x)]) *
-         den;
+      auto a00 = jac[(0 + 0 * 2) * MFEM_THREAD_SIZE(x)];
+      auto a10 = jac[(1 + 0 * 2) * MFEM_THREAD_SIZE(x)];
+      auto a01 = jac[(0 + 1 * 2) * MFEM_THREAD_SIZE(x)];
+      auto a11 = jac[(1 + 1 * 2) * MFEM_THREAD_SIZE(x)];
+      real_t den = 1 / (a00 * a11 - a01 * a10);
+      dx[0] = (a11 * rhs[0 * MFEM_THREAD_SIZE(x)] -
+               a01 * rhs[1 * MFEM_THREAD_SIZE(x)]) *
+              den;
+      dx[1] = (a00 * rhs[1 * MFEM_THREAD_SIZE(x)] -
+               a10 * rhs[0 * MFEM_THREAD_SIZE(x)]) *
+              den;
    }
 };
 
@@ -347,142 +348,45 @@ template <> struct InvTLinSolve<2, 3>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
+      auto a00 = jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a01 = jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a10 = jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a11 = jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a20 = jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a21 = jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)];
       // a00**2*a11**2 + a00**2*a21**2 - 2*a00*a01*a10*a11 - 2*a00*a01*a20*a21 +
       // a01**2*a10**2 + a01**2*a20**2 + a10**2*a21**2 - 2*a10*a11*a20*a21 +
       // a11**2*a20**2
-      real_t den = 1 / (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                        2 * jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                        2 * jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                        2 * jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]);
+      real_t den = 1 / (a00 * a00 * a11 * a11 + a00 * a00 * a21 * a21 -
+                        2 * a00 * a01 * a10 * a11 - 2 * a00 * a01 * a20 * a21 +
+                        a01 * a01 * a10 * a10 + a01 * a01 * a20 * a20 +
+                        a10 * a10 * a21 * a21 - 2 * a10 * a11 * a20 * a21 +
+                        a11 * a11 * a20 * a20);
       //   x0*(a00*(a01**2 + a11**2 + a21**2) - a01*(a00*a01 + a10*a11 + a20*a21))
       // + x1*(a10*(a01**2 + a11**2 + a21**2) - a11*(a00*a01 + a10*a11 + a20*a21))
       // + x2*(a20*(a01**2 + a11**2 + a21**2) - a21*(a00*a01 + a10*a11 + a20*a21))
-      dx[0] =
-         (rhs[0 * MFEM_THREAD_SIZE(x)] *
-          (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-           (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
-           jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-           (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
-          rhs[1 * MFEM_THREAD_SIZE(x)] *
-          (jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-           (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
-           jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-           (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
-          rhs[2 * MFEM_THREAD_SIZE(x)] *
-          (jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-           (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] * jac[(2 + 1 * 3)]) -
-           jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-           (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-            jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-            jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]))) *
-         den;
+      dx[0] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
+               (a00 * (a01 * a01 + a11 * a11 + a21 * a21) -
+                a01 * (a00 * a01 + a10 * a11 + a20 * a21)) +
+               rhs[1 * MFEM_THREAD_SIZE(x)] *
+               (a10 * (a01 * a01 + a11 * a11 + a21 * a21) -
+                a11 * (a00 * a01 + a10 * a11 + a20 * a21)) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] *
+               (a20 * (a01 * a01 + a11 * a11 + a21 * a21) -
+                a21 * (a00 * a01 + a10 * a11 + a20 * a21))) *
+              den;
       //  x0*(a01*(a00**2 + a10**2 + a20**2)-a00*(a00*a01 + a10*a11 + a20*a21))
       // +x1*(a11*(a00**2 + a10**2 + a20**2)-a10*(a00*a01 + a10*a11 + a20*a21))
       // +x2*(a21*(a00**2 + a10**2 + a20**2)-a20*(a00*a01 + a10*a11 + a20*a21))
       dx[1] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
-                jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+               (a01 * (a00 * a00 + a10 * a10 + a20 * a20) -
+                a00 * (a00 * a01 + a10 * a11 + a20 * a21)) +
                rhs[1 * MFEM_THREAD_SIZE(x)] *
-               (jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
-                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)])) +
+               (a11 * (a00 * a00 + a10 * a10 + a20 * a20) -
+                a10 * (a00 * a01 + a10 * a11 + a20 * a21)) +
                rhs[2 * MFEM_THREAD_SIZE(x)] *
-               (jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
-                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] +
-                 jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                 jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]))) *
+               (a21 * (a00 * a00 + a10 * a10 + a20 * a20) -
+                a20 * (a00 * a01 + a10 * a11 + a20 * a21))) *
               den;
    }
 };
@@ -492,70 +396,29 @@ template <> struct InvTLinSolve<3, 3>
    static void MFEM_HOST_DEVICE solve(const real_t *jac, const real_t *rhs,
                                       real_t *dx)
    {
-      real_t den = 1 / (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                        jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)] +
-                        jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                        jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                        jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]);
-      dx[0] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
-               (jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) -
-               rhs[1 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)]) +
-               rhs[2 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)])) *
+      auto a00 = jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a01 = jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a02 = jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a10 = jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a11 = jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a12 = jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a20 = jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a21 = jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)];
+      auto a22 = jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)];
+
+      real_t den = 1 / (a00 * a11 * a22 - a00 * a12 * a22 - a01 * a10 * a22 +
+                        a01 * a12 * a20 + a02 * a10 * a21 - a02 * a11 * a20);
+      dx[0] = (rhs[0 * MFEM_THREAD_SIZE(x)] * (a11 * a22 - a12 * a21) -
+               rhs[1 * MFEM_THREAD_SIZE(x)] * (a01 * a22 - a02 * a21) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] * (a01 * a12 - a02 * a11)) *
               den;
-      dx[1] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
-               (jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] * jac[2 + 0 * 3] -
-                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)]) +
-               rhs[1 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
-               rhs[2 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(1 + 2 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(0 + 2 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)])) *
+      dx[1] = (rhs[0 * MFEM_THREAD_SIZE(x)] * (a12 * a20 - a10 * a22) +
+               rhs[1 * MFEM_THREAD_SIZE(x)] * (a00 * a22 - a02 * a20) -
+               rhs[2 * MFEM_THREAD_SIZE(x)] * (a00 * a12 - a02 * a10)) *
               den;
-      dx[2] = (rhs[0 * MFEM_THREAD_SIZE(x)] *
-               (jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) -
-               rhs[1 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(2 + 0 * 3) * MFEM_THREAD_SIZE(x)]) +
-               rhs[2 * MFEM_THREAD_SIZE(x)] *
-               (jac[(0 + 0 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(1 + 1 * 3) * MFEM_THREAD_SIZE(x)] -
-                jac[(0 + 1 * 3) * MFEM_THREAD_SIZE(x)] *
-                jac[(1 + 0 * 3) * MFEM_THREAD_SIZE(x)])) *
+      dx[2] = (rhs[0 * MFEM_THREAD_SIZE(x)] * (a10 * a21 - a11 * a20) -
+               rhs[1 * MFEM_THREAD_SIZE(x)] * (a00 * a21 - a01 * a20) +
+               rhs[2 * MFEM_THREAD_SIZE(x)] * (a00 * a11 - a01 * a10)) *
               den;
    }
 };
@@ -1799,7 +1662,7 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x, max_q1d>
    }
 };
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                 const real_t *mptr, const real_t *pptr,
                                 const int *eptr, const real_t *nptr,
@@ -1821,7 +1684,7 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    func.npts = npts;
    func.nq1d = nq1d;
    func.nq = func.compute_nq(nq1d);
-   if (use_dev)
+   if (use_device)
    {
       // team_x must be a power of 2
       int team_x = max_team_x;
@@ -1842,7 +1705,7 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
    }
 }
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 static void ClosestPhysDofImpl(int npts, int nelems, int ndof1d,
                                const real_t *mptr, const real_t *pptr,
                                const int *eptr, const real_t *nptr,
@@ -1857,7 +1720,7 @@ static void ClosestPhysDofImpl(int npts, int nelems, int ndof1d,
    func.eptr = eptr;
    func.xptr = xptr;
    func.npts = npts;
-   if (use_dev)
+   if (use_device)
    {
       int team_x = max_team_x;
       int ndof = func.ndofs(ndof1d);
@@ -1878,7 +1741,7 @@ static void ClosestPhysDofImpl(int npts, int nelems, int ndof1d,
    }
 }
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 static void ClosestRefDofImpl(int npts, int nelems, int ndof1d,
                               const real_t *mptr, const real_t *pptr,
                               const int *eptr, const real_t *nptr,
@@ -1888,7 +1751,7 @@ static void ClosestRefDofImpl(int npts, int nelems, int ndof1d,
    MFEM_ABORT("ClostestRefDofImpl not implemented yet");
 }
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 static void ClosestRefNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                const real_t *mptr, const real_t *pptr,
                                const int *eptr, const real_t *nptr,
@@ -1899,15 +1762,15 @@ static void ClosestRefNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
 }
 
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
-          bool use_dev>
+          bool use_device>
 static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
                             int npts, int nelems, int ndof1d,
                             const real_t *mptr, const real_t *pptr,
                             const int *eptr, const real_t *nptr, int *tptr,
                             int *iter_ptr, real_t *xptr)
 {
-   // constexpr int max_team_x = use_dev ? 64 : 1;
-   constexpr int max_team_x = use_dev ? 64 : 1;
+   // constexpr int max_team_x = use_device ? 64 : 1;
+   constexpr int max_team_x = use_device ? 64 : 1;
    InvTNewtonSolver<Geom, SDim, SType, max_team_x> func;
    // constexpr int max_dof1d = 32;
    MFEM_VERIFY(ndof1d <= func.max_dof1d(),
@@ -1924,7 +1787,7 @@ static void NewtonSolveImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    func.iter_ptr = iter_ptr;
    func.tptr = tptr;
    func.npts = npts;
-   if (use_dev)
+   if (use_device)
    {
       int team_x = max_team_x;
       int ndof = func.ndofs(ndof1d);
@@ -2001,7 +1864,7 @@ struct InvTNewtonEdgeScanner
 };
 
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
-          bool use_dev>
+          bool use_device>
 static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
                                int npts, int nelems, int ndof1d,
                                const real_t *mptr, const real_t *pptr,
@@ -2009,7 +1872,7 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
                                const real_t *qptr, int nq1d, int *tptr,
                                int *iter_ptr, real_t *xptr)
 {
-   constexpr int max_team_x = use_dev ? 64 : 1;
+   constexpr int max_team_x = use_device ? 64 : 1;
    InvTNewtonEdgeScanner<Geom, SDim, SType, max_team_x> func;
    // constexpr int max_dof1d = 32;
    MFEM_VERIFY(ndof1d <= func.solver.max_dof1d(),
@@ -2028,7 +1891,7 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
    func.solver.npts = npts;
    func.nq1d = nq1d;
    func.qptr = qptr;
-   if (use_dev)
+   if (use_device)
    {
       int team_x = max_team_x;
       int ndof = func.solver.ndofs(ndof1d);
@@ -2051,48 +1914,48 @@ static void NewtonEdgeScanImpl(real_t ref_tol, real_t phys_rtol, int max_iter,
 
 } // namespace internal
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 BatchInverseElementTransformation::ClosestPhysPointKernelType
 BatchInverseElementTransformation::FindClosestPhysPoint::Kernel()
 {
-   return internal::ClosestPhysNodeImpl<Geom, SDim, use_dev>;
+   return internal::ClosestPhysNodeImpl<Geom, SDim, use_device>;
 }
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 BatchInverseElementTransformation::ClosestPhysDofKernelType
 BatchInverseElementTransformation::FindClosestPhysDof::Kernel()
 {
-   return internal::ClosestPhysDofImpl<Geom, SDim, use_dev>;
+   return internal::ClosestPhysDofImpl<Geom, SDim, use_device>;
 }
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Kernel()
 {
-   return internal::ClosestRefNodeImpl<Geom, SDim, use_dev>;
+   return internal::ClosestRefNodeImpl<Geom, SDim, use_device>;
 }
 
-template <int Geom, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_device>
 BatchInverseElementTransformation::ClosestRefDofKernelType
 BatchInverseElementTransformation::FindClosestRefDof::Kernel()
 {
-   return internal::ClosestRefDofImpl<Geom, SDim, use_dev>;
+   return internal::ClosestRefDofImpl<Geom, SDim, use_device>;
 }
 
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
-          bool use_dev>
+          bool use_device>
 BatchInverseElementTransformation::NewtonKernelType
 BatchInverseElementTransformation::NewtonSolve::Kernel()
 {
-   return internal::NewtonSolveImpl<Geom, SDim, SType, use_dev>;
+   return internal::NewtonSolveImpl<Geom, SDim, SType, use_device>;
 }
 
 template <int Geom, int SDim, InverseElementTransformation::SolverType SType,
-          bool use_dev>
+          bool use_device>
 BatchInverseElementTransformation::NewtonEdgeScanKernelType
 BatchInverseElementTransformation::NewtonEdgeScan::Kernel()
 {
-   return internal::NewtonEdgeScanImpl<Geom, SDim, SType, use_dev>;
+   return internal::NewtonEdgeScanImpl<Geom, SDim, SType, use_device>;
 }
 
 BatchInverseElementTransformation::ClosestPhysPointKernelType

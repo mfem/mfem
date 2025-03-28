@@ -158,8 +158,9 @@ TEST_CASE("InverseElementTransformation",
       inv_T.SetInitialGuessType(InvTransform::EdgeScan);
       // inv_T.SetSolverType(InvTransform::Newton);
       // inv_T.SetSolverType(InvTransform::NewtonSegmentProject);
+      int desired_order = 4;
       inv_T.SetSolverType(InvTransform::NewtonElementProject);
-      inv_T.SetInitGuessRelOrder(4 - 20);
+      inv_T.SetInitGuessRelOrder(desired_order - T.Order());
       inv_T.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
       inv_T.SetPrintLevel(-1); // 0 - print errors
       IntegrationPoint ip, ipRev;
@@ -714,7 +715,7 @@ TEST_CASE("BatchInverseElementTransformation",
 
       BatchInverseElementTransformation itransform(mesh);
       itransform.SetInitialGuessType(InverseElementTransformation::EdgeScan);
-      itransform.SetInitGuessRelOrder(3 - 20);
+      itransform.SetInitGuessOrder(3);
       itransform.SetInitGuessPointsType(Quadrature1D::ClosedUniform);
 
       orig_ref_space.SetSize(npts * dim);

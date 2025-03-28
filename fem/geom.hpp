@@ -331,8 +331,10 @@ class GeometryRefiner
 {
 private:
    int Type; // Quadrature1D type (ClosedUniform is default)
+   /// Cache of RefinedGeometry for Refine
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
-   // key: (type, geom, times)
+   /// Cache of integration rules for EdgeScan
+   /// key: (type, geom, times)
    std::unordered_map<std::array<int, 3>, std::unique_ptr<IntegrationRule>,
        ArrayHasher>
        SGeom;
@@ -352,6 +354,7 @@ public:
 
    RefinedGeometry *Refine(Geometry::Type Geom, int Times, int ETimes = 1);
 
+   /// Get an integration rule which scans along the r/s/t=0 edges of the element.
    const IntegrationRule *EdgeScan(Geometry::Type Geom, int NPts1d);
 
    /// @note This method always uses Quadrature1D::OpenUniform points.

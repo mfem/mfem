@@ -254,6 +254,8 @@ protected:
    IntegrationPoint ip0;
    int init_guess_type; // algorithm to use
    GeometryRefiner refiner; // geometry refiner for initial guess
+   int qpts_order;          // num_1D_qpts = rel_qpts_order + 1, or < 0 to use
+   // rel_qpts_order.
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
@@ -296,6 +298,7 @@ public:
       : T(Trans),
         init_guess_type(Center),
         refiner(Quadrature1D::OpenHalfUniform),
+        qpts_order(-1),
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
@@ -333,7 +336,18 @@ public:
    /** The number of points in each spatial direction is given by the formula
        max(trans_order+order,0)+1, where trans_order is the order of the current
        ElementTransformation. */
-   void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
+   void SetInitGuessRelOrder(int order)
+   {
+      qpts_order = -1;
+      rel_qpts_order = order;
+   }
+
+   /** The number of points in each spatial direction is given by the formula
+       order+1. */
+   void SetInitGuessOrder(int order)
+   {
+      qpts_order = order;
+   }
 
    /** @brief Specify which algorithm to use for solving the transformation
        equation, i.e. when calling the Transform() method. */
@@ -395,6 +409,8 @@ class BatchInverseElementTransformation
    // initial guess algorithm to use
    InverseElementTransformation::InitGuessType init_guess_type =
       InverseElementTransformation::ClosestPhysNode;
+   int qpts_order = -1; // num_1D_qpts = rel_qpts_order + 1, or < 0 to use
+   // rel_qpts_order.
    // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int rel_qpts_order = 0;
    // solution strategy to use
@@ -455,9 +471,17 @@ public:
 
    /// Set the relative order used for the `Closest*` initial guess types.
    /** The number of points in each spatial direction is given by the formula
-       max(trans_order+order,0)+1, where trans_order is the order of the current
-       ElementTransformation. */
-   void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
+        max(trans_order+order,0)+1, where trans_order is the order of the
+      current ElementTransformation. */
+   void SetInitGuessRelOrder(int order)
+   {
+      qpts_order = -1;
+      rel_qpts_order = order;
+   }
+
+   /** The number of points in each spatial direction is given by the formula
+       order+1. */
+   void SetInitGuessOrder(int order) { qpts_order = order; }
 
    /// @b Gets the basis type nodes are projected onto, or BasisType::Invalid if
    /// uninitialized.
@@ -505,14 +529,14 @@ public:
         @a refs result reference point coordinates ordered by
        Ordering::Type::byNODES. If using InitGuessType::GivenPoint, this should
        contain the initial guess for each point.
-        @a use_dev hint for if device acceleration should be used.
+        @a use_device hint for if device acceleration should be used.
        Device acceleration is currently only implemented for meshes containing
        only a single tensor product basis element type.
         @a iters optional array storing how many iterations was spent on each
       tested point
      */
    void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
-                  Vector &refs, bool use_dev = true,
+                  Vector &refs, bool use_device = true,
                   Array<int> *iters = nullptr) const;
 
    using ClosestPhysPointKernelType = void (*)(int, int, int, int,
@@ -520,7 +544,7 @@ public:
                                                const int *, const real_t *,
                                                const real_t *, real_t *);
 
-   // specialization params: Geom, SDim, use_dev
+   // specialization params: Geom, SDim, use_device
    MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
                          (int, int, bool));
 
@@ -529,7 +553,7 @@ public:
                                              const int *, const real_t *,
                                              real_t *);
 
-   // specialization params: Geom, SDim, use_dev
+   // specialization params: Geom, SDim, use_device
    MFEM_REGISTER_KERNELS(FindClosestPhysDof, ClosestPhysDofKernelType,
                          (int, int, bool));
 
@@ -537,7 +561,7 @@ public:
                                             const real_t *, const int *,
                                             const real_t *, real_t *);
 
-   // specialization params: Geom, SDim, use_dev
+   // specialization params: Geom, SDim, use_device
    MFEM_REGISTER_KERNELS(FindClosestRefDof, ClosestRefDofKernelType,
                          (int, int, bool));
 
@@ -546,7 +570,7 @@ public:
                                               const real_t *, const real_t *,
                                               real_t *);
 
-   // specialization params: Geom, SDim, use_dev
+   // specialization params: Geom, SDim, use_device
    MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
                          (int, int, bool));
 
@@ -555,7 +579,7 @@ public:
                                      const int *, const real_t *, int *, int*,
                                      real_t *);
 
-   // specialization params: Geom, SDim, SolverType, use_dev
+   // specialization params: Geom, SDim, SolverType, use_device
    MFEM_REGISTER_KERNELS(NewtonSolve, NewtonKernelType,
                          (int, int, InverseElementTransformation::SolverType,
                           bool));
@@ -566,7 +590,7 @@ public:
                                              const real_t *, int, int *, int *,
                                              real_t *);
 
-   // specialization params: Geom, SDim, SolverType, use_dev
+   // specialization params: Geom, SDim, SolverType, use_device
    MFEM_REGISTER_KERNELS(NewtonEdgeScan, NewtonEdgeScanKernelType,
                          (int, int, InverseElementTransformation::SolverType,
                           bool));

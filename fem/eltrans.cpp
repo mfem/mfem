@@ -350,7 +350,9 @@ int InverseElementTransformation::Transform(const Vector &pt,
       case ClosestPhysNode:
       case ClosestRefNode:
       {
-         const int order = std::max(T->Order()+rel_qpts_order, 0);
+         const int order = qpts_order >= 0
+                           ? qpts_order
+                           : std::max(T->Order() + rel_qpts_order, 0);
          if (order == 0)
          {
             ip0 = Geometries.GetCenter(T->GetGeometryType());
@@ -367,7 +369,9 @@ int InverseElementTransformation::Transform(const Vector &pt,
       }
       case EdgeScan:
       {
-         const int order = std::max(T->Order() + rel_qpts_order, 0);
+         const int order = qpts_order >= 0
+                           ? qpts_order
+                           : std::max(T->Order() + rel_qpts_order, 0);
          if (order == 0)
          {
             ip0 = Geometries.GetCenter(T->GetGeometryType());
@@ -377,7 +381,8 @@ int InverseElementTransformation::Transform(const Vector &pt,
             auto &ir = *refiner.EdgeScan(T->GetGeometryType(), order + 1);
             int res = Outside;
             int npts = ir.GetNPoints();
-            // will only return Outside if all test points report Outside
+            // will return Inside if any test point reports Inside, Outside if
+            // all points report Outside, else Unknown
             for (int i = 0; i < npts; ++i)
             {
                ip0 = ir.IntPoint(i);
