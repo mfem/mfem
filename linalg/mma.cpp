@@ -12,7 +12,7 @@
 #include "mma.hpp"
 
 #include "vector.hpp"
-#include "general/error.hpp"
+#include "../general/error.hpp"
 
 #include <fstream>
 #include <math.h>
