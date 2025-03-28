@@ -3095,26 +3095,26 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          input >> num_per_ent;
          getline(input, buff); // Read end-of-line
          for (int i = 0; i < num_per_ent; i++)
-         {
-            getline(input, buff); // Read and ignore entity dimension and tags
-            getline(input, buff); // If affine mapping exist, read and ignore
-            if (!strncmp(buff.c_str(), "Affine", 6))
-            {
-               input >> num_nodes;
-            }
-            else
-            {
-               num_nodes = atoi(buff.c_str());
-            }
-            for (int j=0; j<num_nodes; j++)
-            {
-               int slave, master;
-               input >> slave >> master;
-               v2v[slave - 1] = master - 1;
-            }
+	   {
+	     getline(input, buff); // Read and ignore entity dimension and tags
+	     getline(input, buff); // If affine mapping exist, read and ignore
+	     if (!strncmp(buff.c_str(), "Affine", 6))
+	       {
+		 input >> num_nodes;
+	       }
+	     else
+	       {
+		 if (iversion=22) num_nodes = atoi(buff.c_str());
+		 if (iversion=41) input >> num_nodes; 
+	       }
+	     for (int j=0; j<num_nodes; j++)
+	       {
+		 int slave, master;
+		 input >> slave >> master;
+		 v2v[slave - 1] = master - 1;
+	       }
             getline(input, buff); // Read end-of-line
          }
-
          // Follow existing long chains of slave->master in v2v array.
          // Upon completion of this loop, each v2v[slave] will point to a true
          // master vertex. This algorithm is useful for periodicity defined in
@@ -3177,7 +3177,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
       }
    } // we reach the end of the file
-
    // Process set names
    if (phys_names_by_dim.size() > 0)
    {
@@ -3208,7 +3207,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       this->RemoveInternalBoundaries();
    }
    this->FinalizeTopology();
-
+   
    // If a high order coordinate field was created project it onto the mesh
    if (mesh_order > 1)
    {

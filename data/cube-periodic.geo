@@ -94,7 +94,7 @@ Volume (1) = {1};
 Surface Loop (2) = {2, 3, 6, 7, 8, 9};
 Volume (2) = {2};
 
-Physical Volume(1)  = {1, 2};
+//Physical Volume(1)  = {1, 2};
 
 //#For vo In {1:2}
 //#    Physical Volume(vo)  = {vo}; 
