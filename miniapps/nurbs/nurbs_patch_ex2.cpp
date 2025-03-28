@@ -35,9 +35,9 @@
 using namespace std;
 using namespace mfem;
 
-enum class PatchIntegrationRule1D { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
+enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
 void SetPatchIntegrationRules(const Mesh &mesh,
-                              const PatchIntegrationRule1D &patch_rule_1d,
+                              const SplineIntegrationRule &splineRule,
                               BilinearFormIntegrator * bfi);
 
 int main(int argc, char *argv[])
@@ -89,9 +89,9 @@ int main(int argc, char *argv[])
 
    // Integration rule for the 1d bases defined on each knotvector
    // Reduced Gaussian rule as in Zou 2022 - equation 14
-   auto patch_rule_1d = reduced_integration
-      ? PatchIntegrationRule1D::REDUCED_GAUSSIAN
-      : PatchIntegrationRule1D::FULL_GAUSSIAN;
+   auto splineRule = reduced_integration
+      ? SplineIntegrationRule::REDUCED_GAUSSIAN
+      : SplineIntegrationRule::FULL_GAUSSIAN;
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    {
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
       // Set the patch integration rules
-      SetPatchIntegrationRules(mesh, patch_rule_1d, ei);
+      SetPatchIntegrationRules(mesh, splineRule, ei);
    }
 
    // 10. Assembly
@@ -388,12 +388,13 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+// For each patch, sets 
 void SetPatchIntegrationRules(const Mesh &mesh,
-                              const PatchIntegrationRule1D &patch_rule_1d,
+                              const SplineIntegrationRule &splineRule,
                               BilinearFormIntegrator * bfi)
 {
    const int dim = mesh.Dimension();
-   NURBSMeshRules * patchRule  = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
+   NURBSMeshRules * patchRules  = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
    // Loop over patches and set a different rule for each patch.
    for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
    {
@@ -404,13 +405,13 @@ void SetPatchIntegrationRules(const Mesh &mesh,
       // Construct 1D integration rules by applying the rule ir to each knot span.
       for (int i=0; i<dim; ++i)
       {
-         if ( patch_rule_1d == PatchIntegrationRule1D::FULL_GAUSSIAN )
+         if ( splineRule == SplineIntegrationRule::FULL_GAUSSIAN )
          {
             const int order = kv[i]->GetOrder();
             const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*order);
             ir1D[i] = IntegrationRule::ApplyToKnotIntervals(ir,*kv[i]);
          }
-         else if ( patch_rule_1d == PatchIntegrationRule1D::REDUCED_GAUSSIAN ) {
+         else if ( splineRule == SplineIntegrationRule::REDUCED_GAUSSIAN ) {
             ir1D[i] = IntegrationRule::GetIsogeometricReducedGaussianRule(*kv[i]);
          }
          else {
@@ -418,9 +419,9 @@ void SetPatchIntegrationRules(const Mesh &mesh,
          }
       }
 
-      patchRule->SetPatchRules1D(p, ir1D);
+      patchRules->SetPatchRules1D(p, ir1D);
    }  // loop (p) over patches
 
-   patchRule->Finalize(mesh);
-   bfi->SetNURBSPatchIntRule(patchRule);
+   patchRules->Finalize(mesh);
+   bfi->SetNURBSPatchIntRule(patchRules);
 }
