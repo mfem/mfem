@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
    args.AddOption(&reduced_integration, "-ri", "--reduced-integration",
    "-fi", "--full-integration", "Use reduced integration.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
-                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR., 3 - LOR (+AMG)");
+                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR AMG");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -87,7 +87,11 @@ int main(int argc, char *argv[])
                   "LOR preconditioner requires degree increase");
    }
 
-   auto patch_rule_1d = reduced_integration ? PatchIntegrationRule1D::REDUCED_GAUSSIAN : PatchIntegrationRule1D::FULL_GAUSSIAN;
+   // Integration rule for the 1d bases defined on each knotvector
+   // Reduced Gaussian rule as in Zou 2022 - equation 14
+   auto patch_rule_1d = reduced_integration
+      ? PatchIntegrationRule1D::REDUCED_GAUSSIAN
+      : PatchIntegrationRule1D::FULL_GAUSSIAN;
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -166,6 +170,7 @@ int main(int argc, char *argv[])
    Vector mu(mesh.attributes.Max());
    lambda = 1.0; lambda(0) = lambda(1)*50;
    mu = 1.0; mu(0) = mu(1)*50;
+   // Constant coefficients
    // lambda = 10.0; mu = 10.0;
 
    PWConstCoefficient lambda_func(lambda);
@@ -176,13 +181,11 @@ int main(int argc, char *argv[])
    if (patchAssembly)
    {
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
-
       // Set the patch integration rules
       SetPatchIntegrationRules(mesh, patch_rule_1d, ei);
    }
 
-
-   // 10. Assemble the linear system
+   // 10. Assembly
    StopWatch sw;
    sw.Start();
 
@@ -194,7 +197,7 @@ int main(int argc, char *argv[])
    a.Assemble();
    cout << "done." << endl;
 
-   // Define linear system
+   // Form linear system
    cout << "Forming linear system ... " << flush;
    OperatorPtr A;
    Vector B, X;
@@ -202,33 +205,38 @@ int main(int argc, char *argv[])
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
    // 11. Get the preconditioner
+   // We define solver here because SetOperator needs to be used before
+   // SetPreconditioner *if* we are using hypre
    CGSolver solver(MPI_COMM_WORLD);
-   // solver.SetOperator(*A);
+   solver.SetOperator(*A);
 
-   if (preconditioner == 1)
+   // No preconditioner
+   if (preconditioner == 0)
    {
-      cout << "Getting diagonal for Jacobi PC ... " << endl;
+      cout << "No preconditioner set ... " << endl;
+   }
+   // Jacobi
+   else if (preconditioner == 1)
+   {
+      cout << "Setting up preconditioner (Jacobi) ... " << endl;
       OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
       solver.SetPreconditioner(*P);
    }
-   // LOR Preconditioner
+   // LOR AMG
    else if (preconditioner == 2)
    {
-      cout << "Getting LOR PC ... " << endl;
+      cout << "Setting up preconditioner (LOR AMG) ... " << endl;
       // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
       Mesh lo_mesh(mesh_file, 1, 1);
-      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
-      int divisions = pow(2,ref_levels);
-      lo_mesh.NURBSUniformRefinement(divisions + nurbs_degree_increase);
+      lo_mesh.NURBSUniformRefinement(pow(2,ref_levels) + nurbs_degree_increase);
 
       FiniteElementCollection * lo_fec = lo_mesh.GetNodes()->OwnFEC();
       FiniteElementSpace *lo_fespace = new FiniteElementSpace(&lo_mesh, lo_fec, dim,
                                                          Ordering::byVDIM);
       const int lo_Ndof = lo_fespace->GetTrueVSize();
-      cout << "Number of low-order finite element unknowns: " << lo_Ndof << endl;
       MFEM_VERIFY(Ndof == lo_Ndof, "Low-order problem requires same Ndof");
 
-      // We can reuse some variables: ess_bdr, f, lambda, mu
+      // We can reuse variables that are defined by mesh attribute: ess_bdr, f, lambda, mu
       Array<int> lo_ess_tdof_list;
       lo_fespace->GetEssentialTrueDofs(ess_bdr, lo_ess_tdof_list);
 
@@ -250,68 +258,26 @@ int main(int argc, char *argv[])
       Vector lo_B, lo_X;
       lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
 
-      CGSolver *P = new CGSolver(MPI_COMM_WORLD);
-      P->SetOperator(*lo_A);
-      P->SetMaxIter(1e4);
-      P->SetPrintLevel(-1);
-      P->SetRelTol(1e-2);
-      solver.SetPreconditioner(*P);
-   }
-   // Combine some of this with case 2, later
-   else if (preconditioner == 3)
-   {
-      cout << "Getting LOR PC + AMG ... " << endl;
-      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
-      Mesh lo_mesh(mesh_file, 1, 1);
-      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
-      int divisions = pow(2,ref_levels);
-      lo_mesh.NURBSUniformRefinement(divisions + nurbs_degree_increase);
-
-      FiniteElementCollection * lo_fec = lo_mesh.GetNodes()->OwnFEC();
-      FiniteElementSpace *lo_fespace = new FiniteElementSpace(&lo_mesh, lo_fec, dim,
-                                                         Ordering::byVDIM);
-      const int lo_Ndof = lo_fespace->GetTrueVSize();
-      cout << "Number of low-order finite element unknowns: " << lo_Ndof << endl;
-      MFEM_VERIFY(Ndof == lo_Ndof, "Low-order problem requires same Ndof");
-
-      // We can reuse some variables: ess_bdr, f, lambda, mu
-      Array<int> lo_ess_tdof_list;
-      lo_fespace->GetEssentialTrueDofs(ess_bdr, lo_ess_tdof_list);
-
-      LinearForm lo_b(lo_fespace);
-      lo_b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-      lo_b.Assemble();
-
-      GridFunction lo_x(lo_fespace);
-      lo_x = 0.0;
-
-      ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
-      // Set up problem
-      BilinearForm lo_a(lo_fespace);
-      lo_a.AddDomainIntegrator(lo_ei);
-      lo_a.Assemble();
-
-      // Define linear system
-      OperatorPtr lo_A;
-      Vector lo_B, lo_X;
-      lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
-
-      // Set up solver, use it as preconditioner for high-order problem
+      // Set up HypreBoomerAMG on the low-order problem
       HYPRE_BigInt row_starts[2] = {0, Ndof};
-      SparseMatrix lo_Amat(lo_a.SpMat());
-      HypreParMatrix *lo_A_hypre = new HypreParMatrix(MPI_COMM_WORLD, HYPRE_BigInt(Ndof),
-                             row_starts, &lo_Amat);
-
+      SparseMatrix *lo_Amat = new SparseMatrix(lo_a.SpMat());
+      HypreParMatrix *lo_A_hypre = new HypreParMatrix(
+         MPI_COMM_WORLD,
+         HYPRE_BigInt(Ndof),
+         row_starts,
+         lo_Amat
+      );
       HypreBoomerAMG *lo_P = new HypreBoomerAMG(*lo_A_hypre);
-      CGSolver *P = new CGSolver(MPI_COMM_WORLD);
-      P->SetOperator(*lo_A_hypre);
-      // P->SetOperator(*lo_A);
-      P->SetMaxIter(1e4);
-      P->SetPrintLevel(-1);
-      P->SetRelTol(1e-2);
-      P->SetPreconditioner(*lo_P);
-      solver.SetPreconditioner(*P);
-   } // setup preconditioner
+      // Make sure we set byVDIM ordering (second argument == false)
+      lo_P->SetSystemsOptions(dim, false);
+
+      // Use low-order AMG as preconditioner for high-order problem
+      solver.SetPreconditioner(*lo_P);
+   }
+   else
+   {
+      MFEM_ABORT("Invalid preconditioner setting.")
+   }
 
    sw.Stop();
    const real_t timeAssemble = sw.RealTime();
@@ -320,16 +286,11 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
-   solver.SetOperator(*A);
-   // HYPRE_BigInt rows[2] = {0, Ndof};
-   // SparseMatrix Amat(a.SpMat());
-   // HypreParMatrix *A_hypre = new HypreParMatrix(MPI_COMM_WORLD, HYPRE_BigInt(Ndof),
-   //                         rows, &Amat);
-   // solver.SetOperator(*A_hypre);
    solver.SetMaxIter(1e5);
    solver.SetPrintLevel(1);
-   solver.SetRelTol(1e-8);
-   solver.SetAbsTol(1e-12);
+   // These tolerances end up getting squared
+   solver.SetRelTol(sqrt(1e-6));
+   solver.SetAbsTol(sqrt(1e-14));
 
    solver.Mult(B, X);
 
@@ -356,36 +317,35 @@ int main(int argc, char *argv[])
    cout << "Dof/sec (total): " << dof_per_sec_total << endl;
 
    ofstream results_ofs("ex2_results.csv", ios_base::app);
-   bool file_exists = results_ofs.tellp() != 0;
-   // header
-   if (!file_exists)
+   // If file does not exist, write the header
+   if (results_ofs.tellp() == 0)
    {
-      results_ofs << "patcha, pa, pc, ri, "
-                  << "mesh, refs, deg_inc, ndof, "
-                  << "niter, absnorm, relnorm, "
-                  << "linf, l2, "
-                  << "t_assemble, t_solve, t_total, "
-                  << "dof/s_solve, "
-                  << "dof/s_total" << endl;
+      results_ofs << "patcha, pa, pc, ri, "           // integration & solver settings
+                  << "mesh, refs, deg_inc, ndof, "    // problem
+                  << "niter, absnorm, relnorm, "      // solver
+                  << "linf, l2, "                     // solution
+                  << "t_assemble, t_solve, t_total, " // timing
+                  << "dof/s_solve, dof/s_total"       // benchmarking
+                  << endl;
    }
 
-   results_ofs << patchAssembly << ", "
+   results_ofs << patchAssembly << ", "               // integration & solver settings
                << pa << ", "
                << preconditioner << ", "
                << reduced_integration << ", "
-               << mesh_file << ", "
+               << mesh_file << ", "                   // problem
                << ref_levels << ", "
                << nurbs_degree_increase << ", "
                << Ndof << ", "
-               << Niter << ", "
+               << Niter << ", "                       // solver
                << solver.GetFinalNorm() << ", "
                << solver.GetFinalRelNorm() << ", "
-               << x.Normlinf() << ", "
+               << x.Normlinf() << ", "                // solution
                << x.Norml2() << ", "
-               << timeAssemble << ", "
+               << timeAssemble << ", "                // timing
                << timeSolve << ", "
                << timeTotal << ", "
-               << dof_per_sec_solve << ", "
+               << dof_per_sec_solve << ", "           // benchmarking
                << dof_per_sec_total << endl;
 
    results_ofs.close();
@@ -412,7 +372,7 @@ int main(int argc, char *argv[])
    //    cout << "L2 error w.r.t sol_ri.gf = " << x.ComputeL2Error(x2_gfc) << endl;
    // }
 
-   // 15. Send the above data by socket to a GLVis server.
+   // 15. Send the data by socket to a GLVis server.
    if (visualization)
    {
       // send to socket
