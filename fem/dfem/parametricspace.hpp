@@ -37,6 +37,18 @@ public:
       dtq.nqpt = dtq.ndof;
    }
 
+   ParametricSpace(int spatial_dim, int local_size, int element_size,
+                   int total_size, int d1d, int q1d) :
+      spatial_dim(spatial_dim),
+      local_size(local_size),
+      element_size(element_size),
+      total_size(total_size),
+      identity(total_size)
+   {
+      dtq.ndof = d1d;
+      dtq.nqpt = q1d;
+   }
+
    int Dimension() const
    {
       return spatial_dim;

@@ -344,7 +344,6 @@ int main(int argc, char* argv[])
    const char* device_config = "cpu";
    int version = 0;
    int order = 1;
-   int ir_order = 2;
    int refinements = 1;
    bool visualization = true;
 
@@ -352,7 +351,6 @@ int main(int argc, char* argv[])
    args.AddOption(&version, "-v", "--version", "");
    args.AddOption(&order, "-o", "--order", "");
    args.AddOption(&refinements, "-r", "--refinements", "");
-   args.AddOption(&ir_order, "-iro", "--integration-rule-order", "");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -416,6 +414,25 @@ int main(int argc, char* argv[])
    std::unique_ptr<ParBilinearForm> a;
    std::unique_ptr<DifferentiableOperator> dop;
 
+   const int NE = pmesh.GetNE();
+   const int NQPT = ir.GetNPoints();
+   const int d1d = h1fes.GetFE(0)->GetOrder() + 1;
+   const int q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+   dbg("NQPT:{} d1d:{} q1d:{}", NQPT, d1d, q1d);
+   MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
+
+   const int spatial_dim = DIM;
+   const int local_size = DIM * DIM;
+   const int element_size = local_size * NQPT;
+   const int total_size = element_size * NE;
+   dbg("spatial_dim: {}, local_size: {}, element_size: {}, total_size: {}",
+       spatial_dim, local_size, element_size, total_size);
+   ParametricSpace qdata_space(spatial_dim, local_size, element_size, total_size,
+                               d1d, q1d);
+   ParametricFunction qd(qdata_space);
+   MFEM_VERIFY(qd.Size() == 3 * 3 * q1d * q1d * q1d * NE, "");
+   MFEM_VERIFY(qd.Size() == total_size, "");
+
    if (version < 2)
    {
       a = std::make_unique<ParBilinearForm>(&h1fes);
@@ -425,49 +442,71 @@ int main(int argc, char* argv[])
    }
    else if (version == 2) // MF ∂fem
    {
-      auto diffusion_mf_kernel =
-         [] MFEM_HOST_DEVICE (
-            const tensor<real_t, DIM>& ∇u,
-            const tensor<real_t, DIM, DIM>& J,
-            const real_t& w)
+      auto diffusion_mf_kernel = [] MFEM_HOST_DEVICE (
+                                    const tensor<real_t, DIM>& ∇u,
+                                    const tensor<real_t, DIM, DIM>& J,
+                                    const real_t& w)
       {
          auto invJ = inv(J);
          return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
       };
-      constexpr int Potential = 0, Coordinates = 1;
-      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
-      auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes}};
+      constexpr int U = 0, Ξ = 1;
+      auto solutions = std::vector{FieldDescriptor{U, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{Ξ, &mesh_fes}};
       dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-      auto input_operators = mfem::tuple{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
-      auto output_operator = mfem::tuple{Gradient<Potential>{}};
-      dop->AddDomainIntegrator(diffusion_mf_kernel, input_operators, output_operator,
-                               ir);
+      auto inputs = mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}};
+      auto output = mfem::tuple{Gradient<U>{}};
+      dop->AddDomainIntegrator(diffusion_mf_kernel, inputs, output, ir);
       dop->SetParameters({nodes});
    }
    else if (version == 3) // PA ∂fem
    {
-      ParametricSpace qdata_space(DIM, DIM * DIM, ir.GetNPoints(),
-                                  DIM * DIM * ir.GetNPoints() * pmesh.GetNE());
-      ParametricFunction qd(qdata_space);
-
-      constexpr int Ξ = 1, Δ = 2;
-
-      DifferentiableOperator ∂Setup({}, {{Ξ, &mesh_fes}, {Δ, &qd.space}}, pmesh);
-
-      auto qSetup = [] MFEM_HOST_DEVICE(const tensor<real_t, DIM, DIM> &J,
-                                        const real_t &w)
       {
-         return mfem::tuple{ inv(J) * transpose(inv(J)) * det(J) * w };
-      };
-      ∂Setup.AddDomainIntegrator(qSetup,
-                                   mfem::tuple{ Gradient<Ξ>{}, Weight{} },
-                                   mfem::tuple{ None<Δ>{} },
-                                   ir);
-      ∂Setup.SetParameters({nodes, &qd });
+         auto diffusion_pa_setup =
+            [] MFEM_HOST_DEVICE(const real_t &u,
+                                const tensor<real_t, DIM, DIM> &J,
+                                const real_t &w)
+         {
+            const auto invJ = inv(J);
+            tensor<real_t, DIM, DIM> C {{{0.0}}};
+            C(0, 0) = 1.0, C(1, 1) = 1.0;
+            if (DIM == 3) { C(2, 2) = 1.0; }
+            const auto res = C * invJ * transpose(invJ) * det(J) * w;
+            static_assert(sizeof(res) == DIM*DIM*sizeof(real_t));
+            return mfem::tuple{res};
+         };
 
-      Vector x(h1fes.GetTrueVSize());
-      ∂Setup.Mult(x, qd);
-      assert(false && "🔥🔥🔥");
+         constexpr int U = 0, Ξ = 1, Q = 2;
+         auto solutions = std::vector{FieldDescriptor{U, &h1fes}};
+         auto parameters = std::vector{FieldDescriptor{Ξ, &mesh_fes},
+                                       FieldDescriptor{Q, &qd.space}};
+         DifferentiableOperator ∂Setup(solutions, parameters, pmesh);
+         auto inputs = mfem::tuple{Value<U>(), Gradient<Ξ>{}, Weight{}};
+         auto output = mfem::tuple{ None<Q>{} };
+         ∂Setup.AddDomainIntegrator(diffusion_pa_setup, inputs, output, ir);
+         ∂Setup.SetParameters({nodes, &qd});
+         ParGridFunction x(&h1fes);
+         ∂Setup.Mult(x, qd);
+         // assert(false && "🔥🔥🔥");
+      }
+
+      {
+         constexpr int U = 0, Q = 1;
+         auto diffusion_pa_apply =
+            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
+                                const tensor<real_t, DIM, DIM> &Q)
+         {
+            return mfem::tuple{ Q * ∇u };
+         };
+
+         auto solutions = std::vector{FieldDescriptor{U, &h1fes}};
+         auto parameters = std::vector{FieldDescriptor{Q, &qd.space}};
+         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         auto inputs = mfem::tuple{Gradient<U>{}, None<Q>{}};
+         auto output = mfem::tuple{Gradient<U>{}};
+         dop->AddDomainIntegrator(diffusion_pa_apply, inputs, output, ir);
+         dop->SetParameters({ &qd });
+      }
    }
    else
    {
@@ -476,7 +515,7 @@ int main(int argc, char* argv[])
 
    OperatorHandle A;
    Vector B, X;
-   if (version == 2)
+   if (version >= 2)
    {
       Operator *A_ptr;
       dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
@@ -510,7 +549,7 @@ int main(int argc, char* argv[])
 
    if (visualization)
    {
-      if (version == 2)
+      if (version >= 2)
       {
          dop->RecoverFEMSolution(X, b, x);
       }

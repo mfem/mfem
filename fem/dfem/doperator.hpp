@@ -8,6 +8,11 @@
 #include "qfunction.hpp"
 #include "integrate.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kPurple
+#include "general/nvtx.hpp"
+
+
 namespace mfem
 {
 
@@ -260,9 +265,11 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    static constexpr size_t num_inputs =
       mfem::tuple_size<decltype(inputs)>::value;
+   dbg("num_inputs:{}", num_inputs);
 
    static constexpr size_t num_outputs =
       mfem::tuple_size<decltype(outputs)>::value;
+   dbg("num_outputs:{}", num_outputs);
 
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
@@ -369,9 +376,16 @@ void DifferentiableOperator::AddDomainIntegrator(
                                fields[test_space_field_idx], output_fop, mesh.GetComm());
 
    const int dimension = mesh.Dimension();
-   const int num_elements = GetNumEntities<Entity::Element>(mesh);
+   // const int num_elements = GetNumEntities<Entity::Element>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
+   dbg("num_qp:{}", num_qp);
+   dbg("num_entities:{}", num_entities);
+   dbg("dimension:{}", dimension);
+   dbg("num_fields:{}", num_fields);
+   dbg("num_inputs:{}", num_inputs);
+   dbg("num_outputs:{}", num_outputs);
+   dbg("num_elements:{}", num_entities);
 
    if constexpr (is_one_fop<decltype(output_fop)>::value)
    {
@@ -384,9 +398,12 @@ void DifferentiableOperator::AddDomainIntegrator(
       residual_l.SetSize(residual_lsize);
       height = GetTrueVSize(fields[test_space_field_idx]);
    }
+   dbg("residual_lsize:{}", residual_l.Size());
+   dbg("height:{}", height);
 
    // TODO: Is this a hack?
    width = GetTrueVSize(fields[0]);
+   dbg("width:{}", width);
 
    std::vector<const DofToQuad*> dtq;
    for (const auto &field : fields)
@@ -397,10 +414,12 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(pow(num_qp, 1.0/dimension) + 0.5);
+   dbg("q1d:{}", q1d);
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
                             fields[test_space_field_idx]);
+   dbg("residual_size_on_qp:{}", residual_size_on_qp);
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
    auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
@@ -479,6 +498,13 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+
+         const DofToQuadMap &dtq_0 = output_dtq_shmem[0];
+         // dbg("dtq_0.B.GetShape()[0]:{}", dtq_0.B.GetShape()[0]);
+         // dbg("dtq_0.B.GetShape()[1]:{}", dtq_0.B.GetShape()[1]);
+         // dbg("dtq_0.B.GetShape()[2]:{}", dtq_0.B.GetShape()[2]);
+         assert(dtq_0.B.GetShape()[0] == q1d);
+
          map_quadrature_data_to_fields(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
