@@ -112,6 +112,20 @@ GPU computing
 
 - Use device vectors in GMRES, FGMRES and other iterative methods.
 
+- Added BatchInverseElementTransformation to batch InverseElementTransformation
+  searches. Batch searches are currently limited to meshes with a single element
+  geometry type of SEGMENT, SQUARE, or CUBE. Additional element geometry types
+  may be added in the future. Mixed element order meshes are supported. Batch
+  searches can be performed on the CPU (serial per MPI rank) or GPU. Embedded
+  elements (SEGMENT in 2D/3D space or SQUARE in 3D space) are supported, however
+  the existing solvers may struggle to find a valid solution.
+
+- Added `InverseElementTransformation::InitGuessType::EdgeScan` as an alternative
+  initial guess type. This guess type tries solving with multiple initial guesses
+  along the r/s/t=0 edges of the element until a valid solution is found or all
+  initial guess points are exhausted.
+
+
 Miscellaneous
 -------------
 - Added support for SUNDIALS v7. See the section "API changes" for some small
