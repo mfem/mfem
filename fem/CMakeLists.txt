@@ -28,6 +28,7 @@ set(SRCS
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
   integ/bilininteg_elasticity_pa.cpp
+  integ/bilininteg_elasticity_patch.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_pa.cpp
   integ/bilininteg_mass_mf.cpp
