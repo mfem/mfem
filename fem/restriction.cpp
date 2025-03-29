@@ -652,7 +652,8 @@ ConformingFaceRestriction::ConformingFaceRestriction(
    : ConformingFaceRestriction(fes, f_ordering, type, true)
 { }
 
-void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
+void ConformingFaceRestriction::MultInternal(const Vector& x, Vector& y,
+                                             const bool useAbs) const
 {
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
@@ -665,7 +666,7 @@ void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int s_idx = d_indices[i];
-      const int sgn = (s_idx >= 0) ? 1 : -1;
+      const int sgn = (useAbs || s_idx >= 0) ? 1 : -1;
       const int idx = (s_idx >= 0) ? s_idx : -1 - s_idx;
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;

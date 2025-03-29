@@ -202,4 +202,78 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   Vector abs_pa_data(pa_data);
+   Array<real_t> absBo(mapsO->B);
+   Array<real_t> absBc(mapsC->B);
+   Array<real_t> absBto(mapsO->Bt);
+   Array<real_t> absBtc(mapsC->Bt);
+   Array<real_t> absGc(mapsC->G);
+   Array<real_t> absGtc(mapsC->Gt);
+
+   abs_pa_data.Abs();
+   absBo.Abs();
+   absBc.Abs();
+   absBto.Abs();
+   absBtc.Abs();
+   absGc.Abs();
+   absGtc.Abs();
+
+   if (dim == 3)
+   {
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         const int ID = (dofs1D << 4) | quad1D;
+         switch (ID)
+         {
+            case 0x23:
+               return internal::SmemPACurlCurlApply3D<2,3>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absBo, absBc, absBto, absBtc,
+                         absGc, absGtc, abs_pa_data, x, y, true);
+            case 0x34:
+               return internal::SmemPACurlCurlApply3D<3,4>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absBo, absBc, absBto, absBtc,
+                         absGc, absGtc, abs_pa_data, x, y, true);
+            case 0x45:
+               return internal::SmemPACurlCurlApply3D<4,5>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absBo, absBc, absBto, absBtc,
+                         absGc, absGtc, abs_pa_data, x, y, true);
+            case 0x56:
+               return internal::SmemPACurlCurlApply3D<5,6>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absBo, absBc, absBto, absBtc,
+                         absGc, absGtc, abs_pa_data, x, y, true);
+            default:
+               return internal::SmemPACurlCurlApply3D<0,0>(
+                         dofs1D, quad1D, symmetric, ne,
+                         absBo, absBc, absBto, absBtc,
+                         absGc, absGtc, abs_pa_data, x, y, true);
+         }
+      }
+      else
+      {
+         internal::PACurlCurlApply3D<0,0>(dofs1D, quad1D, symmetric, ne,
+                                          absBo, absBc, absBto, absBtc, absGc, absGtc,
+                                          abs_pa_data, x, y, true);
+      }
+   }
+   else if (dim == 2)
+   {
+      internal::PACurlCurlApply2D(dofs1D, quad1D, ne, absBo, absBto,
+                                  absGc, absGtc, abs_pa_data, x, y, true);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
 } // namespace mfem

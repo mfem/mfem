@@ -63,6 +63,9 @@ public:
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 
+   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x, y); }
+   void AbsMultTranspose(const Vector &x, Vector &y) const override { MultTransposeUnsigned(x, y); }
+
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
    void MultLeftInverse(const Vector &x, Vector &y) const;
@@ -171,6 +174,13 @@ public:
    */
    void Mult(const Vector &x, Vector &y) const override = 0;
 
+   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("MultUnsigned not implemented yet!");
+   }
+
+   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x, y); }
+
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y.
 
@@ -217,6 +227,12 @@ public:
    {
       y = 0.0;
       AddMultTranspose(x, y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTransposeUnsigned(x, y);
    }
 
    /** @brief For each face, sets @a y to the partial derivative of @a x with
@@ -313,7 +329,11 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   void Mult(const Vector &x, Vector &y) const override;
+   void Mult(const Vector &x, Vector &y) const override
+   { MultInternal(x, y); }
+
+   void MultUnsigned(const Vector &x, Vector &y) const override
+   { MultInternal(x, y, true); }
 
    using FaceRestriction::AddMultTransposeInPlace;
 
@@ -337,6 +357,19 @@ public:
        @sa AddMultTranspose(). */
    void AddMultTransposeUnsigned(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const override;
+
+   using Operator::AddAbsMultTranspose;
+
+   void AddAbsMultTranspose(const Vector &x, Vector &y) const
+   {
+      AddMultTransposeUnsigned(x, y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTransposeUnsigned(x, y);
+   }
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
@@ -389,6 +422,8 @@ protected:
    void SetFaceDofsGatherIndices(const Mesh::FaceInformation &face,
                                  const int face_index,
                                  const ElementDofOrdering f_ordering);
+
+   void MultInternal(const Vector &x, Vector &y, const bool useAbs = false) const;
 };
 
 /// @brief Alias for ConformingFaceRestriction, for backwards compatibility and
