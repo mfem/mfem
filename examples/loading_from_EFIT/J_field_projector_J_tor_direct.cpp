@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/MMS_gf.gf");
+   ifstream temp_log("input/psi.gf");
    GridFunction psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
