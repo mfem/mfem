@@ -482,19 +482,6 @@ inline void SmemPADiffusionDiagonal3D(const int NE,
    });
 }
 
-void PADiffusionApply(const int dim,
-                      const int D1D,
-                      const int Q1D,
-                      const int NE,
-                      const bool symm,
-                      const Array<real_t> &B,
-                      const Array<real_t> &G,
-                      const Array<real_t> &Bt,
-                      const Array<real_t> &Gt,
-                      const Vector &D,
-                      const Vector &X,
-                      Vector &Y);
-
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion Apply 2D kernel
 void OccaPADiffusionApply2D(const int D1D,
