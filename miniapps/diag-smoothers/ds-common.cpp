@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lpq-common.hpp"
+#include "ds-common.hpp"
 
 using namespace std;
 using namespace mfem;
