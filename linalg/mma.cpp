@@ -706,7 +706,8 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                }
                else
                {
-                  MFEM_ABORT("MMA: Argument %d in linear system solve has illegal value.", info);
+                  MFEM_ABORT("MMA: Argument " << info <<
+                             " in linear system solve has illegal value.");
                }
 #else
                solveLU(ncon, AA1, bb1);
