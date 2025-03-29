@@ -32,33 +32,6 @@ public:
       FreeData();
    }
 };
-
-/// @brief Input $\Psi$ and return $1/r \nabla \Psi_r$
-class GradPsiOverRRComponentGridFunctionCoefficient : public Coefficient
-{
-private:
-   const bool flip_sign;
-   GradientGridFunctionCoefficient grad_psi_coef;
-
-public:
-   GradPsiOverRRComponentGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
-       : Coefficient(), flip_sign(flip_sign), grad_psi_coef(gf)
-   {
-   }
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override
-   {
-      // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
-      real_t r = x[0];
-      Vector grad_psi;
-      grad_psi_coef.Eval(grad_psi, T, ip);
-      return grad_psi[0] / (1e-14 + r) * (flip_sign ? -1 : 1);
-   }
-};
-
 /// @brief Input $\Psi$ and return $1/r \nabla \Psi_r$
 class GradPsiOverRVectorGridFunctionCoefficient : public VectorCoefficient
 {
@@ -97,8 +70,8 @@ public:
 
    BTorVectorGridFunctionCoefficient() = delete;
 
-   BTorVectorGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   BTorVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
@@ -141,8 +114,8 @@ public:
 
    BTorOverRVectorGridFunctionCoefficient() = delete;
 
-   BTorOverRVectorGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   BTorOverRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
@@ -175,8 +148,8 @@ public:
 
    BTorRVectorGridFunctionCoefficient() = delete;
 
-   BTorRVectorGridFunctionCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   BTorRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
@@ -255,5 +228,89 @@ public:
       real_t r = x[0];
       counter++;
       return 1 / (1e-14 + r) * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Return $(1/r, 0)$
+class OneOverRVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   bool flip_sign;
+
+public:
+   int counter = 0;
+   OneOverRVectorGridFunctionCoefficient(bool flip_sign = false)
+       : VectorCoefficient(2), flip_sign(flip_sign)
+   {
+   }
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      V(0) = 1 / (1e-14 + r) * (flip_sign? -1 : 1);
+      V(1) = 0;
+   }
+};
+
+enum WeightedHarmonicType
+{
+   POLYNOMIAL,
+   EXPONENTIAL,
+   TRIGONOMETRIC
+};
+
+/// @brief Return weighted harmonic function
+class WeightedHarmonicGridFunctionCoefficient : public Coefficient
+{
+private:
+   WeightedHarmonicType type;
+
+public:
+   WeightedHarmonicGridFunctionCoefficient(WeightedHarmonicType type)
+       : Coefficient(), type(type)
+   {
+   }
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0], z = x[1];
+      switch (type)
+      {
+      case POLYNOMIAL:
+         // Polynomial solution: f(r, z) = A r²z + B r² + C z + D
+         {
+            real_t A = 1.0; // Default coefficient for r²z
+            real_t B = 1.0; // Default coefficient for r²
+            real_t C = 1.0; // Default coefficient for z
+            real_t D = 1.0; // Default constant term
+            return A * r * r * z + B * r * r + C * z + D;
+         }
+      case EXPONENTIAL:
+         // Exponential solution: f(r, z) = √r * I₁(√(2k) r) * exp(k z)
+         // (Using an approximation for I₁)
+         {
+            real_t k = 1.0;
+            real_t arg = sqrt(2 * k) * r;
+            real_t I1 = (arg / 2) + (pow(arg, 3) / 16); // Approximate I₁
+            return sqrt(r) * I1 * exp(k * z);
+         }
+
+      case TRIGONOMETRIC:
+         // Trigonometric solution: f(r, z) = √r * J₁(√(2k) r) * cos(k z)
+         // (Using an approximation for J₁)
+         {
+            real_t k = 1.0;
+            real_t arg = sqrt(2 * k) * r;
+            real_t J1 = (arg / 2) - (pow(arg, 3) / 16); // Approximate J₁
+            return sqrt(r) * J1 * cos(k * z);
+         }
+      }
    }
 };

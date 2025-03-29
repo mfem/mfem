@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("input/psi.gf");
+   ifstream temp_log("output/MMS_gf.gf");
    GridFunction psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
@@ -36,9 +36,11 @@ int main(int argc, char *argv[])
    MixedBilinearForm b_bi(psi.FESpace(), &fespace);
    ConstantCoefficient neg_one(-1.0);
    b_bi.AddDomainIntegrator(new MixedGradGradIntegrator(neg_one));
+   // OneOverRGridFunctionCoefficient one_over_r(true);
+   // b_bi.AddDomainIntegrator(new MixedGradGradIntegrator(one_over_r));
 
-   GradPsiOverRRComponentGridFunctionCoefficient grad_psi_over_r_coef(&psi, true);
-   b_bi.AddDomainIntegrator(new MixedScalarMassIntegrator(grad_psi_over_r_coef));
+   OneOverRVectorGridFunctionCoefficient one_over_r_vector_coef(true);
+   b_bi.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(one_over_r_vector_coef));
 
    b_bi.Assemble();
 
@@ -47,8 +49,10 @@ int main(int argc, char *argv[])
 
    LinearForm b_li(&fespace);
    b_bi.Mult(psi, b_li);
-   GradientGridFunctionCoefficient grad_psi_coef(&psi);
-   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(grad_psi_coef));
+   GradientGridFunctionCoefficient grad_psi(&psi);
+   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(grad_psi));
+   // GradPsiOverRVectorGridFunctionCoefficient grad_psi_over_r(&psi);
+   // b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(grad_psi_over_r));
    b.Assemble();
    b += b_li;
 
@@ -56,13 +60,15 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    RGridFunctionCoefficient r_coef;
    a.AddDomainIntegrator(new MassIntegrator(r_coef));
+   // ConstantCoefficient one(1.0);
+   // a.AddDomainIntegrator(new MassIntegrator(one));
    a.Assemble();
    a.Finalize();
 
    // 3. solve the system
    CGSolver M_solver;
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-32);
+   M_solver.SetRelTol(1e-24);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(1e5);
    M_solver.SetPrintLevel(1);

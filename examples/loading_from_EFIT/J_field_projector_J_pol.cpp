@@ -37,10 +37,10 @@ int main(int argc, char *argv[])
       // solving (f, J_pol) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
 
       // 1. make the linear form
-      BTorRVectorGridFunctionCoefficient B_tor_r_coef(dim, &B_tor, false);
+      BTorRVectorGridFunctionCoefficient B_tor_r_coef(&B_tor, false);
       b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(B_tor_r_coef));
 
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
+      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(&B_tor, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
       b.Assemble();
    }
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
       // 1.b form linear form from bilinear form
       LinearForm b_li(&fespace);
       b_bi.Mult(B_tor, b_li);
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(dim, &B_tor, true);
+      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(&B_tor, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
       b.Assemble();
       b += b_li;
