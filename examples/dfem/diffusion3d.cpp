@@ -108,17 +108,15 @@ public:
       });
    }
 
-   template <int T_D1D = 0, int T_Q1D = 0>
+   template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE,
                              const real_t *b, const real_t *g,
                              const real_t *dx,
                              const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
-      // dbg();
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      MFEM_VERIFY(D1D <= Q1D, "");
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -127,9 +125,6 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MQ1 = SetMaxOf(T_Q1D ? T_Q1D : 32);
-         constexpr int MD1 = SetMaxOf(T_D1D ? T_D1D : 32);
-
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs5d_t<VDIM, DIM, MQ1> r0, r1;
@@ -163,7 +158,7 @@ public:
       });
    }
 
-   using StiffnessKernelType = decltype(&StiffnessMult<>);
+   using StiffnessKernelType = decltype(&StiffnessMult<1,1>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
    void AddMultPA(const Vector &x, Vector &y) const override
@@ -175,13 +170,16 @@ public:
 
 template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Kernel() { return StiffnessMult<D1D, Q1D>; }
+StiffnessIntegrator::StiffnessKernels::Kernel()
+{
+   return StiffnessMult<SetMaxOf(D1D), SetMaxOf(Q1D), D1D, Q1D>;
+}
 
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult<>;
+   return StiffnessMult<DofQuadLimits::MAX_D1D, DofQuadLimits::MAX_Q1D>;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
