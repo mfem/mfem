@@ -657,6 +657,10 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
             res = new ParNCL2FaceRestriction(*this, f_ordering, type, m);
          }
       }
+      else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
+      {
+         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+      }
       else
       {
          if (Conforming())
