@@ -8,11 +8,12 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-// #include <numeric>
 
 #include "bench.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_BENCHMARK
+
+#include <memory>
 
 #include <fem/qinterp/det.cpp>
 #include <fem/qinterp/grad.hpp> // IWYU pragma: keep
@@ -69,7 +70,8 @@ public:
       MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
       MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
       MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
-      const DofToQuad *maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+      const DofToQuad *maps =
+         &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
       const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
       const FiniteElementSpace *nfes = nodes->FESpace();
       const int nVDIM = nfes->GetVDim();
@@ -78,8 +80,8 @@ public:
       dx.UseDevice(true), J0.UseDevice(true);
       B = maps->B.Read(), G = maps->G.Read(), DX = dx.Read();
 
-      const Operator *NR = nfes->GetElementRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC);
+      const Operator *NR =
+         nfes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
       const QuadratureInterpolator *nqi = nfes->GetQuadratureInterpolator(ir);
       nqi->SetOutputLayout(QVectorLayout::byVDIM);
       const int nd = nfes->GetFE(0)->GetDof();
@@ -91,27 +93,34 @@ public:
       const auto W = Reshape(w_r, q1d, q1d, q1d);
       const auto J = Reshape(J0.Read(), 3, 3, q1d, q1d, q1d, ne);
       auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
-      mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_3D(
+         ne, q1d, q1d, q1d,
+         [=] MFEM_HOST_DEVICE(int e)
       {
-         mfem::foreach_z_thread(q1d, [&](int qz)
+         mfem::foreach_z_thread(
+            q1d,
+            [&](int qz)
          {
-            mfem::foreach_y_thread(q1d, [&](int qy)
+            mfem::foreach_y_thread(
+               q1d,
+               [&](int qy)
             {
-               mfem::foreach_x_thread(q1d, [&](int qx)
+               mfem::foreach_x_thread(
+                  q1d,
+                  [&](int qx)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJ = kernels::Det<3>(Jtr);
                   const real_t wd = w * detJ;
-                  real_t Jrt[9], A[9], D[9] =
-                  {
-                     wd, 0.0, 0.0,
-                     0.0, wd, 0.0,
-                     0.0, 0.0, wd
-                  };
+                  real_t Jrt[9], A[9],
+                         D[9] = { wd,  0.0, 0.0, 0.0, wd,
+                                  0.0, 0.0, 0.0, wd
+                                };
                   kernels::CalcInverse<3>(Jtr, Jrt);
                   kernels::MultABt(3, 3, 3, D, Jrt, A);
-                  kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
+                  kernels::Mult(3, 3, 3, A, Jrt,
+                                &DX_w(0, 0, qx, qy, qz, e));
                });
             });
          });
@@ -119,11 +128,9 @@ public:
       });
    }
 
-   template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
-   static void StiffnessMult(const int NE,
-                             const real_t *b, const real_t *g,
-                             const real_t *dx,
-                             const real_t *xe, real_t *ye,
+   template <int T_D1D = 0, int T_Q1D = 0>
+   static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
+                             const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -134,8 +141,13 @@ public:
       const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(
+         NE, Q1D, Q1D,
+         [=] MFEM_HOST_DEVICE(int e)
       {
+         constexpr int MQ1 = SetMaxOf(T_Q1D ? T_Q1D : 32);
+         constexpr int MD1 = SetMaxOf(T_D1D ? T_D1D : 32);
+
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs5d_t<VDIM, DIM, MQ1> r0, r1;
@@ -143,14 +155,18 @@ public:
          LoadMatrix(D1D, Q1D, b, sB);
          LoadMatrix(D1D, Q1D, g, sG);
 
-         LoadDofs3d(e, D1D, XE, r0);
-         Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         LoadDofs3d<VDIM, DIM, MQ1>(e, D1D, XE, r0);
+         regs_Grad3d<VDIM, DIM, MD1, MQ1>(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; qz++)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            mfem::foreach_y_thread(
+               Q1D,
+               [&](int qy)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               mfem::foreach_x_thread(
+                  Q1D,
+                  [&](int qx)
                {
                   real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
                                         r1[0][1][qz][qy][qx],
@@ -164,12 +180,13 @@ public:
                });
             });
          }
-         GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
-         WriteDofs3d(e, D1D, r1, YE);
+         regs_GradTranspose3d<VDIM, DIM, MD1, MQ1>(D1D, Q1D, smem, sB, sG,
+                                                   r0, r1);
+         WriteDofs3d<VDIM, DIM, MQ1>(e, D1D, r1, YE);
       });
    }
 
-   using StiffnessKernelType = decltype(&StiffnessMult<1,1>);
+   using StiffnessKernelType = decltype(&StiffnessMult<>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
    void AddMultPA(const Vector &x, Vector &y) const override
@@ -183,35 +200,35 @@ template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
-   return StiffnessMult<SetMaxOf(D1D), SetMaxOf(Q1D), D1D, Q1D>;
+   return StiffnessMult<D1D, Q1D>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult<DofQuadLimits::MAX_D1D, DofQuadLimits::MAX_Q1D>;
+   return StiffnessMult<>;
 }
 
-/// Benchmarks Arguments //////////////////////////////////////////////////////
+/// Max number of DOFs ////////////////////////////////////////////////////////
 #ifndef MFEM_USE_HIP
 #define MAX_NDOFS 128 * 1024
 #else
 #define MAX_NDOFS 10 * 1024 * 1024
 #endif
 
-static void KerOrderSideArgs(bmi::Benchmark *b)
+/// Benchmarks Arguments //////////////////////////////////////////////////////
+static void OrderSideVersionArgs(bmi::Benchmark *b)
 {
    const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
-   const auto versions = { 1 }; // only one version of the kernel yet
-   for (const auto k : versions)
+   const auto versions = { 0, 1, 2, 3 };
+   for (int p = 6; p >= 1; p -= 1)
    {
-      for (int p = 6; p >= 1; p -= 1)
-         // for (int p = 1; p <= 6; p += 1)
+      for (int c = 25; est(c) <= MAX_NDOFS; c += 25)
       {
-         for (int c = 25; est(c) <= MAX_NDOFS; c += 25)
+         for (auto k : versions)
          {
-            b->Args({ k, p, c });
+            b->Args({ p, c, k });
          }
       }
    }
@@ -235,8 +252,15 @@ struct BakeOff
    Vector uvec;
    VectorConstantCoefficient unit_vec;
    const int dofs;
+   ParGridFunction *nodes;
+   ParFiniteElementSpace& mfes;
    ParGridFunction x, y;
    ParBilinearForm a;
+   std::unique_ptr<DifferentiableOperator> ∂op;
+   const int elem_size, total_size, d1d, q1d;
+   ParametricSpace qdata_space;
+   ParametricFunction qdata;
+
    double mdofs{};
 
    BakeOff(int p, int side):
@@ -255,15 +279,25 @@ struct BakeOff
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(&irs.Get(geom_type, q)), one(1.0), uvec(DIM),
       unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
-      dofs(pfes.GetTrueVSize()), x(&pfes), y(&pfes), a(&pfes)
+      dofs(pfes.GetTrueVSize()),
+      nodes(static_cast<ParGridFunction*>(pmesh.GetNodes())),
+      mfes(*nodes->ParFESpace()),
+      x(&pfes),
+      y(&pfes),
+      a(&pfes),
+      elem_size(DIM * DIM * ir->GetNPoints()),
+      total_size(elem_size * pmesh.GetNE()),
+      d1d(p + 1),
+      q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
+      qdata_space(DIM, DIM * DIM, elem_size, total_size, d1d, q1d),
+      qdata(qdata_space)
    {
       // dbg("p:{} q:{}", p, q);
       // pmesh.SetCurvature(p);
       smesh.Clear();
       x = 0.0;
 
-      D1D = p + 1;
-      Q1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+      D1D = d1d, Q1D = q1d;
       dbg("D1D: {}, Q1D: {}", D1D, Q1D);
    }
 
@@ -274,10 +308,11 @@ struct BakeOff
    double MDofs() const { return 1e-6 * dofs; }
 };
 
-/// Problem ///////////////////////////////////////////////////////////////////
-template <typename BFI, int VDIM = 1, bool GLL = false>
-struct Problem : public BakeOff<VDIM, GLL>
+/// Diffusion /////////////////////////////////////////////////////////////////
+template <int VDIM = 1, bool GLL = false>
+struct Diffusion : public BakeOff<VDIM, GLL>
 {
+   static constexpr int DIM = 3;
    const real_t rtol = 0.0;
    const int max_it = 32, print_lvl = -1;
 
@@ -293,41 +328,124 @@ struct Problem : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::one;
    using BakeOff<VDIM, GLL>::pmesh;
    using BakeOff<VDIM, GLL>::pfes;
+   using BakeOff<VDIM, GLL>::mfes;
    using BakeOff<VDIM, GLL>::x;
    using BakeOff<VDIM, GLL>::y;
    using BakeOff<VDIM, GLL>::mdofs;
+   using BakeOff<VDIM, GLL>::∂op;
+   using BakeOff<VDIM, GLL>::nodes;
+   using BakeOff<VDIM, GLL>::qdata;
 
-   Problem(int order, int side):
-      BakeOff<VDIM, GLL>(order, side),
-      ess_bdr(pmesh.bdr_attributes.Max()),
-      b(&pfes),
-      cg(MPI_COMM_WORLD)
+   Diffusion(int order, int side, int version):
+      BakeOff<VDIM, GLL>(order, side), ess_bdr(pmesh.bdr_attributes.Max()),
+      b(&pfes), cg(MPI_COMM_WORLD)
    {
+      static_assert(VDIM == 1 && GLL == false);
+
       ess_bdr = 1;
       pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      static_assert(VDIM ==1);
+
       b.AddDomainIntegrator(new DomainLFIntegrator(this->one));
       b.UseFastAssembly(true);
       b.Assemble();
 
-      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.AddDomainIntegrator(new BFI());
-      a.Assemble();
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      if (version < 2)
+      {
+         a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
+         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator()); }
+         a.Assemble();
+         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+         if (version == 0)
+         {
+            BilinearFormIntegrator *bfi = a.GetDBFI()->operator[](0);
+            auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
+            assert(di);
+            const int d1d = di->dofs1D, q1d = di->quad1D;
+            dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
+            MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
+            MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
+         }
+      }
+      else if (version == 2) // MF ∂fem
+      {
+         constexpr int U = 0, Ξ = 1;
+         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         auto diffusion_mf_kernel =
+            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
+                                 const tensor<real_t, DIM, DIM>& J,
+                                 const real_t& w)
+         {
+            auto invJ = inv(J);
+            return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
+         };
+         ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         ∂op->SetParameters({nodes});
+         ∂op->AddDomainIntegrator(diffusion_mf_kernel,
+                                    mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                    mfem::tuple{Gradient<U>{}},
+                                    *ir);
+         Operator *A_ptr;
+         ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      }
+      else if (version == 3) // PA ∂fem
+      {
+         constexpr int U = 0, Ξ = 1, Q = 2;
+
+         FieldDescriptor u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qdata.space};
+         auto w = Weight{};
+         auto q = None<Q> {};
+         auto u = None<U> {};
+         auto ∇u = Gradient<U> {};
+         auto ∇Ξ = Gradient<Ξ> {};
+         auto u_sol = std::vector{u_fd},
+              q_param = std::vector{q_fd},
+              Ξ_q_params = std::vector{Ξ_fd, q_fd};
+         mfem::tuple u_J_w = {u, ∇Ξ, w};
+         mfem::tuple ∇u_q = {∇u, q};
+
+         auto setup =
+            [] MFEM_HOST_DEVICE(const real_t &u,
+                                const tensor<real_t, DIM, DIM> &J,
+                                const real_t &w)
+         {
+            return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+         };
+         DifferentiableOperator ∂Setup(u_sol, Ξ_q_params, pmesh);
+         ∂Setup.SetParameters({nodes, &qdata});
+         ∂Setup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir);
+         ∂Setup.Mult(Vector{pfes.GetTrueVSize()}, qdata);
+
+         auto apply =
+            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
+                                const tensor<real_t, DIM, DIM> &q)
+         {
+            return mfem::tuple{q * ∇u};
+         };
+         ∂op = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+         ∂op->SetParameters({ &qdata });
+         ∂op->AddDomainIntegrator(apply, ∇u_q, mfem::tuple{∇u}, *ir);
+         Operator *A_ptr;
+         ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      }
+      else { MFEM_ABORT("Invalid version"); }
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
       if constexpr (true) // check
       {
          dbg("Check");
-         cg.SetPrintLevel(3);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(100);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         mfem::out << "✅" << std::endl;
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
@@ -344,32 +462,31 @@ struct Problem : public BakeOff<VDIM, GLL>
    }
 };
 
-
 ///////////////////////////////////////////////////////////////////////////////
-static void BP(bm::State &state)
-{
-   const auto version = static_cast<int>(state.range(0));
-   const auto order = static_cast<int>(state.range(1));
-   const auto side = static_cast<int>(state.range(2));
-   Problem<StiffnessIntegrator> ker(order, side);
-   // Problem<DiffusionIntegrator> ker(order, side);
-   // device_ptr->SetKernelsVersion(version);
-   // if (k > 1) { device_ptr->EnableFastKernels(); }
-   while (state.KeepRunning()) { ker.benchmark(); }
-   bm::Counter::Flags flags = bm::Counter::kIsRate;
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags);
-   state.counters["Dofs"] = bm::Counter(ker.dofs);
-   state.counters["p"] = bm::Counter(order);
-   state.counters["version"] = bm::Counter(version);
-}
-BENCHMARK(BP)->Apply(KerOrderSideArgs)
-->Unit(bm::kMillisecond)
-   ->Iterations(10);
+#define BakeOff_Problem(i, Problem)                                  \
+   static void BP##i(bm::State &state)                               \
+   {                                                                 \
+      const auto order = static_cast<int>(state.range(0));           \
+      const auto side = static_cast<int>(state.range(1));            \
+      const auto version = static_cast<int>(state.range(2));         \
+      Problem ker(order, side, version);                             \
+      while (state.KeepRunning()) { ker.benchmark(); }               \
+      bm::Counter::Flags flags = bm::Counter::kIsRate;               \
+      state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
+      state.counters["Dofs"] = bm::Counter(ker.dofs);                \
+      state.counters["p"] = bm::Counter(order);                      \
+      state.counters["version"] = bm::Counter(version);              \
+   }                                                                 \
+   BENCHMARK(BP##i)                                                  \
+      ->Apply(OrderSideVersionArgs)                                  \
+      ->Unit(bm::kMillisecond)                                       \
+      ->Iterations(10);
+
+BakeOff_Problem(3, Diffusion)
 
 /// Specializations ///////////////////////////////////////////////////////////
 void AddKernelSpecializations()
 {
-   dbg();
    using Det = QuadratureInterpolator::DetKernels;
    Det::Specialization<3, 3, 2, 2>::Add();
    Det::Specialization<3, 3, 2, 3>::Add();
@@ -378,20 +495,20 @@ void AddKernelSpecializations()
    Det::Specialization<3, 3, 2, 7>::Add();
 
    using Grad = QuadratureInterpolator::GradKernels;
-   Grad::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 3>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 4>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 5>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 6>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 8>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 }
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
    static mfem::MPI_Session mpi(argc, argv);
-   // const int myid = mpi.WorldRank();
-   // Hypre::Init();
 
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);

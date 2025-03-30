@@ -133,7 +133,7 @@ public:
          LoadMatrix(D1D, Q1D, g, sG);
 
          LoadDofs3d(e, D1D, XE, r0);
-         Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         regs_Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; qz++)
          {
@@ -153,7 +153,7 @@ public:
                });
             });
          }
-         GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         regs_GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
          WriteDofs3d(e, D1D, r1, YE);
       });
    }
