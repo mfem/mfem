@@ -4,6 +4,9 @@
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 
 #include <fem/dfem/doperator.hpp>
+#include <fem/dfem/tuple.hpp>
+#include <fem/dfem/util.hpp>
+
 #include <general/forall.hpp>
 #include <linalg/kernels.hpp>
 #include <linalg/tensor.hpp>
@@ -18,6 +21,7 @@ using mfem::internal::tensor;
 #define NVTX_COLOR nvtx::kAquamarine
 #include "general/nvtx.hpp"
 
+static int D1D = 0, Q1D = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -34,6 +38,8 @@ public:
       StiffnessKernels::Specialization<2, 3>::Add();
       StiffnessKernels::Specialization<3, 5>::Add();
       StiffnessKernels::Specialization<4, 8>::Add();
+      StiffnessKernels::Specialization<5, 10>::Add();
+      StiffnessKernels::Specialization<7, 15>::Add();
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -47,8 +53,10 @@ public:
       const auto type = mesh->GetElementBaseGeometry(0);
       const IntegrationRule &ir = IntRules.Get(type, q);
       const int NQPT = ir.GetNPoints();
-      d1d = fes->GetFE(0)->GetOrder() + 1;
+      d1d = p + 1;
       q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+      MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
+      MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
       MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
       const DofToQuad *maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
       const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
@@ -182,7 +190,7 @@ struct ∂DiffusionIntegrator : public BilinearFormIntegrator
    ParMesh *pmesh;
    ParGridFunction *nodes;
    const ParFiniteElementSpace *pfes, *mesh_pfes;
-   int P1d, Q1d;
+   int d1d, q1d;
 
    static constexpr int U = 0, Ξ = 1; // potential, coordinates
 
@@ -248,16 +256,17 @@ public:
       assert(mesh_pfes);
 
       const auto p = pfes->GetFE(0)->GetOrder();
-      // const auto q = 2 * p + pmesh->GetElementTransformation(0)->OrderW();
       const auto q = 2 * p + 3;
       dbg("p:{} q:{}", p, q);
       const auto type = pmesh->GetElementBaseGeometry(0);
       const IntegrationRule &ir = IntRules.Get(type, q);
 
-      P1d = p + 1;
-      Q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-      dbg("P1d:{} Q1d:{} ", P1d, Q1d);
-      // assert(false);
+      d1d = p + 1;
+      q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+      dbg("P1d:{} Q1d:{} ", d1d, q1d);
+
+      MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
+      MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
 
       // constexpr int DIM = 3;
       // const int spatial_dim = DIM,
@@ -381,144 +390,129 @@ int main(int argc, char* argv[])
    out << "#el: " << pmesh.GetNE() << "\n";
 
    auto* nodes = static_cast<ParGridFunction*>(pmesh.GetNodes());
-   ParFiniteElementSpace& mesh_fes = *nodes->ParFESpace();
+   ParFiniteElementSpace& mfes = *nodes->ParFESpace();
 
-   H1_FECollection h1fec(order, DIM);
-   ParFiniteElementSpace h1fes(&pmesh, &h1fec);
+   H1_FECollection fec(order, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
 
-   out << "#dofs " << h1fes.GetTrueVSize() << "\n";
+   const auto p = fes.GetFE(0)->GetOrder();
+   const auto q = 2 * p + pmesh.GetElementTransformation(0)->OrderW();
+   const auto type = pmesh.GetElementBaseGeometry(0);
+   const IntegrationRule &ir = IntRules.Get(type, q);
+   D1D = p + 1;
+   Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+   dbg("D1D: {}, Q1D: {}", D1D, Q1D);
 
-   const IntegrationRule& ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(),
-                   h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(
-                      0)->GetDim() - 1);
+   const int NE = pmesh.GetNE();
+   const int NQPT = ir.GetNPoints();
 
-   printf("#ndof per el = %d\n", h1fes.GetFE(0)->GetDof());
-   printf("#nqp = %d\n", ir.GetNPoints());
-   printf("#q1d = %d\n", (int)floor(pow(ir.GetNPoints(), 1.0/DIM) + 0.5));
-
-   ParGridFunction x(&h1fes), y(&h1fes);
-
+   ParGridFunction x(&fes), y(&fes);
 
    Array<int> ess_tdof_list, ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr = 1;
-   h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    ConstantCoefficient one(1.0);
 
-   ParLinearForm b(&h1fes);
+   ParLinearForm b(&fes);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.UseFastAssembly(true);
    b.Assemble();
 
    std::unique_ptr<ParBilinearForm> a;
-   std::unique_ptr<DifferentiableOperator> dop;
+   std::unique_ptr<DifferentiableOperator> ∂op;
 
-   const int NE = pmesh.GetNE();
-   const int NQPT = ir.GetNPoints();
-   const int d1d = h1fes.GetFE(0)->GetOrder() + 1;
-   const int q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-   dbg("NQPT:{} d1d:{} q1d:{}", NQPT, d1d, q1d);
-   MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
 
-   const int spatial_dim = DIM;
-   const int local_size = DIM * DIM;
-   const int element_size = local_size * NQPT;
-   const int total_size = element_size * NE;
-   dbg("spatial_dim: {}, local_size: {}, element_size: {}, total_size: {}",
-       spatial_dim, local_size, element_size, total_size);
-   ParametricSpace qdata_space(spatial_dim, local_size, element_size, total_size,
-                               d1d, q1d);
+   const int elem_size = DIM * DIM * NQPT;
+   const int total_size = elem_size * NE;
+   dbg("DIM: {}, local_size: {}, elem_size: {}, total_size: {}",
+       DIM, DIM * DIM, elem_size, total_size);
+   ParametricSpace qdata_space(DIM, DIM * DIM, elem_size, total_size, D1D, Q1D);
    ParametricFunction qd(qdata_space);
-   MFEM_VERIFY(qd.Size() == 3 * 3 * q1d * q1d * q1d * NE, "");
-   MFEM_VERIFY(qd.Size() == total_size, "");
 
    if (version < 2)
    {
-      a = std::make_unique<ParBilinearForm>(&h1fes);
+      a = std::make_unique<ParBilinearForm>(&fes);
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->AddDomainIntegrator(new DiffusionIntegrator());
+      if (version == 0) { a->AddDomainIntegrator(new DiffusionIntegrator(&ir)); }
+      if (version == 1) { a->AddDomainIntegrator(new StiffnessIntegrator()); }
       a->Assemble();
+      if (version == 0)
+      {
+         BilinearFormIntegrator *bfi = a->GetDBFI()->operator[](0);
+         auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
+         assert(di);
+         const int d1d = di->dofs1D, q1d = di->quad1D;
+         dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
+         MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
+         MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
+      }
    }
    else if (version == 2) // MF ∂fem
    {
-      auto diffusion_mf_kernel = [] MFEM_HOST_DEVICE (
-                                    const tensor<real_t, DIM>& ∇u,
-                                    const tensor<real_t, DIM, DIM>& J,
-                                    const real_t& w)
+      constexpr int U = 0, Ξ = 1;
+      auto solutions = std::vector{FieldDescriptor{U, &fes}};
+      auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+      auto diffusion_mf_kernel =
+         [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
+                              const tensor<real_t, DIM, DIM>& J,
+                              const real_t& w)
       {
          auto invJ = inv(J);
          return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
       };
-      constexpr int U = 0, Ξ = 1;
-      auto solutions = std::vector{FieldDescriptor{U, &h1fes}};
-      auto parameters = std::vector{FieldDescriptor{Ξ, &mesh_fes}};
-      dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-      auto inputs = mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}};
-      auto output = mfem::tuple{Gradient<U>{}};
-      dop->AddDomainIntegrator(diffusion_mf_kernel, inputs, output, ir);
-      dop->SetParameters({nodes});
+      ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+      ∂op->SetParameters({nodes});
+      ∂op->AddDomainIntegrator(diffusion_mf_kernel,
+                                 mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                 mfem::tuple{Gradient<U>{}},
+                                 ir);
    }
    else if (version == 3) // PA ∂fem
    {
+      constexpr int U = 0, Ξ = 1, Q = 2;
+      FieldDescriptor u_fd{U, &fes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qd.space};
+      auto w = Weight{};
+      auto q = None<Q> {};
+      auto u = None<U> {};
+      auto ∇u = Gradient<U> {};
+      auto ∇Ξ = Gradient<Ξ> {};
+      auto u_sol = std::vector{u_fd},
+           q_param = std::vector{q_fd},
+           Ξ_q_params = std::vector{Ξ_fd, q_fd};
+      mfem::tuple u_J_w = {u, ∇Ξ, w};
+      mfem::tuple ∇u_q = {∇u, q};
+
+      auto setup =
+         [] MFEM_HOST_DEVICE(const real_t &u,
+                             const tensor<real_t, DIM, DIM> &J,
+                             const real_t &w)
       {
-         auto diffusion_pa_setup =
-            [] MFEM_HOST_DEVICE(const real_t &u,
-                                const tensor<real_t, DIM, DIM> &J,
-                                const real_t &w)
-         {
-            const auto invJ = inv(J);
-            tensor<real_t, DIM, DIM> C {{{0.0}}};
-            C(0, 0) = 1.0, C(1, 1) = 1.0;
-            if (DIM == 3) { C(2, 2) = 1.0; }
-            const auto res = C * invJ * transpose(invJ) * det(J) * w;
-            static_assert(sizeof(res) == DIM*DIM*sizeof(real_t));
-            return mfem::tuple{res};
-         };
+         return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+      };
+      DifferentiableOperator ∂Setup(u_sol, Ξ_q_params, pmesh);
+      ∂Setup.SetParameters({nodes, &qd});
+      ∂Setup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, ir);
+      ∂Setup.Mult(Vector{fes.GetTrueVSize()}, qd);
 
-         constexpr int U = 0, Ξ = 1, Q = 2;
-         auto solutions = std::vector{FieldDescriptor{U, &h1fes}};
-         auto parameters = std::vector{FieldDescriptor{Ξ, &mesh_fes},
-                                       FieldDescriptor{Q, &qd.space}};
-         DifferentiableOperator ∂Setup(solutions, parameters, pmesh);
-         auto inputs = mfem::tuple{Value<U>(), Gradient<Ξ>{}, Weight{}};
-         auto output = mfem::tuple{ None<Q>{} };
-         ∂Setup.AddDomainIntegrator(diffusion_pa_setup, inputs, output, ir);
-         ∂Setup.SetParameters({nodes, &qd});
-         ParGridFunction x(&h1fes);
-         ∂Setup.Mult(x, qd);
-         // assert(false && "🔥🔥🔥");
-      }
-
+      auto apply =
+         [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
+                             const tensor<real_t, DIM, DIM> &q)
       {
-         constexpr int U = 0, Q = 1;
-         auto diffusion_pa_apply =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
-                                const tensor<real_t, DIM, DIM> &Q)
-         {
-            return mfem::tuple{ Q * ∇u };
-         };
-
-         auto solutions = std::vector{FieldDescriptor{U, &h1fes}};
-         auto parameters = std::vector{FieldDescriptor{Q, &qd.space}};
-         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-         auto inputs = mfem::tuple{Gradient<U>{}, None<Q>{}};
-         auto output = mfem::tuple{Gradient<U>{}};
-         dop->AddDomainIntegrator(diffusion_pa_apply, inputs, output, ir);
-         dop->SetParameters({ &qd });
-      }
+         return mfem::tuple{q * ∇u};
+      };
+      ∂op = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+      ∂op->SetParameters({ &qd });
+      ∂op->AddDomainIntegrator(apply, ∇u_q, mfem::tuple{∇u}, ir);
    }
-   else
-   {
-      MFEM_ABORT("Invalid version");
-   }
+   else { MFEM_ABORT("Invalid version"); }
 
    OperatorHandle A;
    Vector B, X;
    if (version >= 2)
    {
       Operator *A_ptr;
-      dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+      ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
       A.Reset(A_ptr);
    }
    else
@@ -551,7 +545,7 @@ int main(int argc, char* argv[])
    {
       if (version >= 2)
       {
-         dop->RecoverFEMSolution(X, b, x);
+         ∂op->RecoverFEMSolution(X, b, x);
       }
       else
       {
