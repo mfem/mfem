@@ -222,13 +222,13 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
 {
    const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
    const auto versions = { 0, 1, 2, 3 };
-   for (int p = 6; p >= 1; p -= 1)
+   for (auto k : versions)
    {
-      for (int c = 25; est(c) <= MAX_NDOFS; c += 25)
+      for (int p = 6; p >= 1; p -= 1)
       {
-         for (auto k : versions)
+         for (int c = 25; est(c) <= MAX_NDOFS; c += 25)
          {
-            b->Args({ p, c, k });
+            b->Args({ k, p, c });
          }
       }
    }
@@ -336,7 +336,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::nodes;
    using BakeOff<VDIM, GLL>::qdata;
 
-   Diffusion(int order, int side, int version):
+   Diffusion(int version, int order, int side):
       BakeOff<VDIM, GLL>(order, side), ess_bdr(pmesh.bdr_attributes.Max()),
       b(&pfes), cg(MPI_COMM_WORLD)
    {
@@ -466,10 +466,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 #define BakeOff_Problem(i, Problem)                                  \
    static void BP##i(bm::State &state)                               \
    {                                                                 \
-      const auto order = static_cast<int>(state.range(0));           \
-      const auto side = static_cast<int>(state.range(1));            \
-      const auto version = static_cast<int>(state.range(2));         \
-      Problem ker(order, side, version);                             \
+      const auto version = static_cast<int>(state.range(0));         \
+      const auto order = static_cast<int>(state.range(1));           \
+      const auto side = static_cast<int>(state.range(2));            \
+      Problem ker(version, order, side);                             \
       while (state.KeepRunning()) { ker.benchmark(); }               \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
       state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
