@@ -30,6 +30,31 @@
 using namespace mfem;
 using mfem::internal::tensor;
 
+/// Max number of DOFs ////////////////////////////////////////////////////////
+#ifndef MFEM_USE_HIP
+#define MAX_NDOFS 256 * 1024
+#else
+#define MAX_NDOFS 10 * 1024 * 1024
+#endif
+constexpr int NDOFS_INC = 10; // 25
+
+/// Benchmarks Arguments //////////////////////////////////////////////////////
+static void OrderSideVersionArgs(bmi::Benchmark *b)
+{
+   const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
+   const auto versions = { 0, 1, 2, 3 };
+   for (auto k : versions)
+   {
+      for (int p = 6; p >= 1; p -= 1)
+      {
+         for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
+         {
+            b->Args({ k, p, c });
+         }
+      }
+   }
+}
+
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
 static int D1D = 0, Q1D = 0;
@@ -210,30 +235,6 @@ StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
    return StiffnessMult<>;
 }
 
-/// Max number of DOFs ////////////////////////////////////////////////////////
-#ifndef MFEM_USE_HIP
-#define MAX_NDOFS 128 * 1024
-#else
-#define MAX_NDOFS 10 * 1024 * 1024
-#endif
-
-/// Benchmarks Arguments //////////////////////////////////////////////////////
-static void OrderSideVersionArgs(bmi::Benchmark *b)
-{
-   const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
-   const auto versions = { 0, 1, 2, 3 };
-   for (auto k : versions)
-   {
-      for (int p = 6; p >= 1; p -= 1)
-      {
-         for (int c = 25; est(c) <= MAX_NDOFS; c += 25)
-         {
-            b->Args({ k, p, c });
-         }
-      }
-   }
-}
-
 /// BakeOff ///////////////////////////////////////////////////////////////////
 template <int VDIM, bool GLL>
 struct BakeOff
@@ -313,13 +314,18 @@ template <int VDIM = 1, bool GLL = false>
 struct Diffusion : public BakeOff<VDIM, GLL>
 {
    static constexpr int DIM = 3;
+   static constexpr int U = 0, Ξ = 1, Q = 2;
+
    const real_t rtol = 0.0;
    const int max_it = 32, print_lvl = -1;
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    ParLinearForm b;
+   FieldDescriptor u_fd, Ξ_fd, q_fd;
+   std::vector<FieldDescriptor> u_sol, q_param, Ξ_q_params;
    OperatorPtr A;
+   Operator *A_ptr;
    Vector B, X;
    CGSolver cg;
 
@@ -338,7 +344,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
    Diffusion(int version, int order, int side):
       BakeOff<VDIM, GLL>(order, side), ess_bdr(pmesh.bdr_attributes.Max()),
-      b(&pfes), cg(MPI_COMM_WORLD)
+      b(&pfes),
+      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qdata.space},
+      u_sol{u_fd},
+      q_param {q_fd},
+      Ξ_q_params {Ξ_fd, q_fd},
+      cg(MPI_COMM_WORLD)
    {
       static_assert(VDIM == 1 && GLL == false);
 
@@ -369,7 +380,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 2) // MF ∂fem
       {
-         constexpr int U = 0, Ξ = 1;
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          auto diffusion_mf_kernel =
@@ -392,19 +402,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 3) // PA ∂fem
       {
-         constexpr int U = 0, Ξ = 1, Q = 2;
-
-         FieldDescriptor u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qdata.space};
          auto w = Weight{};
          auto q = None<Q> {};
          auto u = None<U> {};
          auto ∇u = Gradient<U> {};
          auto ∇Ξ = Gradient<Ξ> {};
-         auto u_sol = std::vector{u_fd},
-              q_param = std::vector{q_fd},
-              Ξ_q_params = std::vector{Ξ_fd, q_fd};
-         mfem::tuple u_J_w = {u, ∇Ξ, w};
          mfem::tuple ∇u_q = {∇u, q};
+         mfem::tuple u_J_w = {u, ∇Ξ, w};
 
          auto setup =
             [] MFEM_HOST_DEVICE(const real_t &u,
@@ -427,7 +431,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          ∂op = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          ∂op->SetParameters({ &qdata });
          ∂op->AddDomainIntegrator(apply, ∇u_q, mfem::tuple{∇u}, *ir);
-         Operator *A_ptr;
+
          ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
@@ -439,13 +443,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       {
          dbg("Check");
          cg.SetPrintLevel(-1);
-         cg.SetMaxIter(100);
+         cg.SetMaxIter(200);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         // mfem::out << "✅" << std::endl;
+         dbg("✅");
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
