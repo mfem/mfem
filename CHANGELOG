@@ -13,23 +13,28 @@ Version 4.8, released on Apr XX, 2025
 
 Discretization improvements
 ---------------------------
-- Added support for p-refinement in parallel, on quadrilateral and hexahedral
-  meshes. Parallel hp-refinement is also supported, on isotropically refined
-  meshes with L2 or H1 spaces.
+- Added arbitrary order basis functions on pyramid-shaped elements for all
+  spaces in the de Rham complex based on the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes" by
+  Fuentes, Keith, Demkowicz and Nagaraj (doi.org/10.1016/j.camwa.2015.04.027).
+  H1 and L2 positive (Bernstein) basis functions on pyramids were also added.
 
-- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
-  patch meshes and only implemented in serial for now.
+- Added support for parallel p- and hp-refinement on quad/hex meshes. For hp, we
+  currently support only isotropic refinement with L2 or H1 spaces.
 
 - Added several improvements for hyperbolic problems:
   * Assembly of Jacobians in HyperbolicFormIntegrator
   * Component-wise upwinded flux (ComponentwiseUpwindFlux)
   * Average fluxes in NumericalFlux (formerly RiemannSolver) and FluxFunction
 
-- Added methods GetExteriorVDofs and GetExteriorTrueDofs to serial and parallel
-  finite element space classes to identify all degrees of freedom located on the
-  exterior of the domain without reference to the list of "boundary elements".
+- Added convenience methods to class FiniteElementSpace to directly identify all
+  degrees of freedom on the exterior faces of the domain, without referencing
+  boundary element attributes (GetExteriorVDofs and GetExteriorTrueDofs).
 
-- Added support for custom interpolation procedure in FindPointsGSLIB.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
+
+- Added support for external boundary submeshes on nonconforming meshes.
 
 - LinearFormIntegrator, BilinearFormIntegrator and NonlinearFormIntegrator now
   inherit from a base class Integrator that centralizes the logic for selecting
@@ -38,50 +43,36 @@ Discretization improvements
   the element-level assembly routines. The latter is still possible, by leaving
   the new virtual method as its default base implementation of returning NULL.
 
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Currently only for
+  single patch meshes in serial.
+
 - Refactored ALGOIM cut integration rules. The interface is unified with the
   interface for moment based cut integration rules.
 
-- Altered (Par)GridFunction::Compute*Error functions to ensure they return
-  non-negative values and therefore behave as "norms".
+- FiniteElementSpace has new methods to directly set the prolongation and
+  restriction operators to user-specified sparse matrices.
 
-- FiniteElementSpace has new methods to directly set prolongation and
-  restriction operators to arbitrary sparse matrices.
-
-- Added support for boundary constraints to the hybridization class.
-
-- Added support for external boundary submeshes with nonconformal mesh
-  adaptation.
-
-- Added support for H(div) spaces in class QuadratureInterpolator. For now, only
+- Added support for H(div) spaces in class QuadratureInterpolator. Currently only
   (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
-  are implemented. [PR #4669]
+  are implemented.
 
-- Added arbitrary order basis functions (H1, H(curl), H(div), and L2) on
-  pyramid-shaped elements based on the paper "Orientation embedded high order
-  shape functions for the exact sequence elements of all shapes" by Federico
-  Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram Nagaraj,
-  see https://doi.org/10.1016/j.camwa.2015.04.027.
+- Added support for boundary constraints to class Hybridization.
 
-- Added arbitrary order H1 and L2 positive basis functions utilizing Bernstein
-  polynomials on pyramid-shaped elements.
+- Added support for custom interpolation procedure in FindPointsGSLIB.
 
 Meshing improvements
 --------------------
-- Added support for nonuniform anisotropic (nonconforming) mesh refinement with
-  arbitrary spacing in each direction, for quadrilateral (2D) and hexahedral
-  (3D) meshes. This enables in particular 3:1 refinement, as demonstrated in the
-  new meshing miniapp ref321.
+- Added support for nonuniform anisotropic mesh refinement on quad/hex meshes
+  with arbitrary spacing in each direction. This enables in particular 3:1
+  non-conforming refinement, as demonstrated in the new meshing miniapp ref321.
 
-- Added convenience methods for manipulating boundary attribute marker arrays in
-  the serial/parallel Mesh classes: MarkExternalBoundaries, MarkNamedBoundaries,
-  UnmarkInternalBoundaries and UnmarkNamedBoundaries. See Examples 1/1p and 11p
-  for basic usage.
+- New convenience methods for manipulating boundary attribute markers in class
+  Mesh: MarkExternalBoundaries, MarkNamedBoundaries, UnmarkInternalBoundaries
+  and UnmarkNamedBoundaries. See Examples 1/1p and 11p for basic usage.
 
-- Added a new method, GetExteriorFaceMarker, to the serial and parllel mesh
+- Added a new method, GetExteriorFaceMarker, to the serial and parallel mesh
   classes for identifying faces on the exterior of the mesh irrespective of
   their presence in the list of "boundary elements".
-
-- Added new convenience constructors for NURBS patches and knot vectors.
 
 - Added native AD support for computing the derivatives of numerous TMOP metrics
   that didn't have first or second derivative implementations.
@@ -89,28 +80,15 @@ Meshing improvements
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
 
-New and updated examples and miniapps
--------------------------------------
-- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
-
-- Added an MFEM example for the eikonal equation. This new solver is based on
-  the proximal Galerkin method introduced by Keith and Surowiec.
-
-- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
-  See miniapps/toys/spiral.cpp.
-
-- Added a command line option to all miniapps (-p or --send-port) for
-  specifying the GLVis server socket port (19916 by default).
-
-- Fixed element visualization in the Mesh explorer miniapp.
+- Added new convenience constructors for NURBS patches and knot vectors.
 
 GPU computing
 -------------
-- Added GPU acceleration of the algebraic hybridization solver for grad-div
-  problems in H(div) (illustrated in example 4).
+- Added support for GPU accelerated version FindPointsGSLIB. Note that this
+  requires that users switch from gslib v1.0.7 to v1.0.9.
 
-- Added GPU acceleration and element assembly for `DivDivIntegrator` and
-  `NormalTraceJumpIntegrator`.
+- Added support for GPU-accelerated batched linear algebra (using cuBLAS,
+  hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
 
 - A new GPU kernel dispatch mechanism was introduced. Users can instantiate
   specialized kernels for specific combinations of (for example) polynomial
@@ -118,24 +96,39 @@ GPU computing
   classes DiffusionIntegrator and MassIntegrator (this functionality may be
   added to more integrators in the future).
 
-- Added support for GPU accelerated version FindPointsGSLIB. Note that this
-  requires that users switch from gslib v1.0.7 to v1.0.9.
-
 - Calls to slower fallback kernels can be reported to mfem::err by setting the
   environment variable MFEM_REPORT_KERNELS to any value other than NO or by
   explicitly calling KernelReporter::Enable. For higher performance, users can
   then add specializations for these kernels.
 
-- Added support for GPU-accelerated batched linear algebra (using cuBLAS,
-  hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
-
-- Element assembly kernels have been added for low-order refined to high-order
+- Element assembly kernels have been added for low-order refined -> high-order
   transfer operators. New kernels can be offloaded as device kernels. Example
   usage may be found in lor-transfer.cpp in the miniapps/tools/ directory.
+
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div). See Example 4.
+
+- Added GPU acceleration and element assembly for DivDivIntegrator and
+  NormalTraceJumpIntegrator.
 
 - Allow BlockLowerTriangularPreconditioner to run on GPU.
 
 - Use device vectors in GMRES, FGMRES and other iterative methods.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added an MFEM example for the eikonal equation (examples/ex40) based on the
+  proximal Galerkin method introduced by Keith and Surowiec.
+
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+
+- Fixed element visualization in the Mesh explorer miniapp.
+
+- Added a command line option to all miniapps (-p or --send-port) for
+  specifying the GLVis server socket port (19916 by default).
+
+- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
+  See miniapps/toys/spiral.cpp.
 
 Miscellaneous
 -------------
@@ -162,14 +155,14 @@ Miscellaneous
 - Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
   for solving optimization problems.
 
+- Various other simplifications, extensions, and bugfixes in the code.
+
 API changes
 -----------
 - In class GridFunction, fec was renamed to fec_owned.
 
 - RiemannSolver was renamed to NumericalFlux (the old name has been deprecated
   through typedef).
-
-- TMOP_Metric_skew2D has been marked as deprecated.
 
 - API changes due to SUNDIALS v7:
   * the SUNDIALS types realtype and booleantype are no longer defined by v7
@@ -182,6 +175,8 @@ API changes
     using SUNDIALS < v7.
   * The constants SUN_PREC_*, introduced by SUNDIALS v6 are now introduced by
     MFEM when using SUNDIALS < v6 to avoid tedious version checks.
+
+- TMOP_Metric_skew2D has been marked as deprecated.
 
 
 Version 4.7, released on May 7, 2024
