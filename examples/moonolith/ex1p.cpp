@@ -5,21 +5,25 @@
 // Moonolith sample runs:
 //   mpirun -np 4 ex1p
 //   mpirun -np 4 ex1p --source_refinements 1 --dest_refinements 2
-//   mpirun -np 4 ex1p -s ../../data/inline-hex.mesh -d
-//   ../../data/inline-tet.mesh
+//   mpirun -np 4 ex1p -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
-//               discrete fields from one finite element mesh to another. The
+//               discrete fields from one conforming finite element mesh to another. The
 //               meshes can be of arbitrary shape and completely unrelated with
 //               each other. This feature can be used for implementing immersed
 //               domain methods for fluid-structure interaction or general
 //               multi-physics applications.
 //
 //               This particular example is for parallel runtimes. Vector FE is
-//               an experimental feature in parallel.
+//               an experimental feature in parallel. For non-conforming meshes
+//               please have a look at example "ex2p.cpp".
 
 #include "example_utils.hpp"
 #include "mfem.hpp"
+
+#ifndef MFEM_USE_MOONOLITH
+#error This example requires that MFEM is built with MFEM_USE_MOONOLITH=YES
+#endif
 
 using namespace mfem;
 using namespace std;
@@ -93,7 +97,8 @@ int main(int argc, char *argv[])
    if (use_vector_fe && use_vector_space)
    {
       mfem::err <<
-                "WARNING: use_vector_fe and use_vector_space options are both true, ignoring use_vector_fe\n";
+                "WARNING: use_vector_fe and use_vector_space options"
+                "are both true, ignoring use_vector_fe\n";
    }
 
    shared_ptr<Mesh> src_mesh, dest_mesh;
@@ -240,7 +245,7 @@ int main(int argc, char *argv[])
 
    if (use_vector_space)
    {
-      assembler.AddMortarIntegrator(make_shared<TPL2MortarIntegrator>());
+      assembler.AddMortarIntegrator(make_shared<LagrangeVectorL2MortarIntegrator>());
    }
    else if (use_vector_fe)
    {
