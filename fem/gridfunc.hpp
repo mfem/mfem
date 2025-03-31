@@ -433,6 +433,10 @@ public:
    */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<GridFunction> ProlongateToMaxOrder() const;
+
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
@@ -462,6 +466,9 @@ protected:
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
+
+   /// P-refinement version of Update().
+   void UpdatePRef();
 
 public:
    /** @brief For each vdof, counts how many elements contain the vdof,

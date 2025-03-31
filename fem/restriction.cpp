@@ -37,6 +37,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      gather_map(ne*dof)
 {
    // Assuming all finite elements are the same.
+   MFEM_VERIFY(!f.IsVariableOrder(), "Variable-order spaces are not supported");
+
    height = vdim*ne*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -56,7 +58,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          dynamic_cast<const TensorBasisElement*>(fe);
       const Array<int> &fe_dof_map = el->GetDofMap();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-      dof_map = fe_dof_map.GetData();
+      dof_map = fe_dof_map.HostRead();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* element_map = e2dTable.GetJ();
@@ -2272,6 +2274,89 @@ void NCL2FaceRestriction::ComputeGatherIndices()
       gather_offsets[i] = gather_offsets[i - 1];
    }
    gather_offsets[0] = 0;
+}
+
+L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
+   const FiniteElementSpace& fes_,
+   const ElementDofOrdering ordering_,
+   const FaceType type_)
+   : fes(fes_),
+     ordering(ordering_),
+     type(type_),
+     nfaces(fes.GetNFbyType(type)),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     face_dofs(nfaces > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     nfdofs(face_dofs*nfaces),
+     ndofs(fes.GetNDofs())
+{
+   height = nfdofs;
+   width = ndofs;
+
+   const Table &face2dof = fes.GetFaceToDofTable();
+
+   const Mesh &mesh = *fes.GetMesh();
+   int face_idx = 0;
+   gather_map.SetSize(nfdofs);
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (!face.IsOfFaceType(type)) { continue; }
+      for (int i = 0; i < face_dofs; ++i)
+      {
+         gather_map[i + face_idx*face_dofs] = face2dof.GetJ()[i + f*face_dofs];
+      }
+      ++face_idx;
+   }
+}
+
+void L2InterfaceFaceRestriction::Mult(const Vector &x, Vector &y) const
+{
+   const int nd = face_dofs;
+   const int nf = nfaces;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int *map = gather_map.Read();
+
+   const auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, nf);
+
+   mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = map[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(i % nd, c, i / nd) = d_x(t?c:j, t?j:c);
+      }
+   });
+}
+
+void L2InterfaceFaceRestriction::AddMultTranspose(
+   const Vector &x, Vector &y, const real_t a) const
+{
+   const int nd = face_dofs;
+   const int nf = nfaces;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int *map = gather_map.Read();
+
+   const auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = 0.0; });
+   mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = map[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(t?c:j, t?j:c) = d_x(i % nd, c, i / nd);
+      }
+   });
+}
+
+const Array<int> &L2InterfaceFaceRestriction::GatherMap() const
+{
+   return gather_map;
 }
 
 Vector GetLVectorFaceNbrData(
