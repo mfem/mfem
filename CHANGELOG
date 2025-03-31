@@ -60,6 +60,8 @@ Discretization improvements
 
 - Added support for custom interpolation procedure in FindPointsGSLIB.
 
+- Added GSLIB-based gather-scatter operator.
+
 Meshing improvements
 --------------------
 - Added support for nonuniform anisotropic mesh refinement on quad/hex meshes
@@ -77,8 +79,8 @@ Meshing improvements
 - Added native AD support for computing the derivatives of numerous TMOP metrics
   that didn't have first or second derivative implementations.
 
-- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
-  are also supported.
+- Added ExodusII output capability which can handle in particular pyramid and
+  wedge element types. Mixed meshes are also supported.
 
 - Added new convenience constructors for NURBS patches and knot vectors.
 
@@ -105,15 +107,46 @@ GPU computing
   transfer operators. New kernels can be offloaded as device kernels. Example
   usage may be found in lor-transfer.cpp in the miniapps/tools/ directory.
 
-- Added GPU acceleration of the algebraic hybridization solver for grad-div
-  problems in H(div). See Example 4.
-
 - Added GPU acceleration and element assembly for DivDivIntegrator and
   NormalTraceJumpIntegrator.
 
 - Allow BlockLowerTriangularPreconditioner to run on GPU.
 
 - Use device vectors in GMRES, FGMRES and other iterative methods.
+
+Linear and nonlinear solvers
+----------------------------
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div). See Example 4.
+
+- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
+  for solving optimization problems.
+
+- Added support for SUNDIALS v7. See the section "API changes" for some small
+  changes related to this new version.
+
+- Changed the name of class IterativeSolverMonitor to IterativeSolverController,
+  which now allows for specifying convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
+
+- Refactored the ARKStepSolver class (ARKODE interface) to use the Mult() method
+  of TimeDependentOperator only when the associated ODE operator is expressed in
+  explicit form (i.e., TimeDependentOperator::isExplicit()), otherwise the
+  method ExplicitMult() is used. A check has been added to ARKStepSolver to
+  verify that the associated ODE operator is not in explicit form when a mass
+  matrix solver is enabled via a call to either the UseMFEMMassLinearSolver or
+  UseSundialsMassLinearSolver methods. This is because enabling a mass matrix
+  solver assumes that F(u,k,t) = M k in the associated ODE operator.
+
+- Added ODE solvers selection routines. This creates a uniformity across
+  examples, miniapps and other executables in regard to ODE(time-integrator)
+  selection.
+
+- Added new mechanism for retrieving and setting state vectors in ODE solvers.
+  This is relevant for AB/AM and gen-alpha solvers.
+
+- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
+  read/write functionality.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -132,28 +165,9 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
-- Added support for SUNDIALS v7. See the section "API changes" for some small
-  changes related to this new version.
-
-- Changed the name of class IterativeSolverMonitor to IterativeSolverController,
-  which now allows for specifying convergence by a user defined criterion. For
-  backward compatibility, the old name is still available.
-
-- Refactored the ARKStepSolver class (ARKODE interface) to use the Mult() method
-  of TimeDependentOperator only when the associated ODE operator is expressed in
-  explicit form (i.e., TimeDependentOperator::isExplicit()), otherwise the
-  method ExplicitMult() is used. A check has been added to ARKStepSolver to
-  verify that the associated ODE operator is not in explicit form when a mass
-  matrix solver is enabled via a call to either the UseMFEMMassLinearSolver or
-  UseSundialsMassLinearSolver methods. This is because enabling a mass matrix
-  solver assumes that F(u,k,t) = M k in the associated ODE operator.
-
 - Updated the benchmarks (in tests/benchmarks) to work with the latest Google
   Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
   CMake option to just MFEM_ENABLE_BENCHMARKS.
-
-- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
-  for solving optimization problems.
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
@@ -201,9 +215,6 @@ Meshing improvements
   NURBS coarsening and knot removal are also introduced.
 
 - Added support for internal boundary elements in nonconforming meshes.
-
-- Added ExodusII output capability. The writer can handle first-order (Pyramid5,
-  Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
@@ -285,8 +296,6 @@ Miscellaneous
   depending on the functionality older versions may still work.
 
 - Various other simplifications, extensions, and bugfixes in the code.
-
-- Added GSLIB-based gather-scatter operator.
 
 
 Version 4.6, released on September 27, 2023
