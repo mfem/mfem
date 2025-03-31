@@ -13,11 +13,11 @@ Version 4.8, released on Apr XX, 2025
 
 Discretization improvements
 ---------------------------
-- Added arbitrary order basis functions on pyramid-shaped elements for all
-  spaces in the de Rham complex based on the paper "Orientation embedded high
-  order shape functions for the exact sequence elements of all shapes" by
-  Fuentes, Keith, Demkowicz and Nagaraj (doi.org/10.1016/j.camwa.2015.04.027).
-  H1 and L2 positive (Bernstein) basis functions on pyramids were also added.
+- Added high-order basis functions on pyramid-shaped elements for all spaces in
+  the de Rham complex based on the paper "Orientation embedded high order shape
+  functions for the exact sequence elements of all shapes" by Fuentes, Keith,
+  Demkowicz and Nagaraj (doi.org/10.1016/j.camwa.2015.04.027). Positive basis
+  functions (Bernstein basis) for H1 and L2 on pyramids were also added.
 
 - Added support for parallel p- and hp-refinement on quad/hex meshes. For hp, we
   currently support only isotropic refinement with L2 or H1 spaces.
@@ -34,7 +34,8 @@ Discretization improvements
 - Altered (Par)GridFunction::Compute*Error functions to ensure they return
   non-negative values and therefore behave as "norms".
 
-- Added support for external boundary submeshes on nonconforming meshes.
+- SubMesh and ParSubMesh have been extended to work on nonconforming meshes.
+  Extracting volume and exterior surface submeshes are both supported.
 
 - LinearFormIntegrator, BilinearFormIntegrator and NonlinearFormIntegrator now
   inherit from a base class Integrator that centralizes the logic for selecting
@@ -86,8 +87,8 @@ Meshing improvements
 
 GPU computing
 -------------
-- Added support for GPU accelerated version FindPointsGSLIB. Note that this
-  requires that users switch from gslib v1.0.7 to v1.0.9.
+- Extended FindPointsGSLIB to support general field interpolation on GPUs. Note
+  that this requires that switch from gslib v1.0.7 to v1.0.9.
 
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
   hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
