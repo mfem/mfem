@@ -14,6 +14,7 @@ set(DFEM_EXAMPLES_SRCS)
 if (MFEM_USE_MPI)
     list(APPEND DFEM_EXAMPLES_SRCS
         plasticity.cpp
+        laghos.cpp
     )
 endif()
 

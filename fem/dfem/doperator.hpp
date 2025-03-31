@@ -134,7 +134,7 @@ public:
       mfem::tuple<input_ts...> inputs,
       mfem::tuple<output_ts...> outputs,
       const IntegrationRule &integration_rule,
-      const Array<int> domain_attributes = {},
+      const Array<int> domain_attributes,
       const derivative_indices_t derivative_indices = {});
 
    void SetParameters(std::vector<Vector *> p) const;
