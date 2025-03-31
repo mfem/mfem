@@ -646,9 +646,9 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
                int ldb = nLAP;
                int* ipiv = new int[nLAP];
 #if defined(MFEM_USE_DOUBLE)
-               dgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
+               dgesv_(&nLAP, &nrhs, AA1.get(), &lda, ipiv, bb1.get(), &ldb, &info);
 #elif defined(MFEM_USE_SINGLE)
-               sgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
+               sgesv_(&nLAP, &nrhs, AA1.get(), &lda, ipiv, bb1.get(), &ldb, &info);
 #else
 #error "Only single and double precision are supported!"
 #endif
