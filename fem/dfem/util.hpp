@@ -19,6 +19,10 @@
 #include "parametricspace.hpp"
 #include "tuple.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kGreenYellow
+#include "general/nvtx.hpp"
+
 using std::size_t;
 
 namespace mfem
@@ -449,11 +453,26 @@ void forall(func_t f,
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
 #if defined(MFEM_USE_CUDA)
+      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
-      MFEM_GPU_CHECK(hipGetLastError());
+      // static int loop = 0;
+      // if (loop++ < 128)
+      // { dbg("N:{} {}x{}x{} smem:{}", N, blocks.x, blocks.y, blocks.z, num_bytes); }
+      if (num_bytes >= 64*1024)
+      {
+         dbg("\x1b[31mNot enough shared memory per block!");
+         assert(false && "Not enough shared memory per block!");
+      }
+      else
+      {
+         MFEM_GPU_CHECK(hipGetLastError());
+         hipLaunchKernelGGL(forall_kernel_shmem, N, block_size, num_bytes, 0, f, N);
+         MFEM_GPU_CHECK(hipGetLastError());
+         MFEM_GPU_CHECK(hipDeviceSynchronize());
+         MFEM_GPU_CHECK(hipGetLastError());
+      }
 #endif
       MFEM_DEVICE_SYNC;
 #endif
@@ -1973,6 +1992,7 @@ template <
    typename qf_param_ts,
    typename qfunc_t,
    size_t num_fields>
+MFEM_HOST_DEVICE inline
 void call_qfunction(
    qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,
@@ -2016,7 +2036,9 @@ void call_qfunction(
       }
       else
       {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
          MFEM_ABORT("unsupported dimension for sum factorization");
+#endif
       }
       MFEM_SYNC_THREAD;
    }
@@ -2035,6 +2057,7 @@ template <
    typename qf_param_ts,
    typename qfunc_t,
    size_t num_fields>
+MFEM_HOST_DEVICE inline
 void call_qfunction_derivative_action(
    qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,

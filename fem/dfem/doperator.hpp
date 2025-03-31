@@ -120,12 +120,16 @@ public:
 
    void Mult(const Vector &solutions_t, Vector &y) const override
    {
+      // dbg();
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
+      // dbg("prolongation");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
       {
+         // dbg("action");
          action(solutions_l, parameters_l, residual_l);
       }
+      // dbg("prolongation_transpose");
       prolongation_transpose(residual_l, y);
    }
 
@@ -355,6 +359,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                            element_dof_ordering, output_fop);
 
    output_restriction_transpose = output_rt;
+   residual_e.UseDevice(true);
    residual_e.SetSize(output_e_size);
 
    // The explicit captures are necessary to avoid dependency on
@@ -469,8 +474,12 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &parameters_l,
        Vector &residual_l) mutable
    {
+      MFEM_GPU_CHECK(hipGetLastError());
+      // dbg("restriction_callback");
       restriction_callback(solutions_l, parameters_l, fields_e);
 
+      MFEM_GPU_CHECK(hipGetLastError());
+      // dbg("residual_e = 0.0");
       residual_e = 0.0;
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
 
@@ -478,15 +487,17 @@ void DifferentiableOperator::AddDomainIntegrator(
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
+      MFEM_GPU_CHECK(hipGetLastError());
+      // dbg("forall");
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         if (domain_attributes.Size() > 0 &&
-             !domain_attributes[elem_attributes[e] - 1]) { return; }
+         // if (domain_attributes.Size() > 0 &&
+         //     !domain_attributes[elem_attributes[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
-                  unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                               wrapped_fields_e, num_qp, e);
+         unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+                      wrapped_fields_e, num_qp, e);
 
          map_fields_to_quadrature_data(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,

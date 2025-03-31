@@ -31,12 +31,13 @@ using namespace mfem;
 using mfem::internal::tensor;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
-#ifndef MFEM_USE_HIP
-#define MAX_NDOFS 256 * 1024
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+constexpr int MAX_NDOFS = 256 * 1024;
+constexpr int NDOFS_INC = 10;
 #else
-#define MAX_NDOFS 10 * 1024 * 1024
+constexpr int MAX_NDOFS = 10 * 1024 * 1024;
+constexpr int NDOFS_INC = 25;
 #endif
-constexpr int NDOFS_INC = 10; // 25
 
 /// Benchmarks Arguments //////////////////////////////////////////////////////
 static void OrderSideVersionArgs(bmi::Benchmark *b)
@@ -45,7 +46,7 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
    const auto versions = { 0, 1, 2, 3 };
    for (auto k : versions)
    {
-      for (int p = 6; p >= 1; p -= 1)
+      for (int p = 4/*6*/; p >= 1; p -= 1)
       {
          for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
          {
@@ -114,38 +115,31 @@ public:
       NR->Mult(*nodes, (xe.UseDevice(true), xe));
       nqi->Derivatives(xe, J0);
 
+      const int D1D = d1d, Q1D = q1d;
       const auto w_r = ir.GetWeights().Read();
-      const auto W = Reshape(w_r, q1d, q1d, q1d);
-      const auto J = Reshape(J0.Read(), 3, 3, q1d, q1d, q1d, ne);
-      auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
-      mfem::forall_3D(
-         ne, q1d, q1d, q1d,
-         [=] MFEM_HOST_DEVICE(int e)
+      const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
+      const auto J = Reshape(J0.Read(), 3, 3, Q1D, Q1D, Q1D, ne);
+      auto DX_w = Reshape(dx.Write(), 3, 3, Q1D, Q1D, Q1D, ne);
+      mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
       {
-         mfem::foreach_z_thread(
-            q1d,
-            [&](int qz)
+         mfem::foreach_z_thread(Q1D,[&](int qz)
          {
-            mfem::foreach_y_thread(
-               q1d,
-               [&](int qy)
+            mfem::foreach_y_thread(Q1D,[&](int qy)
             {
-               mfem::foreach_x_thread(
-                  q1d,
-                  [&](int qx)
+               mfem::foreach_x_thread(Q1D,[&](int qx)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJ = kernels::Det<3>(Jtr);
                   const real_t wd = w * detJ;
-                  real_t Jrt[9], A[9],
-                         D[9] = { wd,  0.0, 0.0, 0.0, wd,
-                                  0.0, 0.0, 0.0, wd
-                                };
+                  const real_t D[9] = { wd, 0.0, 0.0,
+                                        0.0, wd, 0.0,
+                                        0.0, 0.0, wd
+                                      };
+                  real_t Jrt[9], A[9];
                   kernels::CalcInverse<3>(Jtr, Jrt);
                   kernels::MultABt(3, 3, 3, D, Jrt, A);
-                  kernels::Mult(3, 3, 3, A, Jrt,
-                                &DX_w(0, 0, qx, qy, qz, e));
+                  kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
                });
             });
          });
@@ -166,9 +160,7 @@ public:
       const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
-      mfem::forall_2D(
-         NE, Q1D, Q1D,
-         [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int MQ1 = SetMaxOf(T_Q1D ? T_Q1D : 32);
          constexpr int MD1 = SetMaxOf(T_D1D ? T_D1D : 32);
@@ -185,13 +177,9 @@ public:
 
          for (int qz = 0; qz < Q1D; qz++)
          {
-            mfem::foreach_y_thread(
-               Q1D,
-               [&](int qy)
+            mfem::foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::foreach_x_thread(
-                  Q1D,
-                  [&](int qx)
+               mfem::foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
                                         r1[0][1][qz][qy][qx],
@@ -300,6 +288,8 @@ struct BakeOff
 
       D1D = d1d, Q1D = q1d;
       dbg("D1D: {}, Q1D: {}", D1D, Q1D);
+      qdata.UseDevice(true);
+      assert(q1d*q1d*q1d == ir->GetNPoints());
    }
 
    virtual void benchmark() = 0;
@@ -341,6 +331,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::∂op;
    using BakeOff<VDIM, GLL>::nodes;
    using BakeOff<VDIM, GLL>::qdata;
+   using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
       BakeOff<VDIM, GLL>(order, side), ess_bdr(pmesh.bdr_attributes.Max()),
@@ -352,6 +343,16 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg(MPI_COMM_WORLD)
    {
       static_assert(VDIM == 1 && GLL == false);
+
+      /*{
+         const int deviceId = 0;
+         hipDeviceProp_t deviceProp;
+         hipGetDeviceProperties(&deviceProp, deviceId);
+         MFEM_GPU_CHECK(hipGetLastError());
+         dbg("Device #{} {}", deviceId, deviceProp.name);
+         dbg("Max smem per block: {} bytes", deviceProp.sharedMemPerBlock);
+         dbg("Max smem per block: {} KiB", deviceProp.sharedMemPerBlock / 1024.0);
+      }*/
 
       ess_bdr = 1;
       pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -380,8 +381,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 2) // MF ∂fem
       {
+         dbg("MF ∂fem");
+         MFEM_GPU_CHECK(hipGetLastError());
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         ∂op->SetParameters({nodes});
          auto diffusion_mf_kernel =
             [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
                                  const tensor<real_t, DIM, DIM>& J,
@@ -390,8 +395,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             auto invJ = inv(J);
             return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
          };
-         ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-         ∂op->SetParameters({nodes});
          ∂op->AddDomainIntegrator(diffusion_mf_kernel,
                                     mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                     mfem::tuple{Gradient<U>{}},
@@ -399,9 +402,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          Operator *A_ptr;
          ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
+         MFEM_GPU_CHECK(hipGetLastError());
       }
       else if (version == 3) // PA ∂fem
       {
+         dbg("PA ∂fem");
+         MFEM_GPU_CHECK(hipGetLastError());
+
          auto w = Weight{};
          auto q = None<Q> {};
          auto u = None<U> {};
@@ -420,7 +427,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          DifferentiableOperator ∂Setup(u_sol, Ξ_q_params, pmesh);
          ∂Setup.SetParameters({nodes, &qdata});
          ∂Setup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir);
-         ∂Setup.Mult(Vector{pfes.GetTrueVSize()}, qdata);
+         ∂Setup.Mult(x, qdata);
 
          auto apply =
             [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
@@ -439,17 +446,17 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      if constexpr (true) // check
+      if (dofs < 128 * 1024) // check
       {
-         dbg("Check");
          cg.SetPrintLevel(-1);
-         cg.SetMaxIter(200);
+         cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
          MFEM_DEVICE_SYNC;
          dbg("✅");
+         MFEM_GPU_CHECK(hipGetLastError());
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
@@ -483,8 +490,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    }                                                                 \
    BENCHMARK(BP##i)                                                  \
       ->Apply(OrderSideVersionArgs)                                  \
-      ->Unit(bm::kMillisecond)                                       \
-      ->Iterations(10);
+      ->Unit(bm::kMillisecond);
+// ->Iterations(10);
 
 BakeOff_Problem(3, Diffusion)
 
