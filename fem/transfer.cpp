@@ -1033,7 +1033,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
                                               fes_ho.FEColl(), 1));
    fes_lor_scalar.reset(new FiniteElementSpace(fes_lor.GetMesh(),
                                                fes_lor.FEColl(), 1));
-  
+
    if (use_ea)
    {
       EAL2ProjectionH1Space();
@@ -1044,12 +1044,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH();
 
-   //Shadows variables
-   FiniteElementSpace fes_ho_scalar_local(fes_ho.GetMesh(), fes_ho.FEColl(), 1);
-   FiniteElementSpace fes_lor_scalar_local(fes_lor.GetMesh(), fes_lor.FEColl(), 1);
-
-   const SparseMatrix *P_ho = fes_ho_scalar_local.GetConformingProlongation();
-   const SparseMatrix *P_lor = fes_lor_scalar_local.GetConformingProlongation();
+   const SparseMatrix *P_ho = fes_ho_scalar->GetConformingProlongation();
+   const SparseMatrix *P_lor = fes_lor_scalar->GetConformingProlongation();
 
    if (P_ho || P_lor)
    {
@@ -1091,12 +1087,12 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 {
 
    // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
-   // needed in both matrix and element based versions  
+   // needed in both matrix and element based versions
    pfes_ho_scalar.reset(new ParFiniteElementSpace(pfes_ho.GetParMesh(),
                                                   pfes_ho.FEColl(), 1));
    pfes_lor_scalar.reset(new ParFiniteElementSpace(pfes_lor.GetParMesh(),
                                                    pfes_lor.FEColl(), 1));
-  
+
    if (use_ea)
    {
       EAL2ProjectionH1Space(pfes_ho, pfes_lor);
@@ -1105,28 +1101,24 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    std::tie(R, M_LH) = ComputeSparseRAndM_LH();
 
-   ParFiniteElementSpace pfes_ho_scalar_local(pfes_ho.GetParMesh(),
-                                              pfes_ho.FEColl(), 1);
-   ParFiniteElementSpace pfes_lor_scalar_local(pfes_lor.GetParMesh(),
-                                               pfes_lor.FEColl(), 1);
 
    HypreParMatrix R_local = HypreParMatrix(pfes_ho.GetComm(),
-                                           pfes_lor_scalar_local.GlobalVSize(),
-                                           pfes_ho_scalar_local.GlobalVSize(),
-                                           pfes_lor_scalar_local.GetDofOffsets(),
-                                           pfes_ho_scalar_local.GetDofOffsets(),
+                                           pfes_lor_scalar->GlobalVSize(),
+                                           pfes_ho_scalar->GlobalVSize(),
+                                           pfes_lor_scalar->GetDofOffsets(),
+                                           pfes_ho_scalar->GetDofOffsets(),
                                            static_cast<SparseMatrix*>(R.get()));
    HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
-                                              pfes_lor_scalar_local.GlobalVSize(),
-                                              pfes_ho_scalar_local.GlobalVSize(),
-                                              pfes_lor_scalar_local.GetDofOffsets(),
-                                              pfes_ho_scalar_local.GetDofOffsets(),
+                                              pfes_lor_scalar->GlobalVSize(),
+                                              pfes_ho_scalar->GlobalVSize(),
+                                              pfes_lor_scalar->GetDofOffsets(),
+                                              pfes_ho_scalar->GetDofOffsets(),
                                               static_cast<SparseMatrix*>(M_LH.get()));
 
-   HypreParMatrix *R_mat = RAP(pfes_lor_scalar_local.Dof_TrueDof_Matrix(),
-                               &R_local, pfes_ho_scalar_local.Dof_TrueDof_Matrix());
-   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar_local.Dof_TrueDof_Matrix(),
-                                  &M_LH_local, pfes_ho_scalar_local.Dof_TrueDof_Matrix());
+   HypreParMatrix *R_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
+                               &R_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
+   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
+                                  &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
 
    std::unique_ptr<HypreParMatrix> R_T(R_mat->Transpose());
    HypreParMatrix *RTxM_LH_mat = ParMult(R_T.get(), M_LH_mat, true);
@@ -1752,31 +1744,26 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    Vector& ML_inv) const
 {
 #ifdef MFEM_USE_MPI
-   auto * fes = pfes_lor_scalar.get();
+   // LumpedMassInverse may get called from serial and MPI parallel routines
+   // since we do not know which code path is calling it we must check if
+   // the pfes pointer is null when MPI is available.
+   auto * fes = pfes_lor_scalar == nullptr ? fes_lor_scalar.get() :
+                pfes_lor_scalar.get();
 #else
    auto * fes = fes_lor_scalar.get();
 #endif
    MFEM_ASSERT(fes != nullptr, "[p]fes_lor_scalar is nullptr");
 
-   Vector ML_inv_full(fes->GetVSize());
-
-   // set ML_inv on dofs for vdim = 0
-   Array<int> vdofs_list(fes->GetNDofs());
-
-   fes->GetVDofs(0, vdofs_list);
-   ML_inv_full.SetSubVector(vdofs_list, ML_inv);
-
    Vector ML_inv_true(fes->GetTrueVSize());
    const Operator *P = fes->GetProlongationMatrix();
-   if (P) { P->MultTranspose(ML_inv_full, ML_inv_true); }
-   else { ML_inv_true = ML_inv_full; }
+   if (P) { P->MultTranspose(ML_inv, ML_inv_true); }
+   else { ML_inv_true = ML_inv; }
 
    ML_inv_true.Reciprocal();
 
-   if (P) { P->Mult(ML_inv_true, ML_inv_full); }
-   else { ML_inv_full = ML_inv_true; }
+   if (P) { P->Mult(ML_inv_true, ML_inv); }
+   else { ML_inv = ML_inv_true; }
 
-   ML_inv_full.GetSubVector(vdofs_list, ML_inv);
 }
 
 std::unique_ptr<SparseMatrix>
