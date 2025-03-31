@@ -142,3 +142,45 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
 }
+
+TEST_CASE("GetElementMatrices", "[BilinearForm]")
+{
+   const int order = 3;
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   BilinearForm a(&fes);
+   a.AddDomainIntegrator(new MassIntegrator);
+   const DenseTensor &el_mat = a.GetElementMatrices();
+
+   BilinearForm a_ea(&fes);
+   a_ea.AddDomainIntegrator(new MassIntegrator);
+   a_ea.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   const DenseTensor &el_mat_ea = a_ea.GetElementMatrices();
+
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      DenseMatrix m = el_mat(e);
+      const DenseMatrix &m_ea = el_mat_ea(e);
+      m -= m_ea;
+      REQUIRE(m.MaxMaxNorm() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("BilinearForm print", "[SparseMatrix][BilinearForm]")
+{
+
+   Mesh mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL));
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fec);
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.SetAssemblyLevel(AssemblyLevel::FULL);
+   a.Assemble();
+   a.Finalize(0);
+
+   std::stringstream ss;
+   a.Print(ss);
+   REQUIRE(ss.str().length() > 0);
+}
