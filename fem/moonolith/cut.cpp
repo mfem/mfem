@@ -258,6 +258,15 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
    ElementTransformation &to_trans =
       *to_space.GetElementTransformation(to_elem_idx);
 
+
+   const bool from_is_linear = (from_type == Geometry::CUBE && from_trans.OrderW() <= 2) || from_trans.OrderW() <= 1;
+   const bool to_is_linear = (to_type == Geometry::CUBE && to_trans.OrderW() <= 2) || to_trans.OrderW() <= 1;
+
+   if(!from_is_linear || !to_is_linear) {
+      MFEM_ABORT("CutGeneric::BuildQuadrature() detected high-order element geometries."
+      "Moonolith only supports elements with affine faces.\n");
+   }
+
    double from_measure = moonolith::measure(from_);
    double to_measure = moonolith::measure(to_);
 

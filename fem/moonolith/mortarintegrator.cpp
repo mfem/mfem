@@ -217,7 +217,7 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
 BilinearFormIntegrator * VectorL2MortarIntegrator::newBFormIntegrator() const { return new VectorFEMassIntegrator(); }
 
 
-void TPL2MortarIntegrator::AssembleElementMatrix(const FiniteElement &trial,
+void LagrangeVectorL2MortarIntegrator::AssembleElementMatrix(const FiniteElement &trial,
                               const IntegrationRule &trial_ir,
                               ElementTransformation &trial_Trans,
                               const FiniteElement &test,
@@ -300,6 +300,6 @@ void TPL2MortarIntegrator::AssembleElementMatrix(const FiniteElement &trial,
    }
 }
 
-BilinearFormIntegrator * TPL2MortarIntegrator::newBFormIntegrator() const { return new VectorMassIntegrator(); }
+BilinearFormIntegrator * LagrangeVectorL2MortarIntegrator::newBFormIntegrator() const { return new VectorMassIntegrator(); }
 
 } // namespace mfem

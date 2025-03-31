@@ -134,7 +134,7 @@ private:
  * $$ (u, v)_{L^2(\mathcal{T}_m \cap \mathcal{T}_s)}, u \in U(\mathcal{T}_m )
  * and v \in V(\mathcal{T}_s ) $$
  */
-class TPL2MortarIntegrator : public MortarIntegrator
+class LagrangeVectorL2MortarIntegrator : public MortarIntegrator
 {
 public:
 #ifndef MFEM_THREAD_SAFE
@@ -150,10 +150,10 @@ public:
 public:
    BilinearFormIntegrator * newBFormIntegrator() const override;
 
-   TPL2MortarIntegrator() : vdim(-1) { Init(NULL, NULL, NULL); }
-   TPL2MortarIntegrator(Coefficient *_q) : vdim(-1) { Init(_q, NULL, NULL); }
-   TPL2MortarIntegrator(VectorCoefficient *_vq) : vdim(-1) { Init(NULL, _vq, NULL); }
-   TPL2MortarIntegrator(MatrixCoefficient *_mq) : vdim(-1) { Init(NULL, NULL, _mq); }
+   LagrangeVectorL2MortarIntegrator() : vdim(-1) { Init(NULL, NULL, NULL); }
+   LagrangeVectorL2MortarIntegrator(Coefficient *_q) : vdim(-1) { Init(_q, NULL, NULL); }
+   LagrangeVectorL2MortarIntegrator(VectorCoefficient *_vq) : vdim(-1) { Init(NULL, _vq, NULL); }
+   LagrangeVectorL2MortarIntegrator(MatrixCoefficient *_mq) : vdim(-1) { Init(NULL, NULL, _mq); }
    inline void SetVDim(const int _vdim) { vdim = _vdim; }
 
    void AssembleElementMatrix(const FiniteElement &trial,
