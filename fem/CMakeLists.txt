@@ -35,6 +35,7 @@ set(SRCS
   integ/bilininteg_mass_ea.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
+  integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
   integ/bilininteg_vecdiffusion_pa.cpp
@@ -46,6 +47,7 @@ set(SRCS
   integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_elasticity_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
+  integ/bilininteg_hdiv_ea.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
   integ/bilininteg_mass_kernels.cpp
@@ -73,6 +75,7 @@ set(SRCS
   fe/fe_nd.cpp
   fe/fe_nurbs.cpp
   fe/fe_pos.cpp
+  fe/fe_pyramid.cpp
   fe/fe_rt.cpp
   fe/fe_ser.cpp
   fe_coll.cpp
@@ -80,6 +83,7 @@ set(SRCS
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
+  hybridization_ext.cpp
   intrules.cpp
   intrules_cut.cpp
   ceed/interface/basis.cpp
@@ -186,6 +190,7 @@ set(HDRS
   fe/fe_nd.hpp
   fe/fe_nurbs.hpp
   fe/fe_pos.hpp
+  fe/fe_pyramid.hpp
   fe/fe_rt.hpp
   fe/fe_ser.hpp
   fe_coll.hpp
@@ -194,6 +199,7 @@ set(HDRS
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
+  hybridization_ext.hpp
   intrules.hpp
   intrules_cut.hpp
   kernel_dispatch.hpp
