@@ -438,12 +438,11 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
             }
          }
       }
-      I[i+1] = I[i] + (nnz_per_row - loc_border_counter); 
+      I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
    }
 
    auto I_d = A.ReadI();
    auto d_neighbor_info_arr = Reshape(neighbor_info_arr.Read(), nel_ho, 2*dim, 3);
-   
    mfem::forall(num_rows, [=] MFEM_HOST_DEVICE (int i)
    {
       const int iel_ho = i / ndof_per_el;
