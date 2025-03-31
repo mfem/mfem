@@ -1026,6 +1026,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    : L2Projection(fes_ho_, fes_lor_, d_mt_),
      use_ea(use_ea_)
 {
+
+   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   // needed in both matrix and element based versions
+   fes_ho_scalar.reset(new FiniteElementSpace(fes_ho.GetMesh(),
+                                              fes_ho.FEColl(), 1));
+   fes_lor_scalar.reset(new FiniteElementSpace(fes_lor.GetMesh(),
+                                               fes_lor.FEColl(), 1));
+  
    if (use_ea)
    {
       EAL2ProjectionH1Space();
@@ -1081,6 +1089,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    : L2Projection(pfes_ho, pfes_lor, d_mt_),
      use_ea(use_ea_), pcg(pfes_ho.GetComm())
 {
+
+   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   // needed in both matrix and element based versions  
+   pfes_ho_scalar.reset(new ParFiniteElementSpace(pfes_ho.GetParMesh(),
+                                                  pfes_ho.FEColl(), 1));
+   pfes_lor_scalar.reset(new ParFiniteElementSpace(pfes_lor.GetParMesh(),
+                                                   pfes_lor.FEColl(), 1));
+  
    if (use_ea)
    {
       EAL2ProjectionH1Space(pfes_ho, pfes_lor);
@@ -1158,12 +1174,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
       return;
    }
 
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
-   fes_ho_scalar.reset(new FiniteElementSpace(fes_ho.GetMesh(),
-                                              fes_ho.FEColl(), 1));
-   fes_lor_scalar.reset(new FiniteElementSpace(fes_lor.GetMesh(),
-                                               fes_lor.FEColl(), 1));
-
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
    int nref_max = 0;
@@ -1185,12 +1195,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
    // preconditioning the inverse needed to build the prolongation operator P
    Vector M_H(ndof_ho);
    M_H = 0.0;
-   // ML_inv_ea contains the inverse lumped (row sum) mass matrix. Note that the
-   // method will also work with a full (consistent) mass matrix, though this is
-   // not implemented here. L refers to the low-order refined mesh
-   ML_inv_ea.SetSize(ndof_lor);
-   ML_inv_ea = 0.0;
-
    // ML_inv_ea contains the inverse lumped (row sum) mass matrix. Note that the
    // method will also work with a full (consistent) mass matrix, though this is
    // not implemented here. L refers to the low-order refined mesh
@@ -1258,12 +1262,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
    {
       return;
    }
-
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
-   pfes_ho_scalar.reset(new ParFiniteElementSpace(pfes_ho.GetParMesh(),
-                                                  pfes_ho.FEColl(), 1));
-   pfes_lor_scalar.reset(new ParFiniteElementSpace(pfes_lor.GetParMesh(),
-                                                   pfes_lor.FEColl(), 1));
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
