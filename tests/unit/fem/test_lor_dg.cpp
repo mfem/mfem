@@ -307,24 +307,26 @@ public:
 
 TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 {
-   const int order = 2;
-   // const auto mesh_fname = GENERATE(
+   const int order = 4;
+   //const auto mesh_fname = GENERATE(
    //                            //"../../data/star-q3.mesh"
    //                            //"../../data/star-surf.mesh",
-   //                            // "../../data/fichera-q3.mesh"
+   //                             "../../data/fichera-q3.mesh"
    //                            "../../data/inline-quad.mesh"
    //                            //"../../data/ref-square.mesh"
    //                         );
-   // const bool add_diffusion = GENERATE(true, false);
+   //const bool add_diffusion = GENERATE(true, false);
 
    const int dim = 3;
    const int orientation1 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
    const int orientation2 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+   //const int orientation1 = 0;
+   //const int orientation2 = 1;
    CAPTURE(orientation1, orientation2);
    Mesh mesh = MeshOrientation(dim, orientation1, orientation2);
 
    const bool add_diffusion = true;
-   // Mesh mesh = Mesh::LoadFromFile("../../data/inline-hex.mesh");
+   //Mesh mesh = Mesh::LoadFromFile("../../data/inline-hex.mesh");
 
    DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fespace(&mesh, &fec);

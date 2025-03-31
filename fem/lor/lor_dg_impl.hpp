@@ -237,10 +237,6 @@ void BatchedLOR_DG::Assemble3D()
                const real_t A_ref = (ir_pp2[ix+1].x - ir_pp2[ix].x)
                                  * (ir_pp2[iy+1].x - ir_pp2[iy].x)
                                  * (ir_pp2[iz+1].x - ir_pp2[iz].x);
-               
-               //std::cout << "A_el =  " << A_el << std::endl;
-               //std::cout << "A_ref = " << A_ref << std::endl;
-
                for (int n_idx = 0; n_idx < 3; ++n_idx){
                   for (int e_i = 0; e_i < 2; ++e_i){
                      const int v_idx_lex = e_i + n_idx*2;
@@ -273,22 +269,50 @@ void BatchedLOR_DG::Assemble3D()
 
                      const real_t A_ref_perp = A_ref/A_ref_face;
 
-                     const real_t x0 = X(0, i_0, j_0, k_0, iel_ho); 
-                     const real_t y0 = X(1, i_0, j_0, k_0, iel_ho); 
-                     const real_t z0 = X(2, i_0, j_0, k_0, iel_ho); 
-                     const real_t x1 = X(0, i_1, j_1, k_1, iel_ho); 
-                     const real_t y1 = X(1, i_1, j_1, k_1, iel_ho); 
-                     const real_t z1 = X(2, i_1, j_1, k_1, iel_ho); 
-                     const real_t x2 = X(0, i_2, j_2, k_2, iel_ho); 
-                     const real_t y2 = X(1, i_2, j_2, k_2, iel_ho); 
-                     const real_t z2 = X(2, i_2, j_2, k_2, iel_ho); 
-                     const real_t x3 = X(0, i_3, j_3, k_3, iel_ho); 
-                     const real_t y3 = X(1, i_3, j_3, k_3, iel_ho); 
-                     const real_t z3 = X(2, i_3, j_3, k_3, iel_ho); 
+                     Vector v0(3);
+                     Vector v1(3);
+                     Vector v2(3);
+                     Vector v3(3);
 
-                     const real_t A_face = (n_idx == 0) ? 0.5*fabs((y0*z1 + y1*z2 + y2*z3 + y3*z0 - z0*y1 - z1*y2 - z2*y3 - z3*y0)) :
-                     ((n_idx == 1) ? 0.5*fabs((x0*z1 + x1*z2 + x2*z3 + x3*z0 - z0*x1 - z1*x2 - z2*x3 - z3*x0)) : 0.5*fabs((y0*x1 + y1*x2 + y2*x3 + y3*x0 - x0*y1 - x1*y2 - x2*y3 - x3*y0)));
-                  
+                     v0[0] = X(0, i_0, j_0, k_0, iel_ho); 
+                     v0[1] = X(1, i_0, j_0, k_0, iel_ho); 
+                     v0[2] = X(2, i_0, j_0, k_0, iel_ho); 
+                     v1[0] = X(0, i_1, j_1, k_1, iel_ho); 
+                     v1[1] = X(1, i_1, j_1, k_1, iel_ho); 
+                     v1[2] = X(2, i_1, j_1, k_1, iel_ho); 
+                     v2[0] = X(0, i_2, j_2, k_2, iel_ho); 
+                     v2[1] = X(1, i_2, j_2, k_2, iel_ho); 
+                     v2[2] = X(2, i_2, j_2, k_2, iel_ho); 
+                     v3[0] = X(0, i_3, j_3, k_3, iel_ho); 
+                     v3[1] = X(1, i_3, j_3, k_3, iel_ho); 
+                     v3[2] = X(2, i_3, j_3, k_3, iel_ho); 
+                     
+                     Vector cross_v0_v1(3);
+                     Vector cross_v1_v2(3);
+                     Vector cross_v2_v3(3);
+                     Vector cross_v3_v0(3);
+
+                     v0.cross3D(v1, cross_v0_v1);
+                     v1.cross3D(v2, cross_v1_v2);
+                     v2.cross3D(v3, cross_v2_v3);
+                     v3.cross3D(v0, cross_v3_v0);  
+
+                     Vector sum_vs(3); sum_vs[0] = 0; sum_vs[1] = 0; sum_vs[2] = 0;
+
+                     sum_vs.Add(1, cross_v0_v1);
+                     sum_vs.Add(1, cross_v1_v2);
+                     sum_vs.Add(1, cross_v2_v3);
+                     sum_vs.Add(1, cross_v3_v0);
+                     
+                     const real_t A_face = 0.5*(sum_vs.Norml2());
+                     //std::cout << "A_face =  " << A_face << std::endl;
+                     
+
+                     //const real_t A_face_1 = 0.5*fabs((y0*z1 + y1*z2 + y2*z3 + y3*z0 - z0*y1 - z1*y2 - z2*y3 - z3*y0));
+                     //const real_t A_face_2 = 0.5*fabs((x0*z1 + x1*z2 + x2*z3 + x3*z0 - z0*x1 - z1*x2 - z2*x3 - z3*x0));
+                     //const real_t A_face_3 = 0.5*fabs((y0*x1 + y1*x2 + y2*x3 + y3*x0 - x0*y1 - x1*y2 - x2*y3 - x3*y0));
+                     //const real_t A_face  = (n_idx == 0) ? A_face_1 : ((n_idx == 1) ? A_face_2 : A_face_3);
+
                      bool bdr = true;
                      if (n_idx == 0){bdr = (i_0 == 0 || i_0 == pp1); w_idx_1 = iy; w_idx_2 = iz; int_idx = i_0;}
                      else if(n_idx == 1){bdr = (j_0 == 0 || j_0 == pp1); w_idx_1 = ix; w_idx_2 = iz; int_idx = j_0;}
@@ -375,6 +399,7 @@ void BatchedLOR_DG::Assemble3D()
             }
          }
       }
+
    });
 }
 
