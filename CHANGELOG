@@ -106,6 +106,12 @@ New and updated examples and miniapps
 
 GPU computing
 -------------
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div) (illustrated in example 4).
+
+- Added GPU acceleration and element assembly for `DivDivIntegrator` and
+  `NormalTraceJumpIntegrator`.
+
 - A new GPU kernel dispatch mechanism was introduced. Users can instantiate
   specialized kernels for specific combinations of (for example) polynomial
   degree and number of quadrature points using method AddSpecialization in
