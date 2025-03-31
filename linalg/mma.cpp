@@ -45,15 +45,15 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
 {
    // Solve linear system with LU decomposition ifndef LAPACK
    int nLAP = nCon + 1;
-   int* ipiv = new int[nLAP];
 
    // Convert AA1 to matrix A and bb1 to vector B
-   real_t** A = new real_t*[nLAP];
+   ::std::unique_ptr<::std::unique_ptr<real_t[]>[]> A(
+      new ::std::unique_ptr<real_t[]>[nLAP]);
    for (int i = 0; i < nLAP; ++i)
    {
-      A[i] = new real_t[nLAP];
+      A[i] = allocArray(nLAP);
    }
-   real_t* B = new real_t[nLAP];
+   ::std::unique_ptr<real_t[]> B = allocArray(nLAP);
    for (int i = 0; i < nLAP; ++i)
    {
       for (int j = 0; j < nLAP; ++j)
@@ -64,12 +64,13 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    }
 
    // Perform LU decomposition
-   real_t** L = new real_t*[nLAP];
-   real_t** U = new real_t*[nLAP];
+   ::std::unique_ptr<::std::unique_ptr<real_t[]>[]> L(
+      new ::std::unique_ptr<real_t[]>[nLAP]),
+          U(new ::std::unique_ptr<real_t[]>[nLAP]);
    for (int i = 0; i < nLAP; ++i)
    {
-      L[i] = new real_t[nLAP];
-      U[i] = new real_t[nLAP];
+      L[i] = allocArray(nLAP);
+      U[i] = allocArray(nLAP);
       for (int j = 0; j < nLAP; ++j)
       {
          L[i][j] = 0.0;
@@ -111,23 +112,12 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    {
       if (U[i][i] == 0.0)
       {
-         delete[] ipiv;
-         for (int j = 0; j < nLAP; ++j)
-         {
-            delete[] A[j];
-            delete[] L[j];
-            delete[] U[j];
-         }
-         delete[] A;
-         delete[] L;
-         delete[] U;
-         delete[] B;
          MFEM_ABORT("Error: matrix in MMA LU Solve is singular.");
       }
    }
 
    // Forward substitution to solve L * Y = B
-   real_t* Y = new real_t[nLAP];
+   ::std::unique_ptr<real_t[]> Y=allocArray(nLAP);
    for (int i = 0; i < nLAP; ++i)
    {
       real_t sum = 0.0;
@@ -139,7 +129,7 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    }
 
    // Backward substitution to solve U * X = Y
-   real_t* X = new real_t[nLAP];
+   ::std::unique_ptr<real_t[]> X=allocArray(nLAP);
    for (int i = nLAP - 1; i >= 0; --i)
    {
       real_t sum = 0.0;
@@ -150,27 +140,12 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
       X[i] = (Y[i] - sum) / U[i][i];
    }
 
-   delete[] ipiv;
 
    // Copy results back to bb1
    for (int i = 0; i < (nCon + 1); i++)
    {
       bb1[i] = X[i];
    }
-
-   // Clean up dynamically allocated memory
-   for (int i = 0; i < nLAP; ++i)
-   {
-      delete[] A[i];
-      delete[] L[i];
-      delete[] U[i];
-   }
-   delete[] A;
-   delete[] L;
-   delete[] U;
-   delete[] B;
-   delete[] Y;
-   delete[] X;
 }
 
 void MMA::MMASubSvanberg::AllocSubData(int nvar, int ncon)
