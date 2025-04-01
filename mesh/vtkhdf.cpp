@@ -295,12 +295,25 @@ void VTKHDF::UpdateSteps(real_t t)
    }
 }
 
-void VTKHDF::SaveMesh(const Mesh &mesh)
+void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 {
+   // If refinement level not set, set to default value
+   if (ref <= 0)
+   {
+      ref = 1;
+      if (high_order)
+      {
+         if (auto *nodal_space = mesh.GetNodalFESpace())
+         {
+            ref = nodal_space->GetMaxElementOrder();
+         }
+      }
+   }
+
    const Dims mpi_dims({mpi_size});
 
    // If the mesh hasn't changed, we can return early.
-   if (!mesh_id.HasChanged(mesh))
+   if (!mesh_id.HasChanged(mesh, high_order, ref))
    {
       // The HDF5 format assumes that the "NumberOf" datasets will have size
       // given by the number of parts (number of MPI ranks) times the number of
@@ -317,48 +330,70 @@ void VTKHDF::SaveMesh(const Mesh &mesh)
       return;
    }
 
-   // Set the cached MeshId.
-   mesh_id.Set(mesh);
+   // Set the cached MeshId
+   mesh_id.Set(mesh, high_order, ref);
 
    // Update the part offsets
    part_offset = nsteps * mpi_size;
 
-   // Get and count the points
+
+   // Number of times to refine each element
+   const int ref_0 = high_order ? 1 : ref;
+   // Return the RefinementGeometry object for element 'e'
+   auto get_ref_geom = [&](int e, int r) -> RefinedGeometry&
+   {
+      const Geometry::Type geom = mesh.GetElementGeometry(e);
+      return *GlobGeometryRefiner.Refine(geom, r, 1);
+   };
+   // Return the number of vertices in element 'e'
+   auto get_nv = [&](int e)
+   {
+      return Geometries.NumVerts[mesh.GetElementGeometry(e)];
+   };
+   // Return the number of refined elements for element 'e'
+   auto get_ne_ref = [&](int e, int r)
+   {
+      return get_ref_geom(e, r).RefGeoms.Size() / get_nv(e);
+   };
+
+   // Count the points (and number of refined elements, needed if high_order is
+   // false).
    using T = real_t;
    std::vector<T> points;
+   hsize_t ne_ref = 0;
+   hsize_t np = 0;
    {
       const int ne = mesh.GetNE();
-      int np = 0;
-      for (int i = 0; i < ne; i++)
+      for (int e = 0; e < ne; e++)
       {
-         const Geometry::Type geom = mesh.GetElementGeometry(i);
-         np += Geometries.GetVertices(geom)->GetNPoints();
+         RefinedGeometry &ref_geom = get_ref_geom(e, ref);
+         np += ref_geom.RefPts.GetNPoints();
+         ne_ref += ref_geom.RefGeoms.Size() / get_nv(e);
       }
 
       points.reserve(np * 3);
 
       IsoparametricTransformation Tr;
       DenseMatrix pmat;
-      for (int i = 0; i < ne; ++i)
+      for (int e = 0; e < ne; ++e)
       {
-         const Geometry::Type geom = mesh.GetElementGeometry(i);
-         RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(geom, 1, 1);
-         mesh.GetElementTransformation(i, &Tr);
+         RefinedGeometry &ref_geom = get_ref_geom(e, ref);
+         mesh.GetElementTransformation(e, &Tr);
          Tr.Transform(ref_geom.RefPts, pmat);
 
-         for (int j = 0; j < pmat.Width(); j++)
+         for (int i = 0; i < pmat.Width(); i++)
          {
-            points.push_back(pmat(0,j));
-            if (pmat.Height() > 1) { points.push_back(pmat(1,j)); }
+            points.push_back(pmat(0,i));
+            if (pmat.Height() > 1) { points.push_back(pmat(1,i)); }
             else { points.push_back(0.0); }
-            if (pmat.Height() > 2) { points.push_back(pmat(2,j)); }
+            if (pmat.Height() > 2) { points.push_back(pmat(2,i)); }
             else { points.push_back(0.0); }
          }
       }
    }
 
-   const hsize_t np = points.size() / 3;
-   const hsize_t ne = mesh.GetNE();
+   const hsize_t ne_0 = mesh.GetNE();
+   const hsize_t ne = high_order ? ne_0 : ne_ref;
 
    AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &np);
    AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &ne);
@@ -379,22 +414,49 @@ void VTKHDF::SaveMesh(const Mesh &mesh)
       {
          std::vector<int> offsets(ne + 1);
          std::vector<int> connectivity;
-         int coff = 0;
-         for (int i = 0; i < ne; i++)
+
+         int off = 0;
+         if (high_order)
          {
-            offsets[i] = coff;
-            Geometry::Type geom = mesh.GetElementGeometry(i);
-            const int nv = Geometries.GetVertices(geom)->GetNPoints();
-            RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(geom, 1, 1);
-            Array<int> &rg = ref_geom.RefGeoms;
-            const int *p = VTKGeometry::VertexPermutation[geom];
-            for (int k = 0; k < nv; k++)
+            Array<int> local_connectivity;
+            for (int e = 0; e < ne; ++e)
             {
-               connectivity.push_back(coff + rg[p ? p[k] : k]);
+               offsets[e] = off;
+               const Geometry::Type geom = mesh.GetElementGeometry(e);
+               CreateVTKElementConnectivity(local_connectivity, geom, ref);
+               const int nnodes = local_connectivity.Size();
+               for (int i = 0; i < nnodes; ++i)
+               {
+                  connectivity.push_back(off + local_connectivity[i]);
+               }
+               off += nnodes;
             }
-            coff += nv;
+            offsets.back() = off;
          }
-         offsets.back() = coff;
+         else
+         {
+            int off_0 = 0;
+            int e_ref = 0;
+            for (int e = 0; e < ne_0; ++e)
+            {
+               const Geometry::Type geom = mesh.GetElementGeometry(e);
+               const int nv = get_nv(e);
+               RefinedGeometry &ref_geom = get_ref_geom(e, ref_0);
+               Array<int> &rg = ref_geom.RefGeoms;
+               for (int r = 0; r < rg.Size(); ++e_ref)
+               {
+                  offsets[e_ref] = off;
+                  off += nv;
+                  const int *p = VTKGeometry::VertexPermutation[geom];
+                  for (int k = 0; k < nv; ++k, ++r)
+                  {
+                     connectivity.push_back(off_0 + rg[p ? p[r] : r]);
+                  }
+               }
+               off_0 += ref_geom.RefPts.Size();
+            }
+            offsets.back() = off;
+         }
 
          const hsize_t n = connectivity.size();
          AppendParData(vtk, "NumberOfConnectivityIds", 1, mpi_rank, mpi_dims, &n);
@@ -411,10 +473,16 @@ void VTKHDF::SaveMesh(const Mesh &mesh)
       // Cell types
       {
          std::vector<unsigned char> cell_types(ne);
-         const int *vtk_geom_map = VTKGeometry::Map;
-         for (int i = 0; i < ne; i++)
+         const int *vtk_geom_map =
+            high_order ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
+         int e_ref = 0;
+         for (int e = 0; e < ne_0; ++e)
          {
-            cell_types[i] = vtk_geom_map[mesh.GetElementGeometry(i)];
+            const int ne_ref = get_ne_ref(e, ref_0);
+            for (int i = 0; i < ne_ref; ++i, ++e_ref)
+            {
+               cell_types[e_ref] = vtk_geom_map[mesh.GetElementGeometry(e)];
+            }
          }
          AppendParData(vtk, "Types", ne, e_offset, Dims({ne_total}),
                        cell_types.data());
@@ -428,13 +496,17 @@ void VTKHDF::SaveMesh(const Mesh &mesh)
             cell_data = H5Gcreate2(vtk, "CellData", H5P_DEFAULT, H5P_DEFAULT,
                                    H5P_DEFAULT);
          }
-
          std::vector<int> attributes(ne);
-         for (int i = 0; i < ne; i++)
+         int e_ref = 0;
+         for (int e = 0; e < ne_0; ++e)
          {
-            attributes[i] = mesh.GetAttribute(i);
+            const int attr = mesh.GetAttribute(e);
+            const int ne_ref = get_ne_ref(e, ref_0);
+            for (int i = 0; i < ne_ref; ++i, ++e_ref)
+            {
+               attributes[e_ref] = attr;
+            }
          }
-
          AppendParData(cell_data, "attribute", ne, e_offset, Dims({ne_total}),
                        attributes.data());
       }
@@ -452,9 +524,11 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
 
    const Mesh &mesh = *gf.FESpace()->GetMesh();
 
+   MFEM_VERIFY(!mesh_id.HasChanged(mesh), "Mesh must be saved first");
+   const int ref = mesh_id.GetRefinementLevel();
+
    std::vector<real_t> point_values;
 
-   const int ref = 1;
    // scalar data
    Vector val;
    for (int i = 0; i < mesh.GetNE(); i++)

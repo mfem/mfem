@@ -27,8 +27,8 @@ namespace mfem
 
 /// @brief Low-level class for writing VTKHDF data (for use in ParaView).
 ///
-/// Users should typically use ParaViewDataCollection with data format VTKHDF or
-/// VTKHDF32 rather than using this class directly.
+/// Users should typically use ParaViewHDFDataCollection, Mesh::SaveVTKHDF, or
+/// GridFunction::SaveVTKHDF instead.
 class VTKHDF
 {
 #ifdef MFEM_USE_MPI
@@ -107,6 +107,8 @@ class VTKHDF
       const Mesh *mesh_ptr = nullptr;
       int sequence = -1;
       int nodes_sequence = -1;
+      bool high_order = true;
+      int ref = -1;
    public:
       MeshId() = default;
       /// @brief Is the given @a mesh different from the cached MeshId?
@@ -116,7 +118,7 @@ class VTKHDF
       ///
       /// If HasChanged() returns true, then new mesh data should be saved. If
       /// it returns false, then the mesh doesn't need to be saved again.
-      bool HasChanged(const Mesh &mesh)
+      bool HasChanged(const Mesh &mesh) const
       {
          if (mesh_ptr == &mesh)
          {
@@ -125,13 +127,24 @@ class VTKHDF
          }
          return true;
       }
+      /// @brief Is the given @a mesh different from the cached MeshId, taking
+      /// into account the order and refinement level of the previously saved
+      /// mesh.
+      bool HasChanged(const Mesh &mesh, bool high_order_, int ref_) const
+      {
+         return HasChanged(mesh) || high_order != high_order_ || ref != ref_;
+      }
       /// Set the cached MeshId given @a mesh.
-      void Set(const Mesh &mesh)
+      void Set(const Mesh &mesh, bool high_order_, int ref_)
       {
          mesh_ptr = &mesh;
          sequence = mesh.GetSequence();
          nodes_sequence = mesh.GetNodesSequence();
+         high_order = high_order_;
+         ref = ref_;
       }
+      /// Return the refinement level of the previously saved mesh.
+      int GetRefinementLevel() const { return ref; }
    };
 
    /// The most recently saved MeshId.
@@ -244,9 +257,10 @@ public:
 
    /// @brief Save the mesh, appending as a new time step.
    ///
-   /// If the mesh has not changed since the previous time step, this will
-   /// avoid duplication.
-   void SaveMesh(const Mesh &mesh);
+   /// If @a high_order is true, @a ref determines the polynomial degree of the
+   /// mesh elements (-1 indicates the same as the mesh nodes). If @a high_order
+   /// is false, the elements are uniformly subdivided according to @a ref.
+   void SaveMesh(const Mesh &mesh, bool high_order = true, int ref = -1);
 
    /// Save the grid function with the given name, appending as a new time step.
    void SaveGridFunction(const GridFunction &gf, const std::string &name);
