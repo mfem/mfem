@@ -7,7 +7,7 @@ index 186a320..39e5356 100644
 +cmake_minimum_required(VERSION 3.12.0...4.0.0)
  project(METIS)
  
- set(GKLIB_PATH "GKlib" CACHE PATH "path to GKlib")
+ set(GKLIB_PATH "${CMAKE_SOURCE_DIR}/GKlib" CACHE PATH "path to GKlib")
 diff --git a/GKlib/CMakeLists.txt b/GKlib/CMakeLists.txt
 index 67b600a..44321a6 100644
 --- a/GKlib/CMakeLists.txt
