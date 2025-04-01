@@ -12,6 +12,7 @@
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
 # Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
 # Version 3.8 or newer is required for direct CUDA support.
+# Version 3.12 or newer is required for setting maximum policy version.
 cmake_minimum_required(VERSION 3.12.0...4.0.0)
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
