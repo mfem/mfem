@@ -1544,6 +1544,9 @@ public:
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 
+   /// @brief Save the GridFunction in %VTKHDF format.
+   void SaveVTKHDF(const std::string &fname, const std::string &name="u");
+
    /** @brief Write the GridFunction in STL format. Note that the mesh dimension
        must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
