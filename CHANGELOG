@@ -80,6 +80,12 @@ New and updated examples and miniapps
 
 GPU computing
 -------------
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div) (illustrated in example 4).
+
+- Added GPU acceleration and element assembly for `DivDivIntegrator` and
+  `NormalTraceJumpIntegrator`.
+
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
   hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
 
@@ -105,6 +111,20 @@ GPU computing
 - Allow BlockLowerTriangularPreconditioner to run on GPU.
 
 - Use device vectors in GMRES, FGMRES and other iterative methods.
+
+- Added BatchInverseElementTransformation to batch InverseElementTransformation
+  searches. Batch searches are currently limited to meshes with a single element
+  geometry type of SEGMENT, SQUARE, or CUBE. Additional element geometry types
+  may be added in the future. Mixed element order meshes are supported. Batch
+  searches can be performed on the CPU (serial per MPI rank) or GPU. Embedded
+  elements (SEGMENT in 2D/3D space or SQUARE in 3D space) are supported, however
+  the existing solvers may struggle to find a valid solution.
+
+- Added `InverseElementTransformation::InitGuessType::EdgeScan` as an alternative
+  initial guess type. This guess type tries solving with multiple initial guesses
+  along the r/s/t=0 edges of the element until a valid solution is found or all
+  initial guess points are exhausted.
+
 
 Miscellaneous
 -------------
