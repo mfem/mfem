@@ -12,6 +12,7 @@
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../mesh/vtk.hpp"
+#include "../mesh/vtkhdf.hpp"
 #include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "picojson.h"
@@ -758,18 +759,10 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
    }
 }
 
-ParaViewDataCollection::ParaViewDataCollection(const std::string&
-                                               collection_name,
-                                               Mesh *mesh_)
-   : DataCollection(collection_name, mesh_),
-     levels_of_detail(1),
-     pv_data_format(VTKFormat::BINARY),
-     high_order_output(false),
-     restart_mode(false)
+ParaViewDataCollectionBase::ParaViewDataCollectionBase(
+   const std::string &name, Mesh *mesh) : DataCollection(name, mesh)
 {
-   cycle = 0; // always include a valid cycle index in file names
-
-   compression_level = -1;  // default zlib compression level, equivalent to 6
+   cycle = 0;
 #ifdef MFEM_USE_ZLIB
    compression = true; // if we have zlib, enable compression
 #else
@@ -777,15 +770,45 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
 #endif
 }
 
-void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
+void ParaViewDataCollectionBase::SetLevelsOfDetail(int levels_of_detail_)
 {
    levels_of_detail = levels_of_detail_;
 }
 
-void ParaViewDataCollection::Load(int )
+void ParaViewDataCollectionBase::Load(int )
 {
-   MFEM_WARNING("ParaViewDataCollection::Load() is not implemented!");
+   MFEM_ABORT("Loading data collections is not implemented for ParaView!");
 }
+
+void ParaViewDataCollectionBase::SetHighOrderOutput(bool high_order_output_)
+{
+   high_order_output = high_order_output_;
+}
+
+void ParaViewDataCollectionBase::SetCompressionLevel(int compression_level_)
+{
+   MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
+               "Compression level must be between -1 and 9 (inclusive).");
+   compression_level = compression_level_;
+   compression = compression_level_ != 0;
+}
+
+void ParaViewDataCollectionBase::SetCompression(bool compression_)
+{
+   compression = compression_;
+}
+
+int ParaViewDataCollectionBase::GetCompressionLevel() const
+{
+   return compression ? compression_level : 0;
+}
+
+ParaViewDataCollection::ParaViewDataCollection(
+   const std::string& collection_name, Mesh *mesh_)
+   : ParaViewDataCollectionBase(collection_name, mesh_),
+     pv_data_format(VTKFormat::BINARY),
+     restart_mode(false)
+{ }
 
 std::string ParaViewDataCollection::GenerateCollectionPath()
 {
@@ -1125,24 +1148,6 @@ bool ParaViewDataCollection::IsBinaryFormat() const
    return pv_data_format != VTKFormat::ASCII;
 }
 
-void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
-{
-   high_order_output = high_order_output_;
-}
-
-void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
-{
-   MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
-               "Compression level must be between -1 and 9 (inclusive).");
-   compression_level = compression_level_;
-   compression = compression_level_ != 0;
-}
-
-void ParaViewDataCollection::SetCompression(bool compression_)
-{
-   compression = compression_;
-}
-
 void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
 {
    restart_mode = restart_mode_;
@@ -1172,9 +1177,49 @@ const char *ParaViewDataCollection::GetDataTypeString() const
    }
 }
 
-int ParaViewDataCollection::GetCompressionLevel() const
+ParaViewHDFDataCollection::ParaViewHDFDataCollection(
+   const std::string &collection_name, Mesh *mesh)
+   : ParaViewDataCollectionBase(collection_name, mesh)
+{ }
+
+void ParaViewHDFDataCollection::EnsureVTKHDF()
 {
-   return compression ? compression_level : 0;
+   if (!vtkhdf)
+   {
+      std::string fname = prefix_path + name + ".vtkhdf";
+      bool use_mpi = false;
+#ifdef MFEM_USE_MPI
+      if (ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh))
+      {
+         use_mpi = true;
+         vtkhdf.reset(new VTKHDF(fname, pmesh->GetComm()));
+      }
+#endif
+      if (!use_mpi) { vtkhdf.reset(new VTKHDF(fname)); }
+   }
 }
+
+void ParaViewHDFDataCollection::Save()
+{
+   EnsureVTKHDF();
+
+   if (compression)
+   {
+      vtkhdf->EnableCompression(compression_level >= 0 ? compression_level : 6);
+   }
+   else
+   {
+      vtkhdf->DisableCompression();
+   }
+
+   vtkhdf->SaveMesh(*mesh);
+   for (const auto &field : field_map)
+   {
+      vtkhdf->SaveGridFunction(*field.second, field.first);
+   }
+   vtkhdf->UpdateSteps(time);
+}
+
+ParaViewHDFDataCollection::~ParaViewHDFDataCollection() = default;
 
 }  // end namespace MFEM
