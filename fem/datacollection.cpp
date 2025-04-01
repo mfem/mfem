@@ -775,11 +775,6 @@ void ParaViewDataCollectionBase::SetLevelsOfDetail(int levels_of_detail_)
    levels_of_detail = levels_of_detail_;
 }
 
-void ParaViewDataCollectionBase::Load(int )
-{
-   MFEM_ABORT("Loading data collections is not implemented for ParaView!");
-}
-
 void ParaViewDataCollectionBase::SetHighOrderOutput(bool high_order_output_)
 {
    high_order_output = high_order_output_;
@@ -803,10 +798,19 @@ int ParaViewDataCollectionBase::GetCompressionLevel() const
    return compression ? compression_level : 0;
 }
 
+void ParaViewDataCollectionBase::SetDataFormat(VTKFormat fmt)
+{
+   pv_data_format = fmt;
+}
+
+bool ParaViewDataCollectionBase::IsBinaryFormat() const
+{
+   return pv_data_format != VTKFormat::ASCII;
+}
+
 ParaViewDataCollection::ParaViewDataCollection(
    const std::string& collection_name, Mesh *mesh_)
    : ParaViewDataCollectionBase(collection_name, mesh_),
-     pv_data_format(VTKFormat::BINARY),
      restart_mode(false)
 { }
 
@@ -1138,16 +1142,6 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
    os << "</DataArray>" << std::endl;
 }
 
-void ParaViewDataCollection::SetDataFormat(VTKFormat fmt)
-{
-   pv_data_format = fmt;
-}
-
-bool ParaViewDataCollection::IsBinaryFormat() const
-{
-   return pv_data_format != VTKFormat::ASCII;
-}
-
 void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
 {
    restart_mode = restart_mode_;
@@ -1199,7 +1193,8 @@ void ParaViewHDFDataCollection::EnsureVTKHDF()
    }
 }
 
-void ParaViewHDFDataCollection::Save()
+template <typename FP_T>
+void ParaViewHDFDataCollection::TSave()
 {
    EnsureVTKHDF();
 
@@ -1212,12 +1207,22 @@ void ParaViewHDFDataCollection::Save()
       vtkhdf->DisableCompression();
    }
 
-   vtkhdf->SaveMesh(*mesh);
+   vtkhdf->SaveMesh<FP_T>(*mesh);
    for (const auto &field : field_map)
    {
-      vtkhdf->SaveGridFunction(*field.second, field.first);
+      vtkhdf->SaveGridFunction<FP_T>(*field.second, field.first);
    }
    vtkhdf->UpdateSteps(time);
+}
+
+void ParaViewHDFDataCollection::Save()
+{
+   switch (pv_data_format)
+   {
+      case VTKFormat::BINARY32: TSave<float>(); break;
+      case VTKFormat::BINARY: TSave<double>(); break;
+      default: MFEM_ABORT("Unsupported VTK format.");
+   }
 }
 
 ParaViewHDFDataCollection::~ParaViewHDFDataCollection() = default;

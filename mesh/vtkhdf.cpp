@@ -20,17 +20,25 @@
 namespace mfem
 {
 
-template <> struct VTKHDF::TypeID<float> { static hid_t Get() { return H5T_NATIVE_FLOAT; } };
-template <> struct VTKHDF::TypeID<double> { static hid_t Get() { return H5T_NATIVE_DOUBLE; } };
-template <> struct VTKHDF::TypeID<int32_t> { static hid_t Get() { return H5T_NATIVE_INT32; } };
-template <> struct VTKHDF::TypeID<uint32_t> { static hid_t Get() { return H5T_NATIVE_UINT32; } };
-template <> struct VTKHDF::TypeID<int64_t> { static hid_t Get() { return H5T_NATIVE_INT64; } };
-template <> struct VTKHDF::TypeID<uint64_t> { static hid_t Get() { return H5T_NATIVE_UINT64; } };
-template <> struct VTKHDF::TypeID<size_t> { static hid_t Get() { return H5T_NATIVE_HSIZE; } };
-template <> struct VTKHDF::TypeID<unsigned char> { static hid_t Get() { return H5T_NATIVE_UCHAR; } };
+namespace vtk_hdf
+{
+
+/// Template class for HDF5 type IDs (specialized for each type @a T).
+template <typename T> struct TypeID { };
+
+template <> struct TypeID<float> { static hid_t Get() { return H5T_NATIVE_FLOAT; } };
+template <> struct TypeID<double> { static hid_t Get() { return H5T_NATIVE_DOUBLE; } };
+template <> struct TypeID<int32_t> { static hid_t Get() { return H5T_NATIVE_INT32; } };
+template <> struct TypeID<uint32_t> { static hid_t Get() { return H5T_NATIVE_UINT32; } };
+template <> struct TypeID<int64_t> { static hid_t Get() { return H5T_NATIVE_INT64; } };
+template <> struct TypeID<uint64_t> { static hid_t Get() { return H5T_NATIVE_UINT64; } };
+template <> struct TypeID<size_t> { static hid_t Get() { return H5T_NATIVE_HSIZE; } };
+template <> struct TypeID<unsigned char> { static hid_t Get() { return H5T_NATIVE_UCHAR; } };
+
+}
 
 template <typename T>
-hid_t VTKHDF::GetTypeID() { return TypeID<typename std::decay<T>::type>::Get(); }
+hid_t VTKHDF::GetTypeID() { return vtk_hdf::TypeID<typename std::decay<T>::type>::Get(); }
 
 void VTKHDF::SetupVTKHDF()
 {
@@ -295,6 +303,7 @@ void VTKHDF::UpdateSteps(real_t t)
    }
 }
 
+template <typename FP_T>
 void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 {
    // If refinement level not set, set to default value
@@ -358,8 +367,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 
    // Count the points (and number of refined elements, needed if high_order is
    // false).
-   using T = real_t;
-   std::vector<T> points;
+   std::vector<FP_T> points;
    hsize_t ne_ref = 0;
    hsize_t np = 0;
    {
@@ -397,6 +405,9 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 
    AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &np);
    AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &ne);
+
+   // Save the number of points written
+   last_np = np;
 
    // Write out 2D data for points
    auto point_offset_total = AppendParVector(vtk, "Points", points, Dims({0, 3}));
@@ -513,6 +524,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
    }
 }
 
+template <typename FP_T>
 void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
 {
    // Create the point data group if needed
@@ -529,19 +541,26 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
 
    const int vdim = gf.VectorDim();
 
-   std::vector<real_t> point_values;
+   std::vector<FP_T> point_values(vdim * last_np);
    DenseMatrix vec_val, pmat;
-   for (int i = 0; i < mesh.GetNE(); i++)
+   int off = 0;
+   for (int e = 0; e < mesh.GetNE(); e++)
    {
       RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(
-                                     mesh.GetElementBaseGeometry(i), ref, 1);
-      gf.GetVectorValues(i, ref_geom.RefPts, vec_val, pmat);
-      std::copy(&vec_val(0,0), &vec_val(0,0) + vec_val.TotalSize(),
-                std::back_inserter(point_values));
+                                     mesh.GetElementBaseGeometry(e), ref, 1);
+      gf.GetVectorValues(e, ref_geom.RefPts, vec_val, pmat);
+      for (int i = 0; i < vec_val.Width(); ++i)
+      {
+         for (int vd = 0; vd < vdim; ++vd)
+         {
+            point_values[off] = vec_val(vd, i);
+            ++off;
+         }
+      }
    }
 
    auto offset_total = AppendParVector(point_data, name, point_values,
-                                       Dims({0, vdim}));
+                                       Dims( {0, vdim}));
    point_data_offsets[name].Update(offset_total.total);
 }
 
@@ -560,6 +579,13 @@ VTKHDF::~VTKHDF()
    H5Fclose(file);
    if (fapl != H5P_DEFAULT) { H5Pclose(fapl); }
 }
+
+template void VTKHDF::SaveMesh<float>(const Mesh&, bool, int);
+template void VTKHDF::SaveMesh<double>(const Mesh&, bool, int);
+template void VTKHDF::SaveGridFunction<float>(const GridFunction&,
+                                              const std::string&);
+template void VTKHDF::SaveGridFunction<double>(const GridFunction&,
+                                               const std::string&);
 
 } // namespace mfem
 

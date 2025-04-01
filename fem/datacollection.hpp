@@ -509,6 +509,7 @@ protected:
    int levels_of_detail = 1;
    int compression_level = -1;
    bool high_order_output = false;
+   VTKFormat pv_data_format = VTKFormat::BINARY;
 public:
    ParaViewDataCollectionBase(const std::string &name, Mesh *mesh);
 
@@ -551,8 +552,19 @@ public:
    /// If compression is enabled, return the compression level, else return 0.
    int GetCompressionLevel() const;
 
-   /// Not implemented for ParaView, aborts.
-   void Load(int cycle_ = 0) override;
+   /// @brief Set the data format for the ParaView output files.
+   ///
+   /// Possible options are VTKFormat::ASCII, VTKFormat::BINARY, and
+   /// VTKFormat::BINARY32. The ASCII and BINARY options output double precision
+   /// data, whereas the BINARY32 option outputs single precision data.
+   ///
+   /// The initial format is VTKFormat::BINARY.
+   ///
+   /// VTKFormat::ASCII is not supported by ParaViewHDFDataCollection.
+   void SetDataFormat(VTKFormat fmt);
+
+   /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
+   bool IsBinaryFormat() const;
 };
 
 /// Writer for ParaView visualization (PVD and VTU format)
@@ -560,7 +572,6 @@ class ParaViewDataCollection : public ParaViewDataCollectionBase
 {
 private:
    std::fstream pvd_stream;
-   VTKFormat pv_data_format;
    bool restart_mode;
 
 protected:
@@ -590,17 +601,6 @@ public:
    /// cycle value
    void Save() override;
 
-   /// Set the data format for the ParaView output files. Possible options are
-   /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
-   /// The ASCII and BINARY options output double precision data, whereas the
-   /// BINARY32 option outputs single precision data.
-   ///
-   /// The initial format is VTKFormat::BINARY.
-   void SetDataFormat(VTKFormat fmt);
-
-   /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
-   bool IsBinaryFormat() const;
-
    /// Enable or disable restart mode. If restart is enabled, new writes will
    /// preserve timestep metadata for any solutions prior to the currently
    /// defined time.
@@ -612,10 +612,14 @@ public:
 /// Writer for ParaView visualization (VTKHDF format)
 class ParaViewHDFDataCollection : public ParaViewDataCollectionBase
 {
+   /// The low-level VTKHDF object for I/O (pointer to implementation idiom).
    std::unique_ptr<class VTKHDF> vtkhdf;
 
    /// Create the VTKHDF object if it doesn't exist already.
    void EnsureVTKHDF();
+
+   /// Save the collection (templated on floating point type).
+   template <typename FP_T> void TSave();
 
 public:
    /// @brief Constructor. The collection name is used when saving the data.
