@@ -70,6 +70,10 @@ Meshing improvements
   with arbitrary spacing in each direction. This enables in particular 3:1
   non-conforming refinement, as demonstrated in the new meshing miniapp ref321.
 
+- Added capabilities for optimization and adaptation of periodic meshes with
+  TMOP. The internals of TMOP were modified so that the optimization problem is
+  always solved with respect to mesh displacements.
+
 - New convenience methods for manipulating boundary attribute markers in class
   Mesh: MarkExternalBoundaries, MarkNamedBoundaries, UnmarkInternalBoundaries
   and UnmarkNamedBoundaries. See Examples 1/1p and 11p for basic usage.
