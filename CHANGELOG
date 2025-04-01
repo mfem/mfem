@@ -20,7 +20,8 @@ Discretization improvements
   functions (Bernstein basis) for H1 and L2 on pyramids were also added.
 
 - Added support for parallel p- and hp-refinement on quad/hex meshes. For hp, we
-  currently support only isotropic refinement with L2 or H1 spaces.
+  currently support only isotropic refinement with L2 or H1 spaces. See the new
+  miniapps hpref and phpref in the miniapps/meshing/ directory.
 
 - Added several improvements for hyperbolic problems:
   * Assembly of Jacobians in HyperbolicFormIntegrator
