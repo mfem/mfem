@@ -1207,7 +1207,7 @@ void ParaViewHDFDataCollection::TSave()
       vtkhdf->DisableCompression();
    }
 
-   vtkhdf->SaveMesh<FP_T>(*mesh);
+   vtkhdf->SaveMesh<FP_T>(*mesh, high_order_output, levels_of_detail);
    for (const auto &field : field_map)
    {
       vtkhdf->SaveGridFunction<FP_T>(*field.second, field.first);
