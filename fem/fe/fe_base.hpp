@@ -799,6 +799,12 @@ public:
        TensorBasisElement::GetDofMap, but it is also available for non-tensor
        elements. */
    const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
+
+   /// Given a lexicographically ordered Vector @a dofs, containing @a ncomp
+   /// components of the size of the scalar FiniteElement, reorder its entries
+   /// into native (H1) ordering.
+   /// The function assumes that GetLexicographicOrdering() is not empty.
+   void ReorderLexToNative(int ncomp, Vector &dofs) const;
 };
 
 /** @brief Intermediate class for finite elements whose basis functions return
