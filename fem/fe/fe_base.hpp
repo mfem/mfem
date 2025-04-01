@@ -15,8 +15,12 @@
 #include "../intrules.hpp"
 #include "../geom.hpp"
 #include "../doftrans.hpp"
+#include "../../general/hash.hpp"
 
 #include <map>
+#include <memory>
+#include <unordered_map>
+#include <utility>
 
 namespace mfem
 {
@@ -1039,8 +1043,14 @@ public:
    };
 
 private:
-   typedef std::map<int, Array<real_t*>*> PointsMap;
-   typedef std::map<int, Array<Basis*>*> BasisMap;
+   /// key: (btype, p), value: underlying storage Array
+   typedef std::unordered_map<std::pair<int, int>,
+           std::unique_ptr<Basis>, PairHasher>
+           BasisMap;
+   /// key: (btype, p), value: underlying storage Array
+   typedef std::unordered_map<std::pair<int, int>,
+           std::unique_ptr<Array<real_t>>, PairHasher>
+           PointsMap;
 
    MemoryType h_mt;
    PointsMap points_container;
@@ -1074,17 +1084,40 @@ public:
        @return A pointer to an array containing the `p+1` coordinates of the
                points. Returns NULL if the BasisType has no associated set of
                points. */
-   const real_t *GetPoints(const int p, const int btype);
+   const Array<real_t>* GetPointsArray(const int p, const int btype);
+
+   /** @brief Get the coordinates of the points of the given BasisType,
+       @a btype.
+
+       @param[in] p      The polynomial degree; the number of points is `p+1`.
+       @param[in] btype  The BasisType.
+       @param[in] on_device  true if the requested pointer should be accessible
+       from the device.
+
+       @return A pointer to an array containing the `p+1` coordinates of the
+               points. Returns NULL if the BasisType has no associated set of
+               points. */
+   const real_t *GetPoints(const int p, const int btype,
+                           bool on_device = false)
+   {
+      return GetPointsArray(p, btype)->Read(on_device);
+   }
 
    /// Get coordinates of an open (GaussLegendre) set of points if degree @a p
    const real_t *OpenPoints(const int p,
-                            const int btype = BasisType::GaussLegendre)
-   { return GetPoints(p, btype); }
+                            const int btype = BasisType::GaussLegendre,
+                            bool on_device = false)
+   {
+      return GetPoints(p, btype, on_device);
+   }
 
    /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
    const real_t *ClosedPoints(const int p,
-                              const int btype = BasisType::GaussLobatto)
-   { return GetPoints(p, btype); }
+                              const int btype = BasisType::GaussLobatto,
+                              bool on_device = false)
+   {
+      return GetPoints(p, btype, on_device);
+   }
 
    /** @brief Get a Poly_1D::Basis object of the given degree and BasisType,
        @a btype.
@@ -1197,7 +1230,7 @@ public:
    static void CalcLegendre(const int p, const real_t x, real_t *u);
    static void CalcLegendre(const int p, const real_t x, real_t *u, real_t *d);
 
-   ~Poly_1D();
+   ~Poly_1D() = default;
 };
 
 extern MFEM_EXPORT Poly_1D poly1d;
