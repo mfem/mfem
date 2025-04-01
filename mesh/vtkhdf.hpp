@@ -150,6 +150,9 @@ class VTKHDF
    /// The most recently saved MeshId.
    MeshId mesh_id;
 
+   /// Number of points of most recently saved mesh.
+   hsize_t last_np = 0;
+
    ///@}
 
    /// Hold rank-offset and total size for parallel I/O.
@@ -227,9 +230,6 @@ class VTKHDF
    /// Return the HDF5 type ID corresponding to type @a T.
    template <typename T> hid_t GetTypeID();
 
-   /// Template class for HDF5 type IDs (specialized for each type @a T).
-   template <typename T> struct TypeID { };
-
 public:
    /// Create a new VTKHDF file for serial I/O.
    VTKHDF(const std::string &filename);
@@ -260,9 +260,11 @@ public:
    /// If @a high_order is true, @a ref determines the polynomial degree of the
    /// mesh elements (-1 indicates the same as the mesh nodes). If @a high_order
    /// is false, the elements are uniformly subdivided according to @a ref.
+   template <typename FP_T = real_t>
    void SaveMesh(const Mesh &mesh, bool high_order = true, int ref = -1);
 
    /// Save the grid function with the given name, appending as a new time step.
+   template <typename FP_T = real_t>
    void SaveGridFunction(const GridFunction &gf, const std::string &name);
 
    /// Flush the file.

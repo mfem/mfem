@@ -105,11 +105,7 @@ enum class VTKFormat
    BINARY,
    /// Data arrays will be written in binary format. Floating point numbers will
    /// be output with 32 bits of precision.
-   BINARY32,
-   /// VTKHDF format with 64 bit precision data arrays.
-   VTKHDF,
-   /// VTKHDF format with 32 bit precision data arrays.
-   VTKHDF32
+   BINARY32
 };
 
 /// @brief Create the VTK element connectivity array for a given element
