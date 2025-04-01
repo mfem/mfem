@@ -25,7 +25,7 @@
 namespace mfem
 {
 
-/// @brief Low-level class for writing VTKHDF data (for use in ParaView).
+/// @brief Low-level class for writing %VTKHDF data (for use in ParaView).
 ///
 /// Users should typically use ParaViewHDFDataCollection, Mesh::SaveVTKHDF, or
 /// GridFunction::SaveVTKHDF instead.
@@ -231,18 +231,21 @@ class VTKHDF
    template <typename T> hid_t GetTypeID();
 
 public:
-   /// Create a new VTKHDF file for serial I/O.
+   /// Create a new %VTKHDF file for serial I/O.
    VTKHDF(const std::string &filename);
 
 #ifdef MFEM_USE_MPI
-   /// Create a new VTKHDF file for parallel I/O.
+   /// Create a new %VTKHDF file for parallel I/O.
    VTKHDF(const std::string &filename, MPI_Comm comm_);
 #endif
 
+   /// @name Not copyable or movable.
+   ///@{
    VTKHDF(const VTKHDF &) = delete;
    VTKHDF(VTKHDF &&) = delete;
    VTKHDF &operator=(const VTKHDF &) = delete;
    VTKHDF &operator=(VTKHDF &&) = delete;
+   ///@}
 
    /// Update the time step data after saving the mesh and grid functions.
    void UpdateSteps(real_t t);
@@ -276,5 +279,5 @@ public:
 
 } // namespace mfem
 
-#endif // MFEM_USE_HDF5=
+#endif // MFEM_USE_HDF5
 #endif // MFEM_VTKHDF

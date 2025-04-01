@@ -609,7 +609,7 @@ public:
    void UseRestartMode(bool restart_mode_);
 };
 
-/// Writer for ParaView visualization (VTKHDF format)
+/// Writer for ParaView visualization (%VTKHDF format)
 class ParaViewHDFDataCollection : public ParaViewDataCollectionBase
 {
    /// The low-level VTKHDF object for I/O (pointer to implementation idiom).
