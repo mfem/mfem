@@ -428,8 +428,8 @@ endif
 DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/interface fem/ceed/solvers fem/integ fem/fe fem/gslib \
-       fem/lor fem/moonolith fem/qinterp fem/tmop
+       fem/ceed/interface fem/ceed/solvers fem/eltrans fem/integ fem/fe \
+       fem/gslib fem/lor fem/moonolith fem/qinterp fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)

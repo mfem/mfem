@@ -84,6 +84,11 @@ Meshing improvements
 - Added ExodusII output capability which can handle in particular pyramid and
   wedge element types. Mixed meshes are also supported.
 
+- Added InverseElementTransformation::InitGuessType::EdgeScan as an alternative
+  initial guess type. This guess type tries solving with multiple initial guesses
+  along the r/s/t=0 edges of the element until a valid solution is found or all
+  initial guess points are exhausted.
+
 - Added new convenience constructors for NURBS patches and knot vectors.
 
 GPU computing
@@ -99,6 +104,14 @@ GPU computing
   degree and number of quadrature points using method AddSpecialization in
   classes DiffusionIntegrator and MassIntegrator (this functionality may be
   added to more integrators in the future).
+
+- Added BatchInverseElementTransformation to batch InverseElementTransformation
+  searches. Batch searches are currently limited to meshes with a single element
+  geometry type of SEGMENT, SQUARE, or CUBE. Additional element geometry types
+  may be added in the future. Mixed element order meshes are supported. Batch
+  searches can be performed on the CPU (serial per MPI rank) or GPU. Embedded
+  elements (SEGMENT in 2D/3D space or SQUARE in 3D space) are supported, however
+  the existing solvers may struggle to find a valid solution.
 
 - Calls to slower fallback kernels can be reported to mfem::err by setting the
   environment variable MFEM_REPORT_KERNELS to any value other than NO or by
