@@ -95,7 +95,14 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       const hid_t fspace = H5Screate_simple(ndims, dims, maxdims);
 
       Dims chunk(ndims);
-      chunk[0] = 1024 * 1024 / H5Tget_size(type);
+      int chunk_size_bytes = 1024 * 1024 / 2; // 0.5 MB
+      const int t_bytes = H5Tget_size(type);
+      for (int i = 1; i < ndims; ++i)
+      {
+         chunk[i] = 16;
+         chunk_size_bytes /= 16 * t_bytes;
+      }
+      chunk[0] = chunk_size_bytes / t_bytes;
       for (int i = 1; i < ndims; ++i) { chunk[i] = 16; }
       const hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
       H5Pset_chunk(dcpl, ndims, chunk);
@@ -559,8 +566,9 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
       }
    }
 
-   auto offset_total = AppendParVector(point_data, name, point_values,
-                                       Dims( {0, vdim}));
+   Dims dims(vdim == 1 ? 1 : 2);
+   if (vdim > 1) { dims[1] = vdim; }
+   auto offset_total = AppendParVector(point_data, name, point_values, dims);
    point_data_offsets[name].Update(offset_total.total);
 }
 
