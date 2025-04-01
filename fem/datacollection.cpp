@@ -1213,6 +1213,7 @@ void ParaViewHDFDataCollection::TSave()
       vtkhdf->SaveGridFunction<FP_T>(*field.second, field.first);
    }
    vtkhdf->UpdateSteps(time);
+   vtkhdf->Flush();
 }
 
 void ParaViewHDFDataCollection::Save()
