@@ -303,7 +303,7 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
       const IntegrationPoint& ip_lor = ir->IntPoint(i);
       IntegrationPoint ip_ho;
 
-      //maps integration point ip_lor -> ip_ho
+      // maps integration point ip_lor -> ip_ho
       ip_tr.Transform(ip_lor, ip_ho);
       Vector shape_lor(fe_lor.GetDof());
       fe_lor.CalcShape(ip_lor, shape_lor);
@@ -351,11 +351,10 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation &emb_tr = ip_tr.Transf;
 
-   //Gather basis functions (B_L, B_HO)
-   //and data at quadrature points
+   // Gather basis functions (B_L, B_HO) and data at quadrature points
    DenseTensor B_L, B_H, D;
    {
-      //Assume all HO elements are LOR in the same way
+      // Assume all HO elements are LOR in the same way
       const int iho = 0;
       {
          Array<int> lor_els;
@@ -366,13 +365,13 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
          const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
 
-         //Allocate space for DenseTensors
+         // Allocate space for DenseTensors
          ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
          int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
          const IntegrationRule* ir_ea = &IntRules.Get(geom, order);
          int qPts = ir_ea->GetNPoints();
 
-         //Containers for the basis functions sampled at quadrature points
+         // Containers for the basis functions sampled at quadrature points
          B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt);
          B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
          D.SetSize(qPts, nref, nel_ho, d_mt);
@@ -382,10 +381,8 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
 
          MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
 
-         //**************************************
          // Setup data at quadrature points
          // TODO add support for user coefficient
-         //**************************************
          const auto W = Reshape(ir_ea->GetWeights().Read(), qPts);
          const auto J = Reshape(geo_facts->detJ.Read(), qPts, nel_lor);
          const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
@@ -406,7 +403,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          emb_tr.SetIdentityTransformation(geom);
          const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
-         //Collect the basis functions
+         // Collect the basis functions
          for (int iref = 0; iref < nref; ++iref)
          {
             int ilor = lor_els[iref];
@@ -423,14 +420,13 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
 
             ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, b_lo, b_ho);
 
-         }//loop over subcells of ho element
+         } // loop over subcells of ho element
+         // end of quadrature point setup
+      }
 
-         //-------[End of quadrature point setup]-----
-      }//
+   } // completed setup of basis function and quadrature point
 
-   } //Competed setup of basis function and quadrature point
-
-   //Assemble mixed mass matrix
+   // Assemble mixed mass matrix
    {
       int iho = 0;
       Array<int> lor_els;
@@ -472,7 +468,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             {
                dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
             }
-            //column major storange
+            // column major storage
             v_M_LH(bl, bh, iref, iho) = dot;
          }
       });
@@ -1036,7 +1032,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH();
 
-   //Shadows variables
+   // Shadows variables
    FiniteElementSpace fes_ho_scalar_local(fes_ho.GetMesh(), fes_ho.FEColl(), 1);
    FiniteElementSpace fes_lor_scalar_local(fes_lor.GetMesh(), fes_lor.FEColl(), 1);
 
@@ -1158,7 +1154,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
       return;
    }
 
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   // need scalar to keep dimensions matching (operators are built to apply
+   // individually on each vdim)
    fes_ho_scalar.reset(new FiniteElementSpace(fes_ho.GetMesh(),
                                               fes_ho.FEColl(), 1));
    fes_lor_scalar.reset(new FiniteElementSpace(fes_lor.GetMesh(),
@@ -1177,9 +1174,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   // **************************
    // lumped M_H and inv lumped M_L
-   // **************************
 
    // M_H contains the lumped (row sum) high order mass matrix. This is built for
    // preconditioning the inverse needed to build the prolongation operator P
@@ -1218,9 +1213,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
    // DOF by DOF inverse of non-zero entries
    LumpedMassInverse(ML_inv_ea);
 
-   // **************************
    // mixed mass M_LH
-   // **************************
    MixedMassEA(fes_ho, fes_lor, M_LH_ea, d_mt);
 
    // Set ownership
@@ -1259,7 +1252,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
       return;
    }
 
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   // need scalar to keep dimensions matching (operators are built to apply
+   // individually on each vdim)
    pfes_ho_scalar.reset(new ParFiniteElementSpace(pfes_ho.GetParMesh(),
                                                   pfes_ho.FEColl(), 1));
    pfes_lor_scalar.reset(new ParFiniteElementSpace(pfes_lor.GetParMesh(),
@@ -1278,9 +1272,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   // **************************
    // lumped M_H and inv lumped M_L
-   // **************************
 
    // M_H contains the lumped (row sum) high order mass matrix. This is built for
    // preconditioning the inverse needed to build the prolongation operator P
@@ -1314,10 +1306,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
    // DOF by DOF inverse of non-zero entries
    LumpedMassInverse(ML_inv_ea);
 
-
-   // **************************
    // mixed mass M_LH
-   // **************************
    MixedMassEA(*pfes_ho_scalar.get(), *pfes_lor_scalar.get(), M_LH_ea, d_mt);
 
    // Set ownership
