@@ -6,7 +6,7 @@
 //               mpirun -np 8 hpref -dim 3 -n 200
 //
 // Description:  This example demonstrates h- and p-refinement in a parallel
-//               finite element discretization of the Laplace problem (cf. ex1p)
+//               finite element discretization of the Poisson problem (cf. ex1p)
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Refinements are performed iteratively, each iteration having h-
 //               or p-refinements on all MPI processes. For simplicity, we
