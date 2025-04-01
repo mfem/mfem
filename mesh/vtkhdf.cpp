@@ -527,19 +527,21 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
    MFEM_VERIFY(!mesh_id.HasChanged(mesh), "Mesh must be saved first");
    const int ref = mesh_id.GetRefinementLevel();
 
-   std::vector<real_t> point_values;
+   const int vdim = gf.VectorDim();
 
-   // scalar data
-   Vector val;
+   std::vector<real_t> point_values;
+   DenseMatrix vec_val, pmat;
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      RefinedGeometry *ref_geom = GlobGeometryRefiner.Refine(
+      RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(
                                      mesh.GetElementBaseGeometry(i), ref, 1);
-      gf.GetValues(i, ref_geom->RefPts, val);
-      std::copy(val.begin(), val.end(), std::back_inserter(point_values));
+      gf.GetVectorValues(i, ref_geom.RefPts, vec_val, pmat);
+      std::copy(&vec_val(0,0), &vec_val(0,0) + vec_val.TotalSize(),
+                std::back_inserter(point_values));
    }
 
-   auto offset_total = AppendParVector(point_data, name, point_values);
+   auto offset_total = AppendParVector(point_data, name, point_values,
+                                       Dims({0, vdim}));
    point_data_offsets[name].Update(offset_total.total);
 }
 
