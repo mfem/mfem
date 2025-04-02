@@ -180,6 +180,11 @@ Miscellaneous
 - Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
   for solving optimization problems.
 
+- Updated the minimum CMake version requirements:
+  * CMake >= 3.12 for CPU builds,
+  * CMake >= 3.17 for CUDA builds, and
+  * CMake >= 3.14 for HIP builds (CMake >= 3.12 may work as well, not tested).
+
 API changes
 -----------
 - API change: 'TMOP_Metric_skew2D' has been marked as deprecated.
