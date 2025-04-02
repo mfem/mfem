@@ -8,7 +8,7 @@ namespace mfem
 
 template <typename func_t, typename... arg_ts>
 MFEM_HOST_DEVICE inline
-inline auto qfunction_wrapper(const func_t &f, arg_ts &&...args)
+auto qfunction_wrapper(const func_t &f, arg_ts &&...args)
 {
    return f(args...);
 }
