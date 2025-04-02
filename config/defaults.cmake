@@ -94,7 +94,7 @@ option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
 # set(MPICXX mpicxx)
 
 # Set the target CUDA architecture
-set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
+# set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
 
 # Set the target HIP architecture
 set(HIP_ARCH "gfx900" CACHE STRING "Target HIP architecture.")
