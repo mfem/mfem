@@ -1,10 +1,5 @@
 #pragma once
 
-#ifdef MFEM_USE_ENZYME
-#include <enzyme/utils>
-#include <enzyme/enzyme>
-#endif
-
 #include "util.hpp"
 #include "../linalg/tensor.hpp"
 
@@ -12,13 +7,14 @@ namespace mfem
 {
 
 template <typename func_t, typename... arg_ts>
+MFEM_HOST_DEVICE inline
 inline auto qfunction_wrapper(const func_t &f, arg_ts &&...args)
 {
    return f(args...);
 }
 
 template <typename T0, typename T1>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_arg(const T0 &, T1 &)
 {
    static_assert(always_false<T0, T1>,
@@ -26,7 +22,7 @@ void process_kf_arg(const T0 &, T1 &)
 }
 
 template <typename T>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1, T> &u,
    T &arg)
@@ -35,7 +31,7 @@ void process_kf_arg(
 }
 
 template <typename T>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1, T> &u,
    internal::tensor<T> &arg)
@@ -44,7 +40,7 @@ void process_kf_arg(
 }
 
 template <typename T, int n>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<T, n> &arg)
@@ -56,7 +52,7 @@ void process_kf_arg(
 }
 
 template <typename T, int n, int m>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<T, n, m> &arg)
@@ -71,7 +67,7 @@ void process_kf_arg(
 }
 
 template <typename arg_type>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 {
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
@@ -79,7 +75,7 @@ void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 }
 
 template <size_t num_fields, typename kf_args>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 void process_kf_args(
    const std::array<DeviceTensor<2>, num_fields> &u,
    kf_args &args,
@@ -93,6 +89,7 @@ void process_kf_args(
 }
 
 template <typename T0, typename T1> inline
+MFEM_HOST_DEVICE inline
 Vector process_kf_result(T0, T1)
 {
    static_assert(always_false<T0, T1>,

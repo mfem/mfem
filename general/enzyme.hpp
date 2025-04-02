@@ -25,11 +25,26 @@ extern int enzyme_dup;
 extern int enzyme_dupnoneed;
 extern int enzyme_out;
 extern int enzyme_const;
+extern int enzyme_interleave;
+
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+#define MFEM_DEVICE_EXTERN_STMT(name) extern __device__ int name;
+#else
+#define MFEM_DEVICE_EXTERN_STMT(name)
+#endif
+
+MFEM_DEVICE_EXTERN_STMT(enzyme_dup)
+MFEM_DEVICE_EXTERN_STMT(enzyme_dupnoneed)
+MFEM_DEVICE_EXTERN_STMT(enzyme_out)
+MFEM_DEVICE_EXTERN_STMT(enzyme_const)
+MFEM_DEVICE_EXTERN_STMT(enzyme_interleave)
 
 template <typename return_type, typename... Args>
+MFEM_HOST_DEVICE inline
 return_type __enzyme_autodiff(Args...);
 
 template <typename return_type, typename... Args>
+MFEM_HOST_DEVICE inline
 return_type __enzyme_fwddiff(Args...);
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
