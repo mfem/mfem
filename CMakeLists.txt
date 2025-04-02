@@ -130,6 +130,8 @@ if (MFEM_USE_CUDA)
    set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
      # CMAKE_CUDA_ARCHITECTURES added in CMake 3.18, manually set CUDA_FLAGS
+     # default value if not previously set
+     set(CMAKE_CUDA_ARCHITECTURES "native" CACHE STRING "List of GPU architectures for which to generate device code.")
      if (CMAKE_CUDA_ARCHITECTURES STREQUAL "all")
        set(CUDA_FLAGS "-arch=${CMAKE_CUDA_ARCHITECTURES} ${CUDA_FLAGS}")
      elseif (CUDA_ARCH STREQUAL "all-major")
@@ -137,8 +139,6 @@ if (MFEM_USE_CUDA)
      elseif (CUDA_ARCH STREQUAL "native")
        set(CUDA_FLAGS "-arch=${CMAKE_CUDA_ARCHITECTURES} ${CUDA_FLAGS}")
      else ()
-       string(REPLACE "sm_" "" CUDA_ARCH_TMP "${CUDA_ARCH}")
-       string(REPLACE "," ";" CUDA_ARCH "${CUDA_ARCH_TMP}")
        # build -gencode sequence for multiple architectures
        foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
          set(CUDA_FLAGS "-gencode arch=compute_${ENTRY},code=sm_${ENTRY} ${CUDA_FLAGS}")
@@ -228,9 +228,14 @@ endif()
 
 # AMD HIP
 if (MFEM_USE_HIP)
-  if (HIP_ARCH)
-    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
-    set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for")
+  if (CMAKE_VERSION VERSION_LESS 3.21.0)
+    # need to emulate the behavior
+    # default value if not previously set
+    set(CMAKE_HIP_ARCHITECTURES "gfx900" CACHE STRING "List of GPU architectures for which to generate device code.")
+    set(AMDGPU_TARGETS "${CMAKE_HIP_ARCHITECTURES}" CACHE STRING "HIP targets to compile for")
+    set(GPU_TARGETS "${CMAKE_HIP_ARCHITECTURES}" CACHE STRING "HIP targets to compile for")
+  else()
+    enable_language(HIP)
   endif()
   if (ROCM_PATH)
     list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})

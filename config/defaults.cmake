@@ -93,12 +93,6 @@ option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
 # set(CXX g++)
 # set(MPICXX mpicxx)
 
-# Set the target CUDA architecture
-# set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
-
-# Set the target HIP architecture
-set(HIP_ARCH "gfx900" CACHE STRING "Target HIP architecture.")
-
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The *_DIR paths below will be the first place searched for the corresponding
