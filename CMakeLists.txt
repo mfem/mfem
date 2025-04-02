@@ -121,12 +121,6 @@ if (MFEM_USE_CUDA)
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
-      "CUDA standard to use.")
-   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
-      "Force the use of the chosen CUDA standard.")
-   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
       set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
@@ -141,12 +135,12 @@ if (MFEM_USE_CUDA)
       set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
-   if (CMAKE_VERSION VERSION_LESS 3.12.0)
-      # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
-      # tested and may not actually need this (but should be ok to keep).
-      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
-      set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
-   endif()
+   enable_language(CUDA)
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
+      "CUDA standard to use.")
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
+      "Force the use of the chosen CUDA standard.")
+   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
