@@ -66,9 +66,9 @@ Discretization improvements
 
 Meshing improvements
 --------------------
-- Added support for nonuniform anisotropic mesh refinement on quad/hex meshes
-  with arbitrary spacing in each direction. This enables in particular 3:1
-  non-conforming refinement, as demonstrated in the new meshing miniapp ref321.
+- Added support for nonuniform anisotropic mesh refinement on serial quad/hex
+  meshes with arbitrary spacing in each direction. This enables in particular
+  3:1 refinement, as demonstrated in the new meshing miniapp ref321.
 
 - Added capabilities for optimization and adaptation of periodic meshes with
   TMOP. The internals of TMOP were modified so that the optimization problem is
