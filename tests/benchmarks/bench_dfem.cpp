@@ -46,7 +46,7 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
    const auto versions = { 0, 1, 2, 3 };
    for (auto k : versions)
    {
-      for (int p = 4/*6*/; p >= 1; p -= 1)
+      for (int p = 6; p >= 1; p -= 1)
       {
          for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
          {
@@ -58,7 +58,7 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
-static int D1D = 0, Q1D = 0;
+static int gD1D = 0, gQ1D = 0;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -93,8 +93,8 @@ public:
       const int NQPT = ir.GetNPoints();
       d1d = p + 1;
       q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-      MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
-      MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
+      MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
+      MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
       MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
       const DofToQuad *maps =
          &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
@@ -115,18 +115,17 @@ public:
       NR->Mult(*nodes, (xe.UseDevice(true), xe));
       nqi->Derivatives(xe, J0);
 
-      const int D1D = d1d, Q1D = q1d;
       const auto w_r = ir.GetWeights().Read();
-      const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
-      const auto J = Reshape(J0.Read(), 3, 3, Q1D, Q1D, Q1D, ne);
-      auto DX_w = Reshape(dx.Write(), 3, 3, Q1D, Q1D, Q1D, ne);
-      mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
+      const auto W = Reshape(w_r, q1d, q1d, q1d);
+      const auto J = Reshape(J0.Read(), 3, 3, q1d, q1d, q1d, ne);
+      auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
+      mfem::forall_3D(ne, q1d, q1d, q1d,[=] MFEM_HOST_DEVICE(int e)
       {
-         mfem::foreach_z_thread(Q1D,[&](int qz)
+         mfem::foreach_z_thread(q1d,[&](int qz)
          {
-            mfem::foreach_y_thread(Q1D,[&](int qy)
+            mfem::foreach_y_thread(q1d,[&](int qy)
             {
-               mfem::foreach_x_thread(Q1D,[&](int qx)
+               mfem::foreach_x_thread(q1d,[&](int qx)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
@@ -147,7 +146,7 @@ public:
       });
    }
 
-   template <int T_D1D = 0, int T_Q1D = 0>
+   template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
@@ -162,9 +161,6 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MQ1 = SetMaxOf(T_Q1D ? T_Q1D : 32);
-         constexpr int MD1 = SetMaxOf(T_D1D ? T_D1D : 32);
-
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          regs5d_t<VDIM, DIM, MQ1> r0, r1;
@@ -172,14 +168,14 @@ public:
          LoadMatrix(D1D, Q1D, b, sB);
          LoadMatrix(D1D, Q1D, g, sG);
 
-         LoadDofs3d<VDIM, DIM, MQ1>(e, D1D, XE, r0);
-         regs_Grad3d<VDIM, DIM, MD1, MQ1>(D1D, Q1D, smem, sB, sG, r0, r1);
+         LoadDofs3d(e, D1D, XE, r0);
+         regs_Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; qz++)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
                                         r1[0][1][qz][qy][qx],
@@ -190,16 +186,15 @@ public:
                   r0[0][0][qz][qy][qx] = v[0];
                   r0[0][1][qz][qy][qx] = v[1];
                   r0[0][2][qz][qy][qx] = v[2];
-               });
-            });
+               }
+            }
          }
-         regs_GradTranspose3d<VDIM, DIM, MD1, MQ1>(D1D, Q1D, smem, sB, sG,
-                                                   r0, r1);
-         WriteDofs3d<VDIM, DIM, MQ1>(e, D1D, r1, YE);
+         regs_GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         WriteDofs3d(e, D1D, r1, YE);
       });
    }
 
-   using StiffnessKernelType = decltype(&StiffnessMult<>);
+   using StiffnessKernelType = decltype(&StiffnessMult<1,1>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
    void AddMultPA(const Vector &x, Vector &y) const override
@@ -213,14 +208,14 @@ template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
-   return StiffnessMult<D1D, Q1D>;
+   return StiffnessMult<SetMaxOf(D1D), SetMaxOf(Q1D), D1D, Q1D>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult<>;
+   return StiffnessMult<DofQuadLimits::MAX_D1D, DofQuadLimits::MAX_Q1D>;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -245,7 +240,7 @@ struct BakeOff
    ParFiniteElementSpace& mfes;
    ParGridFunction x, y;
    ParBilinearForm a;
-   std::unique_ptr<DifferentiableOperator> ∂op;
+   std::unique_ptr<DifferentiableOperator> dop;
    const int elem_size, total_size, d1d, q1d;
    ParametricSpace qdata_space;
    ParametricFunction qdata;
@@ -286,8 +281,8 @@ struct BakeOff
       smesh.Clear();
       x = 0.0;
 
-      D1D = d1d, Q1D = q1d;
-      dbg("D1D: {}, Q1D: {}", D1D, Q1D);
+      gD1D = d1d, gQ1D = q1d;
+      dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       qdata.UseDevice(true);
       assert(q1d*q1d*q1d == ir->GetNPoints());
    }
@@ -328,7 +323,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::x;
    using BakeOff<VDIM, GLL>::y;
    using BakeOff<VDIM, GLL>::mdofs;
-   using BakeOff<VDIM, GLL>::∂op;
+   using BakeOff<VDIM, GLL>::dop;
    using BakeOff<VDIM, GLL>::nodes;
    using BakeOff<VDIM, GLL>::qdata;
    using BakeOff<VDIM, GLL>::dofs;
@@ -375,47 +370,43 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             assert(di);
             const int d1d = di->dofs1D, q1d = di->quad1D;
             dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
-            MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
-            MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
+            MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
+            MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
       else if (version == 2) // MF ∂fem
       {
          dbg("MF ∂fem");
-         // MFEM_GPU_CHECK(hipGetLastError());
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
-         ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-         ∂op->SetParameters({nodes});
+         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         dop->SetParameters({nodes});
          auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
+            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& Gu,
                                  const tensor<real_t, DIM, DIM>& J,
                                  const real_t& w)
          {
             auto invJ = inv(J);
-            return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
+            return mfem::tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
          };
-         ∂op->AddDomainIntegrator(diffusion_mf_kernel,
-                                    mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                    mfem::tuple{Gradient<U>{}},
-                                    *ir);
+         dop->AddDomainIntegrator(diffusion_mf_kernel,
+                                  mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                  mfem::tuple{Gradient<U>{}},
+                                  *ir);
          Operator *A_ptr;
-         ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-         // MFEM_GPU_CHECK(hipGetLastError());
       }
       else if (version == 3) // PA ∂fem
       {
          dbg("PA ∂fem");
-         // MFEM_GPU_CHECK(hipGetLastError());
-
          auto w = Weight{};
          auto q = None<Q> {};
          auto u = None<U> {};
-         auto ∇u = Gradient<U> {};
-         auto ∇Ξ = Gradient<Ξ> {};
-         mfem::tuple ∇u_q = {∇u, q};
-         mfem::tuple u_J_w = {u, ∇Ξ, w};
+         auto Gu = Gradient<U> {};
+         auto GΞ = Gradient<Ξ> {};
+         mfem::tuple Gu_q = {Gu, q};
+         mfem::tuple u_J_w = {u, GΞ, w};
 
          auto setup =
             [] MFEM_HOST_DEVICE(const real_t &u,
@@ -424,22 +415,22 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          {
             return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
          };
-         DifferentiableOperator ∂Setup(u_sol, Ξ_q_params, pmesh);
-         ∂Setup.SetParameters({nodes, &qdata});
-         ∂Setup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir);
-         ∂Setup.Mult(x, qdata);
+         DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
+         dSetup.SetParameters({nodes, &qdata});
+         dSetup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir);
+         dSetup.Mult(x, qdata);
 
          auto apply =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
+            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
                                 const tensor<real_t, DIM, DIM> &q)
          {
-            return mfem::tuple{q * ∇u};
+            return mfem::tuple{q * Gu};
          };
-         ∂op = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         ∂op->SetParameters({ &qdata });
-         ∂op->AddDomainIntegrator(apply, ∇u_q, mfem::tuple{∇u}, *ir);
+         dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+         dop->SetParameters({ &qdata });
+         dop->AddDomainIntegrator(apply, Gu_q, mfem::tuple{Gu}, *ir);
 
-         ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
       else { MFEM_ABORT("Invalid version"); }
@@ -456,7 +447,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
          MFEM_DEVICE_SYNC;
          dbg("✅");
-         // MFEM_GPU_CHECK(hipGetLastError());
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
