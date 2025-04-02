@@ -973,6 +973,22 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+void NodalFiniteElement::ReorderLexToNative(int ncomp,
+                                            Vector &dofs) const
+{
+   MFEM_ASSERT(lex_ordering.Size() == dof, "Permutation is not defined by FE.");
+   MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
+
+   Vector dofs_native(ncomp * dof);
+   for (int i = 0; i < dof; i++)
+   {
+      for (int c = 0; c < ncomp; c++)
+      {
+         dofs_native(c*dof + lex_ordering[i]) = dofs(c*dof + i);
+      }
+   }
+   dofs = dofs_native;
+}
 
 VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
                                          int Do, int O, int M, int F)
