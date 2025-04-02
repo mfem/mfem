@@ -474,11 +474,11 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &parameters_l,
        Vector &residual_l) mutable
    {
-      MFEM_GPU_CHECK(hipGetLastError());
+      // MFEM_GPU_CHECK(hipGetLastError());
       // dbg("restriction_callback");
       restriction_callback(solutions_l, parameters_l, fields_e);
 
-      MFEM_GPU_CHECK(hipGetLastError());
+      // MFEM_GPU_CHECK(hipGetLastError());
       // dbg("residual_e = 0.0");
       residual_e = 0.0;
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
@@ -487,7 +487,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
-      MFEM_GPU_CHECK(hipGetLastError());
+      // MFEM_GPU_CHECK(hipGetLastError());
       // dbg("forall");
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {

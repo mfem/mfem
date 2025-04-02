@@ -32,8 +32,8 @@ using mfem::internal::tensor;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 256 * 1024;
-constexpr int NDOFS_INC = 10;
+constexpr int MAX_NDOFS = 128 * 1024;
+constexpr int NDOFS_INC = 25;
 #else
 constexpr int MAX_NDOFS = 10 * 1024 * 1024;
 constexpr int NDOFS_INC = 25;
@@ -382,7 +382,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 2) // MF ∂fem
       {
          dbg("MF ∂fem");
-         MFEM_GPU_CHECK(hipGetLastError());
+         // MFEM_GPU_CHECK(hipGetLastError());
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
@@ -402,12 +402,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          Operator *A_ptr;
          ∂op->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-         MFEM_GPU_CHECK(hipGetLastError());
+         // MFEM_GPU_CHECK(hipGetLastError());
       }
       else if (version == 3) // PA ∂fem
       {
          dbg("PA ∂fem");
-         MFEM_GPU_CHECK(hipGetLastError());
+         // MFEM_GPU_CHECK(hipGetLastError());
 
          auto w = Weight{};
          auto q = None<Q> {};
@@ -456,7 +456,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
          MFEM_DEVICE_SYNC;
          dbg("✅");
-         MFEM_GPU_CHECK(hipGetLastError());
+         // MFEM_GPU_CHECK(hipGetLastError());
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
