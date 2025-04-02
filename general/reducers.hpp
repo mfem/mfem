@@ -107,12 +107,15 @@ template <class T> struct MinReducer
       }
    }
 
+   // If we use std::numeric_limits<T>::max() in host-device method, Cuda
+   // complains about calling host-only constexpr functions in device code
+   // without --expt-relaxed-constexpr, so we define the following constant as a
+   // workaround for the Cuda warning.
+   static constexpr T max_val = std::numeric_limits<T>::max();
+
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
-      // Cuda complains about calling host-only constexpr functions in device
-      // code without --expt-relaxed-constexpr, wrap into integral_constant to
-      // get around this
-      a = std::integral_constant<T, std::numeric_limits<T>::max()>::value;
+      a = max_val;
    }
 };
 
@@ -149,12 +152,16 @@ template <class T> struct MaxReducer
          a = b;
       }
    }
+
+   // If we use std::numeric_limits<T>::min() in host-device method, Cuda
+   // complains about calling host-only constexpr functions in device code
+   // without --expt-relaxed-constexpr, so we define the following constant as a
+   // workaround for the Cuda warning.
+   static constexpr T min_val = std::numeric_limits<T>::min();
+
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
-      // Cuda complains about calling host-only constexpr functions in device
-      // code without --expt-relaxed-constexpr, wrap into integral_constant to
-      // get around this
-      a = std::integral_constant<T, std::numeric_limits<T>::min()>::value;
+      a = min_val;
    }
 };
 
@@ -199,15 +206,16 @@ template <class T> struct MinMaxReducer
       }
    }
 
+   // If we use std::numeric_limits<T>::min() (or max()) in host-device method,
+   // Cuda complains about calling host-only constexpr functions in device code
+   // without --expt-relaxed-constexpr, so we define the following constants as
+   // a workaround for the Cuda warning.
+   static constexpr T min_val = std::numeric_limits<T>::min();
+   static constexpr T max_val = std::numeric_limits<T>::max();
+
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
    {
-      // Cuda complains about calling host-only constexpr functions in device
-      // code without --expt-relaxed-constexpr, wrap into integral_constant to
-      // get around this
-      a = value_type
-      {
-         std::integral_constant<T, std::numeric_limits<T>::max()>::value,
-         std::integral_constant<T, std::numeric_limits<T>::min()>::value};
+      a = value_type{max_val, min_val};
    }
 };
 
