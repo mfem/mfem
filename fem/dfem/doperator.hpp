@@ -53,13 +53,13 @@ public:
       prolongation_transpose(prolongation_transpose)
    {
       std::vector<Vector> s_l(solutions_l.size());
-      for (int i = 0; i < s_l.size(); i++)
+      for (size_t i = 0; i < s_l.size(); i++)
       {
          s_l[i] = *solutions_l[i];
       }
 
       std::vector<Vector> p_l(parameters_l.size());
-      for (int i = 0; i < p_l.size(); i++)
+      for (size_t i = 0; i < p_l.size(); i++)
       {
          p_l[i] = *parameters_l[i];
       }
@@ -74,7 +74,7 @@ public:
       daction_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
-      for (int i = 0; i < derivative_actions.size(); i++)
+      for (size_t i = 0; i < derivative_actions.size(); i++)
       {
          derivative_actions[i](fields_e, direction_l, daction_l);
       }
@@ -87,7 +87,7 @@ public:
       daction_l = 0.0;
 
       prolongation(transpose_direction, direction_t, direction_l);
-      for (int i = 0; i < derivative_actions_transpose.size(); i++)
+      for (size_t i = 0; i < derivative_actions_transpose.size(); i++)
       {
          derivative_actions_transpose[i](fields_e, direction_l, daction_l);
       }
@@ -143,7 +143,7 @@ public:
       mfem::tuple<input_ts...> inputs,
       mfem::tuple<output_ts...> outputs,
       const IntegrationRule &integration_rule,
-      const Array<int> domain_attributes = {},
+      const Array<int> domain_attributes,
       const derivative_indices_t derivative_indices = {});
 
    void SetParameters(std::vector<Vector *> p) const;

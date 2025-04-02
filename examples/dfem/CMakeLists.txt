@@ -15,6 +15,7 @@ if (MFEM_USE_MPI)
     list(APPEND DFEM_EXAMPLES_SRCS
         diffusion3d.cpp
         plasticity.cpp
+        laghos.cpp
     )
 endif()
 
