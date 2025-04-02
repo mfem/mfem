@@ -452,7 +452,12 @@ void map_fields_to_quadrature_data(
                fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], mfem::get<i>(fops),
                integration_weights, scratch_mem);
          }
-         else { MFEM_ABORT("unsupported dimension"); }
+         else
+         {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+            MFEM_ABORT("unsupported dimension");
+#endif
+         }
       }
       else
       {

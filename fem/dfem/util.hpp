@@ -24,36 +24,6 @@ using std::size_t;
 namespace mfem
 {
 
-template <typename... input_ts, size_t... Is>
-constexpr auto make_dependency_map_impl(
-   mfem::tuple<input_ts...> inputs,
-   std::index_sequence<Is...>)
-{
-   constexpr size_t N = sizeof...(input_ts);
-   auto make_dependency_array = [&](auto i)
-   {
-      return std::array<bool, N>
-      {
-         (mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>(inputs).GetFieldId())...
-      };
-   };
-
-   std::unordered_map<int, std::array<bool, N>> map;
-   for_constexpr<N>([&](auto i)
-   {
-      map[mfem::get<i>(inputs).GetFieldId()] =
-         make_dependency_array(std::integral_constant<size_t, i> {});
-   });
-
-   return map;
-}
-
-template <typename... input_ts>
-auto make_dependency_map(mfem::tuple<input_ts...> inputs)
-{
-   return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
-}
-
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
@@ -119,6 +89,36 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
       std::make_index_sequence<mfem::tuple_size<std::remove_reference_t<arg_t>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
+}
+
+template <typename... input_ts, size_t... Is>
+constexpr auto make_dependency_map_impl(
+   mfem::tuple<input_ts...> inputs,
+   std::index_sequence<Is...>)
+{
+   constexpr size_t N = sizeof...(input_ts);
+   auto make_dependency_array = [&](auto i)
+   {
+      return std::array<bool, N>
+      {
+         (mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>(inputs).GetFieldId())...
+      };
+   };
+
+   std::unordered_map<int, std::array<bool, N>> map;
+   for_constexpr<N>([&](auto i)
+   {
+      map[mfem::get<i>(inputs).GetFieldId()] =
+         make_dependency_array(std::integral_constant<size_t, i> {});
+   });
+
+   return map;
+}
+
+template <typename... input_ts>
+auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+{
+   return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
 
 template <typename T>
@@ -529,13 +529,13 @@ private:
 
 
 inline
-int FindIdx(const int& id, const std::vector<FieldDescriptor>& fields)
+int FindIdx(const size_t& id, const std::vector<FieldDescriptor>& fields)
 {
    for (size_t i = 0; i < fields.size(); i++)
    {
       if (fields[i].id == id)
       {
-         return i;
+         return static_cast<int>(i);
       }
    }
    return -1;
@@ -901,7 +901,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
                   std::vector<Vector> &fields_l)
 {
    int data_offset = 0;
-   for (int i = 0; i < fields.size(); i++)
+   for (size_t i = 0; i < fields.size(); i++)
    {
       const auto P = get_prolongation(fields[i]);
       const int width = P->Width();
@@ -967,7 +967,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
-   for (int i = 0; i < u.size(); i++)
+   for (size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
       MFEM_ASSERT(R->Width() == u_l[i].Size(),
@@ -1346,11 +1346,11 @@ get_shmem_info(
    std::array<int, num_temp> temp_sizes = {0};
    // TODO-bug: this assumes q1d >= d1d
    const int q1d = max_dtq_qps;
-   const int d1d = max_dtq_dofs;
+   [[maybe_unused]] const int d1d = max_dtq_dofs;
 
    // TODO-bug: this depends on the dimension
    constexpr int hardcoded_temp_num = 6;
-   for (int i = 0; i < hardcoded_temp_num; i++)
+   for (size_t i = 0; i < hardcoded_temp_num; i++)
    {
       // TODO-bug: over-allocates if q1d <= d1d
       temp_sizes[i] = q1d * q1d * q1d;
@@ -1972,7 +1972,7 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
 template <
    typename qf_param_ts,
    typename qfunc_t,
-   size_t num_fields>
+   size_t num_fields> MFEM_HOST_DEVICE inline
 void call_qfunction(
    qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,
@@ -2016,7 +2016,9 @@ void call_qfunction(
       }
       else
       {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
          MFEM_ABORT("unsupported dimension for sum factorization");
+#endif
       }
       MFEM_SYNC_THREAD;
    }
@@ -2035,6 +2037,7 @@ template <
    typename qf_param_ts,
    typename qfunc_t,
    size_t num_fields>
+MFEM_HOST_DEVICE inline
 void call_qfunction_derivative_action(
    qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,

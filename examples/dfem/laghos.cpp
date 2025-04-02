@@ -686,11 +686,10 @@ public:
       bool fd_gradient) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
-      H1c(H1.GetParMesh(), H1.FEColl(), 1),
       L2(L2),
+      H1c(H1.GetParMesh(), H1.FEColl(), 1),
       ess_tdof(ess_tdof),
       ir(ir),
-      rho0_coeff(rho0_coeff),
       x0(x0_gf),
       rho0(rho0_gf),
       material(material_gf),
@@ -705,6 +704,9 @@ public:
       density_mf(density_mf),
       qdata(qdata),
       mesh_nodes(&H1),
+      rhsvc(&H1c),
+      dvc(&H1c),
+      rho0_coeff(rho0_coeff),
       RHSv(H1.GetTrueVSize()),
       rhsv(H1.GetVSize()),
       X(2*H1.GetTrueVSize()+L2.GetTrueVSize()),
@@ -715,8 +717,6 @@ public:
       B(H1c.GetTrueVSize()),
       RHSe(L2.GetTrueVSize()),
       rhse(L2.GetVSize()),
-      rhsvc(&H1c),
-      dvc(&H1c),
       nl2dofs(L2.GetFE(0)->GetDof()),
       fd_gradient(fd_gradient)
    {
@@ -1542,9 +1542,9 @@ int main(int argc, char *argv[])
    L2_FECollection L2FEC(order_e, dim, BasisType::Positive);
    ParFiniteElementSpace L2FESpace(&mesh, &L2FEC);
 
-   const int global_ne = mesh.GetGlobalNE();
-   const int global_h1tsize = H1FESpace.GlobalTrueVSize();
-   const int global_l2tsize = L2FESpace.GlobalTrueVSize();
+   const auto global_ne = mesh.GetGlobalNE();
+   const auto global_h1tsize = H1FESpace.GlobalTrueVSize();
+   const auto global_l2tsize = L2FESpace.GlobalTrueVSize();
 
    if (Mpi::Root())
    {
@@ -1758,7 +1758,7 @@ int main(int argc, char *argv[])
    out << "time step estimate: " << dt << "\n";
    real_t t_old;
    bool last_step = false;
-   int steps = 0;
+   [[maybe_unused]] int steps = 0;
    BlockVector S_old(S);
 
    ParGridFunction verr_gf(v_gf);
