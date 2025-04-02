@@ -115,17 +115,19 @@ public:
       NR->Mult(*nodes, (xe.UseDevice(true), xe));
       nqi->Derivatives(xe, J0);
 
+      const int Q1D = q1d;
       const auto w_r = ir.GetWeights().Read();
       const auto W = Reshape(w_r, q1d, q1d, q1d);
       const auto J = Reshape(J0.Read(), 3, 3, q1d, q1d, q1d, ne);
       auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
-      mfem::forall_3D(ne, q1d, q1d, q1d,[=] MFEM_HOST_DEVICE(int e)
+
+      mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
       {
-         MFEM_FOREACH_THREAD(qz, z, q1d)
+         MFEM_FOREACH_THREAD(qz, z, Q1D)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
@@ -209,6 +211,7 @@ StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
    return StiffnessMult<SetMaxOf(D1D), SetMaxOf(Q1D), D1D, Q1D>;
+   // return StiffnessMult<D1D, Q1D, D1D, Q1D>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
@@ -338,6 +341,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       Ξ_q_params {Ξ_fd, q_fd},
       cg(MPI_COMM_WORLD)
    {
+      dbg("pmesh.bdr_attributes.Max():{}",pmesh.bdr_attributes.Max());
       static_assert(VDIM == 1 && GLL == false);
 
       /*{
@@ -482,8 +486,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    }                                                                 \
    BENCHMARK(BP##i)                                                  \
       ->Apply(OrderSideVersionArgs)                                  \
-      ->Unit(bm::kMillisecond);
-// ->Iterations(10);
+      ->Unit(bm::kMillisecond)                                       \
+      ->Iterations(10);
 
 BakeOff_Problem(3, Diffusion)
 
