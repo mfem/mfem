@@ -155,7 +155,7 @@ endmacro()
 # successfully. Example usage:
 #   mfem_culib_set_libraries(CUBLAS cublas)
 macro(mfem_culib_set_libraries _CULIB _culib)
-  # The following command do not work with older CMake versions, e.g. 3.20:
+  # The following command does not work with older CMake versions, e.g. 3.20:
   #   get_target_property(${_CULIB}_LIBRARIES CUDA::${_culib} LOCATION)
   # Therefore, we use the respective internal variable:
   set(${_CULIB}_LIBRARIES ${CUDA_${_culib}_LIBRARY})
