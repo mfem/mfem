@@ -304,8 +304,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    const real_t rtol = 0.0;
    const int max_it = 32, print_lvl = -1;
 
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
+   Array<int> ess_tdof_list, ess_bdr, all_domain_attr;
    ParLinearForm b;
    FieldDescriptor u_fd, Ξ_fd, q_fd;
    std::vector<FieldDescriptor> u_sol, q_param, Ξ_q_params;
@@ -329,7 +328,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
-      BakeOff<VDIM, GLL>(order, side), ess_bdr(pmesh.bdr_attributes.Max()),
+      BakeOff<VDIM, GLL>(order, side),
+      ess_bdr(pmesh.bdr_attributes.Max()),
+      all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
       u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qdata.space},
       u_sol{u_fd},
@@ -350,6 +351,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }*/
 
       ess_bdr = 1;
+      all_domain_attr = 1;
       pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       b.AddDomainIntegrator(new DomainLFIntegrator(this->one));
@@ -392,7 +394,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->AddDomainIntegrator(diffusion_mf_kernel,
                                   mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   mfem::tuple{Gradient<U>{}},
-                                  *ir);
+                                  *ir, ess_bdr);
          Operator *A_ptr;
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
@@ -417,7 +419,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
          dSetup.SetParameters({nodes, &qdata});
-         dSetup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir);
+         dSetup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir, ess_bdr);
          dSetup.Mult(x, qdata);
 
          auto apply =
@@ -428,7 +430,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          dop->SetParameters({ &qdata });
-         dop->AddDomainIntegrator(apply, Gu_q, mfem::tuple{Gu}, *ir);
+         dop->AddDomainIntegrator(apply, Gu_q, mfem::tuple{Gu}, *ir, ess_bdr);
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
