@@ -121,11 +121,11 @@ public:
       auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
       mfem::forall_3D(ne, q1d, q1d, q1d,[=] MFEM_HOST_DEVICE(int e)
       {
-         mfem::foreach_z_thread(q1d,[&](int qz)
+         MFEM_FOREACH_THREAD(qz, z, q1d)
          {
-            mfem::foreach_y_thread(q1d,[&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               mfem::foreach_x_thread(q1d,[&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, q1d)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
@@ -139,9 +139,9 @@ public:
                   kernels::CalcInverse<3>(Jtr, Jrt);
                   kernels::MultABt(3, 3, 3, D, Jrt, A);
                   kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
-               });
-            });
-         });
+               }
+            }
+         }
          MFEM_SYNC_THREAD;
       });
    }
@@ -169,7 +169,7 @@ public:
          LoadMatrix(D1D, Q1D, g, sG);
 
          LoadDofs3d(e, D1D, XE, r0);
-         regs_Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; qz++)
          {
@@ -189,7 +189,7 @@ public:
                }
             }
          }
-         regs_GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
          WriteDofs3d(e, D1D, r1, YE);
       });
    }
