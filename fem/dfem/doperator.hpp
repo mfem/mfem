@@ -487,17 +487,17 @@ void DifferentiableOperator::AddDomainIntegrator(
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
-      // MFEM_GPU_CHECK(hipGetLastError());
-      // dbg("forall");
+      const auto d_domain_attr = domain_attributes.Read();
+      const auto d_elem_attr = elem_attributes.Read();
+
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         // if (domain_attributes.Size() > 0 &&
-         //     !domain_attributes[elem_attributes[e] - 1]) { return; }
+         if (!d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
-         unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                      wrapped_fields_e, num_qp, e);
+                  unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+                               wrapped_fields_e, num_qp, e);
 
          map_fields_to_quadrature_data(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
