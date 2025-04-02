@@ -14,7 +14,7 @@
 //               each iteration. In practice, these choices may be made in a
 //               problem-dependent way, but this example serves only to
 //               illustrate the capabilities of hp-refinement in parallel.
-
+//
 //               We recommend viewing Example 1 before viewing this example.
 
 #include "mfem.hpp"

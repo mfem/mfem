@@ -951,9 +951,10 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/fem/ceed/integrators/nlconvection \
                          @MFEM_SOURCE_DIR@/fem/ceed/interface \
                          @MFEM_SOURCE_DIR@/fem/ceed/solvers \
-                         @MFEM_SOURCE_DIR@/fem/integ \
+                         @MFEM_SOURCE_DIR@/fem/eltrans \
                          @MFEM_SOURCE_DIR@/fem/fe \
                          @MFEM_SOURCE_DIR@/fem/gslib \
+                         @MFEM_SOURCE_DIR@/fem/integ \
                          @MFEM_SOURCE_DIR@/fem/lor \
                          @MFEM_SOURCE_DIR@/fem/moonolith \
                          @MFEM_SOURCE_DIR@/fem/qinterp \
