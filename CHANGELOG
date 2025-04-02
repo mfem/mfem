@@ -158,7 +158,7 @@ Linear and nonlinear solvers
   solver assumes that F(u,k,t) = M k in the associated ODE operator.
 
 - Added ODE solvers selection routines. This creates a uniformity across
-  examples, miniapps and other executables in regard to ODE(time-integrator)
+  examples, miniapps and other executables in regard to ODE (time-integrator)
   selection.
 
 - Added new mechanism for retrieving and setting state vectors in ODE solvers.
