@@ -50,6 +50,10 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added capabilities for optimization and adaptation of periodic meshes with
+  TMOP. The internals of TMOP were modified so that the optimization problem is
+  always solved with respect to mesh displacements.
+
 - Added native AD support for numerous TMOP metrics that didn't have first or
   second derivative implementations.
 
@@ -108,6 +112,20 @@ GPU computing
 
 - Use device vectors in GMRES, FGMRES and other iterative methods.
 
+- Added BatchInverseElementTransformation to batch InverseElementTransformation
+  searches. Batch searches are currently limited to meshes with a single element
+  geometry type of SEGMENT, SQUARE, or CUBE. Additional element geometry types
+  may be added in the future. Mixed element order meshes are supported. Batch
+  searches can be performed on the CPU (serial per MPI rank) or GPU. Embedded
+  elements (SEGMENT in 2D/3D space or SQUARE in 3D space) are supported, however
+  the existing solvers may struggle to find a valid solution.
+
+- Added `InverseElementTransformation::InitGuessType::EdgeScan` as an alternative
+  initial guess type. This guess type tries solving with multiple initial guesses
+  along the r/s/t=0 edges of the element until a valid solution is found or all
+  initial guess points are exhausted.
+
+
 Miscellaneous
 -------------
 - Added support for SUNDIALS v7. See the section "API changes" for some small
@@ -161,6 +179,11 @@ Miscellaneous
 
 - Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
   for solving optimization problems.
+
+- Updated the minimum CMake version requirements:
+  * CMake >= 3.12 for CPU builds,
+  * CMake >= 3.17 for CUDA builds, and
+  * CMake >= 3.14 for HIP builds (CMake >= 3.12 may work as well, not tested).
 
 API changes
 -----------
