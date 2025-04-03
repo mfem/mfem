@@ -196,20 +196,33 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
    else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
-      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
-      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
 
+      // TODO: Check if this is the right fix for all cases
+      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d);
       for (int sq = 0; sq < output.size_on_qp; sq++)
       {
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               yqp(sq, qx, qy) = fqp(sq, qx, qy);
-            }
+            yqp(sq, qx) = fqp(sq, qx);
          }
          MFEM_SYNC_THREAD;
       }
+
+      // auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
+      // auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
+
+      // for (int sq = 0; sq < output.size_on_qp; sq++)
+      // {
+      //    MFEM_FOREACH_THREAD(qx, x, q1d)
+      //    {
+      //       MFEM_FOREACH_THREAD(qy, y, q1d)
+      //       {
+      //          yqp(sq, qx, qy) = fqp(sq, qx, qy);
+      //       }
+      //    }
+      //    MFEM_SYNC_THREAD;
+      // }
    }
    else
    {
