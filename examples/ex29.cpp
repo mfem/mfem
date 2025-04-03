@@ -10,7 +10,7 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of a PDE on a 2 dimensional
 //               surface embedded in a 3 dimensional domain. In this case we
-//               solve the Laplace problem -Div(sigma Grad u) = 1, with
+//               solve the Poisson problem -Div(sigma Grad u) = 1, with
 //               homogeneous Dirichlet boundary conditions, where sigma is an
 //               anisotropic diffusion constant defined as a 3x3 matrix
 //               coefficient.
