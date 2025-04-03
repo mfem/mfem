@@ -1807,7 +1807,7 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
    auto vi = Reshape(&v[0], s);
    for (int j = 0; j < s; j++)
    {
-      vi[j] = u[j];
+      vi[j] = ui[j];
    }
 }
 

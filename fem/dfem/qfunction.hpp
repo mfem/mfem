@@ -104,6 +104,7 @@ Vector process_kf_result(T0, T1)
 {
    static_assert(always_false<T0, T1>,
                  "process_kf_result not implemented for result type");
+   return Vector{};
 }
 
 template <typename T>

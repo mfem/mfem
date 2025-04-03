@@ -296,7 +296,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                  "quadrature function inputs and descriptor inputs have to match");
 
    constexpr size_t num_qf_outputs = mfem::tuple_size<qf_output_t>::value;
-   static_assert(num_qf_outputs == num_qf_outputs,
+   static_assert(num_qf_outputs == num_outputs,
                  "quadrature function outputs and descriptor outputs have to match");
 
    constexpr auto inout_tuple = std::tuple_cat(std::tuple<input_ts...> {},
