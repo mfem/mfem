@@ -86,8 +86,10 @@ enum class ElementDofOrdering
        interpolation from the DOFs to quadrature points does not use the
        tensor-product structure. */
    NATIVE,
-   /// Lexicographic ordering for tensor-product FiniteElements.
-   /** This ordering can be used only with tensor-product elements. */
+   /// Lexicographic: DOFs are listed in order of increasing x-coordinate,
+   /// followed by increasing y-coordinate, and z-coordinate.
+   /** This ordering is usually used with tensor-product elements, but it is
+       also supported by some non-tensor elements. */
    LEXICOGRAPHIC
 };
 
