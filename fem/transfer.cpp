@@ -332,8 +332,6 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    Mesh* mesh_lor = fes_lor_ea.GetMesh();
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
-   int ndof_ho = fes_ho_ea.GetNDofs();
-   int ndof_lor = fes_lor_ea.GetNDofs();
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
@@ -439,8 +437,8 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
 
       const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
       const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
-      ndof_ho = fe_ho.GetDof();
-      ndof_lor = fe_lor.GetDof();
+      const int ndof_ho = fe_ho.GetDof();
+      const int ndof_lor = fe_lor.GetDof();
 
       const int qPts = D.SizeI();
 
@@ -1027,7 +1025,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
      use_ea(use_ea_)
 {
 
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   // need scalar to keep dimensions matching (operators are built to apply
+   // individually on each vdim)
    // needed in both matrix and element based versions
    fes_ho_scalar.reset(new FiniteElementSpace(fes_ho.GetMesh(),
                                               fes_ho.FEColl(), 1));
@@ -1086,7 +1085,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
      use_ea(use_ea_), pcg(pfes_ho.GetComm())
 {
 
-   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   // need scalar to keep dimensions matching (operators are built to apply
+   // individually on each vdim)
    // needed in both matrix and element based versions
    pfes_ho_scalar.reset(new ParFiniteElementSpace(pfes_ho.GetParMesh(),
                                                   pfes_ho.FEColl(), 1));
@@ -1220,10 +1220,14 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
    MixedMassEA(fes_ho, fes_lor, M_LH_ea, d_mt);
 
    // Set ownership
-   M_LH_local_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor,
+   M_LH_local_op = new H1SpaceMixedMassOperator(fes_ho_scalar.get(),
+                                                fes_lor_scalar.get(),
+                                                &ho2lor,
                                                 &M_LH_ea);
 
-   ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&fes_ho, &fes_lor, ML_inv_ea));
+   ML_inv_vea.reset(new H1SpaceLumpedMassOperator(fes_ho_scalar.get(),
+                                                  fes_lor_scalar.get(),
+                                                  ML_inv_ea));
    M_LH.reset(M_LH_local_op);
    R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
                                false));
