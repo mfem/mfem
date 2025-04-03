@@ -280,9 +280,9 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    {
       for (int d = 0; d < DIM; d++)
       {
-         const auto (*Bx)[MQ1] = (d == 0) ? G : B;
-         const auto (*By)[MQ1] = (d == 1) ? G : B;
-         const auto (*Bz)[MQ1] = (d == 2) ? G : B;
+         const real_t (*Bx)[MQ1] = (d == 0) ? G : B;
+         const real_t (*By)[MQ1] = (d == 1) ? G : B;
+         const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
          Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[c][d], Y[c][d]);
       }
    }
