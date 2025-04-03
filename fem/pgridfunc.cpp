@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,9 +39,10 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
 {
    const FiniteElementSpace *glob_fes = gf->FESpace();
    // duplicate the FiniteElementCollection from 'gf'
-   fec = FiniteElementCollection::New(glob_fes->FEColl()->Name());
+   fec_owned = FiniteElementCollection::New(glob_fes->FEColl()->Name());
    // create a local ParFiniteElementSpace from the global one:
-   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning, fec);
+   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning,
+                                          fec_owned);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
@@ -81,7 +82,7 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
    : GridFunction(pmesh, input)
 {
    // Convert the FiniteElementSpace, fes, to a ParFiniteElementSpace:
-   pfes = new ParFiniteElementSpace(pmesh, fec, fes->GetVDim(),
+   pfes = new ParFiniteElementSpace(pmesh, fec_owned, fes->GetVDim(),
                                     fes->GetOrdering());
    delete fes;
    fes = pfes;
@@ -231,7 +232,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
-   int num_face_nbrs = pmesh->GetNFaceNeighbors();
+   const int num_face_nbrs = pmesh->GetNFaceNeighbors();
    MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
    MPI_Request *send_requests = requests;
    MPI_Request *recv_requests = requests + num_face_nbrs;
@@ -245,7 +246,7 @@ void ParGridFunction::ExchangeFaceNbrData()
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
    });
 
-   bool mpi_gpu_aware = Device::GetGPUAwareMPI();
+   const bool mpi_gpu_aware = Device::GetGPUAwareMPI();
    auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
    auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
                             face_nbr_data.HostWrite();
@@ -277,13 +278,17 @@ const
 {
    Array<int> dofs;
    Vector DofVal, LocVec;
-   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
       const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
                                                    nbr_el_no, dofs);
-      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+      // Choose fe to be of the order whose number of DOFs matches dofs.Size(),
+      // in the variable order case.
+      const int ndofs = pfes->IsVariableOrder() ? dofs.Size() : 0;
+      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, fes_vdim * ndofs);
+
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
@@ -343,7 +348,7 @@ const
 void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
                                      Vector &val) const
 {
-   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
@@ -408,7 +413,7 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
    }
 
    // Check for evaluation in a local element
-   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
    if (nbr_el_no < 0)
    {
       return GridFunction::GetValue(T, ip, comp, tr);
@@ -457,7 +462,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    // Check for evaluation in a local element
-   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
    if (nbr_el_no < 0)
    {
       return GridFunction::GetVectorValue(T, ip, val, tr);
@@ -520,7 +525,7 @@ void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
-                                    ParGridFunction &der)
+                                    ParGridFunction &der) const
 {
    Array<int> overlap;
    AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
@@ -919,19 +924,22 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
          }
       }
+      real_t face_error = 0.0;
       transf = face_elem_transf;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          real_t nu = jump_scaling.Eval(h, p);
-         error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
-                                      transf->Weight() *
-                                      err_val(j) * err_val(j));
+         face_error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
+                                           transf->Weight() *
+                                           err_val(j) * err_val(j));
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(face_error);
    }
 
-   error = (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   error = sqrt(error);
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
@@ -987,70 +995,65 @@ void ParGridFunction::SaveAsSerial(const char *fname, int precision,
    MPI_Barrier(pmesh->GetComm());
 }
 
-GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
-                                                    Mesh &serial_mesh) const
+GridFunction ParGridFunction::GetSerialGridFunction(
+   int save_rank, FiniteElementSpace &serial_fes) const
 {
    ParFiniteElementSpace *pfespace = ParFESpace();
    ParMesh *pmesh = pfespace->GetParMesh();
 
-   int vdim = pfespace->GetVDim();
-   auto *fec_serial = FiniteElementCollection::New(pfespace->FEColl()->Name());
-   auto *fespace_serial = new FiniteElementSpace(&serial_mesh,
-                                                 fec_serial,
-                                                 vdim,
-                                                 pfespace->GetOrdering());
+   GridFunction serial_gf(&serial_fes);
 
-   GridFunction gf_serial(fespace_serial);
-   gf_serial.MakeOwner(fec_serial);
    Array<real_t> vals;
    Array<int> dofs;
    MPI_Status status;
-   int n_send_recv;
 
-   int my_rank = pmesh->GetMyRank(),
-       nranks = pmesh->GetNRanks();
-   MPI_Comm my_comm = pmesh->GetComm();
+   const int vdim = pfespace->GetVDim();
 
-   int elem_count = 0; // To keep track of element count in serial mesh
+   const int my_rank = pmesh->GetMyRank();
+   const int nranks = pmesh->GetNRanks();
+   MPI_Comm comm = pmesh->GetComm();
 
    if (my_rank == save_rank)
    {
+      int elem_count = 0; // To keep track of element count in serial mesh
+
       Vector nodeval;
       for (int e = 0; e < pmesh->GetNE(); e++)
       {
          GetElementDofValues(e, nodeval);
-         fespace_serial->GetElementVDofs(elem_count++, dofs);
-         gf_serial.SetSubVector(dofs, nodeval);
+         serial_fes.GetElementVDofs(elem_count++, dofs);
+         serial_gf.SetSubVector(dofs, nodeval);
       }
 
       for (int p = 0; p < nranks; p++)
       {
          if (p == save_rank) { continue; }
-         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, my_comm, &status);
+         int n_send_recv;
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, comm, &status);
          vals.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, my_comm,
+            MPI_Recv(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, comm,
                      &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
-            fespace_serial->GetElementVDofs(elem_count++, dofs);
-            gf_serial.SetSubVector(dofs, &vals[i]);
+            serial_fes.GetElementVDofs(elem_count++, dofs);
+            serial_gf.SetSubVector(dofs, &vals[i]);
             i += dofs.Size();
          }
       }
    } // my_rank == save_rank
    else
    {
-      n_send_recv = 0;
+      int n_send_recv = 0;
       Vector nodeval;
       for (int e = 0; e < pmesh->GetNE(); e++)
       {
          const FiniteElement *fe = pfespace->GetFE(e);
          n_send_recv += vdim*fe->GetDof();
       }
-      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, my_comm);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, comm);
       vals.Reserve(n_send_recv);
       vals.SetSize(0);
       for (int e = 0; e < pmesh->GetNE(); e++)
@@ -1064,12 +1067,24 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
       if (n_send_recv)
       {
          MPI_Send(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, save_rank, 449,
-                  my_comm);
+                  comm);
       }
    }
 
-   MPI_Barrier(my_comm);
-   return gf_serial;
+   return serial_gf;
+}
+
+GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
+                                                    Mesh &serial_mesh) const
+{
+   auto *serial_fec = pfes->FEColl()->Clone(pfes->FEColl()->GetOrder());
+   auto *serial_fes = new FiniteElementSpace(&serial_mesh,
+                                             serial_fec,
+                                             pfes->GetVDim(),
+                                             pfes->GetOrdering());
+   GridFunction serial_gf = GetSerialGridFunction(save_rank, *serial_fes);
+   serial_gf.MakeOwner(serial_fec); // Also assumes ownership of serial_fes
+   return serial_gf;
 }
 
 #ifdef MFEM_USE_ADIOS2
@@ -1231,34 +1246,22 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
 {
    real_t glob_norm;
 
+   // negative quadrature weights may cause the local norm to be negative
+   loc_norm = fabs(loc_norm);
+
    if (p < infinity())
    {
-      // negative quadrature weights may cause the error to be negative
-      if (loc_norm < 0.0)
-      {
-         loc_norm = -pow(-loc_norm, p);
-      }
-      else
-      {
-         loc_norm = pow(loc_norm, p);
-      }
+      loc_norm = pow(loc_norm, p);
 
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
 
-      if (glob_norm < 0.0)
-      {
-         glob_norm = -pow(-glob_norm, 1.0/p);
-      }
-      else
-      {
-         glob_norm = pow(glob_norm, 1.0/p);
-      }
+      glob_norm = pow(fabs(glob_norm), 1.0/p);
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, comm);
    }
 
    return glob_norm;
@@ -1300,6 +1303,29 @@ void ParGridFunction::ComputeFlux(
    }
 }
 
+std::unique_ptr<ParGridFunction> ParGridFunction::ProlongateToMaxOrder() const
+{
+   ParMesh *mesh = pfes->GetParMesh();
+   const FiniteElementCollection *pfesc = pfes->FEColl();
+   const int vdim = pfes->GetVDim();
+
+   // Find the max order in the space
+   const int maxOrder = pfes->GetMaxElementOrder();
+
+   // Create a visualization space of max order for all elements
+   FiniteElementCollection *fecMax = pfesc->Clone(maxOrder);
+   ParFiniteElementSpace *pfesMax = new ParFiniteElementSpace(mesh, fecMax, vdim,
+                                                              pfes->GetOrdering());
+
+   ParGridFunction *xMax = new ParGridFunction(pfesMax);
+
+   // Interpolate in the maximum-order space
+   PRefinementTransferOperator P(*pfes, *pfesMax);
+   P.Mult(*this, *xMax);
+
+   xMax->MakeOwner(fecMax);
+   return std::unique_ptr<ParGridFunction>(xMax);
+}
 
 real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
@@ -1342,23 +1368,19 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParLinearForm *b = new ParLinearForm(&smooth_flux_fes);
    VectorGridFunctionCoefficient f(&flux);
 
-   if (xfes->GetNE())
-   {
-      MFEM_VERIFY(smooth_flux_fes.GetFE(0) != NULL,
-                  "Could not obtain FE of smooth flux space.");
+   const FiniteElement *smooth_flux_fe = smooth_flux_fes.GetTypicalFE();
 
-      if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
-      {
-         VectorMassIntegrator *vmass = new VectorMassIntegrator;
-         vmass->SetVDim(smooth_flux_fes.GetVDim());
-         a->AddDomainIntegrator(vmass);
-         b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
-      }
-      else
-      {
-         a->AddDomainIntegrator(new VectorFEMassIntegrator);
-         b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-      }
+   if (smooth_flux_fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      VectorMassIntegrator *vmass = new VectorMassIntegrator;
+      vmass->SetVDim(smooth_flux_fes.GetVDim());
+      a->AddDomainIntegrator(vmass);
+      b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new VectorFEMassIntegrator);
+      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    }
 
    b->Assemble();

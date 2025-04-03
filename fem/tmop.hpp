@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,12 @@ protected:
        for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
+   /** @brief See AssembleH(). This is a default implementation for the case
+       when the 2nd derivatives of the metric are pre-computed and stored into
+       @a H. This function is used in combination with AD-based computations. */
+   void DefaultAssembleH(const DenseTensor &H, const DenseMatrix &DS,
+                         const real_t weight, DenseMatrix &A) const;
+
 public:
    TMOP_QualityMetric() : Jtr(NULL) { }
    virtual ~TMOP_QualityMetric() { }
@@ -58,6 +64,10 @@ public:
                        Jacobian matrix.
        @param[out]  P  The evaluated 1st Piola-Kirchhoff stress tensor. */
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const = 0;
+
+   /** Compute dmu/dW */
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+   { PW = 0.0;}
 
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
        and assemble its contribution to the local gradient matrix 'A'.
@@ -95,7 +105,7 @@ public:
       wt_arr.Append(wt);
    }
 
-   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
+   void SetTargetJacobian(const DenseMatrix &Jtr_) override
    {
       for (int i = 0; i < tmop_q_arr.Size(); i++)
       {
@@ -103,14 +113,16 @@ public:
       }
    }
 
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
@@ -196,25 +208,40 @@ public:
       }
    }
 
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
    { MFEM_ABORT("Not implemented"); }
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
    { MFEM_ABORT("Not implemented"); }
 
    // Compute mu_hat.
-   virtual real_t EvalWBarrier(const DenseMatrix &Jpt) const;
+   real_t EvalWBarrier(const DenseMatrix &Jpt) const;
 
-   virtual void SetMinDetT(real_t min_detT_) { min_detT = min_detT_; }
+   void SetMinDetT(real_t min_detT_) { min_detT = min_detT_; }
 
-   virtual void SetMaxMuT(real_t max_muT_) { max_muT = max_muT_; }
+   void SetMaxMuT(real_t max_muT_) { max_muT = max_muT_; }
 
-   virtual BarrierType GetBarrierType() { return btype; }
+   BarrierType GetBarrierType() { return btype; }
 
-   virtual WorstCaseType GetWorstCaseType() { return wctype; }
+   WorstCaseType GetWorstCaseType() { return wctype; }
+};
+
+/// 0 metric
+class TMOP_Metric_000 : public TMOP_QualityMetric
+{
+public:
+   // W = 0.
+   real_t EvalW(const DenseMatrix &Jpt) const override {return 0.0;}
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override {P=0.0;}
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override {A=0.0;}
+
+   int Id() const override { return 0; }
 };
 
 /// 2D non-barrier metric without a type.
@@ -225,29 +252,35 @@ protected:
 
 public:
    // W = |J|^2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 1; }
+   int Id() const override { return 1; }
 };
 
-/// 2D non-barrier Skew metric.
-class TMOP_Metric_skew2D : public TMOP_QualityMetric
+// TODO: Remove in MFEM 5.0
+/// (DEPRECATED) 2D non-barrier Skew metric.
+/// We recommend TMOP_AMetric_050 metric for controlling skewness only. In
+/// general, the Size+Skew metric TMOP_AMetric_051 may produce better
+/// meshes than a purely Skew metric.
+class MFEM_DEPRECATED TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
    // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Skew metric.
@@ -255,13 +288,13 @@ class TMOP_Metric_skew3D : public TMOP_QualityMetric
 {
 public:
    // W = 1/6 (3 - sum_i cos(angle_Jpr_i - angle_Jtr_i)), i = 1..3.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
    { MFEM_ABORT("Not implemented"); }
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -270,13 +303,13 @@ class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
 {
 public:
    // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
    { MFEM_ABORT("Not implemented"); }
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -285,13 +318,13 @@ class TMOP_Metric_aspratio3D : public TMOP_QualityMetric
 {
 public:
    // W = 1/3 sum [0.5 (ar_Jpr_i/ar_Jtr_i + ar_Jtr_i/ar_Jpr_i) - 1], i = 1..3.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
    { MFEM_ABORT("Not implemented"); }
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -304,17 +337,17 @@ protected:
 
 public:
    // W = 0.5 |J|^2 / det(J) - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 0.5 I1b - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 2; }
+   int Id() const override { return 2; }
 };
 
 /// 2D non-barrier shape (S) metric.
@@ -326,14 +359,14 @@ protected:
 
 public:
    // W = |J|^2 - 2*det(J)
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 4; }
+   int Id() const override { return 4; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (not polyconvex).
@@ -344,14 +377,14 @@ protected:
 
 public:
    // W = |J - J^-t|^2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 7; }
+   int Id() const override { return 7; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (not polyconvex).
@@ -362,12 +395,12 @@ protected:
 
 public:
    // W = det(J) * |J - J^-t|^2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -378,15 +411,15 @@ protected:
 
 public:
    // W = |J - I|^2.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1[J-I].
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -400,12 +433,12 @@ public:
    TMOP_Metric_022(real_t &t0): min_detT(t0) {}
 
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier shape metric (polyconvex).
@@ -417,15 +450,15 @@ protected:
 
 public:
    // W = 0.5 |J^t J|^2 / det(J)^2 - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 0.5 I1b^2 - 2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D non-barrier size (V) metric (not polyconvex).
@@ -437,12 +470,12 @@ protected:
 
 public:
    // W = (det(J) - 1)^2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
 };
 
@@ -455,15 +488,15 @@ protected:
 
 public:
    // W = 0.5 (det(J) + 1 / det(J)) - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 0.5 (I2b + 1/I2b) - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier shape (S) metric (not polyconvex).
@@ -474,15 +507,15 @@ protected:
 
 public:
    // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1b (I1b - 2).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
@@ -501,7 +534,7 @@ public:
       AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
-   virtual int Id() const { return 66; }
+   int Id() const override { return 66; }
    real_t GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
@@ -516,17 +549,17 @@ protected:
 
 public:
    // W = 0.5 (det(J) - 1 / det(J))^2.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 0.5 (I2 + 1 / I2) - 1.0.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 77; }
+   int Id() const override { return 77; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
@@ -546,7 +579,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
 
-   virtual int Id() const { return 80; }
+   int Id() const override { return 80; }
    real_t GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
@@ -557,14 +590,14 @@ class TMOP_Metric_085 : public TMOP_QualityMetric
 {
 public:
    // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
@@ -584,7 +617,7 @@ public:
       AddQualityMetric(sz_metric, 2.5);
    }
 
-   virtual int Id() const { return 90; }
+   int Id() const override { return 90; }
    virtual ~TMOP_Metric_090() { delete sh_metric; delete sz_metric; }
 };
 
@@ -605,7 +638,7 @@ public:
       AddQualityMetric(sz_metric, 1.5);
    }
 
-   virtual int Id() const { return 94; }
+   int Id() const override { return 94; }
    virtual ~TMOP_Metric_094() { delete sh_metric; delete sz_metric; }
 };
 
@@ -614,14 +647,14 @@ class TMOP_Metric_098 : public TMOP_QualityMetric
 {
 public:
    // W = 1/tau |T-I|^2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D untangling metric.
@@ -635,12 +668,12 @@ public:
    TMOP_Metric_211(real_t epsilon = 1e-4) : eps(epsilon) { }
 
    // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// Shifted barrier form of metric 56 (area, ideal barrier metric), 2D
@@ -655,12 +688,12 @@ public:
    TMOP_Metric_252(real_t &t0): tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -671,15 +704,15 @@ protected:
 
 public:
    // W = 1/3 |J| |J^-1| - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 1/3 sqrt(I1b * I2b) - 1
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -690,17 +723,17 @@ protected:
 
 public:
    // W = |J|^2 |J^{-1}|^2 / 9 - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1b * I2b / 9 - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 302; }
+   int Id() const override { return 302; }
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -711,17 +744,17 @@ protected:
 
 public:
    // W = |J|^2 / 3 / det(J)^(2/3) - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1b / 3 - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 303; }
+   int Id() const override { return 303; }
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -732,17 +765,17 @@ protected:
 
 public:
    // W = |J|^3 / 3^(3/2) / det(J) - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = (I1b/3)^3/2 - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 304; }
+   int Id() const override { return 304; }
 };
 
 /// 3D Size (V) untangling metric.
@@ -756,12 +789,12 @@ public:
    TMOP_Metric_311(real_t epsilon = 1e-4) : eps(epsilon) { }
 
    // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D Shape (S) metric, untangling version of 303.
@@ -775,14 +808,14 @@ public:
    TMOP_Metric_313(real_t &mindet) : min_detT(mindet) { }
 
    // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 313; }
+   int Id() const override { return 313; }
 };
 
 /// 3D Size (V) metric.
@@ -793,14 +826,14 @@ protected:
 
 public:
    // W = (det(J) - 1)^2.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 315; }
+   int Id() const override { return 315; }
 };
 
 /// 3D Size (V) metric.
@@ -811,15 +844,15 @@ protected:
 
 public:
    // W = 0.5 (det(J) + 1/det(J)) - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 0.5 (I3b + 1/I3b) - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D Size (V) metric.
@@ -830,17 +863,17 @@ protected:
 
 public:
    // W = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = 0.5 (I3 + 1/I3) - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 318; }
+   int Id() const override { return 318; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (invex).
@@ -851,17 +884,17 @@ protected:
 
 public:
    // W = |J - J^-t|^2.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1 + I2/I3 - 6.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 321; }
+   int Id() const override { return 321; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (invex).
@@ -872,17 +905,17 @@ protected:
 
 public:
    // W = |J - adjJ^-t|^2.
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 322; }
+   int Id() const override { return 322; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (invex).
@@ -893,17 +926,17 @@ protected:
 
 public:
    // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 323; }
+   int Id() const override { return 323; }
 };
 
 /// 3D compound barrier Shape+Size (VS) metric (polyconvex, balanced).
@@ -923,7 +956,7 @@ public:
       AddQualityMetric(sz_metric, 1.0);
    }
 
-   virtual int Id() const { return 328; }
+   int Id() const override { return 328; }
    virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
 };
 
@@ -942,7 +975,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
 
-   virtual int Id() const { return 332; }
+   int Id() const override { return 332; }
    real_t GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
@@ -983,7 +1016,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
 
-   virtual int Id() const { return 334; }
+   int Id() const override { return 334; }
    real_t GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
@@ -1006,8 +1039,26 @@ public:
       AddQualityMetric(sz_metric, 0.5 * (4.0/9.0 + 3.0));
    }
 
-   virtual int Id() const { return 338; }
+   int Id() const override { return 338; }
    virtual ~TMOP_Metric_338() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_Metric_342 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<real_t> ie;
+
+public:
+   // W = 1/(tau^0.5) |T-I|^2.
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
@@ -1026,7 +1077,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
 
-   virtual int Id() const { return 347; }
+   int Id() const override { return 347; }
    real_t GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
@@ -1043,12 +1094,12 @@ public:
    TMOP_Metric_352(real_t &t0): tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Shape (S) metric.
@@ -1059,17 +1110,17 @@ protected:
 
 public:
    // W = |J|^3 / 3^(3/2) - det(J).
-   virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
    // W = (I1b/3)^3/2 - 1.
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
-   virtual int Id() const { return 360; }
+   int Id() const override { return 360; }
 };
 
 /// A-metrics
@@ -1077,72 +1128,122 @@ public:
 class TMOP_AMetric_011 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier Size (V) metric (polyconvex).
-class TMOP_AMetric_014a : public TMOP_QualityMetric
+class TMOP_AMetric_014 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
 class TMOP_AMetric_036 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // (1/alpha) | A - W |^2
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
+};
+
+/// 2D barrier Skew (Q) metric.
+class TMOP_AMetric_050 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<real_t> ie;
+
+public:
+   // [ 1.0 - cos( phi_A - phi_W ) ] / (sin phi_A * sin phi_W)
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
+};
+
+/// 2D barrier Size+Skew (VQ) metric.
+class TMOP_AMetric_051 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<real_t> ie;
+
+public:
+   // [ 0.5 * (ups_A / ups_W + ups_W / ups_A) - cos(phi_A - phi_W) ] /
+   // (sin phi_A * sin phi_W)
+   // where ups = l_1 l_2 sin(phi)
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
-class TMOP_AMetric_107a : public TMOP_QualityMetric
+class TMOP_AMetric_107 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // (1/2 alpha) | A - (|A|/|W|) W |^2
-   virtual real_t EvalW(const DenseMatrix &Jpt) const;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
@@ -1154,7 +1255,7 @@ protected:
 
 public:
    TMOP_AMetric_126(real_t gamma)
-      : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014a)
+      : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014)
    {
       // (1-gamma) nu_11 + gamma nu_14
       AddQualityMetric(sh_metric, 1.-gamma);
@@ -1162,6 +1263,30 @@ public:
    }
 
    virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D barrier Shape+Skew (SQ) metric.
+/// gamma is recommended to be in (0, 0.9) as a pure skew metric has poor
+/// convergence properties.
+class TMOP_AMetric_049 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<real_t> ie;
+   TMOP_QualityMetric *sh_metric, *sk_metric;
+
+public:
+   TMOP_AMetric_049(real_t gamma)
+      : sh_metric(new TMOP_Metric_002), sk_metric(new TMOP_AMetric_050)
+   {
+      // (1-gamma) mu_2 + gamma nu_50
+      AddQualityMetric(sh_metric, 1.0 - gamma);
+      AddQualityMetric(sk_metric, gamma);
+   }
+
+   int Id() const override { return 49; }
+   real_t GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_AMetric_049() { delete sh_metric; delete sk_metric; }
 };
 
 /// Base class for limiting functions to be used in class TMOP_Integrator.
@@ -1192,15 +1317,15 @@ public:
 class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
 {
 public:
-   virtual real_t Eval(const Vector &x, const Vector &x0, real_t dist) const
+   real_t Eval(const Vector &x, const Vector &x0, real_t dist) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
    }
 
-   virtual void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
-                        Vector &d1) const
+   void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
+                Vector &d1) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
@@ -1208,8 +1333,8 @@ public:
       subtract(1.0 / (dist * dist), x, x0, d1);
    }
 
-   virtual void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
-                        DenseMatrix &d2) const
+   void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
+                DenseMatrix &d2) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
@@ -1223,15 +1348,15 @@ public:
 class TMOP_ExponentialLimiter : public TMOP_LimiterFunction
 {
 public:
-   virtual real_t Eval(const Vector &x, const Vector &x0, real_t dist) const
+   real_t Eval(const Vector &x, const Vector &x0, real_t dist) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       return  exp(10.0*((x.DistanceSquaredTo(x0) / (dist * dist))-1.0));
    }
 
-   virtual void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
-                        Vector &d1) const
+   void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
+                Vector &d1) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
@@ -1241,8 +1366,8 @@ public:
                dist_squared, x, x0, d1);
    }
 
-   virtual void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
-                        DenseMatrix &d2) const
+   void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
+                DenseMatrix &d2) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
       Vector tmp;
@@ -1299,8 +1424,8 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementSpace of the solution that will
-       be evaluated. The given mesh will be copied into the internal object. */
+   /// Specifies the Mesh and FiniteElementSpace of the solution that will
+   /// be evaluated. The given mesh will be copied into the internal object.
    void SetSerialMetaInfo(const Mesh &m,
                           const FiniteElementSpace &f);
 
@@ -1310,13 +1435,35 @@ public:
                        const ParFiniteElementSpace &f);
 #endif
 
-   // TODO use GridFunctions to make clear it's on the ldofs?
+   // TODO use GridFunctions to make clear it's on the ldofs? Then do we
+   // need the SetMetaInfo at all -- the space and mesh can be extracted?
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field) = 0;
 
-   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+   /// Called when the FE space of the final field is different than
+   /// the FE space of the initial field.
+   virtual void SetNewFieldFESpace(const FiniteElementSpace &fes) = 0;
+
+   /** @brief Perform field transfer between the original and a new mesh. The
+              source mesh and field are given by SetInitialField().
+
+       @param[in]  new_mesh_nodes  Mesh node positions of the new mesh (ldofs).
+                                   It is assumed that this is the field's mesh.
+       @param[out] new_field       Result of the transfer (ldofs).
+       @param[in]  nodes_ordering  Ordering of new_mesh_nodes.      */
+   virtual void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                      Vector &new_field,
-                                     int new_nodes_ordering = Ordering::byNODES) = 0;
+                                     int nodes_ordering = Ordering::byNODES) = 0;
+
+   /** @brief Using the source mesh and field given by SetInitialField(),
+              compute corresponding values at specified physical positions.
+
+       @param[in]  positions   Physical positions to compute values.
+       @param[out] values      Computed field values.
+       @param[in]  p_ordering  Ordering of the positions Vector.     */
+   virtual void ComputeAtGivenPositions(const Vector &positions,
+                                        Vector &values,
+                                        int p_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
@@ -1491,20 +1638,20 @@ public:
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
        The physical positions of the element's nodes are given by @a elfun. */
-   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
-                                      const IntegrationRule &ir,
+   void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                              const IntegrationRule &ir,
+                              const Vector &elfun,
+                              DenseTensor &Jtr) const override;
+
+   void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 const Vector &xe,
+                                 DenseTensor &Jtr) const override;
+
+   void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                       const Vector &elfun,
-                                      DenseTensor &Jtr) const;
-
-   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
-                                         const IntegrationRule &ir,
-                                         const Vector &xe,
-                                         DenseTensor &Jtr) const;
-
-   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
-                                              const Vector &elfun,
-                                              IsoparametricTransformation &Tpr,
-                                              DenseTensor &dJtr) const;
+                                      IsoparametricTransformation &Tpr,
+                                      DenseTensor &dJtr) const override;
 };
 
 #ifdef MFEM_USE_MPI
@@ -1679,20 +1826,20 @@ public:
        The physical positions of the element's nodes are given by @a elfun.
        Note that this function assumes that UpdateTargetSpecification() has
        been called with the position vector corresponding to @a elfun. */
-   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
-                                      const IntegrationRule &ir,
+   void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                              const IntegrationRule &ir,
+                              const Vector &elfun,
+                              DenseTensor &Jtr) const override;
+
+   void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 const Vector &xe,
+                                 DenseTensor &Jtr) const override;
+
+   void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                       const Vector &elfun,
-                                      DenseTensor &Jtr) const;
-
-   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
-                                         const IntegrationRule &ir,
-                                         const Vector &xe,
-                                         DenseTensor &Jtr) const;
-
-   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
-                                              const Vector &elfun,
-                                              IsoparametricTransformation &Tpr,
-                                              DenseTensor &dJtr) const;
+                                      IsoparametricTransformation &Tpr,
+                                      DenseTensor &dJtr) const override;
 
    // Generates tspec_vals for target construction using intrule
    // Used for the refinement component in hr-adaptivity.
@@ -1740,6 +1887,14 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
+   // Initial positions of the mesh nodes. Not owned. The pointer is set at the
+   // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
+   // When x_0 == nullptr, the integrator works on the mesh positions.
+   // When x_0 != nullptr, the integrator works on the displacements.
+   // TODO in MFEM-5.0 make it always work with displacements.
+   const GridFunction *x_0;
+   bool periodic = false;
+
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
@@ -1784,19 +1939,18 @@ protected:
    // Fitting to given physical positions.
    TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
    const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
-   real_t surf_fit_normal;
-   bool surf_fit_gf_bg;
-   GridFunction *surf_fit_grad, *surf_fit_hess;
-   AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
-   Array<int> surf_fit_dof_count;
-   Array<int> surf_fit_marker_dof_index;
+   real_t surf_fit_normal;                  // Normalization factor.
+   GridFunction *surf_fit_grad, *surf_fit_hess; // Owned. Created internally.
+   AdaptivityEvaluator *surf_fit_eval_grad, *surf_fit_eval_hess; // Not owned.
+   Array<int> surf_fit_dof_count;            // Number of dofs per node.
+   Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
-   real_t dx;
-   real_t dxscale;
+   real_t fd_h;
+   real_t fd_h_scale;
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
@@ -1827,7 +1981,9 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
-   // X0: E-vector for initial nodal coordinates used for limiting.
+   // X0: E-vector for initial nodal coordinates.
+   //     Does not change during the TMOP iteration.
+   // XL: E-vector for nodal coordinates used for limiting.
    //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
    //     Updated by every call to PANonlinearFormExtension::GetGradient().
@@ -1860,7 +2016,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -1874,20 +2030,20 @@ protected:
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
-                                   const Vector &elfun, Vector &elvect);
+                                   const Vector &d_el, Vector &elvect);
 
    void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
-                                 const Vector &elfun, DenseMatrix &elmat);
+                                 const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElementVectorFD(const FiniteElement &el,
                                 ElementTransformation &T,
-                                const Vector &elfun, Vector &elvect);
+                                const Vector &d_el, Vector &elvect);
 
    // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, DenseMatrix &elmat);
+                              const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
@@ -1910,15 +2066,15 @@ protected:
 
    real_t GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun, const int nodenum,const int idir,
+                          Vector &d_el, const int nodenum, const int idir,
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &d, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &x_new,
-                                      const FiniteElementSpace &x_fes);
+   void UpdateAfterMeshPositionChange(const Vector &d,
+                                      const FiniteElementSpace &d_fes);
 
    void DisableLimiting()
    {
@@ -1976,7 +2132,7 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
-   void UpdateCoefficientsPA(const Vector &x_loc);
+   void UpdateCoefficientsPA(const Vector &d_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -1985,13 +2141,17 @@ protected:
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
+   // Remaps the internal surface fitting grid function object at provided
+   // locations.
+   void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                           int new_x_ordering);
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
        @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
-      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+      : x_0(nullptr), h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
         integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
         lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -2000,11 +2160,10 @@ public:
         surf_fit_marker(NULL), surf_fit_coeff(NULL),
         surf_fit_gf(NULL), surf_fit_eval(NULL),
         surf_fit_limiter(NULL), surf_fit_pos(NULL),
-        surf_fit_normal(1.0),
-        surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
-        surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
+        surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
+        fdflag(false), fd_h_scale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
@@ -2023,6 +2182,13 @@ public:
       IntegRules = &irules;
       integ_order = order;
    }
+
+   /// As the integrator operates on mesh displacements, this function is needed
+   /// to set the initial mesh positions. For periodic meshes, the function is
+   /// called with L2 positions.
+   /// Called with nullptr to unset the x_0 after the problem is solved.
+   // TODO should not be public in mfem 5.0.
+   void SetInitialMeshPos(const GridFunction *x0);
 
    /// The TMOP integrals can be computed over the reference element or the
    /// target elements. This function is used to switch between the two options.
@@ -2103,9 +2269,15 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting to the zero level set of a function.
+   /// Here, we add two optional inputs: @a aegrad and @a aehess. When provided,
+   /// the first and second derivative of the input level set are computed on
+   /// the initial mesh, and @a aegrad and @a aehess are used to remap grad_s(x)
+   /// from grad_s0(x0) and hess_s(x) from hess_s0(x0), respectively.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
-                             AdaptivityEvaluator &ae);
+                             AdaptivityEvaluator &ae,
+                             AdaptivityEvaluator *aegrad = NULL,
+                             AdaptivityEvaluator *aehess = NULL);
 
    /** @brief Fitting of certain DOFs in the current mesh to the zero level set
        of a function defined on another (finer) source mesh.
@@ -2155,7 +2327,7 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &pos,
+   void GetSurfaceFittingErrors(const Vector &d_loc,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
    {
@@ -2166,12 +2338,12 @@ public:
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
-       @param[in] el     Type of FiniteElement.
+       @param[in] el     Type of FiniteElement (TMOP assumes H1 elements).
        @param[in] T      Mesh element transformation.
-       @param[in] elfun  Physical coordinates of the zone. */
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &T,
-                                   const Vector &elfun);
+       @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &T,
+                           const Vector &d_el) override;
 
    /** @brief Computes the mean of the energies of the given element's children.
 
@@ -2189,13 +2361,15 @@ public:
                                                ElementTransformation &T,
                                                const Vector &elfun);
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun, Vector &elvect);
+   /// First defivative of GetElementEnergy() w.r.t. each local H1 DOF.
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &T,
+                              const Vector &d_el, Vector &elvect) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &T,
-                                    const Vector &elfun, DenseMatrix &elmat);
+   /// Second derivative of GetElementEnergy() w.r.t. each local H1 DOF.
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &T,
+                            const Vector &d_el, DenseMatrix &elmat) override;
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
@@ -2206,17 +2380,17 @@ public:
 
    // PA extension
    using NonlinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace&);
+   void AssemblePA(const FiniteElementSpace&) override;
 
-   virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
+   void AssembleGradPA(const Vector &, const FiniteElementSpace &) override;
 
-   virtual real_t GetLocalStateEnergyPA(const Vector&) const;
+   real_t GetLocalStateEnergyPA(const Vector&) const override;
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   virtual void AddMultGradPA(const Vector&, Vector&) const;
+   void AddMultGradPA(const Vector&, Vector&) const override;
 
-   virtual void AssembleGradDiagonalPA(Vector&) const;
+   void AssembleGradDiagonalPA(Vector&) const override;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
@@ -2233,9 +2407,9 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(real_t dxscale_) { dxscale = dxscale_; }
+   void   SetFDhScale(real_t scale) { fd_h_scale = scale; }
    bool   GetFDFlag() const { return fdflag; }
-   real_t GetFDh()    const { return dx; }
+   real_t GetFDh()    const { return fd_h; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
@@ -2249,15 +2423,23 @@ public:
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
-   void ComputeUntangleMetricQuantiles(const Vector &x,
+   void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
 {
 protected:
+   friend class TMOPNewtonSolver;
+
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;
+
+   void SetInitialMeshPos(const GridFunction *x0)
+   {
+      for (int i = 0; i < tmopi.Size(); i++)
+      { tmopi[i]->SetInitialMeshPos(x0); }
+   }
 
 public:
    TMOPComboIntegrator() : tmopi(0) { }
@@ -2284,15 +2466,15 @@ public:
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0);
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &T,
-                                   const Vector &elfun);
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun, Vector &elvect);
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &T,
-                                    const Vector &elfun, DenseMatrix &elmat);
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &T,
+                           const Vector &elfun) override;
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &T,
+                              const Vector &elfun, Vector &elvect) override;
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &T,
+                            const Vector &elfun, DenseMatrix &elmat) override;
 
    virtual real_t GetRefinementElementEnergy(const FiniteElement &el,
                                              ElementTransformation &T,
@@ -2311,12 +2493,12 @@ public:
 
    // PA extension
    using NonlinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace&);
-   virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
-   virtual real_t GetLocalStateEnergyPA(const Vector&) const;
-   virtual void AddMultPA(const Vector&, Vector&) const;
-   virtual void AddMultGradPA(const Vector&, Vector&) const;
-   virtual void AssembleGradDiagonalPA(Vector&) const;
+   void AssemblePA(const FiniteElementSpace&) override;
+   void AssembleGradPA(const Vector&, const FiniteElementSpace&) override;
+   real_t GetLocalStateEnergyPA(const Vector&) const override;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultGradPA(const Vector&, Vector&) const override;
+   void AssembleGradDiagonalPA(Vector&) const override;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.

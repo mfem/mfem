@@ -24,7 +24,7 @@
 //               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -std  -asm -pc ho  -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -82,7 +82,7 @@ struct ex1_t
 
    static int run(Mesh *mesh, int ser_ref_levels, int par_ref_levels, int order,
                   int basis, bool static_cond, PCType pc_choice, bool perf,
-                  bool matrix_free, bool visualization);
+                  bool matrix_free, bool visualization, int visport = 19916);
 };
 
 int main(int argc, char *argv[])
@@ -106,6 +106,7 @@ int main(int argc, char *argv[])
    const char *pc = "lor";
    bool perf = true;
    bool matrix_free = true;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -134,6 +135,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -192,13 +194,13 @@ int main(int argc, char *argv[])
    {
       return ex1_t<2>::run(mesh, ser_ref_levels, par_ref_levels, order, basis,
                            static_cond, pc_choice, perf, matrix_free,
-                           visualization);
+                           visualization, visport);
    }
    else if (dim == 3)
    {
       return ex1_t<3>::run(mesh, ser_ref_levels, par_ref_levels, order,
                            basis, static_cond, pc_choice, perf, matrix_free,
-                           visualization);
+                           visualization, visport);
    }
    else
    {
@@ -211,7 +213,7 @@ int main(int argc, char *argv[])
 template <int dim>
 int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
                     int order, int basis, bool static_cond, PCType pc_choice,
-                    bool perf, bool matrix_free, bool visualization)
+                    bool perf, bool matrix_free, bool visualization, int visport)
 {
    int num_procs, myid;
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
@@ -546,7 +548,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

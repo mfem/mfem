@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,19 +32,35 @@ namespace mfem
 
 class BilinearForm;
 
-/// Abstract base class for an iterative solver monitor
-class IterativeSolverMonitor
+/// Abstract base class for an iterative solver controller
+class IterativeSolverController
 {
 protected:
-   /// The last IterativeSolver to which this monitor was attached.
+   /// The last IterativeSolver to which this controller was attached.
    const class IterativeSolver *iter_solver;
 
+   /// In MonitorResidual or MonitorSolution, this member variable can be set
+   /// to true to indicate early convergence.
+   bool converged = false;
+
 public:
-   IterativeSolverMonitor() : iter_solver(nullptr) {}
+   IterativeSolverController() : iter_solver(nullptr) {}
 
-   virtual ~IterativeSolverMonitor() {}
+   virtual ~IterativeSolverController() {}
 
-   /// Monitor the residual vector r
+   /// Has the solver converged?
+   ///
+   /// Can be used if convergence is detected in the controller (before reaching
+   /// the relative or absolute tolerance of the IterativeSolver).
+   bool HasConverged() { return converged; }
+
+   /// Reset the controller to its initial state.
+   ///
+   /// This function is called by the IterativeSolver::Mult()
+   /// method on the first iteration.
+   virtual void Reset() { converged = false; }
+
+   /// Monitor the solution vector r
    virtual void MonitorResidual(int it, real_t norm, const Vector &r,
                                 bool final)
    {
@@ -61,6 +77,9 @@ public:
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
 };
+
+/// Keeping the alias for backward compatibility
+using IterativeSolverMonitor = IterativeSolverController;
 
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
@@ -169,6 +188,7 @@ protected:
 
    ///@}
 
+
    /** @brief Return the standard (l2, i.e., Euclidean) inner product of
        @a x and @a y
        @details Overriding this method in a derived class enables a
@@ -180,7 +200,7 @@ protected:
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, real_t norm, const Vector& r, const Vector& x,
+   bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
@@ -290,7 +310,7 @@ public:
    virtual void SetPreconditioner(Solver &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const Operator &op) override;
+   void SetOperator(const Operator &op) override;
 
    /// Set the iterative solver monitor
    void SetMonitor(IterativeSolverMonitor &m)
@@ -421,7 +441,8 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -434,7 +455,8 @@ public:
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -490,11 +512,14 @@ public:
    SLISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /// Iterative solution of the linear system using Stationary Linear Iteration
-   virtual void Mult(const Vector &b, Vector &x) const;
+   /** When using iterative mode (see Solver::iterative_mode), the case of zero
+       r.h.s., @a b = 0, can be optimized by calling this method with empty
+       @a b, i.e. b.Size() == 0. */
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// Stationary linear iteration. (tolerances are squared)
@@ -523,12 +548,12 @@ public:
    CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /** @brief Iterative solution of the linear system using the Conjugate
        Gradient method. */
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// Conjugate gradient method. (tolerances are squared)
@@ -559,7 +584,7 @@ public:
    void SetKDim(int dim) { m = dim; }
 
    /// Iterative solution of the linear system using the GMRES method
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// FGMRES method
@@ -578,7 +603,7 @@ public:
    void SetKDim(int dim) { m = dim; }
 
    /// Iterative solution of the linear system using the FGMRES method.
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// GMRES method. (tolerances are squared)
@@ -606,11 +631,11 @@ public:
    BiCGSTABSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /// Iterative solution of the linear system using the BiCGSTAB method
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// BiCGSTAB method. (tolerances are squared)
@@ -637,16 +662,16 @@ public:
    MINRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
-   virtual void SetPreconditioner(Solver &pr)
+   void SetPreconditioner(Solver &pr) override
    {
       IterativeSolver::SetPreconditioner(pr);
       if (oper) { u1.SetSize(width); }
    }
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Iterative solution of the linear system using the MINRES method
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// MINRES method without preconditioner. (tolerances are squared)
@@ -707,7 +732,7 @@ public:
 #ifdef MFEM_USE_MPI
    NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Set the linear solver for inverting the Jacobian.
    /** This method is equivalent to calling SetPreconditioner(). */
@@ -715,7 +740,7 @@ public:
 
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /** @brief This method can be overloaded in derived classes to implement line
        search algorithms. */
@@ -784,7 +809,7 @@ public:
    LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       NewtonSolver::SetOperator(op);
       InitializeStorageVectors();
@@ -798,11 +823,11 @@ public:
 
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
-   virtual void SetPreconditioner(Solver &pr)
+   void SetPreconditioner(Solver &pr) override
    { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
-   virtual void SetSolver(Solver &solver)
+   void SetSolver(Solver &solver) override
    { MFEM_WARNING("L-BFGS won't use the given solver."); }
 
    virtual ~LBFGSSolver() { DeleteStorageVectors(); }
@@ -904,11 +929,11 @@ public:
    virtual void SetOptimizationProblem(const OptimizationProblem &prob)
    { problem = &prob; }
 
-   virtual void Mult(const Vector &xt, Vector &x) const = 0;
+   void Mult(const Vector &xt, Vector &x) const override = 0;
 
-   virtual void SetPreconditioner(Solver &pr)
+   void SetPreconditioner(Solver &pr) override
    { MFEM_ABORT("Not meaningful for this solver."); }
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { MFEM_ABORT("Not meaningful for this solver."); }
 };
 
@@ -959,14 +984,14 @@ public:
    /** Setting an OptimizationProblem will overwrite the Vectors given by
     *  SetBounds and SetLinearConstraint. The objective function remains
     *  unchanged. */
-   virtual void SetOptimizationProblem(const OptimizationProblem &prob);
+   void SetOptimizationProblem(const OptimizationProblem &prob) override;
 
    void SetBounds(const Vector &lo_, const Vector &hi_);
    void SetLinearConstraint(const Vector &w_, real_t a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
-   virtual void Mult(const Vector &xt, Vector &x) const;
+   void Mult(const Vector &xt, Vector &x) const override;
 };
 
 /** Block ILU solver:
@@ -1121,16 +1146,16 @@ public:
        The factorization uses the parameters set in the #Control data member.
        @note This method calls SparseMatrix::SortColumnIndices() with @a op,
        modifying the matrix if the column indices are not already sorted. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
    /// Direct solution of the linear system using UMFPACK
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /// Direct solution of the transposed linear system using UMFPACK
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    virtual ~UMFPackSolver();
 };
@@ -1154,13 +1179,13 @@ public:
    { Init(); SetOperator(A); }
 
    // Works on sparse matrices only; calls SparseMatrix::SortColumnIndices().
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Direct solution of the linear system using KLU
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /// Direct solution of the transposed linear system using KLU
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    virtual ~KLUSolver();
 
@@ -1183,8 +1208,8 @@ public:
    DirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
 
    /// Direct solution of the block diagonal linear system
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Solver S such that I - A * S = (I - A * S1) * (I - A * S0).
@@ -1200,11 +1225,11 @@ public:
       : Solver(A_->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
 
    /// Solution of the linear system using a product of subsolvers
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Solution of the transposed linear system using a product of subsolvers
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Solver wrapper which orthogonalizes the input and output vector
@@ -1241,14 +1266,14 @@ public:
    /** The Operator @a op is simply forwarded to the solver object given by
        SetSolver() which needs to be called before this method. Calling this
        method is optional when the solver already has an associated Operator. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** @brief Perform the action of the OrthoSolver: P * solver * P where P is
        the projection to the subspace of vectors with zero sum. */
    /** @note The projection P can be written as P = I - 1 1^T / (1^T 1) where
        I is the identity matrix and 1 is the column-vector with all components
        equal to 1. */
-   void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
 private:
    Solver *solver = nullptr;
@@ -1274,10 +1299,10 @@ class AuxSpaceSmoother : public Solver
 public:
    AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
                     bool op_is_symmetric = true, bool own_aux_map = false);
-   virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override { Mult(x, y, false); }
+   void MultTranspose(const Vector &x, Vector &y) const override
    { Mult(x, y, true); }
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
    using Operator::Mult;
 };

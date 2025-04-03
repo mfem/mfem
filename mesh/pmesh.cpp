@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -103,29 +103,32 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
    return *this;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
+ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
                  int part_method)
    : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
-   int *partitioning = NULL;
-   Array<bool> activeBdrElem;
-
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   Array<int> partitioning;
+   Array<bool> activeBdrElem;
+
+   if (partitioning_)
+   {
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
+   }
+
    if (mesh.Nonconforming())
    {
-      if (partitioning_)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning_);
+
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
-      if (!partitioning)
-      {
-         partitioning = new int[mesh.GetNE()];
+         partitioning.SetSize(mesh.GetNE());
          for (int i = 0; i < mesh.GetNE(); i++)
          {
             partitioning[i] = pncmesh->InitialPartition(i);
@@ -158,13 +161,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       ncmesh = pncmesh = NULL;
 
-      if (partitioning_)
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      else
-      {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         // Mesh::GeneratePartitioning always uses new[] to allocate the,
+         // partitioning, so we need to tell the memory manager to free it with
+         // delete[] (even if a different host memory type has been selected).
+         constexpr MemoryType mt = MemoryType::HOST;
+         partitioning.MakeRef(mesh.GeneratePartitioning(NRanks, part_method),
+                              mesh.GetNE(), mt, true);
       }
 
       // re-enumerate the partitions to better map to actual processor
@@ -218,7 +222,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          }
       }
 
-      ListOfIntegerSets  groups;
+      ListOfIntegerSets groups;
       {
          // the first group is the local one
          IntegerSet group;
@@ -304,11 +308,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // set meaningful values to 'vertices' even though we have Nodes,
       // for compatibility (e.g., Mesh::GetVertex())
       SetVerticesFromNodes(Nodes);
-   }
-
-   if (partitioning != partitioning_)
-   {
-      delete [] partitioning;
    }
 
    have_face_nbr_data = false;
@@ -730,7 +729,7 @@ void ParMesh::BuildVertexGroup(int ngroups, const Table &vert_element)
 }
 
 void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                                   const Mesh& mesh, int *partitioning,
+                                   const Mesh& mesh, const int *partitioning,
                                    const STable3D *faces_tbl,
                                    const Array<int> &face_group,
                                    const Array<int> &vert_global_local)
@@ -1570,7 +1569,7 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
       attr_marker[attr[i] - 1] = true;
    }
    MPI_Allreduce(attr_marker, glb_attr_marker, glb_max_attr,
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    delete [] attr_marker;
 
    // Translate from the marker array to a unique, sorted list of attributes
@@ -3764,7 +3763,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
                         need_refinement = 1;
                         middle[ii] = NumOfVertices++;
-                        for (int c = 0; c < 2; c++)
+                        for (int c = 0; c < spaceDim; c++)
                         {
                            V(c) = 0.5 * (vertices[v[0]](c) + vertices[v[1]](c));
                         }
@@ -6676,6 +6675,122 @@ void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
    for (int i=0; i<GetNE(); ++i)
    {
       gi[i] = offset + i;
+   }
+}
+
+void ParMesh::GetExteriorFaceMarker(Array<int> & face_marker) const
+{
+   const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
+
+   Mesh::GetExteriorFaceMarker(face_marker);
+}
+
+void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> ext_face_marker;
+   GetExteriorFaceMarker(ext_face_marker);
+
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
+
+   // Identify attributes which contain local interior faces and those which
+   // contain local exterior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      if (bdr_marker[bea-1] != 0)
+      {
+         const int f = be_to_face[be];
+
+         if (ext_face_marker[f] > 0)
+         {
+            exterior_bdr[bea-1] = true;
+         }
+         else
+         {
+            interior_bdr[bea-1] = true;
+         }
+      }
+   }
+
+   Array<bool> glb_interior_bdr(bdr_attributes.Max()); glb_interior_bdr = false;
+   Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
+
+   MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
+
+   // Unmark attributes which are currently marked, contain interior faces,
+   // and satisfy the appropriate exclusivity requirement.
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (bdr_marker[b] != 0 && glb_interior_bdr[b])
+      {
+         if (!excl || !glb_exterior_bdr[b])
+         {
+            bdr_marker[b] = 0;
+         }
+      }
+   }
+}
+
+void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> ext_face_marker;
+   GetExteriorFaceMarker(ext_face_marker);
+
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
+
+   // Identify boundary attributes containing local exterior faces and those
+   // containing local interior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      const int f = be_to_face[be];
+
+      if (ext_face_marker[f] > 0)
+      {
+         exterior_bdr[bea-1] = true;
+      }
+      else
+      {
+         interior_bdr[bea-1] = true;
+      }
+   }
+
+   Array<bool> glb_interior_bdr(bdr_attributes.Max()); glb_interior_bdr = false;
+   Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
+
+   MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
+
+   // Mark the attributes which are currently unmarked, containing exterior
+   // faces, and satisfying the necessary exclusivity requirements.
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (bdr_marker[b] == 0 && glb_exterior_bdr[b])
+      {
+         if (!excl || !glb_interior_bdr[b])
+         {
+            bdr_marker[b] = 1;
+         }
+      }
    }
 }
 

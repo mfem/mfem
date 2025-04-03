@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,7 +79,8 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);
@@ -106,7 +107,7 @@ string mapTypeStr(int mType);
 int update_basis(vector<socketstream*> & sock, const VisWinLayout & vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData & defData,
-                 bool visualization, int &onlySome);
+                 bool visualization, int &onlySome, int visport = 19916);
 
 int main(int argc, char *argv[])
 {
@@ -131,12 +132,15 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int onlySome = -1;
 
+   int visport = 19916;
    vector<socketstream*> sock;
 
    OptionsParser args(argc, argv);
    args.AddOption(&eInt, "-e", "--elem-type",
                   "Element Type: (1-Segment, 2-Triangle, 3-Quadrilateral, "
-                  "4-Tetrahedron, 5-Hexahedron, 6-Wedge)");
+                  "4-Tetrahedron, 5-Hexahedron, 6-Wedge"
+                  /* , 7-Pyramid not currently supported */
+                  ")");
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
@@ -155,6 +159,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&onlySome, "-only", "--onlySome",
                   "Only view 10 dofs, starting with the specified one.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -211,7 +216,7 @@ int main(int argc, char *argv[])
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
       if ( update_basis(sock, vwl, eType, bType, bOrder, mType,
-                        dType, defData, visualization, onlySome) )
+                        dType, defData, visualization, onlySome, visport) )
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
@@ -272,11 +277,12 @@ int main(int argc, char *argv[])
             cout <<
                  "4) Tetrahedron\n"
                  "5) Hexahedron\n"
-                 "6) Wedge\n";
+                 "6) Wedge\n"
+                 "7) Pyramid (** not currently supported **)\n";
          }
          cout << "enter new element type --> " << flush;
          cin >> eInt;
-         if ( eInt <= 0 || eInt > 6 )
+         if ( eInt <= 0 || eInt > 7 )
          {
             cout << "invalid element type \"" << eInt << "\"" << endl << flush;
          }
@@ -529,6 +535,8 @@ string elemTypeStr(const Element::Type & eType)
          return "HEXAHEDRON";
       case Element::WEDGE:
          return "WEDGE";
+      case Element::PYRAMID:
+         return "PYRAMID";
       default:
          return "INVALID";
    };
@@ -550,7 +558,7 @@ bool
 elemIs3D(const Element::Type & eType)
 {
    return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON ||
-          eType == Element::WEDGE;
+          eType == Element::WEDGE || eType == Element::PYRAMID;
 }
 
 string
@@ -703,7 +711,7 @@ int
 update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
              Element::Type e, char bType, int bOrder, int mType,
              Deformation::DefType dType, const DeformationData & defData,
-             bool visualization, int &onlySome)
+             bool visualization, int &onlySome, int visport)
 {
    bool vec = false;
 
@@ -802,7 +810,6 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    FESpace.GetElementVDofs(0,vdofs);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int offx = vwl.w+10, offy = vwl.h+45; // window offsets
 

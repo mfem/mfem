@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
    bool dirichlet_combo = false;
    int ho_terms = 0;
    real_t alpha = 1;
+   int visport = 19916;
    bool include_cut_cell = false;
 
    OptionsParser args(argc, argv);
@@ -131,6 +132,7 @@ int main(int argc, char *argv[])
    args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
                   "--no-cut-cell",
                   "Include or not include elements cut by true boundary.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -269,7 +271,7 @@ int main(int argc, char *argv[])
          elem_marker_gf(i) = (real_t)elem_marker[i];
       }
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, elem_marker_gf,
                              "Element Flags", 0, 0, s, s, "Rjmpc");
@@ -289,7 +291,7 @@ int main(int argc, char *argv[])
          face_dofs(sb_dofs[i]) = 1.0;
       }
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, face_dofs,
                              "Shifted Face Dofs", 0, s, s, s, "Rjmplo");
@@ -329,7 +331,7 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          char vishost[] = "localhost";
-         int  visport   = 19916, s = 350;
+         int s = 350;
          socketstream sol_sock;
          common::VisualizeField(sol_sock, vishost, visport, filt_gf,
                                 "Input Level Set", 0, 2*s, s, s, "Rjmm");
@@ -346,7 +348,7 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, distance,
                              "Distance Vector", s, s, s, s, "Rjmmpcvv", 1);
@@ -375,8 +377,8 @@ int main(int argc, char *argv[])
       }
    }
    bool inactive_elements_global;
-   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1, MPI_C_BOOL,
-                 MPI_LOR, MPI_COMM_WORLD);
+   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1,
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MPI_COMM_WORLD);
    if (inactive_elements_global) { ess_elem.Append(0); }
    pmesh.SetAttributes();
 
@@ -530,7 +532,7 @@ int main(int argc, char *argv[])
                                                          ho_terms), ess_shift_bdr);
    }
 
-   // Add neumann bilinearform integrator.
+   // Add Neumann bilinear form integrator.
    if (neumann_level_set_type > 0)
    {
       a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh,
@@ -592,7 +594,7 @@ int main(int argc, char *argv[])
 
       // Send the solution by socket to a GLVis server.
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, x,
                              "Solution", s, 0, s, s, "Rj");
@@ -624,7 +626,7 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          char vishost[] = "localhost";
-         int  visport   = 19916, s = 350;
+         int s = 350;
          socketstream sol_sock;
          common::VisualizeField(sol_sock, vishost, visport, error,
                                 "Error", 2*s, 0, s, s, "Rj");

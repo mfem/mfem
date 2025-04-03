@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -31,6 +31,11 @@ function(add_benchmark name)
        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
 
+    if (MFEM_USE_HIP)
+        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE 
+                     HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
+
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
     target_link_libraries(bench_${name} mfem pthread)
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
@@ -42,13 +47,17 @@ function(add_benchmark name)
         add_test(NAME bench_${name}_cuda
                  COMMAND bench_${name} --benchmark_context=device=cuda)
     endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+        add_test(NAME bench_${name}_hip
+                 COMMAND bench_${name} --benchmark_context=device=hip)
+    endif(MFEM_USE_HIP)
 endfunction(add_benchmark)
 
 #-------------------------------------------------------------------------------
-if (MFEM_USE_BENCHMARK)
-    add_benchmark(ceed)
-    add_benchmark(tmop)
-    add_benchmark(vector)
-    add_benchmark(virtuals)
-endif(MFEM_USE_BENCHMARK)
-
+add_benchmark(assembly_levels)
+add_benchmark(ceed)
+add_benchmark(dg_amr)
+add_benchmark(elasticity)
+add_benchmark(tmop)
+add_benchmark(vector)
+add_benchmark(virtuals)

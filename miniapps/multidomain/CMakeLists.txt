@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -30,7 +30,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(multidomain
     MAIN multidomain.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
   add_dependencies(multidomain copy_miniapps_multidomain_data)
 
   add_mfem_miniapp(multidomain_nd

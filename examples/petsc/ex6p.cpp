@@ -8,7 +8,7 @@
 //    mpirun -np 4 ex6p -m ../../data/amr-quad.mesh -nonoverlapping
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
-//               refinement loop. The problem being solved is again the Laplace
+//               refinement loop. The problem being solved is again the Poisson
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool use_nonoverlapping = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -73,6 +74,8 @@ int main(int argc, char *argv[])
                   "-no-nonoverlapping", "--no-nonoverlapping",
                   "Use or not the block diagonal PETSc's matrix format "
                   "for non-overlapping domain decomposition.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -86,7 +89,13 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   // 2b. We initialize PETSc
+
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize PETSc
    if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
@@ -122,7 +131,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
    // 7. As in Example 1p, we set up bilinear and linear forms corresponding to
-   //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
+   //    the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    ParBilinearForm a(&fespace);
    ParLinearForm b(&fespace);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,7 +45,7 @@ struct KernelMesh
    Mesh mesh;
 
    KernelMesh(int N, double prob)
-   : N(N), mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON))
+      : N(N), mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON))
    {
       if (prob >= 0.0)
       {
@@ -53,7 +53,7 @@ struct KernelMesh
          if (prob > 0.0)
          {
             mesh.RandomRefinement(prob);
-         }            
+         }
       }
    }
 };
@@ -70,7 +70,7 @@ struct Kernel: public KernelMesh
    VectorFunctionCoefficient velocity;
 
    Kernel(int order, int N, double prob = -1, bool GLL = false)
-   : 
+      :
       KernelMesh(N, prob),
       p(order),
       q(2*p + (GLL?-1:3)),
@@ -93,6 +93,7 @@ struct Kernel: public KernelMesh
          a.AddBdrFaceIntegrator(
             new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
          a.Assemble();
+         x = 0.0;
          a.Mult(x, y);
          MFEM_DEVICE_SYNC;
       }
@@ -152,11 +153,12 @@ static void BK_DG(bm::State &state)
    state.counters["Prob"] = bm::Counter(state.range(2));
 }
 
-BENCHMARK(BK_DG)->ArgsProduct({
-      benchmark::CreateRange(1024, max_dofs, /*step=*/2),
-      benchmark::CreateDenseRange(1, max_order, /*step=*/1),
-      {-1, 0, 1, 10, 30}
-    })->Unit(bm::kMillisecond);
+BENCHMARK(BK_DG)->ArgsProduct(
+{
+   benchmark::CreateRange(1024, max_dofs, /*step=*/2),
+   benchmark::CreateDenseRange(1, max_order, /*step=*/1),
+   {-1, 0, 1, 10, 30}
+})->Unit(bm::kMillisecond);
 
 int main(int argc, char *argv[])
 {
@@ -165,10 +167,11 @@ int main(int argc, char *argv[])
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
-   if (bmi::global_context != nullptr)
+   auto global_context = bmi::GetGlobalContext();
+   if (global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
+      const auto device = global_context->find("device");
+      if (device != global_context->end())
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;

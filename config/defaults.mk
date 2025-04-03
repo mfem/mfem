@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -95,6 +95,10 @@ else
    # Silence unused command line argument warnings when generating dependencies
    # with mpicxx and clang
    DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
+   # Silence "ignoring duplicate libraries" warnings on new (Xcode 15) linker
+   ifneq (,$(findstring PROJECT:dyld,$(shell ld -v 2>&1)))
+      LDFLAGS_INTERNAL = -Xlinker -no_warn_duplicate_libraries
+   endif
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -139,6 +143,7 @@ MFEM_USE_MUMPS         = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
+MFEM_USE_MAGMA         = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -267,10 +272,6 @@ POSIX_CLOCKS_LIB = -lrt
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
-# SUNDIALS >= 6.4.0 requires C++14:
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   BASE_FLAGS = -std=c++14
-endif
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
  $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
@@ -284,6 +285,13 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 ifeq ($(MFEM_USE_HIP),YES)
    SUNDIALS_LIB += -lsundials_nvechip
+endif
+SUNDIALS_CORE_PAT = $(subst\
+ @MFEM_DIR@,$(MFEM_DIR),$(SUNDIALS_DIR))/lib*/libsundials_core.*
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   ifneq ($(wildcard $(SUNDIALS_CORE_PAT)),)
+      SUNDIALS_LIB += -lsundials_core
+   endif
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
@@ -342,9 +350,6 @@ MUMPS_LIB += -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
-ifeq ($(MFEM_USE_STRUMPACK),YES)
-   BASE_FLAGS = -std=c++14
-endif
 STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # If STRUMPACK was build with OpenMP support, the following may be need:
 # STRUMPACK_OPT += $(OPENMP_OPT)
@@ -355,9 +360,6 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
-ifeq ($(MFEM_USE_GINKGO),YES)
-   BASE_FLAGS = -std=c++14
-endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
 GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
  $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
@@ -390,6 +392,11 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
 AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
+
+# MAGMA library configuration
+MAGMA_DIR = @MFEM_DIR@/../magma
+MAGMA_OPT = -I$(MAGMA_DIR)/include
+MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -524,8 +531,10 @@ ifdef GOTCHA_DIR
 endif
 
 # BLITZ library configuration
-BLITZ_DIR = @MFEM_DIR@/../blitz
+# BLITZ_DIR must be the custom installation folder (-DCMAKE_INSTALL_PREFIX).
+BLITZ_DIR = @MFEM_DIR@/../blitz/install
 BLITZ_OPT = -I$(BLITZ_DIR)/include
+# On intel machines, use /lib64 instead of /lib.
 BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration
@@ -544,9 +553,6 @@ CEED_OPT = -I$(CEED_DIR)/include
 CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
-ifeq ($(MFEM_USE_RAJA),YES)
-   BASE_FLAGS = -std=c++14
-endif
 RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
@@ -561,12 +567,13 @@ endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 
 # UMPIRE library configuration
-ifeq ($(MFEM_USE_UMPIRE),YES)
-   BASE_FLAGS = -std=c++14
-endif
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+ifdef FMT_DIR
+   UMPIRE_OPT += -I$(FMT_DIR)/include
+   UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
+endif
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
@@ -591,9 +598,6 @@ PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # Tribol library configuration
-ifeq ($(MFEM_USE_TRIBOL),YES)
-   BASE_FLAGS = -std=c++14
-endif
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
@@ -616,9 +620,14 @@ ENZYME_VERSION ?= 14
 ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
 ENZYME_LIB = ""
 
-MAGMA_DIR ?= @MFEM_DIR@/../magma
-MAGMA_OPT = -I${MAGMA_DIR}/include/
-MAGMA_LIB = -L${MAGMA_DIR}/lib/ -lmagma -lmagma_sparse
+# Google Benchmark, SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
+ifneq ($(filter YES,$(MFEM_USE_BENCHMARK) $(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
+    BASE_FLAGS = -std=c++14
+endif
+# Ginkgo requires C++17:
+ifeq ($(MFEM_USE_GINKGO),YES)
+   BASE_FLAGS = -std=c++17
+endif
 
 # If YES, enable some informational messages
 VERBOSE = NO

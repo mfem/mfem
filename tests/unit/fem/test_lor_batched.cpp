@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -123,7 +123,7 @@ void TestBatchedLOR()
 
    // Sanity check that the LOR mesh is valid
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
+   const IntegrationRule &ir = irs.Get(mesh.GetTypicalElementGeometry(), 1);
    const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
    if (mesh.Dimension() == mesh.SpaceDimension())
    {

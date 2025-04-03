@@ -15,7 +15,7 @@
 //
 // Description:  This example code demonstrates the use of the Discontinuous
 //               Petrov-Galerkin (DPG) method in its primal 2x2 block form as a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = f with homogeneous Dirichlet boundary conditions. We
 //               use high-order continuous trial space, a high-order interfacial
 //               (trace) space, and a high-order discontinuous test space
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    MixedBilinearForm *B0 = new MixedBilinearForm(x0_space,test_space);
    B0->AddDomainIntegrator(new DiffusionIntegrator(one));
    B0->Assemble();
-   B0->EliminateTrialDofs(ess_bdr, x.GetBlock(x0_var), F);
+   B0->EliminateTrialEssentialBC(ess_bdr, x.GetBlock(x0_var), F);
    B0->Finalize();
 
    MixedBilinearForm *Bhat = new MixedBilinearForm(xhat_space,test_space);

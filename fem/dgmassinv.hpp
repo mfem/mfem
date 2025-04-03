@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -96,7 +96,7 @@ public:
    /// Set the absolute tolerance.
    void SetAbsTol(const real_t abs_tol_);
    /// Set the maximum number of iterations.
-   void SetMaxIter(const real_t max_iter_);
+   void SetMaxIter(const int max_iter_);
    /// Recompute operator and preconditioner (when coefficient or mesh changes).
    void Update();
 

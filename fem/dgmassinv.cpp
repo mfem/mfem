@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
      fec(fes_orig.GetMaxElementOrder(),
          fes_orig.GetMesh()->Dimension(),
          btype,
-         fes_orig.GetFE(0)->GetMapType()),
+         fes_orig.GetTypicalFE()->GetMapType()),
      fes(fes_orig.GetMesh(), &fec)
 {
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
@@ -42,7 +42,9 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    {
       // original basis to solver basis
       const auto mode = DofToQuad::TENSOR;
-      d2q = &fes_orig.GetFE(0)->GetDofToQuad(fes.GetFE(0)->GetNodes(), mode);
+      const FiniteElement &fe_orig = *fes_orig.GetTypicalFE();
+      const FiniteElement &fe = *fes.GetTypicalFE();
+      d2q = &fe_orig.GetDofToQuad(fe.GetNodes(), mode);
 
       int n = d2q->ndof;
       Array<real_t> B_inv = d2q->B; // deep copy
@@ -101,7 +103,7 @@ void DGMassInverse::SetRelTol(const real_t rel_tol_) { rel_tol = rel_tol_; }
 
 void DGMassInverse::SetAbsTol(const real_t abs_tol_) { abs_tol = abs_tol_; }
 
-void DGMassInverse::SetMaxIter(const real_t max_iter_) { max_iter = max_iter_; }
+void DGMassInverse::SetMaxIter(const int max_iter_) { max_iter = max_iter_; }
 
 void DGMassInverse::Update()
 {
@@ -137,7 +139,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    const real_t RELTOL = rel_tol;
    const real_t ABSTOL = abs_tol;
-   const real_t MAXIT = max_iter;
+   const int MAXIT = max_iter;
    const bool IT_MODE = iterative_mode;
    const bool CHANGE_BASIS = (d2q != nullptr);
 
