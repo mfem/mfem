@@ -35,7 +35,6 @@ constexpr int DIMENSION = 1;
 
 int problem = 0;
 real_t cfl = 0.5;
-bool use_viscosity = false;
 
 void threshold(Vector &v)
 {
@@ -87,7 +86,9 @@ mfem::tuple<matd, real_t> qdata_setup(
    const real_t &E,
    const real_t &h0,
    const real_t &order_v,
-   const real_t &w)
+   const real_t &w,
+   const real_t &cfl,
+   const bool &use_viscosity)
 {
    constexpr real_t eps = 1e-12;
    constexpr real_t vorticity_coeff = 1.0;
@@ -151,6 +152,9 @@ mfem::tuple<matd, real_t> qdata_setup(
 
 struct TimeStepEstimateQFunction
 {
+   TimeStepEstimateQFunction(const real_t *external_data) :
+      external_data(external_data) {}
+
    MFEM_HOST_DEVICE inline
    auto operator()(
       const matd &dvdxi,
@@ -164,13 +168,19 @@ struct TimeStepEstimateQFunction
       const real_t &w) const
    {
       real_t dt_est = mfem::get<1>(
-                         qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+                         qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w,
+                                           external_data[0], static_cast<bool>(external_data[2])));
       return mfem::tuple{dt_est};
    }
+
+   const real_t *external_data;
 };
 
 struct UpdateQuadratureDataQFunction
 {
+   UpdateQuadratureDataQFunction(const real_t *external_data) :
+      external_data(external_data) {}
+
    MFEM_HOST_DEVICE inline
    auto operator()(
       const matd &dvdxi,
@@ -184,15 +194,19 @@ struct UpdateQuadratureDataQFunction
       const real_t &w) const
    {
       matd stressJiT = mfem::get<0>(
-                          qdata_setup<false>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+                          qdata_setup<false>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w,
+                                             external_data[0], static_cast<bool>(external_data[2])));
       return mfem::tuple{stressJiT};
    }
+
+   const real_t *external_data;
 };
 
 class MomentumQFunction
 {
 public:
-   MomentumQFunction() = default;
+   MomentumQFunction(const real_t *external_data) :
+      external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -207,7 +221,8 @@ public:
       const real_t &w) const
    {
       auto stressJiT = mfem::get<0>(
-                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w, external_data[0],
+                                      static_cast<bool>(external_data[2])));
 
       // out << gamma << " " << rho << " " << Ez << " " << p << " " << cs << "\n";
       // out << stressJiT << "\n";
@@ -215,6 +230,8 @@ public:
       // return mfem::tuple{transpose(stressJiT)};
       return mfem::tuple{stressJiT};
    }
+
+   const real_t *external_data;
 };
 
 class MomentumPAQFunction
@@ -233,7 +250,8 @@ public:
 class EnergyConservationQFunction
 {
 public:
-   EnergyConservationQFunction() = default;
+   EnergyConservationQFunction(const real_t *external_data) :
+      external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -248,9 +266,12 @@ public:
       const real_t &w) const
    {
       auto stressJiT = mfem::get<0>(
-                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w, external_data[0],
+                                      static_cast<bool>(external_data[2])));
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
+
+   const real_t *external_data;
 };
 
 class EnergyConservationPAQFunction
@@ -1078,6 +1099,7 @@ static auto CreateLagrangianHydroOperator(
    ParGridFunction &x0_gf,
    ParGridFunction &rho0_gf,
    ParGridFunction &material_gf,
+   Vector &external_data,
    const IntegrationRule &ir,
    bool fd_gradient)
 {
@@ -1112,6 +1134,9 @@ static auto CreateLagrangianHydroOperator(
 
    qdata->order_v = order_v;
    qdata->dt_est = std::numeric_limits<real_t>::infinity();
+
+   // external_data(2) = qdata->h0;
+   const auto d_external_data = external_data.Read();
 
    Array<int> all_domain_attr(mesh.attributes.Max());
    all_domain_attr = 1;
@@ -1152,7 +1177,7 @@ static auto CreateLagrangianHydroOperator(
 
       dt_est = std::make_shared<DifferentiableOperator>(
                   dt_est_solutions, dt_est_parameters, mesh);
-      TimeStepEstimateQFunction dt_est_qf;
+      TimeStepEstimateQFunction dt_est_qf(d_external_data);
       dt_est->AddDomainIntegrator(dt_est_qf, dt_est_kernel_ao,
                                   dt_est_kernel_oo,
                                   ir,
@@ -1195,7 +1220,7 @@ static auto CreateLagrangianHydroOperator(
 
       update_qdata = std::make_shared<DifferentiableOperator>(
                         update_qdata_solutions, update_qdata_parameters, mesh);
-      UpdateQuadratureDataQFunction update_qdata_qf;
+      UpdateQuadratureDataQFunction update_qdata_qf(d_external_data);
       update_qdata->AddDomainIntegrator(update_qdata_qf, update_qdata_kernel_ao,
                                         update_qdata_kernel_oo,
                                         ir,
@@ -1242,7 +1267,7 @@ static auto CreateLagrangianHydroOperator(
       momentum_mf = std::make_shared<DifferentiableOperator>(
                        momentum_mf_solutions, momentum_mf_parameters, mesh);
 
-      MomentumQFunction momentum_qf;
+      MomentumQFunction momentum_qf(d_external_data);
       auto derivatives =
          std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
       momentum_mf->AddDomainIntegrator(momentum_qf, momentum_mf_kernel_ao,
@@ -1306,7 +1331,7 @@ static auto CreateLagrangianHydroOperator(
          std::make_shared<DifferentiableOperator>(
             energy_conservation_mf_solutions, energy_conservation_mf_parameters, mesh);
 
-      EnergyConservationQFunction energy_conservation_qf;
+      EnergyConservationQFunction energy_conservation_qf(d_external_data);
       auto derivatives =
          std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
       energy_conservation_mf->AddDomainIntegrator(
@@ -1481,6 +1506,7 @@ int main(int argc, char *argv[])
    real_t blast_position[] = {0.0, 0.0, 0.0};
    int ode_solver_type = 4;
    bool fd_gradient = false;
+   bool use_viscosity = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -1724,6 +1750,13 @@ int main(int argc, char *argv[])
       out << "num qp: " << ir.GetNPoints() << "\n";
    }
 
+   // Create external data vector
+   // Layout is [cfl, order_velocity, use_viscosity, h0]
+   Vector external_data(4);
+   external_data[0] = cfl;
+   external_data[1] = order_v;
+   external_data[2] = use_viscosity;
+
    auto hydro = CreateLagrangianHydroOperator(H1FESpace,
                                               L2FESpace,
                                               ess_tdof,
@@ -1731,6 +1764,7 @@ int main(int argc, char *argv[])
                                               x0_gf,
                                               rho0_gf,
                                               material_gf,
+                                              external_data,
                                               ir,
                                               fd_gradient);
 
