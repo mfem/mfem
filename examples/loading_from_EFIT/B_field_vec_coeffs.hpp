@@ -383,3 +383,31 @@ public:
       V *= (flip_sign ? -1 : 1);
    }
 };
+
+/// @brief Return $[[0, 1/r], [-1/r, 0]]$
+class OneOverRPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
+{
+private:
+   bool flip_sign;
+
+public:
+   int counter = 0;
+   OneOverRPerpMatrixGridFunctionCoefficient(bool flip_sign = false)
+       : MatrixCoefficient(2, 2), flip_sign(flip_sign)
+   {
+   }
+   using MatrixCoefficient::Eval;
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      M(0, 0) = 0;
+      M(0, 1) = 1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
+      M(1, 0) = - 1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
+      M(1, 1) = 0;
+   }
+};
