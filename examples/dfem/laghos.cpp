@@ -31,10 +31,9 @@ constexpr int ORDER_VEL = 7;
 constexpr int DT_EST = 8;
 constexpr int STRESS_TENSOR = 9;
 
-constexpr int DIMENSION = 1;
+constexpr int DIMENSION = 2;
 
 int problem = 0;
-real_t cfl = 0.5;
 
 void threshold(Vector &v)
 {
@@ -1507,6 +1506,7 @@ int main(int argc, char *argv[])
    int ode_solver_type = 4;
    bool fd_gradient = false;
    bool use_viscosity = false;
+   real_t cfl = 0.5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
