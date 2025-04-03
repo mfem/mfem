@@ -75,7 +75,7 @@ public:
 
    void Mult(const Vector &direction_t, Vector &y) const override
    {
-      daction_l.SetSize(height);
+      // daction_l.SetSize(height);
       daction_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
@@ -88,7 +88,7 @@ public:
 
    void MultTranspose(const Vector &direction_t, Vector &y) const override
    {
-      daction_l.SetSize(width);
+      // daction_l.SetSize(width);
       daction_l = 0.0;
 
       prolongation(transpose_direction, direction_t, direction_l);
@@ -179,7 +179,7 @@ public:
                 residual_l.Size(),
                 daction_transpose_callbacks[derivative_id],
                 fields[test_space_field_idx],
-                GetVSize(fields[test_space_field_idx]),
+                GetTrueVSize(fields[test_space_field_idx]),
                 solutions_l,
                 parameters_l,
                 restriction_callback,

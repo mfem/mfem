@@ -486,8 +486,8 @@ public:
          Vector wvc, yvc;
          for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
          {
-            wvc.MakeRef(wv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
-            yvc.MakeRef(yv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
+            wvc.MakeRef(wv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
+            yvc.MakeRef(yv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
             hydro.Mv->FullAddMult(wvc, yvc);
             yvc.SyncAliasMemory(yv);
          }
@@ -556,6 +556,9 @@ public:
       u(x.Size()),
       H1tsize(hydro.H1.GetTrueVSize()),
       L2tsize(hydro.L2.GetTrueVSize()),
+      ux_l(hydro.H1.GetVSize()),
+      uv_l(hydro.H1.GetVSize()),
+      ue_l(hydro.L2.GetVSize()),
       fd_gradient(fd_gradient) {}
 
    void Mult(const Vector &k, Vector &R) const override
@@ -584,18 +587,22 @@ public:
       Rv.MakeRef(R, H1tsize, H1tsize);
       Re.MakeRef(R, 2*H1tsize, L2tsize);
 
+      hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
+      hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
+      hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
+
       Rx = kx;
       Rx -= uv;
 
-      hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+      hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
       hydro.momentum_mf->Mult(uv, Rv);
 
       // hydro.Mv.TrueAddMult(kv, Rv);
       Vector kvc, Rvc;
       for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
       {
-         kvc.MakeRef(kv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
-         Rvc.MakeRef(Rv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
+         kvc.MakeRef(kv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
+         Rvc.MakeRef(Rv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
          hydro.Mv->FullAddMult(kvc, Rvc);
          Rvc.SyncAliasMemory(Rv);
       }
@@ -604,7 +611,7 @@ public:
       Rv.SetSubVector(hydro.ess_tdof, 0.0);
       // Rv = 0.0;
 
-      hydro.energy_conservation_mf->SetParameters({&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+      hydro.energy_conservation_mf->SetParameters({&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
       hydro.energy_conservation_mf->Mult(ue, Re);
 
       Re.Neg();
@@ -649,6 +656,10 @@ public:
       uv.MakeRef(u, H1tsize, H1tsize);
       ue.MakeRef(u, 2*H1tsize, L2tsize);
 
+      hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
+      hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
+      hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
+
       if (fd_gradient)
       {
          fd_jacobian.reset(new FDJacobian(*this, k));
@@ -656,24 +667,24 @@ public:
       }
       else
       {
-         auto dRvdx = hydro.momentum_mf->GetDerivative(COORDINATES, {&uv},
-         {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+         auto dRvdx = hydro.momentum_mf->GetDerivative(COORDINATES, {&uv_l},
+         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRvdv = hydro.momentum_mf->GetDerivative(VELOCITY, {&uv},
-         {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+         auto dRvdv = hydro.momentum_mf->GetDerivative(VELOCITY, {&uv_l},
+         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRvde = hydro.momentum_mf->GetDerivative(SPECIFIC_INTERNAL_ENERGY, {&uv},
-         {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+         auto dRvde = hydro.momentum_mf->GetDerivative(SPECIFIC_INTERNAL_ENERGY, {&uv_l},
+         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRedx = hydro.energy_conservation_mf->GetDerivative(COORDINATES, {&ue},
-         {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+         auto dRedx = hydro.energy_conservation_mf->GetDerivative(COORDINATES, {&ue_l},
+         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRedv = hydro.energy_conservation_mf->GetDerivative(VELOCITY, {&ue},
-         {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+         auto dRedv = hydro.energy_conservation_mf->GetDerivative(VELOCITY, {&ue_l},
+         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
          auto dRede = hydro.energy_conservation_mf->GetDerivative(
-         SPECIFIC_INTERNAL_ENERGY, {&ue},
-         {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+         SPECIFIC_INTERNAL_ENERGY, {&ue_l},
+         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
          jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
          return *jacobian;
@@ -683,7 +694,7 @@ public:
    hydro_t &hydro;
    const real_t dt;
    const Vector &x;
-   mutable Vector u;
+   mutable Vector u, ux_l, uv_l, ue_l;
    const int H1tsize;
    const int L2tsize;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
