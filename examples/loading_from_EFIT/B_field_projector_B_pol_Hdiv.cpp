@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -37,88 +36,25 @@ int main(int argc, char *argv[])
    B_pol = 0.0;
    {
       LinearForm b(&fespace);
-      if (!mixed_bilinear_form)
-      {
-         cout << "Using linear form" << endl;
-         // project the grid function onto the new space
-         // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
-         // 1. make the linear form
-         PsiGridFunctionCoefficient neg_psi_coef(&psi, true);
-         b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_psi_coef));
+      // project the grid function onto the new space
+      // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
-         PsiGridFunctionCoefficient psi_coef(&psi, false);
-         b.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(psi_coef));
-         b.Assemble();
-      }
-      else
-      {
-         cout << "Using bilinear form" << endl;
-         // project the grid function onto the new space
-         // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+      // 1.a make the RHS bilinear form
+      // Assert that the two spaces are on the same mesh
+      MFEM_ASSERT(psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
+      MixedBilinearForm b_bi(psi.FESpace(), &fespace);
+      DenseMatrix perp_rotation(dim); perp_rotation(0, 0) = 0.0; perp_rotation(0, 1) = 1.0; perp_rotation(1, 0) = -1.0; perp_rotation(1, 1) = 0.0;
+      MatrixConstantCoefficient perp_rot_coef(perp_rotation);
+      b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(perp_rot_coef));
+      b_bi.Assemble();
 
-         // 1.a make the RHS bilinear form
-         // Assert that the two spaces are on the same mesh
-         MFEM_ASSERT(psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
-         MixedBilinearForm b_bi(psi.FESpace(), &fespace);
-         ConstantCoefficient one(1.0);
-         b_bi.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(one));
-         b_bi.Assemble();
-
-         // 1.b form linear form from bilinear form
-         LinearForm b_li(&fespace);
-         b_bi.Mult(psi, b_li);
-         PsiGridFunctionCoefficient psi_coef(&psi, false);
-         b.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(psi_coef));
-         b.Assemble();
-         b += b_li;
-      }
-      // 2. make the bilinear form
-      BilinearForm a(&fespace);
-      RGridFunctionCoefficient r_coef;
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
-      a.Assemble();
-      a.Finalize();
-
-      // 3. solve the system
-      CGSolver M_solver;
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-24);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(1e5);
-      M_solver.SetPrintLevel(1);
-      M_solver.SetOperator(a.SpMat());
-
-      Vector X(B_pol.Size());
-      X = 0.0;
-      M_solver.Mult(b, X);
-
-      B_pol.SetFromTrueDofs(X);
-   }
-
-   // paraview
-   {
-      ParaViewDataCollection paraview_dc("B_pol_perp_Hdiv", new_mesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(1);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("B_pol_perp_Hdiv", &B_pol);
-      paraview_dc.Save();
-   }
-
-   ofstream sol_ofs("output/B_pol_perp_Hdiv.gf");
-   sol_ofs.precision(8);
-   B_pol.Save(sol_ofs);
-
-   {
-      LinearForm b(&fespace);
-      // 1. make the linear form
-      PerpRVectorCoefficient B_pol_perp_r(&B_pol);
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(B_pol_perp_r));
+      // 1.b form linear form from bilinear form
+      LinearForm b_li(&fespace);
+      b_bi.Mult(psi, b_li);
+      PsiGridFunctionCoefficient psi_coef(&psi, false);
       b.Assemble();
+      b += b_li;
 
       // 2. make the bilinear form
       BilinearForm a(&fespace);
@@ -166,8 +102,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   sol_ofs.close();
-   sol_ofs.open("output/B_pol_Hdiv.gf");
+   ofstream sol_ofs("output/B_pol_Hdiv.gf");
    sol_ofs.precision(8);
    B_pol.Save(sol_ofs);
 

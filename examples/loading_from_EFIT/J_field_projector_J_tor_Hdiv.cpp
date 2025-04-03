@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_pol_perp_Hdiv.gf");
+   ifstream temp_log("output/B_pol_Hdiv.gf");
    GridFunction B_pol_perp(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
@@ -31,16 +31,26 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(B_pol_perp.FESpace(), &fespace);
-   RGridFunctionCoefficient r_coef;
-   b_bi.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(r_coef));
+   RPerpMatrixGridFunctionCoefficient neg_r_perp_coef(true);
+   b_bi.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(neg_r_perp_coef));
+   Vector zero_one(2); zero_one(0) = 0.0; zero_one(1) = 1.0;
+   VectorConstantCoefficient zero_one_coef(zero_one);
+   b_bi.AddDomainIntegrator(new MixedDotProductIntegrator(zero_one_coef));
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
    LinearForm b(&fespace);
-   b_bi.Mult(B_pol_perp, b);
+
+   LinearForm b_li(&fespace);
+   b_bi.Mult(B_pol_perp, b_li);
+   BPolPerpRVectorGridFunctionCoefficient neg_B_pol_perp_r_coef(&B_pol_perp);
+   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(neg_B_pol_perp_r_coef));
+   b.Assemble();
+   b += b_li;
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
+   RGridFunctionCoefficient r_coef;
    a.AddDomainIntegrator(new MassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();

@@ -181,6 +181,34 @@ public:
    }
 };
 
+/// @brief Input $B_pol$ and return $B_pol^\perp retval return value description
+class BPolPerpRVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const bool flip_sign;
+   VectorGridFunctionCoefficient B_pol_coef;
+
+public:
+   BPolPerpRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), flip_sign(flip_sign), B_pol_coef(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      B_pol_coef.Eval(V, T, ip);
+      swap(V(0), V(1));
+      V(0) = -V(0);
+      V *= (1e-14 + r) * (flip_sign ? -1 : 1);
+   }
+};
+   
+
 /// @brief Return $r$
 class RGridFunctionCoefficient : public Coefficient
 {
@@ -203,6 +231,34 @@ public:
       real_t r = x[0];
       counter++;
       return (1e-14 + r) * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Return $[[0, r], [-r, 0]]$
+class RPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
+{
+private:
+   bool flip_sign;
+
+public:
+   int counter = 0;
+   RPerpMatrixGridFunctionCoefficient(bool flip_sign = false)
+       : MatrixCoefficient(2, 2), flip_sign(flip_sign)
+   {
+   }
+   using MatrixCoefficient::Eval;
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      counter++;
+      M(0, 0) = 0;
+      M(0, 1) = r * (flip_sign ? -1 : 1);
+      M(1, 0) = -r * (flip_sign ? -1 : 1);
+      M(1, 1) = 0;
    }
 };
 
@@ -251,7 +307,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      V(0) = 1 / (1e-14 + r) * (flip_sign? -1 : 1);
+      V(0) = 1 / (1e-14 + r) * (flip_sign ? -1 : 1);
       V(1) = 0;
    }
 };
