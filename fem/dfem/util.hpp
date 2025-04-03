@@ -1134,7 +1134,7 @@ create_descriptors_to_fields_map(
 {
    std::array<int, mfem::tuple_size<field_operator_ts>::value> map;
 
-   auto find_id = [](const std::vector<FieldDescriptor> &fields, int i)
+   auto find_id = [](const std::vector<FieldDescriptor> &fields, size_t i)
    {
       auto it = std::find_if(begin(fields), end(fields),
                              [&](const FieldDescriptor &field)
@@ -1272,7 +1272,7 @@ get_shmem_info(
    std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
    int max_dtq_qps = 0;
    int max_dtq_dofs = 0;
-   for (int i = 0; i < num_inputs; i++)
+   for (size_t i = 0; i < num_inputs; i++)
    {
       auto a = input_dtq_maps[i].B.GetShape();
       input_dtq_sizes[i][0] = a[0] * a[1] * a[2];
@@ -1289,7 +1289,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::OUTPUT_DTQ] = total_size;
    std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
-   for (int i = 0; i < num_outputs; i++)
+   for (size_t i = 0; i < num_outputs; i++)
    {
       auto a = output_dtq_maps[i].B.GetShape();
       output_dtq_sizes[i][0] = a[0] * a[1] * a[2];
@@ -1306,7 +1306,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::FIELD] = total_size;
    std::array<int, num_fields> field_sizes;
-   for (int i = 0; i < num_fields; i++)
+   for (size_t i = 0; i < num_fields; i++)
    {
       field_sizes[i] = get_restriction<entity_t>(
                           fields[i],
@@ -1327,7 +1327,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::INPUT] = total_size;
    std::array<int, num_inputs> input_sizes;
-   for (int i = 0; i < num_inputs; i++)
+   for (size_t i = 0; i < num_inputs; i++)
    {
       input_sizes[i] = input_size_on_qp[i] * num_qp;
    }
@@ -1338,7 +1338,7 @@ get_shmem_info(
    std::array<int, num_inputs> shadow_sizes{0};
    if (derivative_action_field_idx != -1)
    {
-      for (int i = 0; i < num_inputs; i++)
+      for (size_t i = 0; i < num_inputs; i++)
       {
          shadow_sizes[i] = input_size_on_qp[i] * num_qp;
       }
@@ -1455,7 +1455,7 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    const std::array<DofToQuadMap, N> &dtq)
 {
    std::array<DofToQuadMap, N> f;
-   for (int i = 0; i < N; i++)
+   for (size_t i = 0; i < N; i++)
    {
       const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
       const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
@@ -1571,7 +1571,7 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    const int &num_qp)
 {
    std::array<DeviceTensor<2>, N> f;
-   for (int i = 0; i < N; i++)
+   for (size_t i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset],
                              sizes[i] / num_qp,
@@ -1600,7 +1600,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    const std::array<int, N> &sizes)
 {
    std::array<DeviceTensor<1>, N> f;
-   for (int i = 0; i < N; i++)
+   for (size_t i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<1>(&reinterpret_cast<real_t *>(mem)[offset], sizes[i]);
       offset += sizes[i];
