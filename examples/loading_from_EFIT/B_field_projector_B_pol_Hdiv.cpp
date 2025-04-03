@@ -10,13 +10,13 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = false;
+   bool project_mesh = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
    ifstream temp_log("input/psi.gf");
-   GridFunction psi(&mesh, temp_log);
+   GridFunction temp_psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
@@ -30,67 +30,62 @@ int main(int argc, char *argv[])
    // L2_FECollection fec(0, dim);
    RT_FECollection fec(0, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
+   H1_FECollection scalar_fec(1, dim);
+   FiniteElementSpace scalar_fespace(new_mesh, &scalar_fec);
+   GridFunction psi(&scalar_fespace);
+
+   if (project_mesh)
+   {
+      GridFunction psi_projected(&scalar_fespace);
+
+      // 1. make the linear form
+      LinearForm b(&scalar_fespace);
+      PsiGridFunctionCoefficient psi_coef(&temp_psi, false);
+      b.AddDomainIntegrator(new DomainLFIntegrator(psi_coef));
+      b.Assemble();
+
+      // 2. make the bilinear form
+      BilinearForm a(&scalar_fespace);
+      ConstantCoefficient one(1.0);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.Assemble();
+      a.Finalize();
+
+      // 3. solve the system
+      CGSolver M_solver;
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-24);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(1e5);
+      M_solver.SetPrintLevel(1);
+      M_solver.SetOperator(a.SpMat());
+
+      Vector X(psi_projected.Size());
+      X = 0.0;
+      M_solver.Mult(b, X);
+
+      psi_projected.SetFromTrueDofs(X);
+
+      psi = psi_projected;
+   }
+   else
+   {
+      MFEM_ASSERT(temp_psi.FESpace()->GetMesh()->GetNE() == scalar_fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
+      psi = temp_psi;
+   }
 
    // make a grid function with the H1 space
    GridFunction B_pol(&fespace);
    cout << B_pol.FESpace()->GetTrueVSize() << endl;
    B_pol = 0.0;
 
-   LinearForm b(&fespace);
-   if (!mixed_bilinear_form)
    {
-      cout << "Using linear form" << endl;
-      FiniteElementSpace temp_fespace(&mesh, &fec);
-      GridFunction grad_psi(&temp_fespace);
-
-      { 
-         // 1.a make the RHS bilinear form
-         MixedBilinearForm b_bi(psi.FESpace(), &temp_fespace);
-         ConstantCoefficient one(1.0);
-         b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
-         b_bi.Assemble();
-
-         // 1.b form linear form from bilinear form
-         LinearForm b(&temp_fespace);
-         b_bi.Mult(psi, b);
-
-         // 2. make the bilinear form
-         BilinearForm a(&temp_fespace);
-         a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
-         a.Assemble();
-         a.Finalize();
-
-         // 3. solve the system
-         CGSolver M_solver;
-         M_solver.iterative_mode = false;
-         M_solver.SetRelTol(1e-24);
-         M_solver.SetAbsTol(0.0);
-         M_solver.SetMaxIter(1e5);
-         M_solver.SetPrintLevel(1);
-         M_solver.SetOperator(a.SpMat());
-
-         Vector X(grad_psi.Size());
-         X = 0.0;
-         M_solver.Mult(b, X);
-
-         grad_psi.SetFromTrueDofs(X);
-      }
-
-      // 1. make the linear form
-      GradPsiPerpVectorGridFunctionCoefficient grad_psi_perp_coef(&grad_psi, true);
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(grad_psi_perp_coef));
-      b.Assemble();
-   }
-   else
-   {
-      cout << "Using bilinear form" << endl;
+      LinearForm b(&fespace);
 
       // project the grid function onto the new space
       // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
       // 1.a make the RHS bilinear form
-      // Assert that the two spaces are on the same mesh
-      MFEM_ASSERT(psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
       MixedBilinearForm b_bi(psi.FESpace(), &fespace);
       DenseMatrix perp_rotation(dim);
       perp_rotation(0, 0) = 0.0;
@@ -107,29 +102,29 @@ int main(int argc, char *argv[])
       PsiGridFunctionCoefficient psi_coef(&psi, false);
       b.Assemble();
       b += b_li;
+
+      // 2. make the bilinear form
+      BilinearForm a(&fespace);
+      RGridFunctionCoefficient r_coef;
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
+      a.Assemble();
+      a.Finalize();
+
+      // 3. solve the system
+      CGSolver M_solver;
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-24);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(1e5);
+      M_solver.SetPrintLevel(1);
+      M_solver.SetOperator(a.SpMat());
+
+      Vector X(B_pol.Size());
+      X = 0.0;
+      M_solver.Mult(b, X);
+
+      B_pol.SetFromTrueDofs(X);
    }
-
-   // 2. make the bilinear form
-   BilinearForm a(&fespace);
-   RGridFunctionCoefficient r_coef;
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
-   a.Assemble();
-   a.Finalize();
-
-   // 3. solve the system
-   CGSolver M_solver;
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-24);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(1e5);
-   M_solver.SetPrintLevel(1);
-   M_solver.SetOperator(a.SpMat());
-
-   Vector X(B_pol.Size());
-   X = 0.0;
-   M_solver.Mult(b, X);
-
-   B_pol.SetFromTrueDofs(X);
 
    if (visualization)
    {
