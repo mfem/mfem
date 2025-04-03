@@ -713,7 +713,9 @@ public:
       std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf,
       std::shared_ptr<DifferentiableOperator> density_mf,
       std::shared_ptr<QuadratureData> qdata,
-      bool fd_gradient) :
+      bool fd_gradient,
+      const int nonlinear_maximum_iterations,
+      const real_t nonlinear_relative_tolerance) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
       L2(L2),
@@ -748,7 +750,9 @@ public:
       RHSe(L2.GetTrueVSize()),
       rhse(L2.GetVSize()),
       nl2dofs(L2.GetFE(0)->GetDof()),
-      fd_gradient(fd_gradient)
+      fd_gradient(fd_gradient),
+      nonlinear_maximum_iterations(nonlinear_maximum_iterations),
+      nonlinear_relative_tolerance(nonlinear_relative_tolerance)
    {
       Mv = new MassPAOperator(H1c, ir, rho0_coeff);
       Array<int> empty_tdofs;
@@ -918,8 +922,8 @@ public:
       newton.SetOperator(residual);
       newton.SetSolver(gmres);
       newton.SetAdaptiveLinRtol();
-      newton.SetMaxIter(10);
-      newton.SetRelTol(1e-5);
+      newton.SetMaxIter(nonlinear_maximum_iterations);
+      newton.SetRelTol(nonlinear_relative_tolerance);
       newton.SetAbsTol(1e-12);
 
       Vector zero;
@@ -1088,6 +1092,8 @@ public:
    mutable Vector RHSv, rhsv, X, Xx, Xv, Xvc, Xe, K, Kx, Kv, Ke, B, RHSe, rhse;
    const int nl2dofs;
    bool fd_gradient;
+   const int nonlinear_maximum_iterations;
+   const real_t nonlinear_relative_tolerance;
 };
 
 static auto CreateLagrangianHydroOperator(
@@ -1100,7 +1106,9 @@ static auto CreateLagrangianHydroOperator(
    ParGridFunction &material_gf,
    Vector &external_data,
    const IntegrationRule &ir,
-   bool fd_gradient)
+   bool fd_gradient,
+   const int nonlinear_maximum_iterations,
+   const real_t nonlinear_relative_tolerance)
 {
    const int order_v = H1.GetOrder(0);
    ParMesh &mesh = *H1.GetParMesh();
@@ -1483,7 +1491,9 @@ static auto CreateLagrangianHydroOperator(
              total_kinetic_energy_mf,
              density_mf,
              qdata,
-             fd_gradient);
+             fd_gradient,
+             nonlinear_maximum_iterations,
+             nonlinear_relative_tolerance);
 }
 
 int main(int argc, char *argv[])
@@ -1507,6 +1517,8 @@ int main(int argc, char *argv[])
    bool fd_gradient = false;
    bool use_viscosity = false;
    real_t cfl = 0.5;
+   real_t nonlinear_relative_tolerance = 1e-5;
+   int nonlinear_maximum_iterations = 10;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -1529,6 +1541,10 @@ int main(int argc, char *argv[])
                   "            11 - Backward Euler"
                   "            12 - Implicit Midpoint"
                   "            13 - SDIRK33Solver");
+   args.AddOption(&nonlinear_maximum_iterations, "-nmi", "--nmi",
+                  "Maximum number of nonlinear iterations.");
+   args.AddOption(&nonlinear_relative_tolerance, "-nrt", "--nrt",
+                  "Nonlinear relative tolerance.");
    args.ParseCheck();
 
    Device device(device_config);
@@ -1766,7 +1782,9 @@ int main(int argc, char *argv[])
                                               material_gf,
                                               external_data,
                                               ir,
-                                              fd_gradient);
+                                              fd_gradient,
+                                              nonlinear_maximum_iterations,
+                                              nonlinear_relative_tolerance);
 
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
