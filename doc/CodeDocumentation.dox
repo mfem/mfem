@@ -57,7 +57,7 @@ namespace mfem {
  * - <a class="el" href="ex6_8cpp_source.html">Example 6</a>: non-conforming adaptive mesh refinement for the Poisson problem
  * - <a class="el" href="ex6p_8cpp_source.html">Example 6p</a>: parallel non-conforming adaptive mesh refinement for the Poisson problem
  * - <a class="el" href="ex7_8cpp_source.html">Example 7</a>: screened Poisson problem on a surface (the unit sphere)
- * - <a class="el" href="ex7p_8cpp_source.html">Example 7p</a>: parallel Poisson problem on a surface (the unit sphere)
+ * - <a class="el" href="ex7p_8cpp_source.html">Example 7p</a>: parallel screened Poisson problem on a surface (the unit sphere)
  * - <a class="el" href="ex8_8cpp_source.html">Example 8</a>: Discontinuous Petrov-Galerkin (DPG) for the Poisson problem
  * - <a class="el" href="ex8p_8cpp_source.html">Example 8p</a>: parallel Discontinuous Petrov-Galerkin (DPG) for the Poisson problem
  * - <a class="el" href="ex9_8cpp_source.html">Example 9</a>: Discontinuous Galerkin (DG) time-dependent advection
