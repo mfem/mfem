@@ -303,56 +303,8 @@ public:
    }
 };
 
-/// @brief Input $V$ and return $V^perp$
-class PerpVectorCoefficient : public VectorGridFunctionCoefficient
-{
-public:
-   PerpVectorCoefficient() : VectorGridFunctionCoefficient() {}
-
-   PerpVectorCoefficient(const GridFunction *gf) : VectorGridFunctionCoefficient(gf)
-   {
-   }
-
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip) override
-   {
-      // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
-
-      VectorGridFunctionCoefficient::Eval(V, T, ip);
-      swap(V(0), V(1));
-      V(1) *= -1;
-   }
-};
-
-/// @brief Input $V$ and return $V^perp r$
-class PerpRVectorCoefficient : public VectorGridFunctionCoefficient
-{
-public:
-   PerpRVectorCoefficient() : VectorGridFunctionCoefficient() {}
-
-   PerpRVectorCoefficient(const GridFunction *gf) : VectorGridFunctionCoefficient(gf)
-   {
-   }
-
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip) override
-   {
-      // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
-      real_t r = x[0];
-
-      VectorGridFunctionCoefficient::Eval(V, T, ip);
-      V *= r;
-      swap(V(0), V(1));
-      V(1) *= -1;
-   }
-};
-
-/// @brief Input $B_pol$ and return $B_pol$
-class BPolVectorGridFunctionCoefficient : public VectorGridFunctionCoefficient
+/// @brief Input $Grad_Psi$ and return $Grad_Psi^\perp$
+class GradPsiPerpVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -362,10 +314,10 @@ private:
 public:
    int counter = 0;
 
-   BPolVectorGridFunctionCoefficient() = delete;
+   GradPsiPerpVectorGridFunctionCoefficient() = delete;
 
-   BPolVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
-       : VectorGridFunctionCoefficient(gf), gf(gf), flip_sign(flip_sign), finder(gf)
+   GradPsiPerpVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
@@ -378,8 +330,8 @@ public:
       counter++;
       Vector interp_val(2);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      V(0) = interp_val[0];
-      V(1) = interp_val[1];
+      V(0) = -interp_val[1];
+      V(1) = interp_val[0];
       V *= (flip_sign ? -1 : 1);
    }
 };
