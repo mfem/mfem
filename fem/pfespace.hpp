@@ -580,6 +580,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override;
 };
 
+
 /// Auxiliary device class used by ParFiniteElementSpace.
 class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
@@ -592,6 +593,11 @@ protected:
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
+#if defined(MFEM_USE_HIP)
+   hipEvent_t gpu_event;
+#elif defined(MFEM_USE_CUDA)
+   cudaEvent_t gpu_event;
+#endif
 
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
@@ -611,11 +617,12 @@ protected:
 
    // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
    //         dst[i] = src[ltdof_ldof[i]]
-   void ReduceLocalCopy(const Vector &src, Vector &dst) const;
+   void ReduceLocalCopy(const Vector &src, Vector &dst,
+                        real_t a, real_t b) const;
 
    // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
    //         dst[shr_ltdof[i]] += shr_buf[i]
-   void ReduceEndAssemble(Vector &dst) const;
+   void ReduceEndAssemble(Vector &dst, real_t b) const;
 
 public:
    DeviceConformingProlongationOperator(
@@ -626,9 +633,17 @@ public:
 
    virtual ~DeviceConformingProlongationOperator();
 
+   void ApplyTranspose(const Vector &x, Vector &y,
+                       real_t a, real_t b) const;
+
    void Mult(const Vector &x, Vector &y) const override;
 
-   void MultTranspose(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override
+   { ApplyTranspose(x, y, 0, 1); }
+
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         real_t a = 1) const override
+   { ApplyTranspose(x, y, 1, a); }
 };
 
 }
