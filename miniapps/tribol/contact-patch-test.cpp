@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
       visit_surf_dc.RegisterField("pressure", &pressure);
       visit_surf_dc.Save();
    }
-   // #7: Tribol cleanup: deletes coupling schemes and clears associated memory
+   // #6: Tribol cleanup: deletes coupling schemes and clears associated memory
    tribol::finalize();
 
    return 0;
