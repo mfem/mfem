@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;   // number of times to uniformly refine the serial mesh
    mfem::real_t lambda = 50.0; // Lame parameter lambda
    mfem::real_t mu = 50.0;     // Lame parameter mu (shear modulus)
+   bool visit = false;
 
    // Parse command line options
    mfem::OptionsParser args(argc, argv);
@@ -80,6 +81,9 @@ int main(int argc, char *argv[])
                   "Lame parameter lambda.");
    args.AddOption(&mu, "-m", "--mu",
                   "Lame parameter mu (shear modulus).");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -177,10 +181,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<mfem::HypreParMatrix> A(new mfem::HypreParMatrix);
    a.FormSystemMatrix(ess_tdof_list, *A);
 
-   // #1: Initialize Tribol contact library
-   tribol::initialize(dim, MPI_COMM_WORLD);
-
-   // #2: Create a Tribol coupling scheme: defines contact surfaces and enforcement
+   // #1: Create a Tribol coupling scheme: defines contact surfaces and enforcement
    int coupling_scheme_id = 0;
    // NOTE: While there is a single mfem ParMesh for this problem, Tribol
    // defines a mortar and a nonmortar contact mesh, each with a unique mesh ID.
@@ -198,7 +199,7 @@ int main(int argc, char *argv[])
       tribol::BINNING_GRID
    );
 
-   // #3: Set additional options/access pressure grid function on contact surfaces
+   // #2: Set additional options/access pressure grid function on contact surfaces
    // Access Tribol's pressure grid function (on the contact surface). The
    // pressure ParGridFunction is created upon calling
    // registerMfemCouplingScheme(). It's lifetime coincides with the lifetime of
@@ -217,18 +218,18 @@ int main(int argc, char *argv[])
       tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
    );
 
-   // #4: Update contact mesh decomposition so the on-rank Tribol meshes
+   // #3: Update contact mesh decomposition so the on-rank Tribol meshes
    // coincide with the current configuration of the mesh. This must be called
    // before tribol::update().
    tribol::updateMfemParallelDecomposition();
 
-   // #5: Update contact gaps, forces, and tangent stiffness contributions
+   // #4: Update contact gaps, forces, and tangent stiffness contributions
    int cycle = 1;   // pseudo cycle
    mfem::real_t t = 1.0;  // pseudo time
    mfem::real_t dt = 1.0; // pseudo dt
    tribol::update(cycle, t, dt);
 
-   // #6a: Return contact contribution to the tangent stiffness matrix as a
+   // #5a: Return contact contribution to the tangent stiffness matrix as a
    // block operator. See documentation for getMfemBlockJacobian() for block
    // definitions.
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
@@ -266,7 +267,7 @@ int main(int argc, char *argv[])
    // Note forces from contact are currently zero since pressure is zero prior
    // to first solve.
    mfem::Vector gap;
-   // #6b: Return computed gap constraints on the contact surfaces
+   // #5b: Return computed gap constraints on the contact surfaces
    tribol::getMfemGap(coupling_scheme_id, gap); // gap on ldofs
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    auto& gap_true = B_blk.GetBlock(1); // gap tdof vectorParFESpace()
@@ -361,15 +362,17 @@ int main(int argc, char *argv[])
    tribol::updateMfemParallelDecomposition();
 
    // Save data in VisIt format
-   mfem::VisItDataCollection visit_vol_dc("contact-patch-test-volume", &mesh);
-   visit_vol_dc.RegisterField("coordinates", &coords);
-   visit_vol_dc.RegisterField("displacement", &displacement);
-   visit_vol_dc.Save();
-   mfem::VisItDataCollection visit_surf_dc("contact-patch-test-surface",
-                                           pressure.ParFESpace()->GetMesh());
-   visit_surf_dc.RegisterField("pressure", &pressure);
-   visit_surf_dc.Save();
-
+   if (visit)
+   {
+      mfem::VisItDataCollection visit_vol_dc("contact-patch-test-volume", &mesh);
+      visit_vol_dc.RegisterField("coordinates", &coords);
+      visit_vol_dc.RegisterField("displacement", &displacement);
+      visit_vol_dc.Save();
+      mfem::VisItDataCollection visit_surf_dc("contact-patch-test-surface",
+                                              pressure.ParFESpace()->GetMesh());
+      visit_surf_dc.RegisterField("pressure", &pressure);
+      visit_surf_dc.Save();
+   }
    // #7: Tribol cleanup: deletes coupling schemes and clears associated memory
    tribol::finalize();
 
