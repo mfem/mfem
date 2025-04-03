@@ -1,8 +1,17 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include <algorithm>
 #include <cstdlib>
-#include <functional>
 #include <iostream>
 #include <unordered_map>
 #include <utility>
@@ -398,7 +407,7 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
 
 struct FieldDescriptor
 {
-   int id;
+   size_t id;
    std::variant<const FiniteElementSpace *,
        const ParFiniteElementSpace *,
        const ParametricSpace *> data;
@@ -548,16 +557,16 @@ private:
 
 
 inline
-int FindIdx(const size_t& id, const std::vector<FieldDescriptor>& fields)
+size_t FindIdx(const size_t& id, const std::vector<FieldDescriptor>& fields)
 {
    for (size_t i = 0; i < fields.size(); i++)
    {
       if (fields[i].id == id)
       {
-         return static_cast<int>(i);
+         return i;
       }
    }
-   return -1;
+   return SIZE_MAX;
 }
 
 template <typename entity_t>

@@ -1,3 +1,13 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include <type_traits>
@@ -168,7 +178,7 @@ public:
       MFEM_ASSERT(parameters_l.size() == parameters.size(),
                   "wrong number of parameters");
 
-      const int derivative_idx = FindIdx(derivative_id, fields);
+      const size_t derivative_idx = FindIdx(derivative_id, fields);
 
       return std::make_shared<DerivativeOperator>(
                 height,
@@ -214,14 +224,14 @@ private:
 
    bool use_tensor_product_structure = true;
 
-   int test_space_field_idx = -1;
+   size_t test_space_field_idx = SIZE_MAX;
 };
 
 void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
 {
    MFEM_ASSERT(parameters.size() == p.size(),
                "number of parameters doesn't match descriptors");
-   for (int i = 0; i < parameters.size(); i++)
+   for (size_t i = 0; i < parameters.size(); i++)
    {
       p[i]->Read();
       parameters_l[i] = *p[i];
@@ -241,12 +251,12 @@ DifferentiableOperator::DifferentiableOperator(
    solutions_l.resize(solutions.size());
    parameters_l.resize(parameters.size());
 
-   for (int i = 0; i < solutions.size(); i++)
+   for (size_t i = 0; i < solutions.size(); i++)
    {
       fields[i] = solutions[i];
    }
 
-   for (int i = 0; i < parameters.size(); i++)
+   for (size_t i = 0; i < parameters.size(); i++)
    {
       fields[i + solutions.size()] = parameters[i];
    }
@@ -354,9 +364,10 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
 
    auto [output_rt,
-         output_e_size] = get_restriction_transpose<entity_t>
-                          (fields[test_space_field_idx],
-                           element_dof_ordering, output_fop);
+         output_e_sz] = get_restriction_transpose<entity_t>
+                        (fields[test_space_field_idx],
+                         element_dof_ordering, output_fop);
+   auto &output_e_size = output_e_sz;
 
    output_restriction_transpose = output_rt;
    residual_e.UseDevice(true);
@@ -381,7 +392,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                fields[test_space_field_idx], output_fop, mesh.GetComm());
 
    const int dimension = mesh.Dimension();
-   // const int num_elements = GetNumEntities<Entity::Element>(mesh);
+   [[maybe_unused]] const int num_elements = GetNumEntities<Entity::Element>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
    dbg("num_qp:{}", num_qp);
@@ -399,7 +410,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
    else
    {
-      const size_t residual_lsize = GetVSize(fields[test_space_field_idx]);
+      const int residual_lsize = GetVSize(fields[test_space_field_idx]);
       residual_l.SetSize(residual_lsize);
       height = GetTrueVSize(fields[test_space_field_idx]);
    }
@@ -560,9 +571,10 @@ void DifferentiableOperator::AddDomainIntegrator(
          forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
-                                   input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
+                                   input_shmem, shadow_shmem_, residual_shmem, scratch_shmem] =
             unpack_shmem(shmem, shmem_info, input_dtq_maps,
                          output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
+            auto &shadow_shmem = shadow_shmem_;
 
             map_fields_to_quadrature_data(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
@@ -657,9 +669,13 @@ void DifferentiableOperator::AddDomainIntegrator(
             for (int e = 0; e < num_entities; e++)
             {
                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
-                                      input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
+                                      input_shmem_, shadow_shmem_, residual_shmem_, scratch_shmem] =
                unpack_shmem(shmem, shmem_info, input_dtq_maps,
                             output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
+               // avoid captured structured bindings
+               auto &input_shmem = input_shmem_;
+               auto &shadow_shmem = shadow_shmem_;
+               auto &residual_shmem = residual_shmem_;
 
                map_fields_to_quadrature_data(
                   input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
@@ -683,6 +699,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                   for (int j = 0; j < trial_vdim; j++)
                   {
                      size_t m_offset = 0;
+
                      for_constexpr<num_inputs>([&](auto s)
                      {
                         if (!input_is_dependent[s])

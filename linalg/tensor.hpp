@@ -1417,7 +1417,7 @@ T det(const tensor<T, 3, 3>& A)
 template <typename T> MFEM_HOST_DEVICE
 std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
 {
-   return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{1.0}}};
+   return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
 }
 
 template <typename T> MFEM_HOST_DEVICE
@@ -1697,7 +1697,7 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
 template <typename T>
 inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 {
-   return tensor<T, 1, 1> {T{1.0} / A[0][0]};
+   return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
 }
 
 template <typename T>

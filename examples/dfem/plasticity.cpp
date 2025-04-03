@@ -1,3 +1,13 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #include <mfem.hpp>
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
@@ -141,9 +151,9 @@ struct J2SmallStrain
       auto p = K * tr(el_strain);
       auto s = 2.0 * G * dev(el_strain);
       auto q = sqrt(1.5) * norm(s);
-      real_t delta_eqps = 0.0;
+      [[maybe_unused]] real_t delta_eqps = 0.0;
 
-      auto flow_strength = [this](real_t eqps) { return this->sigma_y + this->Hi*eqps; };
+      [[maybe_unused]] auto flow_strength = [this](real_t eqps) { return this->sigma_y + this->Hi*eqps; };
 
       // (ii) admissibility
       if (q - (sigma_y + Hi*accumulated_plastic_strain) > tol*sigma_y)
@@ -212,11 +222,11 @@ public:
                       Material material) :
       Operator(displacement_fes.GetTrueVSize()),
       density(1.0e3),
+      body_force(displacement_fes.GetTrueVSize()),
       displacement_ess_tdof(vel_ess_tdofs),
       displacement_fes(displacement_fes),
       displacement_ir(displacement_ir),
-      internal_state(internal_state),
-      body_force(displacement_fes.GetTrueVSize())
+      internal_state(internal_state)
    {
       auto mesh = displacement_fes.GetParMesh();
       mesh_nodes = static_cast<ParGridFunction*>(mesh->GetNodes());

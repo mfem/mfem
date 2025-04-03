@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../config/config.hpp"
 
 #ifndef MFEM_ENZYME_HPP
 #define MFEM_ENZYME_HPP
@@ -43,8 +44,9 @@ template <typename return_type, typename... Args>
 MFEM_HOST_DEVICE inline
 return_type __enzyme_autodiff(Args...);
 
+// warning: if inlined, triggers function '__enzyme_fwddiff' is not defined
 template <typename return_type, typename... Args>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE
 return_type __enzyme_fwddiff(Args...);
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
