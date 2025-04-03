@@ -311,7 +311,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    auto dependency_map = make_dependency_map(mfem::tuple<input_ts...> {});
 
-   pretty_print(dependency_map);
+   // pretty_print(dependency_map);
 
    auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, inputs);
