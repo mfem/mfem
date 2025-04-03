@@ -687,7 +687,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
                                                        shadow_shmem, q);
 #else
-                           apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+                           MFEM_ABORT("Native dual support is not enabled!");
+                           // apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
                            d_qp(j, m, q) = 0.0;
 
