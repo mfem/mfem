@@ -88,14 +88,14 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNBE() == 0) { return; }
+   ne = mesh->GetNFbyType(FaceType::Boundary);
+   if (ne == 0) { return; }
    const FiniteElement &el = *fes.GetBE(0);
    ElementTransformation *T0 = mesh->GetBdrElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
 
    int map_type = el.GetMapType();
    dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
-   ne = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    nq = ir->GetNPoints();
    face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
                                              FaceType::Boundary, mt);
