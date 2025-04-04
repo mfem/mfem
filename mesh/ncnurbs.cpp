@@ -26,7 +26,7 @@ void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
 int GetFaceOrientation(const Mesh *mesh, const int face,
                        const Array<int> & verts);
 
-bool Reorder2D(int n1, int n2, int ori, std::vector<int> & s0);
+bool Reorder2D(int ori, std::vector<int> & s0);
 
 void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
    std::map<std::pair<int, int>, int> & v2f,
@@ -44,7 +44,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
       patchTopo->GetFaceEdges(f, edges, ori);
       patchTopo->GetFaceVertices(f, verts);
 
-      MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
+      MFEM_ASSERT(edges.Size() == 4 && verts.Size() == 4, "");
 
       const int fn1 = KnotVec(edges[0])->GetNE();
       const int fn2 = KnotVec(edges[1])->GetNE();
@@ -96,7 +96,6 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
             const bool hasSlave = sideSlaveEdges[0].Size() > 0;
 
             // Find patchTopo vertices in the interior of each side
-
             if (hasAux || hasSlave)
             {
                std::vector<Array<int>> edgeV(2);
@@ -109,7 +108,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                {
                   const int mid = masterEdgeToId.at(oppEdges[s]);
                   const std::size_t nes = masterEdgeSlaves[mid].size();
-                  MFEM_VERIFY(masterEdgeVerts[mid].size() + 1 == nes, "");
+                  MFEM_ASSERT(masterEdgeVerts[mid].size() + 1 == nes, "");
 
                   // Vertices in masterEdgeVerts[mid] are ordered starting
                   // from the master edge endpoint with lower vertex index.
@@ -129,7 +128,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                   edgeV[s].Append(everts[0]);
                   edgeVki[s].Append(0);
 
-                  MFEM_VERIFY(masterEdgeVerts[mid].size() == masterEdgeKI[mid].size(), "");
+                  MFEM_ASSERT(masterEdgeVerts[mid].size() == masterEdgeKI[mid].size(), "");
                   for (std::size_t i=0; i<masterEdgeVerts[mid].size(); ++i)
                   {
                      edgeV[s].Append(masterEdgeVerts[mid][i]);
@@ -157,7 +156,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                         GetAuxEdgeVertices(auxEdge, sverts);
                      }
 
-                     MFEM_VERIFY((sverts[0] == edgeV[s][i] && sverts[1] == edgeV[s][i+1]) ||
+                     MFEM_ASSERT((sverts[0] == edgeV[s][i] && sverts[1] == edgeV[s][i+1]) ||
                                  (sverts[1] == edgeV[s][i] && sverts[0] == edgeV[s][i+1]), "");
                   }
                }
@@ -221,7 +220,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                      }
                   }
 
-                  MFEM_VERIFY(found[0] && found[1], "");
+                  MFEM_ASSERT(found[0] && found[1], "");
                }
 
                // Find auxiliary or slave subfaces of face f.
@@ -229,7 +228,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                for (int i=0; i<2; ++i)
                {
-                  MFEM_VERIFY(edgeV[i].Size() == nes + 1, "");
+                  MFEM_ASSERT(edgeV[i].Size() == nes + 1, "");
                }
 
                for (int e=0; e<nes; ++e) // Loop over edges
@@ -241,18 +240,16 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                   fverts[2] = edgeV[1][rev ? nes - e - 1 : e + 1];
                   fverts[3] = edgeV[1][rev ? nes - e : e];
 
-                  const int eki = edgeVki[0][e];  // Knot index w.r.t. the edge.
-                  const int eki1 = edgeVki[0][e + 1];  // Knot index w.r.t. the edge.
+                  // Get indices with respect to the edge.
+                  const int eki = edgeVki[0][e];
+                  const int eki1 = edgeVki[0][e + 1];
 
-                  const int e1ki = edgeVki[1][rev ? nes - e : e];  // Knot index w.r.t. the edge.
-                  const int e1ki1 = edgeVki[1][rev ? nes - e - 1 : e +
-                                               1];  // Knot index w.r.t. the edge.
+                  const int e1ki = edgeVki[1][rev ? nes - e : e];
+                  const int e1ki1 = edgeVki[1][rev ? nes - e - 1 : e + 1];
 
                   // ori_f is the signed shift such that fverts[abs1(ori_f)] is
                   // closest to vertex 0, verts[0], of parent face f, and the
                   // relative direction of the ordering is encoded in the sign.
-                  // TODO: this is not used, since we put fverts into auxFaces with reordering to match
-                  // the orientation of the master face, effectively making ori_f = 0.
                   int ori_f = 0;
 
                   // Set the 2D knot indices of the 4 vertices in fverts, with respect to the face f.
@@ -423,7 +420,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                         if (afverts == fvertsSorted)
                         {
-                           MFEM_VERIFY(afid == -1, "");
+                           MFEM_ASSERT(afid == -1, "");
                            afid = af;
                         }
                      }
@@ -591,8 +588,8 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
          continue;
       }
 
-      MFEM_VERIFY(0 <= i && i < parentN1[mid], "");
-      MFEM_VERIFY(0 <= j && j < parentN2[mid], "");
+      MFEM_ASSERT(0 <= i && i < parentN1[mid] && 0 <= j && j < parentN2[mid],
+                  "");
       if (mid != midPrev)  // Next parent face
       {
          Array<int> pv(parentVerts.data() + (4*mid), 4);
@@ -606,12 +603,10 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
             // to reorder masterFaceSlaves, masterFaceSlaveCorners,
             // masterFaceSizes, masterFaceVerts.
             std::vector<int> s0(2);
-            const bool rev = Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                                       orientation, s0);
+            const bool rev = Reorder2D(orientation, s0);
             masterFaceS0[midPrev] = s0;
             masterFaceRev[midPrev] = rev;
-            Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                      orientation, s0);
+            Reorder2D(orientation, s0);
          }
 
          orientation = ori;
@@ -632,56 +627,16 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
 
       masterFaceSizes[mid][0] = parentN1[mid];
       masterFaceSizes[mid][1] = parentN2[mid];
-
-      if (i < parentN1[mid] - 1 && j < parentN2[mid] - 1)
-      {
-         // Find the interior vertex associated with this child face.
-
-         // For left-most faces, use right side of face, else left side.
-         const int vi0 = (i == 0) ? 1 : 0;
-
-         // For bottom-most faces, use top side of face, else bottom side.
-         const int vi1 = (j == 0) ? 1 : 0;
-
-         // Get the face vertex at position (vi0, vi1) of the quadrilateral child face.
-
-         int qid[2][2] = {{0, 3}, {1, 2}};
-
-         const int vid = qid[vi0][vi1];
-
-         // Find the index of vertex v0, which is at the bottom-left corner.
-         Array<int> vert;
-         if (childFace >= 0)
-         {
-            patchTopo->GetFaceVertices(childFace, vert);
-         }
-         else
-         {
-            // Auxiliary Face
-            GetAuxFaceVertices(-1 - childFace, vert);
-         }
-
-         MFEM_VERIFY(vert.Size() == 4, "TODO: remove this obvious check");
-         const int v0id = vert.Find(v0);
-         MFEM_VERIFY(v0id >= 0, "");
-
-         // Set the interior vertex associated with this child face.
-         const int vint = vert[(vid - v0id + 4) % 4];
-         masterFaceVerts[mid].push_back(vint);  // TODO: not used?
-      }
    }  // Loop (q) over facePairs
 
    // TODO: restructure the above loop (q) over nfpairs to avoid this copying of code for Reorder2D.
    if (midPrev >= 0)
    {
       std::vector<int> s0(2);
-      const bool rev = Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                                 orientation, s0);
-
+      const bool rev = Reorder2D(orientation, s0);
       masterFaceS0[midPrev] = s0;
       masterFaceRev[midPrev] = rev;
-      Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                orientation, s0);
+      Reorder2D(orientation, s0);
    }
 }
 
@@ -755,17 +710,50 @@ void NURBSExtension::GetAuxFaceEdges(int auxFace,
    }
 }
 
-void NURBSExtension::GetMasterEdgeDofs(int edge,
-                                       const Array<int>& v_offsets,
-                                       const Array<int>& e_offsets,
-                                       const Array<int>& aux_e_offsets,
-                                       Array<int> & dofs) const
+// Negative indices are for array `b`. Nonnegative indices are for array `a`,
+// except for index `a.Size()`, corresponding to `b[0]`.
+int OffsetHelper(int i, int j, const Array<int> &a, const Array<int> &b)
 {
-   MFEM_VERIFY(masterEdges.count(edge) > 0, "Not a master edge");
+   if (i < 0)
+   {
+      return b[-1 - i + j];
+   }
+   else if (i + j < a.Size())
+   {
+      return a[i + j];
+   }
+   else
+   {
+      return b[0];
+   }
+}
+
+int NURBSExtension::GetEdgeOffset(bool dof, int edge, int increment) const
+{
+   return OffsetHelper(edge, increment, dof ? e_spaceOffsets : e_meshOffsets,
+                       dof ? aux_e_spaceOffsets : aux_e_meshOffsets);
+}
+
+int NURBSExtension::GetFaceOffset(bool dof, int face, int increment) const
+{
+   return OffsetHelper(face, increment, dof ? f_spaceOffsets : f_meshOffsets,
+                       dof ? aux_f_spaceOffsets : aux_f_meshOffsets);
+}
+
+void NURBSExtension::GetMasterEdgeDofs(bool dof, int edge,
+                                       Array<int> &dofs) const
+{
+   MFEM_ASSERT(masterEdges.count(edge) > 0, "Not a master edge");
    const int mid = masterEdgeToId.at(edge);
 
-   MFEM_VERIFY(masterEdgeVerts[mid].size() ==
+   MFEM_ASSERT(masterEdgeVerts[mid].size() ==
                masterEdgeSlaves[mid].size() - 1, "");
+
+   const Array<int>& v_offsets = dof ? v_spaceOffsets : v_meshOffsets;
+   const Array<int>& e_offsets = dof ? e_spaceOffsets : e_meshOffsets;
+
+   const Array<int>& aux_e_offsets = dof ? aux_e_spaceOffsets :
+                                     aux_e_meshOffsets;
 
    const std::size_t nes = masterEdgeSlaves[mid].size();
    for (std::size_t s=0; s<nes; ++s)
@@ -787,7 +775,7 @@ void NURBSExtension::GetMasterEdgeDofs(int edge,
       if (nes > 1)
       {
          const int mev = masterEdgeVerts[mid][std::max((int) s - 1,0)];
-         MFEM_VERIFY(mev == svert[0] || mev == svert[1], "");
+         MFEM_ASSERT(mev == svert[0] || mev == svert[1], "");
          if (s == 0)
          {
             // In this case, mev is the second vertex of the edge.
@@ -800,20 +788,12 @@ void NURBSExtension::GetMasterEdgeDofs(int edge,
          }
       }
 
-      const int eos = slaveId >= 0 ? e_offsets[slaveId] : aux_e_offsets[-1 - slaveId];
-
-      // TODO: in 3D, the next offset would be f_offsets[0], not
-      // p_offsets[0]. This needs to be generalized in an elegant way.
-      // How about appending the next offset to the end of e_offsets?
-      // Would increasing the size of e_offsets by 1 break something?
-
-      const int eos1 = slaveId >= 0 ? (slaveId + 1 < e_offsets.Size() ?
-                                       e_offsets[slaveId + 1] : aux_e_offsets[0]) :
-                       aux_e_offsets[-slaveId];
+      const int eos = GetEdgeOffset(dof, slaveId, 0);
+      const int eos1 = GetEdgeOffset(dof, slaveId, 1);
 
       const int nvs = eos1 - eos;
 
-      MFEM_VERIFY(nvs >= 0, "");
+      MFEM_ASSERT(nvs >= 0, "");
 
       // Add all slave edge vertices/DOFs
 
@@ -833,15 +813,9 @@ void NURBSExtension::GetMasterEdgeDofs(int edge,
    }
 }
 
-// This sets masterDofs but does not change e_meshOffsets.
+// Set masterDofs.
 void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
 {
-   const Array<int>& v_offsets = dof ? Ext->v_spaceOffsets : Ext->v_meshOffsets;
-   const Array<int>& e_offsets = dof ? Ext->e_spaceOffsets : Ext->e_meshOffsets;
-
-   const Array<int>& aux_e_offsets = dof ? Ext->aux_e_spaceOffsets :
-                                     Ext->aux_e_meshOffsets;
-
    edgeMaster.SetSize(edges.Size());
    edgeMasterOffset.SetSize(edges.Size());
    masterDofs.SetSize(0);
@@ -855,14 +829,12 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
       if (edgeMaster[i])
       {
          const int mid = Ext->masterEdgeToId.at(edges[i]);
-         MFEM_VERIFY(mid >= 0, "Master edge index not found");
-         MFEM_VERIFY(Ext->masterEdgeSlaves[mid].size() != 0,
+         MFEM_ASSERT(mid >= 0, "Master edge index not found");
+         MFEM_ASSERT(Ext->masterEdgeSlaves[mid].size() != 0,
                      "False master edges should have been removed");
-
          Array<int> mdof;
-         Ext->GetMasterEdgeDofs(edges[i], v_offsets, e_offsets, aux_e_offsets, mdof);
+         Ext->GetMasterEdgeDofs(dof, edges[i], mdof);
          masterDofs.Append(mdof);
-
          mos += mdof.Size();
       }
    }
@@ -886,7 +858,6 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
    Ext->patchTopo->GetFaceEdges(face, faceEdges, ori);
    Ext->patchTopo->GetFaceVertices(face, vert);
 
-   MFEM_VERIFY(vert.Size() == 4, "");
    int v0id = -1;
    for (int i=0; i<4; ++i)
    {
@@ -896,10 +867,10 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
    }
 
-   MFEM_VERIFY(v0id >= 0, "");
+   MFEM_ASSERT(v0id >= 0, "");
 
    Ext->patchTopo->GetEdgeVertices(faceEdges[e1], evert);
-   MFEM_VERIFY(evert[0] == v0 || evert[1] == v0, "");
+   MFEM_ASSERT(evert[0] == v0 || evert[1] == v0, "");
 
    bool d[2];
    d[0] = (evert[0] == v0);
@@ -919,12 +890,12 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
    }
 
-   MFEM_VERIFY(e0 >= 0, "");
+   MFEM_ASSERT(e0 >= 0, "");
 
-   const bool tr = e0 % 2 == 1;  // True means (fn1,fn2) == (n2,n1)
+   const bool tr = e0 % 2 == 1; // True means (fn1,fn2) == (n2,n1)
 
    Ext->patchTopo->GetEdgeVertices(faceEdges[e2], evert);
-   MFEM_VERIFY(evert[0] == v10 || evert[1] == v10, "");
+   MFEM_ASSERT(evert[0] == v10 || evert[1] == v10, "");
    d[1] = (evert[0] == v10);
 
    const int v11 = d[1] ? evert[1] : evert[0];
@@ -938,7 +909,7 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
    }
 
-   MFEM_VERIFY(v01 >= 0 && v01 == vert.Sum() - v0 - v10 - v11, "");
+   MFEM_ASSERT(v01 >= 0 && v01 == vert.Sum() - v0 - v10 - v11, "");
 
    // Translate indices [v0, v10, v11, v01] to pairs of indices in {0,1}.
    const int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
@@ -957,7 +928,7 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
          }
       }
 
-      MFEM_VERIFY(locv[i] >= 0, "");
+      MFEM_ASSERT(locv[i] >= 0, "");
    }
 
    for (int i=0; i<2; ++i)
@@ -1004,7 +975,6 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
    patchTopo->GetFaceEdges(face, faceEdges, ori);
    patchTopo->GetFaceVertices(face, vert);
 
-   MFEM_VERIFY(vert.Size() == 4, "");
    int v0id = -1;
    for (int i=0; i<4; ++i)
    {
@@ -1014,10 +984,10 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
    }
 
-   MFEM_VERIFY(v0id >= 0, "");
+   MFEM_ASSERT(v0id >= 0, "");
 
    patchTopo->GetEdgeVertices(faceEdges[e1], evert);
-   MFEM_VERIFY(evert[0] == v0 || evert[1] == v0, "");
+   MFEM_ASSERT(evert[0] == v0 || evert[1] == v0, "");
 
    bool d[2];
    d[0] = (evert[0] == v0);
@@ -1037,12 +1007,12 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
    }
 
-   MFEM_VERIFY(e0 >= 0, "");
+   MFEM_ASSERT(e0 >= 0, "");
 
    const bool tr = e0 % 2 == 1;  // True means (fn1,fn2) == (n2,n1)
 
    patchTopo->GetEdgeVertices(faceEdges[e2], evert);
-   MFEM_VERIFY(evert[0] == v10 || evert[1] == v10, "");
+   MFEM_ASSERT(evert[0] == v10 || evert[1] == v10, "");
    d[1] = (evert[0] == v10);
 
    const int v11 = d[1] ? evert[1] : evert[0];
@@ -1056,7 +1026,7 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
    }
 
-   MFEM_VERIFY(v01 >= 0 && v01 == vert.Sum() - v0 - v10 - v11, "");
+   MFEM_ASSERT(v01 >= 0 && v01 == vert.Sum() - v0 - v10 - v11, "");
 
    // Translate indices [v0, v10, v11, v01] to pairs of indices in {0,1}.
    const int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
@@ -1075,7 +1045,7 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
          }
       }
 
-      MFEM_VERIFY(locv[i] >= 0, "");
+      MFEM_ASSERT(locv[i] >= 0, "");
    }
 
    for (int i=0; i<2; ++i)
@@ -1157,7 +1127,7 @@ void GetVertexOrdering(int ori, Array<int> & perm)
    }
 }
 
-// This sets masterDofs but does not change f_meshOffsets.
+// Append master face DOFs to masterDofs.
 void NURBSPatchMap::SetMasterFaces(bool dof)
 {
    const Array<int>& v_offsets = dof ? Ext->v_spaceOffsets : Ext->v_meshOffsets;
@@ -1184,13 +1154,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
       if (!faceMaster[i]) { continue; }
 
       Array2D<int> mdof;
-      Ext->GetMasterFaceDofs(dof, faces[i],
-                             v_offsets,
-                             e_offsets,
-                             f_offsets,
-                             aux_e_offsets,
-                             aux_f_offsets,
-                             mdof);
+      Ext->GetMasterFaceDofs(dof, faces[i], mdof);
       if (mdof.NumRows() == 0)
       {
          faceMaster[i] = false;
@@ -1208,11 +1172,6 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
 }
 
 void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
-                                       const Array<int> &v_offsets,
-                                       const Array<int> &e_offsets,
-                                       const Array<int> &f_offsets,
-                                       const Array<int> &aux_e_offsets,
-                                       const Array<int> &aux_f_offsets,
                                        Array2D<int> &dofs) const
 {
    const int mid = masterFaceToId.at(face);
@@ -1233,12 +1192,9 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
    const int n1 = rev ? n2orig : n1orig;
    const int n2 = rev ? n1orig : n2orig;
 
-   MFEM_VERIFY(n1 > 1 || n2 > 1, "");
-   MFEM_VERIFY(n1 * n2 >= (int) masterFaceSlaves[mid].size(),
+   MFEM_ASSERT((n1 > 1 || n2 > 1) &&
+               n1 * n2 >= (int) masterFaceSlaves[mid].size(),
                "Inconsistent number of faces");
-
-   MFEM_VERIFY((n1 - 1) * (n2 - 1) >= (int) masterFaceVerts[mid].size(),
-               "Inconsistent number of vertices");
 
    // TODO: define masterFaceSlaveCorners at master face corners omitted from V2K?
 
@@ -1256,9 +1212,8 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
       }
    }
 
-   MFEM_VERIFY(fcnt == n1 * n2, "");
-
-   MFEM_VERIFY((int) masterFaceSlaveCorners[mid].size() <= n1*n2, "");
+   MFEM_ASSERT(fcnt == n1 * n2, "");
+   MFEM_ASSERT((int) masterFaceSlaveCorners[mid].size() <= n1*n2, "");
 
    // Set an array of vertices or DOFs for the interior of this master face, `face`.
    // Set master face entity dimensions.
@@ -1289,6 +1244,8 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
    MFEM_ASSERT(sne1 * n1 == mnf1 - n1 + 1, "");
    MFEM_ASSERT(sne2 * n2 == mnf2 - n2 + 1, "");
 
+   const Array<int> &v_offsets = dof ? v_spaceOffsets : v_meshOffsets;
+
    Array2D<int> mdof(mnf1, mnf2);
    mdof = -1;
 
@@ -1300,19 +1257,16 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
       const int slaveId = slaveFaces[sId];
       const int v0 = masterFaceSlaveCorners[mid][s];
       const int ori = slaveFaceOri[sId];
-      // ori gives the orientation and index of cv matching the first
-      // vertex of childFace, where cv is the array of slave face
-      // vertices in CCW w.r.t. to the master face.
+      // ori gives the orientation and index of cv matching the first vertex of
+      // childFace, where cv is the array of slave face vertices in CCW order
+      // with respect to the master face.
 
       const int sI = slaveFaceI[sId];
       const int sJ = slaveFaceJ[sId];
       const int ne1 = slaveFaceNE1[sId];
       const int ne2 = slaveFaceNE2[sId];
-
-      const int fos = slaveId >= 0 ? f_offsets[slaveId] : aux_f_offsets[-1 - slaveId];
-      const int fos1 = slaveId >= 0 ? (slaveId + 1 < f_offsets.Size() ?
-                                       f_offsets[slaveId + 1] : aux_f_offsets[0]) :
-                       aux_f_offsets[-slaveId];
+      const int fos = GetFaceOffset(dof, slaveId, 0);
+      const int fos1 = GetFaceOffset(dof, slaveId, 1);
 
       const int nvs = fos1 - fos;
 
@@ -1349,8 +1303,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
 
          MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
          MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
-
-         MFEM_VERIFY(nvs == nf1 * nf2, "");
+         MFEM_ASSERT(nvs == nf1 * nf2, "");
 
          // NOTE: When an aux face is first defined, it is constructed with
          // orientation 0 w.r.t. its parent face. However, it can be part of
@@ -1362,13 +1315,11 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
          // orientation. When the orientation is nonzero, the aux face DOFs
          // must be reordered for the parent face, based on orientation.
 
-         // These offsets are for the interior entities of the face. To get the lower edge, subtract 1.
+         // These offsets are for the interior entities of the face. To get the
+         // lower edge, subtract 1.
          const int os1 = (sI * sne1) + sI;
          const int os2 = (sJ * sne2) + sJ;
 
-         // TODO: is there a function to permute 2D indices based on orientation? GetShiftedGridPoints2D
-         // TODO: the problem with using GetShiftedGridPoints2D is that we have (nf1, nf2) for the shifted (new)
-         // face, not for the original (old) face.
          int onf1, onf2;
          GetInverseShiftedDimensions2D(ori, nf1, nf2, onf1, onf2);
          for (int k=0; k<onf2; ++k)
@@ -1376,8 +1327,6 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             {
                int sm, sn, sj, sk;
                GetShiftedGridPoints2D(onf1, onf2, j, k, ori, sm, sn, sj, sk);
-               MFEM_VERIFY(sm == nf1 && sn == nf2, "TODO: remove this?");
-
                const int q = j + (k * onf1);
                if (!ConsistentlySetEntry(fos + q, mdof(os1 + sj, os2 + sk)))
                {
@@ -1410,7 +1359,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
          {
             orderedVertices[eidx] = vstart;
             // TODO: eliminate orderedVertices if it is redundant.
-            MFEM_VERIFY(orderedVertices[eidx] == auxFaces[auxFace].v[perm[eidx]], "");
+            MFEM_ASSERT(orderedVertices[eidx] == auxFaces[auxFace].v[perm[eidx]], "");
 
             const int eperm = ori < 0 ? (perm[eidx] - 1 + 4) % 4 : perm[eidx];
             const int edge = faceEdges[eperm];
@@ -1427,7 +1376,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
                GetAuxEdgeVertices(auxEdge, evert);
             }
 
-            MFEM_VERIFY(evert[0] == vstart || evert[1] == vstart, "");
+            MFEM_ASSERT(evert[0] == vstart || evert[1] == vstart, "");
 
             const bool reverse = (vstart == evert[1]);
             const int vend = evert.Sum() - vstart;
@@ -1447,24 +1396,22 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             const int nf_e = horizontal ? nf1 : nf2;
 
             // Edge entities
-            const int eos = edge >= 0 ? e_offsets[edge] : aux_e_offsets[-1 - edge];
-            const int eos1 = edge >= 0 ? ((edge + 1 < e_offsets.Size()) ?
-                                          e_offsets[edge + 1] : aux_e_offsets[0]) : aux_e_offsets[-edge];
+            const int eos = GetEdgeOffset(dof, edge, 0);
+            const int eos1 = GetEdgeOffset(dof, edge, 1);
 
             const bool edgeIsMaster = masterEdges.count(edge) > 0;
 
             Array<int> edofs;
             if (edgeIsMaster)
             {
-               // This edge is a slave edge and a master edge.
-               // Instead of getting DOFs from e_offsets, take them
-               // from the slave edges of this edge.
-               GetMasterEdgeDofs(edge, v_offsets, e_offsets,
-                                 aux_e_offsets, edofs);
+               // This edge is a slave edge and a master edge. Instead of
+               // getting DOFs from e_offsets, take them from the slave edges
+               // of this edge.
+               GetMasterEdgeDofs(dof, edge, edofs);
             }
             else
             {
-               MFEM_VERIFY(eos1 - eos == nf_e, "");
+               MFEM_ASSERT(eos1 - eos == nf_e, "");
 
                edofs.SetSize(nf_e);
                for (int j=0; j<nf_e; ++j)
@@ -1473,7 +1420,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
                }
             }
 
-            MFEM_VERIFY(edofs.Size() == nf_e, "");
+            MFEM_ASSERT(edofs.Size() == nf_e, "");
 
             for (int j=0; j<nf_e; ++j)
             {
@@ -1569,15 +1516,14 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             }
          }
 
-         // Now, e1 is one of the two horizontal edges in the master face directions.
-         // If it does not touch v0, then take the other horizontal edge.
-         // Do the same for e2.
+         // Now, e1 is one of the two horizontal edges in the master face
+         // directions. If it does not touch v0, then take the other horizontal
+         // edge. Do the same for e2.
 
          Array<int> sedges;
          {
             Array<int> sori;
             patchTopo->GetFaceEdges(slaveId, sedges, sori);
-            MFEM_VERIFY(sedges.Size() == 4, "TODO: remove this obvious check");
          }
 
          int v1 = -1;
@@ -1620,7 +1566,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
          MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
          MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
 
-         MFEM_VERIFY(nvs == nf1 * nf2, "");
+         MFEM_ASSERT(nvs == nf1 * nf2, "");
 
          // Find the DOFs of the slave face ordered for the master
          // face. We know that e1 and e2 are the local indices of
@@ -1691,24 +1637,18 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             const int nf_e = horizontal ? nf1 : nf2;
 
             // Edge entities
-            const int eos = e_offsets[edge];
-            const int eos1 = (edge + 1 < e_offsets.Size()) ?
-                             e_offsets[edge + 1] : aux_e_offsets[0];
-
+            const int eos = GetEdgeOffset(dof, edge, 0);
+            const int eos1 = GetEdgeOffset(dof, edge, 1);
             const bool edgeIsMaster = masterEdges.count(edge) > 0;
 
             Array<int> edofs;
             if (edgeIsMaster)
             {
-               // TODO: shouldn't the DOFs from this master edge be obtainable from SetMasterEdges?
-               // I guess SetMasterEdges is only for the patch edges, not master edges on the interior
-               // of a patch face.
-               // However, can we reuse/refactor code from SetMasterEdges?
-               GetMasterEdgeDofs(edge, v_offsets, e_offsets, aux_e_offsets, edofs);
+               GetMasterEdgeDofs(dof, edge, edofs);
             }
             else
             {
-               MFEM_VERIFY(eos1 - eos == nf_e, "");
+               MFEM_ASSERT(eos1 - eos == nf_e, "");
 
                edofs.SetSize(nf_e);
                for (int j=0; j<nf_e; ++j)
@@ -1717,7 +1657,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
                }
             }
 
-            MFEM_VERIFY(edofs.Size() == nf_e, "");
+            MFEM_ASSERT(edofs.Size() == nf_e, "");
 
             for (int j=0; j<nf_e; ++j)
             {
@@ -1845,7 +1785,7 @@ void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
       const std::pair<int, int> parentPair(pv[0] < pv[1] ? pv[0] : pv[1],
                                            pv[0] < pv[1] ? pv[1] : pv[0]);
 
-      MFEM_VERIFY(v2e.count(parentPair) > 0, "Vertex pair not found");
+      MFEM_ASSERT(v2e.count(parentPair) > 0, "Vertex pair not found");
 
       const int parentEdge = v2e[parentPair];
       masterEdges.insert(parentEdge);
@@ -1868,7 +1808,7 @@ void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
 
       if (ks == 1)
       {
-         MFEM_VERIFY(newParentEdge, "");
+         MFEM_ASSERT(newParentEdge, "");
       }
 
       // Find the edge in patchTopo->ncmesh with vertices (v0, tv), and define
@@ -2002,7 +1942,6 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
             Array<int> edges, ori, verts;
             patchTopo->GetFaceEdges(parentFace, edges, ori);
             patchTopo->GetFaceVertices(parentFace, verts);
-            MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
 
             std::array<int,2> kv = {-1, -1};
             for (int e=0; e<2; ++e)
@@ -2021,7 +1960,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
                   }
                }
 
-               MFEM_VERIFY(kv[e] >= 0, "");
+               MFEM_ASSERT(kv[e] >= 0, "");
             }
 
             // TODO: just make parentToKV map to std::array<int,2>?
@@ -2195,7 +2134,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
       const int n1set = r1max - r1min + 1;
       const int n2set = r2max - r2min + 1;
 
-      MFEM_VERIFY(n1set * n2set >= parentOffset[parent + 1] - parentOffset[parent],
+      MFEM_ASSERT(n1set * n2set >= parentOffset[parent + 1] - parentOffset[parent],
                   "");
 
       std::array<int, 2> rf;  // TODO: remove?
@@ -2235,7 +2174,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
       if (kvf.size() > 0)
       {
-         MFEM_VERIFY(kvf[kvi[0]].Sum() == n1 && kvf[kvi[1]].Sum() == n2, "");
+         MFEM_ASSERT(kvf[kvi[0]].Sum() == n1 && kvf[kvi[1]].Sum() == n2, "");
       }
 
       std::vector<Array<int>> cgrid(2);
@@ -2263,7 +2202,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
          }
       }
 
-      MFEM_VERIFY(cgrid[0][n_orig[0]] == n1 && cgrid[1][n_orig[1]] == n2, "");
+      MFEM_ASSERT(cgrid[0][n_orig[0]] == n1 && cgrid[1][n_orig[1]] == n2, "");
 
       bool allset = true;
       bool hasSlaveFaces = false;
@@ -2746,7 +2685,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
                   const int parentEdge = v2e.at(parentPair);
 
-                  MFEM_VERIFY(parentEdges[pid] == parentEdge, "");
+                  MFEM_ASSERT(parentEdges[pid] == parentEdge, "");
 
                   // Check whether childPair is in auxEdges.
                   if (auxv2e.count(childPair) == 0)
@@ -2789,7 +2728,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
                   else
                   {
                      // Verify matching
-                     MFEM_VERIFY(edgePairs[edgePairOS[parentEdge] + e_idx] == ep_e, "");
+                     MFEM_ASSERT(edgePairs[edgePairOS[parentEdge] + e_idx] == ep_e, "");
                   }
                }
                else  // childPairTopo == true, so this edge is a slave edge.
@@ -2804,7 +2743,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
                   const int parentEdge = v2e.at(parentPair);
 
-                  MFEM_VERIFY(parentEdges[pid] == parentEdge, "");
+                  MFEM_ASSERT(parentEdges[pid] == parentEdge, "");
 
                   // TODO: ne is identical to n_d.
                   const int ne = d == 0 ? n1 : n2;
@@ -2830,7 +2769,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
                   const bool unset = !edgePairs[edgePairOS[parentEdge] + e_idx].isSet;
                   const bool matching = edgePairs[edgePairOS[parentEdge] + e_idx] == ep_e;
-                  MFEM_VERIFY(unset || matching, "");
+                  MFEM_ASSERT(unset || matching, "");
 
                   edgePairs[edgePairOS[parentEdge] + e_idx] = ep_e;
                }
@@ -2860,7 +2799,7 @@ void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> & auxface2elem)
 
    bool consistent = true;
 
-   for (int p=0; p<npatch; ++p)
+   for (int p=0; p<num_structured_patches; ++p)
    {
       Array<int> faces, orient;
       if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
@@ -2917,7 +2856,7 @@ void NURBSExtension::GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem)
 
    bool consistent = true;
 
-   for (int p=0; p<npatch; ++p)
+   for (int p=0; p<num_structured_patches; ++p)
    {
       Array<int> faces, orient;
       if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
@@ -2965,8 +2904,7 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 {
    Array<int> fverts;
    mesh->GetFaceVertices(face, fverts);
-
-   MFEM_VERIFY(verts.Size() == 4 && fverts.Size() == 4, "");
+   MFEM_ASSERT(verts.Size() == 4 && fverts.Size() == 4, "");
 
    // Verify that verts and fvert have the same entries as sets, by deep-copying and sorting.
    {
@@ -2974,7 +2912,7 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
       Array<int> s2(fverts);
 
       s1.Sort(); s2.Sort();
-      MFEM_VERIFY(s1 == s2, "");
+      MFEM_ASSERT(s1 == s2, "");
    }
 
    // Find the shift of the first vertex.
@@ -2989,13 +2927,6 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 
    if (rev) { s = -1 - s; }  // Reversed order is encoded by the sign.
 
-   // Sanity check (TODO: remove this)
-   for (int i=0; i<4; ++i)
-   {
-      const int j = s < 0 ? (-1 - s) - i : i + s;
-      MFEM_VERIFY(verts[(j + 4) % 4] == fverts[i], "");
-   }
-
    return s;
 }
 
@@ -3008,16 +2939,8 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 // has vertex with index `shift` matching vertex 0 of the new quad face F2,
 // on which the new ordering of `a` should be based.
 // For more details, see GetFaceOrientation.
-bool Reorder2D(int n1, int n2, int ori, std::vector<int> & s0)
+bool Reorder2D(int ori, std::vector<int> & s0)
 {
-   const bool noReorder = false;
-   if (noReorder)
-   {
-      s0[0] = 0;
-      s0[1] = 0;
-      return false;
-   }
-
    const int shift = ori < 0 ? -1 - ori : ori;
 
    // Shift is an F1 index in the counter-clockwise ordering of 4 quad vertices.
@@ -3028,8 +2951,8 @@ bool Reorder2D(int n1, int n2, int ori, std::vector<int> & s0)
    s0[0] = s0i;
    s0[1] = s0j;
 
-   // Determine whether the dimensions of F1 and F2 are reversed.
-   // Do this by finding the (i,j) indices of s1, which is the next vertex on F1.
+   // Determine whether the dimensions of F1 and F2 are reversed. Do this by
+   // finding the (i,j) indices of s1, which is the next vertex on F1.
    const int shift1 = ori < 0 ? shift - 1: shift + 1;
 
    const int s1 = (shift1 + 4) % 4;
@@ -3045,8 +2968,7 @@ void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
 {
    const bool rev = (signedShift < 0);
    const int shift = rev ? -1 - signedShift : signedShift;
-   MFEM_VERIFY(0 <= shift && shift < 4, "");
-   // TODO: condense this somehow?
+   MFEM_ASSERT(0 <= shift && shift < 4, "");
 
    // We consider 8 cases for the possible values of rev and shift.
    if (rev)
@@ -3113,18 +3035,15 @@ void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
    }
 }
 
-// TODO: reuse this in other places, to reduce code duplication.
 void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
                             int& sm, int& sn, int& si, int& sj)
 {
    const bool rev = (signedShift < 0);
    const int shift = rev ? -1 - signedShift : signedShift;
-   MFEM_VERIFY(0 <= shift && shift < 4, "");
+   MFEM_ASSERT(0 <= shift && shift < 4, "");
 
    // (0,0) <= (i,j) < (m,n) are old indices, and old vertex [shift] maps
    // to new vertex 0 in counter-clockwise quad ordering.
-
-   // TODO: condense this somehow?
 
    // We consider 8 cases for the possible values of rev and shift.
    if (rev)

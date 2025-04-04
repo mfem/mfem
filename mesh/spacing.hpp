@@ -784,6 +784,9 @@ private:
    void CalculateSpacing();
 };
 
+/** @brief Partial spacing function, defined as part of an existing spacing
+    function.
+ */
 class PartialSpacingFunction : public SpacingFunction
 {
 public:
