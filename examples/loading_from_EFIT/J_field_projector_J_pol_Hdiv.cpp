@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
    // make a Hcurl space with the mesh
    // L2_FECollection fec(0, dim);
-   ND_FECollection fec(1, dim);
+   RT_FECollection fec(0, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    // make a grid function with the H1 space
