@@ -98,7 +98,7 @@ double fexact(const Vector &x) // returns -\Delta u
 
 #ifdef DIRECT_SOLVE_SERIAL
 
-TEST_CASE("Serial Direct Solvers", "[CUDA]")
+TEST_CASE("Serial Direct Solvers", "[GPU]")
 {
    const int ne = 2;
    for (int dim = 1; dim < 4; ++dim)
@@ -186,7 +186,7 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
 
 #ifdef DIRECT_SOLVE_PARALLEL
 
-TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
+TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);

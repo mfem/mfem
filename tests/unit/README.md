@@ -67,11 +67,21 @@ and those are:
   serial test executables, and will only be tested with the parallel executable
   (e.g. `punit_tests`). `punit_tests` will only run tests marked with
   `[Parallel]`.
+* `[GPU]`, which indicates that a test will be tested with the GPU executables
+  (e.g. `gpu_unit_tests`). These tests will still be run by the standard (CPU)
+  executables. `gpu_unit_tests` will only run tests marked with `[GPU]`, and its
+  parallel version `pgpu_unit_tests` will only run tests marked with _both_
+  `[GPU]` and `[Parallel]`.
 * `[CUDA]`, which indicates that a test will be tested with the CUDA executables
   (e.g. `cunit_tests`). These tests will still be run by the standard (CPU)
   executables. `cunit_tests` will only run tests marked with `[CUDA]`, and its
   parallel version `pcunit_tests` will only run tests marked with _both_
   `[CUDA]` and `[Parallel]`.
+* `[HIP]`, which indicates that a test will be tested with the HIP executables
+  (e.g. `hunit_tests`). These tests will still be run by the standard (CPU)
+  executables. `hunit_tests` will only run tests marked with `[HIP]`, and its
+  parallel version `phunit_tests` will only run tests marked with _both_
+  `[HIP]` and `[Parallel]`.
 * `[MFEMData]`, which indicates that a test requires access to a clone of the
   MFEM data repository (see the `--data` flag below), in order to run tests on
   some larger mesh files. By default, tests tagged with this tag are skipped,
