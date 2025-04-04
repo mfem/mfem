@@ -20,6 +20,10 @@
 #include "example_utils.hpp"
 #include "mfem.hpp"
 
+#ifndef MFEM_USE_MOONOLITH
+#error This example requires that MFEM is built with MFEM_USE_MOONOLITH=YES
+#endif
+
 using namespace mfem;
 using namespace std;
 

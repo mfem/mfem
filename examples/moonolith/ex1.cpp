@@ -16,9 +16,15 @@
 //               multi-physics applications.
 //
 //               This particular example is only for serial runtimes.
+//               For non-conforming meshes please have a look at example
+//               "ex2p.cpp".
 
 #include "example_utils.hpp"
 #include "mfem.hpp"
+
+#ifndef MFEM_USE_MOONOLITH
+#error This example requires that MFEM is built with MFEM_USE_MOONOLITH=YES
+#endif
 
 using namespace mfem;
 using namespace std;
