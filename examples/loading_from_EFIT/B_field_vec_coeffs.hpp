@@ -135,8 +135,8 @@ public:
 
    PsiOverRGridFunctionVectorCoefficient() = delete;
 
-   PsiOverRGridFunctionVectorCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   PsiOverRGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
@@ -181,8 +181,8 @@ public:
 
    PsiOverRSquareGridFunctionVectorCoefficient() = delete;
 
-   PsiOverRSquareGridFunctionVectorCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   PsiOverRSquareGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
@@ -246,8 +246,8 @@ public:
 
    PsiGridFunctionVectorCoefficient() = delete;
 
-   PsiGridFunctionVectorCoefficient(int dim, const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(dim), gf(gf), flip_sign(flip_sign), finder(gf)
+   PsiGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
 
