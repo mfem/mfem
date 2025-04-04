@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
 {
    const char *new_mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = true;
 
    Mesh mesh(new_mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -30,40 +29,22 @@ int main(int argc, char *argv[])
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;
    LinearForm b(&fespace);
-   if (!mixed_bilinear_form)
-   {
-      cout << "Using linear form" << endl;
-      // project the grid function onto the new space
-      // solving (f, J_pol) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
 
-      // 1. make the linear form
-      BTorRVectorGridFunctionCoefficient B_tor_r_coef(&B_tor, false);
-      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(B_tor_r_coef));
+   // project the grid function onto the new space
+   // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(&B_tor, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
-      b.Assemble();
-   }
-   else
-   {
-      cout << "Using bilinear form" << endl;
-      // project the grid function onto the new space
-      // solving (f, J_pol) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
+   // 1.a make the RHS bilinear form
+   MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
+   RPerpMatrixGridFunctionCoefficient r_perp_coef(false);
+   b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(r_perp_coef));
+   b_bi.Assemble();
 
-      // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
-      RGridFunctionCoefficient r_coef;
-      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(r_coef));
-      b_bi.Assemble();
+   // 1.b form linear form from bilinear form
+   LinearForm b_li(&fespace);
+   b_bi.Mult(B_tor, b_li);
+   b.Assemble();
+   b += b_li;
 
-      // 1.b form linear form from bilinear form
-      LinearForm b_li(&fespace);
-      b_bi.Mult(B_tor, b_li);
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(&B_tor, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_B_tor_r_coef));
-      b.Assemble();
-      b += b_li;
-   }
    // 2. make the bilinear form
    BilinearForm a(&fespace);
    RGridFunctionCoefficient r_coef;
@@ -98,18 +79,18 @@ int main(int argc, char *argv[])
 
    // // paraview
    {
-      ParaViewDataCollection paraview_dc("J_pol", &mesh);
+      ParaViewDataCollection paraview_dc("J_pol_Hdiv", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("J_pol", &J_pol);
+      paraview_dc.RegisterField("J_pol_Hdiv", &J_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/J_pol.gf");
+   ofstream sol_ofs("output/J_pol_Hdiv.gf");
    sol_ofs.precision(8);
    J_pol.Save(sol_ofs);
 

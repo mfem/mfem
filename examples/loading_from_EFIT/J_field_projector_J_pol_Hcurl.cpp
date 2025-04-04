@@ -98,18 +98,18 @@ int main(int argc, char *argv[])
 
    // // paraview
    {
-      ParaViewDataCollection paraview_dc("J_pol", &mesh);
+      ParaViewDataCollection paraview_dc("J_pol_Hcurl", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("J_pol", &J_pol);
+      paraview_dc.RegisterField("J_pol_Hcurl", &J_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/J_pol.gf");
+   ofstream sol_ofs("output/J_pol_Hcurl.gf");
    sol_ofs.precision(8);
    J_pol.Save(sol_ofs);
 
