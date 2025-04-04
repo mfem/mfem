@@ -11,6 +11,8 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include "linalg/dtensor.hpp"
+#include <math.h> // M_PI
 #include <fstream>
 #include <iostream>
 
@@ -101,20 +103,35 @@ void test_assembly_level(const char *meshname,
         << ", order=" << order << ", q_order=" << q_order << ", DG=" << dg
         << ", pb=" << getString(pb) << ", assembly=" << getString(assembly));
    Mesh mesh(meshname, 1, 1);
+   mesh.RemoveInternalBoundaries();
    mesh.EnsureNodes();
-   int dim = mesh.Dimension();
+   const int dim = mesh.Dimension();
 
-   FiniteElementCollection *fec;
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      mesh.SetAttribute(e, 1 + (e % 2));
+   }
+   for (int be = 0; be < mesh.GetNBE(); ++be)
+   {
+      mesh.SetBdrAttribute(be, 1 + (be % 2));
+   }
+   mesh.SetAttributes();
+
+   Array<int> elem_marker({1, 0}), bdr_marker({1, 0});
+   // Periodic meshes = no boundary attributes, don't use markers
+   if (mesh.bdr_attributes.Size() == 0) { bdr_marker.DeleteAll(); }
+
+   std::unique_ptr<FiniteElementCollection> fec;
    if (dg)
    {
-      fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      fec.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto));
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec.reset(new H1_FECollection(order, dim));
    }
 
-   FiniteElementSpace fespace(&mesh, fec);
+   FiniteElementSpace fespace(&mesh, fec.get());
 
    BilinearForm k_test(&fespace);
    BilinearForm k_ref(&fespace);
@@ -127,11 +144,19 @@ void test_assembly_level(const char *meshname,
    const IntegrationRule *ir =
       use_ir ? &IntRules.Get(mesh.GetTypicalElementGeometry(), q_order) : nullptr;
 
+   const IntegrationRule &ir_face =
+      IntRules.Get(mesh.GetTypicalFaceGeometry(), q_order);
+
    switch (pb)
    {
       case Problem::Mass:
-         k_ref.AddDomainIntegrator(new MassIntegrator(one,ir));
-         k_test.AddDomainIntegrator(new MassIntegrator(one,ir));
+         k_ref.AddDomainIntegrator(new MassIntegrator(one,ir), elem_marker);
+         k_test.AddDomainIntegrator(new MassIntegrator(one,ir), elem_marker);
+         if (!dg && mesh.Conforming() && assembly != AssemblyLevel::FULL)
+         {
+            k_ref.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face), bdr_marker);
+            k_test.AddBoundaryIntegrator(new MassIntegrator(one, &ir_face), bdr_marker);
+         }
          break;
       case Problem::Convection:
          AddConvectionIntegrators(k_ref, vel_coeff, dg);
@@ -168,8 +193,6 @@ void test_assembly_level(const char *meshname,
    y_test -= y_ref;
 
    REQUIRE(y_test.Norml2() < 1.e-12);
-
-   delete fec;
 }
 
 TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
@@ -227,6 +250,142 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
       }
    }
 } // H1 Assembly Levels test case
+
+TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][GPU]")
+{
+   const auto fname = GENERATE(
+                         "../../data/inline-quad.mesh",
+                         "../../data/star-q3.mesh",
+                         "../../data/inline-hex.mesh",
+                         "../../data/fichera-q2.mesh"
+                      );
+   const auto order = GENERATE(1, 2);
+   const auto problem = GENERATE(Problem::Mass, Problem::Diffusion);
+
+   CAPTURE(fname, order, getString(problem));
+
+   Mesh mesh(fname);
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
+
+   RT_FECollection fec(order - 1, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   std::unique_ptr<BilinearFormIntegrator> integ;
+   if (problem == Problem::Mass) { integ.reset(new VectorFEMassIntegrator); }
+   else if (problem == Problem::Diffusion) { integ.reset(new DivDivIntegrator); }
+
+   const FiniteElement &fe = *fes.GetFE(0);
+   {
+      ElementTransformation &T = *mesh.GetElementTransformation(0);
+      integ->SetIntegrationRule(MassIntegrator::GetRule(fe, fe, T));
+   }
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement*>(&fe);
+   MFEM_VERIFY(tbe, "");
+   const int ndof = fes.GetFE(0)->GetDof();
+   const Array<int> &dof_map = tbe->GetDofMap();
+
+   Vector ea_data(ne*ndof*ndof);
+   integ->AssembleEA(fes, ea_data, false);
+   const auto ea_mats = Reshape(ea_data.HostRead(), ndof, ndof, ne);
+
+   DenseMatrix elmat;
+   for (int e = 0; e < ne; ++e)
+   {
+      const FiniteElement &el = *fes.GetFE(e);
+      ElementTransformation &T = *mesh.GetElementTransformation(e);
+      integ->AssembleElementMatrix(el, T, elmat);
+
+      for (int i = 0; i < ndof; ++i)
+      {
+         const int ii_s = dof_map[i];
+         const int ii = ii_s >= 0 ? ii_s : -1 - ii_s;
+         const int s_i = ii_s >= 0 ? 1 : -1;
+         for (int j = 0; j < ndof; ++j)
+         {
+            const int jj_s = dof_map[j];
+            const int jj = jj_s >= 0 ? jj_s : -1 - jj_s;
+            const int s_j = jj_s >= 0 ? 1 : -1;
+            elmat(ii, jj) -= s_i*s_j*ea_mats(i, j, e);
+         }
+      }
+
+      REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0, 1e-10));
+   }
+}
+
+TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][GPU]")
+{
+   const auto fname = GENERATE(
+                         "../../data/inline-quad.mesh",
+                         "../../data/star-q3.mesh",
+                         "../../data/inline-hex.mesh",
+                         "../../data/fichera-q3.mesh"
+                      );
+   const int order = GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh(fname);
+   const int dim = mesh.Dimension();
+
+   RT_FECollection fec(order - 1, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   DG_Interface_FECollection hfec(order - 1, dim);
+   FiniteElementSpace hfes(&mesh, &hfec);
+
+   NormalTraceJumpIntegrator integ;
+
+   const int nf = mesh.GetNFbyType(FaceType::Interior);
+   const int ndof_trial = hfes.GetFaceElement(0)->GetDof();
+   const int ndof_test = fes.GetFE(0)->GetDof();
+   Vector emat(ndof_trial*ndof_test*2*nf);
+   integ.AssembleEAInteriorFaces(hfes, fes, emat, false);
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+   MFEM_VERIFY(tbe, "");
+   const Array<int> &dof_map = tbe->GetDofMap();
+
+   const auto e_mat = Reshape(emat.HostRead(), ndof_test, ndof_trial, 2, nf);
+
+   int fidx = 0;
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      if (!info.IsInterior()) { continue; }
+
+      const int el1 = info.element[0].index;
+      const int el2 = info.element[1].index;
+
+      FaceElementTransformations *FTr = mesh.GetInteriorFaceTransformations(f);
+
+      DenseMatrix elmat;
+      integ.AssembleFaceMatrix(*hfes.GetFaceElement(f),
+                               *fes.GetFE(el1),
+                               *fes.GetFE(el2),
+                               *FTr, elmat);
+      elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+      for (int ie = 0; ie < 2; ++ie)
+      {
+         for (int i_lex = 0; i_lex < ndof_test; ++i_lex)
+         {
+            const int i_s = dof_map[i_lex];
+            const int i = (i_s >= 0) ? i_s : -1 - i_s;
+            for (int j = 0; j < ndof_trial; ++j)
+            {
+               elmat(i + ie*ndof_test, j) -= e_mat(i_lex, j, ie, fidx);
+            }
+         }
+      }
+      REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0));
+
+      fidx++;
+   }
+}
 
 TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
 {
@@ -330,44 +489,6 @@ void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
    }
 
    REQUIRE(error == MFEM_Approx(0.0, 1e-10));
-}
-
-#ifdef MFEM_USE_MPI
-
-void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
-{
-   HYPRE_BigInt *cmap1, *cmap2;
-   SparseMatrix diag1, offd1, diag2, offd2;
-
-   A1.GetDiag(diag1);
-   A2.GetDiag(diag2);
-   A1.GetOffd(offd1, cmap1);
-   A2.GetOffd(offd2, cmap2);
-
-   CompareMatricesNonZeros(diag1, diag2);
-
-   if (cmap1)
-   {
-      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
-      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
-      CompareMatricesNonZeros(offd1, offd2, cmap1, &cmap2inv);
-   }
-   else
-   {
-      CompareMatricesNonZeros(offd1, offd2);
-   }
-}
-
-void TestSameHypreMatrices(OperatorHandle &A1, OperatorHandle &A2)
-{
-   HypreParMatrix *M1 = A1.Is<HypreParMatrix>();
-   HypreParMatrix *M2 = A2.Is<HypreParMatrix>();
-
-   REQUIRE(M1 != NULL);
-   REQUIRE(M2 != NULL);
-
-   CompareMatricesNonZeros(*M1, *M2);
-   CompareMatricesNonZeros(*M2, *M1);
 }
 
 void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
@@ -477,6 +598,44 @@ TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [GPU]")
    mesh.FinalizeMesh();
 
    TestH1FullAssembly(mesh, order);
+}
+
+#ifdef MFEM_USE_MPI
+
+void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
+{
+   HYPRE_BigInt *cmap1, *cmap2;
+   SparseMatrix diag1, offd1, diag2, offd2;
+
+   A1.GetDiag(diag1);
+   A2.GetDiag(diag2);
+   A1.GetOffd(offd1, cmap1);
+   A2.GetOffd(offd2, cmap2);
+
+   CompareMatricesNonZeros(diag1, diag2);
+
+   if (cmap1)
+   {
+      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
+      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
+      CompareMatricesNonZeros(offd1, offd2, cmap1, &cmap2inv);
+   }
+   else
+   {
+      CompareMatricesNonZeros(offd1, offd2);
+   }
+}
+
+void TestSameHypreMatrices(OperatorHandle &A1, OperatorHandle &A2)
+{
+   HypreParMatrix *M1 = A1.Is<HypreParMatrix>();
+   HypreParMatrix *M2 = A2.Is<HypreParMatrix>();
+
+   REQUIRE(M1 != NULL);
+   REQUIRE(M2 != NULL);
+
+   CompareMatricesNonZeros(*M1, *M2);
+   CompareMatricesNonZeros(*M2, *M1);
 }
 
 TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
