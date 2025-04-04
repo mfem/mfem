@@ -79,52 +79,50 @@ int main(int argc, char *argv[])
    cout << B_pol.FESpace()->GetTrueVSize() << endl;
    B_pol = 0.0;
 
-   {
-      LinearForm b(&fespace);
+   LinearForm b(&fespace);
 
-      // project the grid function onto the new space
-      // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+   // project the grid function onto the new space
+   // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
-      // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(psi.FESpace(), &fespace);
-      DenseMatrix perp_rotation(dim);
-      perp_rotation(0, 0) = 0.0;
-      perp_rotation(0, 1) = 1.0;
-      perp_rotation(1, 0) = -1.0;
-      perp_rotation(1, 1) = 0.0;
-      MatrixConstantCoefficient perp_rot_coef(perp_rotation);
-      b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(perp_rot_coef));
-      b_bi.Assemble();
+   // 1.a make the RHS bilinear form
+   MixedBilinearForm b_bi(psi.FESpace(), &fespace);
+   DenseMatrix perp_rotation(dim);
+   perp_rotation(0, 0) = 0.0;
+   perp_rotation(0, 1) = 1.0;
+   perp_rotation(1, 0) = -1.0;
+   perp_rotation(1, 1) = 0.0;
+   MatrixConstantCoefficient perp_rot_coef(perp_rotation);
+   b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(perp_rot_coef));
+   b_bi.Assemble();
 
-      // 1.b form linear form from bilinear form
-      LinearForm b_li(&fespace);
-      b_bi.Mult(psi, b_li);
-      PsiGridFunctionCoefficient psi_coef(&psi, false);
-      b.Assemble();
-      b += b_li;
+   // 1.b form linear form from bilinear form
+   LinearForm b_li(&fespace);
+   b_bi.Mult(psi, b_li);
+   PsiGridFunctionCoefficient psi_coef(&psi, false);
+   b.Assemble();
+   b += b_li;
 
-      // 2. make the bilinear form
-      BilinearForm a(&fespace);
-      RGridFunctionCoefficient r_coef;
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
-      a.Assemble();
-      a.Finalize();
+   // 2. make the bilinear form
+   BilinearForm a(&fespace);
+   RGridFunctionCoefficient r_coef;
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coef));
+   a.Assemble();
+   a.Finalize();
 
-      // 3. solve the system
-      CGSolver M_solver;
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-24);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(1e5);
-      M_solver.SetPrintLevel(1);
-      M_solver.SetOperator(a.SpMat());
+   // 3. solve the system
+   CGSolver M_solver;
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-24);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(1e5);
+   M_solver.SetPrintLevel(1);
+   M_solver.SetOperator(a.SpMat());
 
-      Vector X(B_pol.Size());
-      X = 0.0;
-      M_solver.Mult(b, X);
+   Vector X(B_pol.Size());
+   X = 0.0;
+   M_solver.Mult(b, X);
 
-      B_pol.SetFromTrueDofs(X);
-   }
+   B_pol.SetFromTrueDofs(X);
 
    if (visualization)
    {
