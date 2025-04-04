@@ -35,8 +35,13 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
-   RPerpMatrixGridFunctionCoefficient r_perp_coef(false);
+   RPerpMatrixGridFunctionCoefficient r_perp_coef(true);
    b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(r_perp_coef));
+   Vector zero_one(2);
+   zero_one(0) = 0.0;
+   zero_one(1) = 1.0;
+   VectorConstantCoefficient zero_one_coef(zero_one);
+   b_bi.AddDomainIntegrator(new MixedVectorProductIntegrator(zero_one_coef));
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
