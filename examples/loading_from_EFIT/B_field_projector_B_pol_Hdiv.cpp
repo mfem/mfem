@@ -98,7 +98,6 @@ int main(int argc, char *argv[])
    // 1.b form linear form from bilinear form
    LinearForm b_li(&fespace);
    b_bi.Mult(psi, b_li);
-   PsiGridFunctionCoefficient psi_coef(&psi, false);
    b.Assemble();
    b += b_li;
 
