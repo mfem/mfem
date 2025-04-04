@@ -12,8 +12,8 @@
 #include "unit_tests.hpp"
 
 #include "mfem.hpp"
-
 #include "fem/dfem/doperator.hpp"
+#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "linalg/tensor.hpp"
 
 using namespace mfem;
@@ -23,8 +23,7 @@ using DOperator = DifferentiableOperator;
 namespace dfem_pa_kernels
 {
 
-template <int DIM>
-struct Diffusion
+template <int DIM> struct Diffusion
 {
    using vecd_t = tensor<real_t, DIM>;
    using matd_t = tensor<real_t, DIM, DIM>;
@@ -63,28 +62,34 @@ struct Diffusion
 };
 
 template <int DIM>
-void DFemDiffusion(const char *filename, const int p, const int q_inc)
+void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
 {
-   CAPTURE(filename, DIM, p, q_inc);
+   CAPTURE(filename, DIM, p, r);
 
    Mesh smesh(filename);
-   smesh.EnsureNodes();
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
    MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
-   pmesh.SetCurvature(p); // 🔥 necessary with 3D q3 ?!
+
+   pmesh.EnsureNodes();
    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
    smesh.Clear();
 
-   Array<int> all_domain_attr(pmesh.bdr_attributes.Max());
-   all_domain_attr = 1;
+   Array<int> all_domain_attr;
+   if (pmesh.bdr_attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.bdr_attributes.Max());
+      all_domain_attr = 1;
+   }
 
    H1_FECollection fec(p, DIM);
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p + q_inc;
+   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p + r;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
+   MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    x.Randomize(1);
@@ -104,6 +109,20 @@ void DFemDiffusion(const char *filename, const int p, const int q_inc)
    blf_fa.Assemble();
    blf_fa.Finalize();
 
+   SECTION("Partial assembly")
+   {
+      ParBilinearForm blf_pa(&pfes);
+      blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
+      blf_pa.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf_pa.Assemble();
+      blf_pa.Mult(x, z);
+      blf_fa.Mult(x, y);
+      y -= z;
+      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+   }
+
+   if (no_dfem) { return; } // Skip if DFEM is disabled
+
    QuadratureSpace qs(pmesh, *ir);
    CoefficientVector rho_coeff_cv(rho_coeff, qs);
    REQUIRE(rho_coeff_cv.GetVDim() == 1);
@@ -112,17 +131,18 @@ void DFemDiffusion(const char *filename, const int p, const int q_inc)
    const int rho_local_size = 1;
    const int rho_elem_size(rho_local_size * ir->GetNPoints());
    const int rho_total_size(rho_elem_size * NE);
-   // 🔥 2D workaround for is_none_fop Reshape access
+#warning 🔥 2D workaround for is_none_fop Reshape access
    ParametricSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
                           DIM == 3 ? d1d : d1d * d1d,
                           DIM == 3 ? q1d : q1d * q1d);
 
-   static constexpr int U = 0, Coords = 1, QData = 2, Rho = 3;
+   static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   SECTION("Matrix free")
+#warning 🔥 2D parallel errors
+   SECTION("DFEM Matrix free")
    {
-      DOperator dop_mf(sol, { { Rho, &rho_ps }, { Coords, mfes } }, pmesh);
+      DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  mfem::tuple{ Gradient<U>{}, None<Rho>{},
@@ -136,20 +156,21 @@ void DFemDiffusion(const char *filename, const int p, const int q_inc)
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
    }
 
-   SECTION("Partial assembly")
+#warning 🔥 3D parallel errors
+   SECTION("DFEM Partial assembly")
    {
+      static constexpr int QData = 2;
       const int qd_local_size = DIM * DIM;
       const int qd_elem_size(qd_local_size * ir->GetNPoints());
       const int qd_total_size(qd_elem_size * NE);
-      // 🔥 2D workaround for is_none_fop Reshape access
+#warning 🔥 2D workaround for is_none_fop Reshape access
       ParametricSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
                             DIM == 3 ? d1d : d1d * d1d,
                             DIM == 3 ? q1d : q1d * q1d);
       ParametricFunction qdata(qd_ps);
       qdata.UseDevice(true);
 
-      DOperator dSetup(
-      sol, { { Rho, &rho_ps }, { Coords, mfes }, { QData, &qd_ps } }, pmesh);
+      DOperator dSetup(sol, {{Rho, &rho_ps}, {Coords, mfes}, {QData, &qd_ps}}, pmesh);
       typename Diffusion<DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
@@ -160,9 +181,10 @@ void DFemDiffusion(const char *filename, const int p, const int q_inc)
 
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
       typename Diffusion<DIM>::PAApply pa_apply_qf;
-      dop_pa.AddDomainIntegrator(
-         pa_apply_qf, mfem::tuple{ Gradient<U>{}, None<QData>{} },
-         mfem::tuple{ Gradient<U>{} }, *ir, all_domain_attr);
+      dop_pa.AddDomainIntegrator(pa_apply_qf,
+                                 mfem::tuple{ Gradient<U>{}, None<QData>{} },
+                                 mfem::tuple{ Gradient<U>{} },
+                                 *ir, all_domain_attr);
       dop_pa.SetParameters({ &qdata });
       dop_pa.Mult(x, z);
       blf_fa.Mult(x, y);
@@ -173,32 +195,36 @@ void DFemDiffusion(const char *filename, const int p, const int q_inc)
 
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 {
+   using Grad = QuadratureInterpolator::GradKernels;
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add();
+
+   static const bool no_dfem = ::getenv("MFEM_NO_DFEM") != nullptr;
    const bool all_tests = launch_all_non_regression_tests;
 
-   const auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 2, 3);
+   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
 
-   SECTION("2D order " + std::to_string(order) + " q_order_inc " +
-           std::to_string(q_order_inc))
+   SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
          GENERATE("../../data/star.mesh",
                   "../../data/star-q3.mesh",
-                  "../../data/inline-quad.mesh"
-                  // "../../data/periodic-square.mesh", // ❌
-                 );
-      DFemDiffusion<2>(filename, order, q_order_inc);
+                  "../../data/rt-2d-q3.mesh",
+                  "../../data/inline-quad.mesh",
+                  "../../data/periodic-square.mesh");
+      DFemDiffusion<2>(filename, p, r, no_dfem);
    }
 
-   SECTION("3D order " + std::to_string(order) + " q_order_inc " +
-           std::to_string(q_order_inc))
+   SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
          GENERATE("../../data/fichera.mesh",
                   "../../data/fichera-q3.mesh",
                   "../../data/inline-hex.mesh",
+                  "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
-      DFemDiffusion<3>(filename, order, q_order_inc);
+      DFemDiffusion<3>(filename, p, r, no_dfem);
    }
 }
 

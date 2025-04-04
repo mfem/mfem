@@ -470,12 +470,13 @@ void DifferentiableOperator::AddDomainIntegrator(
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
+      const bool has_attr = domain_attributes.Size() > 0;
       const auto d_domain_attr = domain_attributes.Read();
       const auto d_elem_attr = elem_attributes.Read();
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         if (!d_domain_attr[d_elem_attr[e] - 1]) { return; }
+         if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
