@@ -876,7 +876,7 @@ void EABilinearFormExtension::Assemble()
             ea_data_tmp.SetSize(ea_data.Size());
             integrators[i]->AssembleEA(*a->FESpace(), ea_data_tmp, false);
             add_with_markers(ea_data_tmp, ea_data, ne, *markers,
-                             elem_attributes, add);
+                             *elem_attributes, add);
          }
       }
    }
@@ -905,7 +905,7 @@ void EABilinearFormExtension::Assemble()
             ea_data_tmp.SetSize(ea_data_bdr.Size());
             bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
-                             bdr_attributes, add);
+                             *bdr_attributes, add);
          }
       }
    }
@@ -954,7 +954,7 @@ void EABilinearFormExtension::Assemble()
                                                         ea_data_tmp,
                                                         add);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
-                             bdr_attributes, add);
+                             *bdr_attributes, add);
          }
       }
    }
