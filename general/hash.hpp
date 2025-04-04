@@ -99,7 +99,7 @@ public:
    ~HashTable();
 
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
-       construct an item of type T if no value correspond to the requested key.
+       construct an item of type T if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -135,7 +135,7 @@ public:
 
    /** @brief Get the "id" of an item, this "id" corresponding to the index of the
        item in the underlying BlockArray<T> object. Default construct an item
-       and id if no value correspond to the requested key.
+       and id if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -148,7 +148,7 @@ public:
 
    /// Find item whose parents are p1, p2... Return NULL if it doesn't exist.
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Return
-       nullptr if no value correspond to the requested key.
+       nullptr if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -159,7 +159,7 @@ public:
 
    /** @brief Item accessor with key (or parents) the quadruplet 'p1', 'p2',
        'p3', 'p4'. The key 'p4' is optional. Return nullptr if no value
-       correspond to the requested key.
+       corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -171,7 +171,7 @@ public:
    T* Find(int p1, int p2, int p3, int p4 = -1);
 
    /** @brief Item const accessor with key (or parents) the pair 'p1', 'p2'.
-       Return nullptr if no value correspond to the requested key.
+       Return nullptr if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -182,7 +182,7 @@ public:
 
    /** @brief Item const accessor with key (or parents) the quadruplet 'p1',
        'p2', 'p3', 'p4'. The key 'p4' is optional. Return nullptr if no value
-       correspond to the requested key.
+       corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -196,7 +196,7 @@ public:
    /// Find id of item whose parents are p1, p2... Return -1 if it doesn't exist.
    /** @brief Find the "id" of an item, this "id" corresponding to the index of
        the item in the underlying BlockArray<T> object. Default construct an
-       item and id if no value correspond to the requested key.
+       item and id if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -207,7 +207,7 @@ public:
 
    /** @brief Find the "id" of an item, this "id" corresponding to the index of
        the item in the underlying BlockArray<T> object. Default construct an
-       item and id if no value correspond to the requested key.
+       item and id if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.

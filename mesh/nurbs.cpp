@@ -652,7 +652,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    // Solve problems
    A.Invert();
    Vector tmp;
-   for (int i= 0; i < x.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
       tmp = *x[i];
       A.Mult(tmp,*x[i]);
@@ -2186,7 +2186,7 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      el_to_IJK(orig.el_to_IJK),
      bel_to_IJK(orig.bel_to_IJK),
      patches(orig.patches.Size()), // patches are copied in the body
-     npatch(orig.npatch),
+     num_structured_patches(orig.num_structured_patches),
      patchCP(orig.patchCP),
      validV2K(orig.validV2K),
      kvf(orig.kvf),
@@ -3810,17 +3810,15 @@ void NURBSExtension::GenerateOffsets()
       masterFaceSlaves.clear();
       masterFaceSlaveCorners.clear();
       masterFaceSizes.clear();
-      masterFaceVerts.clear();
 
       masterFaceSlaves.resize(masterFaceIndex.Size());
       masterFaceSlaveCorners.resize(masterFaceIndex.Size());
       masterFaceSizes.resize(masterFaceIndex.Size());
-      masterFaceVerts.resize(masterFaceIndex.Size());
 
       masterFaceS0.resize(masterFaceIndex.Size());
       masterFaceRev.resize(masterFaceIndex.Size());
 
-      for (unsigned int i=0; i<masterFaceSizes.size(); ++i)
+      for (size_t i=0; i<masterFaceSizes.size(); ++i)
       {
          masterFaceSizes[i].resize(2);
          masterFaceS0[i].resize(2);
@@ -3985,7 +3983,6 @@ void NURBSExtension::GenerateOffsets()
 
          masterFaceSlaves.resize(masterFaceIndex.Size());
          masterFaceSlaveCorners.resize(masterFaceIndex.Size());
-         masterFaceVerts.resize(masterFaceIndex.Size());
 
          ProcessFacePairs(nfp0, npf0, parentN1, parentN2, parentVerts, facePairs);
       }
@@ -4179,8 +4176,7 @@ void NURBSExtension::SetDofToPatch()
          if (masterEdges.count(e) > 0)
          {
             Array<int> mdof;
-            GetMasterEdgeDofs(e, v_spaceOffsets, e_spaceOffsets,
-                              aux_e_spaceOffsets, mdof);
+            GetMasterEdgeDofs(true, e, mdof);
             for (auto dof : mdof)
             {
                dof2patch[dof] = p;
@@ -4197,14 +4193,7 @@ void NURBSExtension::SetDofToPatch()
             if (masterFaces.count(f) > 0)
             {
                Array2D<int> mdof;
-               GetMasterFaceDofs(true, f,
-                                 v_spaceOffsets,
-                                 e_spaceOffsets,
-                                 f_spaceOffsets,
-                                 aux_e_spaceOffsets,
-                                 aux_f_spaceOffsets,
-                                 mdof);
-
+               GetMasterFaceDofs(true, f, mdof);
                for (int j=0; j<mdof.NumCols(); ++j)
                   for (int k=0; k<mdof.NumRows(); ++k)
                   {
@@ -5666,9 +5655,9 @@ int NURBSExtension::SetPatchFactors(int p)
 void NURBSExtension::PropagateFactorsForKV(int rf_default)
 {
    const int dim = Dimension();
-   if (dim == 1 || npatch < 1)
+   if (dim == 1 || num_structured_patches < 1)
    {
-      for (int i=0; i<kvf.size(); ++i)
+      for (size_t i=0; i<kvf.size(); ++i)
       {
          kvf[i] = rf_default;
       }
@@ -6053,7 +6042,7 @@ void NURBSExtension::Refine(const Array<int> *rf)
             }
          }
 
-         if (p >= npatch)
+         if (p >= num_structured_patches)
          {
             for (int i=0; i<dim; ++i)
             {
@@ -6077,44 +6066,6 @@ void NURBSExtension::Refine(const Array<int> *rf)
       patchTopo->ncmesh->RefineVertexToKnot(kvf, knotVectors, parentToKV);
       RefineKnotIndices(ref_factors);
       UpdateCoarseKVF();
-   }
-}
-
-void ApplyFineToCoarse(const Array<int> &f, Array<int> &c)
-{
-   MFEM_VERIFY(f.Size() == c.Sum(), "");
-   bool consistent = true;
-   int os = 0;
-   for (int j=0; j<c.Size(); ++j)
-   {
-      const int cf = c[j];
-      const int ff = f[os];
-      for (int i=0; i<cf; ++i)
-      {
-         if (f[os + i] != ff)
-         {
-            consistent = false;
-         }
-      }
-
-      c[j] *= ff;
-
-      os += cf;
-   }
-
-   MFEM_VERIFY(consistent, "");
-}
-
-void NURBSExtension::UpdateCoarseKVF()
-{
-   if (kvf_coarse.size() == 0)
-   {
-      return;
-   }
-
-   for (int k=0; k<NumOfKnotVectors; ++k)
-   {
-      ApplyFineToCoarse(kvf[k], kvf_coarse[k]);
    }
 }
 
@@ -6191,7 +6142,7 @@ void NURBSExtension::FullyCoarsen()
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      if (p < npatch)
+      if (p < num_structured_patches)
       {
          // Use data from patchCP
          Array2D<double> pcp(ncp, Dimension());
@@ -6751,7 +6702,7 @@ int NURBSExtension::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 // TODO: rename this.
 void NURBSExtension::ReadPatchCP(std::istream &input)
 {
-   input >> npatch;
+   input >> num_structured_patches;
 
    const int maxOrder = mOrders.Max();
 
@@ -6761,8 +6712,8 @@ void NURBSExtension::ReadPatchCP(std::istream &input)
    const int ncp1D = maxOrder + 1;
    const int ncp = pow(ncp1D, Dimension());
 
-   patchCP.SetSize(npatch, ncp, Dimension());
-   for (int p=0; p<npatch; ++p)
+   patchCP.SetSize(num_structured_patches, ncp, Dimension());
+   for (int p=0; p<num_structured_patches; ++p)
    {
       for (int i=0; i<ncp; ++i)
       {
@@ -6779,7 +6730,7 @@ void NURBSExtension::PrintCoarsePatches(std::ostream &os)
    const int maxOrder = mOrders.Max();
 
    const int patchCP_size1 = patchCP.GetSize1();
-   MFEM_VERIFY(patchCP_size1 == npatch || patchCP_size1 == 0, "");
+   MFEM_VERIFY(patchCP_size1 == num_structured_patches || patchCP_size1 == 0, "");
 
    if (patchCP_size1 == 0)
    {
@@ -6792,8 +6743,8 @@ void NURBSExtension::PrintCoarsePatches(std::ostream &os)
    const int ncp1D = maxOrder + 1;
    const int ncp = pow(ncp1D, Dimension());
 
-   os << "\npatch_cp\n" << npatch << "\n";
-   for (int p=0; p<npatch; ++p)
+   os << "\npatch_cp\n" << num_structured_patches << "\n";
+   for (int p=0; p<num_structured_patches; ++p)
    {
       for (int i=0; i<ncp; ++i)
       {
@@ -7443,6 +7394,44 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
       }
 
       pOffset = Ext->f_spaceOffsets[faces[0]];
+   }
+}
+
+void ApplyFineToCoarse(const Array<int> &f, Array<int> &c)
+{
+   MFEM_VERIFY(f.Size() == c.Sum(), "");
+   bool consistent = true;
+   int os = 0;
+   for (int j=0; j<c.Size(); ++j)
+   {
+      const int cf = c[j];
+      const int ff = f[os];
+      for (int i=0; i<cf; ++i)
+      {
+         if (f[os + i] != ff)
+         {
+            consistent = false;
+         }
+      }
+
+      c[j] *= ff;
+
+      os += cf;
+   }
+
+   MFEM_VERIFY(consistent, "");
+}
+
+void NURBSExtension::UpdateCoarseKVF()
+{
+   if (kvf_coarse.size() == 0)
+   {
+      return;
+   }
+
+   for (int k=0; k<NumOfKnotVectors; ++k)
+   {
+      ApplyFineToCoarse(kvf[k], kvf_coarse[k]);
    }
 }
 

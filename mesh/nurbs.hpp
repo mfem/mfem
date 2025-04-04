@@ -632,7 +632,7 @@ protected:
    std::vector<std::vector<int>> slaveToMasterEdges, slaveToMasterFaces;
    std::vector<std::vector<int>> masterEdgeSlaves, masterFaceSlaves,
        masterFaceSlaveCorners;
-   std::vector<std::vector<int>> masterEdgeVerts, masterFaceVerts;
+   std::vector<std::vector<int>> masterEdgeVerts;
    std::vector<std::vector<int>> masterEdgeKI;
    std::vector<std::vector<int>> masterFaceSizes, masterFaceS0;
    std::vector<bool> masterFaceRev;
@@ -782,17 +782,9 @@ protected:
    /// Set @a patch_to_bel.
    void SetPatchToBdrElements();
 
-   void GetMasterEdgeDofs(int edge, const Array<int> &v_offsets,
-                          const Array<int> &e_offsets,
-                          const Array<int> &aux_e_offsets,
-                          Array<int> &dofs) const;
+   void GetMasterEdgeDofs(bool dof, int edge, Array<int> &dofs) const;
 
-   void GetMasterFaceDofs(bool dof, int face, const Array<int> &v_offsets,
-                          const Array<int> &e_offsets,
-                          const Array<int> &f_offsets,
-                          const Array<int> &aux_e_offsets,
-                          const Array<int> &aux_f_offsets,
-                          Array2D<int> &dofs) const;
+   void GetMasterFaceDofs(bool dof, int face, Array2D<int> &dofs) const;
 
    void GetFaceOrdering(int face, int n1, int n2, int v0, int e1, int e2,
                         Array<int> &perm) const;
@@ -803,6 +795,10 @@ protected:
 private:
    void GetVertexDofs(int index, Array<int> &dofs) const;
    int GetEdgeDofs(int index, Array<int> &dofs) const;
+
+   int GetEdgeOffset(bool dof, int edge, int increment) const;
+
+   int GetFaceOffset(bool dof, int face, int increment) const;
 
    // Not const, because it modifies auxFaces.
    void FindAdditionalSlaveAndAuxiliaryFaces(
@@ -836,7 +832,7 @@ private:
 
    void Refine(const Array<int> *rf=nullptr);
 
-   int npatch = 0;
+   int num_structured_patches = 0; /// Number of structured patches
    Array3D<double> patchCP;
 
    bool validV2K = true;
