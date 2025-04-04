@@ -5107,8 +5107,8 @@ void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
 
 void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
                                 const Array<KnotVector*> &kvext,
-                                std::map<std::pair<int,int>,
-                                std::pair<int,int>> &parentToKV)
+                                std::map<std::pair<int, int>,
+                                std::array<int, 2>> &parentToKV)
 {
    // Note that entries 1 and 2 of vertex_to_knot are (k1, k2), which are knot
    // span (element) indices in the two dimensions of a patch face.
@@ -5134,15 +5134,13 @@ void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
          const int idmin = std::distance(pv.begin(), pvmin);
          const int c0 = pv[idmin];  // First corner
          const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
-
          const std::pair<int, int> parentPair(c0, c1);
+         const std::array<int, 2> kv = parentToKV.at(parentPair);
 
-         const std::pair<int, int> kv = parentToKV.at(parentPair);
-
-         RemapKnotIndex(edgeReverse[0], kvf[kv.first],
-                        kvext[kv.first]->spacing.get(), ks[0]);
-         RemapKnotIndex(edgeReverse[1], kvf[kv.second],
-                        kvext[kv.second]->spacing.get(), ks[1]);
+         RemapKnotIndex(edgeReverse[0], kvf[kv[0]],
+                        kvext[kv[0]]->spacing.get(), ks[0]);
+         RemapKnotIndex(edgeReverse[1], kvf[kv[1]],
+                        kvext[kv[1]]->spacing.get(), ks[1]);
 
          vertex_to_knot.SetKnotSpans3D(i, ks);
       }
@@ -5153,8 +5151,8 @@ void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
          vertex_to_knot.GetVertex2D(i, tv, ks, pv);
          const bool rev = pv[1] < pv[0];
          const std::pair<int, int> parentPair(rev ? pv[1] : pv[0], rev ? pv[0] : pv[1]);
-         const std::pair<int, int> kv = parentToKV.at(parentPair);
-         const int kvId = kv.first;
+         const std::array<int, 2> kv = parentToKV.at(parentPair);
+         const int kvId = kv[0];
          RemapKnotIndex(rev, kvf[kvId],
                         kvext[kvId]->spacing.get(), ks);
          vertex_to_knot.SetKnotSpan2D(i, ks);

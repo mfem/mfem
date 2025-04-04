@@ -595,6 +595,8 @@ protected:
    std::vector<AuxiliaryEdge> auxEdges;
    std::vector<AuxiliaryFace> auxFaces;
 
+   std::map<std::pair<int, int>, int> auxv2e, auxv2f;
+
    std::map<std::pair<int, int>, int> v2e;
 
    Array<int> ref_factors;
@@ -640,7 +642,7 @@ protected:
    bool nonconforming = false;
    std::map<int,int> e2nce;
 
-   std::map<std::pair<int,int>, std::pair<int,int>> parentToKV;
+   std::map<std::pair<int, int>, std::array<int, 2>> parentToKV;
 
    void RefineKnotIndices(Array<int> const& rf);
 

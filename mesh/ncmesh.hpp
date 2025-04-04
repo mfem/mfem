@@ -387,8 +387,8 @@ public:
    /// Remap knot-span indices @a vertex_to_knot after refinement.
    void RefineVertexToKnot(const std::vector<Array<int>> &kvf,
                            const Array<KnotVector*> &kvext,
-                           std::map<std::pair<int,int>,
-                           std::pair<int,int>> &parentToKV);
+                           std::map<std::pair<int, int>,
+                           std::array<int, 2>> &parentToKV);
 
    // coarse/fine transforms
 
