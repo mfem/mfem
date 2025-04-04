@@ -546,7 +546,10 @@ inline void PADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,
+      d1d = proteus::jit_variable(d1d),
+      q1d = proteus::jit_variable(q1d)
+   ] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -644,7 +647,10 @@ inline void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
+// Use proteus to remove the template parameters, remove code bloat and
+// compilation time.
 template<int T_D1D = 0, int T_Q1D = 0>
+__attribute__((used))
 inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
@@ -670,7 +676,11 @@ inline void SmemPADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ,
+      proteus::register_lambda([=,
+      d1d = proteus::jit_variable(d1d),
+      q1d = proteus::jit_variable(q1d)
+   ] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -800,7 +810,7 @@ inline void SmemPADiffusionApply2D(const int NE,
             Y(dx,dy,e) += (u + v);
          }
       }
-   });
+   }));
 }
 
 // PA Diffusion Apply 3D kernel
