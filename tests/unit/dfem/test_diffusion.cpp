@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "unit_tests.hpp"
+
 #include "mfem.hpp"
 
 #include "fem/dfem/doperator.hpp"
@@ -17,229 +18,187 @@
 
 using namespace mfem;
 using mfem::internal::tensor;
+using DOperator = DifferentiableOperator;
 
 namespace dfem_pa_kernels
 {
 
-/*real_t rho(const Vector &x)
+template <int DIM>
+struct Diffusion
 {
-   real_t r = pow(x(0), 2);
-   if (x.Size() >= 2) { r += pow(x(1), 3); }
-   if (x.Size() >= 3) { r += pow(x(2), 4); }
-   return r;
-}*/
+   using vecd_t = tensor<real_t, DIM>;
+   using matd_t = tensor<real_t, DIM, DIM>;
 
-TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
+   struct MFApply
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const vecd_t &dudxi,
+                                              const real_t &rho,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         const auto invJ = inv(J), TinJ = transpose(invJ);
+         return mfem::tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
+      }
+   };
+
+   struct PASetup
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const real_t &u,
+                                              const real_t &rho,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         return mfem::tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
+      }
+   };
+
+   struct PAApply
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const vecd_t &dudxi,
+                                              const matd_t &q) const
+      {
+         return mfem::tuple{ q * dudxi };
+      };
+   };
+};
+
+template <int DIM>
+void DFemDiffusion(const char *filename, const int p, const int q_inc)
 {
-   const bool all_tests = launch_all_non_regression_tests;
-
-   const auto filename = GENERATE("../../data/star.mesh",
-                                  "../../data/star-q3.mesh",
-                                  "../../data/fichera.mesh",
-                                  "../../data/fichera-q3.mesh");
-
-   const auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 2, 3);
+   CAPTURE(filename, DIM, p, q_inc);
 
    Mesh smesh(filename);
    smesh.EnsureNodes();
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
-   pmesh.SetCurvature(order); // 🔥 necessary with 3D q3 ?!
-   auto *nodes = static_cast<ParGridFunction*>(pmesh.GetNodes());
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
+   pmesh.SetCurvature(p); // 🔥 necessary with 3D q3 ?!
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
    smesh.Clear();
 
-   const int dim = pmesh.Dimension();
+   Array<int> all_domain_attr(pmesh.bdr_attributes.Max());
+   all_domain_attr = 1;
 
-   H1_FECollection fec(order, dim);
+   H1_FECollection fec(p, DIM);
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   // L2_FECollection l2fec(0, dim);
-   // ParFiniteElementSpace l2fes(&pmesh, &l2fec);
+   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p + q_inc;
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
+   const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
 
-   const int q_order = 2 * order + q_order_inc;
-   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q_order);
-
-   const int d1d(order + 1),
-         q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
-   mfem::out << "\x1b[33m"
-             << " filename: " << filename
-             << " order: " << order
-             << " dim: " << dim
-             << " d1d: " << d1d
-             << " q1d: " << q1d
-             << "\x1b[m" << std::endl;
-
-   if (dim == 2) { assert(q1d*q1d == ir->GetNPoints()); }
-   if (dim == 3) { assert(q1d*q1d*q1d == ir->GetNPoints()); }
-
-   ParGridFunction x(&pfes), y_fa(&pfes), y_dfem(&pfes);
+   ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    x.Randomize(1);
 
-   // FunctionCoefficient rho_coeff(rho);
-   ConstantCoefficient rho_coeff(1.0);
+   auto rho = [](const Vector &xyz)
+   {
+      const real_t x = xyz(0), y = xyz(1), z = DIM == 3 ? xyz(2) : 0.0;
+      real_t r = M_PI * pow(x, 2);
+      if (DIM >= 2) { r += pow(y, 3); }
+      if (DIM >= 3) { r += pow(z, 4); }
+      return r;
+   };
+   FunctionCoefficient rho_coeff(rho);
 
    ParBilinearForm blf_fa(&pfes);
    blf_fa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   Array<int> all_domain_attr(pmesh.bdr_attributes.Max());
-   all_domain_attr = 1;
+   QuadratureSpace qs(pmesh, *ir);
+   CoefficientVector rho_coeff_cv(rho_coeff, qs);
+   REQUIRE(rho_coeff_cv.GetVDim() == 1);
+   REQUIRE(rho_coeff_cv.Size() == q1d * q1d * (DIM == 3 ? q1d : 1) * NE);
 
+   const int rho_local_size = 1;
+   const int rho_elem_size(rho_local_size * ir->GetNPoints());
+   const int rho_total_size(rho_elem_size * NE);
+   // 🔥 2D workaround for is_none_fop Reshape access
+   ParametricSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
+                          DIM == 3 ? d1d : d1d * d1d,
+                          DIM == 3 ? q1d : q1d * q1d);
+
+   static constexpr int U = 0, Coords = 1, QData = 2, Rho = 3;
+   const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
+
+   SECTION("Matrix free")
    {
-      // ParGridFunction l2_rho_gf(&l2fes);
-      // l2_rho_gf.ProjectCoefficient(rho_coeff);
+      DOperator dop_mf(sol, { { Rho, &rho_ps }, { Coords, mfes } }, pmesh);
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
+      dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                 mfem::tuple{ Gradient<U>{}, None<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                 mfem::tuple{ Gradient<U>{} }, *ir,
+                                 all_domain_attr);
+      dop_mf.SetParameters({ &rho_coeff_cv, nodes });
+      dop_mf.Mult(x, z);
+      blf_fa.Mult(x, y);
+      y -= z;
+      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+   }
 
-      // ParGridFunction rho_gf(&l2fes0);
-      // rho_gf.ProjectCoefficient(rho_coeff);
-      // rho_gf.ProjectGridFunction(l2_rho_gf);
-      // rho_g = 2.0;
+   SECTION("Partial assembly")
+   {
+      const int qd_local_size = DIM * DIM;
+      const int qd_elem_size(qd_local_size * ir->GetNPoints());
+      const int qd_total_size(qd_elem_size * NE);
+      // 🔥 2D workaround for is_none_fop Reshape access
+      ParametricSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
+                            DIM == 3 ? d1d : d1d * d1d,
+                            DIM == 3 ? q1d : q1d * q1d);
+      ParametricFunction qdata(qd_ps);
+      qdata.UseDevice(true);
 
-      // QuadratureSpace qs(pmesh, *ir);
-      // CoefficientVector coeff(rho_coeff, qs, CoefficientStorage::FULL);
-      // assert(coeff.GetVDim() == 1);
+      DOperator dSetup(
+      sol, { { Rho, &rho_ps }, { Coords, mfes }, { QData, &qd_ps } }, pmesh);
+      typename Diffusion<DIM>::PASetup pa_setup_qf;
+      dSetup.AddDomainIntegrator(
+         pa_setup_qf,
+         mfem::tuple{ None<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
+         mfem::tuple{ None<QData>{} }, *ir, all_domain_attr);
+      dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
+      dSetup.Mult(x, qdata);
 
-      static constexpr int Potential = 0, Coordinates = 1, QData = 2;
-      const auto solution = std::vector{FieldDescriptor{Potential, &pfes}};
+      DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
+      typename Diffusion<DIM>::PAApply pa_apply_qf;
+      dop_pa.AddDomainIntegrator(
+         pa_apply_qf, mfem::tuple{ Gradient<U>{}, None<QData>{} },
+         mfem::tuple{ Gradient<U>{} }, *ir, all_domain_attr);
+      dop_pa.SetParameters({ &qdata });
+      dop_pa.Mult(x, z);
+      blf_fa.Mult(x, y);
+      y -= z;
+      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+   }
+}
 
-      // Matrix free
-      {
-         DifferentiableOperator dOpMF(solution,
-                                      std::vector{FieldDescriptor{Coordinates, mfes}},
-                                      pmesh);
-         dOpMF.SetParameters({nodes});
+TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
 
-         auto apply_mf_qf_2d = [] MFEM_HOST_DEVICE(const tensor<real_t, 2>& dudxi,
-                                                   const tensor<real_t, 2, 2> &J,
-                                                   const real_t &w)
-         {
-            auto invJ = inv(J);
-            return mfem::tuple{((dudxi * invJ)) * transpose(invJ) * det(J) * w};
-         };
-         auto apply_mf_qf_3d = [] MFEM_HOST_DEVICE(const tensor<real_t, 3>& dudxi,
-                                                   const tensor<real_t, 3, 3> &J,
-                                                   const real_t &w)
-         {
-            auto invJ = inv(J);
-            return mfem::tuple{((dudxi * invJ)) * transpose(invJ) * det(J) * w};
-         };
-         if (dim == 2)
-         {
-            dOpMF.AddDomainIntegrator(apply_mf_qf_2d,
-                                      mfem::tuple { Gradient<Potential>{},
-                                                    Gradient<Coordinates> {},
-                                                    Weight{} },
-                                      mfem::tuple{ Gradient<Potential>{}},
-                                      *ir, all_domain_attr);
-         }
-         else if (dim == 3)
-         {
-            dOpMF.AddDomainIntegrator(apply_mf_qf_3d,
-                                      mfem::tuple { Gradient<Potential>{},
-                                                    Gradient<Coordinates> {},
-                                                    Weight{} },
-                                      mfem::tuple{ Gradient<Potential>{}},
-                                      *ir, all_domain_attr);
-         }
-         else { MFEM_ABORT("Not implemented"); }
-         dOpMF.Mult(x, y_dfem);
+   const auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 2, 3);
 
-         y_fa = 0.0;
-         blf_fa.Mult(x, y_fa);
-         y_fa -= y_dfem;
-         REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
-      }
+   SECTION("2D order " + std::to_string(order) + " q_order_inc " +
+           std::to_string(q_order_inc))
+   {
+      const auto filename =
+         GENERATE("../../data/star.mesh",
+                  "../../data/star-q3.mesh",
+                  "../../data/inline-quad.mesh"
+                  // "../../data/periodic-square.mesh", // ❌
+                 );
+      DFemDiffusion<2>(filename, order, q_order_inc);
+   }
 
-      // Partial assembly
-      {
-         const int elem_size(dim * dim * ir->GetNPoints()),
-               total_size(elem_size * pmesh.GetNE());
-         // 🔥 2D workaround for is_none_fop Reshape access
-         // ParametricSpace qs(dim, dim * dim, elem_size, total_size);
-         ParametricSpace qs(dim, dim * dim, elem_size, total_size,
-                            dim == 3 ? d1d : d1d*d1d, dim == 3 ? q1d : q1d*q1d);
-         ParametricFunction qdata(qs);
-         qdata.UseDevice(true);
-
-         // setup
-         {
-            DifferentiableOperator dSetup(solution,
-                                          std::vector{FieldDescriptor{Coordinates, mfes},
-                                                      FieldDescriptor{QData, &qs}},
-                                          pmesh);
-            dSetup.SetParameters({nodes, &qdata});
-            auto setup_qf_2d = [] MFEM_HOST_DEVICE(const real_t &u,
-                                                   const tensor<real_t, 2, 2> &J,
-                                                   const real_t &w)
-            {
-               return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
-            };
-            auto setup_qf_3d = [] MFEM_HOST_DEVICE(const real_t &u,
-                                                   const tensor<real_t, 3, 3> &J,
-                                                   const real_t &w)
-            {
-               return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
-            };
-            if (dim == 2)
-            {
-               dSetup.AddDomainIntegrator(setup_qf_2d,
-                                          mfem::tuple { None<Potential> {},
-                                                        Gradient<Coordinates> {},
-                                                        Weight{} },
-                                          mfem::tuple{ None<QData> {}},
-                                          *ir, all_domain_attr);
-            }
-            else if (dim == 3)
-            {
-               dSetup.AddDomainIntegrator(setup_qf_3d,
-                                          mfem::tuple { None<Potential> {},
-                                                        Gradient<Coordinates> {},
-                                                        Weight{} },
-                                          mfem::tuple{ None<QData> {}},
-                                          *ir, all_domain_attr);
-            }
-            else { MFEM_ABORT("Not implemented"); }
-            dSetup.Mult(x, qdata);
-         }
-
-         // Apply
-         DifferentiableOperator dApply(solution,
-                                       std::vector{FieldDescriptor{QData, &qs}},
-                                       pmesh);
-         dApply.SetParameters({&qdata});
-         auto apply_qf_2d = [] MFEM_HOST_DEVICE (const tensor<real_t, 2> &dudxi,
-                                                 const tensor<real_t, 2, 2> &q)
-         {
-            return mfem::tuple{q * dudxi};
-         };
-         auto apply_qf_3d = [] MFEM_HOST_DEVICE (const tensor<real_t, 3> &dudxi,
-                                                 const tensor<real_t, 3, 3> &q)
-         {
-            return mfem::tuple{q * dudxi};
-         };
-         if (dim == 2)
-         {
-            dApply.AddDomainIntegrator(apply_qf_2d,
-                                       mfem::tuple{ Gradient<Potential>{}, None<QData>{} },
-                                       mfem::tuple{ Gradient<Potential>{}},
-                                       *ir, all_domain_attr);
-         }
-         else if (dim == 3)
-         {
-            dApply.AddDomainIntegrator(apply_qf_3d,
-                                       mfem::tuple{ Gradient<Potential>{}, None<QData>{} },
-                                       mfem::tuple{ Gradient<Potential>{}},
-                                       *ir, all_domain_attr);
-         }
-         else { MFEM_ABORT("Not implemented"); }
-         dApply.Mult(x, y_dfem);
-
-         y_fa = 0.0;
-         blf_fa.Mult(x, y_fa);
-         y_fa -= y_dfem;
-         REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
-      }
+   SECTION("3D order " + std::to_string(order) + " q_order_inc " +
+           std::to_string(q_order_inc))
+   {
+      const auto filename =
+         GENERATE("../../data/fichera.mesh",
+                  "../../data/fichera-q3.mesh",
+                  "../../data/inline-hex.mesh",
+                  "../../data/periodic-cube.mesh");
+      DFemDiffusion<3>(filename, order, q_order_inc);
    }
 }
 
