@@ -164,6 +164,9 @@ public:
        done. The return value is 1 if uniform or nested spacing is used. */
    int GetCoarseningFactor() const;
 
+   /// Get unique knots and their multiplicities
+   std::pair<Vector, Vector> GetUniqueKnots() const;
+
    /** For a given coarsening factor @a cf, find the fine knots between the
        coarse knots. */
    Vector GetFineKnots(const int cf) const;

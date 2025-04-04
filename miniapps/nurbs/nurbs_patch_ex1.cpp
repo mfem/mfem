@@ -180,13 +180,12 @@ int main(int argc, char *argv[])
          mesh.NURBSext->GetPatchKnotVectors(p, kv);
 
          std::vector<const IntegrationRule*> ir1D(dim);
-         const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
+         const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, ir_order);
 
-         // Construct 1D integration rules by applying the rule ir to each
-         // knot span.
+         // Construct 1D integration rules by applying the rule ir to each knot span.
          for (int i=0; i<dim; ++i)
          {
-            ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
+            ir1D[i] = IntegrationRule::ApplyToKnotIntervals(ir, *kv[i]);
          }
 
          patchRule->SetPatchRules1D(p, ir1D);
