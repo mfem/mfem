@@ -36,12 +36,12 @@ template <int DIM> struct Diffusion
    struct MFApply
    {
       MFEM_HOST_DEVICE inline auto operator()(const vecd_t &dudxi,
-                                              //  const real_t &rho,
+                                              const real_t &rho,
                                               const matd_t &J,
                                               const real_t &w) const
       {
          const auto invJ = inv(J), TinJ = transpose(invJ);
-         return mfem::tuple{ (dudxi * invJ) * TinJ * det(J) * w /** rho*/ };
+         return mfem::tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
       }
    };
 
@@ -130,7 +130,7 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
 
    auto rho = [](const Vector &xyz)
    {
-#if 0
+#if 1
       const real_t x = xyz(0), y = xyz(1), z = DIM == 3 ? xyz(2) : 0.0;
       real_t r = M_PI * pow(x, 2);
       if (DIM >= 2) { r += pow(y, 3); }
@@ -159,6 +159,8 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
       print_vec("[PA] z", z);
       blf_fa.Mult(x, y);
       print_vec("[FA] y", y);
+      // y.SetTrueVector(), y.SetFromTrueVector();
+      // print_vec("[FA][sync] y", y);
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
    }
@@ -186,14 +188,14 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
    // SECTION("DFEM Matrix free")
    {
       dbg("DFEM Matrix free");
-      DOperator dop_mf(sol, {/*{Rho, &rho_ps},*/ {Coords, mfes}}, pmesh);
+      DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 mfem::tuple{ Gradient<U>{}, /*None<Rho>{},*/
+                                 mfem::tuple{ Gradient<U>{}, None<Rho>{},
                                               Gradient<Coords>{}, Weight{} },
                                  mfem::tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr);
-      dop_mf.SetParameters({ /*&rho_coeff_cv,*/ nodes });
+      dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
       // X = 0.0, Z = 0.0, y = 0.0, z = 0.0;
       x.SetTrueVector(), x.SetFromTrueVector();
