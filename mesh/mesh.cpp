@@ -6456,30 +6456,11 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
          v[i] = ncmesh->vertex_nodeId[v[i]];
       }
 
-      // Find the edge that has vertices v[0], v[1].
-      int edge_j = -1;
-      // TODO: use a more efficient look-up.
-      Array<int> vert;
-      for (int i=0; i<NumOfEdges; ++i)
-      {
-         this->GetEdgeVertices(i, vert);
-
-         // TODO: just check the same ordering.
-         if ((vert[0] == v[0] && vert[1] == v[1]) ||
-             (vert[1] == v[0] && vert[0] == v[1]))
-         {
-            MFEM_VERIFY(edge_j == -1, "");
-            edge_j = i;
-         }
-      }
-
-      MFEM_VERIFY(edge_j >= 0, "");
-
       if (v[0] > v[1])
       {
          knotID = -1 - knotID;
       }
-      edge_to_knot[edge_j] = knotID;
+      edge_to_knot[j] = knotID;
    }
 
    FinalizeTopology();

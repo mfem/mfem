@@ -375,8 +375,6 @@ public:
 
    void UpdateSpacingPartitions(const Array<KnotVector*> &pkv);
 
-   Array<int> origNE;
-
    /// Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
 
@@ -1040,8 +1038,8 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
 
    /** @brief Refine with optional refinement factor @a rf. Uniform means
-   refinement is done everywhere by the same factor, although nonuniform
-   spacing functions may be used.
+       refinement is done everywhere by the same factor, although nonuniform
+       spacing functions may be used.
    */
    void UniformRefinement(int rf = 2);
    // For meshes with conforming patches only.
@@ -1055,7 +1053,7 @@ public:
    void UpdateCoarseKVF();
 
    /** @brief Insert knots from @a kv into all KnotVectors in all patches. The
-         size of @a kv should be the same as @a knotVectors. */
+       size of @a kv should be the same as @a knotVectors. */
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
@@ -1226,8 +1224,6 @@ private:
    void SetMasterFaces(bool dof);
    int GetMasterEdgeDof(const int e, const int i) const;
    int GetMasterFaceDof(const int f, const int i) const;
-   void GetFaceOrdering(int face, int n1, int n2, int v0,
-                        int e1, int e2, Array<int> & perm);
 
 public:
    /// Constructor for an object associated with NURBSExtension @a ext.
