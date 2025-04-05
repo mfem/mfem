@@ -3352,11 +3352,12 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    SetMeshGen();
 }
 
-void Mesh::FinalizeMesh(int refine, bool fix_orientation)
+void Mesh::FinalizeMesh(int refine, bool fix_orientation,
+                        bool allow_bad_orientation)
 {
    FinalizeTopology();
 
-   Finalize(refine, fix_orientation);
+   Finalize(refine, fix_orientation, allow_bad_orientation);
 }
 
 void Mesh::FinalizeTopology(bool generate_bdr)
@@ -3465,9 +3466,10 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    SetAttributes();
 }
 
-void Mesh::Finalize(bool refine, bool fix_orientation)
+void Mesh::Finalize(bool refine, bool fix_orientation,
+                    bool allow_bad_orientation)
 {
-   if (NURBSext || ncmesh)
+   if ((NURBSext || ncmesh) && !allow_bad_orientation)
    {
       MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
       MFEM_ASSERT(CheckBdrElementOrientation() == 0, "");
@@ -4533,7 +4535,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 }
 
 Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
-           bool fix_orientation)
+           bool fix_orientation, bool allow_bad_orientation)
  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    // Initialization as in the default constructor
@@ -4547,16 +4549,17 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
    }
    else
    {
-      Load(imesh, generate_edges, refine, fix_orientation);
+     Load(imesh, generate_edges, refine, fix_orientation,
+	  allow_bad_orientation);
    }
 }
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
-           bool fix_orientation)
+           bool fix_orientation, bool allow_bad_orientation)
  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
-   Load(input, generate_edges, refine, fix_orientation);
+   Load(input, generate_edges, refine, fix_orientation, allow_bad_orientation);
 }
 
 void Mesh::ChangeVertexDataOwnership(real_t *vertex_data, int len_vertex_data,
@@ -4905,6 +4908,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadNURBSMesh(input, curved, read_gf);
    }
+   else if (mesh_type == "MFEM NURBS NC-patch mesh v1.0")
+   {
+     ReadNURBSMesh(input, curved, read_gf, true, true);  // Spacing is required
+   }
    else if (mesh_type == "MFEM NURBS mesh v1.1")
    {
      ReadNURBSMesh(input, curved, read_gf, true);
@@ -5014,6 +5021,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       MFEM_VERIFY(ident == "mfem_mesh_end",
                   "invalid mesh: end of file tag not found");
    }
+
+   if (NURBSext && NURBSext->Nonconforming())
+     {
+       string ident;
+       skip_comment_lines(input, '#');
+       input >> ident;
+       if (ident == "patch_cp")
+	 NURBSext->ReadPatchCP(input);
+     }
 
    // Finalize(...) should be called after this, if needed.
 }
@@ -6000,6 +6016,11 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
+void Mesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   RefineNURBS(true, 0.0, Array<int>(&rf, 1), kvf);
+}
+
 void Mesh::NURBSUniformRefinement(int rf, real_t tol)
 {
    Array<int> rf_array(Dim);
@@ -6010,10 +6031,15 @@ void Mesh::NURBSUniformRefinement(int rf, real_t tol)
 void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
 {
    MFEM_VERIFY(rf.Size() == Dim,
-               "Refinement factors must be defined for each dimension");
+	       "Refinement factors must be defined for each dimension");
 
-   MFEM_VERIFY(NURBSext, "NURBSUniformRefinement is only for NURBS meshes");
+   RefineNURBS(false, tol, rf, "");
+}
 
+void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
+		       const std::string &kvf)
+{
+   MFEM_VERIFY(NURBSext, "This type of refinement is only for NURBS meshes");
    NURBSext->ConvertToPatches(*Nodes);
 
    Array<int> cf;
@@ -6021,27 +6047,37 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
 
    bool cf1 = true;
    for (auto f : cf)
-   {
-      cf1 = (cf1 && f == 1);
-   }
+     {
+       cf1 = (cf1 && f == 1);
+     }
 
-   if (cf1)
-   {
-      NURBSext->UniformRefinement(rf);
-   }
-   else
-   {
-      NURBSext->Coarsen(cf, tol);
+   if (!cf1 && NURBSext->Nonconforming())
+     {
+       NURBSext->FullyCoarsen();
+       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+     }
+   else if (!cf1 && !NURBSext->Nonconforming())
+     {
+       MFEM_VERIFY(!usingKVF, "This refinement type is not supported for this"
+		   " NURBS mesh type");
+       NURBSext->Coarsen(cf, tol);
 
-      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-      sequence++;
+       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+       sequence++;
+       UpdateNURBS();
 
-      UpdateNURBS();
+       NURBSext->ConvertToPatches(*Nodes);
+       for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
+       NURBSext->UniformRefinement(cf);
+     }
 
-      NURBSext->ConvertToPatches(*Nodes);
-      for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
-      NURBSext->UniformRefinement(cf);
-   }
+   if (cf1 || NURBSext->Nonconforming())
+     {
+       if (usingKVF)
+	 NURBSext->RefineWithKVFactors(rf[0], kvf);
+       else
+	 NURBSext->UniformRefinement(rf);
+     }
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -6384,6 +6420,52 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       // Terminate here upon failure after printing to have an idea of edge_to_knot.
       if (corrections > 0 ) {mfem_error("Mesh::LoadPatchTopo");}
    }
+}
+
+void Mesh::LoadNonconformingPatchTopo(std::istream &input,
+                                      Array<int> &edge_to_knot)
+{
+   SetEmpty();
+
+   // Read MFEM NURBS NC-patch mesh v1.0 format
+   int curved = 0;
+   int is_nc = 1;
+
+   ncmesh = new NCMesh(input, 10, curved, is_nc);
+
+   InitFromNCMesh(*ncmesh);
+
+   skip_comment_lines(input, '#');
+
+   string ident;
+   int inputNumOfEdges = -1;
+
+   input >> ident; // 'edges'
+   input >> inputNumOfEdges;
+
+   MFEM_VERIFY(NumOfEdges == inputNumOfEdges, "");
+
+   edge_to_knot.SetSize(NumOfEdges);
+   for (int j = 0; j < NumOfEdges; j++)
+   {
+      int v[2];
+      int knotID;
+      input >> knotID >> v[0] >> v[1];
+
+      for (int i=0; i<2; ++i)
+      {
+         v[i] = ncmesh->vertex_nodeId[v[i]];
+      }
+
+      if (v[0] > v[1])
+      {
+         knotID = -1 - knotID;
+      }
+      edge_to_knot[j] = knotID;
+   }
+
+   FinalizeTopology();
+   CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
@@ -11643,6 +11725,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       os << '\n';
       Nodes->Save(os);
 
+      NURBSext->PrintCoarsePatches(os);
+
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);
       // NURBSext->Print(os);
@@ -11789,8 +11873,16 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
       PrintElement(boundary[i], os);
    }
 
+   PrintTopoEdges(os, e_to_k);
+}
+
+void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
+                          bool vmap) const
+{
+   Array<int> vert;
+
    os << "\nedges\n" << NumOfEdges << '\n';
-   for (i = 0; i < NumOfEdges; i++)
+   for (int i = 0; i < NumOfEdges; i++)
    {
       edge_vertex->GetRow(i, vert);
       int ki = e_to_k[i];
@@ -11798,9 +11890,30 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
       {
          ki = -1 - ki;
       }
+
+      if (vmap)
+      {
+         for (int j=0; j<2; ++j)
+         {
+            vert[j] = ncmesh->vertex_nodeId[vert[j]];
+         }
+
+         if (e_to_k[i] < 0)
+         {
+            // Swap the entries of vert
+            const int s = vert[0];
+            vert[0] = vert[1];
+            vert[1] = s;
+         }
+      }
+
       os << ki << ' ' << vert[0] << ' ' << vert[1] << '\n';
    }
-   os << "\nvertices\n" << NumOfVertices << '\n';
+
+   if (!vmap)
+   {
+      os << "\nvertices\n" << NumOfVertices << '\n';
+   }
 }
 
 void Mesh::Save(const std::string &fname, int precision) const
@@ -15055,6 +15168,18 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       }
    }
    return mesh3d;
+}
+
+bool Mesh::Conforming() const
+{
+   if (NURBSext)
+   {
+      return NURBSext->Conforming();
+   }
+   else
+   {
+      return ncmesh == NULL;
+   }
 }
 
 #ifdef MFEM_DEBUG

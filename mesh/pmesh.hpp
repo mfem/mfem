@@ -191,6 +191,8 @@ protected:
    void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
    void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
 
+   void RefineNURBSWithKVFactors(int rf, const std::string &kvf) override;
+
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
 
@@ -392,7 +394,8 @@ public:
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
-   void Finalize(bool refine = false, bool fix_orientation = false) override;
+   void Finalize(bool refine = false, bool fix_orientation = false,
+                 bool allow_bad_orientation = false) override;
 
    void SetAttributes() override;
 
@@ -791,7 +794,8 @@ public:
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,
-             int refine = 1, bool fix_orientation = true) override;
+             int refine = 1, bool fix_orientation = true,
+             bool allow_bad_orientation = false) override;
 
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
