@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
         << fespace.GetTrueVSize() << endl;
 
    // 5. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Solve the Laplace problem, as in ex1.
+   //    corresponding to fespace. Solve the Poisson problem, as in ex1.
    GridFunction x(&fespace);
 
    {

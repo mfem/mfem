@@ -1822,6 +1822,13 @@ void H1_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix du(dof, dim);
+   Vector shape_x(order+1);
+   Vector shape_y(order+1);
+   Vector shape_z(order+1);
+   Vector dshape_x(order+1);
+   Vector dshape_y(order+1);
+   Vector dshape_z(order+1);
+   Vector dshape_z_dt(order+1);
 #endif
    real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
    real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;

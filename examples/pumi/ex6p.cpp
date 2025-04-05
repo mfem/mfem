@@ -6,7 +6,7 @@
 // Sample runs:  mpirun -np 8 ex6p
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
-//               refinement loop. The problem being solved is again the Laplace
+//               refinement loop. The problem being solved is again the Poisson
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
 //               conditions. The problem is solved on a sequence of meshes which
 //               are adapted in a conforming (tetrahedrons) manner according

@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_MOONOLITH
+
 #include "mortarassembler.hpp"
 #include "../../general/tic_toc.hpp"
 
@@ -164,8 +166,8 @@ MortarAssembler::MortarAssembler(
 int order_multiplier(const Geometry::Type type, const int dim)
 {
    return
-   (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
-      type == Geometry::SEGMENT)? 1 : dim;
+      (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
+       type == Geometry::SEGMENT)? 1 : dim;
 }
 
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
@@ -200,10 +202,13 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
                                  impl_->source->GetNDofs());
 
 
-   std::unique_ptr<BilinearFormIntegrator> mass_integr(impl_->new_mass_integrator());
+   std::unique_ptr<BilinearFormIntegrator> mass_integr(
+      impl_->new_mass_integrator());
 
-   if(impl_->assemble_mass_and_coupling_together) {
-      impl_->mass_matrix = make_shared<SparseMatrix>(impl_->destination->GetNDofs(), impl_->destination->GetNDofs());
+   if (impl_->assemble_mass_and_coupling_together)
+   {
+      impl_->mass_matrix = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
+                                                     impl_->destination->GetNDofs());
    }
 
 
@@ -244,11 +249,13 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
       int contraction_order = src_order + dest_order;
 
-     if(impl_->assemble_mass_and_coupling_together) {
-        contraction_order = std::max(contraction_order, 2 * dest_order);
-     }
+      if (impl_->assemble_mass_and_coupling_together)
+      {
+         contraction_order = std::max(contraction_order, 2 * dest_order);
+      }
 
-     const int order = contraction_order + dest_order_mult * destination_Trans.OrderW() + max_q_order;
+      const int order = contraction_order + dest_order_mult *
+                        destination_Trans.OrderW() + max_q_order;
 
       // Update the quadrature rule in case it changed the order
       cut->SetIntegrationOrder(order);
@@ -288,10 +295,12 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
          B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat,
                          skip_zeros);
 
-         if(impl_->assemble_mass_and_coupling_together) {
+         if (impl_->assemble_mass_and_coupling_together)
+         {
             mass_integr->SetIntRule(&destination_ir);
             mass_integr->AssembleElementMatrix(destination_fe, destination_Trans, elemmat);
-            impl_->mass_matrix->AddSubMatrix(destination_vdofs, destination_vdofs, elemmat, skip_zeros);
+            impl_->mass_matrix->AddSubMatrix(destination_vdofs, destination_vdofs, elemmat,
+                                             skip_zeros);
          }
 
          intersected = true;
@@ -306,7 +315,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
    B->Finalize();
 
-   if(impl_->assemble_mass_and_coupling_together) {
+   if (impl_->assemble_mass_and_coupling_together)
+   {
       impl_->mass_matrix->Finalize();
    }
 
@@ -349,7 +359,8 @@ bool MortarAssembler::Apply(const GridFunction &src_fun,
    CGSolver Dinv;
    Dinv.SetMaxIter(impl_->max_solver_iterations);
 
-   if(impl_->verbose) {
+   if (impl_->verbose)
+   {
       Dinv.SetPrintLevel(3);
    }
 
@@ -386,7 +397,8 @@ bool MortarAssembler::Update()
       mfem::out << chrono.RealTime() << " seconds" << endl;
    }
 
-   if(!impl_->assemble_mass_and_coupling_together) {
+   if (!impl_->assemble_mass_and_coupling_together)
+   {
       BilinearForm b_form(impl_->destination.get());
 
       b_form.AddDomainIntegrator(impl_->new_mass_integrator());
@@ -413,3 +425,5 @@ bool MortarAssembler::Update()
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH

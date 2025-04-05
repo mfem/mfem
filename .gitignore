@@ -237,7 +237,7 @@ miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
 miniapps/meshing/mesh-quality
 miniapps/meshing/hpref
-miniapps/meshing/hpref_serial
+miniapps/meshing/phpref
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh

@@ -120,7 +120,9 @@ The MFEM source code has the following structure:
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── eltrans
   │   ├── fe
+  │   ├── gslib
   │   ├── integ
   │   ├── lor
   │   ├── moonolith
@@ -128,6 +130,7 @@ The MFEM source code has the following structure:
   │   └── tmop
   ├── general
   ├── linalg
+  │   ├── batched
   │   └── simd
   ├── mesh
   │   └── submesh

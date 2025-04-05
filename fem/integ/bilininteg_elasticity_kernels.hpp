@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /**
+ * @file
  * @brief Header for small strain, isotropic, linear elasticity kernels.
  *
  *        Strong form:    -div(sigma(u))

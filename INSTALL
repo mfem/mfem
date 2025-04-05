@@ -124,7 +124,12 @@ Parallel build:
 CUDA build:
    (this build requires CMake 3.17 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
-   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES -DCUDA_ARCH=sm_70
+   make -j 4
+
+HIP build:
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_HIP=YES -DHIP_ARCH=gfx942
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
