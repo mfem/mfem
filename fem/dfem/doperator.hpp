@@ -134,6 +134,18 @@ public:
       prolongation_transpose(residual_l, y);
    }
 
+   void Mult(ParGridFunction &x, ParGridFunction &y) const
+   {
+      MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
+      MFEM_VERIFY(y.Size() == residual_l.Size(), "output size mismatch");
+      prolongation(solutions, x.GetTrueVector(), solutions_l);
+      for (auto &action : action_callbacks)
+      {
+         action(solutions_l, parameters_l, residual_l);
+      }
+      y = residual_l;
+   }
+
    template <
       typename func_t,
       typename... input_ts,
@@ -324,6 +336,11 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       inputs_vdim[i] = mfem::get<i>(inputs).vdim;
    });
+
+   if ( mesh.GetNE() == 0)
+   {
+      MFEM_ABORT("Mesh with no elements is not yet supported!");
+   }
 
    Array<int> elem_attributes;
    elem_attributes.SetSize(mesh.GetNE());
