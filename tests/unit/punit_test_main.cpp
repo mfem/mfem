@@ -18,6 +18,10 @@
 #error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kOrange
+#include "general/nvtx.hpp"
+
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_SINGLE
@@ -31,6 +35,8 @@ int main(int argc, char *argv[])
    mfem::Hypre::Init();
 #endif
    mfem::Device device("cpu"); // make sure hypre runs on CPU, if possible
+
+   dbg();
 
    // Only run tests that are labeled with Parallel.
    return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
