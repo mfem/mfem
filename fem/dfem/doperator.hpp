@@ -18,6 +18,10 @@
 #include "qfunction.hpp"
 #include "integrate.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kOrchid
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -125,13 +129,38 @@ public:
 
    void Mult(const Vector &solutions_t, Vector &y) const override
    {
+      dbg();
+      print_vec("[dO ]tx", solutions_t);
+      print_vec("[dO ]ty", y);
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
       {
          action(solutions_l, parameters_l, residual_l);
       }
+      print_vec("[dO ]lr", residual_l);
       prolongation_transpose(residual_l, y);
+      print_vec("[dO ] y", y);
+   }
+
+   void Mult(const Vector &solutions_t, ParGridFunction &y) const
+   {
+      dbg("\x1b[33m[With ParGridFunction]");
+      print_vec("[dO ]tx", solutions_t);
+      print_vec("[dO ]ty", y);
+      MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
+      prolongation(solutions, solutions_t, solutions_l);
+      for (auto &action : action_callbacks)
+      {
+         action(solutions_l, parameters_l, residual_l);
+      }
+      print_vec("[dO ]lr", residual_l);
+      // prolongation_transpose(residual_l, y.GetTrueVector());
+      assert(y.Size() == residual_l.Size());
+      y = residual_l;
+      y.SetTrueVector();
+      y.SetFromTrueVector();
+      print_vec("[dO ] y", y);
    }
 
    template <

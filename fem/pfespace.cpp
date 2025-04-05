@@ -23,6 +23,10 @@
 #include <limits>
 #include <list>
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kLavender
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -1215,6 +1219,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 
       if (nd_strias) { return Dof_TrueDof_Matrix(); }
 
+      dbg();
       if (NRanks == 1)
       {
          Pconf = new IdentityOperator(GetTrueVSize());
@@ -1234,6 +1239,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    }
    else
    {
+      assert(false);
       return Dof_TrueDof_Matrix();
    }
 }
@@ -3646,6 +3652,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
 
 void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 {
+   dbg();
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 

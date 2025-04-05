@@ -155,18 +155,20 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
       dbg("Partial assembly");
       ParBilinearForm blf_pa(&pfes);
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
-      blf_pa.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       blf_pa.Assemble();
       print_vec("[PA ] x", x);
       blf_pa.Mult(x, z);
       print_vec("[PA ] z", z);
       z.SetTrueVector(), z.SetFromTrueVector();
       print_vec("[PA2] z", z);
+      print_vec("[PA2]tz", z.GetTrueVector());
 
       blf_fa.Mult(x, y);
       print_vec("[FA ] y", y);
       y.SetTrueVector(), y.SetFromTrueVector();
       print_vec("[FA2] y", y);
+      print_vec("[FA2]tz", z.GetTrueVector());
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
    }
@@ -208,11 +210,14 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
 
       X = M_PI;
       y = M_PI;
-      Z = M_PI, z = M_PI;
+      Z = M_PI, z = 0.0;
       y.SetTrueVector(), y.SetFromTrueVector();
       z.SetTrueVector(), z.SetFromTrueVector();
       // print_vec("\x1b[33m[MF ] z", z);
 
+      // ❌ inline-quad rank 0 first 5 DOF errors ❌
+      // MFEM_DEBUG_MPI=0 mpirun -n 2 ./punit_tests --enable-output "[DFEM]"
+      // MFEM_DEBUG_MPI=1 mpirun -n 2 ./punit_tests --enable-output "[DFEM]"
 #if 0
       print_vec("[MF ] x", x);
       R->Mult(x, X);
@@ -240,14 +245,15 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
       REQUIRE(y.GetTrueVector().Normlinf() == MFEM_Approx(0.0));
 #else
       print_vec("[MF0] z", z);
-      // x.SetTrueVector();
+      x.SetTrueVector(), x.SetFromTrueVector();
       print_vec("[MF ]tx", x.GetTrueVector());
-      dop_mf.Mult(x.GetTrueVector(), z.GetTrueVector());
+      // dop_mf.Mult(x.GetTrueVector(), z.GetTrueVector());
+      dop_mf.Mult(x.GetTrueVector(), z);
       print_vec("[MF ]tz", z.GetTrueVector());
-      print_vec("[MF0] z", z);
-      z.SetFromTrueVector();
-      // R->MultTranspose(z.GetTrueVector(), z);
-      // P->Mult(z.GetTrueVector(), z);
+      // print_vec("[MF0] z", z);
+      // z.SetFromTrueVector();                       // same
+      // R->MultTranspose(z.GetTrueVector(), z);   // same
+      // P->Mult(z.GetTrueVector(), z);            // same
       print_vec("[MF2] z", z);
 
       // x.SetFromTrueVector();

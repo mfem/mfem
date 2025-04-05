@@ -30,8 +30,19 @@
 
 using std::size_t;
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kGold
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
+
+auto print_vec = [](const char *header, const Vector &v)
+{
+   dbl("{}:", header);
+   for (int i=0; i < v.Size(); i++) { dba("{:f} ", v(i)); }
+   dbc();
+};
 
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
@@ -776,10 +787,12 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
+         dbg("FES GetProlongationMatrix");
          return arg->GetProlongationMatrix();
       }
       else if constexpr (std::is_same_v<T, const ParametricSpace *>)
       {
+         dbg("ParametricSpace GetProlongation");
          return arg->GetProlongation();
       }
       else
@@ -917,6 +930,8 @@ void prolongation(const std::vector<FieldDescriptor> fields,
       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
       fields_l[i].SetSize(P->Height());
       P->Mult(x_i, fields_l[i]);
+      print_vec("[P  ] x", x_i);
+      print_vec("[P  ]lx", fields_l[i]);
       data_offset += width;
    }
 }
@@ -930,6 +945,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         dbg("[PT ] 1");
          double local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
@@ -940,6 +956,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [](Vector &r_local, Vector &y)
       {
+         dbg("[PT ] 0");
          y = r_local;
       };
       return PT;
@@ -949,6 +966,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       const Operator *P = get_prolongation(f);
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         dbg("[PT ] P");
          P->MultTranspose(r_local, y);
       };
       return PT;
