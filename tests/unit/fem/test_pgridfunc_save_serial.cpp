@@ -78,7 +78,12 @@ TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
    if (my_rank == save_rank)
    {
       // Clean up
-      REQUIRE(std::remove("parallel_in_serial.mesh") == 0);
+      auto tmp = std::remove("parallel_in_serial.mesh");
+      if (tmp)
+      {
+         CAPTURE(std::strerror(errno));
+         REQUIRE(tmp == 0);
+      }
       REQUIRE(std::remove("parallel_in_serial.gf") == 0);
    }
 }
