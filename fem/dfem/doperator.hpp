@@ -129,38 +129,25 @@ public:
 
    void Mult(const Vector &solutions_t, Vector &y) const override
    {
-      dbg();
-      print_vec("[dO ]tx", solutions_t);
-      print_vec("[dO ]ty", y);
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
       {
          action(solutions_l, parameters_l, residual_l);
       }
-      print_vec("[dO ]lr", residual_l);
       prolongation_transpose(residual_l, y);
-      print_vec("[dO ] y", y);
    }
 
-   void Mult(const Vector &solutions_t, ParGridFunction &y) const
+   void Mult(ParGridFunction &x, ParGridFunction &y) const
    {
-      dbg("\x1b[33m[With ParGridFunction]");
-      print_vec("[dO ]tx", solutions_t);
-      print_vec("[dO ]ty", y);
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
-      prolongation(solutions, solutions_t, solutions_l);
+      MFEM_VERIFY(y.Size() == residual_l.Size(), "output size mismatch");
+      prolongation(solutions, x.GetTrueVector(), solutions_l);
       for (auto &action : action_callbacks)
       {
          action(solutions_l, parameters_l, residual_l);
       }
-      print_vec("[dO ]lr", residual_l);
-      // prolongation_transpose(residual_l, y.GetTrueVector());
-      assert(y.Size() == residual_l.Size());
       y = residual_l;
-      y.SetTrueVector();
-      y.SetFromTrueVector();
-      print_vec("[dO ] y", y);
    }
 
    template <
@@ -354,11 +341,21 @@ void DifferentiableOperator::AddDomainIntegrator(
       inputs_vdim[i] = mfem::get<i>(inputs).vdim;
    });
 
-   Array<int> elem_attributes;
-   elem_attributes.SetSize(mesh.GetNE());
-   for (int i = 0; i < mesh.GetNE(); ++i)
+   const int NE = mesh.GetNE();
+   if (NE == 0)
    {
-      elem_attributes[i] = mesh.GetAttribute(i);
+      // use of GetElement(0), GetFE(0) in GetDofToQuad assume that NE > 0
+      MFEM_ABORT("Mesh with no elements is not yet supported!");
+   }
+
+   Array<int> elem_attributes;
+   if (NE > 0)
+   {
+      elem_attributes.SetSize(NE);
+      for (int i = 0; i < NE; ++i)
+      {
+         elem_attributes[i] = mesh.GetAttribute(i);
+      }
    }
 
    const auto output_fop = mfem::get<0>(outputs);
@@ -447,6 +444,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
+   MFEM_VERIFY(num_entities > 0,
+               "The number of entities must be greater than zero");
    const int num_test_dof = output_e_size / output_fop.vdim /
                             num_entities;
 
