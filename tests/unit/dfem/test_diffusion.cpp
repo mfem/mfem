@@ -99,7 +99,7 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
    H1_FECollection fec(p, DIM);
    ParFiniteElementSpace pfes(&pmesh, &fec);
    const auto *R = pfes.GetRestrictionOperator();
-   const auto *P = pfes.GetProlongationMatrix();
+   // const auto *P = pfes.GetProlongationMatrix();
    MFEM_VERIFY(R, "Restriction operator not set");
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
@@ -111,37 +111,33 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
 
-   dbg("x:{} X:{}", x.Size(), X.Size());
+   z = M_PI, z.SetTrueVector(), z.SetFromTrueVector(); // init z and its tvector
+
+   // dbg("x:{} X:{}", x.Size(), X.Size());
    // static int seed = 1;
-   // x.Randomize(1);
-   for (int i=0; i < x.Size(); i++) { x(i) = (real_t)i; }
-   print_vec("[ini] x", x); // 1, 2, 3, 4, 5, 6, 7, 8, 9, ...
-   // x = M_PI;
+   x.Randomize(1);
+   // for (int i=0; i < x.Size(); i++) { x(i) = (real_t)i; }
+   // print_vec("[ini] x", x); // 1, 2, 3, 4, 5, 6, 7, 8, 9, ...
    x.SetTrueVector(), x.SetFromTrueVector();
-   print_vec("[RRt] x", x); // 1, 2, 3, 4, 5, 6, 7, 8, 9, ...
+   // print_vec("[RRt] x", x); // 1, 2, 3, 4, 5, 6, 7, 8, 9, ...
 
    R->Mult(x, Y);
-   print_vec("[M  ] Y", Y);
+   // print_vec("[M  ] Y", Y);
    R->MultTranspose(Y, y);
-   print_vec("[MMt] y", y);
-
+   // print_vec("[MMt] y", y);
    y.SetTrueVector(), y.SetFromTrueVector();
-   print_vec("[RRt] y", y);
+   // print_vec("[RRt] y", y);
    y -= x;
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
    MPI_Barrier(MPI_COMM_WORLD);
 
    auto rho = [](const Vector &xyz)
    {
-#if 1
       const real_t x = xyz(0), y = xyz(1), z = DIM == 3 ? xyz(2) : 0.0;
       real_t r = M_PI * pow(x, 2);
       if (DIM >= 2) { r += pow(y, 3); }
       if (DIM >= 3) { r += pow(z, 4); }
       return r;
-#else
-      return 1.0;
-#endif
    };
    FunctionCoefficient rho_coeff(rho);
 
@@ -157,20 +153,21 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
       blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       blf_pa.Assemble();
-      print_vec("[PA ] x", x);
+      // print_vec("[PA ] x", x);
       blf_pa.Mult(x, z);
-      print_vec("[PA ] z", z);
+      // print_vec("[PA ] z", z);
       z.SetTrueVector(), z.SetFromTrueVector();
-      print_vec("[PA2] z", z);
-      print_vec("[PA2]tz", z.GetTrueVector());
+      // print_vec("[PA2] z", z);
+      // print_vec("[PA2]tz", z.GetTrueVector());
 
       blf_fa.Mult(x, y);
-      print_vec("[FA ] y", y);
+      // print_vec("[FA ] y", y);
       y.SetTrueVector(), y.SetFromTrueVector();
-      print_vec("[FA2] y", y);
-      print_vec("[FA2]tz", z.GetTrueVector());
+      // print_vec("[FA2] y", y);
+      // print_vec("[FA2]tz", z.GetTrueVector());
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
    }
 
    if (no_dfem) { return; } // Skip if DFEM is disabled
@@ -191,8 +188,6 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
 
-#if 1
-#warning 🔥 2D parallel errors
    // SECTION("DFEM Matrix free")
    {
       dbg("DFEM Matrix free");
@@ -205,79 +200,40 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
                                  all_domain_attr);
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
-      // SetTrueVector: Extract the true-dofs from the GridFunction: R->Mult (gf => X)
-      // SetFromTrueVector: Set the GridFunction from the given true-dof vector: cP->Mult (X => gf)
+      // X = M_PI;
+      // y = M_PI;
+      // Z = M_PI, z = 0.0;
+      // y.SetTrueVector(), y.SetFromTrueVector();
+      // z.SetTrueVector(), z.SetFromTrueVector();
 
-      X = M_PI;
-      y = M_PI;
-      Z = M_PI, z = 0.0;
-      y.SetTrueVector(), y.SetFromTrueVector();
-      z.SetTrueVector(), z.SetFromTrueVector();
-      // print_vec("\x1b[33m[MF ] z", z);
-
-      // ❌ inline-quad rank 0 first 5 DOF errors ❌
-      // MFEM_DEBUG_MPI=0 mpirun -n 2 ./punit_tests --enable-output "[DFEM]"
-      // MFEM_DEBUG_MPI=1 mpirun -n 2 ./punit_tests --enable-output "[DFEM]"
-#if 0
-      print_vec("[MF ] x", x);
-      R->Mult(x, X);
-      print_vec("[MF ] X", X);
-      dop_mf.Mult(X, Z);
-      print_vec("[MF ] Z", Z);
-      R->MultTranspose(Z, z);
-      print_vec("[MF ] z", z);
-      z.SetTrueVector();
-      print_vec("[MF1] z", z);
-      z.SetFromTrueVector();
-      print_vec("[MF2] z", z);
-
-      blf_fa.Mult(x, y);
-      print_vec("[FA ] y", y);
-      y.SetTrueVector();
-      print_vec("[FA1]ty", y.GetTrueVector());
-      y.SetFromTrueVector();
-      print_vec("[FA2] y", y);
-      y -= z;
-      print_vec("[FAn] y", y);
-      y.GetTrueVector() -= z.GetTrueVector();
-      print_vec("[FAn]ty", y.GetTrueVector());
-      MPI_Barrier(MPI_COMM_WORLD);
-      REQUIRE(y.GetTrueVector().Normlinf() == MFEM_Approx(0.0));
-#else
-      print_vec("[MF0] z", z);
+      // print_vec("[MF0] z", z);
       x.SetTrueVector(), x.SetFromTrueVector();
-      print_vec("[MF ]tx", x.GetTrueVector());
+      // print_vec("[MF ]tx", x.GetTrueVector());
       // dop_mf.Mult(x.GetTrueVector(), z.GetTrueVector());
       dop_mf.Mult(x.GetTrueVector(), z);
-      print_vec("[MF ]tz", z.GetTrueVector());
+      z.SetTrueVector(), z.SetFromTrueVector();
+      // print_vec("[MF ]tz", z.GetTrueVector());
       // print_vec("[MF0] z", z);
       // z.SetFromTrueVector();                       // same
       // R->MultTranspose(z.GetTrueVector(), z);   // same
       // P->Mult(z.GetTrueVector(), z);            // same
-      print_vec("[MF2] z", z);
+      // print_vec("[MF2] z", z);
 
       // x.SetFromTrueVector();
       blf_fa.Mult(x, y);
-      print_vec("[FA ] y", y);
-      y.SetTrueVector();
-      print_vec("[FA1]ty", y.GetTrueVector());
-      y.SetFromTrueVector();
-      print_vec("[FA2] y", y);
+      y.SetTrueVector(), y.SetFromTrueVector();
+      // print_vec("[FA ] y", y);
+      // y.SetTrueVector();
+      // print_vec("[FA1]ty", y.GetTrueVector());
+      // y.SetFromTrueVector();
+      // print_vec("[FA2] y", y);
       y -= z;
-      print_vec("[FAn] y", y);
-      y.GetTrueVector() -= z.GetTrueVector();
-      print_vec("[FAn]ty", y.GetTrueVector());
+      // print_vec("[FAn] y", y);
+      // y.GetTrueVector() -= z.GetTrueVector();
+      // print_vec("[FAn]ty", y.GetTrueVector());
+      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-      REQUIRE(y.GetTrueVector().Normlinf() == MFEM_Approx(0.0));
-      // REQUIRE(y.Normlinf() == MFEM_Approx(0.0)); // shared dof diff by sum
-      // [MF2] z:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926 -1.150949 -4.245944 -10.529129 -20.739305 -11.472575
-      // [FA ] y:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926 -0.299216 -1.634691 -4.776283 -9.881371 -5.524265
-      // [FA1]ty:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926
-      // [FA2] y:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926 -0.851733 -2.611253 -5.752846 -10.857934 -5.948310
-      // [FAn] y:0.000000 0.000000 -0.000000 0.000000 -0.000000 0.000000 -0.000000 0.000000 0.000000 0.000000 0.299216 1.634691 4.776283 9.881371 5.524265
-#endif
    }
-#endif
 
 #if 0
 #warning 🔥 3D parallel errors
@@ -332,22 +288,22 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
    // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add();
 
    static const bool no_dfem = ::getenv("MFEM_NO_DFEM") != nullptr;
-   // const bool all_tests = launch_all_non_regression_tests;
+   const bool all_tests = launch_all_non_regression_tests;
 
-   // const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   // const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
-   const int p = 1, r = 0;
+   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto r = !all_tests ? 0 : GENERATE(0, 1, 2, 3);
+   // const int p = 1, r = 0;
 
    dbg("p:{}, r:{}", p, r);
    // SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
-         GENERATE(//"../../data/star.mesh"//,
-            // "../../data/star-q3.mesh",
-            // "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh"//,
-            // "../../data/periodic-square.mesh"
-         );
+         GENERATE("../../data/star.mesh",
+                  "../../data/star-q3.mesh",
+                  "../../data/rt-2d-q3.mesh",
+                  "../../data/inline-quad.mesh",
+                  "../../data/periodic-square.mesh"
+                 );
       DFemDiffusion<2>(filename, p, r, no_dfem);
    }
 
