@@ -99,6 +99,7 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
    H1_FECollection fec(p, DIM);
    ParFiniteElementSpace pfes(&pmesh, &fec);
    const auto *R = pfes.GetRestrictionOperator();
+   const auto *P = pfes.GetProlongationMatrix();
    MFEM_VERIFY(R, "Restriction operator not set");
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
@@ -114,16 +115,18 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
    // static int seed = 1;
    // x.Randomize(1);
    for (int i=0; i < x.Size(); i++) { x(i) = (real_t)i; }
+   print_vec("[ini] x", x); // 1, 2, 3, 4, 5, 6, 7, 8, 9, ...
    // x = M_PI;
    x.SetTrueVector(), x.SetFromTrueVector();
+   print_vec("[RRt] x", x); // 1, 2, 3, 4, 5, 6, 7, 8, 9, ...
 
-   print_vec("x", x);
    R->Mult(x, Y);
-   print_vec("Y", Y);
+   print_vec("[M  ] Y", Y);
    R->MultTranspose(Y, y);
-   print_vec("     y", y);
+   print_vec("[MMt] y", y);
+
    y.SetTrueVector(), y.SetFromTrueVector();
-   print_vec("sync y", y);
+   print_vec("[RRt] y", y);
    y -= x;
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
    MPI_Barrier(MPI_COMM_WORLD);
@@ -154,13 +157,16 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
       blf_pa.SetAssemblyLevel(AssemblyLevel::FULL);
       blf_pa.Assemble();
-      print_vec("[PA] x", x);
+      print_vec("[PA ] x", x);
       blf_pa.Mult(x, z);
-      print_vec("[PA] z", z);
+      print_vec("[PA ] z", z);
+      z.SetTrueVector(), z.SetFromTrueVector();
+      print_vec("[PA2] z", z);
+
       blf_fa.Mult(x, y);
-      print_vec("[FA] y", y);
-      // y.SetTrueVector(), y.SetFromTrueVector();
-      // print_vec("[FA][sync] y", y);
+      print_vec("[FA ] y", y);
+      y.SetTrueVector(), y.SetFromTrueVector();
+      print_vec("[FA2] y", y);
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
    }
@@ -197,28 +203,73 @@ void DFemDiffusion(const char *filename, int p, const int r, const bool no_dfem)
                                  all_domain_attr);
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
-      // X = 0.0, Z = 0.0, y = 0.0, z = 0.0;
-      x.SetTrueVector(), x.SetFromTrueVector();
-      // y.SetTrueVector(), y.SetFromTrueVector();
-      z.SetTrueVector(), z.SetFromTrueVector();
+      // SetTrueVector: Extract the true-dofs from the GridFunction: R->Mult (gf => X)
+      // SetFromTrueVector: Set the GridFunction from the given true-dof vector: cP->Mult (X => gf)
 
-      print_vec("[MF] x", x);
+      X = M_PI;
+      y = M_PI;
+      Z = M_PI, z = M_PI;
+      y.SetTrueVector(), y.SetFromTrueVector();
+      z.SetTrueVector(), z.SetFromTrueVector();
+      // print_vec("\x1b[33m[MF ] z", z);
+
+#if 0
+      print_vec("[MF ] x", x);
       R->Mult(x, X);
+      print_vec("[MF ] X", X);
       dop_mf.Mult(X, Z);
+      print_vec("[MF ] Z", Z);
       R->MultTranspose(Z, z);
-      print_vec("[MF]       z", z);
-      // z.SetTrueVector();
-      // print_vec("[MF][set]  z", z);
+      print_vec("[MF ] z", z);
+      z.SetTrueVector();
+      print_vec("[MF1] z", z);
       z.SetFromTrueVector();
-      print_vec("[MF][from] z", z);
+      print_vec("[MF2] z", z);
 
       blf_fa.Mult(x, y);
-      print_vec("[FA]       y", y);
-      y.SetTrueVector(), y.SetFromTrueVector();
-      print_vec("[FA][sync] y", y);
+      print_vec("[FA ] y", y);
+      y.SetTrueVector();
+      print_vec("[FA1]ty", y.GetTrueVector());
+      y.SetFromTrueVector();
+      print_vec("[FA2] y", y);
       y -= z;
+      print_vec("[FAn] y", y);
+      y.GetTrueVector() -= z.GetTrueVector();
+      print_vec("[FAn]ty", y.GetTrueVector());
       MPI_Barrier(MPI_COMM_WORLD);
-      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+      REQUIRE(y.GetTrueVector().Normlinf() == MFEM_Approx(0.0));
+#else
+      print_vec("[MF0] z", z);
+      // x.SetTrueVector();
+      print_vec("[MF ]tx", x.GetTrueVector());
+      dop_mf.Mult(x.GetTrueVector(), z.GetTrueVector());
+      print_vec("[MF ]tz", z.GetTrueVector());
+      print_vec("[MF0] z", z);
+      z.SetFromTrueVector();
+      // R->MultTranspose(z.GetTrueVector(), z);
+      // P->Mult(z.GetTrueVector(), z);
+      print_vec("[MF2] z", z);
+
+      // x.SetFromTrueVector();
+      blf_fa.Mult(x, y);
+      print_vec("[FA ] y", y);
+      y.SetTrueVector();
+      print_vec("[FA1]ty", y.GetTrueVector());
+      y.SetFromTrueVector();
+      print_vec("[FA2] y", y);
+      y -= z;
+      print_vec("[FAn] y", y);
+      y.GetTrueVector() -= z.GetTrueVector();
+      print_vec("[FAn]ty", y.GetTrueVector());
+      MPI_Barrier(MPI_COMM_WORLD);
+      REQUIRE(y.GetTrueVector().Normlinf() == MFEM_Approx(0.0));
+      // REQUIRE(y.Normlinf() == MFEM_Approx(0.0)); // shared dof diff by sum
+      // [MF2] z:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926 -1.150949 -4.245944 -10.529129 -20.739305 -11.472575
+      // [FA ] y:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926 -0.299216 -1.634691 -4.776283 -9.881371 -5.524265
+      // [FA1]ty:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926
+      // [FA2] y:-0.125171 -1.361253 -4.502846 -9.607934 -5.424872 0.230987 2.210546 7.708333 17.133111 15.854926 -0.851733 -2.611253 -5.752846 -10.857934 -5.948310
+      // [FAn] y:0.000000 0.000000 -0.000000 0.000000 -0.000000 0.000000 -0.000000 0.000000 0.000000 0.000000 0.299216 1.634691 4.776283 9.881371 5.524265
+#endif
    }
 #endif
 
@@ -285,12 +336,12 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
    // SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
-         GENERATE("../../data/star.mesh"//,
-                  // "../../data/star-q3.mesh",
-                  // "../../data/rt-2d-q3.mesh",
-                  //"../../data/inline-quad.mesh"//,
-                  // "../../data/periodic-square.mesh"
-                 );
+         GENERATE(//"../../data/star.mesh"//,
+            // "../../data/star-q3.mesh",
+            // "../../data/rt-2d-q3.mesh",
+            "../../data/inline-quad.mesh"//,
+            // "../../data/periodic-square.mesh"
+         );
       DFemDiffusion<2>(filename, p, r, no_dfem);
    }
 
