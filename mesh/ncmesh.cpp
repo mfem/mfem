@@ -6211,16 +6211,17 @@ void NCMesh::LoadVertexToKnot3D(std::istream &input)
       std::array<int, 4> pv;  // Parent vertex indices
       input >> id >> ks[0] >> ks[1] >> pv[0] >> pv[1] >> pv[2] >> pv[3];
 
+#ifdef MFEM_DEBUG
       bool idsExist = nodes.IdExists(id);
       for (int j=0; j<4; ++j)
       {
          idsExist = idsExist && nodes.IdExists(pv[j]);
       }
 
-      const bool validKnotIds = (0 <= ks[0] || 0 <= ks[1]) && (0 < ks[0] ||
-                                                               0 < ks[1]);
-
-      MFEM_VERIFY(idsExist && validKnotIds, "Invalid index");
+      const bool validKnotIds = (0 <= ks[0] || 0 <= ks[1]) &&
+                                (0 < ks[0] || 0 < ks[1]);
+      MFEM_ASSERT(idsExist && validKnotIds, "Invalid index");
+#endif
       vertex_to_knot.SetVertex3D(i, id, ks, pv);
    }
 }

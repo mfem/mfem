@@ -2092,10 +2092,8 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
 {
    // Remove interior knots
    Array<const KnotVector *> kvc(kv.Size());
-   origNE.SetSize(kv.Size());
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      origNE[dir] = kv[dir]->GetNE();
       kvc[dir] = kv[dir]->FullyCoarsen();
    }
 
