@@ -24,14 +24,16 @@ void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
                                    int &n);
 
 int GetFaceOrientation(const Mesh *mesh, const int face,
-                       const Array<int> & verts);
+                       const std::array<int, 4> &verts);
 
-bool Reorder2D(int ori, std::vector<int> & s0);
+bool Reorder2D(int ori, std::array<int, 2> &s0);
+
+std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q);
 
 void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
-   std::map<std::pair<int, int>, int> & v2f,
-   std::set<int> & addParentFaces,
-   std::vector<FacePairInfo> & facePairs)
+   std::map<std::pair<int, int>, int> &v2f,
+   std::set<int> &addParentFaces,
+   std::vector<FacePairInfo> &facePairs)
 {
    for (int f=0; f<patchTopo->GetNFaces(); ++f)
    {
@@ -52,7 +54,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
       // Loop over the 2 pairs of opposite sides
       for (int p=0; p<2; ++p)  // Pair p
       {
-         Array<int> oppEdges(2);
+         std::array<int, 2> oppEdges;
          const int sideEdge0 = edges[1 - p];
          bool bothMaster = true;
          for (int s=0; s<2; ++s)
@@ -192,9 +194,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                   patchTopo->GetEdgeVertices(sideEdge0, sideVerts0);
                   sideVerts0.Sort();
 
-                  Array<bool> found(2);
-                  found = false;
-
+                  std::array<bool, 2> found{false, false};
                   Array<int> ep(2);
                   for (int e=0; e<2; ++e) // Loop over ends
                   {
@@ -231,12 +231,9 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                for (int e=0; e<nes; ++e) // Loop over edges
                {
-                  Array<int> fverts(4);
-                  fverts[0] = edgeV[0][e];
-                  fverts[1] = edgeV[0][e + 1];
-
-                  fverts[2] = edgeV[1][rev ? nes - e - 1 : e + 1];
-                  fverts[3] = edgeV[1][rev ? nes - e : e];
+                  std::array<int, 4> fverts{edgeV[0][e], edgeV[0][e + 1],
+                                            edgeV[1][rev ? nes - e - 1 : e + 1],
+                                            edgeV[1][rev ? nes - e : e]};
 
                   // Get indices with respect to the edge.
                   const int eki = edgeVki[0][e];
@@ -339,7 +336,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                   {
                      int id = -1;
                      {
-                        Array<int> kiMin(2);
+                        std::array<int, 2> kiMin;
                         for (int j=0; j<2; ++j)
                         {
                            kiMin[j] = fki(0,j);
@@ -363,12 +360,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                      return id;
                   };
 
-                  const int vmin = fverts.Min();
-                  const int idmin = fverts.Find(vmin);
-
-                  std::pair<int, int> vpair(fverts[idmin],
-                                            fverts[(idmin + 2) % 4]);
-
+                  const std::pair<int, int> vpair = QuadrupleToPair(fverts);
                   if (edgeE[0][e] >= 0)
                   {
                      const bool vPairTopo = v2f.count(vpair) > 0;
@@ -385,7 +377,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                      // Find the vertex with minimum knot indices.
                      const int vMinID = VertexMinKI();
 
-                     Array<int> fvertsMasterOrdering(4);
+                     std::array<int, 4> fvertsMasterOrdering;
                      for (int i=0; i<4; ++i)
                      {
                         if (ori_f >= 0)
@@ -522,9 +514,9 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 }
 
 void NURBSExtension::ProcessFacePairs(int start, int midStart,
-                                      const std::vector<int> & parentN1,
-                                      const std::vector<int> & parentN2,
-                                      std::vector<int> & parentVerts,
+                                      const std::vector<int> &parentN1,
+                                      const std::vector<int> &parentN2,
+                                      std::vector<int> &parentVerts,
                                       const std::vector<FacePairInfo> &facePairs)
 {
    const int nfpairs = facePairs.size();
@@ -559,7 +551,8 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
                   "");
       if (mid != midPrev)  // Next parent face
       {
-         Array<int> pv(parentVerts.data() + (4*mid), 4);
+         std::array<int, 4> pv;
+         for (int k=0; k<4; ++k) { pv[k] = parentVerts[(4*mid) + k]; }
          const int ori = GetFaceOrientation(patchTopo, parentFace, pv);
          // Ori is the signed shift such that pv[abs1(ori)] is vertex 0 of
          // parentFace, and the relative direction of the ordering is encoded in
@@ -569,7 +562,7 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
          {
             // For the previous parentFace, use previous orientation to reorder
             // masterFaceSlaves, masterFaceSlaveCorners, masterFaceSizes.
-            std::vector<int> s0(2);
+            std::array<int, 2> s0;
             const bool rev = Reorder2D(orientation, s0);
             masterFaceS0[midPrev] = s0;
             masterFaceRev[midPrev] = rev;
@@ -599,7 +592,7 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
    // TODO: restructure the above loop (q) over nfpairs to avoid this copying of code for Reorder2D.
    if (midPrev >= 0)
    {
-      std::vector<int> s0(2);
+      std::array<int, 2> s0;
       const bool rev = Reorder2D(orientation, s0);
       masterFaceS0[midPrev] = s0;
       masterFaceRev[midPrev] = rev;
@@ -616,7 +609,7 @@ void NURBSExtension::GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const
    }
 }
 
-void NURBSExtension::GetAuxFaceVertices(int auxFace, Array<int> & verts) const
+void NURBSExtension::GetAuxFaceVertices(int auxFace, Array<int> &verts) const
 {
    verts.SetSize(4);
    for (int i=0; i<4; ++i)
@@ -626,7 +619,7 @@ void NURBSExtension::GetAuxFaceVertices(int auxFace, Array<int> & verts) const
 }
 
 void NURBSExtension::GetAuxFaceEdges(int auxFace,
-                                     Array<int> & edges) const
+                                     Array<int> &edges) const
 {
    edges.SetSize(4);
    Array<int> verts(2);
@@ -889,15 +882,15 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
       }
 }
 
-bool ConsistentlySetEntry(int v, int & e)
+bool ConsistentlySetEntry(int v, int &e)
 {
    const bool consistent = e == -1 || e == v;
    e = v;
    return consistent;
 }
 
-void ReorderArray2D(int i0, int j0, const Array2D<int> & a,
-                    Array2D<int> & b)
+void ReorderArray2D(int i0, int j0, const Array2D<int> &a,
+                    Array2D<int> &b)
 {
    const int m = a.NumRows();
    const int n = a.NumCols();
@@ -917,9 +910,8 @@ void ReorderArray2D(int i0, int j0, const Array2D<int> & a,
    }
 }
 
-void GetVertexOrdering(int ori, Array<int> & perm)
+void GetVertexOrdering(int ori, std::array<int, 4> &perm)
 {
-   perm.SetSize(4);
    const int oriAbs = ori < 0 ? -1 - ori : ori;
 
    for (int i=0; i<4; ++i)
@@ -1134,7 +1126,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             }
 
          // Set entries on edges of this face, if interior to the master face.
-         std::vector<bool> edgeBdry(4);
+         std::array<bool, 4> edgeBdry;
 
          // Horizontal edges
          edgeBdry[0] = sJ == 0;
@@ -1147,8 +1139,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
          Array<int> faceEdges;
          GetAuxFaceEdges(auxFace, faceEdges);
 
-         Array<int> orderedVertices(4);
-         Array<int> perm(4);
+         std::array<int, 4> orderedVertices, perm;
          GetVertexOrdering(ori, perm);
 
          std::set<int> vbdry;
@@ -1393,8 +1384,8 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             }
 
          // Set entries on edges of this face, if interior to the master face.
-         std::vector<int> edgeOrder{e1, e2, (e1 + 2) % 4, (e2 + 2) % 4};
-         std::vector<bool> edgeBdry(4);
+         std::array<int, 4> edgeOrder{e1, e2, (e1 + 2) % 4, (e2 + 2) % 4};
+         std::array<bool, 4> edgeBdry;
 
          // Horizontal edges
          edgeBdry[0] = sJ == 0;
@@ -1404,8 +1395,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
          edgeBdry[1] = sI + ne1 == n1;
          edgeBdry[3] = sI == 0;
 
-         Array<int> orderedVertices(4);
-
+         std::array<int, 4> orderedVertices;
          std::set<int> vbdry;
 
          int vstart = v0;
@@ -1725,13 +1715,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
       // The face with vertices (pv[0], pv[1], pv[2], pv[3]) is defined as a
       // parent face.
-      const auto pvmin = std::min_element(pv.begin(), pv.end());
-      const int idmin = std::distance(pv.begin(), pvmin);
-      const int c0 = pv[idmin];  // First corner
-      const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
-
-      const std::pair<int, int> parentPair(c0, c1);
-
+      const std::pair<int, int> parentPair = QuadrupleToPair(pv);
       const int parentFace = v2f.at(parentPair);
       const bool newParentFace = (prevParent != parentFace);
       if (newParentFace)
@@ -1984,87 +1968,75 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
          }
       }
 
-      // Loop over child faces and set facePairs, as well as auxiliary faces as
-      // needed.
-      // TODO: just loop over (r1min, r1max) and (r2min, r2max)?
+      auto SetFacePairOnGridRange = [&](int i0, int i1, int j0, int j1)
+      {
+         std::array<int, 4> cv{gridVertex(i0, j0), gridVertex(i1, j0),
+                               gridVertex(i1, j1), gridVertex(i0, j1)};
+         const std::pair<int, int> childPair = QuadrupleToPair(cv);
 
+         // min(cv) may be negative, if gridVertex is not set everywhere.
+         if (childPair.first < 0) { return; }
+
+         const int d0 = i1 - i0;
+         const int d1 = j1 - j0;
+
+         const bool childPairTopo = v2f.count(childPair) > 0;
+         if (childPairTopo)
+         {
+            const int childFace = v2f.at(childPair);
+            const int ori = GetFaceOrientation(patchTopo, childFace, cv);
+            // ori gives the orientation and index of cv matching the first
+            // vertex of childFace.
+            facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace,
+                                                ori, {i0, j0}, {d0, d1}});
+         }
+         else
+         {
+            // Check whether the parent face is on the boundary.
+            const Mesh::FaceInformation faceInfo = patchTopo->GetFaceInformation(
+                                                      parentFace);
+            const bool bdryParentFace = faceInfo.IsBoundary();
+
+            if (!allset && !bdryParentFace)
+            {
+               hasAuxFace = true;
+               // Check whether childPair is in auxFaces.
+               if (auxv2f.count(childPair) == 0)
+               {
+                  // Create a new auxiliary face
+                  auxv2f[childPair] = auxFaces.size();
+                  AuxiliaryFace auxFace;
+                  for (int k=0; k<4; ++k) { auxFace.v[k] = cv[k]; }
+
+                  auxFace.parent = parentFace;
+                  // Orientation is defined as 0 for a new auxiliary face.
+                  auxFace.ori = 0;
+                  auxFace.ki0[0] = i0;
+                  auxFace.ki0[1] = j0;
+                  auxFace.ki1[0] = i1;
+                  auxFace.ki1[1] = j1;
+
+                  auxFaces.push_back(auxFace);
+
+                  facePairs.emplace_back(
+                     FacePairInfo{cv[0], -1 - auxv2f[childPair], parentFace,
+                                  0, {i0, j0}, {d0, d1}});
+               }
+            }
+         }
+      };
+
+      // Loop over child faces and set facePairs, as well as auxiliary faces.
+      // TODO: just loop over (r1min, r1max) and (r2min, r2max)?
       for (int ii=0; ii<n_orig[0]; ++ii)
       {
          const int i = cgrid[0][ii];
          const int i1 = cgrid[0][ii + 1];
-         const int d0 = i1 - i;
-
          for (int jj=0; jj<n_orig[1]; ++jj)
          {
             const int j = cgrid[1][jj];
             const int j1 = cgrid[1][jj + 1];
-            const int d1 = j1 - j;
-
-            std::vector<int> cv(4);
-            cv[0] = gridVertex(i, j);
-            cv[1] = gridVertex(i1, j);
-            cv[2] = gridVertex(i1, j1);
-            cv[3] = gridVertex(i, j1);
-
-            const auto cvmin = std::min_element(cv.begin(), cv.end());
-            const int idmin = std::distance(cv.begin(), cvmin);
-            const int c0 = cv[idmin];  // First corner
-            const int c1 = cv[(idmin + 2) % 4];  // Opposite corner
-
-            // c0 < 0 may occur, if gridVertex is not set everywhere.
-            if (c0 < 0) { continue; }
-
-            const std::pair<int, int> childPair(c0, c1);
-            const bool childPairTopo = v2f.count(childPair) > 0;
-            if (childPairTopo)
-            {
-               const int childFace = v2f.at(childPair);
-               Array<int> acv(cv.data(), 4);
-               const int ori = GetFaceOrientation(patchTopo, childFace, acv);
-               // ori gives the orientation and index of cv matching the first
-               // vertex of childFace.
-               facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace,
-                                                   ori, {i, j}, {d0, d1}});
-            }
-            else
-            {
-               // Check whether the parent faces is on the boundary.
-               const Mesh::FaceInformation faceInfo = patchTopo->GetFaceInformation(
-                                                         parentFace);
-               const bool bdryParentFace = faceInfo.IsBoundary();
-
-               if (!allset && !bdryParentFace)
-               {
-                  hasAuxFace = true;
-                  // Check whether childPair is in auxFaces.
-                  if (auxv2f.count(childPair) == 0)
-                  {
-                     // Create a new auxiliary face
-                     auxv2f[childPair] = auxFaces.size();
-
-                     AuxiliaryFace auxFace;
-                     for (int k=0; k<4; ++k)
-                     {
-                        auxFace.v[k] = cv[k];
-                     }
-
-                     auxFace.parent = parentFace;
-                     // Orientation is defined as 0 for a new auxiliary face.
-                     auxFace.ori = 0;
-
-                     auxFace.ki0[0] = i;
-                     auxFace.ki0[1] = j;
-                     auxFace.ki1[0] = i + d0;
-                     auxFace.ki1[1] = j + d1;
-
-                     auxFaces.push_back(auxFace);
-
-                     facePairs.emplace_back(
-                        FacePairInfo{cv[0], -1 - auxv2f[childPair], parentFace,
-                                     0, {i, j}, {d0, d1}});
-                  }
-               }
-            }
+            SetFacePairOnGridRange(i, i1, j, j1);
          }
       }
 
@@ -2094,8 +2066,8 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
             int os_e = 0;
 
-            for (int e_orig = 0; e_orig < n_orig[dir-1];
-                 ++e_orig)  // edges in direction `dir`
+            // Loop edges in direction `dir`
+            for (int e_orig = 0; e_orig < n_orig[dir-1]; ++e_orig)
             {
                const int e_i = os_e;
                const int e_orig_rev = reverse ? n_orig[dir-1] - 1 - e_orig : e_orig;
@@ -2183,14 +2155,10 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
                const int tv = (e_idx == ne - de) ? -1 : tv_int;
                const int tvki = (e_idx == ne - de) ? -1 : (reverse ? ne - ki : ki);
 
-               if (tv == -1)
-               {
-                  lagTV = true;
-               }
-
                const std::pair<int, int> edge_i(cv[0], cv[1]);
-
                const int childEdge = v2e.at(edge_i);
+
+               if (tv == -1) { lagTV = true; }
 
                if (!parentVisited)
                {
@@ -2220,18 +2188,8 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
       // neighboring patch and may contain multiple mesh faces.
       // In general, there can be at most 8 = 3^2 - 1 such faces.
 
-      Array<int> gv1(4);
-      Array<int> gv2(4);
-
-      gv1[0] = 0;
-      gv1[1] = r1min;
-      gv1[2] = r1max;
-      gv1[3] = n1;
-
-      gv2[0] = 0;
-      gv2[1] = r2min;
-      gv2[2] = r2max;
-      gv2[3] = n2;
+      std::array<int, 4> gv1 = {0, r1min, r1max, n1};
+      std::array<int, 4> gv2 = {0, r2min, r2max, n2};
 
       if (hasSlaveFaces && !allset)
       {
@@ -2252,87 +2210,14 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
                   continue;
                }
 
-               // TODO: the following code is copied and modified from above. Refactor into a function?
-               std::vector<int> cv(4);
-               std::vector<int> cv0(4);  // TODO: remove?
-               std::vector<int> cv1(4);  // TODO: remove?
+               SetFacePairOnGridRange(gv1[i], gv1[i+1], gv2[j], gv2[j+1]);
 
-               cv[0] = gridVertex(gv1[i],gv2[j]);
-               cv[1] = gridVertex(gv1[i+1],gv2[j]);
-               cv[2] = gridVertex(gv1[i+1],gv2[j+1]);
-               cv[3] = gridVertex(gv1[i],gv2[j+1]);
-
-               cv0[0] = gv1[i];
-               cv0[1] = gv1[i+1];
-               cv0[2] = gv1[i+1];
-               cv0[3] = gv1[i];
-
-               cv1[0] = gv2[j];
-               cv1[1] = gv2[j];
-               cv1[2] = gv2[j+1];
-               cv1[3] = gv2[j+1];
-
-               const auto cvmin = std::min_element(cv.begin(), cv.end());
-               const int idmin = std::distance(cv.begin(), cvmin);
-               const int c0 = cv[idmin];  // First corner
-               const int c1 = cv[(idmin + 2) % 4];  // Opposite corner
-
-               MFEM_ASSERT(c0 >= 0, "");
-
-               const std::pair<int, int> childPair(c0, c1);
-               const bool childPairTopo = v2f.count(childPair) > 0;
-               if (childPairTopo)
-               {
-                  const int childFace = v2f.at(childPair);
-                  Array<int> acv(cv.data(), 4);
-
-                  // ori gives the orientation and index of cv matching the
-                  // first vertex of childFace.
-                  const int ori = GetFaceOrientation(patchTopo, childFace, acv);
-                  facePairs.emplace_back(FacePairInfo{cv[0], childFace,
-                                                      parentFace, ori,
-                  {gv1[i], gv2[j]}, {gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]}});
-               }
-               else
-               {
-                  hasAuxFace = true;
-
-                  // Check whether childPair is in auxFaces.
-                  if (auxv2f.count(childPair) == 0)
-                  {
-                     // Create a new auxiliary face
-                     auxv2f[childPair] = auxFaces.size();
-                     AuxiliaryFace auxFace;
-                     for (int k=0; k<4; ++k)
-                     {
-                        auxFace.v[k] = cv[k];
-                     }
-
-                     auxFace.parent = parentFace;
-                     // Orientation is defined as 0 for a new auxiliary face.
-                     auxFace.ori = 0;
-
-                     auxFace.ki0[0] = gv1[i];
-                     auxFace.ki0[1] = gv2[j];
-                     auxFace.ki1[0] = gv1[i+1];
-                     auxFace.ki1[1] = gv2[j+1];
-
-                     auxFaces.push_back(auxFace);
-
-                     // Orientation is defined as 0 for a new auxiliary face.
-                     facePairs.emplace_back(FacePairInfo{cv[0],
-                                                         -1 - auxv2f[childPair],
-                                                         parentFace, 0,
-                     {gv1[i], gv2[j]}, {gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]}});
-
-                     // TODO: is it redundant to put parentFace in both
-                     // facePairs and auxFaces?
-                     // TODO: is it redundant to put gv1[i+{0,1}], gv2[j+{0,1}] in both
-                     // facePairs and auxFaces?
-                     // TODO: can facePairs and auxFaces be combined into
-                     // one array of a struct?
-                  }
-               }
+               // TODO: is it redundant to put parentFace in both
+               // facePairs and auxFaces?
+               // TODO: is it redundant to put gv1[i+{0,1}], gv2[j+{0,1}] in both
+               // facePairs and auxFaces?
+               // TODO: can facePairs and auxFaces be combined into
+               // one array of a struct?
             }
       }
 
@@ -2405,7 +2290,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 
                // Define an auxiliary edge (gv1[i], gv1[i+1])
                Array<int> cv(2);
-               Array<int> ki(2);
+               std::array<int, 2> ki;
 
                if (d == 0)
                {
@@ -2553,7 +2438,7 @@ void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
 }
 
 // Use "Patch" instead of "Element"?
-void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> & auxface2elem)
+void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> &auxface2elem)
 {
    auxface2elem.SetSize(auxFaces.size(), 2);
 
@@ -2609,7 +2494,7 @@ void NURBSExtension::GetAuxFaceToElementTable(Array2D<int> & auxface2elem)
 }
 
 // Use "Patch" instead of "Element"?
-void NURBSExtension::GetPatchSlaveFaceToPatchTable(Array2D<int> & sface2elem)
+void NURBSExtension::GetPatchSlaveFaceToPatchTable(Array2D<int> &sface2elem)
 {
    const int dim = Dimension();
    const int numUnique = dim == 2 ? slaveEdgesUnique.Size() :
@@ -2691,17 +2576,13 @@ void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
 
    for (auto auxFace : auxFaces)
    {
-      // TODO: save this or make a function for it
       Array<int> pv;
+      std::array<int, 4> quad;
       patchTopo->GetFaceVertices(auxFace.parent, pv);
-      MFEM_VERIFY(pv.Size() == 4, "");
-      const int vmin = pv.Min();
-      const int idmin = pv.Find(vmin);
-      const int c0 = vmin;
-      const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
-
+      MFEM_ASSERT(pv.Size() == 4, "");
+      for (int i=0; i<4; ++i) { quad[i] = pv[i]; }
       // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
-      const std::pair<int, int> parentPair(c0, c1);
+      const std::pair<int, int> parentPair = QuadrupleToPair(quad);
       const std::array<int, 2> kv = parentToKV.at(parentPair);
 
       RemapKnotIndex(false, kvf[kv[0]], knotVectors[kv[0]]->spacing.get(),
@@ -2713,7 +2594,6 @@ void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
                      auxFace.ki0[1]);
       RemapKnotIndex(false, kvf[kv[1]], knotVectors[kv[1]]->spacing.get(),
                      auxFace.ki1[1]);
-
    }
 }
 
@@ -2851,23 +2731,11 @@ void NURBSExtension::GetMasterEdgePieceOffsets(int mid, Array<int> &os)
       int nes = 0;
       if (s >= 0)
       {
-         const int kvs = KnotInd(s);
-         nes = knotVectors[kvs]->GetNE();
+         nes = knotVectors[KnotInd(s)]->GetNE();
       }
       else
       {
-         const int e = -1 - s;
-
-         // TODO: refactor this copied code into a function.
-         const int signedParentEdge = auxEdges[e].parent;
-         const int ki0 = auxEdges[e].ki[0];
-         const int ki1raw = auxEdges[e].ki[1];
-         const bool rev = signedParentEdge < 0;
-         const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
-         const int masterNE = KnotVec(parentEdge)->GetNE();
-         const int ki1 = ki1raw == -1 ? masterNE : ki1raw;
-         const int auxne = ki1 - ki0;
-         nes = auxne;
+         nes = AuxiliaryEdgeNE(-1 - s);
       }
 
       os[i+1] = os[i] + nes;
@@ -3214,7 +3082,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
    Array<int> faces, orient;
 
-   auto faceNeighbors = [&](int p, std::set<int> & nghb)
+   auto faceNeighbors = [&](int p, std::set<int> &nghb)
    {
       if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
       else { patchTopo->GetElementFaces(p, faces, orient); }
@@ -3244,7 +3112,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    };
 
-   auto masterFaceNeighbors = [&](int p, std::set<int> & nghb)
+   auto masterFaceNeighbors = [&](int p, std::set<int> &nghb)
    {
       if (dim == 2) { patchTopo->GetElementEdges(p, faces, orient); }
       else { patchTopo->GetElementFaces(p, faces, orient); }
@@ -3283,7 +3151,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    };
 
-   auto auxFaceNeighbors = [&](int p, std::set<int> & nghb)
+   auto auxFaceNeighbors = [&](int p, std::set<int> &nghb)
    {
       // TODO: this comes from masterFaceNeighbors?
    };
@@ -3593,17 +3461,19 @@ void NURBSExtension::UpdateCoarseKVF()
 }
 
 int GetFaceOrientation(const Mesh *mesh, const int face,
-                       const Array<int> & verts)
+                       const std::array<int, 4> &verts)
 {
    Array<int> fverts;
    mesh->GetFaceVertices(face, fverts);
-   MFEM_ASSERT(verts.Size() == 4 && fverts.Size() == 4, "");
+   MFEM_ASSERT(fverts.Size() == 4, "");
 
    // Verify that verts and fvert have the same entries as sets, by deep-copying
    // and sorting.
    {
-      Array<int> s1(verts);
+      Array<int> s1(4);
       Array<int> s2(fverts);
+
+      for (int i=0; i<4; ++i) { s1[i] = verts[i]; }
 
       s1.Sort(); s2.Sort();
       MFEM_ASSERT(s1 == s2, "");
@@ -3633,7 +3503,7 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 // has vertex with index `shift` matching vertex 0 of the new quad face F2,
 // on which the new ordering of `a` should be based.
 // For more details, see GetFaceOrientation.
-bool Reorder2D(int ori, std::vector<int> & s0)
+bool Reorder2D(int ori, std::array<int, 2> &s0)
 {
    const int shift = ori < 0 ? -1 - ori : ori;
 
@@ -3648,9 +3518,7 @@ bool Reorder2D(int ori, std::vector<int> & s0)
    // Determine whether the dimensions of F1 and F2 are reversed. Do this by
    // finding the (i,j) indices of s1, which is the next vertex on F1.
    const int shift1 = ori < 0 ? shift - 1: shift + 1;
-
    const int s1 = (shift1 + 4) % 4;
-
    const int s1i = (s1 == 0 || s1 == 3) ? 0 : 1;
    const bool dimReverse = s0i == s1i;
 
@@ -3828,6 +3696,18 @@ void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
    }
 }
 
+// Given a quadruple in q, return the pair (q_i, q_j), where q_i is the minimum
+// entry of q, and q_j is the entry two indices away from q_i. When q contains
+// indices of the vertices of a quadrilateral, the returned pair represents the
+// unique diagonal touching the vertex of minimum index, which is a more concise
+// way of representing the quadrilateral, facilitating the search of faces.
+std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q)
+{
+   const auto qmin = std::min_element(q.begin(), q.end());
+   const int idmin = std::distance(q.begin(), qmin);
+   return std::pair<int, int>(q[idmin], q[(idmin + 2) % 4]);
+}
+
 void VertexToKnotSpan::SetSize(int dimension, int numVertices)
 {
    dim = dimension;
@@ -3907,33 +3787,18 @@ void VertexToKnotSpan::Print(std::ostream &os) const
 
 std::pair<int, int> VertexToKnotSpan::GetVertexParentPair(int index) const
 {
-   int c0, c1;
    if (dim == 3)
    {
       std::array<int, 4> pv;
-      for (int i=0; i<4; ++i)
-      {
-         pv[i] = data(index, 3 + i);
-      }
-
+      for (int i=0; i<4; ++i) { pv[i] = data(index, 3 + i); }
       // The face with vertices (pv[0], pv[1], pv[2], pv[3]) is defined as a
       // parent face.
-      const auto pvmin = std::min_element(pv.begin(), pv.end());
-      const int idmin = std::distance(pv.begin(), pvmin);
-      c0 = pv[idmin]; // First corner
-      c1 = pv[(idmin + 2) % 4]; // Opposite corner
-   }
-   else
-   {
-      c0 = data(index, 2);
-      c1 = data(index, 3);
-
-      if (c0 > c1)
-      {
-         std::swap(c0, c1);
-      }
+      return QuadrupleToPair(pv);
    }
 
+   int c0 = data(index, 2);
+   int c1 = data(index, 3);
+   if (c0 > c1) { std::swap(c0, c1); }
    return std::pair<int, int>(c0, c1);
 }
 

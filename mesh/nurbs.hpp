@@ -366,12 +366,12 @@ public:
    void Coarsen(const Array<int> &cf, real_t tol = 1.0e-12);
 
    /// Calls KnotVector::GetCoarseningFactor for each direction.
-   void GetCoarseningFactors(Array<int> & f) const;
+   void GetCoarseningFactors(Array<int> &f) const;
 
    /// Marks the KnotVector in each dimension as coarse.
    void SetKnotVectorsCoarse(bool c);
 
-   void FullyCoarsen(const Array2D<double> & cp, int ncp1D);
+   void FullyCoarsen(const Array2D<double> &cp, int ncp1D);
 
    void UpdateSpacingPartitions(const Array<KnotVector*> &pkv);
 
@@ -634,7 +634,8 @@ protected:
        masterFaceSlaveCorners;
    std::vector<std::vector<int>> masterEdgeVerts;
    std::vector<std::vector<int>> masterEdgeKI;
-   std::vector<std::vector<int>> masterFaceSizes, masterFaceS0;
+   std::vector<std::vector<int>> masterFaceSizes;
+   std::vector<std::array<int, 2>> masterFaceS0;
    std::vector<bool> masterFaceRev;
 
    bool nonconforming = false;
@@ -1072,7 +1073,7 @@ public:
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
        non-nested spacing functions. */
-   void GetCoarseningFactors(Array<int> & f) const;
+   void GetCoarseningFactors(Array<int> &f) const;
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }

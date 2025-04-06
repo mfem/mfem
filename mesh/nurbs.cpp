@@ -3818,7 +3818,6 @@ void NURBSExtension::GenerateOffsets()
       for (size_t i=0; i<masterFaceSizes.size(); ++i)
       {
          masterFaceSizes[i].resize(2);
-         masterFaceS0[i].resize(2);
       }
 
       if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
