@@ -92,10 +92,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
    MFEM_VERIFY(NE > 0, "Mesh with no elements is not yet supported!");
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
+   Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
 
    x.Randomize(1);
-   x.SetTrueVector();
-   x.SetFromTrueVector();
 
    auto rho = [](const Vector &xyz)
    {
@@ -151,12 +150,20 @@ void DFemDiffusion(const char *filename, int p, const int r)
                                  mfem::tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr);
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
-      dop_mf.Mult(x, z);
-      z.SetTrueVector(), z.SetFromTrueVector();
+
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      dop_mf.Mult(X, Z);
+
       blf_fa.Mult(x, y);
-      y.SetTrueVector(), y.SetFromTrueVector();
-      y -= z;
-      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+      Y -= Z;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = Y.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_local, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -179,8 +186,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
          mfem::tuple{ None<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
          mfem::tuple{ None<QData>{} }, *ir, all_domain_attr);
       dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
-      pfes.GetRestrictionMatrix()->Mult(x, x.GetTrueVector());
-      dSetup.Mult(x.GetTrueVector(), qdata);
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      dSetup.Mult(X, qdata);
 
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
       typename Diffusion<DIM>::PAApply pa_apply_qf;
@@ -189,12 +196,20 @@ void DFemDiffusion(const char *filename, int p, const int r)
                                  mfem::tuple{ Gradient<U>{} },
                                  *ir, all_domain_attr);
       dop_pa.SetParameters({ &qdata });
-      dop_pa.Mult(x, z);
-      z.SetTrueVector(), z.SetFromTrueVector();
+
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      dop_pa.Mult(X, Z);
+
       blf_fa.Mult(x, y);
-      y.SetTrueVector(), y.SetFromTrueVector();
-      y -= z;
-      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+      Y -= Z;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = Y.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_local, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 }
