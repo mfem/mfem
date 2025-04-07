@@ -1105,7 +1105,7 @@ public:
 
    void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
 
-   void ReadPatchCP(std::istream &input);
+   void ReadStructuredPatchCP(std::istream &input);
 
    void PrintCoarsePatches(std::ostream &os);
 
