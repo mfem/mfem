@@ -290,6 +290,91 @@ void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
    std::cout << "}\n";
 }
 
+void print_mpi_root(const std::string& msg)
+{
+   auto myrank = Mpi::WorldRank();
+   if (myrank == 0)
+   {
+      std::cout << msg << std::endl;
+      std::cout.flush(); // Ensure output is flushed
+   }
+}
+
+/// @brief print with MPI rank synchronization
+///
+/// @param msg Message to print
+void print_mpi_sync(const std::string& msg)
+{
+   auto myrank = Mpi::WorldRank();
+   auto nranks = Mpi::WorldSize();
+
+   if (nranks == 1)
+   {
+      // Single process case - just print directly
+      std::cout << msg << std::endl;
+      return;
+   }
+
+   // First gather string lengths
+   int msg_len = msg.length();
+   std::vector<int> lengths(nranks);
+   MPI_Gather(&msg_len, 1, MPI_INT,
+              lengths.data(), 1, MPI_INT,
+              0, MPI_COMM_WORLD);
+
+   if (myrank == 0)
+   {
+      // Rank 0: Allocate receive buffer based on gathered lengths
+      std::vector<std::string> messages(nranks);
+      messages[0] = msg; // Store rank 0's message
+
+      // Receive messages from other ranks
+      for (int r = 1; r < nranks; r++)
+      {
+         std::vector<char> buffer(lengths[r] + 1);
+         MPI_Recv(buffer.data(), lengths[r], MPI_CHAR,
+                  r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+         messages[r] = std::string(buffer.data(), lengths[r]);
+      }
+
+      // Print all messages in rank order
+      for (int r = 0; r < nranks; r++)
+      {
+         std::cout << "[Rank " << r << "] " << messages[r] << std::endl;
+      }
+      std::cout.flush();
+   }
+   else
+   {
+      // Other ranks: Send message to rank 0
+      MPI_Send(msg.c_str(), msg_len, MPI_CHAR,
+               0, 0, MPI_COMM_WORLD);
+   }
+
+   // Final barrier to ensure completion
+   MPI_Barrier(MPI_COMM_WORLD);
+}
+
+/// @brief Pretty print an mfem::Vector with MPI rank
+///
+/// @param v Vector to print
+/// @param myrank MPI rank
+/// @param comm MPI communicator
+void pretty_print_mpi(const mfem::Vector& v)
+{
+   std::stringstream ss;
+   ss << "[";
+   for (int i = 0; i < v.Size(); i++)
+   {
+      ss << v(i);
+      if (i < v.Size() - 1) { ss << ", "; }
+   }
+   ss << "]";
+
+   print_mpi_sync(ss.str());
+}
+
+
 template <typename ... Ts>
 constexpr auto decay_types(mfem::tuple<Ts...> const &)
 -> mfem::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;

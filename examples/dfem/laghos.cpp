@@ -559,17 +559,14 @@ public:
       ux_l(hydro.H1.GetVSize()),
       uv_l(hydro.H1.GetVSize()),
       ue_l(hydro.L2.GetVSize()),
+      e_source_t(hydro.L2.GetTrueVSize()),
       fd_gradient(fd_gradient) {}
 
    void Mult(const Vector &k, Vector &R) const override
    {
-      hydro.UpdateMesh(u);
-
       u = k;
       u *= dt;
       u += x;
-
-      hydro.mesh_nodes.SyncMemory(u);
 
       auto kptr = const_cast<Vector*>(&k);
       Vector kx, kv, ke;
@@ -590,6 +587,9 @@ public:
       hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
       hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
       hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
+
+      hydro.UpdateMesh(ux_l);
+      hydro.mesh_nodes.SyncMemory(ux_l);
 
       Rx = kx;
       Rx -= uv;
@@ -618,7 +618,7 @@ public:
 
       if (problem == 0)
       {
-         LinearForm e_source(&hydro.L2);
+         ParLinearForm e_source(&hydro.L2);
          hydro.L2.GetMesh()->DeleteGeometricFactors();
          FunctionCoefficient coeff(taylor_source);
          DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
@@ -626,7 +626,9 @@ public:
          e_source.UseFastAssembly(true);
          e_source.Assemble();
 
-         Re -= e_source;
+         hydro.L2.GetProlongationMatrix()->MultTranspose(e_source, e_source_t);
+
+         Re -= e_source_t;
       }
 
       // hydro.Me.TrueAddMult(ke, Re);
@@ -694,7 +696,7 @@ public:
    hydro_t &hydro;
    const real_t dt;
    const Vector &x;
-   mutable Vector u, ux_l, uv_l, ue_l;
+   mutable Vector u, ux_l, uv_l, ue_l, e_source_t;
    const int H1tsize;
    const int L2tsize;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
@@ -1818,17 +1820,20 @@ int main(int argc, char *argv[])
    const real_t energy_init = hydro.InternalEnergy(e_gf) +
                               hydro.KineticEnergy(v_gf);
 
-   if (Mpi::Root())
-   {
-      out << "energy initial: " << energy_init << "\n";
-   }
-
-   out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
-       << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
+   // out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
+   //     << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
    real_t t = 0.0;
    real_t dt = hydro.GetTimeStepEstimate(S);
-   out << "time step estimate: " << dt << "\n";
+
+
+   if (Mpi::Root())
+   {
+      out << "energy initial: " << energy_init << "\n";
+      out << "time step estimate: " << dt << "\n";
+   }
+
+
    real_t t_old;
    bool last_step = false;
    [[maybe_unused]] int steps = 0;
