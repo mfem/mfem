@@ -3835,7 +3835,7 @@ void NURBSExtension::GenerateOffsets()
             const int v = edgePairs[i].v;
             const int s = edgePairs[i].child;
             const int m = edgePairs[i].parent;
-            const int ki = edgePairs[i].ki;
+            const int ki = edgePairs[i].ksi;
 
             slaveEdges.push_back(s);
 
@@ -4038,8 +4038,8 @@ void NURBSExtension::GenerateOffsets()
       // defined only on part of the master edge knotvector.
 
       const int signedParentEdge = auxEdges[e].parent;
-      const int ki0 = auxEdges[e].ki[0];
-      const int ki1raw = auxEdges[e].ki[1];
+      const int ki0 = auxEdges[e].ksi[0];
+      const int ki1raw = auxEdges[e].ksi[1];
 
       const bool rev = signedParentEdge < 0;
       const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
@@ -4103,8 +4103,8 @@ void NURBSExtension::GenerateOffsets()
       const int perEdgeCP0 = GetNCPperEdge(KnotVec(edges[0]));
       const int perEdgeCP1 = GetNCPperEdge(KnotVec(edges[1]));
 
-      const int auxne0 = auxFaces[f].ki1[0] - auxFaces[f].ki0[0];
-      const int auxne1 = auxFaces[f].ki1[1] - auxFaces[f].ki0[1];
+      const int auxne0 = auxFaces[f].ksi1[0] - auxFaces[f].ksi0[0];
+      const int auxne1 = auxFaces[f].ksi1[1] - auxFaces[f].ksi0[1];
       meshCounter += (auxne0 - 1) * (auxne1 - 1);
       spaceCounter += ((auxne0 * perEdgeCP0) + auxne0 - 1) *
                       ((auxne1 * perEdgeCP1) + auxne1 - 1);

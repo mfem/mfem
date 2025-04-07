@@ -536,39 +536,37 @@ protected:
 
    struct AuxiliaryEdge
    {
-      int parent;  /// Signed parent edge index
-      int v[2];    /// Vertex indices
-      // TODO: these are element indices, not knot indices.
-      int ki[2];   /// Knot indices of vertices in parent edge
+      int parent; /// Signed parent edge index
+      int v[2];   /// Vertex indices
+      int ksi[2]; /// Knot-span indices of vertices in parent edge
    };
 
    struct AuxiliaryFace
    {
       int parent;  /// Parent face index
-      int ori;  /// Orientation with respect to parent face
-      int v[4];  /// Vertex indices
-      // TODO: these are element indices, not knot indices.
-      int ki0[2];  /// Lower knot indices in parent face
-      int ki1[2];  /// Upper knot indices in parent face
+      int ori;     /// Orientation with respect to parent face
+      int v[4];    /// Vertex indices
+      int ksi0[2]; /// Lower knot-span indices in parent face
+      int ksi1[2]; /// Upper knot-span indices in parent face
    };
 
    struct EdgePairInfo
    {
-      int v;  /// Vertex index
-      int ki;  /// Knot index of vertex
-      int child, parent;  /// Child and parent edge indices
-      bool isSet;  /// Indicates whether this instance is set
+      int v; /// Vertex index
+      int ksi; /// Knot-span index of vertex
+      int child, parent; /// Child and parent edge indices
+      bool isSet; /// Whether this instance is set
 
       EdgePairInfo() : isSet(false) { }
 
       EdgePairInfo(int vertex, int knotIndex, int childEdge, int parentEdge)
-         : v(vertex), ki(knotIndex), child(childEdge), parent(parentEdge),
+         : v(vertex), ksi(knotIndex), child(childEdge), parent(parentEdge),
            isSet(true) { }
 
       void Set(int vertex, int knotIndex, int childEdge, int parentEdge)
       {
          v = vertex;
-         ki = knotIndex;
+         ksi = knotIndex;
          child = childEdge;
          parent = parentEdge;
          isSet = true;
@@ -576,18 +574,18 @@ protected:
 
       bool operator==(const EdgePairInfo& other) const
       {
-         return v == other.v && ki == other.ki && child == other.child
+         return v == other.v && ksi == other.ksi && child == other.child
                 && parent == other.parent;
       }
    };
 
    struct FacePairInfo
    {
-      int v0;  /// Lower left corner vertex
-      int child, parent;  /// Child and parent face indices
-      int ori;  /// Orientation
-      int ki[2];  /// Knot indices in parent face of v0
-      int ne[2];  /// Number of elements in each direction on child face
+      int v0; /// Lower left corner vertex
+      int child, parent; /// Child and parent face indices
+      int ori; /// Orientation
+      int ksi[2]; /// Knot-span indices in parent face of v0
+      int ne[2]; /// Number of elements in each direction on child face
    };
 
    std::vector<AuxiliaryEdge> auxEdges;
@@ -801,7 +799,7 @@ private:
 
    int GetFaceOffset(bool dof, int face, int increment) const;
 
-   // Not const, because it modifies auxFaces.
+   /// Find additional slave and auxiliary faces after ProcessVertexToKnot3D.
    void FindAdditionalSlaveAndAuxiliaryFaces(
       std::map<std::pair<int, int>, int> &v2f,
       std::set<int> &addParentFaces,
@@ -1367,14 +1365,13 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   int kv = edge_to_knot[edge];
-   return (kv >= 0) ? kv : (-1-kv);
+   const int kv = edge_to_knot[edge];
+   return kv >= 0 ? kv : -1 - kv;
 }
 
 inline int NURBSExtension::KnotSign(int edge) const
 {
-   int kv = edge_to_knot[edge];
-   return (kv >= 0) ? 1 : -1;
+   return edge_to_knot[edge] >= 0 ? 1 : -1;
 }
 
 inline KnotVector *NURBSExtension::KnotVec(int edge)
