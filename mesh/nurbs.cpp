@@ -3685,9 +3685,6 @@ void NURBSExtension::GenerateOffsets()
       // vertex_parents, not for the vertex_to_knot case. Currently, a mesh is
       // not allowed to have both cases, see the MFEM_VERIFY below.
 
-      // TODO: for simplicity, should we only support vertex_to_knot in NC-NURBS,
-      // not vertex_parents? Or should we allow either-or, but not both in the same mesh?
-
       const NCMesh::NCList& nce = patchTopo->ncmesh->GetNCList(1);
       const NCMesh::NCList& ncf = patchTopo->ncmesh->GetNCList(2);
 
@@ -3870,7 +3867,7 @@ void NURBSExtension::GenerateOffsets()
             // Order the slaves of each master edge, from the first to second
             // vertex of the master edge.
             const int numSlaves = masterEdgeSlaves[m].size();
-            MFEM_VERIFY(numSlaves > 0, "");
+            MFEM_ASSERT(numSlaves > 0, "");
             int mvert[2];
             int svert[2];
             patchTopo->ncmesh->GetEdgeVertices(nce.masters[m], mvert);
@@ -3896,7 +3893,7 @@ void NURBSExtension::GenerateOffsets()
                   }
                }
 
-               MFEM_VERIFY(orderedSlaves[s] >= 0, "");
+               MFEM_ASSERT(orderedSlaves[s] >= 0, "");
 
                // Update vi to the next vertex
                vi = (svert[0] == vi) ? svert[1] : svert[0];
@@ -3910,8 +3907,8 @@ void NURBSExtension::GenerateOffsets()
 
             masterEdgeSlaves[m] = orderedSlaves;
 
-            MFEM_VERIFY(masterEdgeSlaves[m].size() == masterEdgeVerts[m].size() + 1, "");
-            MFEM_VERIFY(masterEdgeVerts[m].size() > 0, "");
+            MFEM_ASSERT(masterEdgeSlaves[m].size() == masterEdgeVerts[m].size() + 1, "");
+            MFEM_ASSERT(masterEdgeVerts[m].size() > 0, "");
          } // m
       }
 
@@ -3955,8 +3952,7 @@ void NURBSExtension::GenerateOffsets()
                   Array<int> edges, ori, verts;
                   patchTopo->GetFaceEdges(pf, edges, ori);
                   patchTopo->GetFaceVertices(pf, verts);
-
-                  MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
+                  MFEM_ASSERT(edges.Size() == 4 && verts.Size() == 4, "");
 
                   parentN1.push_back(KnotVec(edges[0])->GetNE());
                   parentN2.push_back(KnotVec(edges[1])->GetNE());
@@ -3967,10 +3963,7 @@ void NURBSExtension::GenerateOffsets()
                   masterFaceS0.push_back({-1, -1});
                   masterFaceRev.push_back(false);
 
-                  for (int i=0; i<4; ++i)
-                  {
-                     parentVerts.push_back(verts[i]);
-                  }
+                  for (int i=0; i<4; ++i) { parentVerts.push_back(verts[i]); }
                }
             }
          }
