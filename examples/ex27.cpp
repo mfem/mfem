@@ -155,9 +155,9 @@ int main(int argc, char *argv[])
    // 3. Define a finite element space on the serial mesh. Here we use either
    //    continuous Lagrange finite elements or discontinuous Galerkin finite
    //    elements of the specified order.
-   FiniteElementCollection *fec =
-      h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
-      (FiniteElementCollection*)new DG_FECollection(order, dim);
+   const FiniteElementCollection *fec =
+      h1 ? (const FiniteElementCollection*)new H1_FECollection(order, dim) :
+      (const FiniteElementCollection*)new DG_FECollection(order, dim);
    FiniteElementSpace fespace(mesh, fec);
    int size = fespace.GetTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;

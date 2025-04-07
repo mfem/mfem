@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
    // 3. Define a finite element space on the mesh. Here we use discontinuous
    //    Lagrange finite elements of order zero i.e. piecewise constant basis
    //    functions.
-   FiniteElementCollection *fec = new L2_FECollection(0, 2);
+   const FiniteElementCollection *fec = new L2_FECollection(0, 2);
    FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
 
    // 4. Initialize a pair of bit arrays to store two rows in the evolution

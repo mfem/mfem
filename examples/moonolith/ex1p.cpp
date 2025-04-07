@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
    auto p_src_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
    auto p_dest_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
 
-   shared_ptr<FiniteElementCollection> src_fe_coll, dest_fe_coll;
+   shared_ptr<const FiniteElementCollection> src_fe_coll, dest_fe_coll;
 
    if (use_vector_fe)
    {

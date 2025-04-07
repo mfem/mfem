@@ -164,11 +164,11 @@ int main(int argc, char *argv[])
    //    coarse level and geometrically refine the spaces by the specified
    //    amount. Afterwards, we increase the order of the finite elements
    //    by a factor of 2 for each additional level.
-   FiniteElementCollection *fec = new H1_FECollection(1, dim);
+   const FiniteElementCollection *fec = new H1_FECollection(1, dim);
    FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, fec);
    FiniteElementSpaceHierarchy fespaces(mesh, coarse_fespace, true, true);
 
-   Array<FiniteElementCollection*> collections;
+   Array<const FiniteElementCollection*> collections;
    collections.Append(fec);
    for (int level = 0; level < geometric_refinements; ++level)
    {

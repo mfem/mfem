@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
-   FiniteElementCollection *fec = nullptr;
+   const FiniteElementCollection *fec = nullptr;
    bool delete_fec;
    if (mesh.GetNodes())
    {

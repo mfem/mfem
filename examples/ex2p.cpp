@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
    //    the FiniteElementSpace constructor) which is expected in the systems
    //    version of BoomerAMG preconditioner. For NURBS meshes, we use the
    //    (degree elevated) NURBS space associated with the mesh nodes.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
    const bool use_nodal_fespace = pmesh->NURBSext && !amg_elast;
    if (use_nodal_fespace)

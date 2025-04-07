@@ -292,7 +292,7 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim, basis);
@@ -317,7 +317,7 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    }
 
    ParMesh pmesh_lor;
-   FiniteElementCollection *fec_lor = NULL;
+   const FiniteElementCollection *fec_lor = NULL;
    ParFiniteElementSpace *fespace_lor = NULL;
    if (pc_choice == PCType::LOR)
    {

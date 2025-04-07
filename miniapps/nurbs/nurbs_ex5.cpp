@@ -121,8 +121,8 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *hdiv_coll = nullptr;
-   FiniteElementCollection *l2_coll = nullptr;
+   const FiniteElementCollection *hdiv_coll = nullptr;
+   const FiniteElementCollection *l2_coll = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
    if (mesh->NURBSext && !pa)

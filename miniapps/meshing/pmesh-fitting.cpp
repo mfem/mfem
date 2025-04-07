@@ -253,7 +253,7 @@ int main (int argc, char *argv[])
    // elements which are tensor products of quadratic finite elements. The
    // number of components in the vector finite element space is specified by
    // the last parameter of the FiniteElementSpace constructor.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
       fec = new QuadraticPosFECollection;

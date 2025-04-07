@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
       prob = 0;
    }
 
-   FiniteElementCollection *fec = NULL;
+   const FiniteElementCollection *fec = NULL;
    switch (prob)
    {
       case 0:  fec = new H1_FECollection(order, dim);      break;

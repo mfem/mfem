@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
    Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
-   FiniteElementCollection *fec, *fec_lor;
+   const FiniteElementCollection *fec, *fec_lor;
    if (useH1)
    {
       space = "H1";

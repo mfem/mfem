@@ -331,10 +331,10 @@ protected:
    IntegrationRules gll_rules;
 
    /// Velocity $H^1$ finite element collection.
-   FiniteElementCollection *vfec = nullptr;
+   const FiniteElementCollection *vfec = nullptr;
 
    /// Pressure $H^1$ finite element collection.
-   FiniteElementCollection *pfec = nullptr;
+   const FiniteElementCollection *pfec = nullptr;
 
    /// Velocity $(H^1)^d$ finite element space.
    ParFiniteElementSpace *vfes = nullptr;
@@ -466,7 +466,7 @@ protected:
    // Filter-based stabilization
    int filter_cutoff_modes = 1;
    real_t filter_alpha = 0.0;
-   FiniteElementCollection *vfec_filter = nullptr;
+   const FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction un_NM1_gf;
    ParGridFunction un_filtered_gf;

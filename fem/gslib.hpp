@@ -76,7 +76,7 @@ protected:
    Array<IntegrationRule *> ir_split;
    Array<FiniteElementSpace *> fes_rst_map; //FESpaces to map Quad/Hex->Simplex
    Array<GridFunction *> gf_rst_map; // GridFunctions to map Quad/Hex->Simplex
-   FiniteElementCollection *fec_map_lin;
+   const FiniteElementCollection *fec_map_lin;
    void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data

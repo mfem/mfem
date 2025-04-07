@@ -219,7 +219,7 @@ Mesh *skin_mesh(Mesh *mesh)
       const FiniteElementCollection *fec = fes->FEColl();
       if (dynamic_cast<const H1_FECollection*>(fec))
       {
-         FiniteElementCollection *fec_copy =
+         const FiniteElementCollection *fec_copy =
             FiniteElementCollection::New(fec->Name());
          FiniteElementSpace *fes_copy =
             new FiniteElementSpace(*fes, bmesh, fec_copy);
@@ -326,8 +326,8 @@ int main (int argc, char *argv[])
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   FiniteElementCollection *bdr_attr_fec = NULL;
-   FiniteElementCollection *attr_fec;
+   const FiniteElementCollection *bdr_attr_fec = NULL;
+   const FiniteElementCollection *attr_fec;
    if (dim == 2)
    {
       attr_fec = new Const2DFECollection;
@@ -1261,7 +1261,7 @@ int main (int argc, char *argv[])
       {
          // Project and plot the function 'f'
          int p;
-         FiniteElementCollection *fec = NULL;
+         const FiniteElementCollection *fec = NULL;
          cout << "Enter projection space order: " << flush;
          cin >> p;
          if (p >= 1)

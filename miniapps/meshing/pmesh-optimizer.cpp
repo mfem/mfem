@@ -366,7 +366,7 @@ int main (int argc, char *argv[])
    // also be used to represent the nodal positions of the mesh. We use a vector
    // FE space which is a tensor product of a scalar FE space. The number of
    // components in the vector finite element space matches the dimension.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
    if (periodic)
    {

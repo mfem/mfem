@@ -228,7 +228,7 @@ private:
 
    // FEM solver
    int dim;
-   FiniteElementCollection * fec = nullptr;
+   const FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
    Array<int> ess_bdr;
    Array<int> neumann_bdr;
@@ -312,7 +312,7 @@ private:
 
    // FEM solver
    int dim;
-   FiniteElementCollection * fec = nullptr;
+   const FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
    Array<int> ess_bdr;
    Array<int> neumann_bdr;

@@ -1307,7 +1307,7 @@ std::unique_ptr<ParGridFunction> ParGridFunction::ProlongateToMaxOrder() const
    const int maxOrder = pfes->GetMaxElementOrder();
 
    // Create a visualization space of max order for all elements
-   FiniteElementCollection *fecMax = pfesc->Clone(maxOrder);
+   const FiniteElementCollection *fecMax = pfesc->Clone(maxOrder);
    ParFiniteElementSpace *pfesMax = new ParFiniteElementSpace(mesh, fecMax, vdim,
                                                               pfes->GetOrdering());
 

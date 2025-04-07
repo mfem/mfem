@@ -4423,7 +4423,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    {
       FiniteElementSpace *fes = mesh.Nodes->FESpace();
       const FiniteElementCollection *fec = fes->FEColl();
-      FiniteElementCollection *fec_copy =
+      const FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       FiniteElementSpace *fes_copy =
          new FiniteElementSpace(*fes, this, fec_copy);

@@ -143,8 +143,8 @@ int main(int argc, char *argv[])
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use Nedelec or Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *trial_fec = NULL;
-   FiniteElementCollection *test_fec = NULL;
+   const FiniteElementCollection *trial_fec = NULL;
+   const FiniteElementCollection *test_fec = NULL;
 
    if (prob == 0)
    {

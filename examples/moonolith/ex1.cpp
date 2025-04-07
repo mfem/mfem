@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
       dest_mesh->UniformRefinement();
    }
 
-   shared_ptr<FiniteElementCollection> src_fe_coll, dest_fe_coll;
+   shared_ptr<const FiniteElementCollection> src_fe_coll, dest_fe_coll;
 
    if (use_vector_fe)
    {

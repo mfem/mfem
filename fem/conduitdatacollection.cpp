@@ -611,8 +611,8 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    std::string fec_name = n_field["basis"].as_string();
 
    GridFunction *res = NULL;
-   mfem::FiniteElementCollection *fec = FiniteElementCollection::New(
-                                           fec_name.c_str());
+   const mfem::FiniteElementCollection *fec = FiniteElementCollection::New(
+                                                 fec_name.c_str());
    mfem::FiniteElementSpace *fes = new FiniteElementSpace(mesh,
                                                           fec,
                                                           vdim,
