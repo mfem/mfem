@@ -65,7 +65,7 @@ protected:
    int ref_type;
    FiniteElementSpace &fes_ho;
    Mesh *mesh = nullptr;
-   FiniteElementCollection *fec = nullptr;
+   const FiniteElementCollection *fec = nullptr;
    FiniteElementSpace *fes = nullptr;
    BilinearForm *a = nullptr;
    class BatchedLORAssembly *batched_lor = nullptr;

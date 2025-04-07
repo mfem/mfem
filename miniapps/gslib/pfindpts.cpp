@@ -222,7 +222,7 @@ int main (int argc, char *argv[])
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
-   FiniteElementCollection *fec = NULL;
+   const FiniteElementCollection *fec = NULL;
    if (fieldtype == 0)
    {
       fec = new H1_FECollection(order, dim);

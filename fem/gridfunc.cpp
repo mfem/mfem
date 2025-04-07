@@ -4008,7 +4008,7 @@ std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
    int maxOrder = fes->GetMaxElementOrder();
 
    // Create a space of maximum order over all elements for output
-   FiniteElementCollection *fecMax = fesc->Clone(maxOrder);
+   const FiniteElementCollection *fecMax = fesc->Clone(maxOrder);
    FiniteElementSpace *fesMax = new FiniteElementSpace(mesh, fecMax, vdim,
                                                        fes->GetOrdering());
 
@@ -4551,7 +4551,7 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
 {
    GridFunction *sol2d;
 
-   FiniteElementCollection *solfec2d;
+   const FiniteElementCollection *solfec2d;
    const char *name = sol->FESpace()->FEColl()->Name();
    string cname = name;
    if (cname == "Linear")

@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
+   const FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, hybridization, etc.
-   FiniteElementCollection *hfec = NULL;
+   const FiniteElementCollection *hfec = NULL;
    FiniteElementSpace *hfes = NULL;
    if (static_cond)
    {
