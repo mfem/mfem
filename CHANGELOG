@@ -17,6 +17,10 @@ Version 4.7.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added support for p-refinement in parallel, on quadrilateral and hexahedral
+  meshes. Parallel hp-refinement is also supported, on isotropically refined
+  meshes with L2 or H1 spaces.
+
 - Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
   patch meshes. Only implemented for serial computations.
 
@@ -31,8 +35,25 @@ Discretization improvements
 
 - Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
 
+- Added support for H(div) spaces in class QuadratureInterpolator. For now, only
+  (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
+  are implemented. [PR #4669]
+
+- Added arbitrary order basis functions (H1, H(curl), H(div), and L2) on
+  pyramid-shaped elements based on the paper "Orientation embedded high order
+  shape functions for the exact sequence elements of all shapes" by Federico
+  Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram Nagaraj,
+  see https://doi.org/10.1016/j.camwa.2015.04.027.
+
+- Added arbitrary order H1 and L2 positive basis functions utilizing Bernstein
+  polynomials on pyramid-shaped elements.
+
 Meshing improvements
 --------------------
+- Added capabilities for optimization and adaptation of periodic meshes with
+  TMOP. The internals of TMOP were modified so that the optimization problem is
+  always solved with respect to mesh displacements.
+
 - Added native AD support for numerous TMOP metrics that didn't have first or
   second derivative implementations.
 
@@ -51,11 +72,20 @@ New and updated examples and miniapps
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
+- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
+  See miniapps/toys/spiral.cpp.
+
 - Added a command line option to all miniapps (`-p` or `--send-port`) for
   specifying the GLVis server socket port (19916 by default).
 
 GPU computing
 -------------
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div) (illustrated in example 4).
+
+- Added GPU acceleration and element assembly for `DivDivIntegrator` and
+  `NormalTraceJumpIntegrator`.
+
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
   hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
 
@@ -77,6 +107,24 @@ GPU computing
 
 - Added support for GPU accelerated FindPointsGSLIB. Note that this will require
   the users to switch from gslib v1.0.7 to v1.0.9.
+
+- Allow BlockLowerTriangularPreconditioner to run on GPU.
+
+- Use device vectors in GMRES, FGMRES and other iterative methods.
+
+- Added BatchInverseElementTransformation to batch InverseElementTransformation
+  searches. Batch searches are currently limited to meshes with a single element
+  geometry type of SEGMENT, SQUARE, or CUBE. Additional element geometry types
+  may be added in the future. Mixed element order meshes are supported. Batch
+  searches can be performed on the CPU (serial per MPI rank) or GPU. Embedded
+  elements (SEGMENT in 2D/3D space or SQUARE in 3D space) are supported, however
+  the existing solvers may struggle to find a valid solution.
+
+- Added `InverseElementTransformation::InitGuessType::EdgeScan` as an alternative
+  initial guess type. This guess type tries solving with multiple initial guesses
+  along the r/s/t=0 edges of the element until a valid solution is found or all
+  initial guess points are exhausted.
+
 
 Miscellaneous
 -------------
@@ -100,12 +148,51 @@ Miscellaneous
 
 - There are new convenience constructors for NURBS patches and knot vectors.
 
+- Added convenience methods for manipulating boundary attribute marker arrays;
+  `(Par)Mesh::MarkExternalBoundaries`, `(Par)Mesh::UnmarkInternalBoundaries`,
+  `(Par)Mesh::MarkNamedBoundaries`, and `(Par)Mesh::UnmarkNamedBoundaries`.
+  See examples `ex1.cpp`, `ex1p.cpp`, and `ex11p.cpp` for basic usage.
+
+- Added `(Par)Mesh::GetExteriorFaceMarker` for identifying faces on the
+  exterior of the mesh irrespective of their presence in the list of "boundary
+  elements".
+
+- Added methods to `(Par)FiniteElementSpace` to identify all degrees of freedom
+  located on the exterior of the domain without reference to the list of
+  "boundary elements"; `GetExteriorVDofs` and `GetExteriorTrueDofs`.
+
+- `LinearFormIntegrator` and `NonlinearFormIntegrator` (including
+  `BilinearFormIntegrator`) now all inherit from a base class `Integrator`
+  that combines some logic related to selecting quadrature rules. This includes
+  a virtual method `Integrator::GetDefaultIntegrationRule`, which should be
+  favored over directly defining a default integration rule in the element-level
+  assembly routines (although the latter is still possible, by leaving the new
+  virtual method as its default base implementation of returning `NULL`).
+
+- Updated the benchmarks (in tests/benchmarks) to work with the latest Google
+  Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
+  CMake option to just MFEM_ENABLE_BENCHMARKS.
+
+- Changed the name of `IterativeSolverMonitor` to `IterativeSolverController`
+  which now allows for declaring convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
+
+- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
+  for solving optimization problems.
+
+- Updated the minimum CMake version requirements:
+  * CMake >= 3.12 for CPU builds,
+  * CMake >= 3.17 for CUDA builds, and
+  * CMake >= 3.14 for HIP builds (CMake >= 3.12 may work as well, not tested).
+
 API changes
 -----------
+- API change: 'TMOP_Metric_skew2D' has been marked as deprecated.
+
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
 
 - API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
-  been been depracated through typedef)
+  been been deprecated through typedef)
 
 - API change: support for SUNDIALS v7:
   * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7

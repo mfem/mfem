@@ -122,7 +122,7 @@ Parallel build:
 (For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
-   (this build requires CMake 3.8 or newer)
+   (this build requires CMake 3.17 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
    make -j 4
@@ -704,12 +704,12 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
-  C++ compiler that supports the C++-14 standard. For additional requirements
+  C++ compiler that supports the C++-17 standard. For additional requirements
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
            Debug).
-  Versions: Ginkgo >= 1.4.0.
+  Versions: Ginkgo >= 1.9.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -1002,7 +1002,7 @@ Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
-Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+Note: the option MFEM_USE_CUDA requires CMake version 3.17 or newer!
 
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build

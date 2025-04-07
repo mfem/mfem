@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -541,11 +541,11 @@ public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace.
    /** No matrices are assembled, only the action to a vector is being computed.
        If both spaces' FE collection pointers are pointing to the same
-       collection we assume that the grid was refined while keeping the order
+       collection, we assume that the grid was refined while keeping the order
        constant. If the FE collections are different, it is assumed that both
-       spaces have are using the same mesh. If the first element of the
-       high-order space is a `TensorBasisElement`, the optimized tensor-product
-       transfers are used. If not, the general transfers used. */
+       spaces are using the same mesh. If the first element of the high-order
+       space is a `TensorBasisElement`, the optimized tensor-product transfers
+       are used. If not, the general transfers used. */
    TransferOperator(const FiniteElementSpace& lFESpace,
                     const FiniteElementSpace& hFESpace);
 
@@ -580,7 +580,7 @@ public:
                                const FiniteElementSpace& hFESpace_);
 
    /// Destructor
-   virtual ~PRefinementTransferOperator();
+   virtual ~PRefinementTransferOperator() { }
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
@@ -622,7 +622,7 @@ public:
       const FiniteElementSpace& hFESpace_);
 
    /// Destructor
-   virtual ~TensorProductPRefinementTransferOperator();
+   virtual ~TensorProductPRefinementTransferOperator() { }
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
