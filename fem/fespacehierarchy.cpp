@@ -83,7 +83,8 @@ void FiniteElementSpaceHierarchy::AddUniformlyRefinedLevel(int dim,
    AddLevel(mesh, fineFEspace, P, true, true, true);
 }
 
-void FiniteElementSpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection*
+void FiniteElementSpaceHierarchy::AddOrderRefinedLevel(const
+                                                       FiniteElementCollection*
                                                        fec, int dim,
                                                        int ordering)
 {
@@ -150,7 +151,7 @@ void ParFiniteElementSpaceHierarchy::AddUniformlyRefinedLevel(int dim,
 }
 
 void ParFiniteElementSpaceHierarchy::AddOrderRefinedLevel(
-   FiniteElementCollection* fec,
+   const FiniteElementCollection* fec,
    int dim, int ordering)
 {
    ParMesh* mesh = GetFinestFESpace().GetParMesh();

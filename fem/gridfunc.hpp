@@ -37,7 +37,7 @@ protected:
        set explicitly, see MakeOwner().
 
        If not NULL, this pointer is owned by the GridFunction. */
-   FiniteElementCollection *fec_owned;
+   const FiniteElementCollection *fec_owned;
 
    long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
@@ -119,9 +119,9 @@ public:
    /// Make the GridFunction the owner of #fec_owned and #fes.
    /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec_owned
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
+   void MakeOwner(const FiniteElementCollection *fec_) { fec_owned = fec_; }
 
-   FiniteElementCollection *OwnFEC() { return fec_owned; }
+   const FiniteElementCollection *OwnFEC() { return fec_owned; }
 
    /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
    int VectorDim() const;
