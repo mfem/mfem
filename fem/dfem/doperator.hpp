@@ -52,6 +52,7 @@ public:
       derivative_actions(derivative_actions),
       direction(direction),
       daction_l(daction_l_size),
+      daction_l_size(daction_l_size),
       derivative_actions_transpose(derivative_actions_transpose),
       transpose_direction(transpose_direction),
       daction_transpose_l(daction_transpose_l_size),
@@ -75,7 +76,7 @@ public:
 
    void Mult(const Vector &direction_t, Vector &y) const override
    {
-      // daction_l.SetSize(height);
+      daction_l.SetSize(daction_l_size);
       daction_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
@@ -88,7 +89,7 @@ public:
 
    void MultTranspose(const Vector &direction_t, Vector &y) const override
    {
-      // daction_l.SetSize(width);
+      daction_l.SetSize(width);
       daction_l = 0.0;
 
       prolongation(transpose_direction, direction_t, direction_l);
@@ -103,6 +104,7 @@ private:
    std::vector<derivative_action_t> derivative_actions;
    FieldDescriptor direction;
    mutable Vector daction_l;
+   const int daction_l_size;
 
    std::vector<derivative_action_t> derivative_actions_transpose;
    FieldDescriptor transpose_direction;
@@ -179,7 +181,7 @@ public:
                 residual_l.Size(),
                 daction_transpose_callbacks[derivative_id],
                 fields[test_space_field_idx],
-                GetTrueVSize(fields[test_space_field_idx]),
+                GetVSize(fields[test_space_field_idx]),
                 solutions_l,
                 parameters_l,
                 restriction_callback,
