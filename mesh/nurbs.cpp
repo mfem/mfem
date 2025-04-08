@@ -196,7 +196,6 @@ Vector KnotVector::GetFineKnots(const int cf) const
             if (cnt < cf)
             {
                if (fcnt == 0) { ifine0 = i; }
-
                fine[fcnt] = knot(i);
                fcnt++;
             }
@@ -1097,13 +1096,13 @@ void NURBSPatch::UpdateSpacingPartitions(const Array<KnotVector*> &pkv)
          {
             Array<int> s0 = pws->RelativePieceSizes();
             Array<int> s1 = upws->RelativePieceSizes();
-            MFEM_VERIFY(s0.Size() == s1.Size(), "");
+            MFEM_ASSERT(s0.Size() == s1.Size(), "");
 
             Array<int> rf(s0.Size());
             for (int i=0; i<s0.Size(); ++i)
             {
                const int f = s1[i] / s0[i];
-               MFEM_VERIFY(f * s0[i] == s1[i], "");
+               MFEM_ASSERT(f * s0[i] == s1[i], "Inconsistent spacings");
                rf[i] = f;
             }
 
@@ -1121,7 +1120,6 @@ void NURBSPatch::Coarsen(Array<int> const& cf, real_t tol)
       {
          const int ne_fine = kv[dir]->GetNE();
          KnotRemove(dir, kv[dir]->GetFineKnots(cf[dir]), tol);
-
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
@@ -1393,8 +1391,8 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
       while (j - i > t)
       {
          // Compute new control points for one removal step
-         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);
-         const real_t a_j = (knot - oldkv[j]) / (oldkv[j+p+1] - oldkv[j]);
+         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1+t] - oldkv[i]);
+         const real_t a_j = (knot - oldkv[j-t]) / (oldkv[j+p+1] - oldkv[j-t]);
 
          for (int ll = 0; ll < size; ll++)
          {
@@ -1420,9 +1418,9 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
       }
       else
       {
-         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);  // TODO: + t
+         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1+t] - oldkv[i]);
          for (int ll = 0; ll < size; ll++)
-            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+1, ll))  // TODO: ii + t + 1
+            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+t+1, ll))
                        - ((1.0 - a_i) * temp(ii-1, ll));
       }
 
@@ -1504,11 +1502,11 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
    newkv.spacing = oldkv.spacing;
    newkv.coarse = oldkv.coarse;
 
-   for (int k = 0; k < id - ntimes + 1; k++)
+   for (int k = 0; k < r - ntimes + 1; k++)
    {
       newkv[k] = oldkv[k];
    }
-   for (int k = id + 1; k < oldkv.Size(); k++)
+   for (int k = r + 1; k < oldkv.Size(); k++)
    {
       newkv[k - ntimes] = oldkv[k];
    }
@@ -2092,11 +2090,10 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
    }
 
    // Copy CP
-
    NURBSPatch *newpatch = new NURBSPatch(kvc, Dim);
    NURBSPatch &newp = *newpatch;
 
-   if (Dim == 4)  // 3D
+   if (Dim == 4) // 3D
    {
       for (int i=0; i<ncp1D; ++i)
          for (int j=0; j<ncp1D; ++j)
@@ -2110,7 +2107,7 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
                }
             }
    }
-   else if (Dim == 3)  // 2D
+   else if (Dim == 3) // 2D
    {
       for (int i=0; i<ncp1D; ++i)
          for (int j=0; j<ncp1D; ++j)
@@ -2404,26 +2401,6 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing, bool nc)
       NumOfActiveElems = NumOfElements;
       activeElem.SetSize(NumOfElements);
       activeElem = true;
-   }
-
-   if (nc && patchTopo->ncmesh &&
-       patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
-   {
-      // Set map from patchTopo edges to patchTopo->ncmesh edges
-      Array<int> vert;
-      for (int i=0; i<patchTopo->GetNEdges(); ++i)
-      {
-         patchTopo->GetEdgeVertices(i, vert);
-         const std::pair<int, int> vpair(vert[0], vert[1]);
-         const int ncedge = v2e[vpair];
-
-         e2nce[i] = ncedge;
-
-         // TODO: if this is always true, we don't need e2nce or v2e.
-         // Of course, this is only for the vertex_to_knot case, not the vertex_parents
-         // case, assuming those 2 cases are mutually exclusive.
-         MFEM_VERIFY(i == ncedge, "");
-      }
    }
 
    GenerateActiveVertices();
@@ -2780,7 +2757,6 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
       if (writeSpacing)
       {
          os << "\nspacing\n" << kvSpacing.Size() << '\n';
-
          for (auto kv : kvSpacing)
          {
             os << kv << " ";
@@ -3727,7 +3703,6 @@ void NURBSExtension::GenerateOffsets()
             Array<int> vert;
             for (int i=0; i<patchTopo->GetNumFaces(); ++i)
             {
-               // TODO: should this be a loop over conforming faces as for v2e?
                patchTopo->GetFaceVertices(i, vert);
                const int vmin = vert.Min();
                const int idmin = vert.Find(vmin);
@@ -3817,10 +3792,7 @@ void NURBSExtension::GenerateOffsets()
 
          for (int i=0; i<npairs; ++i)
          {
-            if (!edgePairs[i].isSet)
-            {
-               continue;
-            }
+            if (!edgePairs[i].isSet) { continue; }
 
             const int v = edgePairs[i].v;
             const int s = edgePairs[i].child;
@@ -3866,22 +3838,23 @@ void NURBSExtension::GenerateOffsets()
             patchTopo->ncmesh->GetEdgeVertices(nce.masters[m], mvert);
 
             std::vector<int> orderedSlaves(numSlaves);
+            std::set<int> used;
 
             int vi = mvert[0];
             for (int s=0; s<numSlaves; ++s)
             {
-               // Find the slave edge containing vertex vi
-
-               // TODO: This has quadratic complexity. Can it be improved? Does it
-               // matter, since the number of slave edges should always be small?
+               // Find the slave edge containing vertex vi.
+               // This has quadratic complexity, but numSlaves is small.
                orderedSlaves[s] = -1;
                for (int t=0; t<numSlaves; ++t)
                {
                   const int sid = masterEdgeSlaves[m][t];
+                  if (used.count(sid) > 0) { continue; }
                   patchTopo->ncmesh->GetEdgeVertices(nce.slaves[sid], svert);
                   if (svert[0] == vi || svert[1] == vi)
                   {
                      orderedSlaves[s] = sid;
+                     used.insert(sid);
                      break;
                   }
                }
@@ -3894,13 +3867,14 @@ void NURBSExtension::GenerateOffsets()
                if (s < numSlaves - 1)
                {
                   masterEdgeVerts[m].push_back(vi);
-                  masterEdgeKI[m].push_back(-1);  // TODO: this is not set and not used in 2D.
+                  masterEdgeKI[m].push_back(-1); // Used only in 3D.
                }
             }
 
             masterEdgeSlaves[m] = orderedSlaves;
 
-            MFEM_ASSERT(masterEdgeSlaves[m].size() == masterEdgeVerts[m].size() + 1, "");
+            MFEM_ASSERT(masterEdgeSlaves[m].size() ==
+                        masterEdgeVerts[m].size() + 1, "");
             MFEM_ASSERT(masterEdgeVerts[m].size() > 0, "");
          } // m
       }
@@ -4019,7 +3993,6 @@ void NURBSExtension::GenerateOffsets()
 
       // Find the number of elements and CP in this auxiliary edge, which is
       // defined only on part of the master edge knotvector.
-
       const int signedParentEdge = auxEdges[e].parent;
       const int ki0 = auxEdges[e].ksi[0];
       const int ki1raw = auxEdges[e].ksi[1];
@@ -4141,10 +4114,7 @@ void NURBSExtension::SetDofToPatch()
          {
             Array<int> mdof;
             GetMasterEdgeDofs(true, e, mdof);
-            for (auto dof : mdof)
-            {
-               dof2patch[dof] = p;
-            }
+            for (auto dof : mdof) { dof2patch[dof] = p; }
          }
       }
 
@@ -6347,21 +6317,14 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
       if (Ext->nonconforming && Ext->patchTopo->ncmesh
           && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
       {
-         // Use e2nce to map from patchTopo edges to patchTopo->ncmesh edges.
          for (int i = 0; i < edges.Size(); i++)
          {
-            int nce = -1;
-            auto s = Ext->e2nce.find(edges[i]);
-            if (s != Ext->e2nce.end())
-            {
-               nce = s->second;
-            }
-            else
-            {
-               MFEM_ABORT("TODO");
-            }
-
-            edges[i] = Ext->e_spaceOffsets[nce];
+            // Find the patchTopo->ncmesh edge corresponding to edges[i].
+            Array<int> vert;
+            Ext->patchTopo->GetEdgeVertices(edges[i], vert);
+            const std::pair<int, int> vpair(vert[0], vert[1]);
+            const int ncedge = Ext->v2e.at(vpair);
+            edges[i] = Ext->e_spaceOffsets[ncedge];
          }
       }
       else
@@ -6444,7 +6407,6 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
       J = kv[1]->GetNCP() - 2;
 
       SetMasterEdges(true);
-
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = Ext->e_spaceOffsets[edges[i]];

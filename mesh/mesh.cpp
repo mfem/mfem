@@ -4548,8 +4548,8 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
    }
    else
    {
-     Load(imesh, generate_edges, refine, fix_orientation,
-	  allow_bad_orientation);
+      Load(imesh, generate_edges, refine, fix_orientation,
+	   allow_bad_orientation);
    }
 }
 

@@ -636,8 +636,7 @@ protected:
    std::vector<std::array<int, 2>> masterFaceS0;
    std::vector<bool> masterFaceRev;
 
-   bool nonconforming = false;
-   std::map<int,int> e2nce;
+   bool nonconforming = false; /// Whether patchTopo is a nonconforming mesh.
 
    std::map<std::pair<int, int>, std::array<int, 2>> parentToKV;
 
