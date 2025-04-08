@@ -1306,11 +1306,6 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
          Array<int> perm;
          GetFaceOrdering(slaveId, nf1, nf2, v0, e1, e2, perm);
 
-         // These offsets are for the interior entities of the face.
-         // To get the lower edge, subtract 1.
-         const int os1 = (sI * sne1) + sI;
-         const int os2 = (sJ * sne2) + sJ;
-
          for (int k=0; k<nf2; ++k)
             for (int j=0; j<nf1; ++j)
             {
@@ -2605,8 +2600,8 @@ Array<int> CoarseToFineFactors(const Array<int> &rf)
 
 int NURBSExtension::SetPatchFactors(int p)
 {
-   constexpr int dirEdges3D[3][4] = {{0, 2, 4, 6}, {1, 3, 5, 7}, {8, 9, 10, 11}};
-   constexpr int dirEdges2D[2][2] = {{0, 2}, {1, 3}};
+   constexpr char dirEdges3D[3][4] = {{0, 2, 4, 6}, {1, 3, 5, 7}, {8, 9, 10, 11}};
+   constexpr char dirEdges2D[2][2] = {{0, 2}, {1, 3}};
 
    Array<int> edges, oedges;
    patchTopo->GetElementEdges(p, edges, oedges);
@@ -2618,29 +2613,55 @@ int NURBSExtension::SetPatchFactors(int p)
 
    bool partialChange = false;
    bool consistent = true;
-   for (int d=0; d<dim; ++d)
+
+   auto SetFactorsDirection = [&](int j, int os_final, int af, Array<int> &rf)
    {
-      // Find the array of factors for direction d
-      Array<int> rf;
+      if (af == unsetFactor) { return; }
+      if (rf.Size() == 0)
+      {
+         rf.SetSize(os_final);
+         rf = unsetFactor;
+      }
+      if (rf[j] != unsetFactor && af != rf[j]) { consistent = false; }
+      rf[j] = af;
+   };
+
+   auto SetFactorsEdge = [&](int j, int rf, Array<int> &pf)
+   {
+      if (rf == unsetFactor) { return; }
+      if (pf[j] != unsetFactor && pf[j] != rf) { consistent = false; }
+      pf[j] = rf;
+   };
+
+   auto LoopEdgesForDirection = [&](int d, Array<int> &rf, bool first)
+   {
       for (int i=0; i<nedge; ++i)
       {
          const int edgeIndex = dim == 3 ? dirEdges3D[d][i] : dirEdges2D[d][i];
          const int edge = edges[edgeIndex];
          const bool isMaster = masterEdges.count(edge) > 0;
          const int kv = KnotInd(edge);
-         const int nfe = knotVectors[kv]->GetNE();
-         const bool fullSize = kvf.size() > 0 && kvf[kv].Size() == nfe;
-         const Array<int> rf_i = fullSize ? kvf[kv] :
-                                 CoarseToFineFactors(kvf[kv]);
          const bool rev = KnotSign(edge) < 0;
-         if (rf_i.Size() > 0 && rf.Size() == 0) { rf = rf_i; }
+
+         if (first)
+         {
+            const int nfe = knotVectors[kv]->GetNE();
+            const bool fullSize = kvf.size() > 0 && kvf[kv].Size() == nfe;
+            const Array<int> rf_i = fullSize ? kvf[kv] :
+                                    CoarseToFineFactors(kvf[kv]);
+            if (rf_i.Size() > 0 && rf.Size() == 0) { rf = rf_i; }
+         }
+         else
+         {
+            if (kvf[kv] != rf) { partialChange = true; }
+            kvf[kv] = rf;
+         }
 
          if (isMaster)
          {
             // Check whether slave edges have factors set.
             const int mid = masterEdgeToId.at(edge);
             const int numPieces = masterEdgeSlaves[mid].size();
-
             Array<int> os;
             GetMasterEdgePieceOffsets(mid, os);
 
@@ -2648,109 +2669,16 @@ int NURBSExtension::SetPatchFactors(int p)
             {
                const int e = masterEdgeSlaves[mid][piece];
                const int s = slaveEdges[e];
+               Array<int> parentEdges;
+               Array<int> *pf; // Refinement factors for this piece
 
-               if (s >= 0) // Not an aux edge
+               if (s >= 0) // Slave edge
                {
                   const int kvs = KnotInd(s);
-                  if (kvf[kvs].Size() > 0)
-                  {
-                     MFEM_VERIFY(kvf[kvs].Size() == knotVectors[kvs]->GetNE(),
-                                 "");
-
-                     // TODO: refactor. Can the slave and aux cases be combined, since they are more similar now?
-                     Array<int> seParentEdges(kvf[kvs].Size());
-                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], seParentEdges);
-
-                     MFEM_VERIFY(seParentEdges.Size() == os[piece + 1] - os[piece], "");
-
-                     for (int j = os[piece]; j < os[piece + 1]; ++j)
-                     {
-                        const int jj = seParentEdges[j - os[piece]];
-                        const int jr = rev ? rf.Size() - 1 - jj : jj;
-                        const int af = kvf[kvs][j - os[piece]];
-                        if (af == unsetFactor) { continue; }
-                        if (rf.Size() == 0)
-                        {
-                           rf.SetSize(os[numPieces]);
-                           rf = unsetFactor;
-                        }
-
-                        if (rf[jr] != unsetFactor && af != rf[jr])
-                        {
-                           consistent = false;
-                        }
-
-                        rf[jr] = af;
-                     }
-                  }
+                  parentEdges.SetSize(kvf[kvs].Size());
+                  pf = &kvf[kvs];
                }
                else // Aux edge
-               {
-                  const int ae = -1 - s;
-                  if (auxef[ae].Size() > 0)
-                  {
-                     Array<int> aeParentEdges(auxef[ae].Size());
-                     SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid],
-                                       aeParentEdges);
-
-                     MFEM_ASSERT(auxef[ae].Size() == os[piece + 1] - os[piece],
-                                 "");
-
-                     for (int j = os[piece]; j < os[piece + 1]; ++j)
-                     {
-                        const int jj = aeParentEdges[j - os[piece]];
-                        const int jr = rev ? rf.Size() - 1 - jj : jj;
-                        const int af = auxef[ae][j - os[piece]];
-                        if (af == unsetFactor) { continue; }
-                        if (rf.Size() == 0)
-                        {
-                           rf.SetSize(os[numPieces]);
-                           rf = unsetFactor;
-                        }
-
-                        if (rf[jr] != unsetFactor && af != rf[jr])
-                        {
-                           consistent = false;
-                        }
-
-                        rf[jr] = af;
-                     }
-                  }
-               }
-            }
-         }
-      }
-
-      if (rf.Size() == 0) { continue; } // This direction is unset
-
-      // Set the same factor for all knotvectors in direction d.
-      for (int i=0; i<nedge; ++i)
-      {
-         const int edgeIndex = dim == 3 ? dirEdges3D[d][i] : dirEdges2D[d][i];
-         const int edge = edges[edgeIndex];
-         const int kv = KnotInd(edge);
-         const bool rev = KnotSign(edge) < 0;
-
-         if (kvf[kv] != rf) { partialChange = true; }
-         kvf[kv] = rf;
-
-         if (masterEdges.count(edge))
-         {
-            // Also propagate to slave edges and any overlapping master edges
-            // containing a common slave or auxiliary edge.
-
-            const int mid = masterEdgeToId.at(edge);
-            const int numPieces = masterEdgeSlaves[mid].size();
-
-            Array<int> os;
-            GetMasterEdgePieceOffsets(mid, os);
-
-            for (int piece=0; piece<numPieces; ++piece)
-            {
-               const int e = masterEdgeSlaves[mid][piece];
-               const int s = slaveEdges[e];
-
-               if (s < 0) // Aux edge
                {
                   const int aux_edge = -1 - s;
                   if (auxef[aux_edge].Size() == 0)
@@ -2758,62 +2686,46 @@ int NURBSExtension::SetPatchFactors(int p)
                      auxef[aux_edge].SetSize(AuxiliaryEdgeNE(aux_edge));
                      auxef[aux_edge] = unsetFactor;
                   }
-
-                  Array<int> aeParentEdges(auxef[aux_edge].Size());
-                  SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid],
-                                    aeParentEdges);
-                  for (int j = os[piece]; j < os[piece + 1]; ++j)
-                  {
-                     const int jj = aeParentEdges[j - os[piece]];
-                     const int jr = rev ? rf.Size() - 1 - jj : jj;
-                     if (rf[jr] == unsetFactor) { continue; }
-                     if (auxef[aux_edge][j - os[piece]] != unsetFactor &&
-                         auxef[aux_edge][j - os[piece]] != rf[jr])
-                     {
-                        consistent = false;
-                     }
-                     auxef[aux_edge][j - os[piece]] = rf[jr];
-                  }
+                  parentEdges.SetSize(auxef[aux_edge].Size());
+                  pf = &auxef[aux_edge];
                }
-               else
+
+               if (first && parentEdges.Size() == 0) { continue; }
+               SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], parentEdges);
+               MFEM_ASSERT(parentEdges.Size() == os[piece + 1] - os[piece], "");
+
+               for (int j = os[piece]; j < os[piece + 1]; ++j)
                {
-                  const int kvs = KnotInd(s);
-                  MFEM_ASSERT(kvf[kvs].Size() == knotVectors[kvs]->GetNE(), "");
-
-                  Array<int> seParentEdges(kvf[kvs].Size());
-                  SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid],
-                                    seParentEdges);
-
-                  MFEM_ASSERT(seParentEdges.Size() ==
-                              os[piece + 1] - os[piece], "");
-
-                  for (int j = os[piece]; j < os[piece + 1]; ++j)
+                  const int jj = parentEdges[j - os[piece]];
+                  const int jr = rev ? rf.Size() - 1 - jj : jj;
+                  if (first)
                   {
-                     const int jj = seParentEdges[j - os[piece]];
-                     const int jr = rev ? rf.Size() - 1 - jj : jj;
-                     const int fj = rf[jr];
-                     if (fj == unsetFactor) { continue; }
-                     if (kvf[kvs][j - os[piece]] != unsetFactor &&
-                         fj != kvf[kvs][j - os[piece]])
-                     {
-                        consistent = false;
-                     }
-
-                     kvf[kvs][j - os[piece]] = fj;
+                     SetFactorsDirection(jr, os[numPieces],
+                                         (*pf)[j - os[piece]], rf);
+                  }
+                  else
+                  {
+                     SetFactorsEdge(j - os[piece], rf[jr], *pf);
                   }
                }
             }
          }
       }
+   };
 
-      if (rf.Min() > unsetFactor)
-      {
-         dirSet += pow(2, d);
-      }
+   for (int d=0; d<dim; ++d)
+   {
+      // Find the array of factors for direction d
+      Array<int> rf;
+      LoopEdgesForDirection(d, rf, true);
+      if (rf.Size() == 0) { continue; } // This direction is unset
+
+      // Set the same factor for all knotvectors in direction d.
+      LoopEdgesForDirection(d, rf, false);
+      if (rf.Min() > unsetFactor) { dirSet += pow(2, d); }
    }
 
    MFEM_VERIFY(consistent, "");
-
    return partialChange ? -1 - dirSet : dirSet;
 }
 
