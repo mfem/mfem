@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include <mfem.hpp>
+#include "linalg/petsc.hpp"
+#include "petscmat.h"
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
 #include <fem/dfem/doperator.hpp>
@@ -435,7 +437,8 @@ public:
 
    void Mult(const Vector &k, Vector &y) const override
    {
-      jvp(k, y);
+      // jvp(k, y);
+      assembled_jvp(k, y);
    }
 
    template <typename hydro_t>
@@ -450,7 +453,160 @@ public:
       w.SetSize(this->height);
       z.SetSize(this->height);
 
-      jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro]
+      ParBilinearForm Mv(&hydro.H1);
+      Mv.AddDomainIntegrator(new VectorMassIntegrator(hydro.rho0_coeff, &hydro.ir));
+      Mv.Assemble();
+      Mv.Finalize();
+      HypreParMatrix Mv_mat;
+      Mv.FormSystemMatrix(mfem::Array<int>(), Mv_mat);
+
+      ParBilinearForm Me(&hydro.L2);
+      Me.AddDomainIntegrator(new MassIntegrator(&hydro.ir));
+      Me.Assemble();
+      Me.Finalize();
+      HypreParMatrix Me_mat;
+      Me.FormSystemMatrix(mfem::Array<int>(), Me_mat);
+
+      assembled_jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this,
+                              &hydro, Mv_mat, Me_mat](const Vector &u, Vector &y)
+      {
+         w = u;
+         Vector wx, wv, we;
+         wx.MakeRef(w, 0, H1tsize);
+         wv.MakeRef(w, H1tsize, H1tsize);
+         we.MakeRef(w, 2*H1tsize, L2tsize);
+
+         Vector zx, zv, ze;
+         zx.MakeRef(z, 0, H1tsize);
+         zv.MakeRef(z, H1tsize, H1tsize);
+         ze.MakeRef(z, 2*H1tsize, L2tsize);
+
+         Vector yx, yv, ye;
+         yx.MakeRef(y, 0, H1tsize);
+         yv.MakeRef(y, H1tsize, H1tsize);
+         ye.MakeRef(y, 2*H1tsize, L2tsize);
+
+         auto comm = hydro.H1.GetComm();
+
+         // First row
+         // Rx = x - h * v
+         // yx = I * wx - h I * wv
+         // where I is identity
+
+         PetscParVector diag(comm, H1tsize);
+         diag = 1.0;
+
+         Mat dRxdx_petsc_mat;
+         PetscCall(MatCreateDiagonal(diag, &dRxdx_petsc_mat));
+
+         PetscParMatrix dRxdx_petsc;
+         dRxdx_petsc.SetMat(dRxdx_petsc_mat);
+
+         // dRxdv = -h * I
+         diag = -h;
+         Mat dRxdv_petsc_mat;
+         PetscCall(MatCreateDiagonal(diag, &dRxdv_petsc_mat));
+
+         PetscParMatrix dRxdv_petsc;
+         dRxdv_petsc.SetMat(dRxdv_petsc_mat);
+
+         // Second row
+         // Rv = Mv * v + F * I
+         // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
+
+         // dRvdx = h * dF/dx
+         HypreParMatrix dRvdx_mat;
+         dRvdx->Assemble(dRvdx_mat);
+         PetscParMatrix dRvdx_petsc(&dRvdx_mat);
+
+         // dRvdv = (Mv - h dF/dv)
+         HypreParMatrix dRvdv_mat;
+         dRvdv->Assemble(dRvdv_mat);
+         PetscParMatrix dRvdv_petsc(&dRvdv_mat);
+         PetscParMatrix Mv_petsc(&Mv_mat);
+         PetscCall(MatAXPY(dRvdv_petsc, h, Mv_petsc,
+                           MatStructure::DIFFERENT_NONZERO_PATTERN));
+
+         // dRvde = h * dF/de
+         HypreParMatrix dRvde_mat;
+         dRvde->Assemble(dRvde_mat);
+         PetscParMatrix dRvde_petsc(&dRvde_mat);
+         dRvde_petsc *= h;
+
+         // Third row
+         // Re = Me * e - F^T
+         // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
+
+         // dRedx = -h * dF^T/dx
+         // HypreParMatrix dRedx_mat;
+         // dRedx->Assemble(dRedx_mat);
+         // PetscParMatrix dRedx_petsc(&dRedx_mat);
+         // dRedx_petsc *= -h;
+
+         // dRedv = -h * dF^T/dv
+         // HypreParMatrix dRedv_mat;
+         // dRedv->Assemble(dRedv_mat);
+         // PetscParMatrix dRedv_petsc(&dRedv_mat);
+         // dRedv_petsc *= -h;
+
+         // dRede = Me - h * dF^T/de
+         // HypreParMatrix dRede_mat;
+         // dRede->Assemble(dRede_mat);
+         // PetscParMatrix dRede_petsc(&dRede_mat);
+
+         PetscParMatrix Me_petsc(&Me_mat);
+         // PetscCall(MatAXPY(dRede_petsc, -h, Me_petsc,
+         //                   MatStructure::DIFFERENT_NONZERO_PATTERN));
+
+         // Mat dRdu;
+         // Mat blocks[] =
+         // {
+         //    dRxdx_petsc, dRxdv_petsc, nullptr,
+         //    dRvdx_petsc, dRvdv_petsc, nullptr,
+         //    nullptr, nullptr, Me_petsc
+         // };
+
+         Array<int> offsets(4);
+         offsets[0] = 0;
+         offsets[1] = H1tsize;
+         offsets[2] = H1tsize;
+         offsets[3] = L2tsize;
+         offsets.PartialSum();
+
+         BlockOperator block_op(offsets);
+         block_op.SetBlock(0, 0, &dRxdx_petsc);
+         // block_op.SetBlock(0, 1, &dRxdv_petsc);
+         // block_op.SetBlock(1, 0, &dRvdx_petsc);
+         block_op.SetBlock(1, 1, &dRvdv_petsc);
+         block_op.SetBlock(2, 2, &Me_petsc);
+
+         PetscParMatrix block_petsc(comm, &block_op, Operator::PETSC_MATAIJ);
+         Mat block_petsc_mat = block_petsc;
+
+         PetscCall(MatConvert(block_petsc_mat, MATAIJ, MatReuse::MAT_INPLACE_MATRIX,
+                              &block_petsc_mat));
+
+         Array<int> offset_ess_tdof_v(hydro.ess_tdof);
+         for (int i = 0; i < offset_ess_tdof_v.Size(); i++)
+         {
+            offset_ess_tdof_v[i] += H1tsize;
+         }
+
+         auto tmp = block_petsc.EliminateRowsCols(offset_ess_tdof_v);
+         delete tmp;
+
+
+         PetscParVector w_petsc(hydro.H1.GetComm(), w, true);
+         PetscParVector y_petsc(hydro.H1.GetComm(), y);
+
+         PetscCall(MatMult(block_petsc, w_petsc, y_petsc));
+
+         y = y_petsc;
+
+         return PETSC_SUCCESS;
+      };
+
+      jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro, Mv_mat]
             (const Vector &u, Vector &y)
       {
          w = u;
@@ -528,6 +684,8 @@ public:
          yx.SyncAliasMemory(y);
          yv.SyncAliasMemory(y);
          ye.SyncAliasMemory(y);
+
+         return PETSC_SUCCESS;
       };
    }
 
@@ -537,7 +695,7 @@ public:
    }
 
    real_t h;
-   std::function<void(const Vector &, Vector &)> jvp;
+   std::function<int(const Vector &, Vector &)> jvp, assembled_jvp;
    const int H1tsize;
    const int L2tsize;
    Vector w, z;
@@ -1100,6 +1258,7 @@ public:
    std::shared_ptr<QuadratureData> qdata;
    mutable ParGridFunction mesh_nodes, rhsvc, dvc;
    mutable MassPAOperator *Mv = nullptr, *Me = nullptr;
+
    mutable FunctionCoefficient rho0_coeff;
    OperatorJacobiSmoother *Mv_Jprec = nullptr;
    mutable Vector RHSv, rhsv, X, Xx, Xv, Xvc, Xe, K, Kx, Kv, Ke, B, RHSe, rhse;
@@ -1532,6 +1691,7 @@ int main(int argc, char *argv[])
    real_t cfl = 0.5;
    real_t nonlinear_relative_tolerance = 1e-5;
    int nonlinear_maximum_iterations = 10;
+   const char *petsc_opts = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -1558,10 +1718,33 @@ int main(int argc, char *argv[])
                   "Maximum number of nonlinear iterations.");
    args.AddOption(&nonlinear_relative_tolerance, "-nrt", "--nrt",
                   "Nonlinear relative tolerance.");
+   args.AddOption(&petsc_opts, "-petsc-opts", "--petsc-opts",
+                  "PETSc options.");
    args.ParseCheck();
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
+
+   std::vector<char*> petsc_argv;
+   petsc_argv.push_back(argv[0]); // Program name as first arg
+
+   // Split petsc_opts string into individual arguments
+   std::string opts_str(petsc_opts);
+   std::istringstream iss(opts_str);
+   std::string arg;
+
+   // Store each argument
+   while (iss >> arg)
+   {
+      char* arg_copy = new char[arg.length() + 1];
+      strcpy(arg_copy, arg.c_str());
+      petsc_argv.push_back(arg_copy);
+   }
+
+   int petsc_argc = petsc_argv.size();
+   char** petsc_args = petsc_argv.data();
+
+   MFEMInitializePetsc(&petsc_argc, &petsc_args);
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
 
@@ -1945,5 +2128,7 @@ int main(int argc, char *argv[])
           << "L_2    error: " << v_err_l2 << std::endl;
    }
 
+
+   MFEMFinalizePetsc();
    return 0;
 }
