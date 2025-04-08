@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
                                         a > 0. || btime))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
-   RiemannSolver *FluxSolver = NULL;
+   NumericalFlux *FluxSolver = NULL;
    MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
@@ -575,7 +575,7 @@ int main(int argc, char *argv[])
          case 1: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_1); break;
          case 2: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_2); break;
          case 3: FluxSolver = new RusanovFlux(*FluxFun); break;
-         case 4: FluxSolver = new GodunovFlux(*FluxFun); break;
+         case 4: FluxSolver = new ComponentwiseUpwindFlux(*FluxFun); break;
          default:
             cerr << "Unknown HDG scheme" << endl;
             exit(1);

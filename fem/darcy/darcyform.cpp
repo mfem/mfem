@@ -1166,22 +1166,25 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
       }
    }
 
-   auto &boundary_face_integs_marker = *hybridization->GetPotBCBFI_Marker();
+   const int num_boundary_face_integs =
+      hybridization->NumBdrPotConstraintIntegrators();
 
-   if (boundary_face_integs_marker.Size())
+   if (num_boundary_face_integs > 0)
    {
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < boundary_face_integs_marker.Size(); k++)
+      for (int k = 0; k < num_boundary_face_integs; k++)
       {
-         if (boundary_face_integs_marker[k] == NULL)
+         Array<int> *boundary_face_integs_marker =
+            hybridization->GetBdrPotConstraintIntegratorMarker(k);
+         if (boundary_face_integs_marker == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         Array<int> &bdr_marker = *boundary_face_integs_marker;
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");

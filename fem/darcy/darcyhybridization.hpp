@@ -355,13 +355,16 @@ public:
                                        Array<int> &bdr_marker)
    { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
 
+   /// Get number of all integrators added with AddBdrFluxConstraintIntegrator().
+   inline int NumBdrFluxConstraintIntegrators() const { return Hybridization::NumBdrConstraintIntegrators(); }
+
    /// Access all integrators added with AddBdrFluxConstraintIntegrator().
-   BilinearFormIntegrator& GetFluxBdrConstraintIntegrator(int i) { return Hybridization::GetBdrConstraintIntegrator(i); }
+   BilinearFormIntegrator& GetBdrFluxConstraintIntegrator(int i) { return Hybridization::GetBdrConstraintIntegrator(i); }
 
    /// Access all boundary markers added with AddBdrFluxConstraintIntegrator().
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<int>* GetFluxBdrConstraintIntegratorMarker(int i) { return Hybridization::GetBdrConstraintIntegratorMarker(i); }
+   Array<int>* GetBdrFluxConstraintIntegratorMarker(int i) { return Hybridization::GetBdrConstraintIntegratorMarker(i); }
 
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
@@ -376,13 +379,15 @@ public:
       boundary_constraint_pot_integs_marker.Append(&bdr_marker);
    }
 
+   inline int NumBdrPotConstraintIntegrators() const { return boundary_constraint_pot_integs.Size(); }
+
    /// Access all integrators added with AddBdrPotConstraintIntegrator().
-   Array<BilinearFormIntegrator*> *GetPotBCBFI() { return &boundary_constraint_pot_integs; }
+   BilinearFormIntegrator& GetBdrPotConstraintIntegrator(int i) { return *boundary_constraint_pot_integs[i]; }
 
    /// Access all boundary markers added with AddBdrPotConstraintIntegrator().
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetPotBCBFI_Marker() { return &boundary_constraint_pot_integs_marker; }
+   Array<int>* GetBdrPotConstraintIntegratorMarker(int i) { return boundary_constraint_pot_integs_marker[i]; }
 
    void AddBdrPotConstraintIntegrator(NonlinearFormIntegrator *c_integ)
    {
