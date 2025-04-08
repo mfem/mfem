@@ -3811,6 +3811,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    }
 
 #undef VTX
+#undef VTXP
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -6583,8 +6584,16 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    }
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
+
+   const int old_space_dim = spaceDim;
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+
+   if (spaceDim != old_space_dim)
+   {
+      // Fix dimension of the vertices if the space dimension changes
+      SetVerticesFromNodes(Nodes);
+   }
 }
 
 void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
@@ -6757,7 +6766,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     mfem::Swap(vi[1], vi[3]);
+                     fo++;
                   }
                }
                break;
@@ -10101,6 +10111,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
                       oface+qf0, attr);
 #endif
+            // Tetrahedral elements may be new to this mesh so ensure that
+            // the relevant flags are switched on
+            mesh_geoms |= (1 << Geometry::TETRAHEDRON);
+            meshgen |= 1;
          }
          break;
 
