@@ -15160,7 +15160,7 @@ bool Mesh::Conforming() const
 {
    if (NURBSext)
    {
-      return NURBSext->Conforming();
+      return !NURBSext->Nonconforming();
    }
    else
    {
