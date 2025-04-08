@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,19 +32,35 @@ namespace mfem
 
 class BilinearForm;
 
-/// Abstract base class for an iterative solver monitor
-class IterativeSolverMonitor
+/// Abstract base class for an iterative solver controller
+class IterativeSolverController
 {
 protected:
-   /// The last IterativeSolver to which this monitor was attached.
+   /// The last IterativeSolver to which this controller was attached.
    const class IterativeSolver *iter_solver;
 
+   /// In MonitorResidual or MonitorSolution, this member variable can be set
+   /// to true to indicate early convergence.
+   bool converged = false;
+
 public:
-   IterativeSolverMonitor() : iter_solver(nullptr) {}
+   IterativeSolverController() : iter_solver(nullptr) {}
 
-   virtual ~IterativeSolverMonitor() {}
+   virtual ~IterativeSolverController() {}
 
-   /// Monitor the residual vector r
+   /// Has the solver converged?
+   ///
+   /// Can be used if convergence is detected in the controller (before reaching
+   /// the relative or absolute tolerance of the IterativeSolver).
+   bool HasConverged() { return converged; }
+
+   /// Reset the controller to its initial state.
+   ///
+   /// This function is called by the IterativeSolver::Mult()
+   /// method on the first iteration.
+   virtual void Reset() { converged = false; }
+
+   /// Monitor the solution vector r
    virtual void MonitorResidual(int it, real_t norm, const Vector &r,
                                 bool final)
    {
@@ -61,6 +77,9 @@ public:
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
 };
+
+/// Keeping the alias for backward compatibility
+using IterativeSolverMonitor = IterativeSolverController;
 
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
@@ -169,6 +188,7 @@ protected:
 
    ///@}
 
+
    /** @brief Return the standard (l2, i.e., Euclidean) inner product of
        @a x and @a y
        @details Overriding this method in a derived class enables a
@@ -180,7 +200,7 @@ protected:
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, real_t norm, const Vector& r, const Vector& x,
+   bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
@@ -421,7 +441,8 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -434,7 +455,8 @@ public:
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -494,6 +516,9 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /// Iterative solution of the linear system using Stationary Linear Iteration
+   /** When using iterative mode (see Solver::iterative_mode), the case of zero
+       r.h.s., @a b = 0, can be optimized by calling this method with empty
+       @a b, i.e. b.Size() == 0. */
    void Mult(const Vector &b, Vector &x) const override;
 };
 

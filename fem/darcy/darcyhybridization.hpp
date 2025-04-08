@@ -79,7 +79,8 @@ private:
    } lsolve;
 
    Array<int> Ae_offsets;
-   real_t *Af_lin_data{}, *Ae_data{};
+   Array<real_t> Af_lin_data;
+   real_t *Ae_data{};
    bool A_empty{true};
 
    Array<int> Bf_offsets, Be_offsets;
@@ -332,7 +333,7 @@ public:
    void SetBlockNonlinearIntegrator(BlockNonlinearFormIntegrator *block_integ,
                                     bool own = true);
 
-   BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi; }
+   BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi.get(); }
 
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p; }
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p; }
@@ -355,12 +356,12 @@ public:
    { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
 
    /// Access all integrators added with AddBdrFluxConstraintIntegrator().
-   Array<BilinearFormIntegrator*> *GetFluxBCBFI() { return Hybridization::GetBCBFI(); }
+   BilinearFormIntegrator& GetFluxBdrConstraintIntegrator(int i) { return Hybridization::GetBdrConstraintIntegrator(i); }
 
    /// Access all boundary markers added with AddBdrFluxConstraintIntegrator().
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetFluxBCBFI_Marker() { return Hybridization::GetBCBFI_Marker(); }
+   Array<int>* GetFluxBdrConstraintIntegratorMarker(int i) { return Hybridization::GetBdrConstraintIntegratorMarker(i); }
 
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {

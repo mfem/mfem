@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
+#include "fe/face_map_utils.hpp"
 #include "ceed/interface/util.hpp"
 
 namespace mfem
@@ -862,56 +863,139 @@ void EABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
-   elemDofs = trial_fes->GetFE(0)->GetDof();
+   elemDofs = trial_fes->GetTypicalFE()->GetDof();
 
-   ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
-   ea_data.UseDevice(true);
+   Vector ea_data_tmp;
 
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   const int integratorCount = integrators.Size();
-   if ( integratorCount == 0 )
+   auto add_with_markers = [&](const Vector &ea_1, Vector &ea_2, const int ne_,
+                               const Array<int> &markers, const Array<int> &attrs,
+                               const bool add)
    {
-      ea_data = 0.0;
+      if (ne_ == 0) { return; }
+      const int sz = ea_1.Size() / ne_;
+      const int *d_m = markers.Read();
+      const int *d_a = attrs.Read();
+      const auto d_ea_1 = Reshape(ea_1.Read(), sz, ne_);
+      auto d_ea_2 = Reshape(add ? ea_2.ReadWrite() : ea_2.Write(), sz, ne_);
+
+      mfem::forall(sz*ne_, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int i = idx % sz;
+         const int e = idx / sz;
+         const real_t val = d_m[d_a[e] - 1] ? d_ea_1(i, e) : 0.0;
+         if (add)
+         {
+            d_ea_2(i, e) += val;
+         }
+         else
+         {
+            d_ea_2(i, e) = val;
+         }
+      });
+   };
+
+   {
+      ea_data.SetSize(ne*elemDofs*elemDofs);
+      ea_data.UseDevice(true);
+      Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+      Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
+
+      if (integrators.Size() == 0) { ea_data = 0.0; }
+
+      for (int i = 0; i < integrators.Size(); ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            integrators[i]->AssembleEA(*a->FESpace(), ea_data, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data.Size());
+            integrators[i]->AssembleEA(*a->FESpace(), ea_data_tmp, false);
+            add_with_markers(ea_data_tmp, ea_data, ne, *markers,
+                             elem_attributes, add);
+         }
+      }
    }
-   for (int i = 0; i < integratorCount; ++i)
+
+   faceDofs = trial_fes->GetTypicalTraceElement()->GetDof();
+
    {
-      integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
+      Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
+      Array<Array<int>*> &markers_array = *a->GetBBFI_Marker();
+      const int n_bdr_integs = bdr_integs.Size();
+      if (n_bdr_integs > 0)
+      {
+         nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < n_bdr_integs; ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_bdr, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data_bdr.Size());
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
+            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                             bdr_attributes, add);
+         }
+      }
    }
 
-   faceDofs = trial_fes ->
-              GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
-              GetDof();
-
-   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
-               "Element assembly does not support AddBoundaryIntegrator yet.");
-
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int intFaceIntegratorCount = intFaceIntegrators.Size();
-   if (intFaceIntegratorCount>0)
    {
-      nf_int = trial_fes->GetNFbyType(FaceType::Interior);
-      ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-   }
-   for (int i = 0; i < intFaceIntegratorCount; ++i)
-   {
-      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
-                                                     ea_data_int,
-                                                     ea_data_ext,
-                                                     i);
+      Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+      const int intFaceIntegratorCount = intFaceIntegrators.Size();
+      if (intFaceIntegratorCount>0)
+      {
+         nf_int = trial_fes->GetNFbyType(FaceType::Interior);
+         ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs);
+         ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < intFaceIntegratorCount; ++i)
+      {
+         const bool add = (i > 0);
+         intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
+                                                        ea_data_int,
+                                                        ea_data_ext,
+                                                        add);
+      }
    }
 
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
-   if (boundFaceIntegratorCount>0)
    {
-      nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-      ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_bdr = 0.0;
-   }
-   for (int i = 0; i < boundFaceIntegratorCount; ++i)
-   {
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr,i);
+      Array<BilinearFormIntegrator*> &bdr_face_integs = *a->GetBFBFI();
+      Array<Array<int>*> &markers_array = *a->GetBFBFI_Marker();
+      const int n_bdr_face_integs = bdr_face_integs.Size();
+      if (n_bdr_face_integs > 0)
+      {
+         nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < n_bdr_face_integs; ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            bdr_face_integs[i]->AssembleEABoundaryFaces(
+               *a->FESpace(), ea_data_bdr, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data_bdr.Size());
+            bdr_face_integs[i]->AssembleEABoundaryFaces(*a->FESpace(),
+                                                        ea_data_tmp,
+                                                        add);
+            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                             bdr_attributes, add);
+         }
+      }
    }
 
    if (factorize_face_terms && int_face_restrict_lex)
@@ -1023,34 +1107,29 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
    // Treatment of boundary faces
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && ea_data_bdr.Size() > 0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_X.Size()>0)
+      bdr_face_Y = 0.0;
+      // Apply the boundary face matrices
+      const int NDOFS = faceDofs;
+      auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+      auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
+      auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+      mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
       {
-         bdr_face_Y = 0.0;
-         // Apply the boundary face matrices
-         const int NDOFS = faceDofs;
-         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
-         auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
-         mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         real_t res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            real_t res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A(i, j, f)*X(i, f);
-            }
-            Y(j, f) += res;
-         });
-         // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
-      }
+            res += A(i, j, f)*X(i, f);
+         }
+         Y(j, f) += res;
+      });
+      // Apply the Boundary Face Restriction transposed
+      bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
    }
 }
 
@@ -1151,34 +1230,163 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 
    // Treatment of boundary faces
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && ea_data_bdr.Size() > 0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_X.Size()>0)
+      bdr_face_Y = 0.0;
+      // Apply the boundary face matrices transposed
+      const int NDOFS = faceDofs;
+      auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+      auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
+      auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+      mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
       {
-         bdr_face_Y = 0.0;
-         // Apply the boundary face matrices transposed
-         const int NDOFS = faceDofs;
-         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
-         auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
-         mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         real_t res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            real_t res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A(j, i, f)*X(i, f);
-            }
-            Y(j, f) += res;
-         });
-         // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
+            res += A(j, i, f)*X(i, f);
+         }
+         Y(j, f) += res;
+      });
+      // Apply the Boundary Face Restriction transposed
+      bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
+   }
+}
+
+void EABilinearFormExtension::GetElementMatrices(
+   DenseTensor &element_matrices, ElementDofOrdering ordering, bool add_bdr)
+{
+   // Ensure the EA data is assembled
+   if (ea_data.Size() == 0) { Assemble(); }
+
+   const int ndofs = elemDofs;
+   element_matrices.SetSize(ndofs, ndofs, ne);
+   const int N = element_matrices.TotalSize();
+
+   const auto d_ea_data = Reshape(ea_data.Read(), ndofs, ndofs, ne);
+   auto d_element_matrices = Reshape(element_matrices.Write(),
+                                     ndofs, ndofs,
+                                     ne);
+
+   const int *d_dof_map = nullptr;
+   Array<int> dof_map;
+   if (ordering == ElementDofOrdering::NATIVE)
+   {
+      const TensorBasisElement* tbe =
+         dynamic_cast<const TensorBasisElement*>(trial_fes->GetFE(0));
+      if (tbe)
+      {
+         // Deep copy to avoid issues with host device (see similar comment in
+         // HybridizationExtension::ConstructC).
+         dof_map = tbe->GetDofMap();
+         d_dof_map = dof_map.Read();
       }
+   }
+
+   if (d_dof_map)
+   {
+      // Reordering required
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         const int ii_s = d_dof_map[i];
+         const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+         const int s_i = (ii_s >= 0) ? 1 : -1;
+         const int jj_s = d_dof_map[j];
+         const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+         const int s_j = (jj_s >= 0) ? 1 : -1;
+         d_element_matrices(ii, jj, e) = s_i*s_j*d_ea_data(j, i, e);
+      });
+   }
+   else
+   {
+      // No reordering required
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         d_element_matrices(i, j, e) = d_ea_data(j, i, e);
+      });
+   }
+
+   if (add_bdr && ea_data_bdr.Size() > 0)
+   {
+      const int ndof_face = faceDofs;
+      const auto d_ea_bdr = Reshape(ea_data_bdr.Read(),
+                                    ndof_face, ndof_face, nf_bdr);
+
+      // Get all the local face maps (mapping from lexicographic face index to
+      // lexicographic volume index, depending on the local face index).
+      const Mesh &mesh = *trial_fes->GetMesh();
+      const int dim = mesh.Dimension();
+      const int n_faces_per_el = 2*dim; // assuming tensor product
+      Array<int> face_maps(ndof_face * n_faces_per_el);
+      for (int lf_i = 0; lf_i < n_faces_per_el; ++lf_i)
+      {
+         Array<int> face_map(ndof_face);
+         trial_fes->GetFE(0)->GetFaceMap(lf_i, face_map);
+         for (int i = 0; i < ndof_face; ++i)
+         {
+            face_maps[i + lf_i*ndof_face] = face_map[i];
+         }
+      }
+
+      Array<int> face_info(nf_bdr * 2);
+      {
+         int fidx = 0;
+         for (int f = 0; f < mesh.GetNumFaces(); ++f)
+         {
+            Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
+            if (!finfo.IsBoundary()) { continue; }
+            face_info[0 + fidx*2] = finfo.element[0].local_face_id;
+            face_info[1 + fidx*2] = finfo.element[0].index;
+            fidx++;
+         }
+      }
+
+      const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
+      const auto d_face_info = Reshape(face_info.Read(), 2, nf_bdr);
+
+      const bool reorder = (ordering == ElementDofOrdering::NATIVE);
+
+      mfem::forall_2D(nf_bdr, ndof_face, ndof_face, [=] MFEM_HOST_DEVICE (int f)
+      {
+         const int lf_i = d_face_info(0, f);
+         const int e = d_face_info(1, f);
+         // Loop over face indices in "native ordering"
+         MFEM_FOREACH_THREAD(i_lex_face, x, ndof_face)
+         {
+            // Convert from lexicographic face DOF to volume DOF
+            const int i_lex = d_face_maps(i_lex_face, lf_i);
+
+            const int ii_s = d_dof_map[i_lex];
+            const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+
+            const int i = reorder ? ii : i_lex;
+            const int s_i = (ii_s < 0 && reorder) ? -1 : 1;
+
+            MFEM_FOREACH_THREAD(j_lex_face, y, ndof_face)
+            {
+               // Convert from lexicographic face DOF to volume DOF
+               const int j_lex = d_face_maps(j_lex_face, lf_i);
+
+               const int jj_s = d_dof_map[j_lex];
+               const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+
+               const int j = reorder ? jj : j_lex;
+               const int s_j = (jj_s < 0 && reorder) ? -1 : 1;
+
+               AtomicAdd(d_element_matrices(i, j, e),
+                         s_i*s_j*d_ea_bdr(i_lex_face, j_lex_face, f));
+            }
+         }
+      });
    }
 }
 

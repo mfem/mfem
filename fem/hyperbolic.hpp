@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,17 +19,17 @@ namespace mfem
 {
 
 // This file contains general hyperbolic conservation element/face form
-// integrators. HyperbolicFormIntegrator and RiemannSolver are defined.
+// integrators. HyperbolicFormIntegrator and NumericalFlux are defined.
 //
 // HyperbolicFormIntegrator is a NonlinearFormIntegrator that implements
 // element weak divergence and interface flux
 //
-//     ∫_T F(u):∇v,   -∫_e F̂(u)⋅[[v]]
+//     ∫_K F(u):∇v,   -∫_f F̂(u)⋅n[v]
 //
-// Here, T is an element, e is an edge, and [[⋅]] is jump. This form integrator
-// is coupled with RiemannSolver that implements the numerical flux F̂. For
-// RiemannSolver, the Rusanov flux, also known as local Lax-Friedrichs flux, is
-// provided.
+// Here, K is an element, f is a face, n normal and [⋅] is jump. This form
+// integrator is coupled with NumericalFlux that implements the numerical flux
+// F̂. For NumericalFlux, the Rusanov flux, also known as local Lax-Friedrichs
+// flux, or component-wise upwinded flux are provided.
 //
 // To implement a specific hyperbolic conservation laws, users can create
 // derived classes from FluxFunction with overloaded ComputeFlux. One can
@@ -66,60 +66,79 @@ public:
    virtual ~FluxFunction() {}
 
    /**
-    * @brief Compute flux. Must be implemented in a derived class.
+    * @brief Compute flux F(u, x). Must be implemented in a derived class.
     *
+    * Used in HyperbolicFormIntegrator::AssembleElementVector() for evaluation
+    * of (F(u), ∇v) and in the default implementation of ComputeFluxDotN()
+    * for evaluation of F(u)⋅n.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
     * @param[out] flux flux from the given element at the current
     * integration point (num_equations, dim)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du|
     *
     * @note One can put assertion in here to detect non-physical solution
     */
    virtual real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) const = 0;
    /**
-    * @brief Compute normal flux. Optionally overloaded in a derived class to
-    * avoid creating a full dense matrix for flux.
+    * @brief Compute normal flux F(u, x)⋅n. Optionally overloaded in a derived
+    * class to avoid creating a full dense matrix for flux.
     *
+    * Used in NumericalFlux for evaluation of the normal flux on a face.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] fluxDotN normal flux from the given element at the current
     * integration point (num_equations)
-    * @return real_t maximum (normal) characteristic velocity
+    * @return real_t maximum (normal) characteristic speed |dF(u,x)/du⋅n|
     */
    virtual real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
                                   FaceElementTransformations &Tr,
                                   Vector &fluxDotN) const;
 
    /**
-    * @brief Compute average flux for over the given interval of states.
+    * @brief Compute average flux over the given interval of states.
     * Optionally overloaded in a derived class.
     *
-    * @param[in] state1 state of the beggining of the interval (num_equations)
+    * The average flux is defined as F̄(u1,u2) = ∫ F(u) du / (u2 - u1) for
+    * u ∈ [u1,u2], where u1 is the first state (@a state1) and the u2 the
+    * second state (@a state2), while F(u) is the flux as defined in
+    * ComputeFlux().
+    *
+    * Used in the default implementation of ComputeAvgFluxDotN().
+    * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] flux average flux from the given element at the current
+    * @param[out] flux_ average flux from the given element at the current
     * integration point (num_equations, dim)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du| over
+    * the interval [u1,u2]
     */
    virtual real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
                                  ElementTransformation &Tr,
-                                 DenseMatrix &flux) const
+                                 DenseMatrix &flux_) const
    { MFEM_ABORT("Not Implemented."); }
 
    /**
     * @brief Compute average normal flux over the given interval of states.
     * Optionally overloaded in a derived class.
     *
-    * @param[in] state1 state of the beggining of the interval (num_equations)
+    * The average normal flux is defined as F̄(u1,u2)n = ∫ F(u)n du / (u2 - u1)
+    * for u ∈ [u1,u2], where u1 is the first state (@a state1) and the u2 the
+    * second state (@a state2), while n is the normal and F(u) is the flux as
+    * defined in ComputeFlux().
+    *
+    * Used in NumericalFlux::Average() and NumericalFlux::AverageGrad() for
+    * evaluation of the average normal flux on a face.
+    * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] fluxDotN average normal flux from the given element at the
     * current integration point (num_equations)
-    * @return real_t maximum (normal) characteristic velocity
+    * @return real_t maximum (normal) characteristic speed |dF(u,x)/du⋅n|
+    * over the interval [u1,u2]
     */
    virtual real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
                                      const Vector &normal,
@@ -127,22 +146,27 @@ public:
                                      Vector &fluxDotN) const;
 
    /**
-    * @brief Compute flux Jacobian. Optionally overloaded in a derived class
-    * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
+    * @brief Compute flux Jacobian J(u, x). Optionally overloaded in a derived
+    * class when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
+    * Used in HyperbolicFormIntegrator::AssembleElementGrad() for evaluation of
+    * Jacobian of the flux in an element and in the default implementation of
+    * ComputeFluxJacobianDotN().
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] J flux Jacobian, $ J(i,j,d) = dF_{id} / du_j $
+    * @param[out] J_ flux Jacobian, $ J(i,j,d) = dF_{id} / du_j $
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr,
-                                    DenseTensor &J) const
+                                    DenseTensor &J_) const
    { MFEM_ABORT("Not Implemented."); }
 
    /**
-    * @brief Compute normal flux Jacobian. Optionally overloaded in a derived
-    * class to avoid creating a full dense tensor for Jacobian.
+    * @brief Compute normal flux Jacobian J(u, x)⋅n. Optionally overloaded in
+    * a derived class to avoid creating a full dense tensor for Jacobian.
     *
+    * Used in NumericalFlux for evaluation of Jacobian of the normal flux on
+    * a face.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr element transformation
@@ -166,16 +190,22 @@ private:
  * conservation laws on a face with states, fluxes and characteristic speed
  *
  */
-class RiemannSolver
+class NumericalFlux
 {
 public:
-   RiemannSolver(const FluxFunction &fluxFunction)
+   /**
+    * @brief Constructor for a flux function
+    * @param fluxFunction flux function F(u,x)
+    */
+   NumericalFlux(const FluxFunction &fluxFunction)
       : fluxFunction(fluxFunction) { }
 
    /**
     * @brief Evaluates normal numerical flux for the given states and normal.
     * Must be implemented in a derived class.
     *
+    * Used in HyperbolicFormIntegrator::AssembleFaceVector() for evaluation of
+    * <F̂(u⁻,u⁺,x) n, [v]> term at the face.
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -183,7 +213,7 @@ public:
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] flux numerical flux (num_equations)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du⋅n|
     */
    virtual real_t Eval(const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
@@ -193,9 +223,11 @@ public:
     * @brief Evaluates Jacobian of the normal numerical flux for the given
     * states and normal. Optionally overloaded in a derived class.
     *
+    * Used in HyperbolicFormIntegrator::AssembleFaceGrad() for Jacobian
+    * of the term <F̂(u⁻,u⁺,x) n, [v]> at the face.
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
-    * @param[in] state1 state value of the beggining of the interval
+    * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
     * (num_equations)
@@ -213,14 +245,15 @@ public:
     * the given end states in the second argument and for the given normal.
     * Optionally overloaded in a derived class.
     *
-    * @param[in] state1 state value of the beggining of the interval
+    * Presently, not used. Reserved for future use.
+    * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
     * (num_equations)
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] flux numerical flux (num_equations)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du⋅n|
     */
    virtual real_t Average(const Vector &state1, const Vector &state2,
                           const Vector &nor, FaceElementTransformations &Tr,
@@ -232,9 +265,10 @@ public:
     * interval between the given end states in the second argument and for the
     * given normal. Optionally overloaded in a derived class.
     *
+    * Presently, not used. Reserved for future use.
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
-    * @param[in] state1 state value of the beggining of the interval
+    * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
     * (num_equations)
@@ -248,7 +282,7 @@ public:
                             DenseMatrix &grad) const
    { MFEM_ABORT("Not implemented."); }
 
-   virtual ~RiemannSolver() = default;
+   virtual ~NumericalFlux() = default;
 
    /// @brief Get flux function F
    /// @return constant reference to the flux function.
@@ -258,17 +292,23 @@ protected:
    const FluxFunction &fluxFunction;
 };
 
+/// @deprecated Use NumericalFlux instead.
+MFEM_DEPRECATED typedef NumericalFlux RiemannSolver;
+
 /**
- * @brief Abstract hyperbolic form integrator, (F(u, x), ∇v) and
- * (F̂(u±, x) n, [v])
+ * @brief Abstract hyperbolic form integrator, assembling (F(u, x), ∇v) and
+ * <F̂(u⁻,u⁺,x) n, [v]> terms for scalar finite elements.
  *
+ * This form integrator is coupled with a NumericalFlux that implements the
+ * numerical flux F̂ at the faces. The flux F is obtained from the FluxFunction
+ * assigned to the aforementioned NumericalFlux.
  */
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
-protected:
+private:
    // The maximum characteristic speed, updated during element/face vector assembly
    real_t max_char_speed;
-   const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to F̂
+   const NumericalFlux &numFlux;   // Numerical flux that maps F(u±,x) to F̂
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
@@ -294,12 +334,12 @@ public:
    /**
     * @brief Construct a new Hyperbolic Form Integrator object
     *
-    * @param[in] rsolver numerical flux
+    * @param[in] numFlux numerical flux
     * @param[in] IntOrderOffset integration order offset
     * @param[in] sign sign of the convection term
     */
    HyperbolicFormIntegrator(
-      const RiemannSolver &rsolver,
+      const NumericalFlux &numFlux,
       const int IntOrderOffset = 0,
       const real_t sign = 1.);
 
@@ -346,14 +386,14 @@ public:
                             const Vector &elfun, DenseMatrix &grad) override;
 
    /**
-    * @brief Implements <-F̂(u,x) n, [v]> with abstract F̂ computed by
-    * RiemannSolver::Eval() of the numerical flux object
+    * @brief Implements <-F̂(u⁻,u⁺,x) n, [v]> with abstract F̂ computed by
+    * NumericalFlux::Eval() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
     * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
-    * @param[out] elvect evaluated dual vector <-F̂(u,x) n, [v]>
+    * @param[out] elvect evaluated dual vector <-F̂(u⁻,u⁺,x) n, [v]>
     */
    void AssembleFaceVector(const FiniteElement &el1,
                            const FiniteElement &el2,
@@ -361,14 +401,14 @@ public:
                            const Vector &elfun, Vector &elvect) override;
 
    /**
-    * @brief Implements <-Ĵ(u,x) n, [v]> with abstract Ĵ computed by
-    * RiemannSolver::Grad() of the numerical flux object
+    * @brief Implements <-Ĵ(u⁻,u⁺,x) n, [v]> with abstract Ĵ computed by
+    * NumericalFlux::Grad() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
     * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
-    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u,x) n, [v]>
+    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u⁻,u⁺,x) n, [v]>
     */
    void AssembleFaceGrad(const FiniteElement &el1,
                          const FiniteElement &el2,
@@ -394,23 +434,23 @@ public:
 /**
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
- * where λ is the maximum characteristic velocity
- * @note The implementation assumes monotonous F(u,x) in u
+ * where λ is the maximum characteristic speed.
+ * @note The implementation assumes monotonous |dF(u,x)/du⋅n| in u, so the
+ * maximum characteristic speed λ for any interval [u⁻, u⁺] is given by
+ * max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|).
  */
-class RusanovFlux : public RiemannSolver
+class RusanovFlux : public NumericalFlux
 {
 public:
-   RusanovFlux(const FluxFunction &fluxFunction)
-      : RiemannSolver(fluxFunction)
-   {
-#ifndef MFEM_THREAD_SAFE
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-#endif
-   }
+   /**
+    * @brief Constructor for a flux function
+    * @param fluxFunction flux function F(u,x)
+    */
+   RusanovFlux(const FluxFunction &fluxFunction);
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
+    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) at a point from the first element
     * (num_equations)
@@ -419,7 +459,7 @@ public:
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -431,7 +471,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -452,15 +492,16 @@ public:
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
+    * @note Systems of equations are treated component-wise
     *
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F̄(u⁻,u⁺,x)n + F(u⁻,x)n) - ¼λ(u⁺ - u⁻)
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Average(const Vector &state1, const Vector &state2,
                   const Vector &nor, FaceElementTransformations &Tr,
@@ -472,9 +513,11 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
     * FluxFunction::ComputeFluxJacobianDotN()
+    * @note Only the diagonal terms of the J n are considered, i.e., systems
+    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -498,22 +541,23 @@ protected:
 };
 
 /**
- * @brief Godunov flux,
- *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [u⁻,u⁺]
- *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [u⁺,u⁻]
- * @note The implementation assumes monotonous F(u,x) in u
+ * @brief Component-wise upwinded flux
+ *
+ * Upwinded flux for scalar equations, a special case of Godunov or
+ * Engquist-Osher flux, is defined as follows:
+ *    F̂ n = F(u⁺)n    for dF(u)/du < 0 on [u⁻,u⁺]
+ *    F̂ n = F(u⁻)n    for dF(u)/du > 0 on [u⁻,u⁺]
+ * @note This construction assumes monotonous F(u,x) in u
+ * @note Systems of equations are treated component-wise
  */
-class GodunovFlux : public RiemannSolver
+class ComponentwiseUpwindFlux : public NumericalFlux
 {
 public:
-   GodunovFlux(const FluxFunction &fluxFunction)
-      : RiemannSolver(fluxFunction)
-   {
-#ifndef MFEM_THREAD_SAFE
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-#endif
-   }
+   /**
+    * @brief Constructor for a flux function
+    * @param fluxFunction flux function F(u,x)
+    */
+   ComponentwiseUpwindFlux(const FluxFunction &fluxFunction);
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
@@ -524,9 +568,9 @@ public:
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] flux F̂ n = min(F(u⁻)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
-    *               or F̂ n = max(F(u⁻)n, F(u⁺,x)n)    for u⁻ > u⁺
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @param[out] flux F̂ n = min(F(u⁻,x)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
+    *               or F̂ n = max(F(u⁻,x)n, F(u⁺,x)n)    for u⁻ > u⁺
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -538,7 +582,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -560,7 +604,7 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -568,7 +612,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = min(F(u⁻)n, F̄(u⁺,x)n)    for u⁻ ≤ u⁺
     *               or F̂ n = max(F(u⁻)n, F̄(u⁺,x)n)    for u⁻ > u⁺
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Average(const Vector &state1, const Vector &state2,
                   const Vector &nor, FaceElementTransformations &Tr,
@@ -582,7 +626,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -684,7 +728,7 @@ public:
    /**
     * @brief Compute average flux F̄(u)
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param Tr current element transformation with the integration point
     * @param flux F̄(u) = (u⁻+u⁺)/2*bᵀ
@@ -696,7 +740,7 @@ public:
    /**
     * @brief Compute average flux F̄(u) n
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
@@ -772,7 +816,7 @@ public:
    /**
     * @brief Compute average flux F̄(u)
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param Tr current element transformation with the integration point
     * @param flux F̄(u) = (u⁻²+u⁻*u⁺+u⁺²)/6*1ᵀ where 1 is (dim) vector
@@ -786,7 +830,7 @@ public:
    /**
     * @brief Compute average flux F̄(u) n
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point

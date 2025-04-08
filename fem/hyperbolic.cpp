@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,12 +19,12 @@ namespace mfem
 {
 
 HyperbolicFormIntegrator::HyperbolicFormIntegrator(
-   const RiemannSolver &rsolver,
+   const NumericalFlux &numFlux,
    const int IntOrderOffset,
    real_t sign)
    : NonlinearFormIntegrator(),
-     rsolver(rsolver),
-     fluxFunction(rsolver.GetFluxFunction()),
+     numFlux(numFlux),
+     fluxFunction(numFlux.GetFluxFunction()),
      IntOrderOffset(IntOrderOffset),
      sign(sign),
      num_equations(fluxFunction.num_equations)
@@ -148,9 +148,9 @@ void HyperbolicFormIntegrator::AssembleElementGrad(
    }
 
    // loop over integration points
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < ir->GetNPoints(); q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint(&ip);
 
       el.CalcShape(ip, shape);
@@ -250,7 +250,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const real_t speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
+      const real_t speed = numFlux.Eval(state1, state2, nor, Tr, fluxN);
 
       // Update the global max char speed
       max_char_speed = std::max(speed, max_char_speed);
@@ -335,7 +335,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
       // Trial side 1
 
       // Compute hat(J) using evaluated quantities
-      rsolver.Grad(1, state1, state2, nor, Tr, JDotN);
+      numFlux.Grad(1, state1, state2, nor, Tr, JDotN);
 
       const int ioff = fluxFunction.num_equations * dof1;
 
@@ -363,7 +363,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
       // Trial side 2
 
       // Compute hat(J) using evaluated quantities
-      rsolver.Grad(2, state1, state2, nor, Tr, JDotN);
+      numFlux.Grad(2, state1, state2, nor, Tr, JDotN);
 
       const int joff = ioff;
 
@@ -479,7 +479,7 @@ void HyperbolicFormIntegrator::AssembleHDGFaceVector(
       if (type & 1) { nor.Neg(); }
 
       // Compute average flux hat(F)(û,u) with maximum characteristic speed
-      rsolver.Average(state_tr, state_el, nor, Tr, fluxN);
+      numFlux.Average(state_tr, state_el, nor, Tr, fluxN);
 
       // pre-multiply integration weight to flux
       if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
@@ -584,7 +584,7 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
       int joff = 0;
       if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
       {
-         rsolver.AverageGrad(2, state_tr, state_el, nor, Tr, JDotN);
+         numFlux.AverageGrad(2, state_tr, state_el, nor, Tr, JDotN);
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
@@ -616,7 +616,7 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
       }
       if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
       {
-         rsolver.AverageGrad(1, state_tr, state_el, nor, Tr, JDotN);
+         numFlux.AverageGrad(1, state_tr, state_el, nor, Tr, JDotN);
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
@@ -696,6 +696,15 @@ void FluxFunction::ComputeFluxJacobianDotN(const Vector &U,
    }
 }
 
+RusanovFlux::RusanovFlux(const FluxFunction &fluxFunction)
+   : NumericalFlux(fluxFunction)
+{
+#ifndef MFEM_THREAD_SAFE
+   fluxN1.SetSize(fluxFunction.num_equations);
+   fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+}
+
 real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
                          Vector &flux) const
@@ -722,9 +731,6 @@ void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
-   DenseMatrix JDotN(fluxFunction.num_equations);
-#else
-   JDotN.SetSize(fluxFunction.num_equations);
 #endif
 
    const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
@@ -735,26 +741,22 @@ void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
    // here, nor.Norml2() is multiplied to match the scale with fluxN
    const real_t scaledMaxE = maxE * nor.Norml2();
 
-   grad = 0.;
-
    if (side == 1)
    {
-      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, grad);
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         // Only diagonal terms of J are considered
-         grad(i,i) = 0.5 * (JDotN(i,i) + scaledMaxE);
+         grad(i,i) += 0.5 * scaledMaxE;
       }
    }
    else
    {
-      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, JDotN);
+      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, grad);
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         // Only diagonal terms of J are considered
-         grad(i,i) = 0.5 * (JDotN(i,i) - scaledMaxE);
+         grad(i,i) -= 0.5 * scaledMaxE;
       }
    }
 }
@@ -851,9 +853,21 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
    }
 }
 
-real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
-                         const Vector &nor, FaceElementTransformations &Tr,
-                         Vector &flux) const
+ComponentwiseUpwindFlux::ComponentwiseUpwindFlux(
+   const FluxFunction &fluxFunction)
+   : NumericalFlux(fluxFunction)
+{
+#ifndef MFEM_THREAD_SAFE
+   fluxN1.SetSize(fluxFunction.num_equations);
+   fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   if (fluxFunction.dim > 1)
+      MFEM_WARNING("Upwinded flux is implemented only component-wise.")
+   }
+
+real_t ComponentwiseUpwindFlux::Eval(const Vector &state1, const Vector &state2,
+                                     const Vector &nor, FaceElementTransformations &Tr,
+                                     Vector &flux) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
@@ -876,9 +890,10 @@ real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
-void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
-                       const Vector &nor, FaceElementTransformations &Tr,
-                       DenseMatrix &grad) const
+void ComponentwiseUpwindFlux::Grad(int side, const Vector &state1,
+                                   const Vector &state2,
+                                   const Vector &nor, FaceElementTransformations &Tr,
+                                   DenseMatrix &grad) const
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix JDotN(fluxFunction.num_equations);
@@ -895,7 +910,7 @@ void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // Only diagonal terms of J are considered
-         grad(i,i) = std::max(JDotN(i,i), 0.);
+         grad(i,i) = std::max(JDotN(i,i), 0_r);
       }
    }
    else
@@ -905,14 +920,15 @@ void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // Only diagonal terms of J are considered
-         grad(i,i) = std::min(JDotN(i,i), 0.);
+         grad(i,i) = std::min(JDotN(i,i), 0_r);
       }
    }
 }
 
-real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
-                            const Vector &nor, FaceElementTransformations &Tr,
-                            Vector &flux) const
+real_t ComponentwiseUpwindFlux::Average(const Vector &state1,
+                                        const Vector &state2,
+                                        const Vector &nor, FaceElementTransformations &Tr,
+                                        Vector &flux) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
@@ -936,10 +952,10 @@ real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
-void GodunovFlux::AverageGrad(int side, const Vector &state1,
-                              const Vector &state2,
-                              const Vector &nor, FaceElementTransformations &Tr,
-                              DenseMatrix &grad) const
+void ComponentwiseUpwindFlux::AverageGrad(int side, const Vector &state1,
+                                          const Vector &state2,
+                                          const Vector &nor, FaceElementTransformations &Tr,
+                                          DenseMatrix &grad) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
@@ -1011,7 +1027,7 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
          const real_t gr12 = (!equal_check(state1(i), state2(i)))?
                              (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
                              :(0.5 * JDotN(i,i));
-         grad(i,i) = std::min(gr12, 0.);
+         grad(i,i) = std::min(gr12, 0_r);
       }
    }
 }

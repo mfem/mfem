@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,8 +19,10 @@ mfem_find_package(MAGMA MAGMA MAGMA_DIR "include" "magma.h" "lib" "magma"
   "Paths to headers required by MAGMA." "Libraries required by MAGMA.")
 
 if (MAGMA_FOUND AND MFEM_USE_CUDA)
-  get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
-  get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+  find_package(CUDAToolkit REQUIRED)
+  # Initialize CUSPARSE_LIBRARIES and CUBLAS_LIBRARIES:
+  mfem_culib_set_libraries(CUSPARSE cusparse)
+  mfem_culib_set_libraries(CUBLAS cublas)
   list(APPEND MAGMA_LIBRARIES ${CUSPARSE_LIBRARIES} ${CUBLAS_LIBRARIES})
   set(MAGMA_LIBRARIES ${MAGMA_LIBRARIES} CACHE STRING
       "MAGMA libraries + dependencies." FORCE)

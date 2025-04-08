@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,6 +67,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       REQUIRE( gf.FESpace()->GetVDim() == 1 );
       REQUIRE( gf.Size() == expScalarDofs );
       gf = 0.;
+      gf.HostRead();
 
       // Set the values of the dofs to non-zero values
       mfem::Array<int> dofs;
@@ -94,6 +95,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       REQUIRE( gf.FESpace()->GetVDim() == vdim );
       REQUIRE( gf.Size() == expScalarDofs * vdim );
       gf = 0.;
+      gf.HostRead();
 
       // Test setting some vector values
       mfem::Array<int> vdofs;

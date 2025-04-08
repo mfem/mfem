@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,26 +30,30 @@ void InitEvalKernels();
 void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
-}
-}
-
-QuadratureInterpolator::Kernels QuadratureInterpolator::kernels;
-QuadratureInterpolator::Kernels::Kernels()
+void InitTensorEvalHDivKernels();
+struct Kernels
 {
-   using namespace internal::quadrature_interpolator;
+   Kernels()
+   {
+      using namespace internal::quadrature_interpolator;
 
-   InitEvalByNodesKernels();
-   InitEvalByVDimKernels();
-   // Non-phys grad kernels
-   InitGradByNodesKernels<false>();
-   InitGradByVDimKernels<false>();
-   // Phys grad kernels
-   InitGradByNodesKernels<true>();
-   InitGradByVDimKernels<true>();
-   // Determinants
-   InitDetKernels();
-   // Non-tensor
-   InitEvalKernels();
+      InitEvalByNodesKernels();
+      InitEvalByVDimKernels();
+      // Non-phys grad kernels
+      InitGradByNodesKernels<false>();
+      InitGradByVDimKernels<false>();
+      // Phys grad kernels
+      InitGradByNodesKernels<true>();
+      InitGradByVDimKernels<true>();
+      // Determinants
+      InitDetKernels();
+      // Non-tensor
+      InitEvalKernels();
+      // Tensor (quad,hex) H(div)
+      InitTensorEvalHDivKernels();
+   }
+};
+}
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -61,11 +65,14 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    q_layout(QVectorLayout::byNODES),
    use_tensor_products(UsesTensorBasis(fes))
 {
+   static internal::quadrature_interpolator::Kernels kernels;
+
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
-   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
-               "Only scalar finite elements are supported");
+   const FiniteElement *fe = fespace->GetTypicalFE();
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
+               fe->GetMapType() == FiniteElement::MapType::H_DIV,
+               "Only elements with MapType VALUE and H_DIV are supported!");
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -79,9 +86,10 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
-   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
-               "Only scalar finite elements are supported");
+   const FiniteElement *fe = fespace->GetTypicalFE();
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
+               fe->GetMapType() == FiniteElement::MapType::H_DIV,
+               "Only elements with MapType VALUE and H_DIV are supported!");
 }
 
 namespace internal
@@ -499,9 +507,16 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+
+   if (fe->GetMapType() == FiniteElement::MapType::H_DIV)
+   {
+      // q_der == q_div
+      return MultHDiv(e_vec, eval_flags, q_val, q_der);
+   }
+
    const int vdim = fespace->GetVDim();
    const int sdim = fespace->GetMesh()->SpaceDimension();
-   const FiniteElement *fe = fespace->GetFE(0);
    const bool use_tensor_eval =
       use_tensor_products &&
       dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
@@ -556,6 +571,74 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
 }
 
+void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
+                                      unsigned eval_flags,
+                                      Vector &q_val,
+                                      Vector &q_div) const
+{
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   MFEM_VERIFY(fespace->IsVariableOrder() == false,
+               "variable order spaces are not supported yet!");
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::H_DIV,
+               "this method can be used only for H(div) spaces");
+   MFEM_VERIFY((eval_flags &
+                ~(VALUES | PHYSICAL_VALUES | PHYSICAL_MAGNITUDES)) == 0,
+               "only VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES"
+               " evaluations are implemented!");
+   const int dim = fespace->GetMesh()->Dimension();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
+   MFEM_VERIFY((dim == 2 || dim == 3) && dim == sdim,
+               "dim = " << dim << ", sdim = " << sdim
+               << " is not supported yet!");
+   MFEM_VERIFY(fespace->GetMesh()->GetNumGeometries(dim) <= 1,
+               "mixed meshes are not supported yet!");
+   const int vdim = fespace->GetVDim();
+   MFEM_VERIFY(vdim == 1, "vdim != 1 is not supported yet!");
+   auto tfe = dynamic_cast<const VectorTensorFiniteElement *>(fe);
+   MFEM_VERIFY(tfe != nullptr, "only quad and hex elements are supported!");
+   MFEM_VERIFY(use_tensor_products,
+               "non-tensor-product evaluation are not supported yet!");
+   const bool use_tensor_eval = use_tensor_products && (tfe != nullptr);
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps_c = tfe->GetDofToQuad(*ir, mode);
+   const DofToQuad &maps_o = tfe->GetDofToQuadOpen(*ir, mode);
+   const int nd = maps_c.ndof;
+   const int nq = maps_c.nqpt;
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & (PHYSICAL_VALUES | PHYSICAL_MAGNITUDES))
+   {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+   // Check that at most one of VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES
+   // is specified:
+   MFEM_VERIFY(bool(eval_flags & VALUES) + bool(eval_flags & PHYSICAL_VALUES) +
+               bool(eval_flags & PHYSICAL_MAGNITUDES) <= 1,
+               "only one of VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES"
+               " can be requested at a time!");
+   const unsigned value_eval_mode =
+      eval_flags & (VALUES | PHYSICAL_VALUES | PHYSICAL_MAGNITUDES);
+   if (value_eval_mode)
+   {
+      // For PHYSICAL_MAGNITUDES the QVectorLayouts are the same and we
+      // instantiate only QVectorLayout::byNODES:
+      const auto q_l = (eval_flags & PHYSICAL_MAGNITUDES) ?
+                       QVectorLayout::byNODES : q_layout;
+      TensorEvalHDivKernels::Run(
+         // dispatch params: dim + the template params of EvalHDiv2D/3D:
+         dim, q_l, value_eval_mode, nd, nq,
+         // runtime params, see the arguments of EvalHDiv2D/3D:
+         ne, maps_o.B.Read(), maps_c.B.Read(), geom ? geom->J.Read() : nullptr,
+         e_vec.Read(), q_val.Write(), nd, nq);
+   }
+   MFEM_CONTRACT_VAR(q_div);
+}
+
 void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
                                            const Vector &q_val,
                                            const Vector &q_der,
@@ -600,33 +683,54 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
 
 namespace
 {
+
+using namespace internal::quadrature_interpolator;
+
 using EvalKernel = QuadratureInterpolator::EvalKernelType;
 using TensorEvalKernel = QuadratureInterpolator::TensorEvalKernelType;
 using GradKernel = QuadratureInterpolator::GradKernelType;
+using CollocatedGradKernel = QuadratureInterpolator::CollocatedGradKernelType;
 
 template <QVectorLayout Q_LAYOUT>
 TensorEvalKernel FallbackTensorEvalKernel(int DIM)
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT>; }
+   if (DIM == 1) { return Values1D<Q_LAYOUT>; }
+   else if (DIM == 2) { return Values2D<Q_LAYOUT>; }
+   else if (DIM == 3) { return Values3D<Q_LAYOUT>; }
    else { MFEM_ABORT(""); }
 }
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
 GradKernel GetGradKernel(int DIM)
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+   if (DIM == 1) { return Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 3) { return Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
    else { MFEM_ABORT(""); }
 }
+
 
 template<QVectorLayout Q_LAYOUT>
 GradKernel GetGradKernel(int DIM, bool GRAD_PHYS)
 {
    if (GRAD_PHYS) { return GetGradKernel<Q_LAYOUT, true>(DIM); }
    else { return GetGradKernel<Q_LAYOUT, false>(DIM); }
+}
+
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+CollocatedGradKernel GetCollocatedGradKernel(int DIM)
+{
+   if (DIM == 1) { return CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 3) { return CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+   else { MFEM_ABORT(""); }
+}
+
+template<QVectorLayout Q_LAYOUT>
+CollocatedGradKernel GetCollocatedGradKernel(int DIM, bool GRAD_PHYS)
+{
+   if (GRAD_PHYS) { return GetCollocatedGradKernel<Q_LAYOUT, true>(DIM); }
+   else { return GetCollocatedGradKernel<Q_LAYOUT, false>(DIM); }
 }
 } // namespace
 
@@ -671,6 +775,13 @@ GradKernel QuadratureInterpolator::GradKernels::Fallback(
 {
    if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
    else { return GetGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
+}
+
+CollocatedGradKernel QuadratureInterpolator::CollocatedGradKernels::Fallback(
+   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int)
+{
+   if (Q_LAYOUT == QVectorLayout::byNODES) { return GetCollocatedGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
+   else { return GetCollocatedGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
 }
 
 /// @endcond
