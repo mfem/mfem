@@ -129,7 +129,7 @@ CUDA build:
 
 HIP build:
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
-   cmake <mfem-source-dir> -DMFEM_USE_HIP=YES -DHIP_ARCH=gfx942
+   cmake <mfem-source-dir> -DMFEM_USE_HIP=YES -DHIP_ARCH=gfx942 -DCMAKE_CXX_COMPILER=amdclang++ -DCMAKE_HIP_COMPILER=amdclang++
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -1169,3 +1169,16 @@ larger problems, there are two options:
 2. Building hypre with '--enable-mixedint' defines the local indiced to be
    32-bit, while using a 64-bit storage for global indices. This option is
    currently tested only in ex1p, and may not work in more general settings.
+
+Specific options for HIP
+==========================
+MFEM expects the `ROCM_PATH` environment variable to be set to the path of the ROCM
+install, as well as having `$ROCM_PATH/bin` in `PATH`.
+
+Specific options for RAJA+HIP+MPI
+==========================
+RAJA uses CMake's built-in HIP support (added in CMake 3.21), while MFEM uses the
+older HIP C++ library build/linkage. To ensure proper build and linkage ensure
+that `CMAKE_CXX_COMPILER` and `CMAKE_HIP_COMPILER` are set to the same compiler.
+This is especially important when using an MPI compiler (for example crayCC)
+where some linker flags may get dropped if these two are not identical.
