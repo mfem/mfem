@@ -10,14 +10,14 @@
 //              boundary condition on the bottom face and a traction
 //              boundary condition on the top face. The traction
 //              boundary condition is defined through a unit vector field
-//              ñ. We aim to (iteravely) solve
+//              ñ. We aim to (iteravely) solve
 //
 //              (σ(u), ε(v)) = (f, v)                       for all v ∈ V
-//              uᵏ ⋅ ñ = ϕ₁ − (ϕ₁ − uᵏ⁻¹) ⋅ ñ exp(αₖ σ(uᵏ⁻¹) n) ⋅ ñ) on Γₜ
+//              uᵏ ⋅ ñ = ϕ₁ − (ϕ₁ − uᵏ⁻¹) ⋅ ñ exp(αₖ σ(uᵏ⁻¹) n) ⋅ ñ) on Γₜ
 //
 //              where σ(u) is the stress tensor, ε(v) is the strain tensor,
 //              f is the body force, v is the test function, uᵏ is the
-//              displacement at iteration k, ñ is the unit normal vector,
+//              displacement at iteration k, ñ is the unit normal vector,
 //              ϕ₁ is the prescribed displacement, αₖ is a step-size
 //              parameter, and n is the normal vector to the boundary.
 

@@ -154,7 +154,7 @@ public:
       CalcOrtho(T.Jacobian(), n);
       n /= n.Norml2();
 
-      // Compute pressure σ(uᵏ⁻¹)n · ñ
+      // Compute pressure σ(uᵏ⁻¹)n · ñ
       Vector sigma_n(dim);
       sigma.Mult(n, sigma_n);
       real_t pressure = sigma_n * n_tilde;
@@ -163,7 +163,7 @@ public:
       real_t phi_1 = GapFunction(x);
 
       // Set the boundary condition
-      // uᵏ · ñ = φ₁ - (φ₁ - uᵏ⁻¹ · ñ) exp((αₖ σ(uᵏ⁻¹) n) · ñ)
+      // uᵏ · ñ = φ₁ - (φ₁ - uᵏ⁻¹ · ñ) exp((αₖ σ(uᵏ⁻¹) n) · ñ)
       u.SetSize(dim);
       u = u_prev_val;
       u(dim-1) = phi_1 - (phi_1 - u_prev_val * n_tilde) * exp(alpha * pressure);
