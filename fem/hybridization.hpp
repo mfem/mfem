@@ -146,6 +146,9 @@ public:
       boundary_constraint_integs_marker.push_back(&bdr_marker);
    }
 
+   /// Get number of all integrators added with AddBdrConstraintIntegrator().
+   inline int NumBdrConstraintIntegrators() const { return boundary_constraint_integs.size(); }
+
    /// Access all integrators added with AddBdrConstraintIntegrator().
    BilinearFormIntegrator& GetBdrConstraintIntegrator(int i)
    { return *boundary_constraint_integs[i]; }
