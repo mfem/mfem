@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40701
+MFEM_VERSION = 40800
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -425,11 +425,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
-       fem/ceed/interface fem/ceed/integrators/mass \
-       fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
-       fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-       fem/qinterp fem/integ fem/tmop fem/gslib fem/eltrans fem/darcy
+DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
+       fem/ceed/integrators/mass fem/ceed/integrators/convection \
+       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
+       fem/ceed/interface fem/ceed/solvers fem/darcy fem/eltrans fem/fe \
+	   fem/gslib fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)

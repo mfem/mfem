@@ -211,7 +211,7 @@ public:
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    /** When @ref UseFastAssembly "UseFastAssembly(true)" has been called and the
-       linearform assembly is compatible with device execution, it will be
+       linear form assembly is compatible with device execution, it will be
        executed on the device. */
    void Assemble();
 
