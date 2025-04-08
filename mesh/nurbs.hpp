@@ -824,8 +824,8 @@ private:
                               std::vector<int> &parentFaces,
                               std::vector<int> &parentVerts);
 
-   void GetAuxFaceToElementTable(Array2D<int> &auxface2elem);
-   void GetPatchSlaveFaceToPatchTable(Array2D<int> &sface2elem);
+   void GetAuxFaceToPatchTable(Array2D<int> &auxface2patch);
+   void GetSlaveFaceToPatchTable(Array2D<int> &sface2patch);
 
    void SetDofToPatch();
 
@@ -1089,9 +1089,6 @@ public:
    /// Return the array of indices of all boundary elements in patch @a patch.
    const Array<int>& GetPatchBdrElements(int patch);
 
-   bool Conforming() const { return patchTopo->Conforming(); }
-
-   // TODO: remove this?
    bool Nonconforming() const { return nonconforming; }
 
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
