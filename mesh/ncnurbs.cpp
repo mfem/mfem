@@ -1395,7 +1395,6 @@ void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
                                            pv[0] < pv[1] ? pv[1] : pv[0]);
 
       MFEM_ASSERT(v2e.count(parentPair) > 0, "Vertex pair not found");
-
       const int parentEdge = v2e[parentPair];
       masterEdges.insert(parentEdge);
 
@@ -1486,14 +1485,15 @@ void NURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
    } // loop over vertices in vertex_to_knot
 }
 
-void NURBSExtension::ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
-                                           const std::map<std::pair<int, int>, int> &v2f,
-                                           std::vector<int> &parentN1,
-                                           std::vector<int> &parentN2,
-                                           std::vector<EdgePairInfo> &edgePairs,
-                                           std::vector<FacePairInfo> &facePairs,
-                                           std::vector<int> &parentFaces,
-                                           std::vector<int> &parentVerts)
+void NURBSExtension::ProcessVertexToKnot3D(
+   const VertexToKnotSpan &v2k,
+   const std::map<std::pair<int, int>, int> &v2f,
+   std::vector<int> &parentN1,
+   std::vector<int> &parentN2,
+   std::vector<EdgePairInfo> &edgePairs,
+   std::vector<FacePairInfo> &facePairs,
+   std::vector<int> &parentFaces,
+   std::vector<int> &parentVerts)
 {
    auxEdges.clear();
    auxFaces.clear();
