@@ -2141,7 +2141,7 @@ protected:
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
-   // Remaps the internal surface fitting gridfunction object at provided
+   // Remaps the internal surface fitting grid function object at provided
    // locations.
    void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                            int new_x_ordering);
