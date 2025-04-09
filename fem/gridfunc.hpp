@@ -1666,6 +1666,21 @@ public:
    virtual ~ExtrudeCoefficient() { }
 };
 
+/// Class used for extruding vector GridFunctions
+class VectorExtrudeCoefficient : public VectorCoefficient
+{
+private:
+   int n;
+   Mesh *mesh_in;
+   VectorCoefficient &sol_in;
+public:
+   VectorExtrudeCoefficient(Mesh *m, VectorCoefficient &s, int n_)
+      : VectorCoefficient(s.GetVDim()), n(n_), mesh_in(m), sol_in(s) { }
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+   virtual ~VectorExtrudeCoefficient() { }
+};
+
 /// Extrude a scalar 1D GridFunction, after extruding the mesh with Extrude1D.
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
