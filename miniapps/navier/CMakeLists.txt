@@ -11,9 +11,12 @@
 
 if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_SOURCES
-      navier_solver.cpp)
+      navier_solver.cpp
+      navier_solver_gcn.cpp)
+      
   list(APPEND NAVIER_COMMON_HEADERS
-      navier_solver.hpp)
+      navier_solver.hpp
+      navier_solver_gcn.hpp)
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)

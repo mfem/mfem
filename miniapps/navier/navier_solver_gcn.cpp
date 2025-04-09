@@ -6,26 +6,49 @@
 namespace mfem {
 
 
-NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order, std::shared_ptr<Coefficient> visc_):
-    pmesh(mesh), order(order), visc(visc),
+NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coefficient> visc_):
+    pmesh(mesh), order(order), 
     thet1(real_t(0.5)), thet2(real_t(0.5)),thet3(real_t(0.5)),thet4(real_t(0.5))
 {
 
-    vfec.reset(new H1_FECollection(order, pmesh->Dimension()));
-    pfec.reset(new H1_FECollection(order));
-    vfes.reset(new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension()));
-    pfes.reset(new ParFiniteElementSpace(pmesh, pfec));
+   vfec.reset(new H1_FECollection(order, pmesh->Dimension()));
+   pfec.reset(new H1_FECollection(order));
+   vfes.reset(new ParFiniteElementSpace(pmesh, vfec.get(), pmesh->Dimension()));
+   pfes.reset(new ParFiniteElementSpace(pmesh, pfec.get()));
 
-    int vfes_truevsize = vfes->GetTrueVSize();
-    int pfes_truevsize = pfes->GetTrueVSize();
+   int vfes_truevsize = vfes->GetTrueVSize();
+   int pfes_truevsize = pfes->GetTrueVSize();
 
-    cvel.SetSpace(vfes);
-    pvel.SetSpace(vfes);
-    pres.SetSpace(pfes);
+   //velocity
+   cvel.reset(new ParGridFunction(vfes.get())); *cvel=real_t(0.0);
+   nvel.reset(new ParGridFunction(vfes.get())); *nvel=real_t(0.0);
+   pvel.reset(new ParGridFunction(vfes.get())); *pvel=real_t(0.0);
+   //pressure
+   ppres.reset(new ParGridFunction(pfes.get())); *ppres=real_t(0.0);
+   npres.reset(new ParGridFunction(pfes.get())); *npres=real_t(0.0);
+   cpres.reset(new ParGridFunction(pfes.get())); *cpres=real_t(0.0);
 
-    ConvectionIntegrator* bla=new ConvectionIntegrator();
 
+   nvelc.SetGridFunction(nvel.get());
+   pvelc.SetGridFunction(pvel.get());
+   cvelc.SetGridFunction(cvel.get());
 
+   ppresc.SetGridFunction(ppres.get());   
+   npresc.SetGridFunction(npres.get());
+   cpresc.SetGridFunction(cpres.get());
+
+   brink.reset();
+   if (visc_ != nullptr)
+   {
+      visc = visc_;
+   }
+   else
+   {
+      visc.reset(new ConstantCoefficient(1.0));
+   }
+
+   onecoeff.constant = 1.0;
+   zerocoef.constant = 0.0;
 }
 
 NavierSolverGCN::~NavierSolverGCN()
@@ -33,12 +56,44 @@ NavierSolverGCN::~NavierSolverGCN()
 
 }
 
-void NavierSolverGCN::Setup(real_t dt)
+void NavierSolverGCN::Setup(real_t t, real_t dt)
 {
+
+   // Set up boundary conditions
+
+   // Set up the velocity and pressure coefficients
+   nvelc.SetGridFunction(nvel.get());
+   pvelc.SetGridFunction(pvel.get());
+   cvelc.SetGridFunction(cvel.get());
+   ppresc.SetGridFunction(ppres.get());
+   npresc.SetGridFunction(npres.get());
+
+
+   
+   // Set up the bilinear forms
+   A11.reset(new ParBilinearForm(vfes.get()));
+   A12.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));  
+   A21.reset(new ParMixedBilinearForm(pfes.get(), vfes.get()));
+
+   nvisc.reset(new ProductCoefficient(dt*thet1, *visc));
+
+   A11->AddDomainIntegrator(new VectorMassIntegrator(onecoeff));
+   if(brink != nullptr)
+   {
+      nbrink.reset(new ProductCoefficient(dt*thet1, *brink));
+      A11->AddDomainIntegrator(new VectorMassIntegrator(*nbrink));
+   }
+
+   A11->AddDomainIntegrator(new VectorConvectionIntegrator(nvelc, dt*thet1));
+   A11->AddDomainIntegrator(new ElasticityIntegrator(zerocoef,*nvisc));
+
+
+   A12->AddDomainIntegrator(new VectorDivergenceIntegrator(icoeff));
+   A21->AddDomainIntegrator(new GradientIntegrator(icoeff));
 
 }
 
-void NavierSolverGCN::Step(real_t &time, real_t dt, int cur_step, bool provisional = false)
+void NavierSolverGCN::Step(real_t &time, real_t dt, int cur_step, bool provisional)
 {
 
 }
