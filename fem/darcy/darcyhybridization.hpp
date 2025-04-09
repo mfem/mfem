@@ -128,7 +128,7 @@ private:
       mutable OperatorHandle pGrad;
    public:
       ParOperator(const DarcyHybridization &dh)
-         : Operator(dh.c_fes->GetTrueVSize()), dh(dh) { }
+         : Operator(dh.c_fes.GetTrueVSize()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
       Operator& GetGradient(const Vector &x) const override;
@@ -140,7 +140,7 @@ private:
       const DarcyHybridization &dh;
    public:
       ParGradient(const DarcyHybridization &dh)
-         : Operator(dh.c_fes->GetTrueVSize()), dh(dh) { }
+         : Operator(dh.c_fes.GetTrueVSize()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
    };

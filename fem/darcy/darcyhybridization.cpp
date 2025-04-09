@@ -25,9 +25,9 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
      fes_p(fes_p_), bsym(bsymmetrize)
 {
 #ifdef MFEM_USE_MPI
-   pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
    pfes_p = dynamic_cast<ParFiniteElementSpace*>(fes_p);
-   c_pfes = dynamic_cast<ParFiniteElementSpace*>(c_fes);
+   c_pfes = dynamic_cast<ParFiniteElementSpace*>(&c_fes);
 #endif
    SetLocalNLSolver(LSsolveType::LBFGS);
    SetLocalNLPreconditioner(LPrecType::GMRES);
@@ -1092,13 +1092,12 @@ void DarcyHybridization::ComputeH()
 #ifdef MFEM_USE_MPI
       OperatorHandle dH(pH.Type()), pP(pH.Type());
       dH.MakeSquareBlockDiag(c_pfes->GetComm(), c_pfes->GlobalVSize(),
-                             c_pfes->GetDofOffsets(), H);
+                             c_pfes->GetDofOffsets(), H.get());
       // TODO - construct Dof_TrueDof_Matrix directly in the pS format
       pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
       pH.MakePtAP(dH, pP);
       dH.Clear();
-      delete H;
-      H = NULL;
+      H.reset();
 #endif
    }
 }
