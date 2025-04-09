@@ -646,11 +646,10 @@ int NURBSExtension::GetFaceOffset(bool dof, int face, int increment) const
                        dof ? aux_f_spaceOffsets : aux_f_meshOffsets);
 }
 
-void NURBSExtension::GetMasterEdgeDofs(bool dof, int edge,
-                                       Array<int> &dofs) const
+void NURBSExtension::GetMasterEdgeDofs(bool dof, int me, Array<int> &dofs) const
 {
-   MFEM_ASSERT(masterEdges.count(edge) > 0, "Not a master edge");
-   const int mid = masterEdgeToId.at(edge);
+   MFEM_ASSERT(masterEdges.count(me) > 0, "Not a master edge");
+   const int mid = masterEdgeToId.at(me);
 
    MFEM_ASSERT(masterEdgeInfo[mid].vertices.size() ==
                masterEdgeInfo[mid].slaves.size() - 1, "");
@@ -737,14 +736,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
    }
 }
 
-// The input is assumed to be such that the face of patchTopo has {n1,n2}
-// interior entities in master face directions {1,2}; v0 is the bottom-left
-// vertex with respect to the master face directions; edges {e1,e2} are local
-// edges of the face on the bottom and right side (master face directions). We
-// find the permutation perm of face interior entities such that entity perm[i]
-// of the face should be entity i in the master face ordering. Note that, in the
-// above comments, it is irrelevant whether entities are interior.
-void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
+void NURBSExtension::GetFaceOrdering(int sf, int n1, int n2, int v0,
                                      int e1, int e2, Array<int> &perm) const
 {
    perm.SetSize(n1 * n2);
@@ -752,8 +744,8 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
    // The ordering of entities in the face is based on the vertices.
 
    Array<int> faceEdges, ori, evert, e2vert, vert;
-   patchTopo->GetFaceEdges(face, faceEdges, ori);
-   patchTopo->GetFaceVertices(face, vert);
+   patchTopo->GetFaceEdges(sf, faceEdges, ori);
+   patchTopo->GetFaceVertices(sf, vert);
    patchTopo->GetEdgeVertices(faceEdges[e1], evert);
    MFEM_ASSERT(evert[0] == v0 || evert[1] == v0, "");
 
@@ -826,7 +818,7 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
          {
             const int fi = i0 == 0 ? j : n2 - 1 - j;
             const int fj = j0 == 0 ? i : n1 - 1 - i;
-            const int p = fi + (fj * n2); // Index in face ordering
+            const int p = fi + (fj * n2); // Index in the slave face ordering
             const int m = i + (j * n1); // Index in the master face ordering
             perm[m] = p;
          }
@@ -834,7 +826,7 @@ void NURBSExtension::GetFaceOrdering(int face, int n1, int n2, int v0,
          {
             const int fi = i0 == 0 ? i : n1 - 1 - i;
             const int fj = j0 == 0 ? j : n2 - 1 - j;
-            const int p = fi + (fj * n1); // Index in face ordering
+            const int p = fi + (fj * n1); // Index in the slave face ordering
             const int m = i + (j * n1); // Index in the master face ordering
             perm[m] = p;
          }
@@ -921,10 +913,10 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
    } // loop (i) over faces
 }
 
-void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
+void NURBSExtension::GetMasterFaceDofs(bool dof, int mf,
                                        Array2D<int> &dofs) const
 {
-   const int mid = masterFaceToId.at(face);
+   const int mid = masterFaceToId.at(mf);
    const bool rev = masterFaceInfo[mid].rev;
    const int s0i = masterFaceInfo[mid].s0[0];
    const int s0j = masterFaceInfo[mid].s0[1];
@@ -956,7 +948,7 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
    Array<int> medges;
    {
       Array<int> mori;
-      patchTopo->GetFaceEdges(face, medges, mori);
+      patchTopo->GetFaceEdges(mf, medges, mori);
    }
 
    MFEM_ASSERT(medges.Size() == 4, "");
@@ -1265,7 +1257,6 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
             for (int j=0; j<nf1; ++j)
             {
                const int q = j + (k * nf1);
-
                if (!ConsistentlySetEntry(fos + perm[q],
                                          mdof(os1 + j, os2 + k)))
                {
@@ -2328,7 +2319,7 @@ void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
    }
 }
 
-void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
+void NURBSExtension::UpdateAuxiliaryKnotSpans(Array<int> const& rf)
 {
    for (auto auxEdge : auxEdges)
    {
@@ -2648,8 +2639,7 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       return;
    }
 
-   // Set slaveToMasterEdges
-   // A slave edge can be a patchTopo edge (nonnegative index) or an
+   // Note that a slave edge can be a patchTopo edge (nonnegative index) or an
    // AuxiliaryEdge (negative index). A slave edge can be contained in multiple
    // overlapping master edges.
 
@@ -2667,18 +2657,6 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    }
 
-   slaveToMasterEdges.clear();
-   slaveToMasterEdges.resize(slaveEdgesUnique.Size());
-   for (size_t mid=0; mid<masterEdgeInfo.size(); ++mid)
-   {
-      for (auto id : masterEdgeInfo[mid].slaves)
-      {
-         const int s = slaveEdges[id];
-         const int u = slaveEdgesToUnique[s];
-         slaveToMasterEdges[u].push_back(mid);
-      }
-   }
-
    // Set slaveFacesUnique.
    {
       slaveFacesUnique.SetSize(0);
@@ -2690,18 +2668,6 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
             slaveFacesToUnique[s.index] = slaveFacesUnique.Size();
             slaveFacesUnique.Append(s.index);
          }
-      }
-   }
-
-   slaveToMasterFaces.clear();
-   slaveToMasterFaces.resize(slaveFacesUnique.Size());
-   for (size_t mid=0; mid<masterFaceInfo.size(); ++mid)
-   {
-      for (auto id : masterFaceInfo[mid].slaves)
-      {
-         const int s = slaveFaces[id].index;
-         const int u = slaveFacesToUnique[s];
-         slaveToMasterFaces[u].push_back(mid);
       }
    }
 
@@ -2952,11 +2918,6 @@ void UpdateFactors(Array<int> &f)
    f = rf;
 }
 
-void NURBSExtension::UpdateKVF()
-{
-   for (auto &f : kvf) { UpdateFactors(f); }
-}
-
 void NURBSExtension::RefineWithKVFactors(int rf,
                                          const std::string &kvf_filename)
 {
@@ -2991,15 +2952,8 @@ void NURBSExtension::ReadStructuredPatchCP(std::istream &input)
 
    patchCP.SetSize(num_structured_patches, ncp, Dimension());
    for (int p=0; p<num_structured_patches; ++p)
-   {
       for (int i=0; i<ncp; ++i)
-      {
-         for (int j=0; j<Dimension(); ++j)
-         {
-            input >> patchCP(p, i, j);
-         }
-      }
-   }
+         for (int j=0; j<Dimension(); ++j) { input >> patchCP(p, i, j); }
 }
 
 void NURBSExtension::PrintCoarsePatches(std::ostream &os)
