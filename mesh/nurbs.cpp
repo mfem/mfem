@@ -2074,10 +2074,7 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang, int times)
 
 void NURBSPatch::SetKnotVectorsCoarse(bool c)
 {
-   for (int i=0; i<kv.Size(); ++i)
-   {
-      kv[i]->coarse = c;
-   }
+   for (int i=0; i<kv.Size(); ++i) { kv[i]->coarse = c; }
 }
 
 void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
@@ -3662,11 +3659,6 @@ void NURBSExtension::GenerateOffsets()
       masterFaces.clear();
       slaveEdges.clear();
       slaveFaces.clear();
-      slaveFaceNE1.clear();
-      slaveFaceNE2.clear();
-      slaveFaceI.clear();
-      slaveFaceJ.clear();
-      slaveFaceOri.clear();
       masterEdgeToId.clear();
       masterFaceToId.clear();
 
@@ -3761,29 +3753,11 @@ void NURBSExtension::GenerateOffsets()
 
       MFEM_VERIFY(cnt == masterFaceIndex.Size(), "");
 
-      masterEdgeSlaves.clear();
-      masterEdgeVerts.clear();
-      masterEdgeKI.clear();
+      masterEdgeInfo.clear();
+      masterEdgeInfo.resize(masterEdgeIndex.Size());
 
-      masterEdgeSlaves.resize(masterEdgeIndex.Size());
-      masterEdgeVerts.resize(masterEdgeIndex.Size());
-      masterEdgeKI.resize(masterEdgeIndex.Size());
-
-      masterFaceSlaves.clear();
-      masterFaceSlaveCorners.clear();
-      masterFaceSizes.clear();
-
-      masterFaceSlaves.resize(masterFaceIndex.Size());
-      masterFaceSlaveCorners.resize(masterFaceIndex.Size());
-      masterFaceSizes.resize(masterFaceIndex.Size());
-
-      masterFaceS0.resize(masterFaceIndex.Size());
-      masterFaceRev.resize(masterFaceIndex.Size());
-
-      for (size_t i=0; i<masterFaceSizes.size(); ++i)
-      {
-         masterFaceSizes[i].assign(2, 0);
-      }
+      masterFaceInfo.clear();
+      masterFaceInfo.resize(masterFaceIndex.Size());
 
       if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
       {
@@ -3797,17 +3771,17 @@ void NURBSExtension::GenerateOffsets()
             const int v = edgePairs[i].v;
             const int s = edgePairs[i].child;
             const int m = edgePairs[i].parent;
-            const int ki = edgePairs[i].ksi;
+            const int ksi = edgePairs[i].ksi;
 
             slaveEdges.push_back(s);
 
             const int mid = masterEdgeToId[m];
             const int si = slaveEdges.size() - 1;
-            masterEdgeSlaves[mid].push_back(si);
+            masterEdgeInfo[mid].slaves.push_back(si);
             if (v >= 0)
             {
-               masterEdgeVerts[mid].push_back(v);
-               masterEdgeKI[mid].push_back(ki);
+               masterEdgeInfo[mid].vertices.push_back(v);
+               masterEdgeInfo[mid].ks.push_back(ksi);
             }
          }
 
@@ -3822,7 +3796,7 @@ void NURBSExtension::GenerateOffsets()
          slaveEdges.push_back(slaveEdge.index);
 
          const int mid = masterEdgeToId[slaveEdge.master];
-         masterEdgeSlaves[mid].push_back(i);
+         masterEdgeInfo[mid].slaves.push_back(i);
       }
 
       if (!is3D)
@@ -3831,7 +3805,7 @@ void NURBSExtension::GenerateOffsets()
          {
             // Order the slaves of each master edge, from the first to second
             // vertex of the master edge.
-            const int numSlaves = masterEdgeSlaves[m].size();
+            const int numSlaves = masterEdgeInfo[m].slaves.size();
             MFEM_ASSERT(numSlaves > 0, "");
             int mvert[2];
             int svert[2];
@@ -3848,7 +3822,7 @@ void NURBSExtension::GenerateOffsets()
                orderedSlaves[s] = -1;
                for (int t=0; t<numSlaves; ++t)
                {
-                  const int sid = masterEdgeSlaves[m][t];
+                  const int sid = masterEdgeInfo[m].slaves[t];
                   if (used.count(sid) > 0) { continue; }
                   patchTopo->ncmesh->GetEdgeVertices(nce.slaves[sid], svert);
                   if (svert[0] == vi || svert[1] == vi)
@@ -3866,16 +3840,12 @@ void NURBSExtension::GenerateOffsets()
 
                if (s < numSlaves - 1)
                {
-                  masterEdgeVerts[m].push_back(vi);
-                  masterEdgeKI[m].push_back(-1); // Used only in 3D.
+                  masterEdgeInfo[m].vertices.push_back(vi);
+                  masterEdgeInfo[m].ks.push_back(-1); // Used only in 3D.
                }
             }
 
-            masterEdgeSlaves[m] = orderedSlaves;
-
-            MFEM_ASSERT(masterEdgeSlaves[m].size() ==
-                        masterEdgeVerts[m].size() + 1, "");
-            MFEM_ASSERT(masterEdgeVerts[m].size() > 0, "");
+            masterEdgeInfo[m].slaves = orderedSlaves;
          } // m
       }
 
@@ -3886,7 +3856,7 @@ void NURBSExtension::GenerateOffsets()
          for (auto me : masterEdges)
          {
             const int mid = masterEdgeToId.at(me);
-            if (masterEdgeSlaves[mid].size() <= 1)
+            if (masterEdgeInfo[mid].slaves.size() <= 1)
             {
                falseMasterEdges.push_back(me);
             }
@@ -3921,11 +3891,9 @@ void NURBSExtension::GenerateOffsets()
                   parentN1.push_back(KnotVec(edges[0])->GetNE());
                   parentN2.push_back(KnotVec(edges[1])->GetNE());
 
-                  masterFaceSizes.push_back({KnotVec(edges[0])->GetNE(),
-                                             KnotVec(edges[1])->GetNE()});
-
-                  masterFaceS0.push_back({-1, -1});
-                  masterFaceRev.push_back(false);
+                  masterFaceInfo.push_back(
+                     MasterFaceInfo(KnotVec(edges[0])->GetNE(),
+                                    KnotVec(edges[1])->GetNE()));
 
                   for (int i=0; i<4; ++i) { parentVerts.push_back(verts[i]); }
                }
@@ -3934,19 +3902,13 @@ void NURBSExtension::GenerateOffsets()
 
          MFEM_VERIFY(cnt == masterFaceIndex.Size(), "");
 
-         masterFaceSlaves.resize(masterFaceIndex.Size());
-         masterFaceSlaveCorners.resize(masterFaceIndex.Size());
-
          ProcessFacePairs(nfp0, npf0, parentN1, parentN2, parentVerts, facePairs);
       }
    }
 
    for (auto rp : reversedParents)
    {
-      const int mid = masterEdgeToId[rp];
-      std::reverse(masterEdgeSlaves[mid].begin(), masterEdgeSlaves[mid].end());
-      std::reverse(masterEdgeVerts[mid].begin(), masterEdgeVerts[mid].end());
-      std::reverse(masterEdgeKI[mid].begin(), masterEdgeKI[mid].end());
+      masterEdgeInfo[masterEdgeToId[rp]].Reverse();
    }
 
    Array<int> edges;
@@ -5724,13 +5686,13 @@ const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
    return patch_to_bel[patch];
 }
 
-void NURBSExtension::GetVertexDofs(int index, Array<int> &dofs) const
+void NURBSExtension::GetVertexDofs(int vertex, Array<int> &dofs) const
 {
-   MFEM_ASSERT(index < v_spaceOffsets.Size(), "");
+   MFEM_ASSERT(vertex < v_spaceOffsets.Size(), "");
 
-   const int os = v_spaceOffsets[index];
-   const int os1 = index + 1 == v_spaceOffsets.Size() ? e_spaceOffsets[0] :
-                   v_spaceOffsets[index + 1];
+   const int os = v_spaceOffsets[vertex];
+   const int os1 = vertex + 1 == v_spaceOffsets.Size() ? e_spaceOffsets[0] :
+                   v_spaceOffsets[vertex + 1];
 
    dofs.SetSize(0);
    dofs.Reserve(os1 - os);
@@ -5738,15 +5700,15 @@ void NURBSExtension::GetVertexDofs(int index, Array<int> &dofs) const
    for (int i=os; i<os1; ++i) { dofs.Append(i); }
 }
 
-int NURBSExtension::GetEdgeDofs(int index, Array<int> &dofs) const
+void NURBSExtension::GetEdgeDofs(int edge, Array<int> &dofs) const
 {
-   MFEM_ASSERT(index < e_spaceOffsets.Size(), "");
+   MFEM_ASSERT(edge < e_spaceOffsets.Size(), "");
 
-   const int os = e_spaceOffsets[index];
+   const int os = e_spaceOffsets[edge];
    const int os_upper = f_spaceOffsets.Size() > 0 ? f_spaceOffsets[0] :
                         p_spaceOffsets[0];
-   const int os1 = index + 1 == e_spaceOffsets.Size() ? os_upper :
-                   v_spaceOffsets[index + 1];
+   const int os1 = edge + 1 == e_spaceOffsets.Size() ? os_upper :
+                   v_spaceOffsets[edge + 1];
 
    dofs.SetSize(0);
    // Reserve 2 for the two vertices and os1 - os for the interior edge DOFs.
@@ -5755,7 +5717,7 @@ int NURBSExtension::GetEdgeDofs(int index, Array<int> &dofs) const
    // First get the DOFs for the vertices of the edge.
 
    Array<int> vert;
-   patchTopo->GetEdgeVertices(index, vert);
+   patchTopo->GetEdgeVertices(edge, vert);
 
    for (auto v : vert)
    {
@@ -5766,23 +5728,6 @@ int NURBSExtension::GetEdgeDofs(int index, Array<int> &dofs) const
 
    // Now get the interior edge DOFs.
    for (int i=os; i<os1; ++i) { dofs.Append(i); }
-
-   return GetOrder();
-}
-
-int NURBSExtension::GetEntityDofs(int entity, int index, Array<int> &dofs) const
-{
-   switch (entity)
-   {
-      case 0:
-         GetVertexDofs(index, dofs);
-         return 0;
-      case 1:
-         return GetEdgeDofs(index, dofs);
-      default:
-         MFEM_ABORT("TODO: entity type not yet supported in GetEntityDofs");
-         return 0;
-   }
 }
 
 NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,

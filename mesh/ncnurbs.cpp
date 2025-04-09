@@ -66,7 +66,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
             if (masterEdges.count(oppEdges[s]) > 0)
             {
                const int mid = masterEdgeToId.at(oppEdges[s]);
-               if (masterEdgeSlaves[mid].size() != 0) { isTrueMasterEdge = true; }
+               if (masterEdgeInfo[mid].slaves.size() != 0) { isTrueMasterEdge = true; }
             }
 
             if (!isTrueMasterEdge) { bothMaster = false; }
@@ -82,7 +82,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
             for (int s=0; s<2; ++s)
             {
                const int mid = masterEdgeToId.at(oppEdges[s]);
-               for (auto edge : masterEdgeSlaves[mid])
+               for (auto edge : masterEdgeInfo[mid].slaves)
                {
                   if (edge < 0)
                   {
@@ -110,8 +110,8 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                for (int s=0; s<2; ++s)
                {
                   const int mid = masterEdgeToId.at(oppEdges[s]);
-                  const std::size_t nes = masterEdgeSlaves[mid].size();
-                  MFEM_ASSERT(masterEdgeVerts[mid].size() + 1 == nes, "");
+                  const std::size_t nes = masterEdgeInfo[mid].slaves.size();
+                  MFEM_ASSERT(masterEdgeInfo[mid].slaves.size() + 1 == nes, "");
 
                   // Vertices in masterEdgeVerts[mid] are ordered starting
                   // from the master edge endpoint with lower vertex index.
@@ -131,12 +131,12 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                   edgeV[s].Append(everts[0]);
                   edgeVki[s].Append(0);
 
-                  MFEM_ASSERT(masterEdgeVerts[mid].size() ==
-                              masterEdgeKI[mid].size(), "");
-                  for (std::size_t i=0; i<masterEdgeVerts[mid].size(); ++i)
+                  MFEM_ASSERT(masterEdgeInfo[mid].vertices.size() ==
+                              masterEdgeInfo[mid].ks.size(), "");
+                  for (std::size_t i=0; i<masterEdgeInfo[mid].vertices.size(); ++i)
                   {
-                     edgeV[s].Append(masterEdgeVerts[mid][i]);
-                     edgeVki[s].Append(masterEdgeKI[mid][i]);
+                     edgeV[s].Append(masterEdgeInfo[mid].vertices[i]);
+                     edgeVki[s].Append(masterEdgeInfo[mid].ks[i]);
                   }
 
                   const int nelem = KnotVec(oppEdges[s])->GetNE();
@@ -146,7 +146,7 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                   for (std::size_t i=0; i<nes; ++i)
                   {
-                     const int edge = slaveEdges[masterEdgeSlaves[mid][i]];
+                     const int edge = slaveEdges[masterEdgeInfo[mid].slaves[i]];
                      edgeE[s].Append(edge);
 
                      Array<int> sverts(2);
@@ -394,13 +394,13 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                      const int ori_sface = GetFaceOrientation(patchTopo, sface,
                                                               fvertsMasterOrdering);
 
-                     facePairs.emplace_back(FacePairInfo{fverts[vMinID], sface,
-                                                         f, ori_sface,
-                     {fki(vMinID,0), fki(vMinID,1)},
-                     {
-                        fki((vMinID + 2) % 4,0) - fki(vMinID,0),
-                        fki((vMinID + 2) % 4,1) - fki(vMinID,1)
-                     }});
+                     facePairs.emplace_back(FacePairInfo{fverts[vMinID], f,
+                     SlaveFaceInfo{sface, ori_sface,
+                        {fki(vMinID,0), fki(vMinID,1)},
+                        {
+                           fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                           fki((vMinID + 2) % 4,1) - fki(vMinID,1)
+                        }}});
                   }
                   else  // Auxiliary face
                   {
@@ -454,13 +454,13 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                            }
                         }
 
-                        facePairs.emplace_back(
-                        FacePairInfo{fverts[vMinID], -1 - afid, f, ori_f2,
+                        facePairs.emplace_back(FacePairInfo{fverts[vMinID], f,
+                        SlaveFaceInfo{-1 - afid, ori_f2,
                            {fki(vMinID,0), fki(vMinID,1)},
                            {
                               fki((vMinID + 2) % 4,0) - fki(vMinID,0),
                               fki((vMinID + 2) % 4,1) - fki(vMinID,1)
-                           }});
+                           }}});
                      }
                      else
                      {
@@ -495,13 +495,13 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
                         auxv2f[vpair] = auxFaces.size();
                         auxFaces.push_back(auxFace);
 
-                        facePairs.emplace_back(
-                        FacePairInfo{fverts[vMinID], -1 - auxFaceId, f, ori_f,
+                        facePairs.emplace_back(FacePairInfo{fverts[vMinID], f,
+                        SlaveFaceInfo{-1 - auxFaceId, ori_f,
                            {fki(vMinID,0), fki(vMinID,1)},
                            {
                               fki((vMinID + 2) % 4,0) - fki(vMinID,0),
                               fki((vMinID + 2) % 4,1) - fki(vMinID,1)
-                           }});
+                           }}});
                      }
                   }
                }
@@ -526,15 +526,15 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
    {
       // We assume that j is the fast index in (i,j).
       // Note that facePairs is set by ProcessVertexToKnot3D.
-      const int i = facePairs[q].ksi[0];
-      const int j = facePairs[q].ksi[1];
-      const int nfe1 = facePairs[q].ne[0]; // Number of elements, direction 1
-      const int nfe2 = facePairs[q].ne[1]; // Number of elements, direction 2
+      const int i = facePairs[q].info.ksi[0];
+      const int j = facePairs[q].info.ksi[1];
+      const int nfe1 = facePairs[q].info.ne[0]; // Number of elements, direction 1
+      const int nfe2 = facePairs[q].info.ne[1]; // Number of elements, direction 2
       const int v0 = facePairs[q].v0; // Bottom-left corner vertex of child face
-      const int childFace = facePairs[q].child;
+      const int childFace = facePairs[q].info.index;
       const int parentFace = facePairs[q].parent;
       const int cpori =
-         facePairs[q].ori; // Orientation for childFace w.r.t. parentFace
+         facePairs[q].info.ori; // Orientation for childFace w.r.t. parentFace
       const int mid = masterFaceToId.at(parentFace);
 
       // Ignore data about master faces already processed.
@@ -555,34 +555,29 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
             // For the previous parentFace, use previous orientation to reorder
             // masterFaceSlaves, masterFaceSlaveCorners, masterFaceSizes.
             std::array<int, 2> s0;
-            masterFaceRev[midPrev] = Reorder2D(orientation, s0);
-            masterFaceS0[midPrev] = s0;
+            masterFaceInfo[midPrev].rev = Reorder2D(orientation, s0);
+            masterFaceInfo[midPrev].s0 = s0;
          }
 
          orientation = ori;
          midPrev = mid;
       } // next parent face
 
-      slaveFaces.push_back(childFace);
-      slaveFaceI.push_back(i);
-      slaveFaceJ.push_back(j);
-      slaveFaceNE1.push_back(nfe1);
-      slaveFaceNE2.push_back(nfe2);
-      slaveFaceOri.push_back(cpori);
+      slaveFaces.emplace_back(SlaveFaceInfo{childFace, cpori, {i, j},
+         {nfe1, nfe2}});
 
       const int si = slaveFaces.size() - 1;
-      masterFaceSlaves[mid].push_back(si);
-      masterFaceSlaveCorners[mid].push_back(v0);
-
-      masterFaceSizes[mid][0] = parentN1[mid];
-      masterFaceSizes[mid][1] = parentN2[mid];
+      masterFaceInfo[mid].slaves.push_back(si);
+      masterFaceInfo[mid].slaveCorners.push_back(v0);
+      masterFaceInfo[mid].ne[0] = parentN1[mid];
+      masterFaceInfo[mid].ne[1] = parentN2[mid];
    } // Loop (q) over facePairs
 
    if (midPrev >= 0)
    {
       std::array<int, 2> s0;
-      masterFaceRev[midPrev] = Reorder2D(orientation, s0);
-      masterFaceS0[midPrev] = s0;
+      masterFaceInfo[midPrev].rev = Reorder2D(orientation, s0);
+      masterFaceInfo[midPrev].s0 = s0;
    }
 }
 
@@ -657,14 +652,14 @@ void NURBSExtension::GetMasterEdgeDofs(bool dof, int edge,
    MFEM_ASSERT(masterEdges.count(edge) > 0, "Not a master edge");
    const int mid = masterEdgeToId.at(edge);
 
-   MFEM_ASSERT(masterEdgeVerts[mid].size() ==
-               masterEdgeSlaves[mid].size() - 1, "");
+   MFEM_ASSERT(masterEdgeInfo[mid].vertices.size() ==
+               masterEdgeInfo[mid].slaves.size() - 1, "");
 
    const Array<int>& v_offsets = dof ? v_spaceOffsets : v_meshOffsets;
-   const std::size_t nes = masterEdgeSlaves[mid].size();
+   const std::size_t nes = masterEdgeInfo[mid].slaves.size();
    for (std::size_t s=0; s<nes; ++s)
    {
-      const int slaveId = slaveEdges[masterEdgeSlaves[mid][s]];
+      const int slaveId = slaveEdges[masterEdgeInfo[mid].slaves[s]];
 
       Array<int> svert;
       if (slaveId >= 0)
@@ -679,7 +674,7 @@ void NURBSExtension::GetMasterEdgeDofs(bool dof, int edge,
       bool reverse = false;
       if (nes > 1)
       {
-         const int mev = masterEdgeVerts[mid][std::max((int) s - 1,0)];
+         const int mev = masterEdgeInfo[mid].vertices[std::max((int) s - 1,0)];
          MFEM_ASSERT(mev == svert[0] || mev == svert[1], "");
          if (s == 0)
          {
@@ -705,10 +700,10 @@ void NURBSExtension::GetMasterEdgeDofs(bool dof, int edge,
 
       dofs.Append(sdofs);
 
-      if (s < masterEdgeSlaves[mid].size() - 1)
+      if (s < masterEdgeInfo[mid].slaves.size() - 1)
       {
          // Add interior vertex DOF
-         dofs.Append(v_offsets[masterEdgeVerts[mid][s]]);
+         dofs.Append(v_offsets[masterEdgeInfo[mid].vertices[s]]);
       }
    }
 }
@@ -731,7 +726,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
 #ifdef MFEM_DEBUG
          const int mid = Ext->masterEdgeToId.at(edges[i]);
          MFEM_ASSERT(mid >= 0, "Master edge index not found");
-         MFEM_ASSERT(Ext->masterEdgeSlaves[mid].size() != 0,
+         MFEM_ASSERT(Ext->masterEdgeInfo[mid].slaves.size() != 0,
                      "False master edges should have been removed");
 #endif
          Array<int> mdof;
@@ -930,33 +925,30 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
                                        Array2D<int> &dofs) const
 {
    const int mid = masterFaceToId.at(face);
-   const bool rev = masterFaceRev[mid];
-   const int s0i = masterFaceS0[mid][0];
-   const int s0j = masterFaceS0[mid][1];
-   const int n1orig = masterFaceSizes[mid][0];
-   const int n2orig = masterFaceSizes[mid][1];
+   const bool rev = masterFaceInfo[mid].rev;
+   const int s0i = masterFaceInfo[mid].s0[0];
+   const int s0j = masterFaceInfo[mid].s0[1];
+   const int n1orig = masterFaceInfo[mid].ne[0];
+   const int n2orig = masterFaceInfo[mid].ne[1];
 
    // Skip master faces with no slave faces (only having slave edges).
-   if (n1orig == 0 && n2orig == 0)
-   {
-      return;
-   }
+   if (n1orig == 0 && n2orig == 0) { return; }
 
    const int n1 = rev ? n2orig : n1orig;
    const int n2 = rev ? n1orig : n2orig;
 
    MFEM_ASSERT((n1 > 1 || n2 > 1) &&
-               n1 * n2 >= (int) masterFaceSlaves[mid].size(),
+               n1 * n2 >= (int) masterFaceInfo[mid].slaves.size(),
                "Inconsistent number of faces");
 
    int fcnt = 0;
-   for (auto slaveId : masterFaceSlaves[mid])
+   for (auto slaveId : masterFaceInfo[mid].slaves)
    {
-      fcnt += slaveFaceNE1[slaveId] * slaveFaceNE2[slaveId];
+      fcnt += slaveFaces[slaveId].ne[0] * slaveFaces[slaveId].ne[1];
    }
 
    MFEM_VERIFY(fcnt == n1 * n2, "");
-   MFEM_VERIFY((int) masterFaceSlaveCorners[mid].size() <= n1*n2, "");
+   MFEM_VERIFY((int) masterFaceInfo[mid].slaveCorners.size() <= n1 * n2, "");
 
    // Set an array of vertices or DOFs for the interior of this master face.
    // Set master face entity dimensions.
@@ -994,23 +986,23 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int face,
 
    bool consistent = true;
 
-   for (std::size_t s=0; s<masterFaceSlaves[mid].size(); ++s)
+   for (std::size_t s=0; s<masterFaceInfo[mid].slaves.size(); ++s)
    {
-      const int sId = masterFaceSlaves[mid][s];
-      const int slaveId = slaveFaces[sId];
-      const int v0 = masterFaceSlaveCorners[mid][s];
-      const int ori = slaveFaceOri[sId];
+      const int sId = masterFaceInfo[mid].slaves[s];
+      const int slaveId = slaveFaces[sId].index;
+      const int v0 = masterFaceInfo[mid].slaveCorners[s];
+      const int ori = slaveFaces[sId].ori;
       // ori gives the orientation and index of cv matching the first vertex of
       // childFace, where cv is the array of slave face vertices in CCW order
       // with respect to the master face.
 
-      const int sI = slaveFaceI[sId];
-      const int sJ = slaveFaceJ[sId];
-      const int ne1 = slaveFaceNE1[sId];
-      const int ne2 = slaveFaceNE2[sId];
+      const int sI = slaveFaces[sId].ksi[0];
+      const int sJ = slaveFaces[sId].ksi[1];
+      const int ne1 = slaveFaces[sId].ne[0];
+      const int ne2 = slaveFaces[sId].ne[1];
+
       const int fos = GetFaceOffset(dof, slaveId, 0);
       const int fos1 = GetFaceOffset(dof, slaveId, 1);
-
       const int nvs = fos1 - fos;
 
       // These offsets are for the interior entities of the face. To get the
@@ -1791,8 +1783,9 @@ void NURBSExtension::ProcessVertexToKnot3D(
             const int ori = GetFaceOrientation(patchTopo, childFace, cv);
             // ori gives the orientation and index of cv matching the first
             // vertex of childFace.
-            facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace,
-                                                ori, {i0, j0}, {d0, d1}});
+            facePairs.emplace_back(
+               FacePairInfo{cv[0], parentFace, SlaveFaceInfo{childFace,
+                                                             ori, {i0, j0}, {d0, d1}}});
          }
          else
          {
@@ -1821,10 +1814,10 @@ void NURBSExtension::ProcessVertexToKnot3D(
                   auxFace.ksi1[1] = j1;
 
                   auxFaces.push_back(auxFace);
-
                   facePairs.emplace_back(
-                     FacePairInfo{cv[0], -1 - auxv2f[childPair], parentFace,
-                                  0, {i0, j0}, {d0, d1}});
+                     FacePairInfo{cv[0], parentFace,
+                                  SlaveFaceInfo{-1 - auxv2f[childPair],
+                                                0, {i0, j0}, {d0, d1}}});
                }
             }
          }
@@ -2242,8 +2235,8 @@ void NURBSExtension::GetAuxFaceToPatchTable(Array2D<int> &auxface2patch)
          {
             const int mid = dim == 2 ? masterEdgeToId.at(face) :
                             masterFaceToId.at(face);
-            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
-                                             masterFaceSlaves[mid];
+            const std::vector<int> &slaves = dim == 2 ? masterEdgeInfo[mid].slaves :
+                                             masterFaceInfo[mid].slaves;
             for (auto s : slaves)
             {
                if (s < 0)
@@ -2295,13 +2288,13 @@ void NURBSExtension::GetSlaveFaceToPatchTable(Array2D<int> &sface2patch)
          {
             const int mid = dim == 2 ? masterEdgeToId.at(face) :
                             masterFaceToId.at(face);
-            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
-                                             masterFaceSlaves[mid];
+            const std::vector<int> &slaves = dim == 2 ? masterEdgeInfo[mid].slaves :
+                                             masterFaceInfo[mid].slaves;
             for (auto id : slaves)
             {
                if (id >= 0)
                {
-                  const int s = dim == 2 ? slaveEdges[id] : slaveFaces[id];
+                  const int s = dim == 2 ? slaveEdges[id] : slaveFaces[id].index;
                   const int u = dim == 2 ? slaveEdgesToUnique[s] :
                                 slaveFacesToUnique[s];
                   if (sface2patch(u, 0) >= 0)
@@ -2472,14 +2465,14 @@ void NURBSExtension::SlaveEdgeToParent(int se, int parent, const Array<int> &os,
 
 void NURBSExtension::GetMasterEdgePieceOffsets(int mid, Array<int> &os)
 {
-   const int np = masterEdgeSlaves[mid].size();
+   const int np = masterEdgeInfo[mid].slaves.size();
    MFEM_VERIFY(np > 0, "");
    os.SetSize(np + 1);
    os[0] = 0;
 
    for (int i=0; i<np; ++i)
    {
-      const int p = masterEdgeSlaves[mid][i];
+      const int p = masterEdgeInfo[mid].slaves[i];
       const int s = slaveEdges[p];
       int nes = 0;
       if (s >= 0)
@@ -2575,13 +2568,13 @@ int NURBSExtension::SetPatchFactors(int p)
          {
             // Check whether slave edges have factors set.
             const int mid = masterEdgeToId.at(edge);
-            const int numPieces = masterEdgeSlaves[mid].size();
+            const int numPieces = masterEdgeInfo[mid].slaves.size();
             Array<int> os;
             GetMasterEdgePieceOffsets(mid, os);
 
             for (int piece=0; piece<numPieces; ++piece)
             {
-               const int e = masterEdgeSlaves[mid][piece];
+               const int e = masterEdgeInfo[mid].slaves[piece];
                const int s = slaveEdges[e];
                Array<int> parentEdges;
                Array<int> *pf; // Refinement factors for this piece
@@ -2605,7 +2598,7 @@ int NURBSExtension::SetPatchFactors(int p)
                }
 
                if (first && parentEdges.Size() == 0) { continue; }
-               SlaveEdgeToParent(s, edge, os, masterEdgeVerts[mid], parentEdges);
+               SlaveEdgeToParent(s, edge, os, masterEdgeInfo[mid].vertices, parentEdges);
                MFEM_ASSERT(parentEdges.Size() == os[piece + 1] - os[piece], "");
 
                for (int j = os[piece]; j < os[piece + 1]; ++j)
@@ -2676,9 +2669,9 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
    slaveToMasterEdges.clear();
    slaveToMasterEdges.resize(slaveEdgesUnique.Size());
-   for (size_t mid=0; mid<masterEdgeSlaves.size(); ++mid)
+   for (size_t mid=0; mid<masterEdgeInfo.size(); ++mid)
    {
-      for (auto id : masterEdgeSlaves[mid])
+      for (auto id : masterEdgeInfo[mid].slaves)
       {
          const int s = slaveEdges[id];
          const int u = slaveEdgesToUnique[s];
@@ -2692,21 +2685,21 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
       slaveFacesUnique.Reserve(slaveFaces.size());
       for (auto s : slaveFaces)
       {
-         if (slaveFacesToUnique.count(s) == 0)
+         if (slaveFacesToUnique.count(s.index) == 0)
          {
-            slaveFacesToUnique[s] = slaveFacesUnique.Size();
-            slaveFacesUnique.Append(s);
+            slaveFacesToUnique[s.index] = slaveFacesUnique.Size();
+            slaveFacesUnique.Append(s.index);
          }
       }
    }
 
    slaveToMasterFaces.clear();
    slaveToMasterFaces.resize(slaveFacesUnique.Size());
-   for (size_t mid=0; mid<masterFaceSlaves.size(); ++mid)
+   for (size_t mid=0; mid<masterFaceInfo.size(); ++mid)
    {
-      for (auto id : masterFaceSlaves[mid])
+      for (auto id : masterFaceInfo[mid].slaves)
       {
-         const int s = slaveFaces[id];
+         const int s = slaveFaces[id].index;
          const int u = slaveFacesToUnique[s];
          slaveToMasterFaces[u].push_back(mid);
       }
@@ -2714,8 +2707,6 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
    // Initialize a set of patches to visit, using face-neighbors of the first
    // patch.
-   std::set<int> nextPatches;
-
    const Table *face2elem = patchTopo->GetFaceToElementTable();
 
    Array2D<int> auxface2patch, sface2patch;
@@ -2764,8 +2755,8 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
          {
             const int mid = dim == 2 ? masterEdgeToId.at(face) :
                             masterFaceToId.at(face);
-            const std::vector<int> &slaves = dim == 2 ? masterEdgeSlaves[mid] :
-                                             masterFaceSlaves[mid];
+            const std::vector<int> &slaves =
+               dim == 2 ? masterEdgeInfo[mid].slaves : masterFaceInfo[mid].slaves;
             for (auto s : slaves)
             {
                if (s < 0)
@@ -2801,12 +2792,9 @@ void NURBSExtension::PropagateFactorsForKV(int rf_default)
 
    auxef.resize(auxEdges.size());
 
-   std::set<int> unchanged;
-
+   std::set<int> nextPatches, unchanged;
    const int dirAllSet = dim == 3 ? 7 : 3;
-
    int lastChanged = 0;
-
    int iter = 0;
    bool done = false;
    while (iter < 100 && !done)
