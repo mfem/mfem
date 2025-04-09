@@ -348,7 +348,7 @@ public:
                      for all dimensions. If an array, factors can be specified
                      for each dimension.
        @param[in] multiplicity Optional multiplicity for new knots inserted. */
-   void UniformRefinement(int rf = 2);
+   void UniformRefinement(int rf = 2, int multiplicity = 1);
    void UniformRefinement(const Array<int> &rf, int multiplicity = 1);
    void UniformRefinement(const std::vector<Array<int>> &rf, int multiplicity = 1);
 
