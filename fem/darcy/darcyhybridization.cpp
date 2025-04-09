@@ -22,11 +22,11 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_c_,
                                        bool bsymmetrize)
    : Hybridization(fes_u_, fes_c_), Operator(c_fes.GetVSize()),
-     fes_p(fes_p_), bsym(bsymmetrize)
+     fes_p(*fes_p_), bsym(bsymmetrize)
 {
 #ifdef MFEM_USE_MPI
    pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
-   pfes_p = dynamic_cast<ParFiniteElementSpace*>(fes_p);
+   pfes_p = dynamic_cast<ParFiniteElementSpace*>(&fes_p);
    c_pfes = dynamic_cast<ParFiniteElementSpace*>(&c_fes);
 #endif
    SetLocalNLSolver(LSsolveType::LBFGS);
@@ -35,32 +35,18 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 
 DarcyHybridization::~DarcyHybridization()
 {
-   delete c_bfi_p;
-   delete c_nlfi_p;
-   delete c_nlfi;
    if (own_m_nlfi_u) { delete m_nlfi_u; }
    if (own_m_nlfi_p) { delete m_nlfi_p; }
    if (own_m_nlfi) { delete m_nlfi; }
    if (!extern_bdr_constr_pot_integs)
    {
-      for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
+      for (size_t k=0; k < boundary_constraint_pot_integs.size(); k++)
       { delete boundary_constraint_pot_integs[k]; }
-      for (int k=0; k < boundary_constraint_pot_nonlin_integs.Size(); k++)
+      for (size_t k=0; k < boundary_constraint_pot_nonlin_integs.size(); k++)
       { delete boundary_constraint_pot_nonlin_integs[k]; }
-      for (int k=0; k < boundary_constraint_nonlin_integs.Size(); k++)
+      for (size_t k=0; k < boundary_constraint_nonlin_integs.size(); k++)
       { delete boundary_constraint_nonlin_integs[k]; }
    }
-
-   delete[] Ae_data;
-   delete[] Bf_data;
-   delete[] Be_data;
-   delete[] Df_data;
-   delete[] Df_lin_data;
-   delete[] Df_ipiv;
-   delete[] Ct_data;
-   delete[] E_data;
-   delete[] G_data;
-   delete[] H_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
@@ -69,36 +55,27 @@ void DarcyHybridization::SetConstraintIntegrators(
    MFEM_VERIFY(!m_nlfi_p, "Linear constraint cannot work with a non-linear mass");
 
    c_bfi.reset(c_flux_integ);
-   delete c_bfi_p;
-   c_bfi_p = c_pot_integ;
-   delete c_nlfi_p;
-   c_nlfi_p = NULL;
-   delete c_nlfi;
-   c_nlfi = NULL;
+   c_bfi_p.reset(c_pot_integ);
+   c_nlfi_p.reset();
+   c_nlfi.reset();
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
    BilinearFormIntegrator *c_flux_integ, NonlinearFormIntegrator *c_pot_integ)
 {
    c_bfi.reset(c_flux_integ);
-   delete c_bfi_p;
-   c_bfi_p = NULL;
-   delete c_nlfi_p;
-   c_nlfi_p = c_pot_integ;
-   delete c_nlfi;
-   c_nlfi = NULL;
+   c_bfi_p.reset();
+   c_nlfi_p.reset(c_pot_integ);
+   c_nlfi.reset();
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
    BilinearFormIntegrator *c_flux_integ, BlockNonlinearFormIntegrator *c_integ)
 {
    c_bfi.reset(c_flux_integ);
-   delete c_bfi_p;
-   c_bfi_p = NULL;
-   delete c_nlfi_p;
-   c_nlfi_p = NULL;
-   delete c_nlfi;
-   c_nlfi = c_integ;
+   c_bfi_p.reset();
+   c_nlfi_p.reset();
+   c_nlfi.reset(c_integ);
 }
 
 void DarcyHybridization::SetFluxMassNonlinearIntegrator(
@@ -132,7 +109,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    const int NE = fes.GetNE();
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
-   if (Ct_data) { return; }
+   if (Ct_data.Size()) { return; }
 
    // count the number of dofs in the discontinuous version of fes:
    Array<int> vdofs;
@@ -247,7 +224,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    for (int i = 0; i < NE; i++)
    {
       int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
-      int d_size = fes_p->GetFE(i)->GetDof();
+      int d_size = fes_p.GetFE(i)->GetDof();
       Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
       Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
       Df_f_offsets[i+1] = Df_f_offsets[i] + d_size;
@@ -259,15 +236,14 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    }
 
-   Bf_data = new real_t[Bf_offsets[NE]]();//init by zeros
+   Bf_data.SetSize(Bf_offsets[NE]); Bf_data = 0.;
    if (!m_nlfi_p)
    {
-      Df_data = new real_t[Df_offsets[NE]]();//init by zeros
-      Df_ipiv = new int[Df_f_offsets[NE]];
+      AllocD();
    }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   Ae_data = new real_t[Ae_offsets[NE]];
-   Be_data = new real_t[Be_offsets[NE]]();//init by zeros
+   Ae_data.SetSize(Ae_offsets[NE]);
+   Be_data.SetSize(Be_offsets[NE]); Be_data = 0.;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    if (c_bfi_p)
@@ -284,9 +260,9 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
-   real_t *Af_el_data = Af_data + Af_offsets[el];
+   int Af_el_idx = Af_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   real_t *Ae_el_data = Ae_data + Ae_offsets[el];
+   int Ae_el_idx = Ae_offsets[el];
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < s; j++)
@@ -296,7 +272,7 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < s; i++)
          {
-            *(Ae_el_data++) = A(i, j);
+            Ae_data[Ae_el_idx++] = A(i, j);
          }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          continue;
@@ -304,12 +280,12 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
       for (int i = 0; i < s; i++)
       {
          if (hat_dofs_marker[o + i] == 1) { continue; }
-         *(Af_el_data++) = A(i, j);
+         Af_data[Af_el_idx++] = A(i, j);
       }
    }
-   MFEM_ASSERT(Af_el_data == Af_data + Af_offsets[el+1], "Internal error");
+   MFEM_ASSERT(Af_el_idx == Af_offsets[el+1], "Internal error");
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   MFEM_ASSERT(Ae_el_data == Ae_data + Ae_offsets[el+1], "Internal error");
+   MFEM_ASSERT(Ae_el_idx == Ae_offsets[el+1], "Internal error");
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    A_empty = false;
@@ -318,7 +294,7 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
 {
    const int s = Df_f_offsets[el+1] - Df_f_offsets[el];
-   DenseMatrix D_i(Df_data + Df_offsets[el], s, s);
+   DenseMatrix D_i(&Df_data[Df_offsets[el]], s, s);
    MFEM_ASSERT(D.Size() == s, "Incompatible sizes");
 
    D_i += D;
@@ -331,9 +307,9 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
    const int o = hat_offsets[el];
    const int w = hat_offsets[el+1] - o;
    const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
-   real_t *Bf_el_data = Bf_data + Bf_offsets[el];
+   int Bf_el_idx = Bf_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   real_t *Be_el_data = Be_data + Be_offsets[el];
+   int Be_el_idx = Be_offsets[el];
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < w; j++)
@@ -343,19 +319,19 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < h; i++)
          {
-            *(Be_el_data++) += B(i, j);
+            Be_data[Be_el_idx++] += B(i, j);
          }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          continue;
       }
       for (int i = 0; i < h; i++)
       {
-         *(Bf_el_data++) += B(i, j);
+         Bf_data[Bf_el_idx++] += B(i, j);
       }
    }
-   MFEM_ASSERT(Bf_el_data == Bf_data + Bf_offsets[el+1], "Internal error");
+   MFEM_ASSERT(Bf_el_idx == Bf_offsets[el+1], "Internal error");
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   MFEM_ASSERT(Be_el_data == Be_data + Be_offsets[el+1], "Internal error");
+   MFEM_ASSERT(Be_el_idx == Be_offsets[el+1], "Internal error");
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
@@ -363,7 +339,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    int face, DenseMatrix &elmat1, DenseMatrix &elmat2, Array<int> &vdofs1,
    Array<int> &vdofs2, int skip_zeros)
 {
-   Mesh *mesh = fes_p->GetMesh();
+   Mesh *mesh = fes_p.GetMesh();
    const FiniteElement *tr_fe, *fe1, *fe2;
    DenseMatrix elmat, h_elmat;
    int ndof1, ndof2;
@@ -376,8 +352,8 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
 
    int el1, el2;
    mesh->GetFaceElements(face, &el1, &el2);
-   fes_p->GetElementVDofs(el1, vdofs1);
-   fe1 = fes_p->GetFE(el1);
+   fes_p.GetElementVDofs(el1, vdofs1);
+   fe1 = fes_p.GetFE(el1);
    ndof1 = fe1->GetDof();
    fe2 = NULL;
    FaceElementTransformations *ftr;
@@ -385,8 +361,8 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    if (el2 >= 0)
    {
       ftr = mesh->GetFaceElementTransformations(face);
-      fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
-      fe2 = fes_p->GetFE(ftr->Elem2No);
+      fes_p.GetElementVDofs(ftr->Elem2No, vdofs2);
+      fe2 = fes_p.GetFE(ftr->Elem2No);
       save2 = true;
    }
 #ifdef MFEM_USE_MPI
@@ -440,27 +416,27 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    }
 
    // assemble E constraint
-   DenseMatrix E_f_1(E_data + E_offsets[face], ndof1, c_dof);
+   DenseMatrix E_f_1(&E_data[E_offsets[face]], ndof1, c_dof);
    E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
    if (save2)
    {
-      DenseMatrix E_f_2(E_data + E_offsets[face] + c_dof*ndof1, ndof2, c_dof);
+      DenseMatrix E_f_2(&E_data[E_offsets[face] + c_dof*ndof1], ndof2, c_dof);
       E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
    }
 
    // assemble G constraint
-   DenseMatrix G_f_1(G_data + G_offsets[face], c_dof, ndof1);
+   DenseMatrix G_f_1(&G_data[G_offsets[face]], c_dof, ndof1);
    G_f_1.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, 0);
    if (save2)
    {
-      DenseMatrix G_f_2(G_data + G_offsets[face] + c_dof*ndof1, c_dof, ndof2);
+      DenseMatrix G_f_2(&G_data[G_offsets[face] + c_dof*ndof1], c_dof, ndof2);
       G_f_2.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, ndof1);
    }
 
    // assemble H matrix
    if (IsNonlinear())
    {
-      DenseMatrix H_f(H_data + H_offsets[face], c_dof, c_dof);
+      DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
    }
    else
@@ -478,7 +454,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
 void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    int bface, DenseMatrix &elmat1, Array<int> &vdofs, int skip_zeros)
 {
-   Mesh *mesh = fes_p->GetMesh();
+   Mesh *mesh = fes_p.GetMesh();
    const FiniteElement *tr_fe, *fe;
    DenseMatrix elmat, elmat_aux, h_elmat;
    Array<int> c_dofs;
@@ -489,15 +465,15 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    const int c_dof = c_dofs.Size();
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
-   fes_p->GetElementVDofs(ftr->Elem1No, vdofs);
-   fe = fes_p->GetFE(ftr->Elem1No);
+   fes_p.GetElementVDofs(ftr->Elem1No, vdofs);
+   fe = fes_p.GetFE(ftr->Elem1No);
    const int ndof = fe->GetDof();
 
-   MFEM_ASSERT(boundary_constraint_pot_integs.Size() > 0,
+   MFEM_ASSERT(boundary_constraint_pot_integs.size() > 0,
                "No boundary constraint integrators");
 
    const int bdr_attr = mesh->GetBdrAttribute(bface);
-   for (int i = 0; i < boundary_constraint_pot_integs.Size(); i++)
+   for (size_t i = 0; i < boundary_constraint_pot_integs.size(); i++)
    {
       if (boundary_constraint_pot_integs_marker[i]
           && (*boundary_constraint_pot_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -522,17 +498,17 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    AssemblePotMassMatrix(ftr->Elem1No, elmat1);
 
    // assemble E constraint
-   DenseMatrix E_f_1(E_data + E_offsets[face], ndof, c_dof);
+   DenseMatrix E_f_1(&E_data[E_offsets[face]], ndof, c_dof);
    E_f_1.CopyMN(elmat, ndof, c_dof, 0, ndof);
 
    // assemble G constraint
-   DenseMatrix G_f(G_data + G_offsets[face], c_dof, ndof);
+   DenseMatrix G_f(&G_data[G_offsets[face]], c_dof, ndof);
    G_f.CopyMN(elmat, c_dof, ndof, ndof, 0);
 
    // assemble H matrix
    if (IsNonlinear())
    {
-      DenseMatrix H_f(H_data + H_offsets[face], c_dof, c_dof);
+      DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
    }
    else
@@ -612,7 +588,7 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
    const int c_size = c_fes.GetFaceElement(face)->GetDof() * c_fes.GetVDim();
 
    //el1
-   DenseMatrix Ct_face_1(Ct_data + Ct_offsets[face], f_size_1, c_size);
+   DenseMatrix Ct_face_1(&Ct_data[Ct_offsets[face]], f_size_1, c_size);
    AssembleCtSubMatrix(el1, elmat, Ct_face_1);
 
    //el2
@@ -621,7 +597,7 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
       //const int hat_size_2 = hat_offsets[el2+1] - hat_offsets[el2];
       const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
 
-      DenseMatrix Ct_face_2(Ct_data + Ct_offsets[face] + f_size_1*c_size,
+      DenseMatrix Ct_face_2(&Ct_data[Ct_offsets[face] + f_size_1*c_size],
                             f_size_2, c_size);
       AssembleCtSubMatrix(el2, elmat, Ct_face_2, hat_size_1);
    }
@@ -691,7 +667,7 @@ void DarcyHybridization::ConstructC()
       Ct_offsets[f+1] = Ct_offsets[f] + c_size * f_size;
    }
 
-   Ct_data = new real_t[Ct_offsets[num_faces]]();//init by zeros
+   Ct_data.SetSize(Ct_offsets[num_faces]); Ct_data = 0.;
 
    // Assemble the constraint element matrices
    if (c_bfi)
@@ -811,8 +787,8 @@ void DarcyHybridization::ConstructC()
 
 void DarcyHybridization::AllocD() const
 {
-   Df_data = new real_t[Df_offsets.Last()]();//init by zeros
-   Df_ipiv = new int[Df_f_offsets.Last()];
+   Df_data.SetSize(Df_offsets.Last()); Df_data = 0.;
+   Df_ipiv.SetSize(Df_f_offsets.Last());
 }
 
 void DarcyHybridization::AllocEG() const
@@ -837,8 +813,8 @@ void DarcyHybridization::AllocEG() const
       E_offsets[f+1] = E_offsets[f] + c_size * d_size;
    }
 
-   E_data = new real_t[E_offsets[num_faces]]();//init by zeros
-   G_data = new real_t[G_offsets[num_faces]]();//init by zeros
+   E_data.SetSize(E_offsets[num_faces]); E_data = 0.;
+   G_data.SetSize(G_offsets[num_faces]); G_data = 0.;
 }
 
 void DarcyHybridization::AllocH() const
@@ -855,7 +831,7 @@ void DarcyHybridization::AllocH() const
       H_offsets[f+1] = H_offsets[f] + c_size * c_size;
    }
 
-   H_data = new real_t[H_offsets[num_faces]]();//init by zeros
+   H_data.SetSize(H_offsets[num_faces]); H_data = 0.;
 }
 
 void DarcyHybridization::InvertA()
@@ -868,7 +844,7 @@ void DarcyHybridization::InvertA()
 
       // Decompose A
 
-      LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
+      LUFactors LU_A(&Af_data[Af_offsets[el]], Af_ipiv + Af_f_offsets[el]);
 
       LU_A.Factor(a_dofs_size);
    }
@@ -885,7 +861,7 @@ void DarcyHybridization::InvertD()
       // Decompose D
 
 #ifdef MFEM_DEBUG
-      DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       const double norm = D.MaxMaxNorm();
       if (norm == 0.)
       {
@@ -897,7 +873,7 @@ void DarcyHybridization::InvertD()
       }
 #endif
 
-      LUFactors LU_D(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+      LUFactors LU_D(&Df_data[Df_offsets[el]], &Df_ipiv[Df_f_offsets[el]]);
 
       LU_D.Factor(d_dofs_size);
    }
@@ -931,13 +907,13 @@ void DarcyHybridization::ComputeH()
 
       // Decompose A
 
-      LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
+      LUFactors LU_A(&Af_data[Af_offsets[el]], Af_ipiv + Af_f_offsets[el]);
 
       LU_A.Factor(a_dofs_size);
 
       // Construct Schur complement
-      const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
-      DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      const DenseMatrix B(&Bf_data[Bf_offsets[el]], d_dofs_size, a_dofs_size);
+      DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       AiBt.SetSize(a_dofs_size, d_dofs_size);
 
       AiBt.Transpose(B);
@@ -946,7 +922,7 @@ void DarcyHybridization::ComputeH()
       mfem::AddMult(B, AiBt, D);
 
       // Decompose Schur complement
-      LUFactors LU_S(D.GetData(), Df_ipiv + Df_f_offsets[el]);
+      LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
 
       LU_S.Factor(d_dofs_size);
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1114,13 +1090,13 @@ void DarcyHybridization::GetCtFaceMatrix(
 
    if (side == 0)
    {
-      Ct.Reset(Ct_data + Ct_offsets[f], f_size_1, c_size);
+      Ct.Reset(const_cast<real_t*>(&Ct_data[Ct_offsets[f]]), f_size_1, c_size);
    }
    else
    {
       MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
-      Ct.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_size,
+      Ct.Reset(const_cast<real_t*>(&Ct_data[Ct_offsets[f] + f_size_1*c_size]),
                f_size_2, c_size);
    }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
@@ -1149,13 +1125,13 @@ void DarcyHybridization::GetEFaceMatrix(
 
    if (side == 0)
    {
-      E.Reset(E_data + E_offsets[f], d_size_1, c_size);
+      E.Reset(&E_data[E_offsets[f]], d_size_1, c_size);
    }
    else
    {
       MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
-      E.Reset(E_data + E_offsets[f] + d_size_1*c_size, d_size_2, c_size);
+      E.Reset(&E_data[E_offsets[f] + d_size_1*c_size], d_size_2, c_size);
    }
 }
 
@@ -1184,7 +1160,7 @@ void DarcyHybridization::GetHFaceMatrix(int f, DenseMatrix &H) const
 {
    const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
 
-   H.Reset(H_data + H_offsets[f], c_size, c_size);
+   H.Reset(&H_data[H_offsets[f]], c_size, c_size);
 }
 
 void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
@@ -1241,13 +1217,13 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 
    if (H) { return *H; }
 
-   if (!Df_data) { AllocD(); }// D is resetted in ConstructGrad()
-   if (!E_data || !G_data) { AllocEG(); }// E and G are rewritten
-   if (!H_data) { AllocH(); }
+   if (!Df_data.Size()) { AllocD(); }// D is resetted in ConstructGrad()
+   if (!E_data.Size() || !G_data.Size()) { AllocEG(); }// E and G are rewritten
+   if (!H_data.Size()) { AllocH(); }
    else if (c_nlfi_p || c_nlfi)
    {
       // H is resetted here for additive double side integration
-      memset(H_data, 0, H_offsets.Last() * sizeof(real_t));
+      H_data = 0.;
    }
 
    Vector y;//dummy
@@ -1311,7 +1287,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          GetFDofs(el, u_vdofs);
          bu.GetSubVector(u_vdofs, bu_l);
 
-         fes_p->GetElementDofs(el, p_dofs);
+         fes_p.GetElementDofs(el, p_dofs);
          bp.GetSubVector(p_dofs, bp_l);
          if (bsym)
          {
@@ -1482,7 +1458,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
 
                   c_nlfi_p->AssembleHDGFaceVector(type,
                                                   *c_fes.GetFaceElement(faces[f]),
-                                                  *fes_p->GetFE(el),
+                                                  *fes_p.GetFE(el),
                                                   *FTr,
                                                   x_f, p_l, GpHx_l);
 
@@ -1493,14 +1469,14 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   //boundary
                   const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
 
-                  for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+                  for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
                   {
                      if (boundary_constraint_pot_nonlin_integs_marker[i]
                          && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                      boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
                                                                                      *c_fes.GetFaceElement(faces[f]),
-                                                                                     *fes_p->GetFE(el),
+                                                                                     *fes_p.GetFE(el),
                                                                                      *FTr,
                                                                                      x_f, p_l, GpHx_l);
 
@@ -1513,7 +1489,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
             {
                Vector GpHx_l;
                const FiniteElement *fe_u = fes.GetFE(el);
-               const FiniteElement *fe_p = fes_p->GetFE(el);
+               const FiniteElement *fe_p = fes_p.GetFE(el);
                Array<const FiniteElement*> fe_arr({fe_u, fe_p});
                Array<const Vector*> x_arr({&u_l, &p_l});
                Array<Vector*> y_arr((Vector*[]) {NULL, NULL, &GpHx_l});
@@ -1541,7 +1517,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   //boundary
                   const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
 
-                  for (int i = 0; i < boundary_constraint_nonlin_integs.Size(); i++)
+                  for (size_t i = 0; i < boundary_constraint_nonlin_integs.size(); i++)
                   {
                      if (boundary_constraint_nonlin_integs_marker[i]
                          && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -1724,10 +1700,11 @@ void DarcyHybridization::Finalize()
 
          if (!D_empty)
          {
-            std::swap(Df_data, Df_lin_data);
-            if (!Df_data)
+            Swap(Df_data, Df_lin_data);
+            if (!Df_data.Size())
             {
-               Df_data = new real_t[Df_offsets.Last()]();
+               Df_data.SetSize(Df_offsets.Last());
+               Df_data = 0.;
             }
          }
       }
@@ -1764,12 +1741,14 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    for (int el = 0; el < NE; el++)
    {
       GetEDofs(el, edofs);
+      if (edofs.Size() == 0) { continue; }
+
       xu.GetSubVector(edofs, u_e);
       u_e.Neg();
 
       //bu -= A_e u_e
       const int a_size = hat_offsets[el+1] - hat_offsets[el];
-      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+      const DenseMatrix Ae(&Ae_data[Ae_offsets[el]], a_size, edofs.Size());
 
       bu_e.SetSize(a_size);
       Ae.Mult(u_e, bu_e);
@@ -1779,7 +1758,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
       //bp -= B_e u_e
       const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+      const DenseMatrix Be(&Be_data[Be_offsets[el]], d_size, edofs.Size());
 
       bp_e.SetSize(d_size);
       Be.Mult(u_e, bp_e);
@@ -1789,7 +1768,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
          bp_e.Neg();
       }
 
-      fes_p->GetElementDofs(el, p_dofs);
+      fes_p.GetElementDofs(el, p_dofs);
       bp.AddElementVector(p_dofs, bp_e);
    }
 
@@ -1853,12 +1832,14 @@ void DarcyHybridization::ParallelEliminateTDofsInRHS(
    for (int el = 0; el < NE; el++)
    {
       GetEDofs(el, edofs);
+      if (edofs.Size() == 0) { continue; }
+
       xu.GetSubVector(edofs, u_e);
       u_e.Neg();
 
       //bu -= A_e u_e
       const int a_size = hat_offsets[el+1] - hat_offsets[el];
-      const DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+      const DenseMatrix Ae(&Ae_data[Ae_offsets[el]], a_size, edofs.Size());
 
       bu_e.SetSize(a_size);
       Ae.Mult(u_e, bu_e);
@@ -1868,7 +1849,7 @@ void DarcyHybridization::ParallelEliminateTDofsInRHS(
 
       //bp -= B_e u_e
       const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      const DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+      const DenseMatrix Be(&Be_data[Be_offsets[el]], d_size, edofs.Size());
 
       bp_e.SetSize(d_size);
       Be.Mult(u_e, bp_e);
@@ -1878,7 +1859,7 @@ void DarcyHybridization::ParallelEliminateTDofsInRHS(
          bp_e.Neg();
       }
 
-      fes_p->GetElementDofs(el, p_dofs);
+      fes_p.GetElementDofs(el, p_dofs);
       bp.AddElementVector(p_dofs, bp_e);
    }
 
@@ -2071,11 +2052,12 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    LUFactors LU_A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
                   const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
-   LUFactors LU_S(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+   LUFactors LU_S(&Df_data[Df_offsets[el]], &Df_ipiv[Df_f_offsets[el]]);
 
    // Load B
 
-   const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+   const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                       d_dofs_size, a_dofs_size);
 
    //u = A^-1 bu
    u.SetSize(bu.Size());
@@ -2106,14 +2088,14 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                                        const Vector &u_l, const Vector &p_l) const
 {
    const FiniteElement *fe_u = fes.GetFE(el);
-   const FiniteElement *fe_p = fes_p->GetFE(el);
+   const FiniteElement *fe_p = fes_p.GetFE(el);
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
    ElementTransformation *Tr = fes.GetElementTransformation(el);
 
    DenseMatrix A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
                  a_dofs_size, a_dofs_size);
-   DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+   DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
    LUFactors LU_A(A.GetData(), const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
 
    if (m_nlfi)
@@ -2159,7 +2141,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    }
    else if (!D_empty)
    {
-      DenseMatrix D_lin(Df_lin_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       D += D_lin;
    }
 
@@ -2182,7 +2164,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
             //boundary
             const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
 
-            for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+            for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
             {
                if (boundary_constraint_pot_nonlin_integs_marker[i]
                    && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -2213,7 +2195,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
             //boundary
             const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
 
-            for (int i = 0; i < boundary_constraint_nonlin_integs.Size(); i++)
+            for (size_t i = 0; i < boundary_constraint_nonlin_integs.size(); i++)
             {
                if (boundary_constraint_nonlin_integs_marker[i]
                    && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -2232,7 +2214,8 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    }
 
    // Construct Schur complement
-   const DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+   const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                       d_dofs_size, a_dofs_size);
    DenseMatrix AiBt(a_dofs_size, d_dofs_size);
 
    AiBt.Transpose(B);
@@ -2241,7 +2224,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    mfem::AddMult(B, AiBt, D);
 
    // Decompose Schur complement
-   LUFactors LU_S(D.GetData(), Df_ipiv + Df_f_offsets[el]);
+   LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
 
    LU_S.Factor(d_dofs_size);
 }
@@ -2252,7 +2235,7 @@ void DarcyHybridization::AssembleHDGGrad(
 {
    const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes.GetFaceElement(f);
-   const FiniteElement *fe_p = fes_p->GetFE(el);
+   const FiniteElement *fe_p = fes_p.GetFE(el);
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
    const int c_dofs_size = x_f.Size();
 
@@ -2268,23 +2251,23 @@ void DarcyHybridization::AssembleHDGGrad(
    nlfi.AssembleHDGFaceGrad(type, *fe_c, *fe_p, *FTr, x_f, p_l, elmat);
 
    // assemble D element matrices
-   DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+   DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
    DenseMatrix elmat_D;
    elmat_D.CopyMN(elmat, d_dofs_size, d_dofs_size, 0, 0);
    D += elmat_D;
 
    // assemble E constraint
    const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
-   DenseMatrix E_f(E_data + E_offsets[f] + E_off, d_dofs_size, c_dofs_size);
+   DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
    E_f.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
 
    // assemble G constraint
    const int G_off = E_off;
-   DenseMatrix G_f(G_data + G_offsets[f] + G_off, c_dofs_size, d_dofs_size);
+   DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
    G_f.CopyMN(elmat, c_dofs_size, d_dofs_size, d_dofs_size, 0);
 
    // assemble H matrix
-   DenseMatrix H_f(H_data + H_offsets[f], c_dofs_size, c_dofs_size);
+   DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
    DenseMatrix elmat_H;
    elmat_H.CopyMN(elmat, c_dofs_size, c_dofs_size, d_dofs_size, d_dofs_size);
    H_f += elmat_H;
@@ -2297,7 +2280,7 @@ void DarcyHybridization::AssembleHDGGrad(
    const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes.GetFaceElement(f);
    const FiniteElement *fe_u = fes.GetFE(el);
-   const FiniteElement *fe_p = fes_p->GetFE(el);
+   const FiniteElement *fe_p = fes_p.GetFE(el);
    const Array<const FiniteElement*> el_arr({fe_u, fe_p});
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
@@ -2323,26 +2306,26 @@ void DarcyHybridization::AssembleHDGGrad(
    nlfi.AssembleHDGFaceGrad(type, *fe_c, el_arr, *FTr, x_f, x_arr, elmats);
 
    // assemble A element matrices
-   DenseMatrix A(const_cast<real_t*>(&Af_data[Af_offsets[el]]), a_dofs_size,
-                 a_dofs_size);
+   DenseMatrix A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
+                 a_dofs_size, a_dofs_size);
    if (elmat_A.Height() != 0) { A += elmat_A; }
 
    // assemble D element matrices
-   DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+   DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
    if (elmat_D.Height() != 0) { D += elmat_D; }
 
    // assemble E constraint
    const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
-   DenseMatrix E_f(E_data + E_offsets[f] + E_off, d_dofs_size, c_dofs_size);
+   DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
    if (elmat_E.Height() != 0) { E_f += elmat_E; }
 
    // assemble G constraint
    const int G_off = E_off;
-   DenseMatrix G_f(G_data + G_offsets[f] + G_off, c_dofs_size, d_dofs_size);
+   DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
    if (elmat_G.Height() != 0) { G_f += elmat_G; }
 
    // assemble H matrix
-   DenseMatrix H_f(H_data + H_offsets[f], c_dofs_size, c_dofs_size);
+   DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
    if (elmat_H.Height() != 0) { H_f += elmat_H; }
 }
 
@@ -2356,7 +2339,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
          darcy_offsets.SetSize(3);
          darcy_offsets[0] = 0;
          darcy_offsets[1] = fes.GetVSize();
-         darcy_offsets[2] = fes_p->GetVSize();
+         darcy_offsets[2] = fes_p.GetVSize();
          darcy_offsets.PartialSum();
       }
       if (!darcy_toffsets.Size())
@@ -2364,7 +2347,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
          darcy_toffsets.SetSize(3);
          darcy_toffsets[0] = 0;
          darcy_toffsets[1] = fes.GetTrueVSize();
-         darcy_toffsets[2] = fes_p->GetTrueVSize();
+         darcy_toffsets[2] = fes_p.GetTrueVSize();
          darcy_toffsets.PartialSum();
 
          darcy_rhs.Update(darcy_toffsets);
@@ -2436,7 +2419,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
       GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
-      fes_p->GetElementDofs(el, p_dofs);
+      fes_p.GetElementDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
       if (bsym)
       {
@@ -2613,7 +2596,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
-      fes_p->GetElementDofs(el, p_dofs);
+      fes_p.GetElementDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
       if (bsym)
       {
@@ -2694,14 +2677,14 @@ void DarcyHybridization::Reset()
    bfin = false;
 
    A_empty = true;
-   memset(Bf_data, 0, Bf_offsets.Last() * sizeof(real_t));
-   if (Df_data)
+   Bf_data = 0.;
+   if (Df_data.Size())
    {
-      memset(Df_data, 0, Df_offsets.Last() * sizeof(real_t));
+      Df_data = 0.;
       D_empty = true;
    }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   memset(Be_data, 0, Be_offsets.Last() * sizeof(real_t));
+   Be_data = 0.;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
@@ -2730,13 +2713,13 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
 
    if (dh.pH.Ptr()) { return *dh.pH.Ptr(); }
 
-   if (!dh.Df_data) { dh.AllocD(); }// D is resetted in ConstructGrad()
-   if (!dh.E_data || !dh.G_data) { dh.AllocEG(); }// E and G are rewritten
-   if (!dh.H_data) { dh.AllocH(); }
+   if (!dh.Df_data.Size()) { dh.AllocD(); }// D is resetted in ConstructGrad()
+   if (!dh.E_data.Size() || !dh.G_data.Size()) { dh.AllocEG(); }// E and G are rewritten
+   if (!dh.H_data.Size()) { dh.AllocH(); }
    else if (dh.c_nlfi_p || dh.c_nlfi)
    {
       // H is resetted here for additive double side integration
-      memset(dh.H_data, 0, dh.H_offsets.Last() * sizeof(real_t));
+      dh.H_data = 0.;
    }
 
    Vector y;//dummy
@@ -2759,13 +2742,14 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    : dh(dh_), el(el_), trps(trps_), faces(faces_),
      a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
      d_dofs_size(dh.Df_f_offsets[el+1] - dh.Df_f_offsets[el]),
-     B(dh.Bf_data + dh.Bf_offsets[el], d_dofs_size, a_dofs_size),
+     B(const_cast<real_t*>(&dh.Bf_data[dh.Bf_offsets[el]]),
+       d_dofs_size, a_dofs_size),
      Bt(B), offsets({0, a_dofs_size, a_dofs_size+d_dofs_size}), grad(offsets)
 {
    width = height = a_dofs_size + d_dofs_size;
 
    fe_u = dh.fes.GetFE(el);
-   fe_p = dh.fes_p->GetFE(el);
+   fe_p = dh.fes_p.GetFE(el);
 
    const Mesh *mesh = dh.fes.GetMesh();
 
@@ -2777,8 +2761,8 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    }
 
    // face transformations
-   FTrs.SetSize(faces.Size());
-   NbrTrs.SetSize(faces.Size());
+   FTrs.resize(faces.Size());
+   NbrTrs.resize(faces.Size());
    for (int f = 0; f < faces.Size(); f++)
    {
       FaceElementTransformations *&FTr = FTrs[f];
@@ -2888,7 +2872,7 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
             //boundary
             const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
 
-            for (int i = 0; i < dh.boundary_constraint_nonlin_integs.Size(); i++)
+            for (size_t i = 0; i < dh.boundary_constraint_nonlin_integs.size(); i++)
             {
                if (dh.boundary_constraint_nonlin_integs_marker[i]
                    && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -2935,8 +2919,8 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
    }
    else if (!dh.D_empty)
    {
-      const DenseMatrix D(dh.Df_lin_data + dh.Df_offsets[el], d_dofs_size,
-                          d_dofs_size);
+      const DenseMatrix D(&dh.Df_lin_data[dh.Df_offsets[el]],
+                          d_dofs_size, d_dofs_size);
       D.AddMult(p_l, bp);
    }
 
@@ -2967,7 +2951,7 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
             //boundary
             const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
 
-            for (int i = 0; i < dh.boundary_constraint_pot_nonlin_integs.Size(); i++)
+            for (size_t i = 0; i < dh.boundary_constraint_pot_nonlin_integs.size(); i++)
             {
                if (dh.boundary_constraint_pot_nonlin_integs_marker[i]
                    && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -3036,7 +3020,7 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
             //boundary
             const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
 
-            for (int i = 0; i < dh.boundary_constraint_nonlin_integs.Size(); i++)
+            for (size_t i = 0; i < dh.boundary_constraint_nonlin_integs.size(); i++)
             {
                if (dh.boundary_constraint_nonlin_integs_marker[i]
                    && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -3085,7 +3069,7 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
    }
    else if (!dh.D_empty)
    {
-      DenseMatrix D(dh.Df_lin_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
+      DenseMatrix D(&dh.Df_lin_data[dh.Df_offsets[el]], d_dofs_size, d_dofs_size);
       grad += D;
    }
 
@@ -3117,7 +3101,7 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
             //boundary
             const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
 
-            for (int i = 0; i < dh.boundary_constraint_pot_nonlin_integs.Size(); i++)
+            for (size_t i = 0; i < dh.boundary_constraint_pot_nonlin_integs.size(); i++)
             {
                if (dh.boundary_constraint_pot_nonlin_integs_marker[i]
                    && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
@@ -3200,7 +3184,7 @@ DarcyHybridization::LocalFluxNLOperator::LocalFluxNLOperator(
    const DarcyHybridization &dh_, int el_, const Vector &bp_,
    const BlockVector &trps_, const Array<int> &faces_)
    : LocalNLOperator(dh_, el_, trps_, faces_), bp(bp_),
-     LU_D(dh.Df_data + dh.Df_offsets[el], dh.Df_ipiv + dh.Df_f_offsets[el])
+     LU_D(&dh.Df_data[dh.Df_offsets[el]], &dh.Df_ipiv[dh.Df_f_offsets[el]])
 {
    MFEM_ASSERT(bp.Size() == d_dofs_size, "Incompatible size");
 

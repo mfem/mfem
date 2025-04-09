@@ -37,27 +37,27 @@ public:
    };
 
 private:
-   FiniteElementSpace *fes_p;
+   FiniteElementSpace &fes_p;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes, *pfes_p, *c_pfes;
 #endif
-   BilinearFormIntegrator *c_bfi_p {};
-   NonlinearFormIntegrator *c_nlfi_p{};
-   BlockNonlinearFormIntegrator *c_nlfi{};
+   std::unique_ptr<BilinearFormIntegrator> c_bfi_p;
+   std::unique_ptr<NonlinearFormIntegrator> c_nlfi_p;
+   std::unique_ptr<BlockNonlinearFormIntegrator> c_nlfi;
    NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
    bool own_m_nlfi_u{}, own_m_nlfi_p{};
    BlockNonlinearFormIntegrator *m_nlfi{};
    bool own_m_nlfi{};
 
    /// Set of constraint boundary face integrators to be applied.
-   Array<BilinearFormIntegrator*>  boundary_constraint_pot_integs;
-   Array<Array<int>*>              boundary_constraint_pot_integs_marker;
-   Array<NonlinearFormIntegrator*> boundary_constraint_pot_nonlin_integs;
-   Array<Array<int>*>              boundary_constraint_pot_nonlin_integs_marker;
-   Array<BlockNonlinearFormIntegrator*> boundary_constraint_nonlin_integs;
-   Array<Array<int>*>                   boundary_constraint_nonlin_integs_marker;
+   std::vector<BilinearFormIntegrator*> boundary_constraint_pot_integs;
+   std::vector<Array<int>*> boundary_constraint_pot_integs_marker;
+   std::vector<NonlinearFormIntegrator*> boundary_constraint_pot_nonlin_integs;
+   std::vector<Array<int>*> boundary_constraint_pot_nonlin_integs_marker;
+   std::vector<BlockNonlinearFormIntegrator*> boundary_constraint_nonlin_integs;
+   std::vector<Array<int>*> boundary_constraint_nonlin_integs_marker;
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
-   int extern_bdr_constr_pot_integs{};
+   bool extern_bdr_constr_pot_integs{false};
 
    bool bsym{}, bfin{};
    DiagonalPolicy diag_policy{DIAG_ONE};
@@ -79,29 +79,28 @@ private:
    } lsolve;
 
    Array<int> Ae_offsets;
-   Array<real_t> Af_lin_data;
-   real_t *Ae_data{};
+   Array<real_t> Af_lin_data, Ae_data;
    bool A_empty{true};
 
    Array<int> Bf_offsets, Be_offsets;
-   real_t *Bf_data{}, *Be_data{};
+   Array<real_t> Bf_data, Be_data;
 
    Array<int> Df_offsets, Df_f_offsets;
-   mutable real_t *Df_data{}, *Df_lin_data{};
-   mutable int *Df_ipiv{};
+   mutable Array<real_t> Df_data, Df_lin_data;
+   mutable Array<int> Df_ipiv;
    bool D_empty{true};
 
    Array<int> Ct_offsets;
-   real_t *Ct_data{};
+   Array<real_t> Ct_data;
 
    mutable Array<int> E_offsets;
-   mutable real_t *E_data{};
+   mutable Array<real_t> E_data;
 
    Array<int> &G_offsets{E_offsets};
-   mutable real_t *G_data{};
+   mutable Array<real_t> G_data;
 
    mutable Array<int> H_offsets;
-   mutable real_t *H_data{};
+   mutable Array<real_t> H_data;
 
    mutable Array<int> darcy_offsets, darcy_toffsets;
    mutable BlockVector darcy_rhs;
@@ -163,8 +162,8 @@ private:
       TransposeOperator Bt;
       const FiniteElement *fe_u, *fe_p;
       IsoparametricTransformation *Tr;
-      Array<FaceElementTransformations*> FTrs;
-      Array<IsoparametricTransformation*> NbrTrs;
+      std::vector<FaceElementTransformations*> FTrs;
+      std::vector<IsoparametricTransformation*> NbrTrs;
       const Array<int> offsets;
       mutable Vector Au, Dp, DpEx;
       mutable DenseMatrix grad_A, grad_D;
@@ -335,8 +334,8 @@ public:
 
    BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi.get(); }
 
-   BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p; }
-   NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p; }
+   BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p.get(); }
+   NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
    NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
@@ -368,18 +367,19 @@ public:
 
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
-      boundary_constraint_pot_integs.Append(c_integ);
-      boundary_constraint_pot_integs_marker.Append(
+      boundary_constraint_pot_integs.push_back(c_integ);
+      boundary_constraint_pot_integs_marker.push_back(
          NULL); // NULL marker means apply everywhere
    }
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                       Array<int> &bdr_marker)
    {
-      boundary_constraint_pot_integs.Append(c_integ);
-      boundary_constraint_pot_integs_marker.Append(&bdr_marker);
+      boundary_constraint_pot_integs.push_back(c_integ);
+      boundary_constraint_pot_integs_marker.push_back(&bdr_marker);
    }
 
-   inline int NumBdrPotConstraintIntegrators() const { return boundary_constraint_pot_integs.Size(); }
+   /// Get number of all integrators added with AddBdrPotConstraintIntegrator().
+   inline int NumBdrPotConstraintIntegrators() const { return boundary_constraint_pot_integs.size(); }
 
    /// Access all integrators added with AddBdrPotConstraintIntegrator().
    BilinearFormIntegrator& GetBdrPotConstraintIntegrator(int i) { return *boundary_constraint_pot_integs[i]; }
@@ -391,45 +391,51 @@ public:
 
    void AddBdrPotConstraintIntegrator(NonlinearFormIntegrator *c_integ)
    {
-      boundary_constraint_pot_nonlin_integs.Append(c_integ);
-      boundary_constraint_pot_nonlin_integs_marker.Append(
+      boundary_constraint_pot_nonlin_integs.push_back(c_integ);
+      boundary_constraint_pot_nonlin_integs_marker.push_back(
          NULL); // NULL marker means apply everywhere
    }
    void AddBdrPotConstraintIntegrator(NonlinearFormIntegrator *c_integ,
                                       Array<int> &bdr_marker)
    {
-      boundary_constraint_pot_nonlin_integs.Append(c_integ);
-      boundary_constraint_pot_nonlin_integs_marker.Append(&bdr_marker);
+      boundary_constraint_pot_nonlin_integs.push_back(c_integ);
+      boundary_constraint_pot_nonlin_integs_marker.push_back(&bdr_marker);
    }
 
-   /// Access all integrators added with AddBdrPotConstraintIntegrator().
-   Array<NonlinearFormIntegrator*> *GetPotBCNLFI() { return &boundary_constraint_pot_nonlin_integs; }
+   /// Get number of all non-linear integrators added with AddBdrPotConstraintIntegrator().
+   inline int NumBdrPotConstraintNLIntegrators() const { return boundary_constraint_pot_nonlin_integs.size(); }
+
+   /// Access all non-linear integrators added with AddBdrPotConstraintIntegrator().
+   NonlinearFormIntegrator& GetBdrPotConstraintNLIntegrator(int i) { return *boundary_constraint_pot_nonlin_integs[i]; }
 
    /// Access all boundary markers added with AddBdrPotConstraintIntegrator().
-   /** If no marker was specified when the integrator was added, the
+   /** If no marker was specified when the non-linear integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetPotBCNLFI_Marker() { return &boundary_constraint_pot_nonlin_integs_marker; }
+   Array<int>* GetBdrPotConstraintNLIntegratorMarker(int i) { return boundary_constraint_pot_nonlin_integs_marker[i]; }
 
    void AddBdrConstraintIntegrator(BlockNonlinearFormIntegrator *c_integ)
    {
-      boundary_constraint_nonlin_integs.Append(c_integ);
-      boundary_constraint_nonlin_integs_marker.Append(
+      boundary_constraint_nonlin_integs.push_back(c_integ);
+      boundary_constraint_nonlin_integs_marker.push_back(
          NULL); // NULL marker means apply everywhere
    }
    void AddBdrConstraintIntegrator(BlockNonlinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker)
    {
-      boundary_constraint_nonlin_integs.Append(c_integ);
-      boundary_constraint_nonlin_integs_marker.Append(&bdr_marker);
+      boundary_constraint_nonlin_integs.push_back(c_integ);
+      boundary_constraint_nonlin_integs_marker.push_back(&bdr_marker);
    }
 
-   /// Access all integrators added with AddBdrConstraintIntegrator().
-   Array<BlockNonlinearFormIntegrator*> *GetBCNLFI() { return &boundary_constraint_nonlin_integs; }
+   /// Get number of all non-linear integrators added with AddBdrConstraintIntegrator().
+   inline int NumBdrConstraintNLIntegrators() const { return boundary_constraint_pot_integs.size(); }
 
-   /// Access all boundary markers added with AddPotConstraintIntegrator().
-   /** If no marker was specified when the integrator was added, the
+   /// Access all non-linear integrators added with AddBdrConstraintIntegrator().
+   BlockNonlinearFormIntegrator& GetBdrConstraintNLIntegrator(int i) { return *boundary_constraint_nonlin_integs[i]; }
+
+   /// Access all boundary markers added with AddBdrConstraintIntegrator().
+   /** If no marker was specified when the non-linear integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBCNLFI_Marker() { return &boundary_constraint_nonlin_integs_marker; }
+   Array<int>* GetBdrConstraintNLIntegratorMarker(int i) { return boundary_constraint_nonlin_integs_marker[i]; }
 
    void UseExternalBdrConstraintIntegrators() = delete;
 
