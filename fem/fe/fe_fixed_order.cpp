@@ -5273,11 +5273,11 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
                           };
 
    const real_t te03[3] = {-y * z * ozi, -x * z * ozi,
-                           x * y * (one - 2 * z) * ozi * ozi
+                           x * y * (one - 2_r * z) * ozi * ozi
                           };
    const real_t te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
                            x * z * (x * y - z * oz) * ozi * ozi,
-                           -x * y * (one - 2 * z) * (x * y - z * oz)
+                           -x * y * (one - 2_r * z) * (x * y - z * oz)
                            * ozi * ozi * ozi
                           };
 
