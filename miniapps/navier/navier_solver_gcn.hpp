@@ -80,6 +80,51 @@ private:
 
 
 
+class VectorConvectionIntegrator : public BilinearFormIntegrator
+{
+protected:
+    VectorCoefficient *Q;
+    real_t alpha;
+    // PA extension
+    Vector pa_data;
+    const DofToQuad *maps;         ///< Not owned
+    const GeometricFactors *geom;  ///< Not owned
+    int dim, ne, nq, dofs1D, quad1D;
+
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir, partelmat;
+   Vector shape, vec2, BdFidxT;
+#endif
+
+public:
+   VectorConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
+      : Q(&q) { alpha = a; }
+
+   void AssembleElementMatrix(const FiniteElement &,
+                              ElementTransformation &,
+                              DenseMatrix &) override;
+
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                         const ElementTransformation &Trans);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         const ElementTransformation &Trans);
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
+
+};
+
+
+
 }//end namespace mfem
 
 
