@@ -1066,8 +1066,6 @@ void NURBSPatch::UniformRefinement(const std::vector<Array<int>> &rf,
          KnotInsert(dir, new_knots);
       }
    }
-
-   fully_coarsened = false;
 }
 
 void NURBSPatch::UniformRefinement(int rf)
@@ -2123,8 +2121,6 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
    }
 
    swap(newpatch);
-
-   fully_coarsened = true;
 }
 
 NURBSExtension::NURBSExtension(const NURBSExtension &orig)
@@ -2174,7 +2170,6 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      patches(orig.patches.Size()), // patches are copied in the body
      num_structured_patches(orig.num_structured_patches),
      patchCP(orig.patchCP),
-     validV2K(orig.validV2K),
      kvf(orig.kvf),
      kvf_coarse(orig.kvf_coarse),
      auxef(orig.auxef),
@@ -3675,7 +3670,7 @@ void NURBSExtension::GenerateOffsets()
 
       std::map<std::pair<int, int>, int> v2f;
 
-      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
+      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
       {
          // Intersections of master edges may not be edges in patchTopo->ncmesh,
          // so we represent them in auxEdges, to account for their vertices and
@@ -3759,7 +3754,7 @@ void NURBSExtension::GenerateOffsets()
       masterFaceInfo.clear();
       masterFaceInfo.resize(masterFaceIndex.Size());
 
-      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0 && validV2K)
+      if (patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
       {
          // Note that this is used in 2D and 3D.
          const int npairs = edgePairs.size();
@@ -5155,7 +5150,7 @@ void NURBSExtension::Refine(const Array<int> *rf)
    if (nonconforming)
    {
       patchTopo->ncmesh->RefineVertexToKnot(kvf, knotVectors, parentToKV);
-      RefineKnotIndices(ref_factors);
+      UpdateAuxiliaryKnotSpans(ref_factors);
       UpdateCoarseKVF();
    }
 }
