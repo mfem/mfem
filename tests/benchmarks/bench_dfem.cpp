@@ -460,7 +460,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
-      MFEM_DEVICE_SYNC;
+      benchmark();
    }
 
    void benchmark() override

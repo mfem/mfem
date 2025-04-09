@@ -119,7 +119,7 @@ struct Problem : public BakeOff<VDIM, GLL>
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
       cg.iterative_mode = false;
-      MFEM_DEVICE_SYNC;
+      benchmark();
    }
 
    void benchmark() override
