@@ -53,7 +53,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       grad_psi_coef.Eval(V, T, ip);
-      V /= (1e-14 + r) * (flip_sign ? -1 : 1);
+      V /= (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -190,7 +190,7 @@ public:
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
 
       V(0) = 0;
-      V(1) = interp_val[0] / (1e-14 + r) * (flip_sign ? -1 : 1);
+      V(1) = interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -233,10 +233,10 @@ public:
          V(0) = -normal(1);
          V(1) = normal(0);
 
-         V *= interp_val[0] * (1e-14 + r) * (flip_sign ? -1 : 1);
+         V *= interp_val[0] * (1e-10 + r) * (flip_sign ? -1 : 1);
       }
       else
-         V(0) = interp_val[0] * (1e-14 + r) * (flip_sign ? -1 : 1);
+         V(0) = interp_val[0] * (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -263,7 +263,7 @@ public:
       B_pol_coef.Eval(V, T, ip);
       swap(V(0), V(1));
       V(0) = -V(0);
-      V *= (1e-14 + r) * (flip_sign ? -1 : 1);
+      V *= (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
    
@@ -289,7 +289,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      return (1e-14 + r) * (flip_sign ? -1 : 1);
+      return (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -342,7 +342,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      return 1 / (1e-14 + r) * (flip_sign ? -1 : 1);
+      return 1 / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -366,7 +366,7 @@ public:
       T.Transform(ip, x);
       real_t r = x[0];
       counter++;
-      V(0) = 1 / (1e-14 + r) * (flip_sign ? -1 : 1);
+      V(0) = 1 / (1e-10 + r) * (flip_sign ? -1 : 1);
       V(1) = 0;
    }
 };
