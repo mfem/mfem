@@ -57,6 +57,65 @@ public:
    }
 };
 
+
+/// @brief Input $f$ and return $f$
+class FGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   const bool from_psi;
+   real_t alpha, f_x, psi_x, z_x;
+   real_t z_min, z_max, r_min, r_max;
+   FindPointsGSLIBOneByOne finder;
+   real_t fFun(const real_t psi, const real_t z, const real_t r)
+   {
+      if (z < z_min || z > z_max || r < r_min || r > r_max)
+         return f_x;
+      return min(f_x + alpha * (psi - psi_x), f_x);
+   };
+
+public:
+   int counter = 0;
+
+   // disable default constructor
+   FGridFunctionCoefficient() = delete;
+
+   FGridFunctionCoefficient(const GridFunction *gf, bool from_psi = false, bool flip_sign = false)
+       : Coefficient(), gf(gf), flip_sign(flip_sign), from_psi(from_psi), finder(gf)
+   {
+      if (from_psi)
+      {
+         ifstream infile("input/psi_coefficients.txt");
+         if (!infile)
+         {
+            cerr << "Error: could not open input file" << endl;
+            exit(1);
+         }
+         infile >> alpha >> f_x >> psi_x >> z_x;
+         infile >> r_min >> r_max >> z_min >> z_max;
+         cout << "r_min: " << r_min << ", r_max: " << r_max << ", z_min: " << z_min << ", z_max: " << z_max << endl;
+      }
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0), z = x(1);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      if (from_psi)
+         interp_val[0] = fFun(interp_val[0], z, r);
+      return interp_val[0] * (flip_sign ? -1 : 1);
+   }
+};
+
+
+
 /// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
 class BTorVectorGridFunctionCoefficient : public VectorCoefficient
 {
