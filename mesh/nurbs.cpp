@@ -1068,11 +1068,11 @@ void NURBSPatch::UniformRefinement(const std::vector<Array<int>> &rf,
    }
 }
 
-void NURBSPatch::UniformRefinement(int rf)
+void NURBSPatch::UniformRefinement(int rf, int multiplicity)
 {
    Array<int> rf_array(kv.Size());
    rf_array = rf;
-   UniformRefinement(rf_array);
+   UniformRefinement(rf_array, multiplicity);
 }
 
 void NURBSPatch::UpdateSpacingPartitions(const Array<KnotVector*> &pkv)
