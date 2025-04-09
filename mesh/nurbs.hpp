@@ -196,13 +196,14 @@ public:
    /// Const access function to knot @a i.
    const real_t &operator[](int i) const { return knot(i); }
 
+   /// Coarsen to a single element.
    KnotVector* FullyCoarsen();
 
    /// Function to define the distribution of knots for any number of knot spans.
    std::shared_ptr<SpacingFunction> spacing;
 
-   /** Flag to indicate whether the KnotVector has been coarsened, which means
-       it is ready for non-nested refinement. */
+   /** @brief Flag to indicate whether the KnotVector has been coarsened, which
+       means it is ready for non-nested refinement. */
    bool coarse;
 };
 
@@ -371,6 +372,7 @@ public:
    /// Marks the KnotVector in each dimension as coarse.
    void SetKnotVectorsCoarse(bool c);
 
+   /// Coarsen to a single element.
    void FullyCoarsen(const Array2D<double> &cp, int ncp1D);
 
    void UpdateSpacingPartitions(const Array<KnotVector*> &pkv);
@@ -534,13 +536,15 @@ protected:
 
    Array<int> aux_e_spaceOffsets, aux_f_spaceOffsets;
 
+   /// Represents a nonconforming edge not in patchTopo->ncmesh.
    struct AuxiliaryEdge
    {
-      int parent; /// Signed parent edge index
+      int parent; /// Signed parent edge index (sign encodes orientation)
       int v[2];   /// Vertex indices
       int ksi[2]; /// Knot-span indices of vertices in parent edge
    };
 
+   /// Represents a nonconforming face not in patchTopo->ncmesh.
    struct AuxiliaryFace
    {
       int parent;  /// Parent face index
@@ -550,6 +554,8 @@ protected:
       int ksi1[2]; /// Upper knot-span indices in parent face
    };
 
+   /** @brief Represents a pair of child and parent edges for a nonconforming
+       patch topology. */
    struct EdgePairInfo
    {
       int v; /// Vertex index
@@ -563,6 +569,7 @@ protected:
          : v(vertex), ksi(knotIndex), child(childEdge), parent(parentEdge),
            isSet(true) { }
 
+      /// Set the data members.
       void Set(int vertex, int knotIndex, int childEdge, int parentEdge)
       {
          v = vertex;
@@ -579,22 +586,77 @@ protected:
       }
    };
 
+   /// Master edge data for a nonconforming patch topology.
+   struct MasterEdgeInfo
+   {
+      std::vector<int> slaves; /// Slave edge indices on the master edge
+      std::vector<int> vertices; /// Vertex indices on the master edge
+      std::vector<int> ks; /// Knot-span indices of vertices on the master edge
+
+      void Reverse()
+      {
+         std::reverse(slaves.begin(), slaves.end());
+         std::reverse(vertices.begin(), vertices.end());
+         std::reverse(ks.begin(), ks.end());
+      }
+   };
+
+   /// Master face data for a nonconforming patch topology.
+   struct MasterFaceInfo
+   {
+      std::vector<int> slaves; /// Slave face indices on the master face
+      std::vector<int> slaveCorners; /// Corner vertices of slave faces
+      std::array<int, 2> ne; /// Number of elements in each direction
+      std::array<int, 2> s0; /// Cartesian shift, see Reorder2D
+      bool rev; /// Whether dimensions are interchanged
+
+      MasterFaceInfo() : rev(false)
+      {
+         for (int i=0; i<2; ++i)
+         {
+            ne[i] = 0;
+            s0[i] = -1;
+         }
+      }
+
+      MasterFaceInfo(int ne1, int ne2) : rev(false)
+      {
+         ne[0] = ne1;
+         ne[1] = ne2;
+         for (int i=0; i<2; ++i) { s0[i] = -1; }
+      }
+   };
+
+   /// Slave face data for a nonconforming patch topology.
+   struct SlaveFaceInfo
+   {
+      int index; /// Face index
+      char ori; /// Orientation
+      int ksi[2]; /// Knot-span indices in parent face of v0
+      int ne[2]; /// Number of elements in each direction on child face
+   };
+
+   /** @brief Represents a pair of child and parent faces for a nonconforming
+       patch topology. */
    struct FacePairInfo
    {
       int v0; /// Lower left corner vertex
-      int child, parent; /// Child and parent face indices
-      int ori; /// Orientation
-      int ksi[2]; /// Knot-span indices in parent face of v0
-      int ne[2]; /// Number of elements in each direction on child face
+      int parent; /// Parent face index
+      SlaveFaceInfo info; /// Data for the child face
    };
 
    std::vector<AuxiliaryEdge> auxEdges;
    std::vector<AuxiliaryFace> auxFaces;
 
+   /** @brief Maps from vertex pairs to indices in auxEdges, auxFaces. Vertex
+       pairs are sorted indices, with faces having 4 vertices represented by the
+       minimum index and the index of the diagonally opposite vertex. */
    std::map<std::pair<int, int>, int> auxv2e, auxv2f;
 
+   /// Map from sorted vertex pairs to edge indices.
    std::map<std::pair<int, int>, int> v2e;
 
+   /// Refinement factors in each dimension.
    Array<int> ref_factors;
 
    /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
@@ -619,22 +681,29 @@ protected:
 
    /// Return the unsigned index of the KnotVector for edge @a edge.
    inline int KnotInd(int edge) const;
+   /// Return the sign (orientation) of the KnotVector for edge @a edge.
    inline int KnotSign(int edge) const;
 
+   /// Sets of master edges and face in patchTopo->ncmesh.
    std::set<int> masterEdges, masterFaces;
-   Array<int> masterEdgeIndex, slaveEdgesUnique, slaveFacesUnique;
+
+   /// Array form of @a masterEdges.
+   Array<int> masterEdgeIndex;
+
+   /** @brief Arrays of slave edges or faces, with possible repetitions, ordered
+       by position within their master entities. */
+   std::vector<int> slaveEdges;
+   std::vector<SlaveFaceInfo> slaveFaces;
+
+   /// Arrays of unique indices in @a slaveEdges, @a slaveFaces.
+   Array<int> slaveEdgesUnique, slaveFacesUnique;
+
    std::map<int,int> slaveEdgesToUnique, slaveFacesToUnique;
-   std::vector<int> slaveEdges, slaveFaces, slaveFaceNE1, slaveFaceNE2,
-       slaveFaceI, slaveFaceJ, slaveFaceOri;
    std::map<int,int> masterEdgeToId, masterFaceToId;
    std::vector<std::vector<int>> slaveToMasterEdges, slaveToMasterFaces;
-   std::vector<std::vector<int>> masterEdgeSlaves, masterFaceSlaves,
-       masterFaceSlaveCorners;
-   std::vector<std::vector<int>> masterEdgeVerts;
-   std::vector<std::vector<int>> masterEdgeKI;
-   std::vector<std::vector<int>> masterFaceSizes;
-   std::vector<std::array<int, 2>> masterFaceS0;
-   std::vector<bool> masterFaceRev;
+
+   std::vector<MasterEdgeInfo> masterEdgeInfo;
+   std::vector<MasterFaceInfo> masterFaceInfo;
 
    bool nonconforming = false; /// Whether patchTopo is a nonconforming mesh.
 
@@ -648,9 +717,9 @@ protected:
    /// Const access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
    inline const KnotVector *KnotVec(int edge) const;
-   /* brief Const access function for the KnotVector associated with edge
-      @a edge. The output orientation @a okv is set to @a oedge with sign flipped
-      if the KnotVector index associated with edge @a edge is negative. */
+   /** @brief Const access function for the KnotVector associated with edge
+       @a edge. The output orientation @a okv is set to @a oedge with sign flipped
+       if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
    /// Throw an error if any patch has an inconsistent edge-to-knot mapping.
@@ -791,8 +860,11 @@ protected:
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
 private:
-   void GetVertexDofs(int index, Array<int> &dofs) const;
-   int GetEdgeDofs(int index, Array<int> &dofs) const;
+   /// @brief Set the degrees of freedom for the vertex in @a dofs.
+   void GetVertexDofs(int vertex, Array<int> &dofs) const;
+
+   /// @brief Set the degrees of freedom for the edge in @a dofs.
+   void GetEdgeDofs(int edge, Array<int> &dofs) const;
 
    int GetEdgeOffset(bool dof, int edge, int increment) const;
 
@@ -829,6 +901,12 @@ private:
    void SetDofToPatch();
 
    void Refine(const Array<int> *rf=nullptr);
+
+   void GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const;
+
+   void GetAuxFaceVertices(int auxFace, Array<int> &verts) const;
+
+   void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
 
    int num_structured_patches = 0; /// Number of structured patches
    Array3D<double> patchCP;
@@ -1088,23 +1166,23 @@ public:
    /// Return the array of indices of all boundary elements in patch @a patch.
    const Array<int>& GetPatchBdrElements(int patch);
 
+   /// Return true if the patch topology mesh is nonconforming.
    bool Nonconforming() const { return nonconforming; }
 
+   /// Return a pointer to the NCMesh of a nonconforming patch topology mesh.
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
-
-   // TODO: this function is not used. Should it be kept?
-   int GetEntityDofs(int entity, int index, Array<int> &dofs) const;
-
-   void GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const;
-
-   void GetAuxFaceVertices(int auxFace, Array<int> &verts) const;
-
-   void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
-
-   void ReadStructuredPatchCP(std::istream &input);
 
    void PrintCoarsePatches(std::ostream &os);
 
+   /** @brief Read the control points for coarse structured patches.
+
+       This is useful for a mesh with a nonconforming patch topology, when
+       non-nested refinement is done. In such cases, knot insertion is done on
+       coarse structured patches with a single element. */
+   void ReadStructuredPatchCP(std::istream &input);
+
+   /** @brief Fully coarsen all structured patches, for non-nested refinement of
+       a mesh with a nonconforming patch topology. */
    void FullyCoarsen();
 };
 

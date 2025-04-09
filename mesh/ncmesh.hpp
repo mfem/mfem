@@ -145,7 +145,7 @@ private:
    Array2D<int> data;
 };
 
-/** \brief A class for non-conforming AMR. The class is not used directly by the
+/** @brief A class for non-conforming AMR. The class is not used directly by the
  *  user, rather it is an extension of the Mesh class.
  *
  *  In general, the class is used by MFEM as follows:
