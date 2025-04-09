@@ -113,7 +113,7 @@ class QuadratureSpace;
 class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
 class PRefinementTransferOperator;
-
+class DerefineMatrixOp;
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
     mesh, mainly managing the set of degrees of freedom.
@@ -246,6 +246,7 @@ class FiniteElementSpace
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
+   friend class DerefineMatrixOp;
 
 protected:
    /// The mesh that FE space lives on (not owned).
