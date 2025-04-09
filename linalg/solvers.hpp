@@ -72,6 +72,11 @@ public:
    {
    }
 
+   /// Indicates if the controller requires an updated solution every iteration
+   /** The default behavior is to not require the updated solution to allow
+       solvers to skip it if not needed otherwise. */
+   virtual bool RequiresUpdatedSolution() const { return false; }
+
    /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
