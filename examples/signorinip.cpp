@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
 
    // 3C. Interpolate the geometry after refinement to control geometry error.
    int curvature_order = max(order, 2);
-   mesh.SetCurvature(curvature_order);
+   pmesh.SetCurvature(curvature_order);
 
    // 3D. Mark the bottom boundary of the solid as attribute 1, the rest as 2
    for (int i = 0; i < pmesh.GetNBE(); i++)
