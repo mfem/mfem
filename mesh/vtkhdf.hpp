@@ -186,7 +186,11 @@ private:
    /// The dataset will initially have zero size and unlimited maximum size.
    hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, int ndims);
 
-   hid_t EnsureGroup(const std::string &name);
+   /// @brief Ensure the named group is open, creating it if needed. Set @a
+   /// group to the ID.
+   ///
+   /// If @a group has already been opened, do nothing.
+   void EnsureGroup(const std::string &name, hid_t &group);
 
    /// Appends data in parallel to the dataset named @a name in @a f.
    ///

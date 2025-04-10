@@ -80,8 +80,9 @@ void VTKHDF::EnsureSteps()
    if (steps != H5I_INVALID_HID) { return; }
 
    // Otherwise, create the group and its datasets.
-   steps = EnsureGroup("Steps");
-   const hid_t pd_offsets = EnsureGroup("Steps/PointDataOffsets");
+   EnsureGroup("Steps", steps);
+   hid_t pd_offsets = H5I_INVALID_HID;
+   EnsureGroup("Steps/PointDataOffsets", pd_offsets);
    H5Gclose(pd_offsets);
 }
 
@@ -131,19 +132,21 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
    }
 }
 
-hid_t VTKHDF::EnsureGroup(const std::string &name)
+void VTKHDF::EnsureGroup(const std::string &name, hid_t &group)
 {
+   if (group != H5I_INVALID_HID) { return; }
+
    const char *cname = name.c_str();
    const htri_t found = H5Lexists(vtk, cname, H5P_DEFAULT);
    Barrier();
 
    if (found > 0)
    {
-      return H5Gopen(vtk, cname, H5P_DEFAULT);
+      group = H5Gopen(vtk, cname, H5P_DEFAULT);
    }
    else if (found == 0)
    {
-      return H5Gcreate2(vtk, cname, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      group = H5Gcreate2(vtk, cname, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
    }
    else
    {
@@ -717,7 +720,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
       // Attributes
       {
          // Ensure cell data group exists
-         cell_data = EnsureGroup("CellData");
+         EnsureGroup("CellData", cell_data);
          std::vector<int> attributes(ne);
          int e_ref = 0;
          for (int e = 0; e < ne_0; ++e)
@@ -739,7 +742,7 @@ template <typename FP_T>
 void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
 {
    // Create the point data group if needed
-   point_data = EnsureGroup("PointData");
+   EnsureGroup("PointData", point_data);
 
    const Mesh &mesh = *gf.FESpace()->GetMesh();
 
