@@ -48,6 +48,8 @@ public:
       visc = visc_;
    }
 
+   //velocity boundary conditions
+   void AddVelocityBC(int id, std::shared_ptr<VectorCoefficient> val);
 
 private:
 
@@ -89,6 +91,12 @@ private:
    std::unique_ptr<ParMixedBilinearForm> A12;
    std::unique_ptr<ParMixedBilinearForm> A21;
 
+   OperatorHandle A11H;
+   OperatorHandle A12H;
+   OperatorHandle A21H;
+   std::unique_ptr<BlockOperator> AB;
+   Array<int> block_true_offsets;
+
    Vector rhs;
 
    VectorGridFunctionCoefficient nvelc;
@@ -104,7 +112,20 @@ private:
 
    std::unique_ptr<ProductCoefficient> nbrink;
    std::unique_ptr<ProductCoefficient> nvisc;
-   ConstantCoefficient icoeff;
+   ConstantCoefficient icoeff; //thet1*dt
+
+   //boundary conditions
+   std::map<int, std::shared_ptr<VectorCoefficient>> vel_bcs;
+
+   // holds the velocity constrained DOFs
+   mfem::Array<int> ess_tdofv;
+
+   // holds the pressure constrained DOFs
+   mfem::Array<int> ess_tdofp;
+
+   void SetEssTDofs(real_t t, ParGridFunction& pgf, mfem::Array<int>& ess_dofs);
+   void SetEssTDofs(mfem::Array<int>& ess_dofs);
+   void SetEssTDofs(real_t t, ParGridFunction& pgf);
 
 };//end NavierSolverGCN
 

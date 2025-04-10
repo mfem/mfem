@@ -49,6 +49,13 @@ NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coef
 
    onecoeff.constant = 1.0;
    zerocoef.constant = 0.0;
+
+   block_true_offsets.SetSize(3);
+   block_true_offsets[0] = 0;
+   block_true_offsets[1] = vfes->TrueVSize();
+   block_true_offsets[2] = pfes->TrueVSize();
+   block_true_offsets.PartialSum();
+
 }
 
 NavierSolverGCN::~NavierSolverGCN()
@@ -56,10 +63,70 @@ NavierSolverGCN::~NavierSolverGCN()
 
 }
 
-void NavierSolverGCN::Setup(real_t t, real_t dt)
+
+void NavierSolverGCN::SetEssTDofs(real_t t, ParGridFunction& pgf, Array<int>& ess_dofs)
+{
+   // Set the essential boundary conditions
+   ess_dofs.DeleteAll();
+
+   Array<int> ess_tdofv_temp;
+
+   for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
+   {
+      int attr = it->first;
+      std::shared_ptr<VectorCoefficient> coeff = it->second;
+      coeff->SetTime(t);
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr=0;
+      ess_bdr[attr-1] = 1;
+      ess_tdofv_temp.DeleteAll();
+      vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
+      ess_dofs.Append(ess_tdofv_temp);
+
+      pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
+   }
+}  
+
+void NavierSolverGCN::SetEssTDofs(real_t t, ParGridFunction& pgf)
+{
+
+   for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
+   {
+      int attr = it->first;
+      std::shared_ptr<VectorCoefficient> coeff = it->second;
+      coeff->SetTime(t);
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr=0;
+      ess_bdr[attr-1] = 1;
+
+      pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
+   }
+}  
+
+void NavierSolverGCN::SetEssTDofs(Array<int>& ess_dofs)
+{
+   // Set the essential boundary conditions
+   ess_dofs.DeleteAll();
+
+   Array<int> ess_tdofv_temp;
+
+   for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
+   {
+      int attr = it->first;
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr=0;
+      ess_bdr[attr-1] = 1;
+      ess_tdofv_temp.DeleteAll();
+      vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
+      ess_dofs.Append(ess_tdofv_temp);
+   }
+}
+
+void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
 {
 
    // Set up boundary conditions
+   SetEssTDofs(t+dt, *nvel, ess_tdofv);
 
    // Set up the velocity and pressure coefficients
    nvelc.SetGridFunction(nvel.get());
@@ -70,16 +137,16 @@ void NavierSolverGCN::Setup(real_t t, real_t dt)
 
 
    
-   // Set up the bilinear forms
+   // Set up the bilinear form for A11
    A11.reset(new ParBilinearForm(vfes.get()));
-   A12.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));  
-   A21.reset(new ParMixedBilinearForm(pfes.get(), vfes.get()));
 
+   visc->SetTime(t+dt);
    nvisc.reset(new ProductCoefficient(dt*thet1, *visc));
 
    A11->AddDomainIntegrator(new VectorMassIntegrator(onecoeff));
    if(brink != nullptr)
    {
+      brink->SetTime(t+dt);
       nbrink.reset(new ProductCoefficient(dt*thet1, *brink));
       A11->AddDomainIntegrator(new VectorMassIntegrator(*nbrink));
    }
@@ -87,9 +154,46 @@ void NavierSolverGCN::Setup(real_t t, real_t dt)
    A11->AddDomainIntegrator(new VectorConvectionIntegrator(nvelc, dt*thet1));
    A11->AddDomainIntegrator(new ElasticityIntegrator(zerocoef,*nvisc));
 
+   A11->Update();   
+   A11->Assemble();
+   A11->Finalize();
+   A11->FormSystemMatrix(ess_tdofv, A11H);
 
-   A12->AddDomainIntegrator(new VectorDivergenceIntegrator(icoeff));
-   A21->AddDomainIntegrator(new GradientIntegrator(icoeff));
+   icoeff.constant = dt*thet1;
+
+   if(A21==nullptr)
+   {
+      A12.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));  
+      A21.reset(new ParMixedBilinearForm(pfes.get(), vfes.get()));
+      A12->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      A21->AddDomainIntegrator(new GradientIntegrator());
+
+      A21->Update();
+      A12->Assemble();
+      A12->Finalize();
+      A12->FormRectangularSystemMatrix(ess_tdofv, ess_tdofp, A12H);
+
+      A21->Update();
+      A21->Assemble();  
+      A21->Finalize();
+      A21->FormRectangularSystemMatrix(ess_tdofp, ess_tdofv, A21H);
+   }
+
+
+   //set the block operator
+
+   AB.reset(new BlockOperator(block_true_offsets));
+   AB->SetBlock(0,0,A11H.Ptr());
+   AB->SetBlock(0,1,A12H.Ptr(),dt*thet1);
+   AB->SetBlock(1,0,A21H.Ptr(),dt*thet1);
+
+   //set the preconditioner
+   
+
+}
+
+void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
+{
 
 }
 
