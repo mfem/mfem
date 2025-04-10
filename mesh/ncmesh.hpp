@@ -114,35 +114,49 @@ void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
+/** @brief For a NURBS mesh with nonconforming patch topology, this struct
+    provides a map from hanging vertices in the patch topology to the knotvector
+    of a neighboring patch. This facilitates ensuring mesh conformity.
+ */
 struct VertexToKnotSpan
 {
+   /// Set the spatial dimension and number of vertices.
    void SetSize(int dimension, int numVertices);
 
+   /// Set the data for a vertex in 2D.
    void SetVertex2D(int index, int v, int ks,
                     const std::array<int, 2> &pv);
 
+   /// Set the data for a vertex in 3D.
    void SetVertex3D(int index, int v, const std::array<int, 2> &ks,
                     const std::array<int, 4> &pv);
 
+   /// Set the knot-span index for a vertex in 2D.
    void SetKnotSpan2D(int index, int ks);
 
+   /// Set the knot-span indices for a vertex in 3D.
    void SetKnotSpans3D(int index, const std::array<int, 2> &ks);
 
+   /// Get the data for a vertex in 2D.
    void GetVertex2D(int index, int &v, int &ks,
                     std::array<int, 2> &pv) const;
 
+   /// Get the data for a vertex in 3D.
    void GetVertex3D(int index, int &v, std::array<int, 2> &ks,
                     std::array<int, 4> &pv) const;
 
+   /// Print all the data.
    void Print(std::ostream &os) const;
 
+   /// Return the number of vertices.
    int Size() const { return data.NumRows(); }
 
+   /// Return the vertex pair representing the parent edge (2D) or face (3D).
    std::pair<int, int> GetVertexParentPair(int index) const;
 
 private:
-   int dim;
-   Array2D<int> data;
+   int dim; /// Spatial dimension
+   Array2D<int> data; /// Row-wise data for each vertex.
 };
 
 /** @brief A class for non-conforming AMR. The class is not used directly by the
@@ -1385,6 +1399,7 @@ protected:
 
    static GeomInfo GI[Geometry::NumGeom];
 
+   /// This is used for a NURBS mesh with this NCMesh as its patch topology.
    VertexToKnotSpan vertex_to_knot;
 
 #ifdef MFEM_DEBUG

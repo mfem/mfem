@@ -947,7 +947,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine, int generate_edges,
 }
 
 void ParMesh::Load(istream &input, int generate_edges, int refine,
-                   bool fix_orientation, bool allow_bad_orientation)
+                   bool fix_orientation)
 {
    ParMesh::Destroy();
 
@@ -1520,13 +1520,12 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    return mesh;
 }
 
-void ParMesh::Finalize(bool refine, bool fix_orientation,
-                       bool allow_bad_orientation)
+void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
    // 'mesh_geoms' is local, so there's no need to save and restore it.
 
-   Mesh::Finalize(refine, fix_orientation, allow_bad_orientation);
+   Mesh::Finalize(refine, fix_orientation);
 
    meshgen = meshgen_save;
    // Note: if Mesh::Finalize() calls MarkTetMeshForRefinement() then the
