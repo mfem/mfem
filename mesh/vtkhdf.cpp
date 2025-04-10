@@ -565,7 +565,8 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
       AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &zero);
       AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &zero);
       AppendParData(vtk, "NumberOfConnectivityIds", 1, mpi_rank, mpi_dims, &zero);
-      AppendParData(vtk, "Offsets", 1, mpi_rank, mpi_dims, &zero);
+      const int zero_int = 0;
+      AppendParData(vtk, "Offsets", 1, mpi_rank, mpi_dims, &zero_int);
       return;
    }
 
