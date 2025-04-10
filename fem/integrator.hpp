@@ -70,8 +70,8 @@ protected:
    const IntegrationRule *IntRule;
    NURBSMeshRules *patchRules = nullptr;
 
-   /** @brief Returns an integration rule based on the the arguments and
-              internal state of the Integrator object.
+   /** @brief Returns an integration rule based on the arguments and internal
+              state of the Integrator object.
 
        @details This method returns an integration rule in a way that depends
                 on the integrator's attributes. Attributes can specify an
@@ -100,7 +100,7 @@ protected:
 
    /** @brief Subclasses should override to choose a default integration rule.
 
-       @details This method is intended to be overriden by subclasses to
+       @details This method is intended to be overridden by subclasses to
                 choose an appropriate integration rule based on the finite
                 element spaces and/or element transformation. The trial_fe
                 and test_fe should be equal for linear forms. The default
