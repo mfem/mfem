@@ -323,10 +323,18 @@ void VTKHDF::TruncateDataset(const std::string &name, hsize_t size)
 
 void VTKHDF::Truncate(const real_t t)
 {
-   // Find the largest time step 'i' strictly less than 't'. Truncate all
+   // Find the first time step 'i' at least as large as 't'. Truncate all
    // datasets at the corresponding offsets.
    const std::vector<real_t> tvals = ReadDataset<real_t>("Steps/Values");
    auto it = std::find_if(tvals.begin(), tvals.end(), [t](real_t t2) { return t2 >= t; });
+
+   // Sanity check: we can only use restart mode with the same number of MPI
+   // ranks (mesh partitions) as the originally save file.
+   {
+      Dims dims(1);
+      H5LTget_dataset_info(vtk, "NumberOfCells", dims, nullptr, nullptr);
+      MFEM_VERIFY(dims[0] == tvals.size() * mpi_size, "Incompatible VTKHDF sizes.");
+   }
 
    // Index of found time index (may be 'one-past-the-end' if not found)
    const int i = std::distance(tvals.begin(), it);
@@ -349,12 +357,15 @@ void VTKHDF::Truncate(const real_t t)
       connectivity_offsets.next =
          ReadValue<hsize_t>("Steps/ConnectivityIdOffsets", i - 1);
 
-      const hsize_t part = ReadValue<hsize_t>("Steps/PartOffsets", i - 1);
-      npoints = ReadValue<hsize_t>("NumberOfPoints", part);
+      for (int part = 0; part < mpi_size; ++part)
+      {
+         const hsize_t p_i = ReadValue<hsize_t>("Steps/PartOffsets", i - 1 + part);
+         npoints += ReadValue<hsize_t>("NumberOfPoints", p_i);
+         cell_offsets.next += ReadValue<hsize_t>("NumberOfCells", p_i);
+         connectivity_offsets.next +=
+            ReadValue<hsize_t>("NumberOfConnectivityIds", p_i);
+      }
       point_offsets.next += npoints;
-      cell_offsets.next += ReadValue<hsize_t>("NumberOfCells", part);
-      connectivity_offsets.next +=
-         ReadValue<hsize_t>("NumberOfConnectivityIds", part);
    }
 
    // Find the offsets associated with all saved grid functions.
@@ -396,15 +407,15 @@ void VTKHDF::Truncate(const real_t t)
       TruncateDataset("Steps/CellOffsets", nsteps);
       TruncateDataset("Steps/ConnectivityIdOffsets", nsteps);
 
-      TruncateDataset("NumberOfCells", nsteps);
-      TruncateDataset("NumberOfConnectivityIds", nsteps);
-      TruncateDataset("NumberOfPoints", nsteps);
+      TruncateDataset("NumberOfCells", nsteps * mpi_size);
+      TruncateDataset("NumberOfConnectivityIds", nsteps * mpi_size);
+      TruncateDataset("NumberOfPoints", nsteps * mpi_size);
 
       TruncateDataset("CellData/attribute", cell_offsets.next);
       TruncateDataset("Types", cell_offsets.next);
       TruncateDataset("Points", point_offsets.next);
       TruncateDataset("Connectivity", connectivity_offsets.next);
-      TruncateDataset("Offsets", cell_offsets.next + nsteps);
+      TruncateDataset("Offsets", cell_offsets.next + nsteps * mpi_size);
    }
 }
 
@@ -787,8 +798,8 @@ VTKHDF::~VTKHDF()
    if (point_data != H5I_INVALID_HID) { H5Gclose(point_data); }
    if (dxpl != H5P_DEFAULT) { H5Pclose(dxpl); }
    if (vtk != H5I_INVALID_HID) { H5Gclose(vtk); }
+   if (fapl != H5I_INVALID_HID) { H5Pclose(fapl); }
    if (file != H5I_INVALID_HID) { H5Fclose(file); }
-   if (fapl != H5P_DEFAULT) { H5Pclose(fapl); }
 }
 
 template void VTKHDF::SaveMesh<float>(const Mesh&, bool, int);
