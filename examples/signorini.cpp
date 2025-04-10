@@ -30,7 +30,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 2. Parse command-line options
+   // 1. Parse command-line options.
    const char* mesh_file = "../data/ref-cube.mesh";
    int order = 2;
    real_t alpha = 1;
@@ -77,28 +77,39 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   // 3A. Load the mesh.
+   // 2. Read the mesh from the given mesh file on all processors.  We
+   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
+   //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   // 3B. Refine the mesh.
+   // 3. Select the order of the finite element discretization space. For NURBS
+   //    meshes, we increase the order by degree elevation.
+   if (mesh.NURBSext)
+   {
+      mesh.DegreeElevate(order, order);
+   }
+
+   // 4. Refine the mesh processors to increase the resolution. In
+   //    this program we do 'ref_levels' of uniform refinement.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
 
-   // 3C. Interpolate the geometry after refinement to control geometry error.
+   // 5. Interpolate the geometry after refinement to control geometry error.
    int curvature_order = max(order, 2);
    mesh.SetCurvature(curvature_order);
 
-   // 3D. Mark the bottom boundary of the solid as attribute 1, the rest as 2
+   // 6. Mark the bottom boundary of the mesh as attribute 1 and the other
+   //    boundary elements as attribute 2.
    for (int i = 0; i < mesh.GetNBE(); i++)
    {
       Element *facet = mesh.GetBdrElement(i);
       Array<int> vertices;
       facet->GetVertices(vertices);
 
-      // Compute the centroid of the facet
+      // Compute the z-centroid of the facet.
       real_t z_centroid = 0.0;
       for (int j = 0; j < vertices.Size(); j++)
       {
@@ -117,14 +128,7 @@ int main(int argc, char *argv[])
    }
    mesh.SetAttributes();
 
-   // 4. Select the order of the finite element discretization space. For NURBS
-   //    meshes, we increase the order by degree elevation.
-   if (mesh.NURBSext)
-   {
-      mesh.DegreeElevate(order, order);
-   }
-
-   // 5. Define a finite element space on the mesh. Here we use vector finite
+   // 7. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -144,16 +148,18 @@ int main(int argc, char *argv[])
    int size = fespace->GetTrueVSize();
    cout << "Number of finite element unknowns: " << size << endl;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
+   //    In this program, the boundary conditions are defined by
+   //    marking only boundary attribute 1 from the mesh as essential and
+   //    converting it to a list of true dofs.
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1; // boundary attribute 1 is Dirichlet
 
-   // Get essential boundary DOFs
    Array<int> ess_tdof_list;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Define coefficients for later
+   // 9. Define coefficients for later.
    VectorFunctionCoefficient f_coeff(dim, ForceFunction);
    Vector n_tilde(dim);
    n_tilde = 0.0;
@@ -165,35 +171,37 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   // 8A. Set up the linear form b(⋅)
+   // 10. Set up the parallel linear form b(⋅) which corresponds to the
+   //     right-hand side of the FEM linear system.
    LinearForm b(fespace);
    b.AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
    b.Assemble();
 
-   // 8B. Define the solution vectors
+   // 11. Define the solution vector u as a parallel finite element grid
+   //     function corresponding to fespace. Initialize u with initial guess of
+   //     -0.1, which satisfies the boundary conditions.
    GridFunction u_previous(fespace);
    GridFunction u_current(fespace);
    GridFunctionCoefficient u_previous_coeff(&u_previous);
 
-   // 8C. Initialize 'u_previous' using the 'InitDisplacement' function.
    VectorFunctionCoefficient init_u(dim, InitDisplacement);
    u_previous.ProjectCoefficient(init_u);
 
-   // 9. Set up the bilinear form a(⋅,⋅) on the finite element space
-   //    corresponding to the linear elasticity integrator with coefficients
-   //    lambda and mu.
+   // 12. Set up the bilinear form a(⋅,⋅) on the finite element space
+   //     corresponding to the linear elasticity integrator with coefficients
+   //     lambda and mu.
    ConstantCoefficient one(1.0);
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda,mu));
    a->Assemble();
 
-   // 10. Set up visualization
+   // 13. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
-   // 11. Initialize ParaView output
+   // 14. Initialize ParaView output.
    ParaViewDataCollection paraview_dc("signorini", &mesh);
    if (paraview_output)
    {
@@ -203,13 +211,13 @@ int main(int argc, char *argv[])
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetCycle(0);
       paraview_dc.SetTime(0.0);
-      paraview_dc.RegisterField("Displacement",&u_previous);
+      paraview_dc.RegisterField("displacement",&u_previous);
       paraview_dc.Save();
    }
 
    real_t iter_error;
 
-   // 12. Iterate
+   // 15. Iterate:
    for (int iter = 1; iter <= max_iterations; iter++)
    {
       mfem::out << "Iteration " << iter << "/" << max_iterations << std::endl;
@@ -221,31 +229,32 @@ int main(int argc, char *argv[])
       TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda, mu, alpha);
       u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr);
 
-      // 13. Form the linear system A X = B. This includes eliminating boundary
-      //    conditions, applying AMR constraints, and other transformations.
+      // Form the linear system A X = B. This includes eliminating boundary
+      // conditions, applying AMR constraints, and other transformations.
       SparseMatrix A;
       Vector B, X;
       a->FormLinearSystem(ess_tdof_list, u_current, b, A, X, B);
 
-      // 14. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
+      // 16. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
       GSSmoother M(A);
       PCG(A, M, B, X, 0, 200, 1e-12, 0.0);
 
-      // 15. Recover the solution u as a grid function.
+      // Recover the solution.
       a->RecoverFEMSolution(X, b, u_current);
 
-      // Compute difference between current and previous solutions
+      // Compute and display the (L2) difference between current and previous
+      // solutions.
       iter_error = u_current.ComputeL2Error(u_previous_coeff);
       mfem::out << "L2 iter difference: " << iter_error << std::endl;
 
-      // 16. Send the above data by socket to a GLVis server. Use the "n" and "b"
+      // 17. Send the above data by socket to a GLVis server. Use the "n" and "b"
       //     keys in GLVis to visualize the displacements.
       if (visualization)
       {
          sol_sock << "solution\n" << mesh << u_current << std::flush;
       }
 
-      // Check for convergence
+      // Check for convergence.
       if (iter_error < itol)
       {
          mfem::out << "Converged after " << iter << " iterations." << std::endl;
@@ -256,11 +265,11 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // Update previous solution for next iteration
+      // Update previous solution for next iteration.
       u_previous = u_current;
    }
 
-   // 17. Save the final solution in ParaView format
+   // 18. Save the final solution in ParaView format.
    if (paraview_output)
    {
       paraview_dc.SetCycle(1);
@@ -268,7 +277,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   // 16. Free the used memory.
+   // 19. Free the used memory.
    delete a;
    if (fec)
    {
