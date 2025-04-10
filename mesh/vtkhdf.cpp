@@ -185,11 +185,7 @@ void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
    for (int i = 1; i < ndims; ++i) { count[i] = globsize[i]; }
 
    H5Sselect_hyperslab(dspace, H5S_SELECT_SET, start, NULL, count, NULL);
-   const hid_t memspace = H5Screate_simple(ndims, count, count);
-
-   H5Dwrite(d, GetTypeID<T>(), memspace, dspace, dxpl, data);
-
-   H5Sclose(memspace);
+   H5Dwrite(d, GetTypeID<T>(), H5S_BLOCK, dspace, dxpl, data);
    H5Sclose(dspace);
 
    H5Dclose(d);
@@ -251,10 +247,10 @@ VTKHDF::OffsetTotal VTKHDF::AppendParVector(
 
 bool VTKHDF::UsingMpi() const
 {
-#ifndef MFEM_USE_MPI
-   return false;
-#else
+#ifdef MFEM_USE_MPI
    return comm != MPI_COMM_NULL;
+#else
+   return false;
 #endif
 }
 
