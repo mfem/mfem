@@ -3352,12 +3352,10 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    SetMeshGen();
 }
 
-void Mesh::FinalizeMesh(int refine, bool fix_orientation,
-                        bool allow_bad_orientation)
+void Mesh::FinalizeMesh(int refine, bool fix_orientation)
 {
    FinalizeTopology();
-
-   Finalize(refine, fix_orientation, allow_bad_orientation);
+   Finalize(refine, fix_orientation);
 }
 
 void Mesh::FinalizeTopology(bool generate_bdr)
@@ -3466,10 +3464,9 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    SetAttributes();
 }
 
-void Mesh::Finalize(bool refine, bool fix_orientation,
-                    bool allow_bad_orientation)
+void Mesh::Finalize(bool refine, bool fix_orientation)
 {
-   if ((NURBSext || ncmesh) && !allow_bad_orientation)
+   if ((NURBSext || ncmesh))
    {
       MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
       MFEM_ASSERT(CheckBdrElementOrientation() == 0, "");
@@ -4535,7 +4532,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 }
 
 Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
-           bool fix_orientation, bool allow_bad_orientation)
+           bool fix_orientation)
  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    // Initialization as in the default constructor
@@ -4549,17 +4546,16 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
    }
    else
    {
-      Load(imesh, generate_edges, refine, fix_orientation,
-	   allow_bad_orientation);
+     Load(imesh, generate_edges, refine, fix_orientation);
    }
 }
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
-           bool fix_orientation, bool allow_bad_orientation)
+           bool fix_orientation)
  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
-   Load(input, generate_edges, refine, fix_orientation, allow_bad_orientation);
+   Load(input, generate_edges, refine, fix_orientation);
 }
 
 void Mesh::ChangeVertexDataOwnership(real_t *vertex_data, int len_vertex_data,

@@ -394,8 +394,7 @@ public:
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
-   void Finalize(bool refine = false, bool fix_orientation = false,
-                 bool allow_bad_orientation = false) override;
+   void Finalize(bool refine = false, bool fix_orientation = false) override;
 
    void SetAttributes() override;
 
@@ -794,8 +793,7 @@ public:
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,
-             int refine = 1, bool fix_orientation = true,
-             bool allow_bad_orientation = false) override;
+             int refine = 1, bool fix_orientation = true) override;
 
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.

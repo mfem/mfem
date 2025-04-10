@@ -736,15 +736,13 @@ public:
        generated. See also @a Mesh::LoadFromFile. See @a Mesh::Finalize for the
        meaning of @a refine. */
    explicit Mesh(const std::string &filename, int generate_edges = 0,
-                 int refine = 1, bool fix_orientation = true,
-                 bool allow_bad_orientation = false);
+                 int refine = 1, bool fix_orientation = true);
 
    /** Creates mesh by reading data stream in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    explicit Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
-                 bool fix_orientation = true,
-                 bool allow_bad_orientation = false);
+                 bool fix_orientation = true);
 
    /// Create a disjoint mesh from the given mesh array
    ///
@@ -758,11 +756,10 @@ public:
    /// \see mfem::ifgzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
    virtual void Load(std::istream &input, int generate_edges = 0,
-                     int refine = 1, bool fix_orientation = true,
-                     bool allow_bad_orientation = false)
+                     int refine = 1, bool fix_orientation = true)
    {
       Loader(input, generate_edges);
-      Finalize(refine, fix_orientation, allow_bad_orientation);
+      Finalize(refine, fix_orientation);
    }
 
    /// Swaps internal data with another mesh. By default, non-geometry members
@@ -1049,8 +1046,7 @@ public:
                         bool fix_orientation = true);
    /// Finalize the construction of any type of Mesh.
    /** This method calls FinalizeTopology() and Finalize(). */
-   void FinalizeMesh(int refine = 0, bool fix_orientation = true,
-                     bool allow_bad_orientation = false);
+   void FinalizeMesh(int refine = 0, bool fix_orientation = true);
 
    ///@}
 
@@ -1079,13 +1075,10 @@ public:
        @param[in] fix_orientation
                           If true, fix the orientation of inverted mesh elements
                           by permuting their vertices.
-       @param[in] allow_bad_orientation  TODO: is this necessary?
-                          If true, allow inverted elements.
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */
-   virtual void Finalize(bool refine = false, bool fix_orientation = false,
-                         bool allow_bad_orientation = false);
+   virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
    /// @brief Determine the sets of unique attribute values in domain and
    /// boundary elements.
