@@ -4,7 +4,7 @@
 //
 // Sample runs:  mpirun -np 4 signorinip
 //               mpirun -np 4 signorinip -m ../data/true-tetrahedron.mesh
-//               mpirun -np 4 signorinip -m ../data/ball-nurbs.mesh -o 3
+//               mpirun -np 4 signorinip -m ../data/ball-nurbs.mesh -a 2 -o 3
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a solid with a Dirichlet
