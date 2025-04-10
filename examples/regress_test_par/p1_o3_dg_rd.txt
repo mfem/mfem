@@ -1,0 +1,133 @@
+Options used:
+   --mesh 
+   --ncells-x 8
+   --ncells-y 8
+   --size-x 1
+   --size-y 1
+   --order 3
+   --discontinuous
+   --centered
+   --problem 1
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 8
+Reduction init took 0.000228186s.
+***********************************************************
+dim(W) = 512
+***********************************************************
+Assembly took 0.0603541s.
+Preconditioner took 6.5365e-05s.
+
+
+ Num MPI tasks = 2
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 4
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+
+ No. of levels of aggressive coarsening: 1
+
+ Interpolation on agg. levels= multipass interpolation
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = extended+i interpolation
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    1024    44544  0.042    24   64    43.5  -2.575e+00   6.742e+00
+  1      50     1230  0.492    13   38    24.6  -5.029e-01   6.476e+00
+  2      13      165  0.976    12   13    12.7   6.516e-01   8.131e+00
+  3       4       16  1.000     4    4     4.0   4.514e+00   1.045e+01
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  1024 x 50      0    7   1.6  -2.784e-01   1.184e+00  -4.365e-01   1.448e+00
+  1    50 x 13      1    4   3.5   3.231e-02   6.093e-01   5.442e-01   1.050e+00
+  2    13 x 4       1    4   2.9   4.487e-02   4.148e-01   2.818e-01   1.000e+00
+
+
+     Complexity:    grid = 1.065430
+                operator = 1.031677
+                memory = 1.071300
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+   Pass :  1   Iteration :   0  ||B r|| = 14.0565
+   Pass :  1   Iteration :   1  ||B r|| = 2.68137
+   Pass :  1   Iteration :   2  ||B r|| = 1.31339
+   Pass :  1   Iteration :   3  ||B r|| = 0.463794
+   Pass :  1   Iteration :   4  ||B r|| = 0.185116
+   Pass :  1   Iteration :   5  ||B r|| = 0.0662772
+   Pass :  1   Iteration :   6  ||B r|| = 0.0296012
+   Pass :  1   Iteration :   7  ||B r|| = 0.0134193
+   Pass :  1   Iteration :   8  ||B r|| = 0.00615419
+   Pass :  1   Iteration :   9  ||B r|| = 0.00273429
+   Pass :  1   Iteration :  10  ||B r|| = 0.00117098
+   Pass :  1   Iteration :  11  ||B r|| = 0.000632997
+   Pass :  1   Iteration :  12  ||B r|| = 0.000319212
+   Pass :  1   Iteration :  13  ||B r|| = 0.000142004
+   Pass :  1   Iteration :  14  ||B r|| = 6.25742e-05
+   Pass :  1   Iteration :  15  ||B r|| = 2.98521e-05
+   Pass :  1   Iteration :  16  ||B r|| = 1.50198e-05
+   Pass :  1   Iteration :  17  ||B r|| = 5.72539e-06
+GMRES+HypreAMG converged in 17 iterations with a residual norm of 5.72539e-06.
+solver took 0.00732676s.
+|| q_h - q_ex || / || q_ex || = 5.07488e-05
+|| t_h - t_ex || / || t_ex || = 2.61031e-05

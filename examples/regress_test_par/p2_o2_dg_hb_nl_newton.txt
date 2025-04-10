@@ -1,0 +1,88 @@
+Options used:
+   --mesh 
+   --ncells-x 10
+   --ncells-y 10
+   --size-x 1
+   --size-y 1
+   --order 2
+   --discontinuous
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --bc-neumann
+   --no-reduction
+   --hybridization
+   --nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 10
+Hybridization init took 0.00243681s.
+***********************************************************
+dim(V) = 900
+dim(W) = 450
+dim(M) = 345
+dim(V+W+M) = 1695
+***********************************************************
+Assembly took 0.0030731s.
+Preconditioner took 5.546e-06s.
+Newton iteration  0 : ||r|| = 0.102997
+Newton iteration  1 : ||r|| = 0.000212358, ||r||/||r_0|| = 0.00206179
+Newton iteration  2 : ||r|| = 7.28894e-05, ||r||/||r_0|| = 0.000707684
+Newton iteration  3 : ||r|| = 3.17779e-05, ||r||/||r_0|| = 0.000308532
+Newton iteration  4 : ||r|| = 2.76903e-05, ||r||/||r_0|| = 0.000268845
+Newton iteration  5 : ||r|| = 2.17462e-05, ||r||/||r_0|| = 0.000211134
+Newton iteration  6 : ||r|| = 1.7992e-05, ||r||/||r_0|| = 0.000174684
+Newton iteration  7 : ||r|| = 1.50151e-05, ||r||/||r_0|| = 0.000145781
+Newton iteration  8 : ||r|| = 1.26765e-05, ||r||/||r_0|| = 0.000123076
+Newton iteration  9 : ||r|| = 1.07699e-05, ||r||/||r_0|| = 0.000104565
+Newton iteration 10 : ||r|| = 9.18746e-06, ||r||/||r_0|| = 8.92011e-05
+Newton iteration 11 : ||r|| = 7.85578e-06, ||r||/||r_0|| = 7.62718e-05
+Newton iteration 12 : ||r|| = 6.72573e-06, ||r||/||r_0|| = 6.53002e-05
+Newton iteration 13 : ||r|| = 5.76189e-06, ||r||/||r_0|| = 5.59422e-05
+Newton iteration 14 : ||r|| = 4.93744e-06, ||r||/||r_0|| = 4.79377e-05
+Newton iteration 15 : ||r|| = 4.23115e-06, ||r||/||r_0|| = 4.10802e-05
+Newton iteration 16 : ||r|| = 3.62564e-06, ||r||/||r_0|| = 3.52014e-05
+Newton iteration 17 : ||r|| = 3.10642e-06, ||r||/||r_0|| = 3.01602e-05
+Newton iteration 18 : ||r|| = 2.66118e-06, ||r||/||r_0|| = 2.58375e-05
+Newton iteration 19 : ||r|| = 2.27945e-06, ||r||/||r_0|| = 2.21312e-05
+Newton iteration 20 : ||r|| = 1.95223e-06, ||r||/||r_0|| = 1.89543e-05
+Newton iteration 21 : ||r|| = 1.6718e-06, ||r||/||r_0|| = 1.62315e-05
+Newton iteration 22 : ||r|| = 1.43151e-06, ||r||/||r_0|| = 1.38985e-05
+Newton iteration 23 : ||r|| = 1.22566e-06, ||r||/||r_0|| = 1.18999e-05
+Newton iteration 24 : ||r|| = 1.04934e-06, ||r||/||r_0|| = 1.0188e-05
+Newton iteration 25 : ||r|| = 8.98328e-07, ||r||/||r_0|| = 8.72188e-06
+Newton iteration 26 : ||r|| = 7.69016e-07, ||r||/||r_0|| = 7.46639e-06
+Newton iteration 27 : ||r|| = 6.58293e-07, ||r||/||r_0|| = 6.39137e-06
+Newton iteration 28 : ||r|| = 5.63494e-07, ||r||/||r_0|| = 5.47097e-06
+Newton iteration 29 : ||r|| = 4.82335e-07, ||r||/||r_0|| = 4.68299e-06
+Newton iteration 30 : ||r|| = 4.12856e-07, ||r||/||r_0|| = 4.00842e-06
+Newton iteration 31 : ||r|| = 3.5338e-07, ||r||/||r_0|| = 3.43097e-06
+Newton iteration 32 : ||r|| = 3.02467e-07, ||r||/||r_0|| = 2.93666e-06
+Newton iteration 33 : ||r|| = 2.58889e-07, ||r||/||r_0|| = 2.51355e-06
+Newton iteration 34 : ||r|| = 2.21585e-07, ||r||/||r_0|| = 2.15137e-06
+Newton iteration 35 : ||r|| = 1.89656e-07, ||r||/||r_0|| = 1.84137e-06
+Newton iteration 36 : ||r|| = 1.62327e-07, ||r||/||r_0|| = 1.57603e-06
+Newton iteration 37 : ||r|| = 1.38934e-07, ||r||/||r_0|| = 1.34891e-06
+Newton iteration 38 : ||r|| = 1.18913e-07, ||r||/||r_0|| = 1.15453e-06
+Newton iteration 39 : ||r|| = 1.01775e-07, ||r||/||r_0|| = 9.88139e-07
+Newton+GMRES/Newton+GMRES converged in 39 iterations with a residual norm of 1.01775e-07.
+solver took 9.93912s.
+|| q_h - q_ex || / || q_ex || = 0.000108111
+|| t_h - t_ex || / || t_ex || = 1.8685e-05
