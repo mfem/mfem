@@ -36,22 +36,25 @@ class VTKHDF
    MPI_Comm comm = MPI_COMM_NULL;
 #endif
    /// Size of the MPI communicator (1 if MPI is not enabled).
-   const int mpi_size;
+   const int mpi_size = 1;
    /// Rank within MPI communicator (0 if MPI is not enabled).
-   const int mpi_rank;
+   const int mpi_rank = 0;
 
    /// File access property list (needed for MPI I/O).
-   hid_t fapl = H5I_INVALID_HID;
+   hid_t fapl = H5P_DEFAULT;
    /// HDF5 file handle.
    hid_t file = H5I_INVALID_HID;
    /// The 'VTKHDF' root group within the file.
    hid_t vtk = H5I_INVALID_HID;
    /// Data transfer property list.
-   hid_t dxpl = H5I_INVALID_HID;
+   hid_t dxpl = H5P_DEFAULT;
    /// The group to cell data (element attributes).
    hid_t cell_data = H5I_INVALID_HID;
    /// The group to store point data (e.g. grid functions).
    hid_t point_data = H5I_INVALID_HID;
+
+   /// Compression level (-1 means disabled, 0 through 9 enabled). Default is 6.
+   int compression_level = 6;
 
    /// Wrapper for storing dataset dimensions (max ndims is 2D in VTKHDF).
    struct Dims
@@ -67,6 +70,7 @@ class VTKHDF
       { std::copy(data_.begin(), data_.end(), data.begin()); }
       operator hsize_t*() { return data.data(); }
       hsize_t &operator[](int i) { return data[i]; }
+      hsize_t TotalSize() const;
    };
 
    /// @name Needed for time-dependent data sets.
@@ -77,9 +81,6 @@ class VTKHDF
 
    /// Number of time steps saved.
    int nsteps = 0;
-
-   /// Compression level (-1 means disabled, 0 through 9 enabled). Default is 6.
-   int compression_level = 6;
 
    /// Keep track of the offsets into the data arrays at each time step.
    struct Offsets
@@ -158,9 +159,6 @@ class VTKHDF
    /// Hold rank-offset and total size for parallel I/O.
    struct OffsetTotal { int64_t offset; int64_t total; };
 
-   /// Common setup (VTK group creation, etc.) for serial and parallel.
-   void SetupVTKHDF();
-
    /// Ensure that the 'Steps' group and 'PointDataOffsets' subgroup exist.
    void EnsureSteps();
 
@@ -174,6 +172,8 @@ class VTKHDF
    ///
    /// The dataset will initially have zero size and unlimited maximum size.
    hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, int ndims);
+
+   hid_t EnsureGroup(const std::string &name);
 
    /// Appends data in parallel to the dataset named @a name in @a f.
    ///
@@ -224,19 +224,64 @@ class VTKHDF
    /// MPI enabled, a non-MPI VTKHDF object may be created.
    bool UsingMpi() const;
 
-   /// MPI Barrier if using MPI (no-op otherwise).
+   /// Calls MPI_Barrier if in parallel, no-op otherwise.
    void Barrier() const;
 
    /// Return the HDF5 type ID corresponding to type @a T.
-   template <typename T> hid_t GetTypeID();
+   template <typename T> static hid_t GetTypeID();
+
+   /// Common setup (VTK group creation, etc.) for serial and parallel.
+   void SetupVTKHDF();
+
+   /// Create a new file (deleting existing file if needed).
+   void CreateNewFile(const std::string &filename);
+
+   /// Read the entire named dataset.
+   template <typename T>
+   std::vector<T> ReadDataset(const std::string &name) const;
+
+   /// Read a single value from the named dataset.
+   template <typename T>
+   T ReadValue(const std::string &name, hsize_t index) const;
+
+   /// Truncate the named dataset after position size in the first dimension.
+   void TruncateDataset(const std::string &name, hsize_t size);
+
+   /// Truncate all datasets on and after time @a t.
+   void Truncate(const real_t t);
 
 public:
-   /// Create a new %VTKHDF file for serial I/O.
-   VTKHDF(const std::string &filename);
+   /// Helper used in VTKHDF::VTKHDF for enabling/disabling restart mode.
+   struct Restart
+   {
+      bool enabled = false;
+      real_t time = 0.0;
+      Restart() = default;
+      Restart(real_t time_) : enabled(true), time(time_) { }
+      Restart(bool enabled_, real_t time_) : enabled(enabled_), time(time_) { }
+      static Restart Disabled() { return Restart(); }
+   };
+
+   /// @brief Create a new %VTKHDF file for serial I/O.
+   ///
+   /// If @a restart is enabled, then the file (if it exists) will be opened,
+   /// and time steps before the given time will be preserved. If @a restart
+   /// is not enabled, the file (if it exists) will be deleted, and a new file
+   /// will be created.
+   VTKHDF(const std::string &filename, Restart restart = Restart::Disabled());
 
 #ifdef MFEM_USE_MPI
-   /// Create a new %VTKHDF file for parallel I/O.
-   VTKHDF(const std::string &filename, MPI_Comm comm_);
+   /// @brief Create a new %VTKHDF file for parallel I/O.
+   ///
+   /// If @a restart is enabled, then the file (if it exists) will be opened,
+   /// and time steps before the given time will be preserved. If @a restart
+   /// is not enabled, the file (if it exists) will be deleted, and a new file
+   /// will be created.
+   ///
+   /// If using restart mode, the file must have previously been saved with the
+   /// same number of MPI ranks.
+   VTKHDF(const std::string &filename, MPI_Comm comm_,
+          Restart restart = Restart::Disabled());
 #endif
 
    /// @name Not copyable or movable.

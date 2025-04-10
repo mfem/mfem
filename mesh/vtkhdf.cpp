@@ -15,6 +15,8 @@
 
 #include "../general/binaryio.hpp"
 
+#include <algorithm>
+#include <numeric>
 #include <hdf5_hl.h>
 
 namespace mfem
@@ -37,6 +39,12 @@ template <> struct TypeID<unsigned char> { static hid_t Get() { return H5T_NATIV
 
 }
 
+hsize_t VTKHDF::Dims::TotalSize() const
+{
+   return std::accumulate(data.begin(), data.begin() + ndims, 1,
+                          std::multiplies<hsize_t>());
+}
+
 template <typename T>
 hid_t VTKHDF::GetTypeID() { return vtk_hdf::TypeID<typename std::decay<T>::type>::Get(); }
 
@@ -49,7 +57,8 @@ void VTKHDF::SetupVTKHDF()
    H5LTset_attribute_long(vtk, ".", "Version", version_buf, 2);
 
    // Note: we don't use the high-level API here since it will write out the
-   // null terminator, which confuses the VTKHDF reader in ParaView.
+   // null terminator, which confuses the VTKHDF reader in ParaView. Fixed in
+   // VTK MR !12044, https://gitlab.kitware.com/vtk/vtk/-/merge_requests/12044.
    const std::string type_str = "UnstructuredGrid";
    const hid_t type_id = H5Tcopy(H5T_C_S1);
    H5Tset_size(type_id, type_str.size());
@@ -71,11 +80,8 @@ void VTKHDF::EnsureSteps()
    if (steps != H5I_INVALID_HID) { return; }
 
    // Otherwise, create the group and its datasets.
-   steps = H5Gcreate2(vtk, "Steps", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-   // Create the 'PointDataOffsets' subgroup.
-   const hid_t pd_offsets = H5Gcreate2(steps, "PointDataOffsets", H5P_DEFAULT,
-                                       H5P_DEFAULT, H5P_DEFAULT);
+   steps = EnsureGroup("Steps");
+   const hid_t pd_offsets = EnsureGroup("Steps/PointDataOffsets");
    H5Gclose(pd_offsets);
 }
 
@@ -122,6 +128,26 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
    {
       // Error occurred in H5LTfind_dataset.
       MFEM_ABORT("Error finding HDF5 dataset " << name);
+   }
+}
+
+hid_t VTKHDF::EnsureGroup(const std::string &name)
+{
+   const char *cname = name.c_str();
+   const htri_t found = H5Lexists(vtk, cname, H5P_DEFAULT);
+   Barrier();
+
+   if (found > 0)
+   {
+      return H5Gopen(vtk, cname, H5P_DEFAULT);
+   }
+   else if (found == 0)
+   {
+      return H5Gcreate2(vtk, cname, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+   }
+   else
+   {
+      MFEM_ABORT("Error finding HDF5 group " << name);
    }
 }
 
@@ -236,15 +262,183 @@ void VTKHDF::Barrier() const
 #endif
 }
 
-VTKHDF::VTKHDF(const std::string &filename)
-   : mpi_size(1),
-     mpi_rank(0)
+void VTKHDF::CreateNewFile(const std::string &filename)
 {
-   fapl = H5P_DEFAULT;
+   // Delete the file if it exists
+   std::remove(filename.c_str());
+   // Create the new file
    file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+   // Setup 'VTKHDF' group
    SetupVTKHDF();
-   dxpl = H5P_DEFAULT;
 }
+
+template <typename T>
+std::vector<T> VTKHDF::ReadDataset(const std::string &name) const
+{
+   const char *cname = name.c_str();
+   int ndims;
+   H5LTget_dataset_ndims(vtk, cname, &ndims);
+   Dims dims(ndims);
+   H5LTget_dataset_info(vtk, cname, dims, nullptr, nullptr);
+   std::vector<T> vals(dims.TotalSize());
+   H5LTread_dataset(vtk, cname, GetTypeID<T>(), vals.data());
+   return vals;
+}
+
+template <typename T>
+T VTKHDF::ReadValue(const std::string &name, hsize_t index) const
+{
+   const char *cname = name.c_str();
+
+   int ndims;
+   H5LTget_dataset_ndims(vtk, cname, &ndims);
+
+   const hid_t d = H5Dopen(vtk, cname, H5P_DEFAULT);
+
+   // Write the new entry.
+   const hid_t dspace = H5Dget_space(d);
+   Dims start(ndims);
+   start[0] = index;
+   Dims count(ndims);
+   for (int i = 0; i < ndims; ++i) { count[i] = 1; }
+
+   H5Sselect_hyperslab(dspace, H5S_SELECT_SET, start, NULL, count, NULL);
+   const hid_t memspace = H5Screate_simple(ndims, count, count);
+
+   T value;
+   H5Dread(d, GetTypeID<T>(), memspace, dspace, dxpl, &value);
+
+   H5Sclose(memspace);
+   H5Sclose(dspace);
+   H5Dclose(d);
+
+   return value;
+}
+
+void VTKHDF::TruncateDataset(const std::string &name, hsize_t size)
+{
+   const hid_t d = H5Dopen2(vtk, name.c_str(), H5P_DEFAULT);
+   const hid_t dspace = H5Dget_space(d);
+   const int ndims = H5Sget_simple_extent_ndims(dspace);
+   Dims dims(ndims);
+   H5Sget_simple_extent_dims(dspace, dims, NULL);
+   H5Sclose(dspace);
+   dims[0] = size;
+   H5Dset_extent(d, dims);
+   H5Dclose(d);
+}
+
+void VTKHDF::Truncate(const real_t t)
+{
+   // Find the largest time step 'i' strictly less than 't'. Truncate all
+   // datasets at the corresponding offsets.
+   const std::vector<real_t> tvals = ReadDataset<real_t>("Steps/Values");
+   auto it = std::find_if(tvals.begin(), tvals.end(), [t](real_t t2) { return t2 >= t; });
+
+   // Index of found time index (may be 'one-past-the-end' if not found)
+   const int i = std::distance(tvals.begin(), it);
+
+   // Only truncate if needed
+   const bool truncate = it != tvals.end();
+
+   // Number of steps we are keeping
+   nsteps = i;
+   H5LTset_attribute_int(vtk, "Steps", "NSteps", &nsteps, 1);
+
+   // We want to continue writing immediately after step 'i - 1'. If i = 0,
+   // then this is at the beginning of the file, and the offsets do not need
+   // to be updated.
+   hsize_t npoints = 0;
+   if (i > 0)
+   {
+      point_offsets.next = ReadValue<hsize_t>("Steps/PointOffsets", i - 1);
+      cell_offsets.next = ReadValue<hsize_t>("Steps/CellOffsets", i - 1);
+      connectivity_offsets.next =
+         ReadValue<hsize_t>("Steps/ConnectivityIdOffsets", i - 1);
+
+      const hsize_t part = ReadValue<hsize_t>("Steps/PartOffsets", i - 1);
+      npoints = ReadValue<hsize_t>("NumberOfPoints", part);
+      point_offsets.next += npoints;
+      cell_offsets.next += ReadValue<hsize_t>("NumberOfCells", part);
+      connectivity_offsets.next +=
+         ReadValue<hsize_t>("NumberOfConnectivityIds", part);
+   }
+
+   // Find the offsets associated with all saved grid functions.
+   const hid_t g = H5Gopen2(vtk, "Steps/PointDataOffsets", H5P_DEFAULT);
+   if (g != H5I_INVALID_HID)
+   {
+      std::vector<std::string> names;
+      auto itfn = [](hid_t, const char *name, const H5L_info2_t*, void *data)
+      {
+         auto names_ptr = static_cast<std::vector<std::string>*>(data);
+         names_ptr->emplace_back(name);
+         return herr_t(0);
+      };
+      H5Literate2(g, H5_INDEX_NAME, H5_ITER_NATIVE, nullptr, itfn, &names);
+      H5Gclose(g);
+
+      for (auto name : names)
+      {
+         const std::string dset_name = "Steps/PointDataOffsets/" + name;
+         hsize_t offset = 0;
+         if (i > 0)
+         {
+            offset = ReadValue<hsize_t>(dset_name, i - 1) + npoints;
+         }
+         point_data_offsets[name].next = offset;
+         if (truncate)
+         {
+            TruncateDataset(dset_name, nsteps);
+            TruncateDataset("PointData/" + name, offset);
+         }
+      }
+   }
+
+   if (truncate)
+   {
+      TruncateDataset("Steps/Values", nsteps);
+      TruncateDataset("Steps/PartOffsets", nsteps);
+      TruncateDataset("Steps/PointOffsets", nsteps);
+      TruncateDataset("Steps/CellOffsets", nsteps);
+      TruncateDataset("Steps/ConnectivityIdOffsets", nsteps);
+
+      TruncateDataset("NumberOfCells", nsteps);
+      TruncateDataset("NumberOfConnectivityIds", nsteps);
+      TruncateDataset("NumberOfPoints", nsteps);
+
+      TruncateDataset("CellData/attribute", cell_offsets.next);
+      TruncateDataset("Types", cell_offsets.next);
+      TruncateDataset("Points", point_offsets.next);
+      TruncateDataset("Connectivity", connectivity_offsets.next);
+      TruncateDataset("Offsets", cell_offsets.next + nsteps);
+   }
+}
+
+VTKHDF::VTKHDF(const std::string &filename, Restart restart)
+{
+   if (restart.enabled)
+   {
+      const bool file_exists = [&filename]()
+      {
+         std::ifstream f(filename);
+         return f.good();
+      }();
+
+      if (file_exists)
+      {
+         file = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
+         vtk = H5Gopen(file, "VTKHDF", H5P_DEFAULT);
+         Truncate(restart.time);
+         return;
+      }
+   }
+
+   // Either restart is disabled, or file doesn't exist, so create new file.
+   CreateNewFile(filename);
+}
+
+#ifdef MFEM_USE_MPI
 
 static int MpiCommSize(MPI_Comm comm)
 {
@@ -260,7 +454,7 @@ static int MpiCommRank(MPI_Comm comm)
    return rank;
 }
 
-VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_)
+VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_, Restart restart)
    : comm(comm_),
      mpi_size(MpiCommSize(comm)),
      mpi_rank(MpiCommRank(comm))
@@ -269,13 +463,37 @@ VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_)
    fapl = H5Pcreate(H5P_FILE_ACCESS);
    const MPI_Info info = MPI_INFO_NULL;
    H5Pset_fapl_mpio(fapl, comm, info);
-   // Create the file (MPI collective since passing 'fapl' here)
-   file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
-   SetupVTKHDF();
-
+   // Create parallel data transfer property list
    dxpl = H5Pcreate(H5P_DATASET_XFER);
    H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_COLLECTIVE);
+
+   if (restart.enabled)
+   {
+      const bool file_exists = [&]()
+      {
+         bool exists = false;
+         if (mpi_rank == 0)
+         {
+            std::ifstream f(filename);
+            exists = f.good();
+         }
+         MPI_Allreduce(MPI_IN_PLACE, &exists, 1, MPI_CXX_BOOL, MPI_LOR, comm);
+         return exists;
+      }();
+
+      if (file_exists)
+      {
+         file = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
+         vtk = H5Gopen(file, "VTKHDF", H5P_DEFAULT);
+         Truncate(restart.time);
+         return;
+      }
+   }
+
+   CreateNewFile(filename);
 }
+
+#endif
 
 template <typename T>
 void VTKHDF::AppendValue(const hid_t f, const std::string &name, T value)
@@ -343,6 +561,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
       AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &zero);
       AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &zero);
       AppendParData(vtk, "NumberOfConnectivityIds", 1, mpi_rank, mpi_dims, &zero);
+      AppendParData(vtk, "Offsets", 1, mpi_rank, mpi_dims, &zero);
       return;
    }
 
@@ -351,7 +570,6 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 
    // Update the part offsets
    part_offset = nsteps * mpi_size;
-
 
    // Number of times to refine each element
    const int ref_0 = high_order ? 1 : ref;
@@ -509,11 +727,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
       // Attributes
       {
          // Ensure cell data group exists
-         if (cell_data == H5I_INVALID_HID)
-         {
-            cell_data = H5Gcreate2(vtk, "CellData", H5P_DEFAULT, H5P_DEFAULT,
-                                   H5P_DEFAULT);
-         }
+         cell_data = EnsureGroup("CellData");
          std::vector<int> attributes(ne);
          int e_ref = 0;
          for (int e = 0; e < ne_0; ++e)
@@ -535,11 +749,7 @@ template <typename FP_T>
 void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
 {
    // Create the point data group if needed
-   if (point_data == H5I_INVALID_HID)
-   {
-      point_data = H5Gcreate2(
-                      vtk, "PointData", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-   }
+   point_data = EnsureGroup("PointData");
 
    const Mesh &mesh = *gf.FESpace()->GetMesh();
 
@@ -583,8 +793,8 @@ VTKHDF::~VTKHDF()
    if (cell_data != H5I_INVALID_HID) { H5Gclose(cell_data); }
    if (point_data != H5I_INVALID_HID) { H5Gclose(point_data); }
    if (dxpl != H5P_DEFAULT) { H5Pclose(dxpl); }
-   H5Gclose(vtk);
-   H5Fclose(file);
+   if (vtk != H5I_INVALID_HID) { H5Gclose(vtk); }
+   if (file != H5I_INVALID_HID) { H5Fclose(file); }
    if (fapl != H5P_DEFAULT) { H5Pclose(fapl); }
 }
 
