@@ -22,10 +22,10 @@
 namespace mfem
 {
 
-namespace vtk_hdf
+namespace
 {
 
-/// Template class for HDF5 type IDs (specialized for each type @a T).
+// Template class for HDF5 type IDs (specialized for each type T).
 template <typename T> struct TypeID { };
 
 template <> struct TypeID<float> { static hid_t Get() { return H5T_NATIVE_FLOAT; } };
@@ -46,7 +46,7 @@ hsize_t VTKHDF::Dims::TotalSize() const
 }
 
 template <typename T>
-hid_t VTKHDF::GetTypeID() { return vtk_hdf::TypeID<typename std::decay<T>::type>::Get(); }
+hid_t VTKHDF::GetTypeID() { return TypeID<typename std::decay<T>::type>::Get(); }
 
 void VTKHDF::SetupVTKHDF()
 {
