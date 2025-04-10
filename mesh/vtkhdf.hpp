@@ -54,7 +54,7 @@ private:
    const int mpi_rank = 0;
 
    /// File access property list (needed for MPI I/O).
-   hid_t fapl = H5P_DEFAULT;
+   hid_t fapl = H5I_INVALID_HID;
    /// HDF5 file handle.
    hid_t file = H5I_INVALID_HID;
    /// The 'VTKHDF' root group within the file.
