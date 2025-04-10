@@ -17,6 +17,8 @@
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
 
+#include "kernel_dispatch.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
@@ -26,280 +28,400 @@ using namespace std;
 namespace mfem
 {
 
-struct DerefineMatrixOp : public Operator {
-  FiniteElementSpace *fespace;
-  /// offsets into block_storage
-  Array<int> block_offsets;
-  Array<int> block_heights;
-  Array<int> block_widths;
-  /// mapping for row dofs, oob indicates the block row should be ignored.
-  /// negative means the row data should be negated.
-  Array<int> row_idcs;
-  /// mapping for col dofs, negative means the col data should be negated.
-  Array<int> col_idcs;
-  Vector block_storage;
-  
-  void Mult(const Vector &x, Vector &y) const {
-    auto xptr = x.Read();
-    auto yptr = y.Write();
-    auto bsptr = block_storage.Read();
-    auto boptr = block_offsets.Read();
-    auto bhptr = block_heights.Read();
-    auto bwptr = block_widths.Read();
-    auto rptr = row_idcs.Read();
-    auto cptr = col_idcs.Read();
-    // TODO
-    auto vdims = fespace->GetVDim();
-    if (fespace->GetOrdering() == Ordering::byNODES) {
-      // byNODES
-    } else {
-      // byVDIM
-    }
-  }
-  
-  void MultTranspose(const Vector &x, Vector &y) const {
-    auto xptr = x.Read();
-    auto yptr = y.Write();
-    auto bsptr = block_storage.Read();
-    auto boptr = block_offsets.Read();
-    auto bhptr = block_heights.Read();
-    auto bwptr = block_widths.Read();
-    auto rptr = row_idcs.Read();
-    auto cptr = col_idcs.Read();
-    // TODO
-    auto vdims = fespace->GetVDim();
-    if (fespace->GetOrdering() == Ordering::byNODES) {
-      // byNODES
-    } else {
-      // byVDIM
-    }
-  }
+namespace internal
+{
 
-  DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
-                   const Table *old_elem_dof, const Table *old_elem_fos)
-      : Operator(fespace_.GetVSize(), old_ndofs * fespace_.GetVDim()),
-        fespace(&fespace_) {
-    /// TODO: Implement DofTransformation support
+struct DerefineMatrixOpFunctorBase
+{
+   const real_t *xptr;
+   real_t *yptr;
+   /// block storage
+   const real_t *bsptr;
+   /// block offsets
+   const int *boptr;
+   /// block heights
+   const int *bhptr;
+   /// block widths
+   const int *bwptr;
+   /// row idcs
+   const int *rptr;
+   /// col idcs
+   const int *cptr;
 
-    MFEM_VERIFY(fespace->Nonconforming(),
-                "Not implemented for conforming meshes.");
-    MFEM_VERIFY(old_ndofs, "Missing previous (finer) space.");
-    MFEM_VERIFY(fespace->GetNDofs() <= old_ndofs,
-                "Previous space is not finer.");
-
-    const CoarseFineTransformations &dtrans =
-      fespace->GetMesh()->ncmesh->GetDerefinementTransforms();
-
-    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
-
-    bool is_dg =
-        fespace->FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
-    int num_marked = 0;
-    const FiniteElement *fe = nullptr;
-    DenseMatrix localRVO; // for variable-order only
-
-    DenseTensor localR[Geometry::NumGeom];
-    int total_rows = 0;
-    int total_cols = 0;
-    if (fespace->IsVariableOrder()) {
-      // TODO: any potential for some compression here?
-      // determine storage size and offsets
-      block_offsets.SetSize(dtrans.embeddings.Size());
-      block_offsets.HostWrite();
-      block_offsets[0] = 0;
-      for (int k = 0; k < dtrans.embeddings.Size(); ++k) {
-        const Embedding &emb = dtrans.embeddings[k];
-        Geometry::Type geom =
-            fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-        fe = fespace->GetFE(emb.parent);
-        const int ldof = fe->GetDof();
-        if (k + 1 < dtrans.embeddings.Size()) {
-          block_offsets[k + 1] = block_offsets[k] + ldof * ldof;
-        }
-        total_rows += ldof;
-        total_cols += ldof;
-      }
-      block_storage.SetSize(block_offsets[dtrans.embeddings.Size()]);
-    } else {
-      // compression scheme:
-      // block_offsets is the start of each block, potentially repeated
-      block_offsets.SetSize(dtrans.embeddings.Size());
-      block_offsets.HostWrite();
-      // only need to store localR for used shapes
-      Mesh::GeometryList elem_geoms(*fespace->GetMesh());
-      
-      int geom_idcs[Geometry::NumGeom];
-      int geom_offsets[Geometry::NumGeom];
-      {
-        int size = 0;
-        for (int i = 0; i < elem_geoms.Size(); ++i) {
-          fespace->GetLocalDerefinementMatrices(elem_geoms[i],
-                                                localR[elem_geoms[i]]);
-          geom_offsets[elem_geoms[i]] = size;
-          size += localR[elem_geoms[i]].TotalSize();
-          geom_idcs[elem_geoms[i]] = i;
-        }
-        block_storage.SetSize(size);
-        // copy blocks into block_storage
-        auto bs_ptr = block_storage.HostWrite();
-        for (int i = 0; i < elem_geoms.Size(); ++i) {
-          std::copy(localR[elem_geoms[i]].Data(),
-                    localR[elem_geoms[i]].Data() +
-                        localR[elem_geoms[i]].TotalSize(),
-                    bs_ptr);
-          bs_ptr += localR[elem_geoms[i]].TotalSize();
-        }
-      }
-      for (int k = 0; k < dtrans.embeddings.Size(); k++) {
-        const Embedding &emb = dtrans.embeddings[k];
-        Geometry::Type geom =
-            fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-
-        auto size = localR[geom].SizeI() * localR[geom].SizeJ();
-        total_rows += localR[geom].SizeI();
-        total_cols += localR[geom].SizeJ();
-        // set block offsets and sizes
-        block_offsets[k] = geom_offsets[geom] + size * emb.matrix;
-      }
-    }
-    row_idcs.SetSize(total_rows);
-    row_idcs.HostWrite();
-    col_idcs.SetSize(total_cols);
-    col_idcs.HostWrite();
-    block_heights.SetSize(dtrans.embeddings.Size());
-    block_heights.HostWrite();
-    block_widths.SetSize(dtrans.embeddings.Size());
-    block_widths.HostWrite();
-
-    // compute index information
-    Array<int> dofs, old_dofs, old_vdofs;
-    {
-      Array<int> mark(fespace->GetNDofs());
-      mark = 0;
-      auto bs_ptr = block_storage.HostWrite();
-      int ridx = 0;
-      int cidx = 0;
-      int num_marked = 0;
-      for (int k = 0; k < dtrans.embeddings.Size(); k++) {
-        const Embedding &emb = dtrans.embeddings[k];
-        Geometry::Type geom =
-            fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-
-        if (fespace->IsVariableOrder()) {
-          fe = fespace->GetFE(emb.parent);
-          const DenseTensor &pmats = dtrans.point_matrices[geom];
-          const int ldof = fe->GetDof();
-
-          IsoparametricTransformation isotr;
-          isotr.SetIdentityTransformation(geom);
-
-          localRVO.SetSize(ldof, ldof);
-          isotr.SetPointMat(pmats(emb.matrix));
-          // Local restriction is size ldofxldof assuming that the parent and
-          // child are of same polynomial order.
-          fe->GetLocalRestriction(isotr, localRVO);
-          // copy block
-          auto size = localRVO.Height() * localRVO.Width();
-          std::copy(localRVO.Data(), localRVO.Data() + size, bs_ptr);
-          bs_ptr += size;
-        }
-        DenseMatrix &lR =
-            fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
-        block_heights[k] = lR.Height();
-        block_widths[k] = lR.Width();
-        // index information
-        fespace->elem_dof->GetRow(emb.parent, dofs);
-        old_elem_dof->GetRow(k, old_dofs);
-        MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
-                    "Parent and child must have same #dofs.");
-        for (int i = 0; i < lR.Height(); ++i,++ridx) {
-          if (!std::isfinite(lR(i, 0))) {
-            row_idcs[ridx] = Height();
-            continue;
-          }
-          int r = dofs[i];
-          int m = (r >= 0) ? r : (-1 - r);
-          if (is_dg || !mark[m]) {
-            row_idcs[ridx] = r;
-            mark[m] = 1;
-            ++num_marked;
-          }
-          else
-          {
-            row_idcs[ridx] = Height();
-          }
-        }
-        for (int i = 0; i < lR.Width(); ++i, ++cidx) {
-          col_idcs[cidx] = old_dofs[i];
-        }
-      }
-
-      if (!is_dg && !fespace->IsVariableOrder()) {
-        MFEM_VERIFY(num_marked == Height(),
-                    "internal error: not all rows were set.");
-      }
-    }
-    
-#if 0
-    Vector row;
-    
-    SparseMatrix *R = new SparseMatrix(Height(), Width());
-
-    Array<int> mark(R->Height());
-    mark = 0;
-    for (int k = 0; k < dtrans.embeddings.Size(); k++) {
-      const Embedding &emb = dtrans.embeddings[k];
-      Geometry::Type geom = fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-
-      if (fespace->IsVariableOrder()) {
-        fe = fespace->GetFE(emb.parent);
-        const DenseTensor &pmats = dtrans.point_matrices[geom];
-        const int ldof = fe->GetDof();
-
-        IsoparametricTransformation isotr;
-        isotr.SetIdentityTransformation(geom);
-
-        localRVO.SetSize(ldof, ldof);
-        isotr.SetPointMat(pmats(emb.matrix));
-        // Local restriction is size ldofxldof assuming that the parent and
-        // child are of same polynomial order.
-        fe->GetLocalRestriction(isotr, localRVO);
-      }
-      DenseMatrix &lR = fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
-
-      fespace->elem_dof->GetRow(emb.parent, dofs);
-      old_elem_dof->GetRow(k, old_dofs);
-      MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
-                  "Parent and child must have same #dofs.");
-
-      for (int vd = 0; vd < fespace->GetVDim(); vd++) {
-        old_dofs.Copy(old_vdofs);
-        fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
-
-        for (int i = 0; i < lR.Height(); i++) {
-          if (!std::isfinite(lR(i, 0))) {
-            continue;
-          }
-
-          int r = fespace->DofToVDof(dofs[i], vd);
-          int m = (r >= 0) ? r : (-1 - r);
-
-          if (is_dg || !mark[m]) {
-            lR.GetRow(i, row);
-            R->SetRow(r, old_vdofs, row);
-
-            mark[m] = 1;
-            num_marked++;
-          }
-        }
-      }
-    }
-#endif
-  }
+   int vdims;
 };
 
-template <> void Ordering::
-DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim, Array<int> &dofs)
+/// MaxReduceSize must be a power of 2
+template <Ordering::Type Order, int MaxReduceSize = 32>
+struct DerefineMatrixOpMultFunctor;
+
+template <int MaxReduceSize>
+struct DerefineMatrixOpMultFunctor<Ordering::byNODES, MaxReduceSize>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      // TODO
+   }
+};
+
+template <int MaxReduceSize>
+struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, MaxReduceSize>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      // TODO
+   }
+};
+
+/// MaxReduceSize must be a power of 2
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize = 32>
+struct DerefineMatrixOpMultTFunctor;
+
+template <int MaxReduceSize>
+struct DerefineMatrixOpMultTFunctor<Ordering::byNODES, false, MaxReduceSize>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      // TODO
+   }
+};
+
+template <int MaxReduceSize>
+struct DerefineMatrixOpMultTFunctor<Ordering::byVDIM, false, MaxReduceSize>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      // TODO
+   }
+};
+
+template <int MaxReduceSize>
+struct DerefineMatrixOpMultTFunctor<Ordering::byNODES, true, MaxReduceSize>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      // TODO
+   }
+};
+
+template <int MaxReduceSize>
+struct DerefineMatrixOpMultTFunctor<Ordering::byVDIM, true, MaxReduceSize>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      // TODO
+   }
+};
+} // namespace internal
+
+struct DerefineMatrixOp : public Operator
+{
+   FiniteElementSpace *fespace;
+   /// offsets into block_storage
+   Array<int> block_offsets;
+   Array<int> block_heights;
+   Array<int> block_widths;
+   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// negative means the row data should be negated.
+   Array<int> row_idcs;
+   /// mapping for col dofs, negative means the col data should be negated.
+   Array<int> col_idcs;
+   Vector block_storage;
+   int max_rows, max_cols;
+
+   using MultKernelType = void (*)(const DerefineMatrixOp &, const Vector &,
+                                   Vector &);
+   MFEM_REGISTER_KERNELS(MultKernel, MultKernelType, (Ordering::Type, int));
+
+   MFEM_REGISTER_KERNELS(MultTKernel, MultKernelType,
+                         (Ordering::Type, bool, int));
+
+   template <int MaxReduceSize> static void AddSpecializations()
+   {
+      MultKernel::Specialization<Ordering::byNODES, MaxReduceSize>::Add();
+      MultKernel::Specialization<Ordering::byVDIM, MaxReduceSize>::Add();
+      MultTKernel::Specialization<Ordering::byNODES, false,
+                  MaxReduceSize>::Add();
+      MultTKernel::Specialization<Ordering::byVDIM, false, MaxReduceSize>::Add();
+      MultTKernel::Specialization<Ordering::byNODES, true, MaxReduceSize>::Add();
+      MultTKernel::Specialization<Ordering::byVDIM, true, MaxReduceSize>::Add();
+   }
+
+   struct Kernels
+   {
+      Kernels()
+      {
+         AddSpecializations<1>();
+         AddSpecializations<2>();
+         AddSpecializations<4>();
+         AddSpecializations<8>();
+         AddSpecializations<16>();
+         AddSpecializations<32>();
+         AddSpecializations<64>();
+         AddSpecializations<128>();
+         AddSpecializations<256>();
+      }
+   };
+
+   void Mult(const Vector &x, Vector &y) const
+   {
+      MultKernel::Run(fespace->GetOrdering(), max_cols, *this, x, y);
+   }
+
+   void MultTranspose(const Vector &x, Vector &y) const
+   {
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      MultTKernel::Run(fespace->GetOrdering(), !is_dg, max_rows, *this, x, y);
+   }
+
+   DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
+                    const Table *old_elem_dof, const Table *old_elem_fos)
+      : Operator(fespace_.GetVSize(), old_ndofs * fespace_.GetVDim()),
+        fespace(&fespace_)
+   {
+      static Kernels kernels;
+      constexpr int max_reduce_size = 256;
+      /// TODO: Implement DofTransformation support
+
+      MFEM_VERIFY(fespace->Nonconforming(),
+                  "Not implemented for conforming meshes.");
+      MFEM_VERIFY(old_ndofs, "Missing previous (finer) space.");
+      MFEM_VERIFY(fespace->GetNDofs() <= old_ndofs,
+                  "Previous space is not finer.");
+
+      const CoarseFineTransformations &dtrans =
+         fespace->GetMesh()->ncmesh->GetDerefinementTransforms();
+
+      MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
+
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      const FiniteElement *fe = nullptr;
+      DenseMatrix localRVO; // for variable-order only
+
+      DenseTensor localR[Geometry::NumGeom];
+      int total_rows = 0;
+      int total_cols = 0;
+      if (fespace->IsVariableOrder())
+      {
+         // TODO: any potential for some compression here?
+         // determine storage size and offsets
+         block_offsets.SetSize(dtrans.embeddings.Size());
+         block_offsets.HostWrite();
+         block_offsets[0] = 0;
+         for (int k = 0; k < dtrans.embeddings.Size(); ++k)
+         {
+            const Embedding &emb = dtrans.embeddings[k];
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+            fe = fespace->GetFE(emb.parent);
+            const int ldof = fe->GetDof();
+            if (k + 1 < dtrans.embeddings.Size())
+            {
+               block_offsets[k + 1] = block_offsets[k] + ldof * ldof;
+            }
+            total_rows += ldof;
+            total_cols += ldof;
+         }
+         block_storage.SetSize(block_offsets[dtrans.embeddings.Size()]);
+      }
+      else
+      {
+         // compression scheme:
+         // block_offsets is the start of each block, potentially repeated
+         block_offsets.SetSize(dtrans.embeddings.Size());
+         block_offsets.HostWrite();
+         // only need to store localR for used shapes
+         Mesh::GeometryList elem_geoms(*fespace->GetMesh());
+
+         int geom_offsets[Geometry::NumGeom];
+         {
+            int size = 0;
+            for (int i = 0; i < elem_geoms.Size(); ++i)
+            {
+               fespace->GetLocalDerefinementMatrices(elem_geoms[i],
+                                                     localR[elem_geoms[i]]);
+               geom_offsets[elem_geoms[i]] = size;
+               size += localR[elem_geoms[i]].TotalSize();
+            }
+            block_storage.SetSize(size);
+            // copy blocks into block_storage
+            auto bs_ptr = block_storage.HostWrite();
+            for (int i = 0; i < elem_geoms.Size(); ++i)
+            {
+               std::copy(localR[elem_geoms[i]].Data(),
+                         localR[elem_geoms[i]].Data() +
+                         localR[elem_geoms[i]].TotalSize(),
+                         bs_ptr);
+               bs_ptr += localR[elem_geoms[i]].TotalSize();
+            }
+         }
+         for (int k = 0; k < dtrans.embeddings.Size(); k++)
+         {
+            const Embedding &emb = dtrans.embeddings[k];
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+
+            auto size = localR[geom].SizeI() * localR[geom].SizeJ();
+            total_rows += localR[geom].SizeI();
+            total_cols += localR[geom].SizeJ();
+            // set block offsets and sizes
+            block_offsets[k] = geom_offsets[geom] + size * emb.matrix;
+         }
+      }
+      row_idcs.SetSize(total_rows);
+      row_idcs.HostWrite();
+      col_idcs.SetSize(total_cols);
+      col_idcs.HostWrite();
+      block_heights.SetSize(dtrans.embeddings.Size());
+      block_heights.HostWrite();
+      block_widths.SetSize(dtrans.embeddings.Size());
+      block_widths.HostWrite();
+
+      // compute index information
+      Array<int> dofs, old_dofs;
+      max_rows = 1;
+      max_cols = 1;
+
+      {
+         Array<int> mark(fespace->GetNDofs());
+         mark = 0;
+         auto bs_ptr = block_storage.HostWrite();
+         int ridx = 0;
+         int cidx = 0;
+         int num_marked = 0;
+         for (int k = 0; k < dtrans.embeddings.Size(); k++)
+         {
+            const Embedding &emb = dtrans.embeddings[k];
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+
+            if (fespace->IsVariableOrder())
+            {
+               fe = fespace->GetFE(emb.parent);
+               const DenseTensor &pmats = dtrans.point_matrices[geom];
+               const int ldof = fe->GetDof();
+
+               IsoparametricTransformation isotr;
+               isotr.SetIdentityTransformation(geom);
+
+               localRVO.SetSize(ldof, ldof);
+               isotr.SetPointMat(pmats(emb.matrix));
+               // Local restriction is size ldofxldof assuming that the parent
+               // and child are of same polynomial order.
+               fe->GetLocalRestriction(isotr, localRVO);
+               // copy block
+               auto size = localRVO.Height() * localRVO.Width();
+               std::copy(localRVO.Data(), localRVO.Data() + size, bs_ptr);
+               bs_ptr += size;
+            }
+            DenseMatrix &lR =
+               fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
+            block_heights[k] = lR.Height();
+            block_widths[k] = lR.Width();
+            // ensure max_rows and max_cols are both powers of 2, and <=
+            // max_reduce_size
+            while (lR.Height() > max_rows && max_rows < max_reduce_size)
+            {
+               max_rows *= 2;
+            }
+            while (lR.Width() > max_cols && max_cols < max_reduce_size)
+            {
+               max_cols *= 2;
+            }
+            // index information
+            fespace->elem_dof->GetRow(emb.parent, dofs);
+            old_elem_dof->GetRow(k, old_dofs);
+            // sanity checks, shouldn't need to be done
+            // MFEM_VERIFY(dofs.Size() == block_heights[k],
+            //             "block height doesn't match dofs size");
+            // MFEM_VERIFY(old_dofs.Size() == block_widths[k],
+            //             "block width doesn't match old dofs size");
+            MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
+                        "Parent and child must have same #dofs.");
+            for (int i = 0; i < lR.Height(); ++i, ++ridx)
+            {
+               if (!std::isfinite(lR(i, 0)))
+               {
+                  row_idcs[ridx] = Height();
+                  continue;
+               }
+               int r = dofs[i];
+               int m = (r >= 0) ? r : (-1 - r);
+               if (is_dg || !mark[m])
+               {
+                  row_idcs[ridx] = r;
+                  mark[m] = 1;
+                  ++num_marked;
+               }
+               else
+               {
+                  row_idcs[ridx] = Height();
+               }
+            }
+            for (int i = 0; i < lR.Width(); ++i, ++cidx)
+            {
+               col_idcs[cidx] = old_dofs[i];
+            }
+         }
+         if (!is_dg && !fespace->IsVariableOrder())
+         {
+            MFEM_VERIFY(num_marked == Height(),
+                        "internal error: not all rows were set.");
+         }
+      }
+   }
+};
+
+namespace internal
+{
+template <Ordering::Type Order, int MaxReduceSize>
+void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
+{
+   // TODO
+}
+
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
+void MultTKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
+{
+   // TODO
+}
+} // namespace internal
+
+template <Ordering::Type Order, int MaxReduceSize>
+DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultKernel::Kernel()
+{
+   return internal::MultKernelImpl<Order, MaxReduceSize>;
+}
+
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
+DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultTKernel::Kernel()
+{
+   return internal::MultTKernelImpl<Order, Atomic, MaxReduceSize>;
+}
+
+DerefineMatrixOp::MultKernelType
+DerefineMatrixOp::MultKernel::Fallback(Ordering::Type, int)
+{
+   MFEM_ABORT("invalid MultKernel parameters");
+}
+
+DerefineMatrixOp::MultKernelType
+DerefineMatrixOp::MultTKernel::Fallback(Ordering::Type, bool, int)
+{
+   MFEM_ABORT("invalid MultTKernel parameters");
+}
+
+template <>
+void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
+                                              Array<int> &dofs)
 {
    // static method
    int size = dofs.Size();
@@ -313,8 +435,9 @@ DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim, Array<int> &dofs)
    }
 }
 
-template <> void Ordering::
-DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
+template <>
+void Ordering::DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim,
+                                             Array<int> &dofs)
 {
    // static method
    int size = dofs.Size();
@@ -327,7 +450,6 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
       }
    }
 }
-
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
