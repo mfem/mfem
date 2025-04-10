@@ -2315,6 +2315,8 @@ public:
    virtual void NURBSUniformRefinement(int rf = 2, real_t tol = 1.0e-12);
    virtual void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12);
 
+   /** @a brief Use knotvector refinement factors loaded from the file with name
+       in @a kvf. Everywhere else, use the default refinement factor @a rf. */
    virtual void RefineNURBSWithKVFactors(int rf, const std::string &kvf);
 
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
