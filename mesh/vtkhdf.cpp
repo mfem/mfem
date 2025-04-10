@@ -262,16 +262,6 @@ void VTKHDF::Barrier() const
 #endif
 }
 
-void VTKHDF::CreateNewFile(const std::string &filename)
-{
-   // Delete the file if it exists
-   std::remove(filename.c_str());
-   // Create the new file
-   file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
-   // Setup 'VTKHDF' group
-   SetupVTKHDF();
-}
-
 template <typename T>
 std::vector<T> VTKHDF::ReadDataset(const std::string &name) const
 {
@@ -415,18 +405,29 @@ void VTKHDF::Truncate(const real_t t)
    }
 }
 
-VTKHDF::VTKHDF(const std::string &filename, Restart restart)
+void VTKHDF::CreateFile(const std::string &filename, Restart restart)
 {
    if (restart.enabled)
    {
-      const bool file_exists = [&filename]()
+      bool file_exists = mpi_rank == 0 && [&filename]()
       {
          std::ifstream f(filename);
          return f.good();
       }();
 
+#ifdef MFEM_USE_MPI
+      if (UsingMpi())
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &file_exists, 1, MPI_CXX_BOOL, MPI_LOR, comm);
+      }
+#endif
+
       if (file_exists)
       {
+         // Disable file locking, allowing modification to files that may be
+         // open in ParaView (otherwise writes will fail).
+         H5Pset_file_locking(fapl, false, true);
+
          file = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
          vtk = H5Gopen(file, "VTKHDF", H5P_DEFAULT);
          Truncate(restart.time);
@@ -434,8 +435,20 @@ VTKHDF::VTKHDF(const std::string &filename, Restart restart)
       }
    }
 
-   // Either restart is disabled, or file doesn't exist, so create new file.
-   CreateNewFile(filename);
+   // At this point, either restart is disabled, or file doesn't exist
+
+   // Delete the file if it exists
+   std::remove(filename.c_str());
+   // Create the new file
+   file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+   // Setup 'VTKHDF' group
+   SetupVTKHDF();
+}
+
+VTKHDF::VTKHDF(const std::string &filename, Restart restart)
+{
+   fapl = H5Pcreate(H5P_FILE_ACCESS);
+   CreateFile(filename, restart);
 }
 
 #ifdef MFEM_USE_MPI
@@ -459,7 +472,7 @@ VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_, Restart restart)
      mpi_size(MpiCommSize(comm)),
      mpi_rank(MpiCommRank(comm))
 {
-   // Create parallel access property list
+   // Create file access property list, needed for parallel I/O
    fapl = H5Pcreate(H5P_FILE_ACCESS);
    const MPI_Info info = MPI_INFO_NULL;
    H5Pset_fapl_mpio(fapl, comm, info);
@@ -467,30 +480,7 @@ VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_, Restart restart)
    dxpl = H5Pcreate(H5P_DATASET_XFER);
    H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_COLLECTIVE);
 
-   if (restart.enabled)
-   {
-      const bool file_exists = [&]()
-      {
-         bool exists = false;
-         if (mpi_rank == 0)
-         {
-            std::ifstream f(filename);
-            exists = f.good();
-         }
-         MPI_Allreduce(MPI_IN_PLACE, &exists, 1, MPI_CXX_BOOL, MPI_LOR, comm);
-         return exists;
-      }();
-
-      if (file_exists)
-      {
-         file = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
-         vtk = H5Gopen(file, "VTKHDF", H5P_DEFAULT);
-         Truncate(restart.time);
-         return;
-      }
-   }
-
-   CreateNewFile(filename);
+   CreateFile(filename, restart);
 }
 
 #endif

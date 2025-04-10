@@ -31,6 +31,19 @@ namespace mfem
 /// GridFunction::SaveVTKHDF instead.
 class VTKHDF
 {
+public:
+   /// Helper used in VTKHDF::VTKHDF for enabling/disabling restart mode.
+   struct Restart
+   {
+      bool enabled = false;
+      real_t time = 0.0;
+      Restart() = default;
+      Restart(real_t time_) : enabled(true), time(time_) { }
+      Restart(bool enabled_, real_t time_) : enabled(enabled_), time(time_) { }
+      static Restart Disabled() { return Restart(); }
+   };
+
+private:
 #ifdef MFEM_USE_MPI
    /// MPI communicator (only available if MPI is enabled).
    MPI_Comm comm = MPI_COMM_NULL;
@@ -234,7 +247,7 @@ class VTKHDF
    void SetupVTKHDF();
 
    /// Create a new file (deleting existing file if needed).
-   void CreateNewFile(const std::string &filename);
+   void CreateFile(const std::string &filename, Restart restart);
 
    /// Read the entire named dataset.
    template <typename T>
@@ -251,16 +264,6 @@ class VTKHDF
    void Truncate(const real_t t);
 
 public:
-   /// Helper used in VTKHDF::VTKHDF for enabling/disabling restart mode.
-   struct Restart
-   {
-      bool enabled = false;
-      real_t time = 0.0;
-      Restart() = default;
-      Restart(real_t time_) : enabled(true), time(time_) { }
-      Restart(bool enabled_, real_t time_) : enabled(enabled_), time(time_) { }
-      static Restart Disabled() { return Restart(); }
-   };
 
    /// @brief Create a new %VTKHDF file for serial I/O.
    ///
