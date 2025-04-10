@@ -1632,22 +1632,14 @@ void NURBSExtension::ProcessVertexToKnot3D(
       n1 = parentN1[parent];
       n2 = parentN2[parent];
       Array2D<int> gridVertex(n1 + 1, n2 + 1);
-
-      for (int i=0; i<=n1; ++i)
-         for (int j=0; j<=n2; ++j)
-         {
-            gridVertex(i,j) = -1;
-         }
+      gridVertex = -1;
 
       gridVertex(0,0) = pv[0];
       gridVertex(n1,0) = pv[1];
       gridVertex(n1,n2) = pv[2];
       gridVertex(0,n2) = pv[3];
 
-      for (int i=0; i<4; ++i)
-      {
-         parentVerts.push_back(pv[i]);
-      }
+      for (int i=0; i<4; ++i) { parentVerts.push_back(pv[i]); }
 
       int r1min = -1;
       int r1max = -1;
@@ -1657,9 +1649,7 @@ void NURBSExtension::ProcessVertexToKnot3D(
       for (int i = parentOffset[parent]; i < parentOffset[parent + 1]; ++i)
       {
          v2k.GetVertex3D(i, tvi, ks, pv);
-
          gridVertex(ks[0], ks[1]) = tvi;
-
          if (i == parentOffset[parent])
          {
             // Initialize min/max
@@ -1848,9 +1838,7 @@ void NURBSExtension::ProcessVertexToKnot3D(
             int tvprev = -1;
             int kiprev = -1;
             bool lagTV = false;
-
             int firstEdge = -1;
-
             int os_e = 0;
 
             // Loop edges in direction `dir`
@@ -1892,7 +1880,6 @@ void NURBSExtension::ProcessVertexToKnot3D(
                }
 
                const int cv0 = cv[0];
-
                int tv_int = -1; // Top-vertex interior to the master edge
                int ki = -1; // Knot-span index of tv_int, w.r.t. the master edge
 
@@ -2056,7 +2043,6 @@ void NURBSExtension::ProcessVertexToKnot3D(
                }
 
                const int pid = d == 0 ? 2*s : (2*s) + 1; // Parent index
-
                const bool reverse_p = parentEdgeRev[pid];
                // Sides with s=1 are reversed in defining parentEdgeRev.
                const bool reverse = s == 0 ? reverse_p : !reverse_p;

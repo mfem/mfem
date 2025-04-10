@@ -3466,7 +3466,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
 {
-   if ((NURBSext || ncmesh))
+   if (NURBSext || ncmesh)
    {
       MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
       MFEM_ASSERT(CheckBdrElementOrientation() == 0, "");
@@ -4546,7 +4546,7 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
    }
    else
    {
-     Load(imesh, generate_edges, refine, fix_orientation);
+      Load(imesh, generate_edges, refine, fix_orientation);
    }
 }
 
