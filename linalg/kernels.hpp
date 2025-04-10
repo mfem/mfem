@@ -1852,7 +1852,7 @@ inline bool LUFactor(real_t *A, const int m, int *ipiv, const real_t tol=0.0)
          }
       } // pivot end
 
-      if (abs(A[i + m*i]) <= tol)
+      if (fabs(A[i + m*i]) <= tol)
       {
          pivot_flag = false;
       }

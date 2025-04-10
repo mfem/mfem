@@ -624,7 +624,7 @@ int main (int argc, char *argv[])
          else if (type == 's')
          {
             MFEM_VERIFY(mesh->SpaceDimension() >= 2,
-                        "Mesh space dimension must be atleast 2 "
+                        "Mesh space dimension must be at least 2 "
                         "for spiral transformation.\n");
             cout << "Note: For Spiral transformation, the input mesh is "
                  "assumed to be in [0,1]^D.\n" << flush;

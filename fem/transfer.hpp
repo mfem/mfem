@@ -467,7 +467,7 @@ public:
       // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
       // to multiply with scalar TDof LOR vectors.
       std::unique_ptr<Operator> ML_inv_vea;
-      // LDof Mixed mass operator built via EA. Wrapped with restrition maps to send
+      // LDof Mixed mass operator built via EA. Wrapped with restriction maps to send
       // scalar LDof HO vectors to LDof LOR vectors.
       Operator *M_LH_local_op;
 
@@ -516,7 +516,7 @@ public:
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
                             bool force_l2_space_ = false,
-                            MemoryType d_mt_ = Device::GetHostMemoryType()) //move to method
+                            MemoryType d_mt_ = Device::GetHostMemoryType()) // move to method
       : GridTransfer(coarse_fes_, fine_fes_),
         F(NULL), B(NULL), force_l2_space(force_l2_space_)
    { }
