@@ -341,7 +341,7 @@ protected:
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
                         bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
-                      bool spacing=false);
+                      bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
 
@@ -474,7 +474,13 @@ protected:
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
+   void LoadNonconformingPatchTopo(std::istream &input,
+                                   Array<int> &edge_to_knot);
+
    void UpdateNURBS();
+
+   void RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
+                    const std::string &kvf);
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
        patch topology. Optional file comments can be provided in @a comments.
@@ -487,6 +493,9 @@ protected:
    void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
                   const int version,
                   const std::string &comment = "") const;
+
+   void PrintTopoEdges(std::ostream &out, const Array<int> &e_to_k,
+                       bool vmap=false) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -2306,6 +2315,10 @@ public:
    virtual void NURBSUniformRefinement(int rf = 2, real_t tol = 1.0e-12);
    virtual void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12);
 
+   /** @a brief Use knotvector refinement factors loaded from the file with name
+       in @a kvf. Everywhere else, use the default refinement factor @a rf. */
+   virtual void RefineNURBSWithKVFactors(int rf, const std::string &kvf);
+
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
    /// which divides the number of elements in each dimension.
    void NURBSCoarsening(int cf = 2, real_t tol = 1.0e-12);
@@ -2361,10 +2374,8 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
-   /// Return a bool indicating whether this mesh is conforming.
-   bool Conforming() const { return ncmesh == NULL; }
-   /// Return a bool indicating whether this mesh is nonconforming.
-   bool Nonconforming() const { return ncmesh != NULL; }
+   bool Conforming() const;
+   bool Nonconforming() const { return !Conforming(); }
 
    /** Designate this mesh for output as "NC mesh v1.1", meaning it is
        nonconforming with nonuniform refinement spacings. */

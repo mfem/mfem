@@ -29,7 +29,6 @@ namespace mfem
 
 class GridFunction;
 
-
 /** @brief A vector of knots in one dimension, with B-spline basis functions of
     a prescribed order.
 
@@ -154,10 +153,10 @@ public:
    void Difference(const KnotVector &kv, Vector &diff) const;
 
    /// Uniformly refine by factor @a rf, by inserting knots in each span.
-   void UniformRefinement(Vector &newknots, int rf) const;
+   void UniformRefinement(Vector &new_knots, int rf) const;
 
    /// Refine with refinement factor @a rf.
-   void Refinement(Vector &newknots, int rf) const;
+   void Refinement(Vector &new_knots, int rf) const;
 
    /** Returns the coarsening factor needed for non-nested nonuniform spacing
        functions, to result in a single element from which refinement can be
@@ -197,11 +196,14 @@ public:
    /// Const access function to knot @a i.
    const real_t &operator[](int i) const { return knot(i); }
 
+   /// Coarsen to a single element.
+   KnotVector* FullyCoarsen();
+
    /// Function to define the distribution of knots for any number of knot spans.
    std::shared_ptr<SpacingFunction> spacing;
 
-   /** Flag to indicate whether the KnotVector has been coarsened, which means
-       it is ready for non-nested refinement. */
+   /** @brief Flag to indicate whether the KnotVector has been coarsened, which
+       means it is ready for non-nested refinement. */
    bool coarse;
 };
 
@@ -344,9 +346,11 @@ public:
 
        @param[in] rf Optional refinement factor. If scalar, the factor is used
                      for all dimensions. If an array, factors can be specified
-                     for each dimension. */
-   void UniformRefinement(int rf = 2);
-   void UniformRefinement(Array<int> const& rf);
+                     for each dimension.
+       @param[in] multiplicity Optional multiplicity for new knots inserted. */
+   void UniformRefinement(int rf = 2, int multiplicity = 1);
+   void UniformRefinement(const Array<int> &rf, int multiplicity = 1);
+   void UniformRefinement(const std::vector<Array<int>> &rf, int multiplicity = 1);
 
    /** @brief Coarsen with optional coarsening factor @a cf which divides the
        number of elements in each dimension. Nonuniform spacing functions may be
@@ -358,13 +362,19 @@ public:
        @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
        "The NURBS Book", 2nd ed, Piegl and Tiller. */
    void Coarsen(int cf = 2, real_t tol = 1.0e-12);
-   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
+   void Coarsen(const Array<int> &cf, real_t tol = 1.0e-12);
 
    /// Calls KnotVector::GetCoarseningFactor for each direction.
-   void GetCoarseningFactors(Array<int> & f) const;
+   void GetCoarseningFactors(Array<int> &f) const;
 
    /// Marks the KnotVector in each dimension as coarse.
    void SetKnotVectorsCoarse(bool c);
+
+   /// Coarsen to a single element.
+   void FullyCoarsen(const Array2D<double> &cp, int ncp1D);
+
+   /// Update piecewise spacing function partitions to match refined @a pkv.
+   void UpdateSpacingPartitions(const Array<KnotVector*> &pkv);
 
    /// Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
@@ -515,11 +525,139 @@ protected:
    Array<int> f_meshOffsets;
    Array<int> p_meshOffsets;
 
+   Array<int> aux_e_meshOffsets, aux_f_meshOffsets;
+
    /// Global space offsets, spaceOffsets == dofOffsets
    Array<int> v_spaceOffsets;
    Array<int> e_spaceOffsets;
    Array<int> f_spaceOffsets;
    Array<int> p_spaceOffsets;
+
+   Array<int> aux_e_spaceOffsets, aux_f_spaceOffsets;
+
+   /// Represents a nonconforming edge not in patchTopo->ncmesh.
+   struct AuxiliaryEdge
+   {
+      int parent; /// Signed parent edge index (sign encodes orientation)
+      int v[2];   /// Vertex indices
+      int ksi[2]; /// Knot-span indices of vertices in parent edge
+   };
+
+   /// Represents a nonconforming face not in patchTopo->ncmesh.
+   struct AuxiliaryFace
+   {
+      int parent;  /// Parent face index
+      int ori;     /// Orientation with respect to parent face
+      int v[4];    /// Vertex indices
+      int ksi0[2]; /// Lower knot-span indices in parent face
+      int ksi1[2]; /// Upper knot-span indices in parent face
+   };
+
+   /** @brief Represents a pair of child and parent edges for a nonconforming
+       patch topology. */
+   struct EdgePairInfo
+   {
+      int v; /// Vertex index
+      int ksi; /// Knot-span index of vertex
+      int child, parent; /// Child and parent edge indices
+      bool isSet; /// Whether this instance is set
+
+      EdgePairInfo() : isSet(false) { }
+
+      EdgePairInfo(int vertex, int knotIndex, int childEdge, int parentEdge)
+         : v(vertex), ksi(knotIndex), child(childEdge), parent(parentEdge),
+           isSet(true) { }
+
+      /// Set the data members.
+      void Set(int vertex, int knotIndex, int childEdge, int parentEdge)
+      {
+         v = vertex;
+         ksi = knotIndex;
+         child = childEdge;
+         parent = parentEdge;
+         isSet = true;
+      }
+
+      bool operator==(const EdgePairInfo& other) const
+      {
+         return v == other.v && ksi == other.ksi && child == other.child
+                && parent == other.parent;
+      }
+   };
+
+   /// Master edge data for a nonconforming patch topology.
+   struct MasterEdgeInfo
+   {
+      std::vector<int> slaves; /// Slave edge indices on the master edge
+      std::vector<int> vertices; /// Vertex indices on the master edge
+      std::vector<int> ks; /// Knot-span indices of vertices on the master edge
+
+      void Reverse()
+      {
+         std::reverse(slaves.begin(), slaves.end());
+         std::reverse(vertices.begin(), vertices.end());
+         std::reverse(ks.begin(), ks.end());
+      }
+   };
+
+   /// Master face data for a nonconforming patch topology.
+   struct MasterFaceInfo
+   {
+      std::vector<int> slaves; /// Slave face indices on the master face
+      std::vector<int> slaveCorners; /// Corner vertices of slave faces
+      std::array<int, 2> ne; /// Number of elements in each direction
+      std::array<int, 2> s0; /// Cartesian shift, see Reorder2D
+      bool rev; /// Whether dimensions are interchanged
+
+      MasterFaceInfo() : rev(false)
+      {
+         for (int i=0; i<2; ++i)
+         {
+            ne[i] = 0;
+            s0[i] = -1;
+         }
+      }
+
+      MasterFaceInfo(int ne1, int ne2) : rev(false)
+      {
+         ne[0] = ne1;
+         ne[1] = ne2;
+         for (int i=0; i<2; ++i) { s0[i] = -1; }
+      }
+   };
+
+   /// Slave face data for a nonconforming patch topology.
+   struct SlaveFaceInfo
+   {
+      int index; /// Face index
+      int ori; /// Orientation
+      int ksi[2]; /// Knot-span indices in parent face of v0
+      int ne[2]; /// Number of elements in each direction on child face
+   };
+
+   /** @brief Represents a pair of child and parent faces for a nonconforming
+       patch topology. */
+   struct FacePairInfo
+   {
+      int v0; /// Lower left corner vertex
+      int parent; /// Parent face index
+      SlaveFaceInfo info; /// Data for the child face
+   };
+
+   /// Auxiliary edges and faces for a nonconforming patch topology.
+   std::vector<AuxiliaryEdge> auxEdges;
+   std::vector<AuxiliaryFace> auxFaces;
+
+   /** @brief Maps from vertex pairs to indices in auxEdges, auxFaces. Vertex
+       pairs are sorted indices, with faces having 4 vertices represented by the
+       minimum index and the index of the diagonally opposite vertex. */
+   std::map<std::pair<int, int>, int> auxv2e, auxv2f;
+
+   /// Map from sorted vertex pairs to edge indices.
+   std::map<std::pair<int, int>, int> v2e;
+
+   /// Refinement factors in each dimension.
+   Array<int> ref_factors;
 
    /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
    Table *el_dof, *bel_dof;
@@ -543,6 +681,42 @@ protected:
 
    /// Return the unsigned index of the KnotVector for edge @a edge.
    inline int KnotInd(int edge) const;
+   /// Return the sign (orientation) of the KnotVector for edge @a edge.
+   inline int KnotSign(int edge) const;
+
+   // The following data is used only for a nonconforming patch topology.
+
+   /// Sets of master edges and face in patchTopo->ncmesh.
+   std::set<int> masterEdges, masterFaces;
+
+   /// Array form of @a masterEdges.
+   Array<int> masterEdgeIndex;
+
+   /** @brief Arrays of slave edges or faces, with possible repetitions, ordered
+       by position within their master entities. */
+   std::vector<int> slaveEdges;
+   std::vector<SlaveFaceInfo> slaveFaces;
+
+   /// Arrays of unique indices in @a slaveEdges, @a slaveFaces.
+   Array<int> slaveEdgesUnique, slaveFacesUnique;
+
+   /// Maps from slaveEdges/slaveFaces to slaveEdgesUnique/slaveEdgesUnique.
+   std::map<int,int> slaveEdgesToUnique, slaveFacesToUnique;
+
+   /// Maps from masterEdges/masterFaces to their indices in an ordered list.
+   std::map<int,int> masterEdgeToId, masterFaceToId;
+
+   /// Master edge and face data for a nonconforming patch topology.
+   std::vector<MasterEdgeInfo> masterEdgeInfo;
+   std::vector<MasterFaceInfo> masterFaceInfo;
+
+   bool nonconforming = false; /// Whether patchTopo is a nonconforming mesh.
+
+   /// Map from a parent entity vertex index pair to knotvectors on the entity.
+   std::map<std::pair<int, int>, std::array<int, 2>> parentToKV;
+
+   /// Update knot-span indices in @a auxEdges and @a auxFaces on refinement.
+   void UpdateAuxiliaryKnotSpans(Array<int> const& rf);
 
    /// Access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
@@ -550,9 +724,9 @@ protected:
    /// Const access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
    inline const KnotVector *KnotVec(int edge) const;
-   /* brief Const access function for the KnotVector associated with edge
-      @a edge. The output orientation @a okv is set to @a oedge with sign flipped
-      if the KnotVector index associated with edge @a edge is negative. */
+   /** @brief Const access function for the KnotVector associated with edge
+       @a edge. The output orientation @a okv is set to @a oedge with sign flipped
+       if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
    /// Throw an error if any patch has an inconsistent edge-to-knot mapping.
@@ -649,6 +823,24 @@ protected:
    void Get2DPatchNets(const Vector &coords, int vdim);
    void Get3DPatchNets(const Vector &coords, int vdim);
 
+   // Functions for refinement by factors
+
+   /// Load refinement factors for a list of knotvectors from file.
+   void LoadFactorsForKV(const std::string &filename);
+
+   /// Ensure consistent refinement factors on all knotvectors.
+   void PropagateFactorsForKV(int rf_default);
+
+   /// Set consistent refinement factors on patch @a p.
+   int SetPatchFactors(int p);
+
+   /// For the master edge with index @a mid, set offsets @a os for the number
+   /// of mesh edges in each subedge (slave or auxiliary edge).
+   void GetMasterEdgePieceOffsets(int mid, Array<int> &os);
+
+   /// Return the number of mesh edges in auxiliary edge @a aux_edge.
+   int AuxiliaryEdgeNE(int aux_edge);
+
    // Patch --> FE translation functions
 
    /** @brief Return in @a coords the coordinates from each patch. Side effects:
@@ -673,14 +865,110 @@ protected:
    /// Set @a patch_to_bel.
    void SetPatchToBdrElements();
 
+   /** @brief Get the DOFs (dof = true) or vertices (dof = false) for
+       master edge @a me. */
+   void GetMasterEdgeDofs(bool dof, int me, Array<int> &dofs) const;
+
+   /** @brief Get the DOFs (dof = true) or vertices (dof = false) for
+       master face @a mf. */
+   void GetMasterFaceDofs(bool dof, int mf, Array2D<int> &dofs) const;
+
    /// To be used by ParNURBSExtension constructor(s)
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
+
+private:
+   /// Get the degrees of freedom for the vertex @a vertex in @a dofs.
+   void GetVertexDofs(int vertex, Array<int> &dofs) const;
+
+   /// Get the degrees of freedom for the edge @a edge in @a dofs.
+   void GetEdgeDofs(int edge, Array<int> &dofs) const;
+
+   /** @brief Get the DOF (dof = true) or vertex (dof = false) offset for the
+       edge with index @a edge plus @a increment. */
+   int GetEdgeOffset(bool dof, int edge, int increment) const;
+
+   /** @brief Get the DOF (dof = true) or vertex (dof = false) offset for the
+       face with index @a face plus @a increment. */
+   int GetFaceOffset(bool dof, int face, int increment) const;
+
+   /** @brief Find the permutation @a perm of slave face entities, with entity
+       perm[i] of the slave face being entity i in the master face ordering.
+
+       @param[in] sf  Slave face index in @a patchTopo
+       @param[in] n1  Number of slave face edges, first master face direction.
+       @param[in] n2  Number of slave face edges, second master face direction.
+       @param[in] v0  Bottom-left face vertex with respect to the master face.
+       @param[in] e1  Local edge index, first direction of the slave face.
+       @param[in] e2  Local edge index, second direction of the slave face. */
+   void GetFaceOrdering(int sf, int n1, int n2, int v0, int e1, int e2,
+                        Array<int> &perm) const;
+
+   /// Find additional slave and auxiliary faces after ProcessVertexToKnot3D.
+   void FindAdditionalSlaveAndAuxiliaryFaces(
+      std::map<std::pair<int, int>, int> &v2f,
+      std::set<int> &addParentFaces,
+      std::vector<FacePairInfo> &facePairs);
+
+   /// Helper function for @a GenerateOffsets().
+   void ProcessFacePairs(int start, int midStart,
+                         const std::vector<int> &parentN1,
+                         const std::vector<int> &parentN2,
+                         std::vector<int> &parentVerts,
+                         const std::vector<FacePairInfo> &facePairs);
+
+   /// Helper function for @a GenerateOffsets().
+   void ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
+                              std::set<int> &reversedParents,
+                              std::vector<EdgePairInfo> &edgePairs);
+
+   /// Helper function for @a GenerateOffsets().
+   void ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
+                              const std::map<std::pair<int, int>, int> &v2f,
+                              std::vector<int> &parentN1,
+                              std::vector<int> &parentN2,
+                              std::vector<EdgePairInfo> &edgePairs,
+                              std::vector<FacePairInfo> &facePairs,
+                              std::vector<int> &parentFaces,
+                              std::vector<int> &parentVerts);
+
+   /// Helper function for @a GenerateOffsets().
+   void SetDofToPatch();
+
+   /// Helper functions for @a PropagateFactorsForKV().
+   void GetAuxFaceToPatchTable(Array2D<int> &auxface2patch);
+   void GetSlaveFaceToPatchTable(Array2D<int> &sface2patch);
+
+   /// Helper function for @a UniformRefinement().
+   void Refine(const Array<int> *rf=nullptr);
+
+   /// Get the two endpoints of the auxiliary edge with index @a auxEdge.
+   void GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const;
+
+   /// Get the four vertices of the auxiliary face with index @a auxFace.
+   void GetAuxFaceVertices(int auxFace, Array<int> &verts) const;
+
+   /// Get the four edges of the auxiliary face with index @a auxFace.
+   void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
+
+   /// Helper function for @a SetPatchFactors.
+   void SlaveEdgeToParent(int se, int parent, const Array<int> &os,
+                          const std::vector<int> &parentVerts,
+                          Array<int> &edges);
+
+   int num_structured_patches = 0; /// Number of structured patches
+   Array3D<double> patchCP; /// Control points for coarse structured patches
+
+   static constexpr int unsetFactor = 0; /// Unset refinement factor value
+
+   std::vector<Array<int>> kvf, kvf_coarse; /// Knotvector refinement factors
+   std::vector<Array<int>> auxef; /// Auxiliary edge refinement factors
+   Array<int> dof2patch; /// DOF to owning patch map in @a SetSolutionVector()
 
 public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
-   /// Read-in a NURBSExtension from a stream @a input..
-   NURBSExtension(std::istream &input, bool spacing=false);
+   /// Read-in a NURBSExtension from a stream @a input.
+   NURBSExtension(std::istream &input, bool spacing=false, bool nc=false);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the KnotVectors and using uniform weights of 1. */
    /** @note If a KnotVector in @a parent already has order greater than or
@@ -834,6 +1122,9 @@ public:
    int GetPatchBdrAttribute(int i) const
    { return patchTopo->GetBdrAttribute(i); }
 
+   /// Return the number of knotvector elements for edge @a edge.
+   inline int KnotVecNE(int edge) const;
+
    // Load functions
 
    /// Load element @a i into @a FE.
@@ -869,16 +1160,25 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
 
    /** @brief Refine with optional refinement factor @a rf. Uniform means
-   refinement is done everywhere by the same factor, although nonuniform
-   spacing functions may be used.
+       refinement is done everywhere by the same factor, although nonuniform
+       spacing functions may be used.
    */
    void UniformRefinement(int rf = 2);
    void UniformRefinement(Array<int> const& rf);
+
+   /// Refine with refinement factors loaded for some knotvectors specified in
+   /// the given file, with default refinement factor @a rf elsewhere.
+   void RefineWithKVFactors(int rf, const std::string &kvf_filename);
+
+   /// Coarsen with optional coarsening factor @a cf.
    void Coarsen(int cf = 2, real_t tol = 1.0e-12);
    void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
 
+   /// Helper function for @a Refine().
+   void UpdateCoarseKVF();
+
    /** @brief Insert knots from @a kv into all KnotVectors in all patches. The
-        size of @a kv should be the same as @a knotVectors. */
+       size of @a kv should be the same as @a knotVectors. */
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
@@ -897,8 +1197,7 @@ public:
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
        non-nested spacing functions. */
-   void GetCoarseningFactors(Array<int> & f) const;
-
+   void GetCoarseningFactors(Array<int> &f) const;
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
@@ -915,6 +1214,26 @@ public:
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
    const Array<int>& GetPatchBdrElements(int patch);
+
+   /// Return true if the patch topology mesh is nonconforming.
+   bool Nonconforming() const { return nonconforming; }
+
+   /// Return a pointer to the NCMesh of a nonconforming patch topology mesh.
+   NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
+
+   /** @brief Read the control points for coarse structured patches.
+
+       This is useful for a mesh with a nonconforming patch topology, when
+       non-nested refinement is done. In such cases, knot insertion is done on
+       coarse structured patches with a single element. */
+   void ReadStructuredPatchCP(std::istream &input);
+
+   /// Print control points for coarse structured patches @a patchCP.
+   void PrintCoarsePatches(std::ostream &os);
+
+   /** @brief Fully coarsen all structured patches, for non-nested refinement of
+       a mesh with a nonconforming patch topology. */
+   void FullyCoarsen();
 };
 
 
@@ -965,23 +1284,31 @@ public:
 #endif
 
 
-/** @brief Mapping for mesh vertices and NURBS space DOFs. */
+/** @brief Mapping for mesh vertices and NURBS space DOFs on a patch.
+
+    This class has two modes, for vertices or DOFs, depending on whether
+    @a SetPatchVertexMap or @a SetPatchDofMap is called.
+ */
 class NURBSPatchMap
 {
 private:
    /// This object must be associated with exactly one NURBSExtension.
    const NURBSExtension *Ext;
 
-   /// Number of elements in each direction, minus 1.
+   /// Vertex mode: Number of elements in each direction, minus 1.
+   /// DOF mode: Number of control points in each direction, minus 2.
    int I, J, K;
 
-   /// Vertex of DOF offset for this patch, among all patches.
+   /// Vertex/DOF offset for this patch, among all patches.
    int pOffset;
    /// Orientation for this boundary patch (0 in the patch case).
    int opatch;
 
    /// Patch topology entities for this patch or boundary patch.
    Array<int> verts, edges, faces, oedge, oface;
+   Array<bool> edgeMaster, faceMaster;
+   Array<int> edgeMasterOffset, faceMasterOffset;
+   Array<int> masterDofs;
 
    inline static int F(const int n, const int N)
    { return (n < 0) ? 0 : ((n >= N) ? 2 : 1); }
@@ -992,6 +1319,27 @@ private:
    inline static int Or2D(const int n1, const int n2,
                           const int N1, const int N2, const int Or);
 
+   inline int EC(const int e, const int n, const int N, const int s=1) const
+   {
+      return !edgeMaster[e] ? edges[e] + Or1D(n, N, s*oedge[e]) :
+             GetMasterEdgeDof(e, Or1D(n, N, s*oedge[e]));
+   }
+
+   inline int FC(const int f, const int m, const int n,
+                 const int M, const int N) const
+   {
+      return !faceMaster[f] ? faces[f] + Or2D(m, n, M, N, oface[f]) :
+             GetMasterFaceDof(f, Or2D(m, n, M, N, oface[f]));
+   }
+
+   inline int FCP(const int f, const int m, const int n,
+                  const int M, const int N) const
+   {
+      return (faceMaster.Size() == 0 || !faceMaster[f]) ?
+             pOffset + Or2D(m, n, M, N, opatch) :
+             GetMasterFaceDof(f, Or2D(m, n, M, N, opatch));
+   }
+
    // The following 2 functions also set verts, edges, faces, orientations etc.
 
    /// Get the KnotVectors for patch @a p in @a kv.
@@ -1000,15 +1348,25 @@ private:
        orientations output in @a okv. */
    void GetBdrPatchKnotVectors(int bp, const KnotVector *kv[], int *okv);
 
+   void SetMasterEdges(bool dof, const KnotVector *kv[] = nullptr);
+   void SetMasterFaces(bool dof);
+   int GetMasterEdgeDof(const int e, const int i) const;
+   int GetMasterFaceDof(const int f, const int i) const;
+
 public:
    /// Constructor for an object associated with NURBSExtension @a ext.
    NURBSPatchMap(const NURBSExtension *ext) { Ext = ext; }
 
-   /// Return the number of elements in the first direction.
+   /// Vertex mode: Return the number of elements in the first direction.
+   /// DOF mode: Return the number of control points - 1 in the first direction.
    inline int nx() const { return I + 1; }
-   /// Return the number of elements in the second direction (2D or 3D).
+
+   /// Vertex mode: Return the number of elements in the second direction (2D or 3D).
+   /// DOF mode: Return the number of control points - 1 in the second direction (2D or 3D).
    inline int ny() const { return J + 1; }
-   /// Return the number of elements in the third direction (3D).
+
+   /// Vertex mode: Return the number of elements in the third direction (3D).
+   /// DOF mode: Return the number of control points - 1 in the third direction (3D).
    inline int nz() const { return K + 1; }
 
    /// Set mesh vertex map for patch @a p with KnotVectors @a kv.
@@ -1138,8 +1496,13 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   int kv = edge_to_knot[edge];
-   return (kv >= 0) ? kv : (-1-kv);
+   const int kv = edge_to_knot[edge];
+   return kv >= 0 ? kv : -1 - kv;
+}
+
+inline int NURBSExtension::KnotSign(int edge) const
+{
+   return edge_to_knot[edge] >= 0 ? 1 : -1;
 }
 
 inline KnotVector *NURBSExtension::KnotVec(int edge)
@@ -1168,12 +1531,15 @@ const
    }
 }
 
+inline int NURBSExtension::KnotVecNE(int edge) const
+{
+   return knotVectors[KnotInd(edge)]->GetNE();
+}
 
 // static method
 inline int NURBSPatchMap::Or2D(const int n1, const int n2,
                                const int N1, const int N2, const int Or)
 {
-   // Needs testing
    switch (Or)
    {
       case 0: return n1 + n2*N1;
@@ -1212,13 +1578,13 @@ inline int NURBSPatchMap::operator()(const int i, const int j) const
    switch (3*F(j1, J) + F(i1, I))
    {
       case 0: return verts[0];
-      case 1: return edges[0] + Or1D(i1, I, oedge[0]);
+      case 1: return EC(0, i1, I);
       case 2: return verts[1];
-      case 3: return edges[3] + Or1D(j1, J, -oedge[3]);
-      case 4: return pOffset + Or2D(i1, j1, I, J, opatch);
-      case 5: return edges[1] + Or1D(j1, J, oedge[1]);
+      case 3: return EC(3, j1, J, -1);
+      case 4: return FCP(0, i1, j1, I, J);
+      case 5: return EC(1, j1, J);
       case 6: return verts[3];
-      case 7: return edges[2] + Or1D(i1, I, -oedge[2]);
+      case 7: return EC(2, i1, I, -1);
       case 8: return verts[2];
    }
 #ifdef MFEM_DEBUG
@@ -1230,36 +1596,35 @@ inline int NURBSPatchMap::operator()(const int i, const int j) const
 inline int NURBSPatchMap::operator()(const int i, const int j, const int k)
 const
 {
-   // Needs testing
    const int i1 = i - 1, j1 = j - 1, k1 = k - 1;
    switch (3*(3*F(k1, K) + F(j1, J)) + F(i1, I))
    {
       case  0: return verts[0];
-      case  1: return edges[0] + Or1D(i1, I, oedge[0]);
+      case  1: return EC(0, i1, I);
       case  2: return verts[1];
-      case  3: return edges[3] + Or1D(j1, J, oedge[3]);
-      case  4: return faces[0] + Or2D(i1, J - 1 - j1, I, J, oface[0]);
-      case  5: return edges[1] + Or1D(j1, J, oedge[1]);
+      case  3: return EC(3, j1, J);
+      case  4: return FC(0, i1, J - 1 - j1, I, J);
+      case  5: return EC(1, j1, J);
       case  6: return verts[3];
-      case  7: return edges[2] + Or1D(i1, I, oedge[2]);
+      case  7: return EC(2, i1, I);
       case  8: return verts[2];
-      case  9: return edges[8] + Or1D(k1, K, oedge[8]);
-      case 10: return faces[1] + Or2D(i1, k1, I, K, oface[1]);
-      case 11: return edges[9] + Or1D(k1, K, oedge[9]);
-      case 12: return faces[4] + Or2D(J - 1 - j1, k1, J, K, oface[4]);
+      case  9: return EC(8, k1, K);
+      case 10: return FC(1, i1, k1, I, K);
+      case 11: return EC(9, k1, K);
+      case 12: return FC(4, J - 1 - j1, k1, J, K);
       case 13: return pOffset + I*(J*k1 + j1) + i1;
-      case 14: return faces[2] + Or2D(j1, k1, J, K, oface[2]);
-      case 15: return edges[11] + Or1D(k1, K, oedge[11]);
-      case 16: return faces[3] + Or2D(I - 1 - i1, k1, I, K, oface[3]);
-      case 17: return edges[10] + Or1D(k1, K, oedge[10]);
+      case 14: return FC(2, j1, k1, J, K);
+      case 15: return EC(11, k1, K);
+      case 16: return FC(3, I - 1 - i1, k1, I, K);
+      case 17: return EC(10, k1, K);
       case 18: return verts[4];
-      case 19: return edges[4] + Or1D(i1, I, oedge[4]);
+      case 19: return EC(4, i1, I);
       case 20: return verts[5];
-      case 21: return edges[7] + Or1D(j1, J, oedge[7]);
-      case 22: return faces[5] + Or2D(i1, j1, I, J, oface[5]);
-      case 23: return edges[5] + Or1D(j1, J, oedge[5]);
+      case 21: return EC(7, j1, J);
+      case 22: return FC(5, i1, j1, I, J);
+      case 23: return EC(5, j1, J);
       case 24: return verts[7];
-      case 25: return edges[6] + Or1D(i1, I, oedge[6]);
+      case 25: return EC(6, i1, I);
       case 26: return verts[6];
    }
 #ifdef MFEM_DEBUG
