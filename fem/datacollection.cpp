@@ -808,11 +808,14 @@ bool ParaViewDataCollectionBase::IsBinaryFormat() const
    return pv_data_format != VTKFormat::ASCII;
 }
 
+void ParaViewDataCollectionBase::UseRestartMode(bool restart_mode_)
+{
+   restart_mode = restart_mode_;
+}
+
 ParaViewDataCollection::ParaViewDataCollection(
    const std::string& collection_name, Mesh *mesh_)
-   : ParaViewDataCollectionBase(collection_name, mesh_),
-     restart_mode(false)
-{ }
+   : ParaViewDataCollectionBase(collection_name, mesh_) { }
 
 std::string ParaViewDataCollection::GenerateCollectionPath()
 {
@@ -1142,11 +1145,6 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
    os << "</DataArray>" << std::endl;
 }
 
-void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
-{
-   restart_mode = restart_mode_;
-}
-
 const char *ParaViewDataCollection::GetDataFormatString() const
 {
    if (pv_data_format == VTKFormat::ASCII)
@@ -1186,10 +1184,13 @@ void ParaViewHDFDataCollection::EnsureVTKHDF()
       if (ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh))
       {
          use_mpi = true;
-         vtkhdf.reset(new VTKHDF(fname, pmesh->GetComm()));
+         vtkhdf.reset(new VTKHDF(fname, pmesh->GetComm(), {restart_mode, time}));
       }
 #endif
-      if (!use_mpi) { vtkhdf.reset(new VTKHDF(fname)); }
+      if (!use_mpi)
+      {
+         vtkhdf.reset(new VTKHDF(fname, {restart_mode, time}));
+      }
    }
 }
 

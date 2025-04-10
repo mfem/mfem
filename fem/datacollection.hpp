@@ -509,6 +509,7 @@ protected:
    int levels_of_detail = 1;
    int compression_level = -1;
    bool high_order_output = false;
+   bool restart_mode = false;
    VTKFormat pv_data_format = VTKFormat::BINARY;
 public:
    ParaViewDataCollectionBase(const std::string &name, Mesh *mesh);
@@ -565,6 +566,14 @@ public:
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;
+
+   /// @brief Enable or disable restart mode.
+   ///
+   /// If restart is enabled, new writes will preserve timestep metadata for any
+   /// solutions prior to the currently defined time.
+   ///
+   /// Initially, restart mode is disabled.
+   void UseRestartMode(bool restart_mode_);
 };
 
 /// Writer for ParaView visualization (PVD and VTU format)
@@ -572,7 +581,6 @@ class ParaViewDataCollection : public ParaViewDataCollectionBase
 {
 private:
    std::fstream pvd_stream;
-   bool restart_mode;
 
 protected:
    void WritePVTUHeader(std::ostream &out);
@@ -600,13 +608,6 @@ public:
    /// Save the collection - the directory name is constructed based on the
    /// cycle value
    void Save() override;
-
-   /// Enable or disable restart mode. If restart is enabled, new writes will
-   /// preserve timestep metadata for any solutions prior to the currently
-   /// defined time.
-   ///
-   /// Initially, restart mode is disabled.
-   void UseRestartMode(bool restart_mode_);
 };
 
 /// Writer for ParaView visualization (%VTKHDF format)
