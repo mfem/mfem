@@ -21,7 +21,7 @@
 
 using namespace mfem;
 
-TEST_CASE("Reduce Sum", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Sum", "[Reduction],[GPU]")
 {
    Array<int> workspace;
    Array<int> a(1000);
@@ -45,7 +45,7 @@ TEST_CASE("Reduce Sum", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce Mult", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Mult", "[Reduction],[GPU]")
 {
    Array<long long> workspace;
    Array<long long> a(100);
@@ -85,7 +85,7 @@ TEST_CASE("Reduce Mult", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce BAnd", "[Reduction],[CUDA]")
+TEST_CASE("Reduce BAnd", "[Reduction],[GPU]")
 {
    Array<unsigned> workspace;
    Array<unsigned> a(10);
@@ -140,7 +140,7 @@ TEST_CASE("Reduce BAnd", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce BOr", "[Reduction],[CUDA]")
+TEST_CASE("Reduce BOr", "[Reduction],[GPU]")
 {
    Array<unsigned> workspace;
    Array<unsigned> a(0x210);
@@ -164,7 +164,7 @@ TEST_CASE("Reduce BOr", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce Min", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Min", "[Reduction],[GPU]")
 {
    Array<int> workspace;
    Array<int> a(1000);
@@ -197,7 +197,7 @@ TEST_CASE("Reduce Min", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce Max", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Max", "[Reduction],[GPU]")
 {
    Array<int> workspace;
    Array<int> a(1000);
@@ -230,7 +230,7 @@ TEST_CASE("Reduce Max", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce MinMax", "[Reduction],[CUDA]")
+TEST_CASE("Reduce MinMax", "[Reduction],[GPU]")
 {
    Array<DevicePair<int, int>> workspace;
    Array<int> a(1000);
@@ -270,7 +270,7 @@ TEST_CASE("Reduce MinMax", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce ArgMin", "[Reduction],[CUDA]")
+TEST_CASE("Reduce ArgMin", "[Reduction],[GPU]")
 {
    Array<DevicePair<double, int>> workspace;
    Array<double> a(1000);
@@ -307,7 +307,7 @@ TEST_CASE("Reduce ArgMin", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce ArgMax", "[Reduction],[CUDA]")
+TEST_CASE("Reduce ArgMax", "[Reduction],[GPU]")
 {
    Array<DevicePair<double, int>> workspace;
    Array<double> a(1000);
@@ -347,7 +347,7 @@ TEST_CASE("Reduce ArgMax", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce ArgMinMax", "[Reduction],[CUDA]")
+TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
 {
    Array<MinMaxLocScalar<double, int>> workspace;
    Array<double> a(1000);
