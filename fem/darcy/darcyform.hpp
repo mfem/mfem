@@ -216,7 +216,8 @@ public:
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override
    { MFEM_ABORT("This class uses BlockVectors instead of Vectors."); }
 
-   void RecoverFEMSolution(const Vector &X, const BlockVector &b, BlockVector &x);
+   virtual void RecoverFEMSolution(const Vector &X, const BlockVector &b,
+                                   BlockVector &x);
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.

@@ -515,16 +515,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    solver->Mult(RHS, X);
 
-#ifdef MFEM_USE_MPI
-   if (pdarcy)
-   {
-      pdarcy->RecoverFEMSolution(X, rhs, x);
-   }
-   else
-#endif
-   {
-      darcy->RecoverFEMSolution(X, rhs, x);
-   }
+   darcy->RecoverFEMSolution(X, rhs, x);
 
 #ifdef MFEM_USE_MPI
    if (trace_space)
