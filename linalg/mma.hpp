@@ -30,7 +30,7 @@ class Vector;
  *         variable bounds.
  *
  *  \details
- *  This class finds \f${\bf x} \in R^n\f$ that solves the following nonlinear
+ *  This class finds ${\bf x} \in R^n$ that solves the following nonlinear
  *  program:
  *   \f{eqnarray*}{
  *    \min_{{\bf x} \in R^n} & & F({\bf x})\\
@@ -38,11 +38,11 @@ class Vector;
  *      1,\ldots m\\
  *   & & {\bf x}_{\textrm{lo}} \leq {\bf x} \leq {\bf x}_{\textrm{hi}}.
  *   \f}
- *   Here \f$F : R^n \to R\f$ is the objective function, and
- *   \f$C : R^n \to R^m\f$ is a set of \f$m\f$ inequality constraints. By
- *   convention, the routine seeks \f${\bf x}\f$ that minimizes the
- *   objective function, \f$F\f$. Maximization problems should be
- *   reformulated as a minimization of \f$-F\f$.
+ *   Here $F : R^n \to R$ is the objective function, and
+ *   $C : R^n \to R^m$ is a set of $m$ inequality constraints. By
+ *   convention, the routine seeks ${\bf x}$ that minimizes the
+ *   objective function, $F$. Maximization problems should be
+ *   reformulated as a minimization of $-F$.
  *
  *    The objective functions are replaced by convex functions
  *    chosen based on gradient information, and solved using a dual method.
@@ -68,7 +68,7 @@ public:
    /**
     * \brief Serial constructor
     * \param nVar   total number of design parameters
-    * \param nCon   number of inequality constraints (i.e., \f$C\f$)
+    * \param nCon   number of inequality constraints (i.e., $C$)
     * \param xval   initial values for design parameters (a pointer
     *               to \p nVar doubles). Caller retains ownership of
     *               this pointer/data.
@@ -79,7 +79,7 @@ public:
    /**
     * \brief Serial constructor
     * \param nVar   total number of design parameters
-    * \param nCon   number of inequality constraints (i.e., \f$C\f$)
+    * \param nCon   number of inequality constraints (i.e., $C$)
     * \param xval   initial values for design parameters (size should
     *               be \p nVar). Caller retains ownership of
     *               this Vector.
@@ -92,7 +92,7 @@ public:
     * \brief Parallel constructor
     * \param comm_  the MPI communicator participating in the NLP solve
     * \param nVar   number of design parameters on this MPI rank
-    * \param nCon   total number of inequality constraints (i.e., \f$C\f$).
+    * \param nCon   total number of inequality constraints (i.e., $C$).
     *               Every MPI rank provides the same value here.
     * \param xval   initial values for design parameters on this MPI rank
     *               (a pointer to \p nVar doubles). Caller retains ownership
@@ -119,7 +119,7 @@ public:
     * \brief Parallel constructor
     * \param comm_  the MPI communicator participating in the NLP solve
     * \param nVar   number of design parameters on this MPI rank
-    * \param nCon   total number of inequality constraints (i.e., \f$C\f$).
+    * \param nCon   total number of inequality constraints (i.e., $C$).
     *               Every MPI rank provides the same value here.
     * \param xval   initial values for design parameters (size should
     *               be \p nVar). Caller retains ownership of
@@ -153,12 +153,12 @@ public:
     * \param dfdx    vector of size nVar holding the gradients of the
     *                objective function with respect to
     *                the design variables,
-    *                \f$\frac{\partial F}{\partial {\bf x}_i}\f$
+    *                $\frac{\partial F}{\partial {\bf x}_i}$
     *                for each variable on this rank.
     * \param gx      vector of size nCon holding the values of the
     *                inequality constraints. Every MPI rank should
     *                pass in the same values here.
-    * \param dgdx    vector of size \f$\textrm{nCon}\cdot\textrm{nVar}\f$
+    * \param dgdx    vector of size $\textrm{nCon}\cdot\textrm{nVar}$
     *                holding the gradients of the constraints in
     *                row-major order. For example, {dg0dx0, dg0dx1, ...,}
     *                {dg1dx0, dg1dx1, ..., }.
@@ -186,7 +186,7 @@ public:
     * \param dfdx    vector of size nVar holding the gradients of the
     *                objective function with respect to
     *                the design variables,
-    *                \f$\frac{\partial F}{\partial {\bf x}_i}\f$
+    *                $\frac{\partial F}{\partial {\bf x}_i}$
     *                for each variable on this rank.
     * \param xmin    vector of size nVar holding the lower bounds on
     *                the design values
