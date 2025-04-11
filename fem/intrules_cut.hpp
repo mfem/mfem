@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -565,10 +565,8 @@ protected:
     rule.
 
     @param [in] Tr ElementTransformation of the current element
-    @param [in] sir corresponding IntegrationRule on surface
     */
-   void ComputeVolumeWeights1D(ElementTransformation& Tr,
-                               const IntegrationRule* sir);
+   void ComputeVolumeWeights1D(ElementTransformation& Tr);
 
    /**
     @brief Compute 2D quadrature weights

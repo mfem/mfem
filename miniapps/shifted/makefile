@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -33,12 +33,13 @@ EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 ALGOIM_SRC =  lsf_integral.cpp
 ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate lsf_integral
+SEQ_MINIAPPS = lsf_integral
+PAR_MINIAPPS = distance diffusion extrapolate
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = 
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -98,7 +99,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate lsf_integral 
+	rm -f *.o *~ distance diffusion extrapolate lsf_integral
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

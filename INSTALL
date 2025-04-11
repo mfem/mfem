@@ -122,9 +122,14 @@ Parallel build:
 (For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
-   (this build requires CMake 3.8 or newer)
+   (this build requires CMake 3.17 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
-   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES -DCUDA_ARCH=sm_70
+   make -j 4
+
+HIP build:
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_HIP=YES -DHIP_ARCH=gfx942 -DCMAKE_CXX_COMPILER=amdclang++ -DCMAKE_HIP_COMPILER=amdclang++
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -220,9 +225,10 @@ An optional installation of the library and the headers can be performed with
 
    make install [PREFIX=<dir>]
 
-The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in
-$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
+The library will be installed in ${PREFIX}/lib, the headers in
+${PREFIX}/include, and the configuration and testing makefiles (config.mk and
+test.mk) in ${PREFIX}/share/mfem. The PREFIX option can also be set during
+configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -271,8 +277,9 @@ Build options:
 
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
-             installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
+             installed in ${PREFIX}/lib, the headers in ${PREFIX}/include, and
+             the configuration and testing makefiles (config.mk and test.mk) in
+             ${PREFIX}/share/mfem.
    INSTALL - Specify the install program, default = /usr/bin/install
    INSTALL_DEF_PERM - Specify the default install permissions. This affects
                       headers and configuration makefiles, default = 644
@@ -702,12 +709,12 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
-  C++ compiler that supports the C++-14 standard. For additional requirements
+  C++ compiler that supports the C++-17 standard. For additional requirements
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
            Debug).
-  Versions: Ginkgo >= 1.4.0.
+  Versions: Ginkgo >= 1.9.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -791,14 +798,14 @@ The specific libraries and their options are:
   Versions: 1.9.3
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.9, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.9 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.9.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.7.
+  Versions: GSLIB >= 1.0.9.
 
 - ALGOIM (optional), used when MFEM_USE_ALGOIM=YES. The library provides only
   headers so it just needs to be downloaded at the same level as MFEM. Download
@@ -980,15 +987,27 @@ or
    cmake --build . --config Release --target install  [Xcode]
    cmake --build . --config Release --target INSTALL  [Visual Studio]
 
-The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
-and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
+By default, the library will be installed in ${CMAKE_INSTALL_PREFIX}/lib, the
+headers in ${CMAKE_INSTALL_PREFIX}/include, the configuration CMake files in
+${CMAKE_INSTALL_PREFIX}/lib/cmake/mfem, and the configuration and testing GNU
+make files in ${CMAKE_INSTALL_PREFIX}/share/mfem. For fine-tuning the
+installation directories the following variables can be used:
+INSTALL_INCLUDE_DIR, INSTALL_LIB_DIR, INSTALL_BIN_DIR (e.g. for dll files on
+Windows), INSTALL_SHARE_DIR, and INSTALL_CMAKE_DIR; alternatively, with lower
+precedence, the CMake GNUInstallDirs variables can also be used:
+CMAKE_INSTALL_INCLUDEDIR, CMAKE_INSTALL_LIBDIR, CMAKE_INSTALL_BINDIR and
+CMAKE_INSTALL_DATAROOTDIR. Note that the default for INSTALL_LIB_DIR and
+CMAKE_INSTALL_LIBDIR is lib. This is in contrast to the default behavior for
+GNUInstallDirs, which defines a platform-dependent default value for
+CMAKE_INSTALL_LIBDIR (lib or lib64 or lib/<multiarch-tuple> on Debian). To
+restore this behavior, the user can set MFEM_USE_GNUINSTALLDIRS=YES.
 
 
 Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
-Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+Note: the option MFEM_USE_CUDA requires CMake version 3.17 or newer!
 
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
@@ -1147,6 +1166,19 @@ larger problems, there are two options:
 1. Building hypre with '--enable-bigint' defines the local and global indices to
    be 64-bit. This is convenient, but requires more memory than necessary.
 
-2. Building hypre with '--enable-mixedint' defines the local indiced to be
+2. Building hypre with '--enable-mixedint' defines the local indices to be
    32-bit, while using a 64-bit storage for global indices. This option is
    currently tested only in ex1p, and may not work in more general settings.
+
+Specific options for HIP
+========================
+MFEM expects the `ROCM_PATH` environment variable to be set to the path of the
+ROCM install, as well as having `$ROCM_PATH/bin` in `PATH`.
+
+Specific options for RAJA+HIP+MPI
+=================================
+RAJA uses CMake's built-in HIP support (added in CMake 3.21), while MFEM uses
+the older HIP C++ library build/linkage. To ensure proper build and linkage
+check that `CMAKE_CXX_COMPILER` and `CMAKE_HIP_COMPILER` are set to the same
+compiler. This is especially important when using an MPI compiler (for example
+crayCC) where some linker flags may get dropped if these two are not identical.

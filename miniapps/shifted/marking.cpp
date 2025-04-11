@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -75,7 +75,7 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
       ElementTransformation *eltr =
          pmesh.GetFaceNbrElementTransformation(Elem2NbrNo);
       const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0), 4*eltr->OrderJ());
+         IntRulesLo.Get(pmesh.GetTypicalElementGeometry(), 4*eltr->OrderJ());
 
       const int nip = ir.GetNPoints();
       vals.SetSize(nip);
@@ -230,7 +230,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
    }
    bool sbm_at_true_boundary_global = false;
    MPI_Allreduce(&sbm_at_true_boundary, &sbm_at_true_boundary_global, 1,
-                 MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MPI_COMM_WORLD);
    if (sbm_at_true_boundary_global)
    {
       ess_bdr.Append(0);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@
 // Compile with: make findpts
 //
 // Sample runs:
-//    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
+//    findpts -m ../../data/rt-2d-p4-tri.mesh -o 8 -mo 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
@@ -38,7 +38,7 @@
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
-//    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
+//    findpts -m ../../data/rt-2d-q3.mesh -o 8 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr -mpr
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
@@ -52,119 +52,8 @@
 using namespace mfem;
 using namespace std;
 
-// Experimental - class used to update GridFunction post p-refinement.
-// Can change as support for p-refinement evolves.
-class PRefinementGFUpdate
-{
-private:
-   FiniteElementSpace *src;
-
-public:
-   /// @brief Used to Update GridFunction post p-refinement.
-   /// Initialize with FESpace prior to p-refinement.
-   PRefinementGFUpdate(const FiniteElementSpace& src_);
-
-   /// Destructor
-   ~PRefinementGFUpdate();
-
-   /// Update source FiniteElementSpace used to construct the
-   /// PRefinementTransfer operator.
-   void SetSourceFESpace(const FiniteElementSpace& src_);
-
-   /// @brief Update GridFunction using PRefinementTransferOperator.
-   /// Do not use GridFunction->Update() prior to this method as it is
-   /// handled internally.
-   void GridFunctionUpdate(GridFunction &targf);
-};
-
-PRefinementGFUpdate::PRefinementGFUpdate(const FiniteElementSpace &src_)
-{
-   src = new FiniteElementSpace(src_);
-}
-
-PRefinementGFUpdate::~PRefinementGFUpdate()
-{
-   delete src;
-}
-
-void PRefinementGFUpdate::SetSourceFESpace(const FiniteElementSpace &src_)
-{
-   if (src) { delete src; }
-   src = new FiniteElementSpace(src_);
-}
-
-void PRefinementGFUpdate::GridFunctionUpdate(GridFunction &targf)
-{
-   MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
-               "GridFunction should not be updated prior to UpdateGF.");
-   Vector srcgf = targf;
-   targf.Update();
-   PRefinementTransferOperator preft =
-      PRefinementTransferOperator(*src, *(targf.FESpace()));
-   preft.Mult(srcgf, targf);
-}
-
-// Experimental - required for visualizing functions on p-refined spaces.
-GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
-{
-   const FiniteElementSpace *fespace = x->FESpace();
-   Mesh *mesh = fespace->GetMesh();
-   const FiniteElementCollection *fec = fespace->FEColl();
-   const int vdim = fespace->GetVDim();
-
-   // find the max order in the space
-   int max_order = fespace->GetMaxElementOrder();
-
-   // create a visualization space of max order for all elements
-   FiniteElementCollection *fecInt = NULL;
-   if (fieldtype == 0)
-   {
-      fecInt = new H1_FECollection(max_order, mesh->Dimension());
-   }
-   else if (fieldtype == 1)
-   {
-      fecInt = new L2_FECollection(max_order, mesh->Dimension());
-   }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
-                                                         fespace->GetVDim(),
-                                                         fespace->GetOrdering());
-
-   IsoparametricTransformation T;
-   DenseMatrix I;
-
-   GridFunction *xInt = new GridFunction(spaceInt);
-
-   // interpolate solution vector in the larger space
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geom = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geom);
-
-      Array<int> dofs;
-      fespace->GetElementVDofs(i, dofs);
-      Vector elemvect(0), vectInt(0);
-      x->GetSubVector(dofs, elemvect);
-      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
-
-      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
-      const auto *feInt = fecInt->GetFE(geom, max_order);
-
-      feInt->GetTransferMatrix(*fe, T, I);
-
-      spaceInt->GetElementVDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
-      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
-
-      Mult(I, elemvecMat, vectIntMat);
-      xInt->SetSubVector(dofs, vectInt);
-   }
-
-   xInt->MakeOwner(fecInt);
-   return xInt;
-}
-
 void VisualizeFESpacePolynomialOrder(FiniteElementSpace &fespace,
-                                     const char *title)
+                                     const char *title, int locx)
 {
    Mesh *mesh = fespace.GetMesh();
    L2_FECollection order_coll = L2_FECollection(0, mesh->Dimension());
@@ -178,7 +67,7 @@ void VisualizeFESpacePolynomialOrder(FiniteElementSpace &fespace,
 
    socketstream vis1;
    common::VisualizeField(vis1, "localhost", 19916, order_gf, title,
-                          400, 0, 400, 400, "RjmAcp");
+                          locx, 0, 400, 400, "RjmAcp");
 }
 
 double func_order;
@@ -241,7 +130,7 @@ int main (int argc, char *argv[])
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&gf_ordering, "-fo", "--fespace-ordering",
-                  "Ordering of fespace that will be used for gridfunction to be interpolated."
+                  "Ordering of fespace that will be used for grid function to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&mesh_prefinement, "-mpr", "--mesh-p-refinement", "-no-mpr",
                   "--no-mesh-p-refinement",
@@ -290,20 +179,18 @@ int main (int argc, char *argv[])
    mesh.SetNodalGridFunction(&Nodes);
    cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
 
-   PRefinementGFUpdate preft_fespace = PRefinementGFUpdate(fespace);
-
    if (mesh_prefinement)
    {
+      Array<pRefinement> refs;
       for (int e = 0; e < mesh.GetNE(); e++)
       {
          if ((double) rand() / RAND_MAX < 0.2)
          {
-            int element_order = fespace.GetElementOrder(e);
-            fespace.SetElementOrder(e, element_order + 1);
+            refs.Append(pRefinement(e,1));
          }
       }
-      fespace.Update(false);
-      preft_fespace.GridFunctionUpdate(Nodes);
+      fespace.PRefineAndUpdate(refs);
+      Nodes.Update();
    }
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
@@ -343,31 +230,34 @@ int main (int argc, char *argv[])
    // Random p-refinements to the solution field
    if (prefinement)
    {
+      Array<pRefinement> refs;
       for (int e = 0; e < mesh.GetNE(); e++)
       {
          if ((double) rand() / RAND_MAX < 0.5)
          {
-            sc_fes.SetElementOrder(e, order + 1);
+            refs.Append(pRefinement(e,1));
          }
       }
-      sc_fes.Update(false);
+      sc_fes.PRefineAndUpdate(refs);
       field_vals.Update();
    }
 
+   std::unique_ptr<GridFunction> mesh_nodes_max;
+   if (mesh_prefinement) { mesh_nodes_max = Nodes.ProlongateToMaxOrder(); }
    GridFunction *mesh_nodes_pref = mesh_prefinement ?
-                                   ProlongToMaxOrder(&Nodes, 0) :
-                                   &Nodes;
+                                   mesh_nodes_max.get() : &Nodes;
+
    if (mesh_prefinement && visualization)
    {
       mesh.SetNodalGridFunction(mesh_nodes_pref);
-      VisualizeFESpacePolynomialOrder(fespace, "Mesh Polynomial Order");
+      VisualizeFESpacePolynomialOrder(fespace, "Mesh Polynomial Order", 400);
       mesh.SetNodalGridFunction(&Nodes);
    }
 
    if (prefinement && visualization)
    {
       mesh.SetNodalGridFunction(mesh_nodes_pref);
-      VisualizeFESpacePolynomialOrder(sc_fes, "Solution Polynomial Order");
+      VisualizeFESpacePolynomialOrder(sc_fes, "Solution Polynomial Order", 800);
       mesh.SetNodalGridFunction(&Nodes);
    }
 
@@ -375,9 +265,10 @@ int main (int argc, char *argv[])
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
+   std::unique_ptr<GridFunction> field_vals_max;
+   if (prefinement) { field_vals_max = field_vals.ProlongateToMaxOrder(); }
    GridFunction *field_vals_pref = prefinement ?
-                                   ProlongToMaxOrder(&field_vals, fieldtype) :
-                                   &field_vals;
+                                   field_vals_max.get() : &field_vals;
 
    // Display the mesh and the field through glvis.
    if (visualization)
@@ -486,8 +377,6 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   if (mesh_prefinement) { delete mesh_nodes_pref; }
-   if (prefinement) { delete field_vals_pref; }
    delete fec;
 
    return 0;

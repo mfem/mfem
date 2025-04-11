@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
    ComplexLinearForm b(fespace, conv);
-   b.Vector::operator=(0.0);
+   b = 0.0;
 
    // 8. Define the solution vector u as a complex finite element grid function
    //    corresponding to fespace. Initialize u with initial guess of 1+0i or
