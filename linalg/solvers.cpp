@@ -1360,7 +1360,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             Update(x_monitor, i, H, s, v);
          }
 
-         if (Monitor(j, resid, r, x_monitor, resid <= final_norm) || resid <= final_norm)
+         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;
