@@ -191,15 +191,15 @@ void IterativeSolver::SetOperator(const Operator &op)
 bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
                               const Vector& x, bool final) const
 {
-   if (monitor != nullptr)
+   if (controller != nullptr)
    {
       if (it == 0 && !final)
       {
-         monitor->Reset();
+         controller->Reset();
       }
-      monitor->MonitorResidual(it, norm, r, final);
-      monitor->MonitorSolution(it, norm, x, final);
-      return monitor->HasConverged();
+      controller->MonitorResidual(it, norm, r, final);
+      controller->MonitorSolution(it, norm, x, final);
+      return controller->HasConverged();
    }
    return false;
 }
@@ -1030,7 +1030,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    r.UseDevice(true);
    w.UseDevice(true);
 
-   if (monitor && monitor->RequiresUpdatedSolution())
+   if (controller && controller->RequiresUpdatedSolution())
    {
       x_monitor.SetSize(n);
       x_monitor.UseDevice(true);
@@ -1143,7 +1143,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          const real_t resid = fabs(s(i+1));
          MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
-         if (monitor && monitor->RequiresUpdatedSolution())
+         if (controller && controller->RequiresUpdatedSolution())
          {
             x_monitor = x;
             Update(x_monitor, i, H, s, v);
@@ -1232,7 +1232,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    x.UseDevice(true);
    r.UseDevice(true);
 
-   if (monitor && monitor->RequiresUpdatedSolution())
+   if (controller && controller->RequiresUpdatedSolution())
    {
       x_monitor.SetSize(x.Size());
       x_monitor.UseDevice(true);
@@ -1354,7 +1354,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "  || r || = " << resid << endl;
          }
 
-         if (monitor && monitor->RequiresUpdatedSolution())
+         if (controller && controller->RequiresUpdatedSolution())
          {
             x_monitor = x;
             Update(x_monitor, i, H, s, v);
