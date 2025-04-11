@@ -2474,8 +2474,10 @@ public:
                     bool high_order_output=false,
                     int compression_level=0);
 
+#ifdef MFEM_USE_HDF5
    /// @brief Save the Mesh in %VTKHDF format.
    void SaveVTKHDF(const std::string &fname, bool high_order=true);
+#endif
 
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.

@@ -3817,6 +3817,8 @@ void GridFunction::SaveVTK(std::ostream &os, const std::string &field_name,
    os.flush();
 }
 
+#ifdef MFEM_USE_HDF5
+
 void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name)
 {
 #ifdef MFEM_USE_MPI
@@ -3836,6 +3838,8 @@ void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name)
    vtkhdf.SaveMesh(*fes->GetMesh());
    vtkhdf.SaveGridFunction(*this, name);
 }
+
+#endif
 
 void GridFunction::SaveSTLTri(std::ostream &os, real_t p1[], real_t p2[],
                               real_t p3[])
