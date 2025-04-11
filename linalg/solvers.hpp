@@ -204,6 +204,9 @@ protected:
    /// Return the inner product norm of @a x, using the inner product defined by Dot()
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
+   /// Indicated if the controller requires an update of the solution
+   bool ControllerRequiresUpdate() const { return controller && controller->RequiresUpdatedSolution(); }
+
    /// Monitor both the residual @a r and the solution @a x
    bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
                 bool final=false) const;
