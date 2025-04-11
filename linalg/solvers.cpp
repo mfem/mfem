@@ -1030,7 +1030,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    r.UseDevice(true);
    w.UseDevice(true);
 
-   if (controller && controller->RequiresUpdatedSolution())
+   if (ControllerRequiresUpdate())
    {
       x_monitor.SetSize(n);
       x_monitor.UseDevice(true);
@@ -1143,7 +1143,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          const real_t resid = fabs(s(i+1));
          MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
-         if (controller && controller->RequiresUpdatedSolution())
+         if (ControllerRequiresUpdate())
          {
             x_monitor = x;
             Update(x_monitor, i, H, s, v);
@@ -1232,7 +1232,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    x.UseDevice(true);
    r.UseDevice(true);
 
-   if (controller && controller->RequiresUpdatedSolution())
+   if (ControllerRequiresUpdate())
    {
       x_monitor.SetSize(x.Size());
       x_monitor.UseDevice(true);
@@ -1354,7 +1354,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "  || r || = " << resid << endl;
          }
 
-         if (controller && controller->RequiresUpdatedSolution())
+         if (ControllerRequiresUpdate())
          {
             x_monitor = x;
             Update(x_monitor, i, H, s, v);
