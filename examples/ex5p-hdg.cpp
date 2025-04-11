@@ -401,22 +401,19 @@ int main(int argc, char *argv[])
       }
       else
       {
-         HypreParMatrix &M = static_cast<HypreParMatrix&>(
-                                pDarcyOp.As<BlockOperator>()->GetBlock(0,0));
+         HypreParMatrix &M = *mVarf->ParallelAssembleInternal();
          Md = new HypreParVector(MPI_COMM_WORLD, M.GetGlobalNumRows(),
                                  M.GetRowStarts());
          M.GetDiag(*Md);
 
-         HypreParMatrix &B = static_cast<HypreParMatrix&>
-                             (pDarcyOp.As<BlockOperator>()->GetBlock(1,0));
+         HypreParMatrix &B = *bVarf->ParallelAssembleInternal();
          MinvBt = B.Transpose();
          MinvBt->InvScaleRows(*Md);
          S = ParMult(&B, MinvBt);
 
          if (mtVarf)
          {
-            HypreParMatrix &Mt = static_cast<HypreParMatrix&>(
-                                    pDarcyOp.As<BlockOperator>()->GetBlock(1,1));
+            HypreParMatrix &Mt = *mtVarf->ParallelAssembleInternal();
             HypreParMatrix *Snew = ParAdd(&Mt, S);
             delete S;
             S = Snew;
