@@ -127,8 +127,52 @@ private:
    void SetEssTDofs(mfem::Array<int>& ess_dofs);
    void SetEssTDofs(real_t t, ParGridFunction& pgf);
 
+   std:unique_ptr<ParBilinearForm> K;
+
 };//end NavierSolverGCN
 
+
+// evaluates u+cc*(u \nabla u + brink*u)
+class NSResCoeff: public VectorCoefficient
+{
+public:
+   NSResCoeff(ParGridFunction &u, std::shared_ptr<Coefficiet> brink_, real_t cc_) : VectorCoefficient(u.VectorDim())
+   {
+      gf=&u;
+      grad.SetSize(gf->VectorDim());
+      vel.SetSize(gf->VectorDim());
+      brink=brink_;
+      cc=cc_;
+   }
+
+
+   void Eval(Vector &v, ElementTransformation &Trans, const IntegrationPoint &ip) override
+   {
+      v=real_t(0.0);
+      //get the velocity
+      Trans.SetIntPoint(&ip);
+      gf->GetVectorValue(Trans, ip, vel);
+      gf->GetVectorGradient(Trans, grad);
+
+      //u\nabla u
+      grad->Mult(vel, v); v*=cc;
+
+      real_t bp=0.0;
+      if(brink!=nullptr)
+      {
+         bp=brink->Eval(Trans,ip);
+      }
+
+      v.Add(1.0+cc*bp,vel);
+   }
+
+private:
+   DenseMatrix grad;
+   Vector vel;
+   ParGridFunction *gf;
+   std::shared_ptr<Coefficient> brink;
+   real_t cc;
+};
 
 
 class VectorConvectionIntegrator : public BilinearFormIntegrator
