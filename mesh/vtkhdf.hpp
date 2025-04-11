@@ -76,7 +76,7 @@ private:
    /// Wrapper for storing dataset dimensions (max ndims is 2D in VTKHDF).
    struct Dims
    {
-      static constexpr size_t MAX_NDIMS = 2;
+      static constexpr int MAX_NDIMS = 2;
       std::array<hsize_t, MAX_NDIMS> data = { }; // Zero initialized
       int ndims = 0;
       Dims() = default;

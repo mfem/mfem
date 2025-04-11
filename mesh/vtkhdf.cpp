@@ -34,7 +34,6 @@ template <> struct TypeID<int32_t> { static hid_t Get() { return H5T_NATIVE_INT3
 template <> struct TypeID<uint32_t> { static hid_t Get() { return H5T_NATIVE_UINT32; } };
 template <> struct TypeID<int64_t> { static hid_t Get() { return H5T_NATIVE_INT64; } };
 template <> struct TypeID<uint64_t> { static hid_t Get() { return H5T_NATIVE_UINT64; } };
-template <> struct TypeID<size_t> { static hid_t Get() { return H5T_NATIVE_HSIZE; } };
 template <> struct TypeID<unsigned char> { static hid_t Get() { return H5T_NATIVE_UCHAR; } };
 
 }
@@ -102,12 +101,12 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       const hid_t fspace = H5Screate_simple(ndims, dims, maxdims);
 
       Dims chunk(ndims);
-      int chunk_size_bytes = 1024 * 1024 / 2; // 0.5 MB
-      const int t_bytes = H5Tget_size(type);
+      size_t chunk_size_bytes = 1024 * 1024 / 2; // 0.5 MB
+      const size_t t_bytes = H5Tget_size(type);
       for (int i = 1; i < ndims; ++i)
       {
          chunk[i] = 16;
-         chunk_size_bytes /= 16 * t_bytes;
+         chunk_size_bytes /= 16;
       }
       chunk[0] = chunk_size_bytes / t_bytes;
       for (int i = 1; i < ndims; ++i) { chunk[i] = 16; }
@@ -656,7 +655,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          if (high_order)
          {
             Array<int> local_connectivity;
-            for (int e = 0; e < ne; ++e)
+            for (size_t e = 0; e < ne; ++e)
             {
                offsets[e] = off;
                const Geometry::Type geom = mesh.GetElementGeometry(e);
@@ -674,7 +673,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          {
             int off_0 = 0;
             int e_ref = 0;
-            for (int e = 0; e < ne_0; ++e)
+            for (hsize_t e = 0; e < ne_0; ++e)
             {
                const Geometry::Type geom = mesh.GetElementGeometry(e);
                const int nv = get_nv(e);
@@ -713,7 +712,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          const int *vtk_geom_map =
             high_order ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
          int e_ref = 0;
-         for (int e = 0; e < ne_0; ++e)
+         for (hsize_t e = 0; e < ne_0; ++e)
          {
             const int ne_ref = get_ne_ref(e, ref_0);
             for (int i = 0; i < ne_ref; ++i, ++e_ref)
@@ -730,8 +729,8 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          // Ensure cell data group exists
          EnsureGroup("CellData", cell_data);
          std::vector<int> attributes(ne);
-         int e_ref = 0;
-         for (int e = 0; e < ne_0; ++e)
+         hsize_t e_ref = 0;
+         for (hsize_t e = 0; e < ne_0; ++e)
          {
             const int attr = mesh.GetAttribute(e);
             const int ne_ref = get_ne_ref(e, ref_0);
