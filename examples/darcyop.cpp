@@ -463,12 +463,25 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          }
          else
          {
-            SetupLinearSolver(rtol, atol, maxIter);
+            SetupLinearSolver(
+               (sol_type == SolutionController::Type::Native)?(rtol):(0.),
+               atol, maxIter);
 
-            if (monitor_step >= 0)
+            if (!monitor)
             {
-               monitor = new IterativeGLVis(this, monitor_step);
-               solver->SetMonitor(*monitor);
+               if (sol_type != SolutionController::Type::Native)
+               {
+                  monitor = new SolutionController(*darcy, rhs, sol_type, rtol);
+               }
+               else if (monitor_step >= 0)
+               {
+                  monitor = new IterativeGLVis(this, monitor_step);
+               }
+
+               if (monitor)
+               {
+                  solver->SetMonitor(*monitor);
+               }
             }
          }
 
@@ -884,6 +897,95 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    darcyPrec->SetDiagonalBlock(1, invS);
 }
 #endif
+
+DarcyOperator::SolutionController::SolutionController(
+   DarcyForm &darcy_, const BlockVector &rhs_, Type type_, real_t rtol_)
+   : darcy(darcy_), rhs(rhs_), type(type_), rtol(rtol_)
+{
+   switch (type)
+   {
+      case Type::Native:
+         break;
+      case Type::Flux:
+         sol_prev.SetSize(darcy.FluxFESpace()->GetTrueVSize());
+         break;
+      case Type::Potential:
+         sol_prev.SetSize(darcy.PotentialFESpace()->GetTrueVSize());
+         break;
+   }
+}
+
+bool DarcyOperator::SolutionController::CheckSolution(const Vector &x,
+                                                      const Vector &y) const
+{
+   real_t vals[2];
+   real_t &diff = vals[0], &sum = vals[1];
+
+   for (int i = 0; i < x.Size(); i++)
+   {
+      const real_t dx = x(i) - y(i);
+      const real_t avg = (x(i) + y(i)) / 2.;
+      diff += dx*dx;
+      sum += avg*avg;
+   }
+
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, vals, 2, MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
+#endif //MFEM_USE_MPI
+
+   return diff < sum * (rtol*rtol);
+}
+
+void DarcyOperator::SolutionController::MonitorSolution(int it, real_t norm,
+                                                        const Vector &X, bool final)
+{
+   if (type == Type::Native || converged) { return; }
+
+   BlockVector x(darcy.GetOffsets()); x = 0.;
+
+   darcy.RecoverFEMSolution(X, rhs, x);
+
+   Vector &sol = x.GetBlock((type == Type::Flux)?(0):(1));
+
+   if (it > it_prev)
+   {
+      converged = CheckSolution(sol, sol_prev);
+   }
+
+   it_prev = it;
+   sol_prev = sol;
+}
+
+#ifdef MFEM_USE_MPI
+DarcyOperator::ParSolutionController::ParSolutionController(
+   ParDarcyForm &pdarcy_, const BlockVector &rhs_, Type type_, real_t rtol_)
+   : SolutionController(pdarcy_, rhs_, type_, rtol_), pdarcy(pdarcy_) { }
+
+void DarcyOperator::ParSolutionController::MonitorSolution(
+   int it, real_t norm, const Vector &X, bool final)
+{
+   if (type == Type::Native || converged) { return; }
+
+   BlockVector x(darcy.GetOffsets()); x = 0.;
+
+   darcy.RecoverFEMSolution(X, rhs, x);
+
+   Vector &sol_x = x.GetBlock((type == Type::Flux)?(0):(1));
+   ParFiniteElementSpace *fes = (type == Type::Flux)?(pdarcy.ParFluxFESpace()):
+                                (pdarcy.ParPotentialFESpace());
+   Vector sol(fes->GetTrueVSize());
+
+   fes->GetRestrictionOperator()->Mult(sol_x, sol);
+
+   if (it > it_prev)
+   {
+      converged = CheckSolution(sol, sol_prev);
+   }
+
+   it_prev = it;
+   sol_prev = sol;
+}
+#endif //MFEM_USE_MPI
 
 DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_, int step_)
    : p(p_), step(step_)

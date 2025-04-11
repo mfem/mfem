@@ -94,6 +94,55 @@ private:
       void Mult(const Vector &x, Vector &y) const override;
    };
 
+public:
+   class SolutionController : public IterativeSolverController
+   {
+   public:
+      enum class Type
+      {
+         Native,
+         Flux,
+         Potential
+      };
+
+   protected:
+      DarcyForm &darcy;
+      const BlockVector &rhs;
+      Type type;
+      real_t rtol;
+      int it_prev{};
+      Vector sol_prev;
+
+      bool CheckSolution(const Vector &x, const Vector &y) const;
+
+   public:
+      SolutionController(DarcyForm &darcy, const BlockVector &rhs,
+                         Type type, real_t rtol);
+
+      void MonitorSolution(int it, real_t norm, const Vector &x,
+                           bool final) override;
+
+      bool RequiresUpdatedSolution() const override { return true; }
+   };
+
+#ifdef MFEM_USE_MPI
+   class ParSolutionController : public SolutionController
+   {
+   protected:
+      ParDarcyForm &pdarcy;
+
+   public:
+      ParSolutionController(ParDarcyForm &pdarcy, const BlockVector &rhs,
+                            Type type, real_t rtol);
+
+      void MonitorSolution(int it, real_t norm, const Vector &x,
+                           bool final) override;
+   };
+#endif //MFEM_USE_MPI
+
+private:
+   SolutionController::Type sol_type{SolutionController::Type::Native};
+
    class IterativeGLVis : public IterativeSolverMonitor
    {
       DarcyOperator *p;
@@ -124,6 +173,7 @@ public:
 
    ~DarcyOperator();
 
+   void EnableSolutionConstroller(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);

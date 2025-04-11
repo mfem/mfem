@@ -115,6 +115,7 @@ int main(int argc, char *argv[])
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::LBFGS;
+   int isol_ctrl = (int)DarcyOperator::SolutionController::Type::Native;
    bool pa = false;
    const char *device_config = "cpu";
    bool mfem = false;
@@ -182,6 +183,8 @@ int main(int argc, char *argv[])
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
                   "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton).");
+   args.AddOption(&isol_ctrl, "-sn", "--solution-norm",
+                  "Solution norm (0=native, 1=flux, 2=potential).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -774,6 +777,9 @@ int main(int argc, char *argv[])
 
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
                     (DarcyOperator::SolverType) solver_type, false, btime);
+
+   op.EnableSolutionConstroller(
+      (DarcyOperator::SolutionController::Type) isol_ctrl);
 
    if (vis_iters >= 0)
    {
