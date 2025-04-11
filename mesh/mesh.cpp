@@ -11995,7 +11995,7 @@ void Mesh::PrintVTU(std::string fname,
 
    fname = fname + ".vtu";
    std::fstream os(fname.c_str(),std::ios::out);
-   os << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   os << "<VTKFile type=\"UnstructuredGrid\" version=\"2.2\"";
    if (compression_level != 0)
    {
       os << " compressor=\"vtkZLibDataCompressor\"";

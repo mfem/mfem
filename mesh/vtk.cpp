@@ -420,7 +420,7 @@ int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
       }
       case Geometry::CUBE:
       {
-         // Cf: https://git.io/JvZLe
+         // Cf: https://t.ly/HEGbX
          int i = idx_in % n;
          int j = (idx_in / n) % n;
          int k = idx_in / (n*n);
@@ -456,7 +456,7 @@ int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
             }
             // !kbdr, On k axis
             offset += 4*(ref - 1) + 4*(ref - 1);
-            return (k - 1) + (ref - 1)*(i ? (j ? 3 : 1) : (j ? 2 : 0))
+            return (k - 1) + (ref - 1)*(i ? (j ? 2 : 1) : (j ? 3 : 0))
                    + offset;
          }
 

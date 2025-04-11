@@ -931,7 +931,7 @@ void ParaViewDataCollection::Save()
          // Initialize new pvd file.
          pvd_stream.open(pvdname,std::ios::out|std::ios::trunc);
          pvd_stream << "<?xml version=\"1.0\"?>\n";
-         pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+         pvd_stream << "<VTKFile type=\"Collection\" version=\"2.2\"";
          pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
          pvd_stream << "<Collection>" << std::endl;
       }
@@ -1031,7 +1031,7 @@ void ParaViewDataCollection::WritePVTUHeader(std::ostream &os)
 {
    os << "<?xml version=\"1.0\"?>\n";
    os << "<VTKFile type=\"PUnstructuredGrid\"";
-   os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << " version =\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
    os << "<PPoints>\n";
@@ -1072,7 +1072,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    {
       os << " compressor=\"vtkZLibDataCompressor\"";
    }
-   os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << " version=\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
    mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel());
 
