@@ -34,7 +34,7 @@ class Vector;
  *  program:
  *   \f{eqnarray*}{
  *    \min_{{\bf x} \in R^n} & & F({\bf x})\\
- *     \textrm{subject to}&&C({\bf x})_i \leq 0,\quad \textrm{for all} i =
+ *     \textrm{subject to}&&C({\bf x})_i \leq 0,\quad \textrm{for all}\quad i =
  *      1,\ldots m\\
  *   & & {\bf x}_{\textrm{lo}} \leq {\bf x} \leq {\bf x}_{\textrm{hi}}.
  *   \f}
