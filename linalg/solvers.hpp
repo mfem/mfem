@@ -77,8 +77,8 @@ public:
        solvers to skip it if not needed otherwise. */
    virtual bool RequiresUpdatedSolution() const { return false; }
 
-   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
-       the monitor which IterativeSolver is using it. */
+   /** @brief This method is invoked by IterativeSolver::SetController(),
+       informing the controller which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
 };
@@ -144,7 +144,7 @@ private:
 protected:
    const Operator *oper;
    Solver *prec;
-   IterativeSolverMonitor *monitor = nullptr;
+   IterativeSolverController *controller = nullptr;
 
    /// @name Reporting (protected attributes and member functions)
    ///@{
@@ -203,6 +203,9 @@ protected:
 
    /// Return the inner product norm of @a x, using the inner product defined by Dot()
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+
+   /// Indicated if the controller requires an update of the solution
+   bool ControllerRequiresUpdate() const { return controller && controller->RequiresUpdatedSolution(); }
 
    /// Monitor both the residual @a r and the solution @a x
    bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
@@ -317,9 +320,12 @@ public:
    /// Also calls SetOperator for the preconditioner if there is one
    void SetOperator(const Operator &op) override;
 
-   /// Set the iterative solver monitor
-   void SetMonitor(IterativeSolverMonitor &m)
-   { monitor = &m; m.SetIterativeSolver(*this); }
+   /// Set the iterative solver controller
+   void SetController(IterativeSolverController &c)
+   { controller = &c; c.SetIterativeSolver(*this); }
+
+   /// An alias of SetController() for backward compatibility
+   void SetMonitor(IterativeSolverMonitor &m) { SetController(m); }
 
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
