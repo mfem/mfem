@@ -22,6 +22,10 @@
 #include <cstdint>
 #include <unordered_map>
 
+#if defined(MFEM_USE_MPI) && defined(H5_HAVE_PARALLEL)
+#define MFEM_PARALLEL_HDF5
+#endif
+
 namespace mfem
 {
 
@@ -277,7 +281,7 @@ public:
    /// will be created.
    VTKHDF(const std::string &filename, Restart restart = Restart::Disabled());
 
-#ifdef MFEM_USE_MPI
+#ifdef MFEM_PARALLEL_HDF5
    /// @brief Create a new %VTKHDF file for parallel I/O.
    ///
    /// If @a restart is enabled, then the file (if it exists) will be opened,

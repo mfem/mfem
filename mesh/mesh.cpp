@@ -12375,9 +12375,13 @@ void Mesh::SaveVTKHDF(const std::string &fname, bool high_order)
 #ifdef MFEM_USE_MPI
    if (ParMesh *pmesh = dynamic_cast<ParMesh*>(this))
    {
+#ifdef MFEM_PARALLEL_HDF5
       VTKHDF vtkhdf(fname, pmesh->GetComm());
       vtkhdf.SaveMesh(*this, high_order);
       return;
+#else
+      MFEM_ABORT("Requires HDF5 library with parallel support enabled");
+#endif
    }
 #endif
    VTKHDF vtkhdf(fname);

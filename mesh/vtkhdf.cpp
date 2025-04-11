@@ -461,7 +461,7 @@ VTKHDF::VTKHDF(const std::string &filename, Restart restart)
    CreateFile(filename, restart);
 }
 
-#ifdef MFEM_USE_MPI
+#ifdef MFEM_PARALLEL_HDF5
 
 static int MpiCommSize(MPI_Comm comm)
 {

@@ -610,6 +610,8 @@ public:
    void Save() override;
 };
 
+#ifdef MFEM_USE_HDF5
+
 /// Writer for ParaView visualization (%VTKHDF format)
 class ParaViewHDFDataCollection : public ParaViewDataCollectionBase
 {
@@ -637,6 +639,8 @@ public:
    /// Destructor.
    ~ParaViewHDFDataCollection();
 };
+
+#endif
 
 }
 #endif
