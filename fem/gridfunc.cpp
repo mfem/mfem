@@ -2359,6 +2359,9 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
+   MFEM_VERIFY(
+      fes->GetVDim() == 1,
+      "Cannot project scalar DeltaCoefficient onto vector GridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation * doftrans = NULL;
 
@@ -2627,6 +2630,10 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(
+      fes->GetVDim() == 1,
+      "Cannot project a scalar coefficient onto a vector GridFunction");
 
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);

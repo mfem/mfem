@@ -566,6 +566,8 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
 
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
+   MFEM_VERIFY(fes->GetVDim() == 1,
+               "Cannot project scalar coefficient onto vector ParGridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
@@ -632,6 +634,9 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 
 void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
+   MFEM_VERIFY(
+      fes->GetVDim() == 1,
+      "Cannot project scalar coefficient onto a vector ParGridFunction");
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
 
