@@ -32,12 +32,14 @@ class Vector;
  *  \details
  *  This class finds ${\bf x} \in R^n$ that solves the following nonlinear
  *  program:
- *   \f{eqnarray*}{
- *    \min_{{\bf x} \in R^n} & & F({\bf x})\\
- *     \textrm{subject to}&&C({\bf x})_i \leq 0,\quad \textrm{for all}\quad i =
- *      1,\ldots m\\
- *   & & {\bf x}_{\textrm{lo}} \leq {\bf x} \leq {\bf x}_{\textrm{hi}}.
- *   \f}
+ *   $$
+ *    \begin{array}{ll}
+ *    \min_{{\bf x} \in R^n} & F({\bf x})\\
+ *     \textrm{subject to}   & C({\bf x})_i \leq 0,\quad
+ *                             \textrm{for all}\quad i = 1,\ldots m\\
+ *                           & {\bf x}_{\textrm{lo}} \leq {\bf x} \leq {\bf x}_{\textrm{hi}}.
+ *    \end{array}
+ *   $$
  *   Here $F : R^n \to R$ is the objective function, and
  *   $C : R^n \to R^m$ is a set of $m$ inequality constraints. By
  *   convention, the routine seeks ${\bf x}$ that minimizes the
