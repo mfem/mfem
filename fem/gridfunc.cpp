@@ -3822,10 +3822,14 @@ void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name)
 #ifdef MFEM_USE_MPI
    if (ParFiniteElementSpace* pfes = dynamic_cast<ParFiniteElementSpace*>(fes))
    {
+#ifdef MFEM_PARALLEL_HDF5
       VTKHDF vtkhdf(fname, pfes->GetComm());
       vtkhdf.SaveMesh(*fes->GetMesh());
       vtkhdf.SaveGridFunction(*this, name);
       return;
+#else
+      MFEM_ABORT("Requires HDF5 library with parallel support enabled");
+#endif
    }
 #endif
    VTKHDF vtkhdf(fname);

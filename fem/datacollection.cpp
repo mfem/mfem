@@ -1187,7 +1187,11 @@ void ParaViewHDFDataCollection::EnsureVTKHDF()
       if (ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh))
       {
          use_mpi = true;
+#ifdef MFEM_PARALLEL_HDF5
          vtkhdf.reset(new VTKHDF(fname, pmesh->GetComm(), {restart_mode, time}));
+#else
+         MFEM_ABORT("Requires HDF5 library with parallel support enabled");
+#endif
       }
 #endif
       if (!use_mpi)
