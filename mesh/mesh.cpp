@@ -12370,6 +12370,8 @@ void Mesh::PrintVTK(std::ostream &os, int ref, int field_data)
    os << "POINT_DATA " << np << '\n' << flush;
 }
 
+#ifdef MFEM_USE_HDF5
+
 void Mesh::SaveVTKHDF(const std::string &fname, bool high_order)
 {
 #ifdef MFEM_USE_MPI
@@ -12387,6 +12389,8 @@ void Mesh::SaveVTKHDF(const std::string &fname, bool high_order)
    VTKHDF vtkhdf(fname);
    vtkhdf.SaveMesh(*this, high_order);
 }
+
+#endif
 
 void Mesh::GetElementColoring(Array<int> &colors, int el0)
 {

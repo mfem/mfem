@@ -1169,6 +1169,8 @@ const char *ParaViewDataCollection::GetDataTypeString() const
    }
 }
 
+#ifdef MFEM_USE_HDF5
+
 ParaViewHDFDataCollection::ParaViewHDFDataCollection(
    const std::string &collection_name, Mesh *mesh)
    : ParaViewDataCollectionBase(collection_name, mesh)
@@ -1238,5 +1240,7 @@ void ParaViewHDFDataCollection::Save()
 }
 
 ParaViewHDFDataCollection::~ParaViewHDFDataCollection() = default;
+
+#endif
 
 }  // end namespace MFEM
