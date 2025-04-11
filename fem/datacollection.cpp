@@ -1178,8 +1178,11 @@ void ParaViewHDFDataCollection::EnsureVTKHDF()
 {
    if (!vtkhdf)
    {
-      const int error_code = create_directory(prefix_path, mesh, myid);
-      MFEM_VERIFY(error_code == 0, "Error creating directory " << prefix_path);
+      if (!prefix_path.empty())
+      {
+         const int error_code = create_directory(prefix_path, mesh, myid);
+         MFEM_VERIFY(error_code == 0, "Error creating directory " << prefix_path);
+      }
 
       std::string fname = prefix_path + name + ".vtkhdf";
       bool use_mpi = false;
