@@ -2659,6 +2659,7 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                          const Array<int> &attr)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
@@ -2707,6 +2708,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
 #if 0
    // implementation for the case when the face dofs are integrals of the
    // normal component.
@@ -2782,6 +2784,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);

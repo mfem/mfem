@@ -864,7 +864,7 @@ public:
        Note: For vector-valued elements, the results pads up the range dimension
        to the spatial dimension. E.g., consider a stack of 5 vector-valued
        elements each representing 2D vectors, living in a 3 dimensional space.
-       Then this fucntion would give 15, not 10.
+       Then this function would give 15, not 10.
        */
    int GetVectorDim() const;
 

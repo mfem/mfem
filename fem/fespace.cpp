@@ -1490,6 +1490,10 @@ int FiniteElementSpace::GetNConformingDofs() const
 int FiniteElementSpace::GetVectorDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
+   if (fe == nullptr)
+   {
+      fe = GetTypicalTraceElement();
+   }
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
