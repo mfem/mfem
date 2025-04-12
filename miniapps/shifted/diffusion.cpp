@@ -532,7 +532,7 @@ int main(int argc, char *argv[])
                                                          ho_terms), ess_shift_bdr);
    }
 
-   // Add neumann bilinearform integrator.
+   // Add Neumann bilinear form integrator.
    if (neumann_level_set_type > 0)
    {
       a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh,

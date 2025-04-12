@@ -83,9 +83,10 @@ endif()
 
 if (HYPRE_FOUND AND HYPRE_USING_CUDA)
   find_package(CUDAToolkit REQUIRED)
-  get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
-  get_target_property(CURAND_LIBRARIES CUDA::curand LOCATION)
-  get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+  # Initialize CUSPARSE_LIBRARIES, CURAND_LIBRARIES, and CUBLAS_LIBRARIES:
+  mfem_culib_set_libraries(CUSPARSE cusparse)
+  mfem_culib_set_libraries(CURAND curand)
+  mfem_culib_set_libraries(CUBLAS cublas)
   list(APPEND HYPRE_LIBRARIES ${CUSPARSE_LIBRARIES} ${CURAND_LIBRARIES}
        ${CUBLAS_LIBRARIES})
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING

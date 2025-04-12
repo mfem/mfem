@@ -922,7 +922,7 @@ public:
 #ifdef MFEM_USE_MPI
    OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
-   virtual ~OptimizationSolver() { }
+   ~OptimizationSolver() override { }
 
    /** This function is virtual as solvers might need to perform some initial
     *  actions (e.g. validation) with the OptimizationProblem. */
