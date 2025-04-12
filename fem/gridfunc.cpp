@@ -2361,7 +2361,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    MFEM_VERIFY(
       VectorDim() == 1,
-      "Cannot project scalar DeltaCoefficient onto vector GridFunction");
+      "Cannot project scalar Coefficient onto vector GridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation * doftrans = NULL;
 
