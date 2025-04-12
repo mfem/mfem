@@ -1206,7 +1206,7 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A, const BlockV
 
 double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu, bool printEeval)
 {
-   double E1, E2, E3;
+   double E1, E2, E3; // stationarity, feasibility, and complementarity errors
    double optimalityError;
    double sc, sd;
    BlockVector gradL(block_offsetsx); gradL = 0.0; // stationarity grad L = grad f + J^T l - z
@@ -1226,13 +1226,18 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
    }
    E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD); 
 
-   double ll1, zl1;
-
-   zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD)/ double(gdimC + gdimM);; 
-   ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
+   // compute norms of Lagrange multipliers
+   // if they are growing large this is indicative of
+   // poorly conditioned constraint Jacobians
+   // and here we terminate the algorithm early
+   double zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD); 
+   double ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
    sc = max(sMax, zl1 / (double(gdimM)) ) / sMax;
    sd = max(sMax, (ll1 + zl1) / (double(gdimC + gdimM))) / sMax;
+   
+   
    optimalityError = max(max(E1 / sd, E2), E3 / sc);
+   
    if(iAmRoot && printEeval)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
@@ -1240,6 +1245,11 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
       cout << "feasibility measure  = "    << E2      << endl;
       cout << "(scaled) complimentarity measure = " << E3 / sc << endl;
       cout << "optimality error = " << optimalityError << endl;
+      if( sc > 1.e2 || sd > 1.e2)
+      {
+         cout << "WARNING: optimality errors are being non-trivially scaled\n";
+	 cout << "         hence we may terminate early\n";
+      }
    }
    return optimalityError;
 }
@@ -1284,7 +1294,7 @@ void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector 
    
    for(int i = 0; i < dimM; i++) 
    { 
-      y(dimU + i) -= mu / (x(dimU + i));
+      y(dimU + i) -= mu / (x(dimU + i) - ml(i));
    } 
 }
 
