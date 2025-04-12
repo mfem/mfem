@@ -104,6 +104,10 @@ if (MFEM_USE_HIP)
   endif (MFEM_USE_MPI)
 endif (MFEM_USE_HIP)
 
+if (MFEM_USE_RAJA)
+   find_dependency(RAJA)
+endif()
+
 if (NOT TARGET mfem)
   include(${CMAKE_CURRENT_LIST_DIR}/MFEMTargets.cmake)
 endif (NOT TARGET mfem)
