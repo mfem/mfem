@@ -473,6 +473,10 @@ endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
+   # RAJA uses FindCUDA, which needs CMP0145=OLD in CMake >= 3.27
+   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
    find_package(RAJA REQUIRED)
 endif()
 
