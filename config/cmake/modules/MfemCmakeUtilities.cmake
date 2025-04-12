@@ -783,6 +783,19 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
     # INTERFACE_LINK_DEPENDS
     # INTERFACE_LINK_DIRECTORIES
     # INTERFACE_LINK_OPTIONS
+  elseif("${type}" STREQUAL "UNKNOWN_LIBRARY")
+    get_target_property(Location ${tgt} LOCATION)
+    if (Location)
+      get_filename_component(Dir ${Location} DIRECTORY)
+      get_filename_component(NameWE ${Location} NAME_WE)
+      string(REGEX REPLACE "^lib" "" LibName ${NameWE})
+      list(APPEND LinkOpts
+        "-L\"${Dir}\""
+        "${shared_link_flag}\"${Dir}\""
+        "-l${LibName}")
+    else()
+      message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
+    endif()
   else()
     message(STATUS " *** Warning: [${tgt}] uses target type '${type}'"
       " which is not supported!")
