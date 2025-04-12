@@ -123,6 +123,8 @@ private:
    Vector eps;
    Array<int> block_offsetsg;
    bool bound_constraints;
+   int tribol_nranks;
+   double tribol_ratio;
 public:
    OptContactProblem(ElasticityOperator * problem_, 
                      const std::set<int> & mortar_attrs_, 
@@ -130,6 +132,8 @@ public:
                      ParGridFunction * coords_, bool doublepass_,
                      const Vector & xref_, 
                      const Vector & xrefbc_, 
+                     double tribol_ratio_,
+                     int tribol_nranks_,
                      bool qp_ = true,
 		     bool bound_constraints_=true);
    int GetDimU() {return dimU;}
@@ -183,5 +187,5 @@ HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
                               const Array<int> & ess_tdofs,
                               const std::set<int> & mortar_attrs, 
                               const std::set<int> & non_mortar_attrs, 
-                              Vector &gap);
+                              Vector &gap,  double tribol_ratio, int tribol_nranks);
 

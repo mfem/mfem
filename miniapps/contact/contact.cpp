@@ -212,6 +212,8 @@ int main(int argc, char *argv[])
    bool restart = false;
    const char * restart_file = "";
    bool checkpoint = false;
+   int tribol_nranks = num_procs;
+   double tribol_ratio = 8.0;
    
 
    // 1. Parse command-line options.
@@ -288,6 +290,12 @@ int main(int argc, char *argv[])
    args.AddOption(&checkpoint, "-checkpoint", "--checkpoint",
                   "-no-checkpoint","--no-checkpoint",
                   "Enable/disable checkpoints.");
+   args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
+                     "Tribol-proximity-parameter.");                  
+   args.AddOption(&tribol_nranks, "-tn", "--tribol-nprocs",
+      "Number of ranks used in tribol redecomposition" );
+
+
    args.Parse();
    if (!args.Good())
    {
@@ -360,7 +368,7 @@ int main(int argc, char *argv[])
             mesh_file = "meshes/Test51.mesh";
             break;
          case 6:
-            mesh_file = "meshes/Test6.mesh";
+            mesh_file = "meshes/Test6mod2.mesh";
             break;
          case 61:
             // Something wrong with this mesh
@@ -590,14 +598,26 @@ int main(int argc, char *argv[])
    Vector DCvals;
    int ibegin = (restart) ? istep+1 : 0;
    Array<int> NoContactCGiterations;
+   if (testNo == 6)
+   {
+      total_steps = nsteps + 1;
+   }
    for (int i = ibegin; i<total_steps; i++)
    {
       if (testNo == 6)
       {
          ess_bdr = 0;
          ess_bdr[2] = 1;
-         f.constant = -p*(i+1)/nsteps;
+         if (i < total_steps - 1)
+         {
+            f.constant = -p*(i+1)/nsteps;
+         }
+         else 
+         {
+            f.constant = -p;
+         }
          prob.SetNeumanPressureData(f,ess_bdr);
+
       }
       else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
       {
@@ -674,7 +694,7 @@ int main(int argc, char *argv[])
       xBCtrue.GetSubVector(ess_tdof_list, DCvals);
       xrefbc.SetSubVector(ess_tdof_list, DCvals);
    
-      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp, bound_constraints);
+      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc, tribol_ratio, tribol_nranks, qp, bound_constraints);
       
       if( i > int(total_steps / 4) && bound_constraints)
       {

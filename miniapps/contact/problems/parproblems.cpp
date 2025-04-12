@@ -206,10 +206,13 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                      ParGridFunction * coords_, bool doublepass_,
                      const Vector & xref_, 
                      const Vector & xrefbc_, 
+                     double tribol_ratio_,
+                     int tribol_nranks_,
                      bool qp_,
 		     bool bound_constraints_)
 : problem(problem_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_),
-  coords(coords_), doublepass(doublepass_), xref(xref_), xrefbc(xrefbc_), qp(qp_), 
+  coords(coords_), doublepass(doublepass_), xref(xref_), xrefbc(xrefbc_), 
+   tribol_ratio(tribol_ratio_), tribol_nranks(tribol_nranks_), qp(qp_), 
 	bound_constraints(bound_constraints_), block_offsetsg(4)
 {
    comm = problem->GetComm(); 
@@ -274,12 +277,12 @@ void OptContactProblem::ComputeGapJacobian()
    if (J) delete J;
    Vector gap1;
    const HypreParMatrix * J1 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
-                                     mortar_attrs, nonmortar_attrs,gap1);
+                                     mortar_attrs, nonmortar_attrs,gap1, tribol_ratio, tribol_nranks);
    if (doublepass)
    {
       Vector gap2;
       const HypreParMatrix * J2 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
-                                       nonmortar_attrs, mortar_attrs, gap2);
+                                       nonmortar_attrs, mortar_attrs, gap2, tribol_ratio, tribol_nranks);
       gapv.SetSize(gap1.Size()+gap2.Size());
       gapv.SetVector(gap1,0);
       gapv.SetVector(gap2,gap1.Size());
@@ -639,15 +642,13 @@ OptContactProblem::~OptContactProblem()
 HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords, 
                              const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs, 
                               const std::set<int> & non_mortar_attrs, 
-                              Vector &gap)
+                              Vector &gap, double ratio, int tribol_nranks)
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
 
    // Initialize Tribol contact library
    tribol::initialize(pmesh->Dimension(), pmesh->GetComm());
-
-   tribol::parameters_t::getInstance().gap_separation_ratio = 8;
 
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
@@ -662,6 +663,9 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
       tribol::LAGRANGE_MULTIPLIER,
       tribol::BINNING_GRID
    );
+
+   tribol::setBinningProximityScale(coupling_scheme_id, ratio);
+   tribol::CouplingSchemeManager::getInstance().findData( coupling_scheme_id )->getParameters().gap_separation_ratio = ratio;
 
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
@@ -679,7 +683,7 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    );
 
    // Update contact mesh decomposition
-   tribol::updateMfemParallelDecomposition();
+   tribol::updateMfemParallelDecomposition(tribol_nranks);
 
    // Update contact gaps, forces, and tangent stiffness
    int cycle = 1;   // pseudo cycle
@@ -702,7 +706,10 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    {
       if (!merged.RowIsEmpty(i))
       {
-         nonzero_rows.Append(i);
+         // if (merged.GetRowNorml1(i) > 1.e-9)
+         // {
+            nonzero_rows.Append(i);
+         // }
       }
    }
 

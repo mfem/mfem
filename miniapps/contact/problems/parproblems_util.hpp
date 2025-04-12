@@ -9,6 +9,8 @@ using namespace mfem;
 
 #include "tribol/interface/tribol.hpp"
 #include "tribol/interface/mfem_tribol.hpp"
+#include "tribol/mesh/CouplingScheme.hpp"
+
 int get_rank(int tdof, std::vector<int> & tdof_offsets);
 void ComputeTdofOffsets(const ParFiniteElementSpace * pfes,
                         std::vector<int> & tdof_offsets);
