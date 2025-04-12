@@ -1581,7 +1581,7 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
-         MFEM_ASSERT(VectorDim() == 1, "Defined for scalar functions.");
+         MFEM_ASSERT(fes->GetVDim() == 1, "Defined for scalar functions.");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
