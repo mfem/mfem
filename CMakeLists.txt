@@ -12,7 +12,8 @@
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
 # Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
 # Version 3.8 or newer is required for direct CUDA support.
-cmake_minimum_required(VERSION 3.8)
+# Version 3.12 or newer is required for setting maximum policy version.
+cmake_minimum_required(VERSION 3.12.0...4.0.0)
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
@@ -58,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.7.1)
+set(${PROJECT_NAME}_VERSION 4.8.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -104,6 +105,13 @@ endif()
 # Include xSDK default CMake file.
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
+# Path to MFEM's CMake modules and utilities.
+set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
+set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
+
+# Load MFEM CMake utilities.
+include(MfemCmakeUtilities)
+
 # Enable languages.
 enable_language(CXX)
 if (MINGW)
@@ -116,16 +124,15 @@ if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
    endif()
+   # CUDAToolkit was added in CMake 3.17, so we require at least CMake 3.17 when
+   # CUDA is enabled:
+   if (CMAKE_VERSION VERSION_LESS 3.17.0)
+      message(FATAL_ERROR "CUDA support requires CMake >= 3.17")
+   endif()
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
-      "CUDA standard to use.")
-   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
-      "Force the use of the chosen CUDA standard.")
-   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CUDA_FLAGS "--expt-extended-lambda")
    if (CUDA_ARCH STREQUAL "all")
       # CUDA_ARCHITECTURES only supports all in CMake 3.23+, set cuda flags manually otherwise
@@ -163,18 +170,19 @@ if (MFEM_USE_CUDA)
       endif()
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
-   if (CMAKE_VERSION VERSION_LESS 3.12.0)
-      # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
-      # tested and may not actually need this (but should be ok to keep).
-      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
-      set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
-   endif()
+   enable_language(CUDA)
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
+      "CUDA standard to use.")
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
+      "Force the use of the chosen CUDA standard.")
+   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
    set(CUBLAS_FOUND TRUE)
-   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
-   get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+   # Initialize CUSPARSE_LIBRARIES and CUBLAS_LIBRARIES:
+   mfem_culib_set_libraries(CUSPARSE cusparse)
+   mfem_culib_set_libraries(CUBLAS cublas)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -186,13 +194,6 @@ endif()
 
 # Suppress warnings about MACOSX_RPATH
 set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
-
-# CMake needs to know where to find things
-set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
-set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
-
-# Load MFEM CMake utilities.
-include(MfemCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
