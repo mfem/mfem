@@ -19,6 +19,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   general/test_array.cpp
+  general/test_reduction.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
@@ -41,6 +42,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_rectangular.cpp
   linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
+  linalg/test_mma.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
@@ -86,6 +88,9 @@ set(UNIT_TESTS_SRCS
   fem/test_face_permutation.cpp
   fem/test_face_restriction.cpp
   fem/test_fe.cpp
+  fem/test_fe_compatibility.cpp
+  fem/test_fe_fixed.cpp
+  fem/test_fe_symmetry.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
