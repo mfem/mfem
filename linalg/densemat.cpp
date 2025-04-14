@@ -3542,20 +3542,7 @@ void LUFactors::LSolve(int m, int n, real_t *X) const
    real_t *x = X;
    for (int k = 0; k < n; k++)
    {
-      // X <- P X
-      for (int i = 0; i < m; i++)
-      {
-         mfem::Swap<real_t>(x[i], x[ipiv[i]-ipiv_base]);
-      }
-      // X <- L^{-1} X
-      for (int j = 0; j < m; j++)
-      {
-         const real_t x_j = x[j];
-         for (int i = j+1; i < m; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
+      kernels::LSolve(data, m, ipiv, x);
       x += m;
    }
 }
@@ -3563,17 +3550,9 @@ void LUFactors::LSolve(int m, int n, real_t *X) const
 void LUFactors::USolve(int m, int n, real_t *X) const
 {
    real_t *x = X;
-   // X <- U^{-1} X
    for (int k = 0; k < n; k++)
    {
-      for (int j = m-1; j >= 0; j--)
-      {
-         const real_t x_j = ( x[j] /= data[j+j*m] );
-         for (int i = 0; i < j; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
+      kernels::USolve(data, m, x);
       x += m;
    }
 }
@@ -3716,44 +3695,13 @@ void LUFactors::GetInverseMatrix(int m, real_t *X) const
 void LUFactors::SubMult(int m, int n, int r, const real_t *A21,
                         const real_t *X1, real_t *X2)
 {
-   // X2 <- X2 - A21 X1
-   for (int k = 0; k < r; k++)
-   {
-      for (int j = 0; j < m; j++)
-      {
-         const real_t x1_jk = X1[j+k*m];
-         for (int i = 0; i < n; i++)
-         {
-            X2[i+k*n] -= A21[i+j*n] * x1_jk;
-         }
-      }
-   }
+   kernels::SubMult(m, n, r, A21, X1, X2);
 }
 
 void LUFactors::BlockFactor(
    int m, int n, real_t *A12, real_t *A21, real_t *A22) const
 {
-   // A12 <- L^{-1} P A12
-   LSolve(m, n, A12);
-   // A21 <- A21 U^{-1}
-   for (int j = 0; j < m; j++)
-   {
-      const real_t u_jj_inv = 1.0/data[j+j*m];
-      for (int i = 0; i < n; i++)
-      {
-         A21[i+j*n] *= u_jj_inv;
-      }
-      for (int k = j+1; k < m; k++)
-      {
-         const real_t u_jk = data[j+k*m];
-         for (int i = 0; i < n; i++)
-         {
-            A21[i+k*n] -= A21[i+j*n] * u_jk;
-         }
-      }
-   }
-   // A22 <- A22 - A21 A12
-   SubMult(m, n, n, A21, A12, A22);
+   kernels::BlockFactor(data, m, ipiv, n, A12, A21, A22);
 }
 
 void LUFactors::BlockForwSolve(int m, int n, int r, const real_t *L21,
