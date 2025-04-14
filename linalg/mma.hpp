@@ -41,7 +41,8 @@ class Vector;
  *    \end{array}
  *   $$
  *   Here $F : R^n \to R$ is the objective function, and
- *   $C : R^n \to R^m$ is a set of $m$ inequality constraints. By
+ *   $C : R^n \to R^m$ is a set of $m$ inequality constraints. The
+ *   variable bounds are sometimes called box constraints. By
  *   convention, the routine seeks ${\bf x}$ that minimizes the
  *   objective function, $F$. Maximization problems should be
  *   reformulated as a minimization of $-F$.
@@ -163,11 +164,13 @@ public:
     * \param dgdx    vector of size $\textrm{nCon}\cdot\textrm{nVar}$
     *                holding the gradients of the constraints in
     *                row-major order. For example, {dg0dx0, dg0dx1, ...,}
-    *                {dg1dx0, dg1dx1, ..., }.
+    *                {dg1dx0, dg1dx1, ..., }, ...
     * \param xmin    vector of size nVar holding the lower bounds on
-    *                the design values
+    *                the design values. \p xmin and \p xmax are
+    *                the box constraints.
     * \param xmax    vector of size nVar holding the upper bounds on
-    *                the design values
+    *                the design values.  \p xmin and \p xmax are
+    *                the box constraints.
     * \param xval    vector of size nVar. On entry, this holds the
     *                value of the design variables where the objective,
     *                constraints, and their gradients were evaluated.
@@ -191,9 +194,11 @@ public:
     *                $\frac{\partial F}{\partial {\bf x}_i}$
     *                for each variable on this rank.
     * \param xmin    vector of size nVar holding the lower bounds on
-    *                the design values
+    *                the design values. \p xmin and \p xmax are
+    *                the box constraints.
     * \param xmax    vector of size nVar holding the upper bounds on
-    *                the design values
+    *                the design values.  \p xmin and \p xmax are
+    *                the box constraints.
     * \param xval    vector of size nVar. On entry, this holds the
     *                value of the design variables where the objective,
     *                constraints, and their gradients were evaluated.
