@@ -164,6 +164,7 @@ public:
    EABilinearFormExtension(BilinearForm *form);
 
    void Assemble() override;
+
    void Mult(const Vector &x, Vector &y) const override
    { MultInternal(x, y, false); }
    void AbsMult(const Vector &x, Vector &y) const override
@@ -172,6 +173,18 @@ public:
    { MultInternal(x, y, true); }
    void AbsMultTranspose(const Vector &x, Vector &y) const override
    { MultInternal(x, y, true, true); }
+
+   /// @brief Populates @a element_matrices with the element matrices.
+   ///
+   /// The element matrices are converted from row-major (how they are stored in
+   /// @a ea_data) to column-major format.
+   ///
+   /// If @a ordering is ElementDofOrdering::NATIVE, then the matrices are
+   /// reordered from the lexicographic ordering used internally.
+   void GetElementMatrices(DenseTensor &element_matrices,
+                           ElementDofOrdering ordering,
+                           bool add_bdr);
+
 protected:
    void MultInternal(const Vector &x, Vector &y, const bool useTranspose,
                      const bool useAbs = false) const;
