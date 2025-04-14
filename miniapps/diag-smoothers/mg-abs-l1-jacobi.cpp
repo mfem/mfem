@@ -26,7 +26,7 @@
 // modified by a Kershaw transformation at run-time. Relative tolerance and
 // maximum number of iterations can be modified as well.
 //
-// Compile with: make mg-lpq-jacobi
+// Compile with: make mg-abs-l1-jacobi
 //
 // Sample runs: mpirun -np 4 ./mg-abs-l1-jacobi
 //              mpirun -np 4 ./mg-abs-l1-jacobi -s 1 -i 3
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    /// 2. Parse command line options.
-   string mesh_file = "meshes/cube.mesh";
+   string mesh_file = "../../data/ref-cube.mesh";
    // System properties
    int order = 1;
    SolverType solver_type = cg;
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
    int assembly_type_int = 4;
    AssemblyLevel assembly_type;
    // Number of refinements
-   int refine_serial = 0;
+   int refine_serial = 3;
    int refine_parallel = 0;
    // Number of geometric and order levels
    int geometric_levels = 1;

@@ -51,108 +51,6 @@ void DataMonitor::MonitorSolution(int it, real_t norm, const Vector &x,
    os << norm << endl;
 }
 
-// L(p,q) general geometric multigrid method, derived from GeometricMultigrid
-LpqGeometricMultigrid::LpqGeometricMultigrid(
-   ParFiniteElementSpaceHierarchy& fes_hierarchy,
-   Array<int>& ess_bdr,
-   IntegratorType it,
-   SolverType st,
-   real_t p_order,
-   real_t q_order)
-   : GeometricMultigrid(fes_hierarchy, ess_bdr),
-     integrator_type(it),
-     solver_type(st),
-     p_order(p_order),
-     q_order(q_order),
-     coarse_pc(nullptr),
-     one(1.0)
-{
-   ConstructCoarseOperatorAndSolver(fes_hierarchy.GetFESpaceAtLevel(0));
-   for (int l = 1; l < fes_hierarchy.GetNumLevels(); ++l)
-   {
-      ConstructOperatorAndSmoother(fes_hierarchy.GetFESpaceAtLevel(l), l);
-   }
-}
-
-void LpqGeometricMultigrid::ConstructCoarseOperatorAndSolver(
-   ParFiniteElementSpace& coarse_fespace)
-{
-   ConstructBilinearForm(coarse_fespace);
-
-   HypreParMatrix* coarse_mat = new HypreParMatrix();
-   bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], *coarse_mat);
-
-   Solver* coarse_solver = nullptr;
-   switch (solver_type)
-   {
-      case sli:
-         coarse_solver = new SLISolver(MPI_COMM_WORLD);
-         break;
-      case cg:
-         coarse_solver = new CGSolver(MPI_COMM_WORLD);
-         break;
-      default:
-         mfem_error("Invalid solver type!");
-   }
-
-   coarse_pc = new OperatorLpqJacobiSmoother(*coarse_mat, *essentialTrueDofs[0],
-                                             p_order, q_order);
-
-   IterativeSolver *it_solver = dynamic_cast<IterativeSolver*>(coarse_solver);
-   if (it_solver)
-   {
-      it_solver->SetRelTol(MG_REL_TOL);
-      it_solver->SetMaxIter(MG_MAX_ITER);
-      it_solver->SetPrintLevel(-1);
-      it_solver->SetPreconditioner(*coarse_pc);
-   }
-   coarse_solver->SetOperator(*coarse_mat);
-   AddLevel(coarse_mat, coarse_solver, true, true);
-}
-
-void LpqGeometricMultigrid::ConstructOperatorAndSmoother(
-   ParFiniteElementSpace& fespace, int level)
-{
-   const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
-   ConstructBilinearForm(fespace);
-
-   auto level_mat = new HypreParMatrix();
-   bfs.Last()->FormSystemMatrix(ess_tdof_list, *level_mat);
-
-   Solver* smoother = new OperatorLpqJacobiSmoother(*level_mat,
-                                                    ess_tdof_list,
-                                                    p_order,
-                                                    q_order);
-
-   AddLevel(level_mat, smoother, true, true);
-}
-
-
-void LpqGeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
-                                                  fespace)
-{
-   ParBilinearForm* form = new ParBilinearForm(&fespace);
-   switch (integrator_type)
-   {
-      case mass:
-         form->AddDomainIntegrator(new MassIntegrator);
-         break;
-      case diffusion:
-         form->AddDomainIntegrator(new DiffusionIntegrator);
-         break;
-      case elasticity:
-         form->AddDomainIntegrator(new ElasticityIntegrator(one, one));
-         break;
-      case maxwell:
-         form->AddDomainIntegrator(new CurlCurlIntegrator(one));
-         form->AddDomainIntegrator(new VectorFEMassIntegrator(one));
-         break;
-      default:
-         mfem_error("Invalid integrator type! Check ParBilinearForm");
-   }
-   form->Assemble();
-   bfs.Append(form);
-}
 
 // Abs-L(1) general geometric multigrid method, derived from GeometricMultigrid
 AbsL1GeometricMultigrid::AbsL1GeometricMultigrid(
@@ -247,7 +145,6 @@ void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
    AddLevel(level_mat.Ptr(), smoother, mg_owned, true);
 }
 
-
 void AbsL1GeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
                                                     fespace)
 {
@@ -279,6 +176,7 @@ void AbsL1GeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
 void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
                                   Vector& diag)
 {
+   MFEM_ABORT("FIXME");
    ParBilinearForm temp_form(form.ParFESpace());
    temp_form.AllocateMatrix();
    for (int i = 0; i < form.ParFESpace()->GetNE(); ++i)
@@ -293,16 +191,16 @@ void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
       if (q!=0.0)
       {
          emat_i.GetDiag(right);
-         right.PowerAbs(-q);
+         // right.PowerAbs(-q);  // FIXME
       }
 
-      emat_i.PowAbsMult(p, right, temp);
+      // emat_i.PowAbsMult(p, right, temp);  // FIXME
 
       left = temp;
       if (1.0 + q - p!= 0.0)
       {
          emat_i.GetDiag(left);
-         left.PowerAbs(1.0 + q - p);
+         // left.PowerAbs(1.0 + q - p);  // FIXME
          left *= temp;
       }
 
