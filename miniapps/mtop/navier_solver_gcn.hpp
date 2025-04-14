@@ -127,7 +127,7 @@ private:
    void SetEssTDofs(mfem::Array<int>& ess_dofs);
    void SetEssTDofs(real_t t, ParGridFunction& pgf);
 
-   std:unique_ptr<ParBilinearForm> K;
+   std::unique_ptr<ParBilinearForm> K;
 
 };//end NavierSolverGCN
 
@@ -136,7 +136,7 @@ private:
 class NSResCoeff: public VectorCoefficient
 {
 public:
-   NSResCoeff(ParGridFunction &u, std::shared_ptr<Coefficiet> brink_, real_t cc_) : VectorCoefficient(u.VectorDim())
+   NSResCoeff(ParGridFunction &u, std::shared_ptr<Coefficient> brink_, real_t cc_) : VectorCoefficient(u.VectorDim())
    {
       gf=&u;
       grad.SetSize(gf->VectorDim());
@@ -155,7 +155,8 @@ public:
       gf->GetVectorGradient(Trans, grad);
 
       //u\nabla u
-      grad->Mult(vel, v); v*=cc;
+      grad.Mult(vel, v);
+      v*=cc;
 
       real_t bp=0.0;
       if(brink!=nullptr)

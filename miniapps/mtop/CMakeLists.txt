@@ -11,11 +11,13 @@
 
 list(APPEND SEQMTOP_COMMON_SOURCES
 	paramnonlinearform.cpp
-        mtop_integrators.cpp)
+        mtop_integrators.cpp
+	navier_solver_gcn.cpp)
 
 list(APPEND SEQMTOP_COMMON_HEADERS
 	paramnonlinearform.hpp
-        mtop_integrators.hpp)
+        mtop_integrators.hpp
+	navier_solver_gcn.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)

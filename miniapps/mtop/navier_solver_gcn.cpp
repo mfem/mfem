@@ -197,7 +197,7 @@ void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
    //the RHS should be set up after the operator is set up
    //the ess_tdofv array should be set up before assembling the RHS
 
-   rhs.SetSize(vfes->TrueVSize())
+   rhs.SetSize(vfes->TrueVSize());
    rhs = 0.0;
 
    //set the contribution from the viscous term
@@ -210,17 +210,17 @@ void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
 
    Vector& vv=pvel->GetTrueVector();
    K->Mult(vv, rhs); 
-   K->Add
    
    //set the contribution from the rest of the terms
-   if(brink != nullptr)
    {
-      brink->SetTime(t);
+       if(brink != nullptr)
+       {
+           brink->SetTime(t);
+       }
+       NSResCoeff rescoeff(*pvel,brink,-dt*thet2);
+       ParLinearForm lf(vfes.get());
    }
-   NSResCoeff rescoeff(*pvel,brink,-dt*thet2);
 
-   ParLinearForm lf(vfes.get());
-   rhsform.AddDomainIntegrator(new VectorDomainLFIntegrator() );
 
 
 
