@@ -780,7 +780,21 @@ void DifferentiableOperator::AddDomainIntegrator(
    // TODO: Host only for now
    for_constexpr([&](auto derivative_id)
    {
+      // Field index of the derivative
       const size_t d_field_idx = FindIdx(derivative_id, fields);
+
+      // First Input index of the derivative
+      const size_t d_input_idx = [d_field_idx, &input_to_field]
+      {
+         for (size_t i = 0; i < input_to_field.size(); i++)
+         {
+            if (input_to_field[i] == d_field_idx)
+            {
+               return i;
+            }
+         }
+         return size_t(SIZE_MAX);
+      }();
 
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
@@ -791,18 +805,17 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       const auto input_is_dependent = dependency_map[derivative_id];
 
-      auto dependent_input_dtq_maps =
-         get_marked_entries(input_dtq_maps, input_is_dependent);
+      // auto dependent_input_dtq_maps =
+      //    get_marked_entries(input_dtq_maps, input_is_dependent);
 
       const int trial_vdim = GetVDim(fields[d_field_idx]);
 
       const int num_trial_dof_1d =
-         input_dtq_maps[d_field_idx].B.GetShape()[DofToQuadMap::Index::DOF];
+         input_dtq_maps[d_input_idx].B.GetShape()[DofToQuadMap::Index::DOF];
 
-      const int num_trial_dof = get_restriction<entity_t>
-                                (fields[d_field_idx],
-                                 element_dof_ordering)->Height() / inputs_vdim[d_field_idx] /
-                                num_entities;
+      const int num_trial_dof =
+         get_restriction<entity_t>(fields[d_field_idx], element_dof_ordering)->Height() /
+         inputs_vdim[d_input_idx] / num_entities;
 
       int total_trial_op_dim = 0;
       for_constexpr<num_inputs>([&](auto s)
@@ -815,7 +828,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       });
 
       const int da_size_on_qp =
-         GetSizeOnQP<entity_t>(output_fop, fields[d_field_idx]);
+         GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
 
 
       assemble_derivative_hypreparmatrix_callbacks[derivative_id].push_back(
@@ -1106,23 +1119,47 @@ void DifferentiableOperator::AddDomainIntegrator(
 
                   const Array<int> &test_dofmap =
                   dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
-                  for (int vd = 0; vd < test_vdim; vd++)
+
+                  if (test_dofmap.Size() == 0)
                   {
-                     for (int i = 0; i < num_test_dof; i++)
+                     test_vdofs_mapped = test_vdofs;
+                  }
+                  else
+                  {
+                     MFEM_ASSERT(test_dofmap.Size() == num_test_dof,
+                                 "internal error: dof map of the test space does not "
+                                 "match previously determined number of test space dofs");
+
+                     for (int vd = 0; vd < test_vdim; vd++)
                      {
-                        test_vdofs_mapped[i + vd * num_test_dof] =
-                        test_vdofs[test_dofmap[i] + vd * num_test_dof];
+                        for (int i = 0; i < num_test_dof; i++)
+                        {
+                           test_vdofs_mapped[i + vd * num_test_dof] =
+                              test_vdofs[test_dofmap[i] + vd * num_test_dof];
+                        }
                      }
                   }
 
                   const Array<int> &trial_dofmap =
                      dynamic_cast<const TensorBasisElement&>(*trial_fes->GetFE(0)).GetDofMap();
-                  for (int vd = 0; vd < trial_vdim; vd++)
+
+                  if (trial_dofmap.Size() == 0)
                   {
-                     for (int i = 0; i < num_trial_dof; i++)
+                     trial_vdofs_mapped = trial_vdofs;
+                  }
+                  else
+                  {
+                     MFEM_ASSERT(trial_dofmap.Size() == num_trial_dof,
+                                 "internal error: dof map of the test space does not "
+                                 "match previously determined number of test space dofs");
+
+                     for (int vd = 0; vd < trial_vdim; vd++)
                      {
-                        trial_vdofs_mapped[i + vd * num_trial_dof] =
-                           trial_vdofs[trial_dofmap[i] + vd * num_trial_dof];
+                        for (int i = 0; i < num_trial_dof; i++)
+                        {
+                           trial_vdofs_mapped[i + vd * num_trial_dof] =
+                              trial_vdofs[trial_dofmap[i] + vd * num_trial_dof];
+                        }
                      }
                   }
 

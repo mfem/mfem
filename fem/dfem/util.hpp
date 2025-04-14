@@ -570,10 +570,11 @@ void forall(func_t f,
 class FDJacobian : public Operator
 {
 public:
-   FDJacobian(const Operator &op, const Vector &x) :
+   FDJacobian(const Operator &op, const Vector &x, real_t fixed_eps = 0.0) :
       Operator(op.Height(), op.Width()),
       op(op),
-      x(x)
+      x(x),
+      fixed_eps(fixed_eps)
    {
       f.SetSize(Height());
       xpev.SetSize(Width());
@@ -591,7 +592,15 @@ public:
       // finite difference matrix-vector products in Newton-Krylov solvers for
       // implicit climate dynamics with spectral elements. Procedia Computer
       // Science, 51, pp.2036-2045.
-      real_t eps = lambda * (lambda + xnorm / v.Norml2());
+      real_t eps;
+      if (fixed_eps > 0.0)
+      {
+         eps = fixed_eps;
+      }
+      else
+      {
+         eps = lambda * (lambda + xnorm / v.Norml2());
+      }
 
       for (int i = 0; i < x.Size(); i++)
       {
@@ -618,6 +627,7 @@ private:
    Vector x, f;
    mutable Vector xpev;
    real_t lambda = 1.0e-6;
+   real_t fixed_eps;
    real_t xnorm;
 };
 

@@ -9,7 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include <mfem.hpp>
+#include "linalg/hypre.hpp"
 #include "linalg/petsc.hpp"
+#include "petsclogtypes.h"
 #include "petscmat.h"
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
@@ -28,12 +30,18 @@ constexpr int COORDINATES0 = 2;
 constexpr int COORDINATES = 3;
 constexpr int MATERIAL = 4;
 constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
-constexpr int ELEMENT_SIZE0 = 6;
-constexpr int ORDER_VEL = 7;
 constexpr int DT_EST = 8;
 constexpr int STRESS_TENSOR = 9;
 
 constexpr int DIMENSION = 2;
+
+enum EXT_DATA_IDX
+{
+   CFL = 0,
+   ORDER_VEL,
+   VISCOSITY_FLAG,
+   H0
+};
 
 int problem = 0;
 
@@ -76,6 +84,24 @@ void ComputeMaterialProperties(const real_t &gamma, const real_t &rho,
 using vecd = tensor<real_t, DIMENSION>;
 using matd = tensor<real_t, DIMENSION, DIMENSION>;
 
+struct TaylorSourceQFunction
+{
+   TaylorSourceQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const vecd &x,
+      const matd &J,
+      const real_t &w) const
+   {
+      auto f = 3.0 / 8.0 * M_PI * ( cos(3.0*M_PI*x(0)) * cos(M_PI*x(1)) -
+                                    cos(M_PI*x(0))     * cos(3.0*M_PI*x(1)) );
+
+      return mfem::tuple{f * det(J) * w};
+   }
+};
+
+
 template <bool compute_dtest = false>
 MFEM_HOST_DEVICE inline
 mfem::tuple<matd, real_t> qdata_setup(
@@ -85,9 +111,9 @@ mfem::tuple<matd, real_t> qdata_setup(
    const matd &J,
    const real_t &gamma,
    const real_t &E,
+   const real_t &w,
    const real_t &h0,
    const real_t &order_v,
-   const real_t &w,
    const real_t &cfl,
    const bool &use_viscosity)
 {
@@ -164,13 +190,15 @@ struct TimeStepEstimateQFunction
       const matd &J,
       const real_t &gamma,
       const real_t &E,
-      const real_t &h0,
-      const real_t &order_v,
       const real_t &w) const
    {
       real_t dt_est = mfem::get<1>(
-                         qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w,
-                                           external_data[0], static_cast<bool>(external_data[2])));
+                         qdata_setup<true>(
+                            dvdxi, rho0, J0, J, gamma, E, w,
+                            external_data[EXT_DATA_IDX::H0],
+                            external_data[EXT_DATA_IDX::ORDER_VEL],
+                            external_data[EXT_DATA_IDX::CFL],
+                            static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
       return mfem::tuple{dt_est};
    }
 
@@ -190,13 +218,15 @@ struct UpdateQuadratureDataQFunction
       const matd &J,
       const real_t &gamma,
       const real_t &E,
-      const real_t &h0,
-      const real_t &order_v,
       const real_t &w) const
    {
       matd stressJiT = mfem::get<0>(
-                          qdata_setup<false>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w,
-                                             external_data[0], static_cast<bool>(external_data[2])));
+                          qdata_setup<false>(
+                             dvdxi, rho0, J0, J, gamma, E, w,
+                             external_data[EXT_DATA_IDX::H0],
+                             external_data[EXT_DATA_IDX::ORDER_VEL],
+                             external_data[EXT_DATA_IDX::CFL],
+                             static_cast<bool>(EXT_DATA_IDX::VISCOSITY_FLAG)));
       return mfem::tuple{stressJiT};
    }
 
@@ -217,18 +247,15 @@ public:
       const matd &J,
       const real_t &gamma,
       const real_t &E,
-      const real_t &h0,
-      const real_t &order_v,
       const real_t &w) const
    {
       auto stressJiT = mfem::get<0>(
-                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w, external_data[0],
-                                      static_cast<bool>(external_data[2])));
-
-      // out << gamma << " " << rho << " " << Ez << " " << p << " " << cs << "\n";
-      // out << stressJiT << "\n";
-      // TODO-bug: investigate transpose of matrices in return types
-      // return mfem::tuple{transpose(stressJiT)};
+                          qdata_setup(
+                             dvdxi, rho0, J0, J, gamma, E, w,
+                             external_data[EXT_DATA_IDX::H0],
+                             external_data[EXT_DATA_IDX::ORDER_VEL],
+                             external_data[EXT_DATA_IDX::CFL],
+                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
       return mfem::tuple{stressJiT};
    }
 
@@ -262,13 +289,16 @@ public:
       const matd &J,
       const real_t &gamma,
       const real_t &E,
-      const real_t &h0,
-      const real_t &order_v,
+
       const real_t &w) const
    {
       auto stressJiT = mfem::get<0>(
-                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w, external_data[0],
-                                      static_cast<bool>(external_data[2])));
+                          qdata_setup(
+                             dvdxi, rho0, J0, J, gamma, E, w,
+                             external_data[EXT_DATA_IDX::H0],
+                             external_data[EXT_DATA_IDX::ORDER_VEL],
+                             external_data[EXT_DATA_IDX::CFL],
+                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
 
@@ -348,12 +378,8 @@ struct QuadratureData
         aux_dim,
         ir.GetNPoints(),
         aux_dim*ir.GetNPoints()*mesh.GetNE()),
-      h0(R),
-      order_v(R),
       dt_est(R)
    {
-      h0.UseDevice(true);
-      order_v.UseDevice(true);
       dt_est.UseDevice(true);
       stressp.UseDevice(true);
    }
@@ -362,7 +388,7 @@ struct QuadratureData
    ParametricFunction stressp;
 
    ParametricSpace R;
-   ParametricFunction h0, order_v, dt_est;
+   ParametricFunction dt_est;
 };
 
 class MassPAOperator : public Operator
@@ -442,13 +468,14 @@ public:
    }
 
    template <typename hydro_t>
-   void Setup(hydro_t &hydro,
-              std::shared_ptr<DerivativeOperator> dRvdx,
-              std::shared_ptr<DerivativeOperator> dRvdv,
-              std::shared_ptr<DerivativeOperator> dRvde,
-              std::shared_ptr<DerivativeOperator> dRedx,
-              std::shared_ptr<DerivativeOperator> dRedv,
-              std::shared_ptr<DerivativeOperator> dRede)
+   int Setup(hydro_t &hydro,
+             std::shared_ptr<DerivativeOperator> dRvdx,
+             std::shared_ptr<DerivativeOperator> dRvdv,
+             std::shared_ptr<DerivativeOperator> dRvde,
+             std::shared_ptr<DerivativeOperator> dRedx,
+             std::shared_ptr<DerivativeOperator> dRedv,
+             std::shared_ptr<DerivativeOperator> dRede,
+             std::shared_ptr<DerivativeOperator> dTaylorSourcedx)
    {
       w.SetSize(this->height);
       z.SetSize(this->height);
@@ -461,152 +488,162 @@ public:
       Mv.FormSystemMatrix(mfem::Array<int>(), Mv_mat);
 
       ParBilinearForm Me(&hydro.L2);
-      Me.AddDomainIntegrator(new MassIntegrator(&hydro.ir));
+      Me.AddDomainIntegrator(new MassIntegrator(hydro.rho0_coeff, &hydro.ir));
       Me.Assemble();
       Me.Finalize();
       HypreParMatrix Me_mat;
       Me.FormSystemMatrix(mfem::Array<int>(), Me_mat);
 
-      assembled_jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this,
-                              &hydro, Mv_mat, Me_mat](const Vector &u, Vector &y)
+      auto comm = hydro.H1.GetComm();
+
+      Array<int> offset_ess_tdof_v(hydro.ess_tdof);
+      for (int i = 0; i < offset_ess_tdof_v.Size(); i++)
+      {
+         offset_ess_tdof_v[i] += H1tsize;
+      }
+
+      // First row
+      // Rx = x - h * v
+      // yx = I * wx - h I * wv
+      // where I is identity
+      PetscParVector dRxdx_diag(comm, H1tsize);
+      dRxdx_diag = 1.0;
+      Mat dRxdx_petsc_mat;
+      PetscCall(MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat));
+      PetscParMatrix dRxdx_petsc;
+      dRxdx_petsc.SetMat(dRxdx_petsc_mat);
+
+      // dRxdv = -h * I
+      PetscParVector dRxdv_diag(comm, H1tsize);
+      dRxdv_diag = -h;
+      for (int i = 0; i < hydro.ess_tdof.Size(); i++)
+      {
+         dRxdv_diag[hydro.ess_tdof[i]] = 0.0;
+      }
+      Mat dRxdv_petsc_mat;
+      PetscCall(MatCreateDiagonal(dRxdv_diag, &dRxdv_petsc_mat));
+      PetscParMatrix dRxdv_petsc;
+      dRxdv_petsc.SetMat(dRxdv_petsc_mat);
+
+      // Second row
+      // Rv = Mv * v + F * I
+      // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
+
+      // dRvdx = h * dF/dx
+      HypreParMatrix dRvdx_mat;
+      dRvdx->Assemble(dRvdx_mat);
+      dRvdx_mat.EliminateRows(hydro.ess_tdof);
+      PetscParMatrix dRvdx_petsc(&dRvdx_mat);
+      dRvdx_petsc *= h;
+
+      // dRvdv = (Mv + h dF/dv)
+      HypreParMatrix dRvdv_mat;
+      dRvdv->Assemble(dRvdv_mat);
+      PetscParMatrix dRvdv_petsc(&dRvdv_mat);
+      PetscParMatrix Mv_petsc(&Mv_mat);
+      PetscCall(MatAYPX(dRvdv_petsc, h, Mv_petsc,
+                        MatStructure::DIFFERENT_NONZERO_PATTERN));
+
+      dRvdv_petsc.EliminateRowsCols(hydro.ess_tdof);
+
+      // dRvde = h * dF/de
+      HypreParMatrix dRvde_mat;
+      dRvde->Assemble(dRvde_mat);
+      dRvde_mat.EliminateRows(hydro.ess_tdof);
+      PetscParMatrix dRvde_petsc(&dRvde_mat);
+      dRvde_petsc *= h;
+
+      // Third row
+      // Re = Me * e - F^T
+      // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
+
+      // dRedx = -h * dF^T/dx
+      HypreParMatrix dRedx_mat;
+      dRedx->Assemble(dRedx_mat);
+      HypreParMatrix dTaylorSourcedx_mat;
+      dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+      PetscParMatrix dRedx_petsc(&dRedx_mat);
+      PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
+      dRedx_petsc += dTaylorSourcedx_petsc;
+      dRedx_petsc *= -h;
+
+      // dRedv = -h * dF^T/dv
+      HypreParMatrix dRedv_mat;
+      dRedv->Assemble(dRedv_mat);
+      auto tmp = dRedv_mat.EliminateCols(hydro.ess_tdof);
+      delete tmp;
+      PetscParMatrix dRedv_petsc(&dRedv_mat);
+      dRedv_petsc *= -h;
+
+      // dRede = Me - h * dF^T/de
+      HypreParMatrix dRede_mat;
+      dRede->Assemble(dRede_mat);
+      PetscParMatrix dRede_petsc(&dRede_mat);
+
+      PetscParMatrix Me_petsc(&Me_mat);
+      PetscCall(MatAYPX(dRede_petsc, -h, Me_petsc,
+                        MatStructure::DIFFERENT_NONZERO_PATTERN));
+
+      Array<int> offsets(4);
+      offsets[0] = 0;
+      offsets[1] = H1tsize;
+      offsets[2] = H1tsize;
+      offsets[3] = L2tsize;
+      offsets.PartialSum();
+
+      BlockOperator block_op(offsets);
+      block_op.SetBlock(0, 0, &dRxdx_petsc);
+      block_op.SetBlock(0, 1, &dRxdv_petsc);
+      block_op.SetBlock(1, 0, &dRvdx_petsc);
+      block_op.SetBlock(1, 1, &dRvdv_petsc);
+      block_op.SetBlock(1, 2, &dRvde_petsc);
+      block_op.SetBlock(2, 0, &dRedx_petsc);
+      block_op.SetBlock(2, 1, &dRedv_petsc);
+      block_op.SetBlock(2, 2, &dRede_petsc);
+
+      block_petsc.reset(new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ));
+      Mat block_petsc_mat = *block_petsc;
+
+      // PetscCall(MatConvert(block_petsc_mat, MATAIJ, MatReuse::MAT_INPLACE_MATRIX,
+      //                      &block_petsc_mat));
+
+      // auto tmp = block_petsc->EliminateRowsCols(offset_ess_tdof_v);
+      // delete tmp;
+
+      w_petsc.reset(new PetscParVector(hydro.H1.GetComm(), *this, true, false));
+      y_petsc.reset(new PetscParVector(hydro.H1.GetComm(), *this, false, false));
+
+      // block_petsc->Print("block_mat.dat", true);
+      // exit(0);
+
+      assembled_jvp = [&](const Vector &u, Vector &y)
       {
          w = u;
-         Vector wx, wv, we;
-         wx.MakeRef(w, 0, H1tsize);
-         wv.MakeRef(w, H1tsize, H1tsize);
-         we.MakeRef(w, 2*H1tsize, L2tsize);
+         // Vector wx, wv, we;
+         // wx.MakeRef(w, 0, H1tsize);
+         // wv.MakeRef(w, H1tsize, H1tsize);
+         // we.MakeRef(w, 2*H1tsize, L2tsize);
 
-         Vector zx, zv, ze;
-         zx.MakeRef(z, 0, H1tsize);
-         zv.MakeRef(z, H1tsize, H1tsize);
-         ze.MakeRef(z, 2*H1tsize, L2tsize);
+         // Vector zx, zv, ze;
+         // zx.MakeRef(z, 0, H1tsize);
+         // zv.MakeRef(z, H1tsize, H1tsize);
+         // ze.MakeRef(z, 2*H1tsize, L2tsize);
 
-         Vector yx, yv, ye;
-         yx.MakeRef(y, 0, H1tsize);
-         yv.MakeRef(y, H1tsize, H1tsize);
-         ye.MakeRef(y, 2*H1tsize, L2tsize);
+         // Vector yx, yv, ye;
+         // yx.MakeRef(y, 0, H1tsize);
+         // yv.MakeRef(y, H1tsize, H1tsize);
+         // ye.MakeRef(y, 2*H1tsize, L2tsize);
 
-         auto comm = hydro.H1.GetComm();
-
-         // First row
-         // Rx = x - h * v
-         // yx = I * wx - h I * wv
-         // where I is identity
-
-         PetscParVector diag(comm, H1tsize);
-         diag = 1.0;
-
-         Mat dRxdx_petsc_mat;
-         PetscCall(MatCreateDiagonal(diag, &dRxdx_petsc_mat));
-
-         PetscParMatrix dRxdx_petsc;
-         dRxdx_petsc.SetMat(dRxdx_petsc_mat);
-
-         // dRxdv = -h * I
-         diag = -h;
-         Mat dRxdv_petsc_mat;
-         PetscCall(MatCreateDiagonal(diag, &dRxdv_petsc_mat));
-
-         PetscParMatrix dRxdv_petsc;
-         dRxdv_petsc.SetMat(dRxdv_petsc_mat);
-
-         // Second row
-         // Rv = Mv * v + F * I
-         // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
-
-         // dRvdx = h * dF/dx
-         HypreParMatrix dRvdx_mat;
-         dRvdx->Assemble(dRvdx_mat);
-         PetscParMatrix dRvdx_petsc(&dRvdx_mat);
-
-         // dRvdv = (Mv - h dF/dv)
-         HypreParMatrix dRvdv_mat;
-         dRvdv->Assemble(dRvdv_mat);
-         PetscParMatrix dRvdv_petsc(&dRvdv_mat);
-         PetscParMatrix Mv_petsc(&Mv_mat);
-         PetscCall(MatAXPY(dRvdv_petsc, h, Mv_petsc,
-                           MatStructure::DIFFERENT_NONZERO_PATTERN));
-
-         // dRvde = h * dF/de
-         HypreParMatrix dRvde_mat;
-         dRvde->Assemble(dRvde_mat);
-         PetscParMatrix dRvde_petsc(&dRvde_mat);
-         dRvde_petsc *= h;
-
-         // Third row
-         // Re = Me * e - F^T
-         // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
-
-         // dRedx = -h * dF^T/dx
-         // HypreParMatrix dRedx_mat;
-         // dRedx->Assemble(dRedx_mat);
-         // PetscParMatrix dRedx_petsc(&dRedx_mat);
-         // dRedx_petsc *= -h;
-
-         // dRedv = -h * dF^T/dv
-         // HypreParMatrix dRedv_mat;
-         // dRedv->Assemble(dRedv_mat);
-         // PetscParMatrix dRedv_petsc(&dRedv_mat);
-         // dRedv_petsc *= -h;
-
-         // dRede = Me - h * dF^T/de
-         // HypreParMatrix dRede_mat;
-         // dRede->Assemble(dRede_mat);
-         // PetscParMatrix dRede_petsc(&dRede_mat);
-
-         PetscParMatrix Me_petsc(&Me_mat);
-         // PetscCall(MatAXPY(dRede_petsc, -h, Me_petsc,
-         //                   MatStructure::DIFFERENT_NONZERO_PATTERN));
-
-         // Mat dRdu;
-         // Mat blocks[] =
-         // {
-         //    dRxdx_petsc, dRxdv_petsc, nullptr,
-         //    dRvdx_petsc, dRvdv_petsc, nullptr,
-         //    nullptr, nullptr, Me_petsc
-         // };
-
-         Array<int> offsets(4);
-         offsets[0] = 0;
-         offsets[1] = H1tsize;
-         offsets[2] = H1tsize;
-         offsets[3] = L2tsize;
-         offsets.PartialSum();
-
-         BlockOperator block_op(offsets);
-         block_op.SetBlock(0, 0, &dRxdx_petsc);
-         // block_op.SetBlock(0, 1, &dRxdv_petsc);
-         // block_op.SetBlock(1, 0, &dRvdx_petsc);
-         block_op.SetBlock(1, 1, &dRvdv_petsc);
-         block_op.SetBlock(2, 2, &Me_petsc);
-
-         PetscParMatrix block_petsc(comm, &block_op, Operator::PETSC_MATAIJ);
-         Mat block_petsc_mat = block_petsc;
-
-         PetscCall(MatConvert(block_petsc_mat, MATAIJ, MatReuse::MAT_INPLACE_MATRIX,
-                              &block_petsc_mat));
-
-         Array<int> offset_ess_tdof_v(hydro.ess_tdof);
-         for (int i = 0; i < offset_ess_tdof_v.Size(); i++)
-         {
-            offset_ess_tdof_v[i] += H1tsize;
-         }
-
-         auto tmp = block_petsc.EliminateRowsCols(offset_ess_tdof_v);
-         delete tmp;
-
-
-         PetscParVector w_petsc(hydro.H1.GetComm(), w, true);
-         PetscParVector y_petsc(hydro.H1.GetComm(), y);
-
-         PetscCall(MatMult(block_petsc, w_petsc, y_petsc));
-
-         y = y_petsc;
+         w_petsc->PlaceMemory(w.GetMemory(), true);
+         y_petsc->PlaceMemory(y.GetMemory(), true);
+         PetscCall(MatMult(*block_petsc, *w_petsc, *y_petsc));
+         w_petsc->ResetMemory();
+         y_petsc->ResetMemory();
 
          return PETSC_SUCCESS;
       };
 
-      jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro, Mv_mat]
+      jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro]
             (const Vector &u, Vector &y)
       {
          w = u;
@@ -687,6 +724,8 @@ public:
 
          return PETSC_SUCCESS;
       };
+
+      return 0;
    }
 
    virtual MemoryClass GetMemoryClass() const override
@@ -699,6 +738,8 @@ public:
    const int H1tsize;
    const int L2tsize;
    Vector w, z;
+   std::shared_ptr<PetscParMatrix> block_petsc;
+   std::shared_ptr<PetscParVector> w_petsc, y_petsc;
 };
 
 template <typename hydro_t>
@@ -752,7 +793,7 @@ public:
       Rx = kx;
       Rx -= uv;
 
-      hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
+      hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
       hydro.momentum_mf->Mult(uv, Rv);
 
       // hydro.Mv.TrueAddMult(kv, Rv);
@@ -769,23 +810,15 @@ public:
       Rv.SetSubVector(hydro.ess_tdof, 0.0);
       // Rv = 0.0;
 
-      hydro.energy_conservation_mf->SetParameters({&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+      hydro.energy_conservation_mf->SetParameters({&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
       hydro.energy_conservation_mf->Mult(ue, Re);
 
       Re.Neg();
 
       if (problem == 0)
       {
-         ParLinearForm e_source(&hydro.L2);
-         hydro.L2.GetMesh()->DeleteGeometricFactors();
-         FunctionCoefficient coeff(taylor_source);
-         DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
-         e_source.AddDomainIntegrator(d);
-         e_source.UseFastAssembly(true);
-         e_source.Assemble();
-
-         hydro.L2.GetProlongationMatrix()->MultTranspose(e_source, e_source_t);
-
+         hydro.taylor_source_mf->SetParameters({&ux_l});
+         hydro.taylor_source_mf->Mult(e_source_t, e_source_t);
          Re -= e_source_t;
       }
 
@@ -799,6 +832,7 @@ public:
 
    Operator& GetGradient(const Vector &k) const override
    {
+      tic();
       jacobian.reset(new LagrangianHydroJacobianOperator(dt, H1tsize, L2tsize));
 
       u = k;
@@ -820,34 +854,43 @@ public:
       hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
       hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
 
+
       if (fd_gradient)
       {
-         fd_jacobian.reset(new FDJacobian(*this, k));
+         fd_jacobian.reset(new FDJacobian(*this, k, 1e-8));
+         // std::ofstream fd_out("fd_blockmat.dat");
+         // fd_jacobian->PrintMatlab(fd_out);
+         // fd_out.close();
          return *fd_jacobian;
       }
       else
       {
          auto dRvdx = hydro.momentum_mf->GetDerivative(COORDINATES, {&uv_l},
-         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
+         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
 
          auto dRvdv = hydro.momentum_mf->GetDerivative(VELOCITY, {&uv_l},
-         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
+         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
 
          auto dRvde = hydro.momentum_mf->GetDerivative(SPECIFIC_INTERNAL_ENERGY, {&uv_l},
-         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l, &hydro.qdata->h0, &hydro.qdata->order_v});
+         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
 
          auto dRedx = hydro.energy_conservation_mf->GetDerivative(COORDINATES, {&ue_l},
-         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
 
          auto dRedv = hydro.energy_conservation_mf->GetDerivative(VELOCITY, {&ue_l},
-         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
 
          auto dRede = hydro.energy_conservation_mf->GetDerivative(
          SPECIFIC_INTERNAL_ENERGY, {&ue_l},
-         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
 
-         jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
-         return *jacobian;
+         auto dTaylorSourcedx = hydro.taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
+
+         jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede,
+                         dTaylorSourcedx);
+
+         out << "jacobian assemble: " << toc() << "\n";
+         return *jacobian->block_petsc;
       }
    }
 
@@ -883,6 +926,7 @@ public:
       std::shared_ptr<DifferentiableOperator> total_internal_energy_mf,
       std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf,
       std::shared_ptr<DifferentiableOperator> density_mf,
+      std::shared_ptr<DifferentiableOperator> taylor_source_mf,
       std::shared_ptr<QuadratureData> qdata,
       bool fd_gradient,
       const int nonlinear_maximum_iterations,
@@ -905,6 +949,7 @@ public:
       total_internal_energy_mf(total_internal_energy_mf),
       total_kinetic_energy_mf(total_kinetic_energy_mf),
       density_mf(density_mf),
+      taylor_source_mf(taylor_source_mf),
       qdata(qdata),
       mesh_nodes(&H1),
       rhsvc(&H1c),
@@ -1059,6 +1104,8 @@ public:
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
+      tic();
+
       auto xptr = const_cast<Vector*>(&x);
 
       Vector xx, xv, xe;
@@ -1079,27 +1126,38 @@ public:
       Xv.SyncAliasMemory(X);
       Xe.SyncAliasMemory(X);
 
-      auto residual = LagrangianHydroResidualOperator(*this, dt, X, fd_gradient);
+      if (current_dt != dt || residual == nullptr)
+      {
+         out << "creating new residual\n";
+         current_dt = dt;
+         residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
 
-      GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetMaxIter(500);
-      gmres.SetKDim(500);
-      gmres.SetRelTol(1e-8);
-      gmres.SetAbsTol(1e-12);
-      gmres.SetPrintLevel(IterativeSolver::PrintLevel().None());
+         snes.reset(new PetscNonlinearSolver(MPI_COMM_WORLD));
+         snes->SetOperator(*residual);
+         snes->SetRelTol(nonlinear_relative_tolerance);
+         snes->SetJacobianType(Operator::PETSC_MATNEST);
 
-      NewtonSolver newton(MPI_COMM_WORLD);
-      newton.SetPrintLevel(IterativeSolver::PrintLevel().None());
-      newton.SetOperator(residual);
-      newton.SetSolver(gmres);
-      newton.SetAdaptiveLinRtol();
-      newton.SetMaxIter(nonlinear_maximum_iterations);
-      newton.SetRelTol(nonlinear_relative_tolerance);
-      newton.SetAbsTol(1e-12);
+      }
+
+      // GMRESSolver gmres(MPI_COMM_WORLD);
+      // gmres.SetMaxIter(500);
+      // gmres.SetKDim(500);
+      // gmres.SetRelTol(1e-8);
+      // gmres.SetAbsTol(1e-12);
+      // gmres.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+
+      // NewtonSolver newton(MPI_COMM_WORLD);
+      // newton.SetPrintLevel(IterativeSolver::PrintLevel().None());
+      // newton.SetOperator(residual);
+      // newton.SetSolver(gmres);
+      // newton.SetAdaptiveLinRtol();
+      // newton.SetMaxIter(nonlinear_maximum_iterations);
+      // newton.SetRelTol(nonlinear_relative_tolerance);
+      // newton.SetAbsTol(1e-12);
 
       Vector zero;
       K = X;
-      newton.Mult(zero, K);
+      snes->Mult(zero, K);
 
       Vector Kx, Kv, Ke;
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
@@ -1117,6 +1175,7 @@ public:
       // kx.SyncAliasMemory(k);
       // kv.SyncAliasMemory(k);
       // ke.SyncAliasMemory(k);
+      out << "implicit solve: " << toc() << "\n";
    }
 
    void UpdateMesh(const Vector &S) const
@@ -1136,7 +1195,7 @@ public:
       x.MakeRef(&H1, *sptr, 0);
       v.MakeRef(&H1, *sptr, H1vsize);
       e.MakeRef(&L2, *sptr, 2*H1vsize);
-      dtest_mf->SetParameters({&v, &rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
+      dtest_mf->SetParameters({&v, &rho0, &x0, &x, &material, &e});
       auto &dt_est = qdata->dt_est;
       dtest_mf->Mult(dt_est, dt_est);
 
@@ -1228,7 +1287,7 @@ public:
       x.MakeRef(&H1, *sptr, 0);
       v.MakeRef(&H1, *sptr, H1vsize);
       e.MakeRef(&L2, *sptr, 2*H1vsize);
-      update_qdata->SetParameters({&v, &rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
+      update_qdata->SetParameters({&v, &rho0, &x0, &x, &material, &e});
       update_qdata->Mult(qdata->stressp, qdata->stressp);
    }
 
@@ -1255,9 +1314,15 @@ public:
    std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
    std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
    std::shared_ptr<DifferentiableOperator> density_mf;
+   std::shared_ptr<DifferentiableOperator> taylor_source_mf;
    std::shared_ptr<QuadratureData> qdata;
    mutable ParGridFunction mesh_nodes, rhsvc, dvc;
    mutable MassPAOperator *Mv = nullptr, *Me = nullptr;
+
+   std::shared_ptr<Operator> residual;
+   real_t current_dt = 0.0;
+
+   std::shared_ptr<PetscNonlinearSolver> snes;
 
    mutable FunctionCoefficient rho0_coeff;
    OperatorJacobiSmoother *Mv_Jprec = nullptr;
@@ -1296,25 +1361,25 @@ static auto CreateLagrangianHydroOperator(
    MPI_Allreduce(&vol_loc, &vol_global, 1, MPI_DOUBLE, MPI_SUM, mesh.GetComm());
    MPI_Allreduce(&ne_loc, &ne_global, 1, MPI_INT, MPI_SUM, mesh.GetComm());
 
+   real_t &h0 = external_data[EXT_DATA_IDX::H0];
    switch (mesh.GetElementBaseGeometry(0))
    {
-      case Geometry::SEGMENT: qdata->h0 = vol_global / ne_global; break;
-      case Geometry::SQUARE: qdata->h0 = sqrt(vol_global / ne_global); break;
-      case Geometry::TRIANGLE: qdata->h0 = sqrt(2.0 * vol_global / ne_global); break;
-      case Geometry::CUBE: qdata->h0 = pow(vol_global / ne_global, 1./3.); break;
-      case Geometry::TETRAHEDRON: qdata->h0 = pow(6.0 * vol_global / ne_global,
-                                                     1./3.); break;
+      case Geometry::SEGMENT: h0 = vol_global / ne_global; break;
+      case Geometry::SQUARE: h0 = sqrt(vol_global / ne_global); break;
+      case Geometry::TRIANGLE: h0 = sqrt(2.0 * vol_global / ne_global); break;
+      case Geometry::CUBE: h0 = pow(vol_global / ne_global, 1./3.); break;
+      case Geometry::TETRAHEDRON: h0 = pow(6.0 * vol_global / ne_global,
+                                              1./3.); break;
       default: MFEM_ABORT("Unknown zone type!");
    }
-   qdata->h0 /= (double) H1.GetOrder(0);
+   h0 /= (double) H1.GetOrder(0);
 
    // const real_t h0 = sqrt(vol_global / ne_global) /
    //                   static_cast<real_t>(H1.GetOrder(0));
 
-   qdata->order_v = order_v;
-   qdata->dt_est = std::numeric_limits<real_t>::infinity();
+   // qdata->order_v = order_v;
+   // qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
-   // external_data(2) = qdata->h0;
    const auto d_external_data = external_data.Read();
 
    Array<int> all_domain_attr(mesh.attributes.Max());
@@ -1330,8 +1395,6 @@ static auto CreateLagrangianHydroOperator(
          Gradient<COORDINATES>{},
          Value<MATERIAL>{},
          Value<SPECIFIC_INTERNAL_ENERGY>{},
-         None<ELEMENT_SIZE0>{},
-         None<ORDER_VEL>{},
          Weight{}
       };
 
@@ -1350,8 +1413,6 @@ static auto CreateLagrangianHydroOperator(
          FieldDescriptor{COORDINATES, &H1},
          FieldDescriptor{MATERIAL, material_gf.ParFESpace()},
          FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2},
-         FieldDescriptor{ELEMENT_SIZE0, &qdata->R},
-         FieldDescriptor{ORDER_VEL, &qdata->R}
       };
 
       dt_est = std::make_shared<DifferentiableOperator>(
@@ -1373,8 +1434,6 @@ static auto CreateLagrangianHydroOperator(
          Gradient<COORDINATES>{},
          Value<MATERIAL>{},
          Value<SPECIFIC_INTERNAL_ENERGY>{},
-         None<ELEMENT_SIZE0>{},
-         None<ORDER_VEL>{},
          Weight{}
       };
 
@@ -1393,8 +1452,6 @@ static auto CreateLagrangianHydroOperator(
          {COORDINATES, &H1},
          {MATERIAL, material_gf.ParFESpace()},
          {SPECIFIC_INTERNAL_ENERGY, &L2},
-         {ELEMENT_SIZE0, &qdata->R},
-         {ORDER_VEL, &qdata->R}
       };
 
       update_qdata = std::make_shared<DifferentiableOperator>(
@@ -1417,8 +1474,6 @@ static auto CreateLagrangianHydroOperator(
          Gradient<COORDINATES>{},
          Value<MATERIAL>{},
          Value<SPECIFIC_INTERNAL_ENERGY>{},
-         None<ELEMENT_SIZE0>{},
-         None<ORDER_VEL>{},
          Weight{}
       };
 
@@ -1439,8 +1494,6 @@ static auto CreateLagrangianHydroOperator(
          FieldDescriptor{COORDINATES, &H1},
          FieldDescriptor{MATERIAL, material_gf.ParFESpace()},
          FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2},
-         FieldDescriptor{ELEMENT_SIZE0, &qdata->R},
-         FieldDescriptor{ORDER_VEL, &qdata->R}
       };
 
       momentum_mf = std::make_shared<DifferentiableOperator>(
@@ -1480,8 +1533,6 @@ static auto CreateLagrangianHydroOperator(
          Gradient<COORDINATES>{},
          Value<MATERIAL>{},
          Value<SPECIFIC_INTERNAL_ENERGY>{},
-         None<ELEMENT_SIZE0>{},
-         None<ORDER_VEL>{},
          Weight{}
       };
 
@@ -1502,8 +1553,6 @@ static auto CreateLagrangianHydroOperator(
          FieldDescriptor{COORDINATES0, &H1},
          FieldDescriptor{COORDINATES, &H1},
          FieldDescriptor{MATERIAL, material_gf.ParFESpace()},
-         FieldDescriptor{ELEMENT_SIZE0, &qdata->R},
-         FieldDescriptor{ORDER_VEL, &qdata->R}
       };
 
       energy_conservation_mf =
@@ -1644,6 +1693,38 @@ static auto CreateLagrangianHydroOperator(
                                       density_kernel_oo, ir, all_domain_attr);
    }
 
+   // Create taylor source oeprator
+   std::shared_ptr<DifferentiableOperator> taylor_source_mf;
+   {
+      mfem::tuple taylor_source_kernel_ao =
+      {
+         Value<COORDINATES>{},
+         Gradient<COORDINATES>{},
+         Weight{}
+      };
+
+      mfem::tuple taylor_source_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+
+      std::vector taylor_source_solutions =
+      {
+         FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2}
+      };
+
+      std::vector taylor_source_parameters =
+      {
+         FieldDescriptor{COORDINATES, &H1}
+      };
+
+      taylor_source_mf = std::make_shared<DifferentiableOperator>(
+                            taylor_source_solutions, taylor_source_parameters, mesh);
+
+      TaylorSourceQFunction taylor_source_qf;
+      auto derivatives = std::integer_sequence<size_t, COORDINATES> {};
+      taylor_source_mf->AddDomainIntegrator(taylor_source_qf, taylor_source_kernel_ao,
+                                            taylor_source_kernel_oo, ir, all_domain_attr,
+                                            derivatives);
+   }
+
    return LagrangianHydroOperator(
              H1,
              L2,
@@ -1662,6 +1743,7 @@ static auto CreateLagrangianHydroOperator(
              total_internal_energy_mf,
              total_kinetic_energy_mf,
              density_mf,
+             taylor_source_mf,
              qdata,
              fd_gradient,
              nonlinear_maximum_iterations,
@@ -1764,7 +1846,7 @@ int main(int argc, char *argv[])
 
    if (problem == 2)
    {
-      serial_mesh = Mesh(Mesh::MakeCartesian1D(2));
+      serial_mesh = Mesh(Mesh::MakeCartesian1D(1));
       serial_mesh.GetBdrElement(0)->SetAttribute(1);
       serial_mesh.GetBdrElement(1)->SetAttribute(1);
    }
@@ -1965,9 +2047,9 @@ int main(int argc, char *argv[])
    // Create external data vector
    // Layout is [cfl, order_velocity, use_viscosity, h0]
    Vector external_data(4);
-   external_data[0] = cfl;
-   external_data[1] = order_v;
-   external_data[2] = use_viscosity;
+   external_data[EXT_DATA_IDX::CFL] = cfl;
+   external_data[EXT_DATA_IDX::ORDER_VEL] = order_v;
+   external_data[EXT_DATA_IDX::VISCOSITY_FLAG] = use_viscosity;
 
    auto hydro = CreateLagrangianHydroOperator(H1FESpace,
                                               L2FESpace,
@@ -2066,7 +2148,19 @@ int main(int argc, char *argv[])
 
       // Adaptive time step control.
       const real_t dt_est = hydro.GetTimeStepEstimate(S);
-      if (dt_est < dt)
+      if (ode_solver_type > 10)
+      {
+         if (dt_est > 1e2)
+         {
+            dt *= 0.85;
+            t = t_old;
+            S = S_old;
+            last_step = false;
+            if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
+            ti--; continue;
+         }
+      }
+      else if (dt_est < dt)
       {
          // Repeat (solve again) with a decreased time step - decrease of the
          // time estimate suggests appearance of oscillations.
@@ -2075,6 +2169,7 @@ int main(int argc, char *argv[])
          { MFEM_ABORT("The time step crashed!"); }
          t = t_old;
          S = S_old;
+         last_step = false;
          if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
          ti--; continue;
       }
