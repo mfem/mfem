@@ -40,8 +40,9 @@ MFEM_DEVICE_EXTERN_STMT(enzyme_out)
 MFEM_DEVICE_EXTERN_STMT(enzyme_const)
 MFEM_DEVICE_EXTERN_STMT(enzyme_interleave)
 
+// warning: if inlined, triggers function '__enzyme_autodiff' is not defined
 template <typename return_type, typename... Args>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE
 return_type __enzyme_autodiff(Args...);
 
 // warning: if inlined, triggers function '__enzyme_fwddiff' is not defined

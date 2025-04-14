@@ -18,8 +18,8 @@
 #ifndef MFEM_INTERNAL_TENSOR_HPP
 #define MFEM_INTERNAL_TENSOR_HPP
 
+#include "../general/backends.hpp"
 #include "dual.hpp"
-#include "general/backends.hpp"
 #include <limits>
 #include <type_traits> // for std::false_type
 
