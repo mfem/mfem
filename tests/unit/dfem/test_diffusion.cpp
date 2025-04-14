@@ -244,6 +244,6 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
       DFemDiffusion<3>(filename, p, r);
    }
 }
-#endif
 
 } // namespace dfem_pa_kernels
+#endif
