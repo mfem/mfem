@@ -1357,7 +1357,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          if (ControllerRequiresUpdate())
          {
             x_monitor = x;
-            Update(x_monitor, i, H, s, v);
+            Update(x_monitor, i, H, s, z);
          }
 
          if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
