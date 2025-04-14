@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
    GridFunction B_pol(&mesh, temp_log);
 
    temp_log.close();            // Close previous file
-   temp_log.open("output/B_tor.gf"); // Open new file
+   temp_log.open("output/B_tor_CG.gf"); // Open new file
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;

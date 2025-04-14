@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    { 
       cout << "Using linear form" << endl;
       // project the grid function onto the new space
-      // solving <B_tor, v> = <gg/R, v> for all v in L2
+      // solving <B_tor, v> = <gg/R, v> for all v in H1
 
       // 1. make the linear form
       FGridFunctionCoefficient f_coef(&gg, from_psi);
@@ -99,18 +99,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("B_tor", new_mesh);
+      ParaViewDataCollection paraview_dc("B_tor_CG", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("B_tor", &B_tor);
+      paraview_dc.RegisterField("B_tor_CG", &B_tor);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/B_tor.gf");
+   ofstream sol_ofs("output/B_tor_CG.gf");
    sol_ofs.precision(8);
    B_tor.Save(sol_ofs);
 

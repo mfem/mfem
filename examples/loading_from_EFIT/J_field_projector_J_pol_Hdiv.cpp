@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
    Mesh mesh(new_mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_tor.gf");
+   ifstream temp_log("output/B_tor_CG.gf");
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
