@@ -11,6 +11,7 @@
 
 #include "unit_tests.hpp"
 
+#ifdef MFEM_USE_ENZYME
 #include "mfem.hpp"
 #include "fem/dfem/doperator.hpp"
 #include "linalg/tensor.hpp"
@@ -214,7 +215,6 @@ void DFemDiffusion(const char *filename, int p, const int r)
    }
 }
 
-#ifdef MFEM_USE_ENZYME
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
