@@ -60,7 +60,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 abs-l1-jacobi-test-par: abs-l1-jacobi
 	@$(call mfem-test,$<, $(RUN_MPI), Abs-value-L1-Jqcobi miniapp, \
 		-m ../../data/ref-cube.mesh \
-		-rs 1 -rp 1 \
+		-rs 2 -rp 2 \
 		-s 1 -i 1 -a 4 \
 		-pc 1 \
 		-no-mon)
@@ -68,7 +68,7 @@ abs-l1-jacobi-test-par: abs-l1-jacobi
 mg-abs-l1-jacobi-test-par: mg-abs-l1-jacobi
 	@$(call mfem-test,$<, $(RUN_MPI), MG Abs-value-L1-Jqcobi miniapp, \
 		-m ../../data/ref-cube.mesh \
-		-rs 1 -rp 1\
+		-rs 2 -rp 1\
 		-ol 1 -gl 1 \
 		-s 1 -i 1 -a 4 \
 		-no-mon)
