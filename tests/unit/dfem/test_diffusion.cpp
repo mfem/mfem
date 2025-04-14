@@ -214,6 +214,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    }
 }
 
+#ifdef MFEM_USE_ENZYME
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
@@ -243,5 +244,6 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
       DFemDiffusion<3>(filename, p, r);
    }
 }
+#endif
 
 } // namespace dfem_pa_kernels
