@@ -13,6 +13,7 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include <array>
 
 namespace mfem
 {
