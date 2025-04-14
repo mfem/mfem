@@ -94,7 +94,7 @@ public:
    {
       if (from_psi)
       {
-         ifstream infile("input/psi_coefficients.txt");
+         ifstream infile("input/f_from_psi_coefficients.txt");
          if (!infile)
          {
             cerr << "Error: could not open input file" << endl;
