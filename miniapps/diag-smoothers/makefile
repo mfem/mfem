@@ -59,7 +59,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 
 abs-l1-jacobi-test-par: abs-l1-jacobi
 	@$(call mfem-test,$<, $(RUN_MPI), Abs-value-L1-Jqcobi miniapp, \
-		-m meshes/cube.mesh \
+		-m ../../data/ref-cube.mesh \
 		-rs 1 -rp 1 \
 		-s 1 -i 1 -a 4 \
 		-pc 1 \
@@ -67,7 +67,7 @@ abs-l1-jacobi-test-par: abs-l1-jacobi
 
 mg-abs-l1-jacobi-test-par: mg-abs-l1-jacobi
 	@$(call mfem-test,$<, $(RUN_MPI), MG Abs-value-L1-Jqcobi miniapp, \
-		-m meshes/cube.mesh \
+		-m ../../data/ref-cube.mesh \
 		-rs 1 -rp 1\
 		-ol 1 -gl 1 \
 		-s 1 -i 1 -a 4 \
@@ -82,8 +82,7 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	rm -rf $(MESHES_DEST_DIR)
-	rm -f *.csv
+	@true
 
 # Error handling
 $(MFEM_LIB_FILE):

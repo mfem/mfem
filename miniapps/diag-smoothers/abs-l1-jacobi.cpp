@@ -24,14 +24,14 @@
 // modified by a Kershaw transformation at run-time. Relative tolerance and
 // maximum number of iterations can be modified as well.
 //
-// Compile with: make l1-partial
+// Compile with: make abs-l1-jacobi
 //
-// Sample runs: mpirun -np 4 ./l1-partial
-//              mpirun -np 4 ./l1-partial -s 1 -i 3
-//              mpirun -np 4 ./l1-partial -m meshes/icf.mesh -f 0.5
-//              mpirun -np 4 ./l1-partial -rs 2 -rp 0
-//              mpirun -np 4 ./l1-partial -t 1e5 -ni 100 -vis
-//              mpirun -np 4 ./l1-partial -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
+// Sample runs: mpirun -np 4 ./abs-l1-jacobi
+//              mpirun -np 4 ./abs-l1-jacobi -s 1 -i 3
+//              mpirun -np 4 ./abs-l1-jacobi -m meshes/icf.mesh -f 0.5
+//              mpirun -np 4 ./abs-l1-jacobi -rs 2 -rp 0
+//              mpirun -np 4 ./abs-l1-jacobi -t 1e5 -ni 100 -vis
+//              mpirun -np 4 ./abs-l1-jacobi -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
 #include "ds-common.hpp"
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    /// 2. Parse command line options.
-   string mesh_file = "meshes/cube.mesh";
+   string mesh_file = "../../data/ref-cube.mesh";
    // System properties
    int order = 1;
    SolverType solver_type = cg;
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
    int assembly_type_int = 4;
    AssemblyLevel assembly_type;
    // Number of refinements
-   int refine_serial = 0;
+   int refine_serial = 4;
    int refine_parallel = 0;
    // Preconditioner parameters
    real_t p_order = 1.0;
