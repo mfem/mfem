@@ -44,12 +44,6 @@
 #  PETSC_DIR - directory in which PETSc resides
 #  PETSC_ARCH - build architecture
 
-# https://github.com/mfem/mfem/issues/4793
-if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.21.0)
-  cmake_policy(PUSH)
-  cmake_policy(SET CMP0126 OLD)
-endif()
-
 set(PETSC_VALID_COMPONENTS
   C
   CXX)
@@ -355,8 +349,3 @@ include (FindPackageHandleStandardArgs)
 find_package_handle_standard_args (PETSc
   "PETSc could not be found.  Be sure to set PETSC_DIR and PETSC_ARCH."
   PETSC_INCLUDES PETSC_LIBRARIES PETSC_EXECUTABLE_RUNS)
-
-# https://github.com/mfem/mfem/issues/4793
-if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.21.0)
-  cmake_policy(POP)
-endif()
