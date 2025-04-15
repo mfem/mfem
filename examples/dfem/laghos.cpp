@@ -11,7 +11,6 @@
 #include <mfem.hpp>
 #include "linalg/hypre.hpp"
 #include "linalg/petsc.hpp"
-#include "petsclogtypes.h"
 #include "petscmat.h"
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
@@ -1126,18 +1125,20 @@ public:
       Xv.SyncAliasMemory(X);
       Xe.SyncAliasMemory(X);
 
-      if (current_dt != dt || residual == nullptr)
+      if (current_dt != dt || residual == nullptr || lag >= 3)
       {
+         lag = 0;
+
          out << "creating new residual\n";
          current_dt = dt;
          residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
-
          snes.reset(new PetscNonlinearSolver(MPI_COMM_WORLD));
          snes->SetOperator(*residual);
          snes->SetRelTol(nonlinear_relative_tolerance);
          snes->SetJacobianType(Operator::PETSC_MATNEST);
-
       }
+
+      lag++;
 
       // GMRESSolver gmres(MPI_COMM_WORLD);
       // gmres.SetMaxIter(500);
@@ -1148,7 +1149,7 @@ public:
 
       // NewtonSolver newton(MPI_COMM_WORLD);
       // newton.SetPrintLevel(IterativeSolver::PrintLevel().None());
-      // newton.SetOperator(residual);
+      // newton.SetOperator(*residual);
       // newton.SetSolver(gmres);
       // newton.SetAdaptiveLinRtol();
       // newton.SetMaxIter(nonlinear_maximum_iterations);
@@ -1321,6 +1322,7 @@ public:
 
    std::shared_ptr<Operator> residual;
    real_t current_dt = 0.0;
+   int lag = 0;
 
    std::shared_ptr<PetscNonlinearSolver> snes;
 
