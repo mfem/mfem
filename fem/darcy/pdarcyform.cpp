@@ -19,42 +19,42 @@ namespace mfem
 {
 ParDarcyForm::ParDarcyForm(ParFiniteElementSpace *fes_u,
                            ParFiniteElementSpace *fes_p, bool bsymmetrize)
-   : DarcyForm(fes_u, fes_p, bsymmetrize), pfes_u(fes_u), pfes_p(fes_p)
+   : DarcyForm(fes_u, fes_p, bsymmetrize), pfes_u(*fes_u), pfes_p(*fes_p)
 {
    toffsets.SetSize(3);
    toffsets[0] = 0;
-   toffsets[1] = pfes_u->GetTrueVSize();
-   toffsets[2] = pfes_p->GetTrueVSize();
+   toffsets[1] = pfes_u.GetTrueVSize();
+   toffsets[2] = pfes_p.GetTrueVSize();
    toffsets.PartialSum();
 }
 
 BilinearForm *ParDarcyForm::GetFluxMassForm()
 {
-   if (!pM_u) { M_u = pM_u = new ParBilinearForm(pfes_u); }
+   if (!pM_u) { M_u.reset(pM_u = new ParBilinearForm(&pfes_u)); }
    return pM_u;
 }
 
 BilinearForm *ParDarcyForm::GetPotentialMassForm()
 {
-   if (!pM_p) { M_p = pM_p = new ParBilinearForm(pfes_p); }
+   if (!pM_p) { M_p.reset(pM_p = new ParBilinearForm(&pfes_p)); }
    return pM_p;
 }
 
 NonlinearForm *ParDarcyForm::GetFluxMassNonlinearForm()
 {
-   if (!pMnl_u) { Mnl_u = pMnl_u = new ParNonlinearForm(pfes_u); }
+   if (!pMnl_u) { Mnl_u.reset(pMnl_u = new ParNonlinearForm(&pfes_u)); }
    return pMnl_u;
 }
 
 NonlinearForm *ParDarcyForm::GetPotentialMassNonlinearForm()
 {
-   if (!pMnl_p) { Mnl_p = pMnl_p = new ParNonlinearForm(pfes_p); }
+   if (!pMnl_p) { Mnl_p.reset(pMnl_p = new ParNonlinearForm(&pfes_p)); }
    return pMnl_p;
 }
 
 MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
 {
-   if (!pB) { B = pB = new ParMixedBilinearForm(pfes_u, pfes_p); }
+   if (!pB) { B.reset(pB = new ParMixedBilinearForm(&pfes_u, &pfes_p)); }
    return pB;
 }
 
@@ -62,8 +62,8 @@ void ParDarcyForm::Assemble(int skip_zeros)
 {
    if (pB || pM_p || pMnl_p)
    {
-      pfes_u->ExchangeFaceNbrData();
-      pfes_p->ExchangeFaceNbrData();
+      pfes_u.ExchangeFaceNbrData();
+      pfes_p.ExchangeFaceNbrData();
    }
 
    if (pM_u)
@@ -255,13 +255,13 @@ void ParDarcyForm::FormLinearSystem(
       // Reduction to the single equation system
       BlockVector true_X(toffsets), true_B(toffsets);
 
-      const Operator &P_u = *pfes_u->GetProlongationMatrix();
-      const Operator &R_u = *pfes_u->GetRestrictionOperator();
+      const Operator &P_u = *pfes_u.GetProlongationMatrix();
+      const Operator &R_u = *pfes_u.GetRestrictionOperator();
       P_u.MultTranspose(b.GetBlock(0), true_B.GetBlock(0));
       R_u.Mult(x.GetBlock(0), true_X.GetBlock(0));
 
-      const Operator &P_p = *pfes_p->GetProlongationMatrix();
-      const Operator &R_p = *pfes_p->GetRestrictionOperator();
+      const Operator &P_p = *pfes_p.GetProlongationMatrix();
+      const Operator &R_p = *pfes_p.GetRestrictionOperator();
       P_p.MultTranspose(b.GetBlock(1), true_B.GetBlock(1));
       R_p.Mult(x.GetBlock(1), true_X.GetBlock(1));
 
@@ -288,13 +288,13 @@ void ParDarcyForm::FormLinearSystem(
       BlockVector X(X_, toffsets), B(B_, toffsets);
 
       // Variational restriction with P
-      const Operator &P_u = *pfes_u->GetProlongationMatrix();
-      const Operator &R_u = *pfes_u->GetRestrictionOperator();
+      const Operator &P_u = *pfes_u.GetProlongationMatrix();
+      const Operator &R_u = *pfes_u.GetRestrictionOperator();
       P_u.MultTranspose(b.GetBlock(0), B.GetBlock(0));
       R_u.Mult(x.GetBlock(0), X.GetBlock(0));
 
-      const Operator &P_p = *pfes_p->GetProlongationMatrix();
-      const Operator &R_p = *pfes_p->GetRestrictionOperator();
+      const Operator &P_p = *pfes_p.GetProlongationMatrix();
+      const Operator &R_p = *pfes_p.GetRestrictionOperator();
       P_p.MultTranspose(b.GetBlock(1), B.GetBlock(1));
       R_p.Mult(x.GetBlock(1), X.GetBlock(1));
 
@@ -324,7 +324,7 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       else if (Mnl_u)
       {
          pMnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
-         block_op->SetDiagonalBlock(0, Mnl_u);
+         block_op->SetDiagonalBlock(0, Mnl_u.get());
       }
       /*else if (Mnl)
       {
@@ -340,7 +340,7 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else if (Mnl_p)
       {
-         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
 
       if (pB)
@@ -386,13 +386,13 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       // Primal unknowns recovery
       BlockVector true_X(toffsets), true_B(toffsets);
 
-      const Operator &P_u = *pfes_u->GetProlongationMatrix();
-      const Operator &R_u = *pfes_u->GetRestrictionOperator();
+      const Operator &P_u = *pfes_u.GetProlongationMatrix();
+      const Operator &R_u = *pfes_u.GetRestrictionOperator();
       P_u.MultTranspose(b.GetBlock(0), true_B.GetBlock(0));
       R_u.Mult(x.GetBlock(0), true_X.GetBlock(0));
 
-      const Operator &P_p = *pfes_p->GetProlongationMatrix();
-      const Operator &R_p = *pfes_p->GetRestrictionOperator();
+      const Operator &P_p = *pfes_p.GetProlongationMatrix();
+      const Operator &R_p = *pfes_p.GetRestrictionOperator();
       P_p.MultTranspose(b.GetBlock(1), true_B.GetBlock(1));
       R_p.Mult(x.GetBlock(1), true_X.GetBlock(1));
 
@@ -418,7 +418,7 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       else
       {
          // Apply conforming prolongation
-         const Operator &P_u = *pfes_u->GetProlongationMatrix();
+         const Operator &P_u = *pfes_u.GetProlongationMatrix();
          P_u.Mult(X.GetBlock(0), x.GetBlock(0));
       }
 
@@ -429,7 +429,7 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       else
       {
          // Apply conforming prolongation
-         const Operator &P_p = *pfes_p->GetProlongationMatrix();
+         const Operator &P_p = *pfes_p.GetProlongationMatrix();
          P_p.Mult(X.GetBlock(1), x.GetBlock(1));
       }
    }
@@ -580,14 +580,13 @@ void ParDarcyForm::AllocBlockOp()
 
    if (!noblock)
    {
-      delete block_op;
-      block_op = new BlockOperator(toffsets);
+      block_op.reset(new BlockOperator(toffsets));
    }
 }
 
 void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
 {
-   ParMesh *pmesh = pfes_p->GetParMesh();
+   ParMesh *pmesh = pfes_p.GetParMesh();
    const int NE = pmesh->GetNE();
    FaceElementTransformations *tr;
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
@@ -606,10 +605,10 @@ void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
          tr = pmesh->GetSharedFaceTransformations(i);
          if (tr == NULL) { continue; }
 
-         const FiniteElement *trial_fe1 = pfes_u->GetFE(tr->Elem1No);
-         const FiniteElement *trial_fe2 = pfes_u->GetFaceNbrFE(tr->Elem2No - NE);
-         const FiniteElement *test_fe1 = pfes_p->GetFE(tr->Elem1No);
-         const FiniteElement *test_fe2 = pfes_p->GetFaceNbrFE(tr->Elem2No - NE);
+         const FiniteElement *trial_fe1 = pfes_u.GetFE(tr->Elem1No);
+         const FiniteElement *trial_fe2 = pfes_u.GetFaceNbrFE(tr->Elem2No - NE);
+         const FiniteElement *test_fe1 = pfes_p.GetFE(tr->Elem1No);
+         const FiniteElement *test_fe2 = pfes_p.GetFaceNbrFE(tr->Elem2No - NE);
 
          interior_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
                                                      *test_fe2, *tr, elmat);
@@ -627,7 +626,7 @@ void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
 
 void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
 {
-   ParMesh *pmesh = pfes_p->GetParMesh();
+   ParMesh *pmesh = pfes_p.GetParMesh();
    const int NE = pmesh->GetNE();
    FaceElementTransformations *tr;
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
@@ -645,8 +644,8 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
       {
          tr = pmesh->GetSharedFaceTransformations(i);
 
-         const FiniteElement *fe1 = pfes_p->GetFE(tr->Elem1No);
-         const FiniteElement *fe2 = pfes_p->GetFaceNbrFE(tr->Elem2No - NE);
+         const FiniteElement *fe1 = pfes_p.GetFE(tr->Elem1No);
+         const FiniteElement *fe2 = pfes_p.GetFaceNbrFE(tr->Elem2No - NE);
 
          interior_face_integs[0]->AssembleFaceMatrix(*fe1, *fe2, *tr, elmat);
          for (int i = 1; i < interior_face_integs.Size(); i++)
@@ -662,7 +661,7 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
 
 void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
 {
-   ParMesh *pmesh = pfes_p->GetParMesh();
+   ParMesh *pmesh = pfes_p.GetParMesh();
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS

@@ -26,18 +26,18 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
       case SolverType::LBFGS:
          prec = NULL;
 #ifdef MFEM_USE_MPI
-         solver = new LBFGSSolver(MPI_COMM_WORLD);
+         solver.reset(new LBFGSSolver(MPI_COMM_WORLD));
 #else
-         solver = new LBFGSSolver();
+         solver.reset(new LBFGSSolver());
 #endif
          solver_str = "LBFGS";
          break;
       case SolverType::LBB:
          prec = NULL;
 #ifdef MFEM_USE_MPI
-         solver = new LBBSolver(MPI_COMM_WORLD);
+         solver.reset(new LBBSolver(MPI_COMM_WORLD));
 #else
-         solver = new LBBSolver();
+         solver.reset(new LBBSolver());
 #endif
          solver_str = "LBB";
          break;
@@ -49,9 +49,9 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
 #endif
          prec_str = "GMRES";
 #ifdef MFEM_USE_MPI
-         solver = new NewtonSolver(MPI_COMM_WORLD);
+         solver.reset(new NewtonSolver(MPI_COMM_WORLD));
 #else
-         solver = new NewtonSolver();
+         solver.reset(new NewtonSolver());
 #endif
          solver_str = "Newton";
          break;
@@ -64,11 +64,11 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
 #endif
          prec_str = "GMRES";
 #ifdef MFEM_USE_MPI
-         solver = new KINSolver(MPI_COMM_WORLD, KIN_PICARD);
+         solver.reset(new KINSolver(MPI_COMM_WORLD, KIN_PICARD));
 #else
-         solver = new KINSolver(KIN_PICARD);
+         solver.reset(new KINSolver(KIN_PICARD));
 #endif
-         static_cast<KINSolver*>(solver)->EnableAndersonAcc(10);
+         static_cast<KINSolver*>(solver.get())->EnableAndersonAcc(10);
          solver_str = "KINSol";
 #else
          MFEM_ABORT("Sundials not installed!");
@@ -80,24 +80,26 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
    {
       if (!darcy->GetHybridization())
       {
+         SchurPreconditioner *schur;
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            lin_prec = new SchurPreconditioner(pdarcy, true);
+            schur = new SchurPreconditioner(pdarcy, true);
          }
          else
 #endif
-            lin_prec = new SchurPreconditioner(darcy, true);
+            schur = new SchurPreconditioner(darcy, true);
+         lin_prec.reset(schur);
          lin_solver->SetPreconditioner(*lin_prec);
          prec_str += "+";
-         prec_str += static_cast<SchurPreconditioner*>(lin_prec)->GetString();
+         prec_str += schur->GetString();
       }
 
       lin_solver->SetAbsTol(atol);
       lin_solver->SetRelTol(rtol * 1e-2);
       lin_solver->SetMaxIter(iters);
       lin_solver->SetPrintLevel(0);
-      prec = lin_solver;
+      prec.reset(lin_solver);
    }
 
    solver->SetAbsTol(atol);
@@ -113,45 +115,47 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
    if (darcy->GetHybridization())
    {
 #ifdef MFEM_USE_MPI
-      prec = new HypreBoomerAMG();
+      prec.reset(new HypreBoomerAMG());
       prec_str = "HypreAMG";
 #else
-      prec = new GSSmoother();
+      prec.reset(new GSSmoother());
       prec_str = "GS";
 #endif
    }
    else if (darcy->GetReduction())
    {
 #ifdef MFEM_USE_MPI
-      prec = new HypreBoomerAMG();
+      prec.reset(new HypreBoomerAMG());
       prec_str = "HypreAMG";
 #else
 #ifndef MFEM_USE_SUITESPARSE
-      prec = new GSSmoother();
+      prec.reset(new GSSmoother());
       prec_str = "GS";
 #else
-      prec = new UMFPackSolver();
+      prec.reset(new UMFPackSolver());
       prec_str = "UMFPack";
 #endif
 #endif
    }
    else
    {
+      SchurPreconditioner *schur;
 #ifdef MFEM_USE_MPI
       if (pdarcy)
       {
-         prec = new SchurPreconditioner(pdarcy);
+         schur = new SchurPreconditioner(pdarcy);
       }
       else
 #endif
-         prec = new SchurPreconditioner(darcy);
-      prec_str = static_cast<SchurPreconditioner*>(prec)->GetString();
+         schur = new SchurPreconditioner(darcy);
+      prec.reset(schur);
+      prec_str = schur->GetString();
    }
 
 #ifdef MFEM_USE_MPI
-   solver = new GMRESSolver(MPI_COMM_WORLD);
+   solver.reset(new GMRESSolver(MPI_COMM_WORLD));
 #else
-   solver = new GMRESSolver();
+   solver.reset(new GMRESSolver());
 #endif
    solver_str = "GMRES";
    solver->SetAbsTol(atol);
@@ -179,7 +183,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
    }
 
    if (btime_u || btime_p)
-      idtcoeff = new FunctionCoefficient([&](const Vector &) { return idt; });
+      idtcoeff.reset(new FunctionCoefficient([&](const Vector &) { return idt; }));
 
    if (btime_u)
    {
@@ -221,7 +225,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
                                        ess_flux_tdofs_list);
          }
       }
-      Mq0 = new BilinearForm(darcy->FluxFESpace());
+      Mq0.reset(new BilinearForm(darcy->FluxFESpace()));
       if (dg)
       {
          Mq0->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
@@ -251,7 +255,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
                                        ess_flux_tdofs_list);
          }
       }
-      Mt0 = new BilinearForm(darcy->PotentialFESpace());
+      Mt0.reset(new BilinearForm(darcy->PotentialFESpace()));
       Mt0->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
    }
 }
@@ -273,13 +277,6 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list,
 
 DarcyOperator::~DarcyOperator()
 {
-   delete lin_prec;
-   delete prec;
-   delete solver;
-   delete monitor;
-   delete Mt0;
-   delete Mq0;
-   delete idtcoeff;
 }
 
 Array<int> DarcyOperator::ConstructOffsets(const DarcyForm &darcy)
@@ -471,11 +468,11 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             {
                if (sol_type != SolutionController::Type::Native)
                {
-                  monitor = new SolutionController(*darcy, rhs, sol_type, rtol);
+                  monitor.reset(new SolutionController(*darcy, rhs, sol_type, rtol));
                }
                else if (monitor_step >= 0)
                {
-                  monitor = new IterativeGLVis(this, monitor_step);
+                  monitor.reset(new IterativeGLVis(this, monitor_step));
                }
 
                if (monitor)
@@ -599,12 +596,6 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
 }
 #endif //MFEM_USE_MPI
 
-DarcyOperator::SchurPreconditioner::~SchurPreconditioner()
-{
-   delete darcyPrec;
-   delete S;
-}
-
 void DarcyOperator::SchurPreconditioner::Mult(const Vector &x, Vector &y) const
 {
    if (nonlinear && reconstruct)
@@ -648,8 +639,7 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
    const NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
 
    Vector Md(block_offsets[1] - block_offsets[0]);
-   delete darcyPrec;
-   darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
+   darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
    darcyPrec->owns_blocks = true;
    Solver *invM, *invS;
 
@@ -708,33 +698,26 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
          MinvBt->ScaleRow(i, 1./Md(i));
       }
 
-      delete S;
-      S = mfem::Mult(Bm, *MinvBt);
+      S.reset(mfem::Mult(Bm, *MinvBt));
       delete MinvBt;
 
       if (Mt)
       {
          const SparseMatrix &Mtm(Mt->SpMat());
-         SparseMatrix *Snew = Add(Mtm, *S);
-         delete S;
-         S = Snew;
+         S.reset(Add(Mtm, *S));
       }
       else if (Mtnl)
       {
          const SparseMatrix &Mtm = static_cast<SparseMatrix&>(
                                       Mtnl->GetGradient(x.GetBlock(1)));
-         SparseMatrix *Snew = Add(Mtm, *S);
-         delete S;
-         S = Snew;
+         S.reset(Add(Mtm, *S));
       }
       if (Mnl)
       {
          const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bop->GetBlock(1,1));
          if (Mtm.NumNonZeroElems() > 0)
          {
-            SparseMatrix *Snew = Add(Mtm, *S);
-            delete S;
-            S = Snew;
+            S.reset(Add(Mtm, *S));
          }
       }
 
@@ -776,8 +759,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    const ParNonlinearForm *Mtnl = pdarcy->GetParPotentialMassNonlinearForm();
 
    Vector Md(block_offsets[1] - block_offsets[0]);
-   delete darcyPrec;
-   darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
+   darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
    darcyPrec->owns_blocks = true;
    Solver *invM, *invS;
 
@@ -848,8 +830,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       HypreParMatrix *MinvBt = Bm->Transpose();
       MinvBt->InvScaleRows(Md);
 
-      delete hS;
-      hS = mfem::ParMult(Bm, MinvBt, true);
+      hS.reset(mfem::ParMult(Bm, MinvBt, true));
       delete MinvBt;
 
       const HypreParMatrix *Mtm = NULL;
@@ -878,9 +859,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
 
       if (Mtm)
       {
-         HypreParMatrix *hSnew = ParAdd(Mtm, hS);
-         delete hS;
-         hS = hSnew;
+         hS.reset(ParAdd(Mtm, hS.get()));
       }
 
       {

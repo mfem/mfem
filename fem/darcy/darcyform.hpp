@@ -30,21 +30,21 @@ protected:
 
    bool bsym;
 
-   BilinearForm *M_u{}, *M_p{};
-   NonlinearForm *Mnl_u{}, *Mnl_p{};
-   MixedBilinearForm *B{};
-   BlockNonlinearForm *Mnl{};
+   std::unique_ptr<BilinearForm> M_u, M_p;
+   std::unique_ptr<NonlinearForm> Mnl_u, Mnl_p;
+   std::unique_ptr<MixedBilinearForm> B;
+   std::unique_ptr<BlockNonlinearForm> Mnl;
 
    mutable OperatorHandle opM_u, opM_p, opB, opBt, opM, opG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
 
-   BlockOperator *block_op{};
-   mutable BlockOperator *block_grad{};
+   std::unique_ptr<BlockOperator> block_op;
+   mutable std::unique_ptr<BlockOperator> block_grad;
 
-   DarcyReduction *reduction{}; ///< Owned.
-   DarcyHybridization *hybridization{}; ///< Owned.
+   std::unique_ptr<DarcyReduction> reduction;
+   std::unique_ptr<DarcyHybridization> hybridization;
 
    friend class Gradient;
    class Gradient : public Operator
@@ -76,22 +76,22 @@ public:
    inline const Array<int>& GetOffsets() const { return offsets; }
 
    BilinearForm *GetFluxMassForm();
-   const BilinearForm *GetFluxMassForm() const { return M_u; }
+   const BilinearForm *GetFluxMassForm() const { return M_u.get(); }
 
    BilinearForm *GetPotentialMassForm();
-   const BilinearForm *GetPotentialMassForm() const { return M_p; }
+   const BilinearForm *GetPotentialMassForm() const { return M_p.get(); }
 
    NonlinearForm *GetFluxMassNonlinearForm();
-   const NonlinearForm *GetFluxMassNonlinearForm() const { return Mnl_u; }
+   const NonlinearForm *GetFluxMassNonlinearForm() const { return Mnl_u.get(); }
 
    NonlinearForm *GetPotentialMassNonlinearForm();
-   const NonlinearForm *GetPotentialMassNonlinearForm() const { return Mnl_p; }
+   const NonlinearForm *GetPotentialMassNonlinearForm() const { return Mnl_p.get(); }
 
    MixedBilinearForm *GetFluxDivForm();
-   const MixedBilinearForm *GetFluxDivForm() const { return B; }
+   const MixedBilinearForm *GetFluxDivForm() const { return B.get(); }
 
    BlockNonlinearForm *GetBlockNonlinearForm();
-   const BlockNonlinearForm *GetBlockNonlinearForm() const { return Mnl; }
+   const BlockNonlinearForm *GetBlockNonlinearForm() const { return Mnl.get(); }
 
    /// Set the desired assembly level.
    /** Valid choices are:
@@ -120,7 +120,7 @@ public:
        called before assembly. */
    void EnablePotentialReduction(const Array<int> &ess_flux_tdof_list);
 
-   DarcyReduction *GetReduction() const { return reduction; }
+   DarcyReduction *GetReduction() const { return reduction.get(); }
 
    /// Enable hybridization.
    /** For details see the description for class
@@ -130,7 +130,7 @@ public:
                             BilinearFormIntegrator *constr_flux_integ,
                             const Array<int> &ess_flux_tdof_list);
 
-   DarcyHybridization *GetHybridization() const { return hybridization; }
+   DarcyHybridization *GetHybridization() const { return hybridization.get(); }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);

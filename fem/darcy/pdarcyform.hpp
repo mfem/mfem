@@ -28,7 +28,7 @@ class ParDarcyForm : public DarcyForm
 protected:
    Array<int> toffsets;
 
-   ParFiniteElementSpace *pfes_u, *pfes_p;
+   ParFiniteElementSpace &pfes_u, &pfes_p;
 
    ParBilinearForm *pM_u{}, *pM_p{};
    ParNonlinearForm *pMnl_u{}, *pMnl_p{};
@@ -164,14 +164,14 @@ public:
    void Mult (const Vector & x, Vector & y) const override;
 
    /// Return the flux FE space associated with the DarcyForm.
-   ParFiniteElementSpace *ParFluxFESpace() { return pfes_u; }
+   ParFiniteElementSpace *ParFluxFESpace() { return &pfes_u; }
    /// Read-only access to the associated flux FiniteElementSpace.
-   const ParFiniteElementSpace *ParFluxFESpace() const { return pfes_u; }
+   const ParFiniteElementSpace *ParFluxFESpace() const { return &pfes_u; }
 
    /// Return the flux FE space associated with the DarcyForm.
-   ParFiniteElementSpace *ParPotentialFESpace() { return pfes_p; }
+   ParFiniteElementSpace *ParPotentialFESpace() { return &pfes_p; }
    /// Read-only access to the associated flux FiniteElementSpace.
-   const ParFiniteElementSpace *ParPotentialFESpace() const { return pfes_p; }
+   const ParFiniteElementSpace *ParPotentialFESpace() const { return &pfes_p; }
 
    //virtual void Update();
 

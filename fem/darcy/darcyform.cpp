@@ -29,32 +29,32 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
 
 BilinearForm* DarcyForm::GetFluxMassForm()
 {
-   if (!M_u) { M_u = new BilinearForm(fes_u); }
-   return M_u;
+   if (!M_u) { M_u.reset(new BilinearForm(fes_u)); }
+   return M_u.get();
 }
 
 BilinearForm* DarcyForm::GetPotentialMassForm()
 {
-   if (!M_p) { M_p = new BilinearForm(fes_p); }
-   return M_p;
+   if (!M_p) { M_p.reset(new BilinearForm(fes_p)); }
+   return M_p.get();
 }
 
 NonlinearForm *DarcyForm::GetFluxMassNonlinearForm()
 {
-   if (!Mnl_u) { Mnl_u = new NonlinearForm(fes_u); }
-   return Mnl_u;
+   if (!Mnl_u) { Mnl_u.reset(new NonlinearForm(fes_u)); }
+   return Mnl_u.get();
 }
 
 NonlinearForm* DarcyForm::GetPotentialMassNonlinearForm()
 {
-   if (!Mnl_p) { Mnl_p = new NonlinearForm(fes_p); }
-   return Mnl_p;
+   if (!Mnl_p) { Mnl_p.reset(new NonlinearForm(fes_p)); }
+   return Mnl_p.get();
 }
 
 MixedBilinearForm* DarcyForm::GetFluxDivForm()
 {
-   if (!B) { B = new MixedBilinearForm(fes_u, fes_p); }
-   return B;
+   if (!B) { B.reset(new MixedBilinearForm(fes_u, fes_p)); }
+   return B.get();
 }
 
 BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm()
@@ -62,9 +62,9 @@ BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm()
    if (!Mnl)
    {
       Array<FiniteElementSpace*> fes({fes_u, fes_p});
-      Mnl = new BlockNonlinearForm(fes);
+      Mnl.reset(new BlockNonlinearForm(fes));
    }
-   return Mnl;
+   return Mnl.get();
 }
 
 void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
@@ -83,14 +83,13 @@ void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
 {
    MFEM_ASSERT(!Mnl, "Reduction cannot be used with block nonlinear forms");
 
-   delete reduction;
+   reduction.reset();
    if (assembly != AssemblyLevel::LEGACY)
    {
-      reduction = NULL;
       MFEM_WARNING("Reduction not supported for this assembly level");
       return;
    }
-   reduction = reduction_;
+   reduction.reset(reduction_);
 
    // Automatically load the flux mass integrators
    if (Mnl_u)
@@ -152,15 +151,15 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
 {
    MFEM_ASSERT(M_u || Mnl_u || Mnl,
                "Mass form for the fluxes must be set prior to this call!");
-   delete hybridization;
+
+   hybridization.reset();
    if (assembly != AssemblyLevel::LEGACY)
    {
       delete constr_flux_integ;
-      hybridization = NULL;
       MFEM_WARNING("Hybridization not supported for this assembly level");
       return;
    }
-   hybridization = new DarcyHybridization(fes_u, fes_p, constr_space, bsym);
+   hybridization.reset(new DarcyHybridization(fes_u, fes_p, constr_space, bsym));
 
    // Automatically load the potential constraint operator from the face integrators
    if (M_p)
@@ -475,35 +474,35 @@ void DarcyForm::Finalize(int skip_zeros)
       if (M_u)
       {
          M_u->Finalize(skip_zeros);
-         block_op->SetDiagonalBlock(0, M_u);
+         block_op->SetDiagonalBlock(0, M_u.get());
       }
       else if (Mnl_u)
       {
-         block_op->SetDiagonalBlock(0, Mnl_u);
+         block_op->SetDiagonalBlock(0, Mnl_u.get());
       }
       else if (Mnl)
       {
-         opM.Reset(Mnl, false);
+         opM.Reset(Mnl.get(), false);
       }
 
       if (M_p)
       {
          M_p->Finalize(skip_zeros);
-         block_op->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, M_p.get(), (bsym)?(-1.):(+1.));
       }
       else if (Mnl_p)
       {
-         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
 
       if (B)
       {
          B->Finalize(skip_zeros);
 
-         if (!opBt.Ptr()) { ConstructBT(B); }
+         if (!opBt.Ptr()) { ConstructBT(B.get()); }
 
          block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
-         block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
+         block_op->SetBlock(1, 0, B.get(), (bsym)?(-1.):(+1.));
       }
    }
 
@@ -557,7 +556,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       }
       else if (Mnl_p)
       {
-         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
 
       if (B)
@@ -589,7 +588,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       }
       else
       {
-         A.Reset(block_op, false);
+         A.Reset(block_op.get(), false);
       }
 
       X_.MakeRef(x, 0, x.Size());
@@ -667,7 +666,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else if (Mnl_p)
       {
-         block_op->SetDiagonalBlock(1, Mnl_p, (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
 
       if (B)
@@ -690,7 +689,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else
       {
-         A.Reset(hybridization, false);
+         A.Reset(hybridization.get(), false);
       }
    }
    else if (reduction)
@@ -702,7 +701,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else
       {
-         A.Reset(reduction, false);
+         A.Reset(reduction.get(), false);
       }
    }
    else
@@ -813,7 +812,7 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
    {
       if (!block_grad)
       {
-         block_grad = new BlockOperator(offsets);
+         block_grad.reset(new BlockOperator(offsets));
       }
 
       if (opM_u.Ptr())
@@ -822,7 +821,7 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
       }
       else if (M_u)
       {
-         block_grad->SetDiagonalBlock(0, M_u);
+         block_grad->SetDiagonalBlock(0, M_u.get());
       }
       else if (Mnl_u)
       {
@@ -835,7 +834,7 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
       }
       else if (M_p)
       {
-         block_grad->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
+         block_grad->SetDiagonalBlock(1, M_p.get(), (bsym)?(-1.):(+1.));
       }
       else if (Mnl_p)
       {
@@ -847,8 +846,8 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
       {
          if (!opB.Ptr() || !opBt.Ptr())
          {
-            opB.Reset(B, false);
-            ConstructBT(B);
+            opB.Reset(B.get(), false);
+            ConstructBT(B.get());
          }
          block_grad->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
          block_grad->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
@@ -902,18 +901,6 @@ void DarcyForm::Update()
 
 DarcyForm::~DarcyForm()
 {
-   delete M_u;
-   delete M_p;
-   delete Mnl_u;
-   delete Mnl_p;
-   delete B;
-   delete Mnl;
-
-   delete block_op;
-   delete block_grad;
-
-   delete reduction;
-   delete hybridization;
 }
 
 void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
@@ -1223,8 +1210,7 @@ void DarcyForm::AllocBlockOp()
 
    if (!noblock)
    {
-      delete block_op;
-      block_op = new BlockOperator(offsets);
+      block_op.reset(new BlockOperator(offsets));
    }
 }
 

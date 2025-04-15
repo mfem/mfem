@@ -46,15 +46,15 @@ private:
    FiniteElementSpace *trace_space{};
 
    real_t idt{};
-   Coefficient *idtcoeff{};
-   BilinearForm *Mt0{}, *Mq0{};
+   std::unique_ptr<Coefficient> idtcoeff;
+   std::unique_ptr<BilinearForm> Mt0, Mq0;
 
    std::string lsolver_str;
-   Solver *prec{}, *lin_prec{};
+   std::unique_ptr<Solver> prec, lin_prec;
    std::string prec_str;
-   IterativeSolver *solver{};
+   std::unique_ptr<IterativeSolver> solver;
    std::string solver_str;
-   IterativeSolverMonitor *monitor{};
+   std::unique_ptr<IterativeSolverMonitor> monitor;
    int monitor_step{-1};
 
    class SchurPreconditioner : public Solver
@@ -67,10 +67,10 @@ private:
       bool nonlinear;
 
       const char *prec_str;
-      mutable BlockDiagonalPreconditioner *darcyPrec{};
-      mutable SparseMatrix *S{};
+      mutable std::unique_ptr<BlockDiagonalPreconditioner> darcyPrec;
+      mutable std::unique_ptr<SparseMatrix> S;
 #ifdef MFEM_USE_MPI
-      mutable HypreParMatrix *hS {};
+      mutable std::unique_ptr<HypreParMatrix> hS;
 #endif
       mutable bool reconstruct {};
 
@@ -84,7 +84,6 @@ private:
 #ifdef MFEM_USE_MPI
       SchurPreconditioner(const ParDarcyForm *darcy, bool nonlinear = false);
 #endif
-      ~SchurPreconditioner();
 
       const char *GetString() const { return prec_str; }
 

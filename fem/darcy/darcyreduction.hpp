@@ -24,22 +24,22 @@ namespace mfem
 class DarcyReduction : public Operator
 {
 protected:
-   FiniteElementSpace *fes_u, *fes_p;
+   FiniteElementSpace &fes_u, &fes_p;
    NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
    bool own_m_nlfi_u{}, own_m_nlfi_p{};
 
    Array<int> Af_offsets, Af_f_offsets;
-   real_t *Af_data{};
+   Array<real_t> Af_data;
 
    Array<int> Bf_offsets, Bf_face_offsets;
-   real_t *Bf_data{}, *Bf_face_data{};
+   Array<real_t> Bf_data, Bf_face_data;
 
    Array<int> D_offsets, D_f_offsets, D_face_offsets;
-   real_t *D_data{}, *D_face_data{};
+   Array<real_t> D_data, D_face_data;
 
    bool bsym{};
 
-   SparseMatrix *S{};
+   std::unique_ptr<SparseMatrix> S;
 
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes_u, *pfes_p;
@@ -139,10 +139,10 @@ public:
 
 class DarcyFluxReduction : public DarcyReduction
 {
-   int *Af_ipiv{};
+   Array<int> Af_ipiv;
 
 #ifdef MFEM_USE_MPI
-   HypreParMatrix *hB {};
+   std::unique_ptr<HypreParMatrix> hB;
 
    void InitDNbr();
    void CountBSharedFaces(Array<int> &face_offs) const override;
@@ -191,12 +191,12 @@ class DarcyPotentialReduction : public DarcyReduction
    Array<int> hat_offsets, hat_dofs_marker;
 
    Array<int> Ae_offsets;
-   real_t *Ae_data{};
+   Array<real_t> Ae_data;
 
    Array<int> Be_offsets;
-   real_t *Be_data{};
+   Array<real_t> Be_data;
 
-   int *D_ipiv{};
+   Array<int> D_ipiv;
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
