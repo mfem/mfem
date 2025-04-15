@@ -20,28 +20,27 @@ namespace mfem
 template <int ORDER, int SDIM>
 void BatchedLOR_DG::Assemble2D()
 {
-   const int nel_ho = fes_ho.GetNE();
-   //const int p = ORDER;
-   const int pp1 = ORDER + 1;
-   const int pp2 = ORDER + 2;
+   MFEM_VERIFY(SDIM == 2, "Surface meshes not currently supported for LOR-DG.")
 
-   IntegrationRule ir_pp1;
-   QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
-   IntegrationRule ir_pp2;
-   QuadratureFunctions1D::GaussLobatto(pp2, &ir_pp2);
-   
-   //vectorize integration points
-   Vector vec_ir_pp1_x(pp1);
-   Vector vec_ir_pp2_x(pp2); 
-   for(int i=0; i < pp1; i++){
-      vec_ir_pp1_x[i] = ir_pp1[i].x;
-   }
-   for(int j=0; j < pp2; j++){
-      vec_ir_pp2_x[j] = ir_pp2[j].x;
-   }
-   
+   static constexpr int pp1 = ORDER + 1;
    static constexpr int ndof_per_el = pp1*pp1;
    static constexpr int nnz_per_row = 5;
+
+   const int nel_ho = fes_ho.GetNE();
+
+   // Populate Gauss-Lobatto quadrature rule of size (p+1)
+   IntegrationRule ir_pp1;
+   QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
+   Vector glx_pp1(pp1), glw_pp1(pp1);
+   for (int i = 0; i < pp1; ++i)
+   {
+      glx_pp1[i] = ir_pp1[i].x;
+      glw_pp1[i] = ir_pp1[i].weight;
+   }
+   const auto *x_pp1 = glx_pp1.Read();
+   const auto *w_1d = glw_pp1.Read();
+
+   // Get coefficients for mass and diffusion
    const bool const_mq = c1.Size() == 1;
    const auto MQ = const_mq
                    ? Reshape(c1.Read(), 1, 1, 1)
@@ -51,20 +50,18 @@ void BatchedLOR_DG::Assemble2D()
                    ? Reshape(c2.Read(), 1, 1, 1)
                    : Reshape(c2.Read(), pp1, pp1, nel_ho);
 
-   const auto w_1d = ir_pp1.GetWeights().Read();
-   const auto W = Reshape(ir.GetWeights().Read(), pp1, pp1);
-   const auto X = Reshape(X_vert.Read(), 2, pp2, pp2, nel_ho);
-
-   sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
-   auto V = Reshape(sparse_ij.Write(), nnz_per_row, pp1, pp1, nel_ho);
-
+   // Geometric factors and quadrature weights
    auto geom = fes_ho.GetMesh()->GetGeometricFactors(
                   ir, GeometricFactors::DETERMINANTS);
    const auto detJ = Reshape(geom->detJ.Read(), pp1, pp1, nel_ho);
+   const auto W = Reshape(ir.GetWeights().Read(), pp1, pp1);
 
-   const auto *d_vec_ir_pp1_x = vec_ir_pp1_x.Read();
-   const auto *d_vec_ir_pp2_x = vec_ir_pp2_x.Read();
+   // Penalty parameter (avoid capturing *this in lambda)
    const real_t d_kappa = kappa;
+
+   // Sparse matrix entries
+   sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
+   auto V = Reshape(sparse_ij.Write(), nnz_per_row, pp1, pp1, nel_ho);
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
@@ -72,85 +69,39 @@ void BatchedLOR_DG::Assemble2D()
       {
          for (int ix = 0; ix < pp1; ++ix)
          {
-            const real_t A_ref = (d_vec_ir_pp2_x[ix+1] - d_vec_ir_pp2_x[ix])
-                                 * (d_vec_ir_pp2_x[iy+1] - d_vec_ir_pp2_x[iy]);
-            // Shoelace formula for area of a quadrilateral
-            //const real_t A_el = fabs(0.5*(X(0, ix, iy, iel_ho)*X(1, ix+1, iy, iel_ho)
-            //                              - X(0, ix+1, iy, iel_ho)*X(1, ix, iy, iel_ho)
-            //                              + X(0, ix+1, iy, iel_ho)*X(1, ix+1, iy+1, iel_ho)
-            //                              - X(0, ix+1, iy+1, iel_ho)*X(1, ix+1, iy, iel_ho)
-            //                              + X(0, ix+1, iy+1, iel_ho)*X(1, ix, iy+1, iel_ho)
-            //                              - X(0, ix, iy+1, iel_ho)*X(1, ix+1, iy+1, iel_ho)
-            //                              + X(0, ix, iy+1, iel_ho)*X(1, ix, iy, iel_ho)
-            //                              - X(0, ix, iy, iel_ho)*X(1, ix, iy+1, iel_ho)));
-            const real_t A_el  = A_ref*detJ(ix, iy, iel_ho);
             const real_t mq = const_mq ? MQ(0,0,0) : MQ(ix, iy, iel_ho);
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
-         
+
             for (int n_idx = 0; n_idx < 2; ++n_idx)
             {
                for (int e_i = 0; e_i < 2; ++e_i)
                {
-                  static const int lex_map[] = {4, 2, 1, 3};
+                  static constexpr int lex_map[] = {4, 2, 1, 3};
                   const int v_idx_lex = e_i + n_idx*2;
                   const int v_idx = lex_map[v_idx_lex];
 
                   const int i_0 = (n_idx == 0) ? ix + e_i : ix;
                   const int j_0 = (n_idx == 1) ? iy + e_i : iy;
 
-                  const int i_1 = (n_idx == 0) ? ix + e_i : ix + 1;
-                  const int j_1 = (n_idx == 1) ? iy + e_i : iy + 1;
-
-                  const bool bdr = (n_idx == 0) ? (i_0 == 0 || i_0 == pp1)
-                                   : (j_0 == 0 || j_0 == pp1);
+                  const bool bdr = (n_idx == 0 && (i_0 == 0 || i_0 == pp1)) ||
+                                   (n_idx == 1 && (j_0 == 0 || j_0 == pp1));
 
                   const int w_idx = (n_idx == 0) ? iy : ix;
-                  const int int_idx = (n_idx == 0) ? i_0 : j_0;
-                  const int el_idx = (n_idx == 0) ? j_0 : i_0;
-                  const real_t el_1 = d_vec_ir_pp2_x[el_idx+1] - d_vec_ir_pp2_x[el_idx];
-                  const real_t el_2 = A_ref / el_1;
-
-                  const real_t x1 = X(0, i_0, j_0, iel_ho);
-                  const real_t y1 = X(1, i_0, j_0, iel_ho);
-                  const real_t x2 = X(0, i_1, j_1, iel_ho);
-                  const real_t y2 = X(1, i_1, j_1, iel_ho);
-                  const real_t A_face = sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1)); 
+                  const int x_idx = (n_idx == 0) ? i_0 : j_0;
 
                   if (bdr)
                   {
-                     const real_t h_recip = A_face*A_face/A_el*el_2/el_1;
-                     V(v_idx, ix, iy, iel_ho) = -dq * d_kappa * w_1d[w_idx] * h_recip;
-
+                     V(v_idx, ix, iy, iel_ho) = -dq * d_kappa * w_1d[w_idx];
                   }
                   else
                   {
-                     const int ix2 = (n_idx == 0) ? ix + (e_i == 0 ? -1 : 1) : ix;
-                     const int iy2 = (n_idx == 1) ? iy + (e_i == 0 ? -1 : 1) : iy;
-                     //const real_t A_el_2 =
-                     //   fabs(0.5*(X(0, ix2, iy2, iel_ho)*X(1, ix2+1, iy2, iel_ho)
-                     //             - X(0, ix2+1, iy2, iel_ho)*X(1, ix2, iy2, iel_ho)
-                     //             + X(0, ix2+1, iy2, iel_ho)*X(1, ix2+1, iy2+1, iel_ho)
-                     //             - X(0, ix2+1, iy2+1, iel_ho)*X(1, ix2+1, iy2, iel_ho)
-                     //             + X(0, ix2+1, iy2+1, iel_ho)*X(1, ix2, iy2+1, iel_ho)
-                     //             - X(0, ix2, iy2+1, iel_ho)*X(1, ix2+1, iy2+1, iel_ho)
-                     //             + X(0, ix2, iy2+1, iel_ho)*X(1, ix2, iy2, iel_ho)
-                     //             - X(0, ix2, iy2, iel_ho)*X(1, ix2, iy2+1, iel_ho)));
-                     const real_t A_ref_2 = (d_vec_ir_pp2_x[ix2+1] - d_vec_ir_pp2_x[ix2])
-                                 * (d_vec_ir_pp2_x[iy2+1] - d_vec_ir_pp2_x[iy2]);
-                     const real_t A_el_2 = A_ref_2*detJ(ix2, iy2, iel_ho); 
-                     const real_t h_ref_1 = (n_idx == 0) ? d_vec_ir_pp2_x[i_0+1] - d_vec_ir_pp2_x[i_0] :
-                                            d_vec_ir_pp2_x[j_0+1] - d_vec_ir_pp2_x[j_0];
-                     const real_t h_ref_2 = (n_idx == 0) ? d_vec_ir_pp2_x[i_0] - d_vec_ir_pp2_x[i_0-1] :
-                                            d_vec_ir_pp2_x[j_0] - d_vec_ir_pp2_x[j_0-1];
-                     const real_t h = (0.5*A_el + 0.5*A_el_2) / A_face / (0.5 * (h_ref_1 + h_ref_2)); 
-
-                     V(v_idx, ix, iy, iel_ho) = -dq * A_face * w_1d[w_idx] / h / el_1 /
-                                                (d_vec_ir_pp1_x[int_idx] - d_vec_ir_pp1_x[int_idx-1]);
+                     V(v_idx, ix, iy, iel_ho) =
+                        -dq * w_1d[w_idx] / (x_pp1[x_idx] - x_pp1[x_idx -1]);
                   }
                }
             }
             V(0, ix, iy, iel_ho) = mq * detJ(ix, iy, iel_ho) * W(ix, iy);
-            for (int i = 1; i < 5; ++i)
+            for (int i = 1; i < nnz_per_row; ++i)
             {
                V(0, ix, iy, iel_ho) -= V(i, ix, iy, iel_ho);
             }
