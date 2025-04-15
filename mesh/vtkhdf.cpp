@@ -688,7 +688,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
                   const int *p = VTKGeometry::VertexPermutation[geom];
                   for (int k = 0; k < nv; ++k, ++r)
                   {
-                     connectivity.push_back(off_0 + rg[p ? p[r] : r]);
+                     connectivity.push_back(off_0 + rg[p ? (r - k + p[k]) : r]);
                   }
                }
                off_0 += ref_geom.RefPts.Size();
