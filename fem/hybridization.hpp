@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "bilininteg.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -60,34 +61,46 @@ namespace mfem
     (weak) continuity constraints between neighboring elements. */
 class Hybridization
 {
+   friend class HybridizationExtension;
 protected:
-   FiniteElementSpace *fes, *c_fes;
-   BilinearFormIntegrator *c_bfi;
-
-   /// Set of constraint boundary face integrators to be applied.
-   Array<BilinearFormIntegrator*> boundary_constraint_integs;
-   Array<Array<int>*>             boundary_constraint_integs_marker;
+   FiniteElementSpace &fes; ///< The finite element space.
+   FiniteElementSpace &c_fes; ///< The constraint finite element space.
+   /// Extension for device execution.
+   std::unique_ptr<class HybridizationExtension> ext;
+   /// The constraint integrator.
+   std::unique_ptr<BilinearFormIntegrator> c_bfi;
+   /// The constraint boundary face integrators
+   std::vector<BilinearFormIntegrator*> boundary_constraint_integs;
+   /// Boundary markers for constraint face integrators
+   std::vector<Array<int>*> boundary_constraint_integs_marker;
    /// Indicates if the boundary_constraint_integs integrators are owned externally
-   bool extern_bdr_constr_integs;
+   bool extern_bdr_constr_integs{false};
 
-   SparseMatrix *Ct, *H;
+   /// The constraint matrix.
+   std::unique_ptr<SparseMatrix> Ct;
+   /// The Schur complement system for the Lagrange multiplier.
+   std::unique_ptr<SparseMatrix> H;
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
-   real_t *Af_data;
-   int *Af_ipiv;
+   Array<real_t> Af_data;
+   Array<int> Af_ipiv;
 
 #ifdef MFEM_USE_MPI
-   HypreParMatrix *pC, *P_pc; // for parallel non-conforming meshes
+   std::unique_ptr<HypreParMatrix> pC, P_pc; // for parallel non-conforming meshes
    OperatorHandle pH;
 #endif
 
+   /// Construct the constraint matrix.
    void ConstructC();
 
+   /// Returns the local indices of the i-dofs and b-dofs of element @a el.
    void GetIBDofs(int el, Array<int> &i_dofs, Array<int> &b_dofs) const;
 
+   /// Returns global indices of the b-dofs of element @a el.
    void GetBDofs(int el, int &num_idofs, Array<int> &b_dofs) const;
 
+   /// Construct the Schur complement system.
    void ComputeH();
 
    // Compute depending on mode:
@@ -101,40 +114,47 @@ protected:
                   int mode) const;
 
 public:
-   /// Constructor
+   /// Constructor.
    Hybridization(FiniteElementSpace *fespace, FiniteElementSpace *c_fespace);
-   /// Destructor
+
+   /// Destructor.
    ~Hybridization();
 
-   /** Set the integrator that will be used to construct the constraint matrix
-       C. The Hybridization object assumes ownership of the integrator, i.e. it
-       will delete the integrator when destroyed. */
+   /// Turns on device execution.
+   void EnableDeviceExecution();
+
+   /// @brief Set the integrator that will be used to construct the constraint
+   /// matrix C.
+   ///
+   /// The Hybridization object assumes ownership of the integrator, i.e. it
+   /// will delete the integrator when destroyed.
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
-   { delete c_bfi; c_bfi = c_integ; }
+   { c_bfi.reset(c_integ); }
 
    /** Add the boundary face integrator that will be used to construct the
        constraint matrix C. The Hybridization object assumes ownership of the
        integrator, i.e. it will delete the integrator when destroyed. */
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
-      boundary_constraint_integs.Append(c_integ);
-      boundary_constraint_integs_marker.Append(
-         NULL); // NULL marker means apply everywhere
+      boundary_constraint_integs.push_back(c_integ);
+      boundary_constraint_integs_marker.push_back(nullptr);
    }
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker)
    {
-      boundary_constraint_integs.Append(c_integ);
-      boundary_constraint_integs_marker.Append(&bdr_marker);
+      boundary_constraint_integs.push_back(c_integ);
+      boundary_constraint_integs_marker.push_back(&bdr_marker);
    }
 
    /// Access all integrators added with AddBdrConstraintIntegrator().
-   Array<BilinearFormIntegrator*> *GetBCBFI() { return &boundary_constraint_integs; }
+   BilinearFormIntegrator& GetBdrConstraintIntegrator(int i)
+   { return *boundary_constraint_integs[i]; }
 
    /// Access all boundary markers added with AddBdrConstraintIntegrator().
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBCBFI_Marker() { return &boundary_constraint_integs_marker; }
+   Array<int>* GetBdrConstraintIntegratorMarker(int i)
+   { return boundary_constraint_integs_marker[i]; }
 
    /// Indicate that boundary constraint integrators are not owned
    void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = true; }
@@ -144,6 +164,9 @@ public:
 
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const DenseMatrix &A);
+
+   /// Assemble all of the element matrices given in the form of a DenseTensor.
+   void AssembleElementMatrices(const class DenseTensor &el_mats);
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
@@ -158,30 +181,34 @@ public:
    /// Return the parallel hybridized matrix.
    HypreParMatrix &GetParallelMatrix() { return *pH.Is<HypreParMatrix>(); }
 
-   /** @brief Return the parallel hybridized matrix in the format specified by
-       SetOperatorType(). */
+   /// @brief Return the parallel hybridized matrix in the format specified by
+   /// SetOperatorType().
    void GetParallelMatrix(OperatorHandle &H_h) const { H_h = pH; }
 
    /// Set the operator type id for the parallel hybridized matrix/operator.
    void SetOperatorType(Operator::Type tid) { pH.SetType(tid); }
 #endif
 
-   /** Perform the reduction of the given r.h.s. vector, b, to a r.h.s vector,
-       b_r, for the hybridized system. */
+   /// @brief Perform the reduction of the given right-hand side @a b to a
+   /// right-hand side vector @a b_r for the hybridized system.
    void ReduceRHS(const Vector &b, Vector &b_r) const;
 
-   /** Reconstruct the solution of the original system, sol, from solution of
-       the hybridized system, sol_r, and the original r.h.s. vector, b.
-       It is assumed that the vector sol has the right essential b.c. */
+   /// @brief Reconstruct the solution of the original system @a sol from
+   /// solution of the hybridized system @a sol_r and the original right-hand
+   /// side @a b.
+   ///
+   /// It is assumed that the vector sol has the correct essential boundary
+   /// conditions.
    void ComputeSolution(const Vector &b, const Vector &sol_r,
                         Vector &sol) const;
 
-   /** @brief Destroy the current hybridization matrix while preserving the
-       computed constraint matrix and the set of essential true dofs. After
-       Reset(), a new hybridized matrix can be assembled via AssembleMatrix()
-       and Finalize(). The Mesh and FiniteElementSpace objects are assumed to be
-       un-modified. If that is not the case, a new Hybridization object must be
-       created. */
+   /// @brief Destroy the current hybridization matrix while preserving the
+   /// computed constraint matrix and the set of essential true dofs.
+   ///
+   /// After Reset(), a new hybridized matrix can be assembled via
+   /// AssembleMatrix() and Finalize(). The Mesh and FiniteElementSpace objects
+   /// are assumed to be unmodified. If that is not the case, a new
+   /// Hybridization object must be created.
    void Reset();
 };
 
