@@ -30,11 +30,11 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
 
    Mesh &mesh = *fespace->GetMesh();
 
-   q_space.reset(new QuadratureSpace(mesh, *IntRule));
+   q_space.reset(new QuadratureSpace(&mesh, *IntRule));
    lambda_quad.reset(new CoefficientVector(lambda, *q_space,
                                            CoefficientStorage::FULL));
    mu_quad.reset(new CoefficientVector(mu, *q_space, CoefficientStorage::FULL));
-   q_vec.reset(new QuadratureFunction(*q_space, vdim*vdim));
+   q_vec.reset(new QuadratureFunction(q_space.get(), vdim*vdim));
 }
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)

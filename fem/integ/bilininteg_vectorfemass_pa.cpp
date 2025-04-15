@@ -75,7 +75,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
    const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
    if (Q) { coeff.Project(*Q); }
    else if (MQ) { coeff.ProjectTranspose(*MQ); }

@@ -487,7 +487,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    pa_data.SetSize(pa_size, Device::GetMemoryType());
 
    // Evaluate the coefficient at the face quadrature points.
-   FaceQuadratureSpace fqs(mesh, ir, type);
+   FaceQuadratureSpace fqs(&mesh, ir, type);
    CoefficientVector q(fqs, CoefficientStorage::COMPRESSED);
    if (Q) { q.Project(*Q); }
    else if (MQ) { MFEM_ABORT("Not yet implemented"); /* q.Project(*MQ); */ }

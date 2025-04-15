@@ -701,7 +701,7 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    // Use the same setup functions as VectorFEMassIntegrator.

@@ -167,7 +167,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, mt);
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
 
    PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,

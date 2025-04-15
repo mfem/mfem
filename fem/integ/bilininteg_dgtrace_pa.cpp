@@ -160,7 +160,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
 
-   FaceQuadratureSpace qs(*mesh, *ir, type);
+   FaceQuadratureSpace qs(mesh, *ir, type);
    CoefficientVector vel(*u, qs, CoefficientStorage::COMPRESSED);
 
    CoefficientVector r(qs, CoefficientStorage::COMPRESSED);

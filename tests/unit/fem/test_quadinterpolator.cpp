@@ -294,7 +294,7 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
       // GridFunction::GetValue():
       {
          INFO("evaluation: VALUES");
-         QuadratureFunction qf1(qs), qf2(qs);
+         QuadratureFunction qf1(&qs), qf2(&qs);
 
          const int ne = qs.GetNE();
          Vector values;
@@ -325,7 +325,7 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
       {
          INFO("evaluation: PHYSICAL_DERIVATIVES");
          const int sdim = mesh.SpaceDimension();
-         QuadratureFunction qf1(qs, sdim), qf2(qs, sdim);
+         QuadratureFunction qf1(&qs, sdim), qf2(&qs, sdim);
 
          const int ne = qs.GetNE();
          DenseMatrix values;
@@ -388,9 +388,9 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
       // QuadratureFunctions use byVDIM ordering:
       qi->SetOutputLayout(QVectorLayout::byVDIM);
 
-      QuadratureFunction qf_base_rv(qs, dim), qf_qi_rv(qs, dim); // ref vals
-      QuadratureFunction qf_base_pv(qs, dim), qf_qi_pv(qs, dim); // phys vals
-      QuadratureFunction qf_base_pm(qs,   1), qf_qi_pm(qs,   1); // phys magn
+      QuadratureFunction qf_base_rv(&qs, dim), qf_qi_rv(&qs, dim); // ref vals
+      QuadratureFunction qf_base_pv(&qs, dim), qf_qi_pv(&qs, dim); // phys vals
+      QuadratureFunction qf_base_pm(&qs,   1), qf_qi_pm(&qs,   1); // phys magn
 
       const int ne = qs.GetNE();
       Array<int> vdofs;

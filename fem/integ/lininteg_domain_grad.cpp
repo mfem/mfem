@@ -325,7 +325,7 @@ void DomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
 
-   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   QuadratureSpace qs(fes.GetMesh(), *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    DLFGradAssemble(fes, ir, markers, coeff, b);
 }
@@ -339,7 +339,7 @@ void VectorDomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
 
-   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   QuadratureSpace qs(fes.GetMesh(), *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    DLFGradAssemble(fes, ir, markers, coeff, b);
 }

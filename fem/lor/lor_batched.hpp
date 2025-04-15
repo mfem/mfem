@@ -181,7 +181,7 @@ protected:
                     Array<int> &sparse_mapping_)
       : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
         sparse_mapping(sparse_mapping_), ir(GetCollocatedIntRule(fes_ho)),
-        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::COMPRESSED),
+        qs(fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::COMPRESSED),
         c2(qs, CoefficientStorage::COMPRESSED)
    { }
 };

@@ -65,7 +65,7 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (dim == 2)
@@ -159,7 +159,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int ndata = curlSpaces ? (coeffDim == 1 ? 1 : 9) : symmDims;
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
    if (Q) { coeff.Project(*Q); }
    else if (DQ) { coeff.Project(*DQ); }
@@ -316,7 +316,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
    if (Q) { coeff.Project(*Q); }
    else if (DQ) { coeff.Project(*DQ); }

@@ -57,7 +57,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
@@ -138,7 +138,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);
 
-   FaceQuadratureSpace qs(*mesh, *ir, FaceType::Boundary);
+   FaceQuadratureSpace qs(mesh, *ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const int NE = ne;

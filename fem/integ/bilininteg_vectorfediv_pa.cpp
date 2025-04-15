@@ -69,7 +69,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (test_el->GetMapType() == FiniteElement::INTEGRAL)

@@ -172,7 +172,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleDevice(
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    Mesh &mesh = *fes.GetMesh();
 
-   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   FaceQuadratureSpace qs(&mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(F, qs, CoefficientStorage::COMPRESSED);
    BFLFEvalAssemble(fes, ir, markers, coeff, b);
 }

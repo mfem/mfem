@@ -161,6 +161,7 @@ set(SRCS
   transfer.cpp
   hyperbolic.cpp
   integrator.cpp
+  pointer_utils.hpp
   )
 
 set(HDRS

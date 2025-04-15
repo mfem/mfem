@@ -222,7 +222,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    Mesh &mesh = *fes.GetMesh();
 
-   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   FaceQuadratureSpace qs(&mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    BLFEvalAssemble(fes, ir, markers, coeff, false, b);
 }
@@ -238,7 +238,7 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    Mesh &mesh = *fes.GetMesh();
 
-   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   FaceQuadratureSpace qs(&mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    BLFEvalAssemble(fes, ir, markers, coeff, true, b);
 }

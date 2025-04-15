@@ -45,7 +45,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
    if (Q) { coeff.Project(*Q); }
    else if (MQ) { coeff.ProjectTranspose(*MQ); }

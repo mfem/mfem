@@ -48,7 +48,7 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)

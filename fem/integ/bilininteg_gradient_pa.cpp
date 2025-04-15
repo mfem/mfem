@@ -223,7 +223,7 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D, ne,

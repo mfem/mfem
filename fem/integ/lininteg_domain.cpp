@@ -247,7 +247,7 @@ void DomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
 
-   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   QuadratureSpace qs(fes.GetMesh(), *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    DLFEvalAssemble(fes, ir, markers, coeff, b);
 }
@@ -261,7 +261,7 @@ void VectorDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
 
-   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   QuadratureSpace qs(fes.GetMesh(), *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    DLFEvalAssemble(fes, ir, markers, coeff, b);
 }

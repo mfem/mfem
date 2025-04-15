@@ -334,7 +334,7 @@ void VectorFEDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
 
-   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   QuadratureSpace qs(fes.GetMesh(), *ir);
    CoefficientVector coeff(QF, qs, CoefficientStorage::COMPRESSED);
 
    const int fe_type = fe.GetDerivType();

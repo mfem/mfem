@@ -384,7 +384,7 @@ TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
    QuadratureSpace qspace(&m, 1);
 
    // Define qf
-   QuadratureFunction qf(qspace, qfdim);
+   QuadratureFunction qf(&qspace, qfdim);
 
    symCoeff.ProjectSymmetric(qf);
 

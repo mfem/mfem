@@ -31,15 +31,15 @@ QuadratureFunction &QuadratureFunction::operator=(const Vector &v)
    return *this;
 }
 
-
-QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
+QuadratureFunction::QuadratureFunction(std::shared_ptr<Mesh> mesh, std::istream &in)
    : QuadratureFunction()
 {
    const char *msg = "invalid input stream";
    std::string ident;
 
-   qspace = new QuadratureSpace(mesh, in);
-   own_qspace = true;
+   // Create a QuadratureSpace from the stream and take ownership
+   auto qs = std::make_shared<QuadratureSpace>(std::move(mesh), in);
+   qspace = qs;
 
    in >> ident; MFEM_VERIFY(ident == "VDim:", msg);
    in >> vdim;
@@ -49,7 +49,7 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
 
 void QuadratureFunction::Save(std::ostream &os) const
 {
-   GetSpace()->Save(os);
+   qspace->Save(os);
    os << "VDim: " << vdim << '\n'
       << '\n';
    Vector::Print(os, vdim);
@@ -60,7 +60,7 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 {
    SetVDim(gf.VectorDim());
 
-   if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(qspace))
+   if (auto *qs_elem = std::dynamic_pointer_cast<QuadratureSpace>(qspace).get())
    {
       const FiniteElementSpace &gf_fes = *gf.FESpace();
       const bool use_tensor_products = UsesTensorBasis(gf_fes);
@@ -80,7 +80,7 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);
    }
-   else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
+   else if (auto *qs_face = std::dynamic_pointer_cast<FaceQuadratureSpace>(qspace).get())
    {
       const FiniteElementSpace &gf_fes = *gf.FESpace();
       const bool use_tensor_products = UsesTensorBasis(gf_fes);
@@ -243,10 +243,10 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
    SaveVTU(f, format, compression_level, field_name);
 }
 
-static real_t ReduceReal(const Mesh *mesh, real_t value)
+static real_t ReduceReal(const std::shared_ptr<Mesh> &mesh, real_t value)
 {
 #ifdef MFEM_USE_MPI
-   if (auto *pmesh = dynamic_cast<const ParMesh*>(mesh))
+   if (auto *pmesh = dynamic_cast<const ParMesh*>(mesh.get()))
    {
       MPI_Comm comm = pmesh->GetComm();
       MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPITypeMap<real_t>::mpi_type,
@@ -260,7 +260,7 @@ real_t QuadratureFunction::Integrate() const
 {
    MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
    const real_t local_integral = InnerProduct(*this, qspace->GetWeights());
-   return ReduceReal(qspace->GetMesh(), local_integral);
+   return ReduceReal(qspace->GetMeshShared(), local_integral);
 }
 
 void QuadratureFunction::Integrate(Vector &integrals) const
@@ -268,7 +268,8 @@ void QuadratureFunction::Integrate(Vector &integrals) const
    integrals.SetSize(vdim);
 
    const Vector &weights = qspace->GetWeights();
-   QuadratureFunction component(qspace);
+   auto qspace_copy = qspace;
+   QuadratureFunction component(qspace_copy);
    const int N = component.Size();
    const int VDIM = vdim; // avoid capturing 'this' in lambda body
    const real_t *d_v = Read();
@@ -281,9 +282,75 @@ void QuadratureFunction::Integrate(Vector &integrals) const
       {
          d_c[i] = d_v[vd + i*VDIM];
       });
-      integrals[vd] = ReduceReal(qspace->GetMesh(),
+      integrals[vd] = ReduceReal(qspace->GetMeshShared(),
                                  InnerProduct(component, weights));
    }
 }
 
+// Add implementations for GetValues methods if needed
+void QuadratureFunction::GetValues(int idx, Vector &values)
+{
+   const int s_offset = qspace->offsets[idx];
+   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   values.MakeRef(*this, vdim*s_offset, vdim*sl_size);
 }
+
+void QuadratureFunction::GetValues(int idx, Vector &values) const
+{
+   const int s_offset = qspace->offsets[idx];
+   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   values.SetSize(vdim*sl_size);
+   values.HostWrite();
+   const real_t *q = HostRead() + vdim*s_offset;
+   for (int i = 0; i<values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+
+void QuadratureFunction::GetValues(int idx, const int ip_num, Vector &values)
+{
+   const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
+   values.MakeRef(*this, s_offset, vdim);
+}
+
+void QuadratureFunction::GetValues(int idx, const int ip_num, Vector &values) const
+{
+   const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
+   values.SetSize(vdim);
+   values.HostWrite();
+   const real_t *q = HostRead() + s_offset;
+   for (int i = 0; i < values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+
+void QuadratureFunction::GetValues(int idx, DenseMatrix &values)
+{
+   const int s_offset = qspace->offsets[idx];
+   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   // Make the values matrix memory an alias of the quadrature function memory
+   Memory<real_t> &values_mem = values.GetMemory();
+   values_mem.Delete();
+   values_mem.MakeAlias(GetMemory(), vdim*s_offset, vdim*sl_size);
+   values.SetSize(vdim, sl_size);
+}
+
+void QuadratureFunction::GetValues(int idx, DenseMatrix &values) const
+{
+   const int s_offset = qspace->offsets[idx];
+   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   values.SetSize(vdim, sl_size);
+   values.HostWrite();
+   const real_t *q = HostRead() + vdim*s_offset;
+   for (int j = 0; j<sl_size; j++)
+   {
+      for (int i = 0; i<vdim; i++)
+      {
+         values(i,j) = *(q++);
+      }
+   }
+}
+
+} // namespace mfem

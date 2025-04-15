@@ -187,7 +187,7 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
 
       const IntegrationRule &ir = qs.GetIntRule(0);
 
-      QuadratureFunction qf(qs);
+      QuadratureFunction qf(&qs);
       qf.Randomize(1);
       QuadratureFunctionCoefficient qf_coeff(qf);
 
@@ -211,7 +211,7 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
       QuadratureSpace qs(&mesh, int_order);
       const IntegrationRule &ir = qs.GetIntRule(0);
 
-      QuadratureFunction qf(qs, vdim);
+      QuadratureFunction qf(&qs, vdim);
       qf.Randomize(1);
       VectorQuadratureFunctionCoefficient qf_coeff(qf);
 
@@ -242,10 +242,10 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
 
    SECTION("FaceQuadratureSpace")
    {
-      FaceQuadratureSpace qs(mesh, int_order, FaceType::Boundary);
+      FaceQuadratureSpace qs(&mesh, int_order, FaceType::Boundary);
       const IntegrationRule &ir = qs.GetIntRule(0);
 
-      QuadratureFunction qf(qs);
+      QuadratureFunction qf(&qs);
       qf.Randomize(1);
       QuadratureFunctionCoefficient qf_coeff(qf);
 
@@ -278,9 +278,9 @@ TEST_CASE("Face Quadrature Function Coefficients", "[Coefficient]")
    FunctionCoefficient f_coeff(lin_interp::f3);
    VectorFunctionCoefficient vf_coeff(dim, lin_interp::F3);
 
-   FaceQuadratureSpace qspace(mesh, int_order, ftype);
+   FaceQuadratureSpace qspace(&mesh, int_order, ftype);
 
-   QuadratureFunction qf(qspace);
+   QuadratureFunction qf(&qspace);
    QuadratureFunction vqf(&qspace, dim);
 
    f_coeff.Project(qf);

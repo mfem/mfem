@@ -1849,7 +1849,7 @@ void CoefficientVector::Project(Coefficient &coeff)
    }
    else
    {
-      if (qf == nullptr) { qf = new QuadratureFunction(qs); }
+      if (qf == nullptr) { qf = new QuadratureFunction(&qs); }
       qf->SetVDim(1);
       coeff.Project(*qf);
       Vector::MakeRef(*qf, 0, qf->Size());
@@ -1870,7 +1870,7 @@ void CoefficientVector::Project(VectorCoefficient &coeff)
    }
    else
    {
-      if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
+      if (qf == nullptr) { qf = new QuadratureFunction(&qs, vdim); }
       qf->SetVDim(vdim);
       coeff.Project(*qf);
       Vector::MakeRef(*qf, 0, qf->Size());
@@ -1896,7 +1896,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
       const int width = coeff.GetWidth();
       vdim = sym ? height*(height + 1)/2 : width*height;
 
-      if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
+      if (qf == nullptr) { qf = new QuadratureFunction(&qs, vdim); }
       qf->SetVDim(vdim);
       if (sym) { sym_coeff->ProjectSymmetric(*qf); }
       else { coeff.Project(*qf, transpose); }

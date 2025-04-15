@@ -82,9 +82,9 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      L_coeff(L_coeff_),
      R_coeff(R_coeff_),
      mode(mode_),
-     qs(mesh, GetMassIntRule(fes_l2)),
-     W_coeff_qf(qs),
-     W_mix_coeff_qf(qs),
+     qs(&mesh, GetMassIntRule(fes_l2)),
+     W_coeff_qf(&qs),
+     W_mix_coeff_qf(&qs),
      W_coeff(W_coeff_qf),
      W_mix_coeff(W_mix_coeff_qf)
 {
@@ -130,7 +130,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
    if (mode == Mode::DARCY && !zero_l2_block)
    {
       ParBilinearForm mass_l2_unweighted(&fes_l2);
-      QuadratureFunction det_J_qf(qs);
+      QuadratureFunction det_J_qf(&qs);
       QuadratureFunctionCoefficient det_J_coeff(det_J_qf);
       if (convert_map_type)
       {

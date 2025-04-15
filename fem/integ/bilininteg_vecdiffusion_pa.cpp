@@ -173,7 +173,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    MFEM_VERIFY(!VQ && !MQ,
                "Only scalar coefficient supported for partial assembly for VectorDiffusionIntegrator");
 
-   QuadratureSpace qs(*mesh, *ir);
+   QuadratureSpace qs(mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const Array<real_t> &w = ir->GetWeights();
