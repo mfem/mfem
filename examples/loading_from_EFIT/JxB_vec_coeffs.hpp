@@ -161,3 +161,66 @@ public:
       return interp_val[0] * r * scale * (flip_sign ? -1 : 1);
    }
 };
+
+/// @brief Input $B_tor$ and return $[[0, B_tor], [-B_tor, 0]]
+class BTorPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+   BTorPerpMatrixGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : MatrixCoefficient(2, 2), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+   using MatrixCoefficient::Eval;
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+
+      M(0, 0) = 0;
+      M(0, 1) = interp_val(0) * (flip_sign ? -1 : 1);
+      M(1, 0) = -interp_val(0) * (flip_sign ? -1 : 1);
+      M(1, 1) = 0;
+   }
+};
+/// @brief Input $J_tor$ and return $[[0, J_tor], [-J_tor, 0]]
+class JTorPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+   JTorPerpMatrixGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : MatrixCoefficient(2, 2), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+   using MatrixCoefficient::Eval;
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+
+      M(0, 0) = 0;
+      M(0, 1) = interp_val(0) * (flip_sign ? -1 : 1);
+      M(1, 0) = -interp_val(0) * (flip_sign ? -1 : 1);
+      M(1, 1) = 0;
+   }
+};
