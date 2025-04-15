@@ -236,52 +236,52 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (iAmRoot) {	 cout << "curvature test failed\n"; }
          double deltaReg = 0.0;
-	 int maxCTests = 30;
+	      int maxCTests = 30;
 
-	 // choose appropriate initial inertia regularization
+	      // choose appropriate initial inertia regularization
          if (deltaRegLast < deltaRegMin)
-	 {
-	    deltaReg = deltaReg0;       
-	 }
-	 else
-	 {
-	    // try a potentially smaller regularization value than the one that worked last time
-	    deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast); 
-	 }
+	      {
+	         deltaReg = deltaReg0;       
+	      }
+	      else
+	      {
+	         // try a potentially smaller regularization value than the one that worked last time
+	         deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast); 
+	      }
          // solve with regularization 
-	 zlhat = 0.0; Xhatuml = 0.0;
+	      zlhat = 0.0; Xhatuml = 0.0;
          IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false, deltaReg);
 
          for (int numCTests = 0; numCTests < maxCTests; numCTests++)
          {
-	    if (iAmRoot)
-	    {
-	       cout << "deltaReg = " << deltaReg << endl;
-	    }
-	    if (passedCTest)
-	    {
-	       deltaRegLast = deltaReg;
-	       break;
-	    }
-	    else
-	    {
-	       if (deltaRegLast < deltaRegMin)
-	       {
-	          if (iAmRoot)
-		  {
-		     cout << "delta *= " << kRegBarPlus << "\n";
-		  }
-		  deltaReg *= kRegBarPlus; 
-	       }
-	       else
-	       {
-	          deltaReg *= kRegPlus;
-	       }
-	    }
+	         if (iAmRoot)
+	         {
+	            cout << "deltaReg = " << deltaReg << endl;
+	         }
+	         if (passedCTest)
+	         {
+	            deltaRegLast = deltaReg;
+	            break;
+	         }
+	         else
+	         {
+	            if (deltaRegLast < deltaRegMin)
+	            {
+	               if (iAmRoot)
+		            {
+		               cout << "delta *= " << kRegBarPlus << "\n";
+		            }
+		            deltaReg *= kRegBarPlus; 
+	            }
+	            else
+	            {
+	               deltaReg *= kRegPlus;
+	            }
+	         }
             // solve with regularization 
-	    zlhat = 0.0; Xhatuml = 0.0;
+	         zlhat = 0.0; Xhatuml = 0.0;
             IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false, deltaReg);
-	 }
+	      }
       }
 
       // assign data stack, X = (u, m, l, zl)
