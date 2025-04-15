@@ -22,6 +22,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -1413,7 +1415,7 @@ inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
    else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
-
+/// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
 
 #endif
