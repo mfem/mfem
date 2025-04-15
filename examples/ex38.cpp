@@ -390,7 +390,7 @@ public:
 
 
 /**
- @brief Class for surface linearform integrator
+ @brief Class for surface linear form integrator
 
  Integrator to demonstrate the use of the surface integration rule on an
  implicit surface defined by a level-set.
@@ -460,7 +460,7 @@ public:
 };
 
 /**
- @brief Class for subdomain linearform integrator
+ @brief Class for subdomain linear form integrator
 
  Integrator to demonstrate the use of the subdomain integration rule within
  an area defined by an implicit surface defined by a level-set.
@@ -546,7 +546,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine", "Number of meh refinements");
    args.AddOption(&method, "-m", "--method",
                   "Cut integration method: 0 for moments-based, 1 for Algoim.");
-   args.AddOption(&inttype, "-i", "--integrationtype",
+   args.AddOption(&inttype, "-i", "--integration-type",
                   "IntegrationType to demonstrate");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
