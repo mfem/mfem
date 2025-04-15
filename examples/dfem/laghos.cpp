@@ -600,7 +600,8 @@ public:
       block_op.SetBlock(2, 1, &dRedv_petsc);
       block_op.SetBlock(2, 2, &dRede_petsc);
 
-      block_petsc.reset(new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ));
+      delete block_petsc;
+      block_petsc = new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ);
       Mat block_petsc_mat = *block_petsc;
 
       // PetscCall(MatConvert(block_petsc_mat, MATAIJ, MatReuse::MAT_INPLACE_MATRIX,
@@ -609,8 +610,10 @@ public:
       // auto tmp = block_petsc->EliminateRowsCols(offset_ess_tdof_v);
       // delete tmp;
 
-      w_petsc.reset(new PetscParVector(hydro.H1.GetComm(), *this, true, false));
-      y_petsc.reset(new PetscParVector(hydro.H1.GetComm(), *this, false, false));
+      delete w_petsc;
+      w_petsc = new PetscParVector(hydro.H1.GetComm(), *this, true, false);
+      delete y_petsc;
+      y_petsc = new PetscParVector(hydro.H1.GetComm(), *this, false, false);
 
       // block_petsc->Print("block_mat.dat", true);
       // exit(0);
@@ -737,8 +740,8 @@ public:
    const int H1tsize;
    const int L2tsize;
    Vector w, z;
-   std::shared_ptr<PetscParMatrix> block_petsc;
-   std::shared_ptr<PetscParVector> w_petsc, y_petsc;
+   PetscParMatrix *block_petsc = nullptr;
+   PetscParVector *w_petsc = nullptr, *y_petsc = nullptr;
 };
 
 template <typename hydro_t>
@@ -1132,7 +1135,8 @@ public:
          out << "creating new residual\n";
          current_dt = dt;
          residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
-         snes.reset(new PetscNonlinearSolver(MPI_COMM_WORLD));
+
+         snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
          snes->SetOperator(*residual);
          snes->SetRelTol(nonlinear_relative_tolerance);
          snes->SetJacobianType(Operator::PETSC_MATNEST);
@@ -1324,7 +1328,7 @@ public:
    real_t current_dt = 0.0;
    int lag = 0;
 
-   std::shared_ptr<PetscNonlinearSolver> snes;
+   PetscNonlinearSolver *snes = nullptr;
 
    mutable FunctionCoefficient rho0_coeff;
    OperatorJacobiSmoother *Mv_Jprec = nullptr;
