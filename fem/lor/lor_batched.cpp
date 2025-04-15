@@ -373,8 +373,6 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int num_rows = nel_ho*ndof_per_el;
    const int p = fes_ho.GetMaxElementOrder();
    const int nnz = num_rows*nnz_per_row;
-   static const int lex_map_2[] = {3, 1, 0, 2};
-   static const int lex_map_3[] = {4,2,1,3,0,5};
    auto I = A.HostWriteI();
 
    EnsureCapacity(A.GetMemoryJ(), nnz);
@@ -422,6 +420,8 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       const int local_x = iloc % (p+1);
       const int local_y = (iloc/(p+1))%(p+1);
       const int local_z = iloc/(p+1)/(p+1); 
+      static const int lex_map_2[4] = {3, 1, 0, 2};
+      static const int lex_map_3[6] = {4,2,1,3,0,5};
       int local_i[3] = {local_x, local_y, local_z};
       for (int n_idx = 0; n_idx < dim; ++n_idx){
          for (int e_i = 0; e_i < 2; ++e_i){
@@ -452,6 +452,8 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       const int local_z = iloc/(p+1)/(p+1); 
       int local_i[3] = {local_x, local_y, local_z};
       const int nnz_so_far_current = I_d[i];
+      static const int lex_map_2[4] = {3, 1, 0, 2};
+      static const int lex_map_3[6] = {4,2,1,3,0,5};
       AV[nnz_so_far_current] = V(0, iloc, iel_ho);
       J[nnz_so_far_current] = i;
       int k = 1;
