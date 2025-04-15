@@ -31,8 +31,6 @@ template <typename T> struct TypeID { };
 template <> struct TypeID<float> { static hid_t Get() { return H5T_NATIVE_FLOAT; } };
 template <> struct TypeID<double> { static hid_t Get() { return H5T_NATIVE_DOUBLE; } };
 template <> struct TypeID<int32_t> { static hid_t Get() { return H5T_NATIVE_INT32; } };
-template <> struct TypeID<uint32_t> { static hid_t Get() { return H5T_NATIVE_UINT32; } };
-template <> struct TypeID<int64_t> { static hid_t Get() { return H5T_NATIVE_INT64; } };
 template <> struct TypeID<uint64_t> { static hid_t Get() { return H5T_NATIVE_UINT64; } };
 template <> struct TypeID<unsigned char> { static hid_t Get() { return H5T_NATIVE_UCHAR; } };
 
@@ -208,16 +206,16 @@ std::vector<T> VTKHDF::AllGather(const T loc) const
    return all;
 }
 
-VTKHDF::OffsetTotal VTKHDF::GetOffsetAndTotal(const int64_t loc) const
+VTKHDF::OffsetTotal VTKHDF::GetOffsetAndTotal(const size_t loc) const
 {
    const auto all = AllGather(loc);
 
-   int64_t offset = 0;
+   size_t offset = 0;
    for (int i = 0; i < mpi_rank; ++i)
    {
       offset += all[i];
    }
-   int64_t total = offset;
+   size_t total = offset;
    for (int i = mpi_rank; i < mpi_size; ++i)
    {
       total += all[i];
@@ -241,7 +239,7 @@ VTKHDF::OffsetTotal VTKHDF::AppendParVector(
 
    AppendParData(f, name, locsize/m, offset/m, dims, data.data());
 
-   return {int64_t(offset/m), int64_t(total/m)};
+   return {offset/m, total/m};
 }
 
 bool VTKHDF::UsingMpi() const
