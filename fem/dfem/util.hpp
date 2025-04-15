@@ -761,63 +761,6 @@ int GetVDim(const FieldDescriptor &f)
    }, f.data);
 }
 
-int GetVectorFEDim(const FieldDescriptor &f)
-{
-   return std::visit([](auto && arg)
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL ||
-             arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV)
-         {
-            return arg->GetFE(0)->GetDim();
-         }
-         else
-         {
-            return 1;
-         }
-      }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
-      {
-         return 1;
-      }
-      else
-      {
-         static_assert(always_false<T>, "can't use GetVectorFEDim on type");
-      }
-   }, f.data);
-}
-
-int GetVectorFECurlDim(const FieldDescriptor &f)
-{
-   return std::visit([](auto && arg)
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL)
-         {
-            return arg->GetFE(0)->GetCurlDim();
-         }
-         else
-         {
-            return 1;
-         }
-      }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
-      {
-         return 1;
-      }
-      else
-      {
-         static_assert(always_false<T>, "can't use GetVectorFECurlDim on type");
-      }
-   }, f.data);
-}
-
 template <typename entity_t>
 int GetDimension(const FieldDescriptor &f)
 {
