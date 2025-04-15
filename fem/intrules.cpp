@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1791,23 +1791,38 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
 {
    // This is a simple integration rule adapted from an integration
-   // rule for a cube which seems to be adequate for now. When we
-   // implement high order finite elements for pyramids we should
-   // revisit this and see if we can improve upon it.
+   // rule for a cube which seems to be adequate for now. We should continue
+   // to search for a more appropriate integration rule designed specifically
+   // for pyramid elements.
    const IntegrationRule &irc = Get(Geometry::CUBE, Order);
    int npts = irc.GetNPoints();
    AllocIntRule(PyramidIntRules, Order);
    PyramidIntRules[Order] = new IntegrationRule(npts);
-   PyramidIntRules[Order]->SetOrder(Order); // FIXME: see comment above
+   PyramidIntRules[Order]->SetOrder(Order);
 
-   for (int k=0; k<npts; k++)
+   if (npts == 1)
    {
-      const IntegrationPoint &ipc = irc.IntPoint(k);
-      IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(k);
-      ipp.x = ipc.x * (1.0 - ipc.z);
-      ipp.y = ipc.y * (1.0 - ipc.z);
-      ipp.z = ipc.z;
-      ipp.weight = ipc.weight / 3.0;
+      // We handle this as a special case because with only one integration
+      // point we cannot accurately integrate the quadratic factor
+      // pow(1.0 - ipc.z, 2) and the resulting weight does not match the volume
+      // of the reference element.
+      IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(0);
+      ipp.x = 0.375;
+      ipp.y = 0.375;
+      ipp.z = 0.25;
+      ipp.weight = 1.0 / 3.0;
+   }
+   else
+   {
+      for (int k=0; k<npts; k++)
+      {
+         const IntegrationPoint &ipc = irc.IntPoint(k);
+         IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(k);
+         ipp.x = ipc.x * (1.0 - ipc.z);
+         ipp.y = ipc.y * (1.0 - ipc.z);
+         ipp.z = ipc.z;
+         ipp.weight = ipc.weight * pow(1.0 - ipc.z, 2);
+      }
    }
    return PyramidIntRules[Order];
 }
@@ -1864,17 +1879,19 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 
 IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
                                                 const int patch, const int *ijk,
-                                                Array<const KnotVector*> const& kv,
-                                                bool & deleteRule) const
+                                                Array<const KnotVector*> const& kv) const
 {
-   deleteRule = false;
-
    // First check whether a rule has been assigned to element index elem.
    auto search = elementToRule.find(elem);
    if (search != elementToRule.end())
    {
       return *elementRule[search->second];
    }
+
+#ifndef MFEM_THREAD_SAFE
+   // If no prescribed rule is given for the current element, a temporary one is
+   // formed by restricting a tensor-product of 1D rules to the element. The
+   // ownership model for this temporary rule is not thread-safe.
 
    MFEM_VERIFY(patchRules1D.NumRows(),
                "Undefined rule in NURBSMeshRules::GetElementRule");
@@ -1912,10 +1929,9 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
       np *= npd[d];
    }
 
-   IntegrationRule *irp = new IntegrationRule(np);
-   deleteRule = true;
+   temporaryElementRule.SetSize(np);
 
-   // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
+   // Set temporaryElementRule[i + j*npd[0] + k*npd[0]*npd[1]] =
    //     (el[0][2*i], el[1][2*j], el[2][2*k])
 
    MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
@@ -1927,22 +1943,26 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
          for (int k = 0; k < std::max(npd[2], 1); ++k)
          {
             const int id = i + j*npd[0] + k*npd[0]*npd[1];
-            (*irp)[id].x = el[0][2*i];
-            (*irp)[id].y = el[1][2*j];
+            temporaryElementRule[id].x = el[0][2*i];
+            temporaryElementRule[id].y = el[1][2*j];
 
-            (*irp)[id].weight = el[0][(2*i)+1];
-            (*irp)[id].weight *= el[1][(2*j)+1];
+            temporaryElementRule[id].weight = el[0][(2*i)+1];
+            temporaryElementRule[id].weight *= el[1][(2*j)+1];
 
             if (npd[2] > 0)
             {
-               (*irp)[id].z = el[2][2*k];
-               (*irp)[id].weight *= el[2][(2*k)+1];
+               temporaryElementRule[id].z = el[2][2*k];
+               temporaryElementRule[id].weight *= el[2][(2*k)+1];
             }
          }
       }
    }
 
-   return *irp;
+   return temporaryElementRule;
+#else
+   MFEM_ABORT("Temporary integration rules on NURBS elements "
+              "are not thread-safe.");
+#endif
 }
 
 void NURBSMeshRules::GetIntegrationPointFrom1D(const int patch, int i, int j,
