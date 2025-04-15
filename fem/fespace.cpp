@@ -52,7 +52,7 @@ struct DerefineMatrixOpFunctorBase
 };
 
 /// MaxReduceSize must be a power of 2
-template <Ordering::Type Order, int MaxReduceSize = 32>
+template <Ordering::Type Order, int MaxReduceSize>
 struct DerefineMatrixOpMultFunctor;
 
 template <int MaxReduceSize>
@@ -61,8 +61,16 @@ struct DerefineMatrixOpMultFunctor<Ordering::byNODES, MaxReduceSize>
 {
    void MFEM_HOST_DEVICE operator()(int k) const
    {
+      // TODO: needs to include vdim
+      MFEM_SHARED real_t sum[MaxReduceSize];
+      MFEM_FOREACH_THREAD(i, x, bhptr[k])
+      {
+         
+      }
       // TODO
    }
+  
+   void Run(int N) const { forall_2D(N, MaxReduceSize, vdims, *this); }
 };
 
 template <int MaxReduceSize>
@@ -73,10 +81,12 @@ struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, MaxReduceSize>
    {
       // TODO
    }
+
+  void Run(int N) const { forall_2D(N, vdims, MaxReduceSize, *this); }
 };
 
 /// MaxReduceSize must be a power of 2
-template <Ordering::Type Order, bool Atomic, int MaxReduceSize = 32>
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
 struct DerefineMatrixOpMultTFunctor;
 
 template <int MaxReduceSize>
@@ -385,7 +395,17 @@ namespace internal
 template <Ordering::Type Order, int MaxReduceSize>
 void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
 {
-   // TODO
+  DerefineMatrixOpMultFunctor<Order, MaxReduceSize> func;
+  func.xptr = x.Read();
+  func.yptr = y.Write();
+  func.bsptr = op.block_storage.Read();
+  func.boptr = op.block_offsets.Read();
+  func.bhptr = op.block_heights.Read();
+  func.bwptr = op.block_widths.Read();
+  func.rptr = op.row_idcs.Read();
+  func.cptr = op.col_idcs.Read();
+  func.vdims = op.fespace->GetVDim();
+  func.Run(op.row_idcs.Size());
 }
 
 template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
