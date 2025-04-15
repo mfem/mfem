@@ -12137,7 +12137,7 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
             const int *p = VTKGeometry::VertexPermutation[geom];
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(os, buf, np + RG[p ? p[j] : j], " ",
+               WriteBinaryOrASCII(os, buf, np + RG[p ? (j - k + p[k]) : j], " ",
                                   format);
             }
             if (format == VTKFormat::ASCII) { os << '\n'; }
