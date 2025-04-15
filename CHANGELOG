@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.8, released on Apr XX, 2025
-=====================================
+Version 4.8, released on Apr 9, 2025
+====================================
 
 Discretization improvements
 ---------------------------
@@ -188,12 +188,12 @@ Miscellaneous
   Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
   CMake option to just MFEM_ENABLE_BENCHMARKS.
 
-- Various other simplifications, extensions, and bugfixes in the code.
-
 - Updated the minimum CMake version requirements:
   * CMake >= 3.12 for CPU builds,
   * CMake >= 3.17 for CUDA builds, and
   * CMake >= 3.14 for HIP builds (CMake >= 3.12 may work as well, not tested).
+
+- Various other simplifications, extensions, and bugfixes in the code.
 
 API changes
 -----------
@@ -298,15 +298,6 @@ New and updated examples and miniapps
 
 - Added two new example codes: 38 and 39/39p described above. Substantially
   updated Example 18/18p.
-
-- Added ODE solvers selection routines. This creates a uniformity across examples,
-  miniapps and other executables in regard to ODE(time-integrator) selection.
-
-- Added new mechanism for retrieving and setting state vectors in ODE solvers.
-  This is relevant for AB/AM and gen-alpha solvers.
-
-- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
-  read/write functionality.
 
 Miscellaneous
 -------------
