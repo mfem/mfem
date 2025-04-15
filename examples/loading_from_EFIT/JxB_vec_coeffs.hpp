@@ -162,7 +162,7 @@ public:
    }
 };
 
-/// @brief Input $B_tor$ and return $[[0, B_tor], [-B_tor, 0]]
+/// @brief Input $B_tor$ and return $[[0, -B_tor], [B_tor, 0]]
 class BTorPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -188,12 +188,12 @@ public:
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
 
       M(0, 0) = 0;
-      M(0, 1) = interp_val(0) * (flip_sign ? -1 : 1);
-      M(1, 0) = -interp_val(0) * (flip_sign ? -1 : 1);
+      M(0, 1) = -interp_val(0) * (flip_sign ? -1 : 1);
+      M(1, 0) = interp_val(0) * (flip_sign ? -1 : 1);
       M(1, 1) = 0;
    }
 };
-/// @brief Input $J_tor$ and return $[[0, J_tor], [-J_tor, 0]]
+/// @brief Input $J_tor$ and return $[[0, -J_tor], [J_tor, 0]]
 class JTorPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -219,8 +219,8 @@ public:
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
 
       M(0, 0) = 0;
-      M(0, 1) = interp_val(0) * (flip_sign ? -1 : 1);
-      M(1, 0) = -interp_val(0) * (flip_sign ? -1 : 1);
+      M(0, 1) = -interp_val(0) * (flip_sign ? -1 : 1);
+      M(1, 0) = interp_val(0) * (flip_sign ? -1 : 1);
       M(1, 1) = 0;
    }
 };

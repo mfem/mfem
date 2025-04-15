@@ -240,7 +240,7 @@ public:
    }
 };
 
-/// @brief Input $B_pol$ and return $B_pol^\perp retval return value description
+/// @brief Input $B_pol$ and return $B_pol^\perp
 class BPolPerpRVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -293,7 +293,7 @@ public:
    }
 };
 
-/// @brief Return $[[0, r], [-r, 0]]$
+/// @brief Return $[[0, -r], [r, 0]]$
 class RPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -315,8 +315,8 @@ public:
       real_t r = x[0];
       counter++;
       M(0, 0) = 0;
-      M(0, 1) = r * (flip_sign ? -1 : 1);
-      M(1, 0) = -r * (flip_sign ? -1 : 1);
+      M(0, 1) = -r * (flip_sign ? -1 : 1);
+      M(1, 0) = r * (flip_sign ? -1 : 1);
       M(1, 1) = 0;
    }
 };

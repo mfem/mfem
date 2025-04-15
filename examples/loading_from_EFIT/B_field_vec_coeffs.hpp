@@ -336,7 +336,7 @@ public:
    }
 };
 
-/// @brief Return $[[0, 1/r], [-1/r, 0]]$
+/// @brief Return $[[0, -1/r], [1/r, 0]]$
 class OneOverRPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -358,8 +358,8 @@ public:
       real_t r = x[0];
       counter++;
       M(0, 0) = 0;
-      M(0, 1) = 1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
-      M(1, 0) = - 1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
+      M(0, 1) = -1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
+      M(1, 0) = 1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
       M(1, 1) = 0;
    }
 };
