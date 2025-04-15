@@ -39,9 +39,9 @@ int main(int argc, char *argv[])
    b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(r_perp_coef));
    Vector zero_one(2);
    zero_one(0) = 0.0;
-   zero_one(1) = 1.0;
-   VectorConstantCoefficient zero_one_coef(zero_one);
-   b_bi.AddDomainIntegrator(new MixedVectorProductIntegrator(zero_one_coef));
+   zero_one(1) = -1.0;
+   VectorConstantCoefficient neg_zero_one_coef(zero_one);
+   b_bi.AddDomainIntegrator(new MixedVectorProductIntegrator(neg_zero_one_coef));
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
