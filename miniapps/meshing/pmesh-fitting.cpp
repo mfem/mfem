@@ -484,7 +484,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      // Set material gridfunction
+      // Set material grid function
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
