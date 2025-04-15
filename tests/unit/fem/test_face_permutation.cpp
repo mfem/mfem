@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -195,6 +195,7 @@ real_t TestFaceRestriction(Mesh &mesh, int order)
       FunctionCoefficient coeff(fn);
       gf.ProjectCoefficient(coeff);
       restr.Mult(gf, face_values);
+      face_values.HostReadWrite();
 
       for (int i=0; i<ndof_face; ++i)
       {

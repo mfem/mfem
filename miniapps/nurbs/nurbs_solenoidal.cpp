@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,10 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//        ------------------------------------------------------------
-//        NURBS Solenoidal Miniapp: Project solenoidal velocity
-//        ------------------------------------------------------------
-//
+//           -----------------------------------------------------
+//           NURBS Solenoidal Miniapp: Project solenoidal velocity
+//           -----------------------------------------------------
 //
 // Compile with: make nurbs_solenoidal
 //
@@ -36,7 +35,6 @@
 //               divergence free, we expect the pressure to converge to zero.
 //               We discretize with H(div) and L2/H1 conforming elements.
 
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -44,7 +42,6 @@
 
 using namespace std;
 using namespace mfem;
-
 
 void u_2d(const Vector & x, Vector & u)
 {
