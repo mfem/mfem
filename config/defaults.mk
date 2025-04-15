@@ -402,9 +402,14 @@ MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
 GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
+# HDF5 library configuration
+HDF5_DIR   = $(HOME)/local
+HDF5_OPT = -I$(HDF5_DIR)/include
+HDF5_LIB = $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5 \
+           $(ZLIB_LIB)
+
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
-HDF5_DIR   = $(HOME)/local
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
