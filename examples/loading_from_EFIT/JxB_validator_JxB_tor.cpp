@@ -15,97 +15,65 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_pol_Hcurl.gf");
+   ifstream temp_log("output/B_pol_Hdiv.gf");
    GridFunction B_pol(&mesh, temp_log);
 
-   temp_log.close();            // Close previous file
-   temp_log.open("output/B_tor_CG.gf"); // Open new file
+   temp_log.close();                    // Close previous file
+   temp_log.open("output/B_tor_DG.gf"); // Open new file
    GridFunction B_tor(&mesh, temp_log);
+
+   temp_log.close();                       // Close previous file
+   temp_log.open("output/J_pol_Hcurl.gf"); // Open new file
+   GridFunction J_pol(&mesh, temp_log);
+
+   temp_log.close();                      // Close previous file
+   temp_log.open("output/J_tor_Hdiv.gf"); // Open new file
+   GridFunction J_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
-   H1_FECollection fec(1, dim);
+   L2_FECollection fec(0, dim);
+   // H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // A. compute B_tor_r
-   // make a grid function with the H1 space
-   GridFunction B_tor_r(B_tor.FESpace());
-   cout << B_tor_r.FESpace()->GetTrueVSize() << endl;
-   B_tor_r = 0.0;
-
-   {
-      BilinearForm b_bi(B_tor.FESpace());
-      RSquareGridFunctionCoefficient r_sq_coef;
-      b_bi.AddDomainIntegrator(new MassIntegrator(r_sq_coef));
-      b_bi.Assemble();
-
-      // 1.b form linear form from bilinear form
-      LinearForm b(B_tor.FESpace());
-      b_bi.Mult(B_tor, b);
-
-      // 2. make the bilinear form
-      BilinearForm a(B_tor.FESpace());
-      RGridFunctionCoefficient r_coef;
-      a.AddDomainIntegrator(new MassIntegrator(r_coef));
-      a.Assemble();
-      a.Finalize();
-
-      // 3. solve the system
-      CGSolver M_solver;
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-24);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(1e5);
-      M_solver.SetPrintLevel(1);
-      M_solver.SetOperator(a.SpMat());
-
-      Vector X(B_tor_r.Size());
-      X = 0.0;
-      M_solver.Mult(b, X);
-
-      B_tor_r.SetFromTrueDofs(X);
-   }
-
-   // B. compute JxB
-   // make a grid function with the H1 space
    GridFunction JxB_tor(&fespace);
    cout << JxB_tor.FESpace()->GetTrueVSize() << endl;
    JxB_tor = 0.0;
+   LinearForm b(&fespace);
+   b.Assemble();
+   // project the grid function onto the new space
 
-   {
-      // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(B_tor_r.FESpace(), &fespace);
-      VectorGridFunctionCoefficient B_pol_coeff(&B_pol);
-      b_bi.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(B_pol_coeff));
-      b_bi.Assemble();
+   // 1.a make the RHS bilinear form for B_pol
+   MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
+   VectorGridFunctionCoefficient J_pol_coeff(&J_pol);
+   b_bi.AddDomainIntegrator(new MixedScalarCrossProductIntegrator(J_pol_coeff));
+   b_bi.Assemble();
 
-      // 1.b form linear form from bilinear form
-      LinearForm b(&fespace);
-      b_bi.Mult(B_tor_r, b);
+   // 1.b form linear form from bilinear form
+   LinearForm b_li(&fespace);
+   b_bi.Mult(B_pol, b_li);
+   b += b_li;
 
-      // 2. make the bilinear form
-      BilinearForm a(&fespace);
-      RGridFunctionCoefficient r_coef;
-      a.AddDomainIntegrator(new MassIntegrator(r_coef));
-      a.Assemble();
-      a.Finalize();
+   // 2. make the bilinear form
+   BilinearForm a(&fespace);
+   ConstantCoefficient one(1.0);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+   a.Assemble();
+   a.Finalize();
 
-      // 3. solve the system
-      CGSolver M_solver;
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-24);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(1e5);
-      M_solver.SetPrintLevel(1);
-      M_solver.SetOperator(a.SpMat());
+   // 3. solve the system
+   CGSolver M_solver;
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-24);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(1e5);
+   M_solver.SetPrintLevel(1);
+   M_solver.SetOperator(a.SpMat());
 
-      Vector X(JxB_tor.Size());
-      X = 0.0;
-      M_solver.Mult(b, X);
-      JxB_tor.SetFromTrueDofs(X);
-   }
+   Vector X(JxB_tor.Size());
+   X = 0.0;
+   M_solver.Mult(b, X);
+   JxB_tor.SetFromTrueDofs(X);
 
    if (visualization)
    {
