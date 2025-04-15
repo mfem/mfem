@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -204,6 +204,7 @@ void LinearForm::Assemble()
          for (int k = 0; k < domain_integs.Size(); k++)
          {
             const Array<int> * const markers = domain_integs_marker[k];
+            if (markers) { markers->HostRead(); }
             if ( markers == NULL || (*markers)[elem_attr-1] == 1 )
             {
                doftrans = fes -> GetElementVDofs (i, vdofs);
