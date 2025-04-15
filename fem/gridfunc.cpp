@@ -3819,14 +3819,16 @@ void GridFunction::SaveVTK(std::ostream &os, const std::string &field_name,
 
 #ifdef MFEM_USE_HDF5
 
-void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name)
+void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name,
+                              bool high_order, int ref)
 {
+   if (ref == -1) { ref = high_order ? fes->GetMaxElementOrder() : 1; }
 #ifdef MFEM_USE_MPI
    if (ParFiniteElementSpace* pfes = dynamic_cast<ParFiniteElementSpace*>(fes))
    {
 #ifdef MFEM_PARALLEL_HDF5
       VTKHDF vtkhdf(fname, pfes->GetComm());
-      vtkhdf.SaveMesh(*fes->GetMesh());
+      vtkhdf.SaveMesh(*fes->GetMesh(), high_order, ref);
       vtkhdf.SaveGridFunction(*this, name);
       return;
 #else
@@ -3835,7 +3837,7 @@ void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name)
    }
 #endif
    VTKHDF vtkhdf(fname);
-   vtkhdf.SaveMesh(*fes->GetMesh());
+   vtkhdf.SaveMesh(*fes->GetMesh(), high_order, ref);
    vtkhdf.SaveGridFunction(*this, name);
 }
 
