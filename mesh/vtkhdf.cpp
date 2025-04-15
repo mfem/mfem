@@ -212,7 +212,7 @@ std::vector<T> VTKHDF::AllGather(const T loc) const
 
 VTKHDF::OffsetTotal VTKHDF::GetOffsetAndTotal(const size_t loc) const
 {
-   const auto all = AllGather(loc);
+   const auto all = AllGather(uint64_t(loc));
 
    size_t offset = 0;
    for (int i = 0; i < mpi_rank; ++i)
