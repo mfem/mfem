@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    // 1.1.a make the RHS bilinear form for J_pol
    {
       MixedBilinearForm b_bi(J_pol.FESpace(), &fespace);
-      BTorPerpMatrixGridFunctionCoefficient B_tor_perp_coef(&B_tor, false);
+      BTorPerpMatrixGridFunctionCoefficient B_tor_perp_coef(&B_tor, true);
       b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(B_tor_perp_coef));
       b_bi.Assemble();
 
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    // 1.2.a make the RHS bilinear form for B_pol
    {
       MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
-      JTorPerpMatrixGridFunctionCoefficient J_tor_perp_coef(&J_tor, true);
+      JTorPerpMatrixGridFunctionCoefficient J_tor_perp_coef(&J_tor, false);
       b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(J_tor_perp_coef));
       b_bi.Assemble();
 
