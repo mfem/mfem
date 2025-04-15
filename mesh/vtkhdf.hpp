@@ -174,7 +174,7 @@ private:
    ///@}
 
    /// Hold rank-offset and total size for parallel I/O.
-   struct OffsetTotal { int64_t offset; int64_t total; };
+   struct OffsetTotal { size_t offset; size_t total; };
 
    /// Ensure that the 'Steps' group and 'PointDataOffsets' subgroup exist.
    void EnsureSteps();
@@ -236,7 +236,7 @@ private:
    /// returned total is the sum over all MPI ranks.
    ///
    /// Requires performing 'gather all' operation.
-   OffsetTotal GetOffsetAndTotal(const int64_t loc) const;
+   OffsetTotal GetOffsetAndTotal(const size_t loc) const;
 
    /// @brief Return true if the VTKHDF file is using MPI, false otherwise.
    ///
