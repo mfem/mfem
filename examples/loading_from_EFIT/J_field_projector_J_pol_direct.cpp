@@ -8,20 +8,20 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "mesh/2d_mesh.mesh";
+   const char *mesh_file = "mesh/new_2d_mesh.mesh";
    bool visualization = true;
-   bool project_mesh = false;
-   bool from_psi = false;
+   bool project_mesh = true;
+   bool from_psi = true;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("input/gg.gf");
+   ifstream temp_log("input/new_psi.gf");
    GridFunction temp_gg(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   const char *new_mesh_file = "mesh/2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/new_2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    // refine the mesh
@@ -89,8 +89,8 @@ int main(int argc, char *argv[])
    MixedBilinearForm b_bi(gg.FESpace(), &fespace);
    DenseMatrix perp_rotation(dim);
    perp_rotation(0, 0) = 0.0;
-   perp_rotation(0, 1) = 1.0;
-   perp_rotation(1, 0) = -1.0;
+   perp_rotation(0, 1) = -1.0;
+   perp_rotation(1, 0) = 1.0;
    perp_rotation(1, 1) = 0.0;
    MatrixConstantCoefficient perp_rot_coef(perp_rotation);
    b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(perp_rot_coef));
