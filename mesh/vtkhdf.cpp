@@ -110,7 +110,11 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       for (int i = 1; i < ndims; ++i) { chunk[i] = 16; }
       const hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
       H5Pset_chunk(dcpl, ndims, chunk);
-      if (compression_level >= 0) { H5Pset_deflate(dcpl, compression_level); }
+      if (compression_level >= 0)
+      {
+         H5Pset_shuffle(dcpl);
+         H5Pset_deflate(dcpl, compression_level);
+      }
 
       const hid_t d = H5Dcreate2(f, name_c, type, fspace, H5P_DEFAULT,
                                  dcpl, H5P_DEFAULT);
