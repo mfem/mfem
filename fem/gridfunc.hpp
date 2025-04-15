@@ -1546,7 +1546,15 @@ public:
 
 #ifdef MFEM_USE_HDF5
    /// @brief Save the GridFunction in %VTKHDF format.
-   void SaveVTKHDF(const std::string &fname, const std::string &name="u");
+   ///
+   /// If @a high-order is true, then @a ref controls the order of output. If
+   /// @a ref is -1, then the order of the grid function will be used.
+   ///
+   /// If @a high-order is false, then low-order output will be used. @a ref
+   /// controls the number of mesh refinements; if @a ref is -1, no refinements
+   /// will be performed.
+   void SaveVTKHDF(const std::string &fname, const std::string &name="u",
+                   bool high_order=true, int ref=-1);
 #endif
 
    /** @brief Write the GridFunction in STL format. Note that the mesh dimension
