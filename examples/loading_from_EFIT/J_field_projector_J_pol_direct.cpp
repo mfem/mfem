@@ -8,20 +8,20 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "mesh/new_2d_mesh.mesh";
+   const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool project_mesh = true;
+   bool project_mesh = false;
    bool from_psi = true;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("input/new_psi.gf");
+   ifstream temp_log("input/psi.gf");
    GridFunction temp_gg(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   const char *new_mesh_file = "mesh/new_2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    // refine the mesh
