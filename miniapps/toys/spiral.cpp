@@ -14,7 +14,7 @@
 //             -----------------------------------------------
 //
 // Model of an interesting fidget spiral cone toy. The toy is made out of two
-// parts which can (surprising) pass through each other regardless of their
+// parts which can (surprisingly) pass through each other regardless of their
 // orientation.
 //
 // - STL model by Per Lundberg from https://www.thingiverse.com/thing:6682243
