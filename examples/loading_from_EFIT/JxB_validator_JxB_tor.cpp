@@ -8,7 +8,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *new_mesh_file = "mesh/new_2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
 
    Mesh mesh(new_mesh_file, 1, 1);
