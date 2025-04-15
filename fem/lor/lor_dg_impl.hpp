@@ -169,6 +169,15 @@ void BatchedLOR_DG::Assemble3D()
    QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
    IntegrationRule ir_pp2;
    QuadratureFunctions1D::GaussLobatto(pp2, &ir_pp2);
+   Vector vec_ir_pp1_x(pp1);
+   Vector vec_ir_pp2_x(pp2); 
+   for(int i=0; i < pp1; i++){
+      vec_ir_pp1_x[i] = ir_pp1[i].x;
+   }
+   for(int j=0; j < pp2; j++){
+      vec_ir_pp2_x[j] = ir_pp2[j].x;
+   }
+   
 
    static constexpr int ndof_per_el = pp1*pp1*pp1;
    static constexpr int nnz_per_row = 7;
@@ -190,6 +199,10 @@ void BatchedLOR_DG::Assemble3D()
    auto geom = fes_ho.GetMesh()->GetGeometricFactors(
       ir, GeometricFactors::DETERMINANTS);
    const auto detJ = Reshape(geom->detJ.Read(), pp1, pp1, pp1, nel_ho);
+
+   const auto *d_vec_ir_pp1_x = vec_ir_pp1_x.Read();
+   const auto *d_vec_ir_pp2_x = vec_ir_pp2_x.Read();
+   const real_t d_kappa = kappa;
    
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
@@ -201,9 +214,9 @@ void BatchedLOR_DG::Assemble3D()
 
                //compute A_el and A_ref
 
-               const real_t A_ref = (ir_pp2[ix+1].x - ir_pp2[ix].x)
-                                 * (ir_pp2[iy+1].x - ir_pp2[iy].x)
-                                 * (ir_pp2[iz+1].x - ir_pp2[iz].x);
+               const real_t A_ref = (d_vec_ir_pp2_x[ix+1] - d_vec_ir_pp2_x[ix])
+                                 * (d_vec_ir_pp2_x[iy+1] - d_vec_ir_pp2_x[iy])
+                                 * (d_vec_ir_pp2_x[iz+1] - d_vec_ir_pp2_x[iz]);
 
                const real_t A_el = detJ(ix, iy, iz, iel_ho)*A_ref; 
 
@@ -233,16 +246,12 @@ void BatchedLOR_DG::Assemble3D()
 
                      int int_idx = (n_idx == 0) ? i_0 : (n_idx == 1) ? j_0 : k_0;
 
-                     const real_t A_ref_face = (n_idx == 0) ? (ir_pp2[iy+1].x - ir_pp2[iy].x) * (ir_pp2[iz+1].x - ir_pp2[iz].x) :
-                     (n_idx == 1) ? (ir_pp2[ix+1].x - ir_pp2[ix].x) * (ir_pp2[iz+1].x - ir_pp2[iz].x) :
-                     (ir_pp2[iy+1].x - ir_pp2[iy].x)*(ir_pp2[ix+1].x - ir_pp2[ix].x);
+                     const real_t A_ref_face = (n_idx == 0) ? (d_vec_ir_pp2_x[iy+1] - d_vec_ir_pp2_x[iy]) * (d_vec_ir_pp2_x[iz+1] - d_vec_ir_pp2_x[iz]) :
+                     (n_idx == 1) ? (d_vec_ir_pp2_x[ix+1] - d_vec_ir_pp2_x[ix]) * (d_vec_ir_pp2_x[iz+1] - d_vec_ir_pp2_x[iz]) :
+                     (d_vec_ir_pp2_x[iy+1] - d_vec_ir_pp2_x[iy])*(d_vec_ir_pp2_x[ix+1] - d_vec_ir_pp2_x[ix]);
 
                      const real_t A_ref_perp = A_ref/A_ref_face;
 
-                     Vector v0(3);
-                     Vector v1(3);
-                     Vector v2(3);
-                     Vector v3(3);
 
                      const real_t v0x = X(0, i_0, j_0, k_0, iel_ho); 
                      const real_t v0y = X(1, i_0, j_0, k_0, iel_ho); 
@@ -274,7 +283,7 @@ void BatchedLOR_DG::Assemble3D()
                      if (bdr){
                         const real_t h_recip = A_face*A_ref_perp/(A_ref_face*A_el);
                         //const real_t h_recip = A_ref_perp / A_ref;
-                        V(v_idx, ix, iy, iz, iel_ho) = -dq * kappa * w_1d[w_idx_1] * w_1d[w_idx_2] * A_face* h_recip;
+                        V(v_idx, ix, iy, iz, iel_ho) = -dq * d_kappa * w_1d[w_idx_1] * w_1d[w_idx_2] * A_face* h_recip;
                      }
                      else{
                         const int ix2 = (n_idx == 0) ? ix + (e_i == 0 ? -1 : 1) : ix;
@@ -284,9 +293,9 @@ void BatchedLOR_DG::Assemble3D()
                         //compute A_el_2
                         //For A_el_2, split element into two tetrahedra, then compute volumes of each of these and add
                      
-                        const real_t adj_A_ref = (ir_pp2[ix2+1].x - ir_pp2[ix2].x)
-                                 * (ir_pp2[iy2+1].x - ir_pp2[iy2].x)
-                                 * (ir_pp2[iz2+1].x - ir_pp2[iz2].x);
+                        const real_t adj_A_ref = (d_vec_ir_pp2_x[ix2+1] - d_vec_ir_pp2_x[ix2])
+                                 * (d_vec_ir_pp2_x[iy2+1] - d_vec_ir_pp2_x[iy2])
+                                 * (d_vec_ir_pp2_x[iz2+1] - d_vec_ir_pp2_x[iz2]);
                         
                         const real_t A_el_2 = adj_A_ref*detJ(ix2, iy2, iz2, iel_ho);
 
@@ -306,7 +315,7 @@ void BatchedLOR_DG::Assemble3D()
                         const real_t h = A_ref_face * A_el_avg / (A_ref_perp_avg * A_face);
                         //const real_t h = A_ref_avg/A_ref_perp_avg;
                         V(v_idx, ix, iy, iz, iel_ho) = -dq * A_face * w_1d[w_idx_1] *  w_1d[w_idx_2] / h /
-                                                (ir_pp1[int_idx].x - ir_pp1[int_idx-1].x); 
+                                                (d_vec_ir_pp1_x[int_idx] - d_vec_ir_pp1_x[int_idx-1]); 
                      }
                   }
                }
