@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "unit_tests.hpp"
+#include "mfem.hpp"
 
 #ifdef MFEM_USE_ENZYME
-#include "mfem.hpp"
 #include "fem/dfem/doperator.hpp"
 #include "linalg/tensor.hpp"
 
