@@ -128,6 +128,8 @@ private:
    FieldDescriptor transpose_direction;
    mutable Vector daction_transpose_l;
 
+   std::function<void(Vector &, Vector &)> prolongation_transpose;
+
    std::vector<assemble_derivative_hypreparmatrix_callback_t>
    assemble_derivative_hypreparmatrix_callbacks;
 
@@ -135,7 +137,6 @@ private:
 
    mutable Vector direction_l;
 
-   std::function<void(Vector &, Vector &)> prolongation_transpose;
 };
 
 class DifferentiableOperator : public Operator
