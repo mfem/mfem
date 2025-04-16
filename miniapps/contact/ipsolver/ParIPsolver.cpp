@@ -184,7 +184,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          std::cout << "interior-point solve step " << jOpt << endl;
       }
       // A-2. Check convergence of overall optimization problem
-      printOptimalityError = false;
+      printOptimalityError = true;
       Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
       if(Eevalmu0 < OptTol)
       {
