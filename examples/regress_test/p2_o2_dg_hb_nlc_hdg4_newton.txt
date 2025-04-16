@@ -42,7 +42,7 @@ Preconditioner took 2.2492e-05s.
 Newton iteration  0 : ||r|| = 0.0484297
 Newton iteration  1 : ||r|| = 2.10412e-07, ||r||/||r_0|| = 4.34468e-06
 Newton iteration  2 : ||r|| = 1.57684e-08, ||r||/||r_0|| = 3.25594e-07
-Newton+GMRES/Newton+GMRES converged in 2 iterations with a residual norm of 1.57684e-08.
+Newton+GMRES+GS/Newton+GMRES converged in 2 iterations with a residual norm of 1.57684e-08.
 solver took 0.709971s.
 || q_h - q_ex || / || q_ex || = 8.93065e-05
 || t_h - t_ex || / || t_ex || = 6.62468e-05

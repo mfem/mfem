@@ -78,7 +78,17 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
 
    if (lin_solver)
    {
-      if (!darcy->GetHybridization())
+      if (darcy->GetHybridization())
+      {
+#ifdef MFEM_USE_MPI
+         lin_prec.reset(new HypreBoomerAMG());
+         lin_prec_str = "HypreAMG";
+#else
+         lin_prec.reset(new GSSmoother());
+         lin_prec_str = "GS";
+#endif
+      }
+      else
       {
          SchurPreconditioner *schur;
 #ifdef MFEM_USE_MPI
@@ -90,9 +100,8 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
 #endif
             schur = new SchurPreconditioner(darcy, true);
          lin_prec.reset(schur);
+         lin_prec_str = schur->GetString();
          lin_solver->SetPreconditioner(*lin_prec);
-         prec_str += "+";
-         prec_str += schur->GetString();
       }
 
       lin_solver->SetAbsTol(atol);
@@ -541,6 +550,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    {
       std::cout << solver_str;
       if (!prec_str.empty()) { std::cout << "+" << prec_str; }
+      if (!lin_prec_str.empty()) { std::cout << "+" << lin_prec_str; }
       if (!lsolver_str.empty()) { std::cout << "/" << lsolver_str; }
       if (solver->GetConverged())
       {

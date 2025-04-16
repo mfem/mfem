@@ -50,7 +50,7 @@ Newton iteration  6 : ||r|| = 4.67946e-06, ||r||/||r_0|| = 7.15016e-05
 Newton iteration  7 : ||r|| = 5.78791e-07, ||r||/||r_0|| = 8.84387e-06
 Newton iteration  8 : ||r|| = 7.01511e-08, ||r||/||r_0|| = 1.0719e-06
 Newton iteration  9 : ||r|| = 8.38359e-09, ||r||/||r_0|| = 1.281e-07
-Newton+GMRES/Newton+GMRES converged in 9 iterations with a residual norm of 8.38359e-09.
+Newton+GMRES+GS/Newton+GMRES converged in 9 iterations with a residual norm of 8.38359e-09.
 solver took 2.6769s.
 || q_h - q_ex || / || q_ex || = 0.516971
 || t_h - t_ex || / || t_ex || = 0.000155557

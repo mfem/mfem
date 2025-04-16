@@ -51,7 +51,7 @@ private:
 
    std::string lsolver_str;
    std::unique_ptr<Solver> prec, lin_prec;
-   std::string prec_str;
+   std::string prec_str, lin_prec_str;
    std::unique_ptr<IterativeSolver> solver;
    std::string solver_str;
    std::unique_ptr<IterativeSolverMonitor> monitor;

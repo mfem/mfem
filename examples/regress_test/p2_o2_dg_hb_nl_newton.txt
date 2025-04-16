@@ -80,7 +80,7 @@ Newton iteration 36 : ||r|| = 1.62327e-07, ||r||/||r_0|| = 1.57603e-06
 Newton iteration 37 : ||r|| = 1.38934e-07, ||r||/||r_0|| = 1.34891e-06
 Newton iteration 38 : ||r|| = 1.18913e-07, ||r||/||r_0|| = 1.15453e-06
 Newton iteration 39 : ||r|| = 1.01775e-07, ||r||/||r_0|| = 9.88139e-07
-Newton+GMRES/Newton+GMRES converged in 39 iterations with a residual norm of 1.01775e-07.
+Newton+GMRES+GS/Newton+GMRES converged in 39 iterations with a residual norm of 1.01775e-07.
 solver took 13.3521s.
 || q_h - q_ex || / || q_ex || = 0.000108111
 || t_h - t_ex || / || t_ex || = 1.8685e-05

@@ -44,7 +44,7 @@ Assembly took 0.00299788s.
 Preconditioner took 6.654e-06s.
 Newton iteration  0 : ||r|| = 0.0484297
 Newton iteration  1 : ||r|| = 4.682e-08, ||r||/||r_0|| = 9.66762e-07
-Newton+GMRES/Newton+GMRES converged in 1 iterations with a residual norm of 4.682e-08.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 4.682e-08.
 solver took 0.314616s.
 || q_h - q_ex || / || q_ex || = 8.93096e-05
 || t_h - t_ex || / || t_ex || = 6.62475e-05
