@@ -2155,20 +2155,19 @@ int main(int argc, char *argv[])
 
       // Adaptive time step control.
       const real_t dt_est = hydro->GetTimeStepEstimate(S);
-      // if (ode_solver_type > 10)
-      // {
-      //    if (dt_est > 1e2)
-      //    {
-      //       dt *= 0.85;
-      //       t = t_old;
-      //       S = S_old;
-      //       last_step = false;
-      //       if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
-      //       ti--; continue;
-      //    }
-      // }
-      // else if (dt_est < dt)
-      if (dt_est < dt)
+      if (ode_solver_type > 10)
+      {
+         if (dt_est > 1e2)
+         {
+            dt *= 0.85;
+            t = t_old;
+            S = S_old;
+            last_step = false;
+            if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
+            ti--; continue;
+         }
+      }
+      else if (dt_est < dt)
       {
          // Repeat (solve again) with a decreased time step - decrease of the
          // time estimate suggests appearance of oscillations.
