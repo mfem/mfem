@@ -217,13 +217,13 @@ struct UpdateQuadratureDataQFunction
       const real_t &E,
       const real_t &w) const
    {
-      matd stressJiT = mfem::get<0>(
-                          qdata_setup<false>(
+      auto stressJiT = mfem::get<0>(
+                          qdata_setup(
                              dvdxi, rho0, J0, J, gamma, E, w,
                              external_data[EXT_DATA_IDX::H0],
                              external_data[EXT_DATA_IDX::ORDER_VEL],
                              external_data[EXT_DATA_IDX::CFL],
-                             static_cast<bool>(EXT_DATA_IDX::VISCOSITY_FLAG)));
+                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
       return mfem::tuple{stressJiT};
    }
 
@@ -600,13 +600,6 @@ public:
 
       delete block_petsc;
       block_petsc = new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ);
-      Mat block_petsc_mat = *block_petsc;
-
-      // PetscCall(MatConvert(block_petsc_mat, MATAIJ, MatReuse::MAT_INPLACE_MATRIX,
-      //                      &block_petsc_mat));
-
-      // auto tmp = block_petsc->EliminateRowsCols(offset_ess_tdof_v);
-      // delete tmp;
 
       delete w_petsc;
       w_petsc = new PetscParVector(hydro.H1.GetComm(), *this, true, false);
@@ -751,10 +744,10 @@ public:
       Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
       hydro(hydro),
       dt(dt),
-      x(x),
-      u(x.Size()),
       H1tsize(hydro.H1.GetTrueVSize()),
       L2tsize(hydro.L2.GetTrueVSize()),
+      x(x),
+      u(x.Size()),
       ux_l(hydro.H1.GetVSize()),
       uv_l(hydro.H1.GetVSize()),
       ue_l(hydro.L2.GetVSize()),
@@ -832,7 +825,7 @@ public:
 
    Operator& GetGradient(const Vector &k) const override
    {
-      tic();
+      // tic();
       jacobian.reset(new LagrangianHydroJacobianOperator(dt, H1tsize, L2tsize));
 
       u = k;
@@ -889,17 +882,17 @@ public:
          jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede,
                          dTaylorSourcedx);
 
-         out << "jacobian assemble: " << toc() << "\n";
+         // out << "jacobian assemble: " << toc() << "\n";
          return *jacobian->block_petsc;
       }
    }
 
    hydro_t &hydro;
    const real_t dt;
-   const Vector &x;
-   mutable Vector u, ux_l, uv_l, ue_l, e_source_t;
    const int H1tsize;
    const int L2tsize;
+   const Vector &x;
+   mutable Vector u, ux_l, uv_l, ue_l, e_source_t;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
    mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
    bool fd_gradient;
@@ -1019,10 +1012,10 @@ public:
       {
          dv = 0.0;
 
-         // momentum_mf->SetParameters({&rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
-         momentum_pa->SetParameters({&qdata->stressp});
          H1.GetRestrictionMatrix()->Mult(v, Xv);
+         // momentum_mf->SetParameters({&rho0, &x0, &x, &material, &e});
          // momentum_mf->Mult(Xv, RHSv);
+         momentum_pa->SetParameters({&qdata->stressp});
          momentum_pa->Mult(Xv, RHSv);
          RHSv.Neg();
          H1.GetRestrictionMatrix()->MultTranspose(RHSv, rhsv);
@@ -1071,10 +1064,10 @@ public:
       {
          de = 0.0;
 
-         // energy_conservation_mf->SetParameters({&v, &rho0, &x0, &x, &material, &qdata->h0, &qdata->order_v});
-         energy_conservation_pa->SetParameters({&v, &qdata->stressp});
          L2.GetRestrictionMatrix()->Mult(e, Xe);
+         // energy_conservation_mf->SetParameters({&v, &rho0, &x0, &x, &material});
          // energy_conservation_mf->Mult(Xe, RHSe);
+         energy_conservation_pa->SetParameters({&v, &qdata->stressp});
          energy_conservation_pa->Mult(Xe, RHSe);
          L2.GetRestrictionMatrix()->MultTranspose(RHSe, rhse);
 
@@ -1104,7 +1097,7 @@ public:
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
-      tic();
+      // tic();
 
       auto xptr = const_cast<Vector*>(&x);
 
@@ -1130,7 +1123,7 @@ public:
       {
          lag = 0;
 
-         out << "creating new residual\n";
+         // out << "creating new residual\n";
          current_dt = dt;
          residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
 
@@ -1179,7 +1172,7 @@ public:
       // kx.SyncAliasMemory(k);
       // kv.SyncAliasMemory(k);
       // ke.SyncAliasMemory(k);
-      out << "implicit solve: " << toc() << "\n";
+      // out << "implicit solve: " << toc() << "\n";
    }
 
    void UpdateMesh(const Vector &S) const
@@ -1360,7 +1353,6 @@ static auto CreateLagrangianHydroOperator(
    const int nonlinear_maximum_iterations,
    const real_t nonlinear_relative_tolerance)
 {
-   const int order_v = H1.GetOrder(0);
    ParMesh &mesh = *H1.GetParMesh();
 
    auto qdata = std::make_shared<QuadratureData>(mesh, ir);
@@ -1391,14 +1383,14 @@ static auto CreateLagrangianHydroOperator(
    //                   static_cast<real_t>(H1.GetOrder(0));
 
    // qdata->order_v = order_v;
-   // qdata->dt_est = std::numeric_limits<real_t>::infinity();
+   qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
    const auto d_external_data = external_data.Read();
 
    Array<int> all_domain_attr(mesh.attributes.Max());
    all_domain_attr = 1;
 
-   std::shared_ptr<DifferentiableOperator> dt_est;
+   std::shared_ptr<DifferentiableOperator> dt_est_mf;
    {
       mfem::tuple dt_est_kernel_ao =
       {
@@ -1428,13 +1420,13 @@ static auto CreateLagrangianHydroOperator(
          FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2},
       };
 
-      dt_est = std::make_shared<DifferentiableOperator>(
-                  dt_est_solutions, dt_est_parameters, mesh);
+      dt_est_mf = std::make_shared<DifferentiableOperator>(
+                     dt_est_solutions, dt_est_parameters, mesh);
       TimeStepEstimateQFunction dt_est_qf(d_external_data);
-      dt_est->AddDomainIntegrator(dt_est_qf, dt_est_kernel_ao,
-                                  dt_est_kernel_oo,
-                                  ir,
-                                  all_domain_attr);
+      dt_est_mf->AddDomainIntegrator(dt_est_qf, dt_est_kernel_ao,
+                                     dt_est_kernel_oo,
+                                     ir,
+                                     all_domain_attr);
    }
 
    std::shared_ptr<DifferentiableOperator> update_qdata;
@@ -1748,7 +1740,7 @@ static auto CreateLagrangianHydroOperator(
              rho0_gf,
              material_gf,
              update_qdata,
-             dt_est,
+             dt_est_mf,
              momentum_mf,
              momentum_pa,
              energy_conservation_mf,
@@ -1840,6 +1832,8 @@ int main(int argc, char *argv[])
    char** petsc_args = petsc_argv.data();
 
    MFEMInitializePetsc(&petsc_argc, &petsc_args);
+
+   out << std::setprecision(6);
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
 
@@ -2161,19 +2155,20 @@ int main(int argc, char *argv[])
 
       // Adaptive time step control.
       const real_t dt_est = hydro->GetTimeStepEstimate(S);
-      if (ode_solver_type > 10)
-      {
-         if (dt_est > 1e2)
-         {
-            dt *= 0.85;
-            t = t_old;
-            S = S_old;
-            last_step = false;
-            if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
-            ti--; continue;
-         }
-      }
-      else if (dt_est < dt)
+      // if (ode_solver_type > 10)
+      // {
+      //    if (dt_est > 1e2)
+      //    {
+      //       dt *= 0.85;
+      //       t = t_old;
+      //       S = S_old;
+      //       last_step = false;
+      //       if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
+      //       ti--; continue;
+      //    }
+      // }
+      // else if (dt_est < dt)
+      if (dt_est < dt)
       {
          // Repeat (solve again) with a decreased time step - decrease of the
          // time estimate suggests appearance of oscillations.
