@@ -6,6 +6,7 @@ Options used:
    --size-y 1
    --order 2
    --discontinuous
+   --no-broken-RT
    --centered
    --problem 1
    --time-final 1
@@ -15,6 +16,7 @@ Options used:
    --velocity 1
    --stab_diff 0.5
    --no-bc-neumann
+   --no-reduction
    --hybridization
    --no-nonlinear
    --no-nonlinear-convection
@@ -30,19 +32,18 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.00785511s.
+Hybridization init took 0.00826646s.
 ***********************************************************
 dim(V) = 1800
 dim(W) = 900
 dim(M) = 660
 dim(V+W+M) = 3360
 ***********************************************************
-Assembly took 0.0224295s.
-Preconditioner took 1.2079e-05s.
+Assembly took 0.055207s.
+Preconditioner took 4.3616e-05s.
 Newton iteration  0 : ||r|| = 1.46578
-Newton iteration  1 : ||r|| = 4.74065e-06, ||r||/||r_0|| = 3.23421e-06
-Newton iteration  2 : ||r|| = 2.28888e-08, ||r||/||r_0|| = 1.56154e-08
-Newton+GMRES+GS/Newton+GMRES converged in 2 iterations with a residual norm of 2.28888e-08.
-solver took 0.347423s.
-|| q_h - q_ex || / || q_ex || = 0.00024713
+Newton iteration  1 : ||r|| = 6.23817e-08, ||r||/||r_0|| = 4.25587e-08
+Newton+GMRES+GS/Newton+GMRES converged in 1 iterations with a residual norm of 6.23817e-08.
+solver took 0.338429s.
+|| q_h - q_ex || / || q_ex || = 0.000247131
 || t_h - t_ex || / || t_ex || = 0.000241709

@@ -15,6 +15,7 @@ Options used:
    --velocity 1
    --stab_diff 0.5
    --no-bc-neumann
+   --no-reduction
    --hybridization
    --nonlinear
    --no-nonlinear-convection
@@ -28,21 +29,22 @@ Options used:
    --no-paraview
    --no-visualization
    --no-analytic
+   --serial-format
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.00615627s.
+Mesh::GeneratePartitioning(...): edgecut = 10
+Hybridization init took 0.00300009s.
 ***********************************************************
-dim(V) = 1800
-dim(W) = 900
-dim(M) = 660
-dim(V+W+M) = 3360
+dim(V) = 900
+dim(W) = 450
+dim(M) = 345
+dim(V+W+M) = 1695
 ***********************************************************
-Assembly took 0.00872792s.
-Preconditioner took 1.1338e-05s.
+Assembly took 0.00308207s.
+Preconditioner took 4.1958e-05s.
 Newton iteration  0 : ||r|| = 1.46578
-Newton iteration  1 : ||r|| = 4.74e-06, ||r||/||r_0|| = 3.23377e-06
-Newton iteration  2 : ||r|| = 2.94584e-07, ||r||/||r_0|| = 2.00974e-07
-Newton+GMRES+HypreAMG/Newton+GMRES converged in 2 iterations with a residual norm of 2.94584e-07.
-solver took 0.490344s.
-|| q_h - q_ex || / || q_ex || = 0.00024713
-|| t_h - t_ex || / || t_ex || = 0.00024171
+Newton iteration  1 : ||r|| = 6.22401e-08, ||r||/||r_0|| = 4.24621e-08
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 6.22401e-08.
+solver took 0.134903s.
+|| q_h - q_ex || / || q_ex || = 0.000247131
+|| t_h - t_ex || / || t_ex || = 0.000241709

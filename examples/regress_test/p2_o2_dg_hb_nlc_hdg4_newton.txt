@@ -6,6 +6,7 @@ Options used:
    --size-y 1
    --order 2
    --discontinuous
+   --no-broken-RT
    --centered
    --problem 2
    --time-final 1
@@ -15,6 +16,7 @@ Options used:
    --velocity 1
    --stab_diff 0.5
    --no-bc-neumann
+   --no-reduction
    --hybridization
    --nonlinear
    --nonlinear-convection
@@ -30,19 +32,24 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.00734077s.
+
+
+MFEM Warning: Upwinded flux is implemented only component-wise.
+ ... in function: mfem::ComponentwiseUpwindFlux::ComponentwiseUpwindFlux(const mfem::FluxFunction&)
+ ... in file: fem/hyperbolic.cpp:865
+
+Hybridization init took 0.00678614s.
 ***********************************************************
 dim(V) = 1800
 dim(W) = 900
 dim(M) = 660
 dim(V+W+M) = 3360
 ***********************************************************
-Assembly took 0.00922113s.
-Preconditioner took 2.2492e-05s.
+Assembly took 0.0168531s.
+Preconditioner took 4.6723e-05s.
 Newton iteration  0 : ||r|| = 0.0484297
-Newton iteration  1 : ||r|| = 2.10412e-07, ||r||/||r_0|| = 4.34468e-06
-Newton iteration  2 : ||r|| = 1.57684e-08, ||r||/||r_0|| = 3.25594e-07
-Newton+GMRES+GS/Newton+GMRES converged in 2 iterations with a residual norm of 1.57684e-08.
-solver took 0.709971s.
-|| q_h - q_ex || / || q_ex || = 8.93065e-05
-|| t_h - t_ex || / || t_ex || = 6.62468e-05
+Newton iteration  1 : ||r|| = 4.67701e-08, ||r||/||r_0|| = 9.65732e-07
+Newton+GMRES+GS/Newton+GMRES converged in 1 iterations with a residual norm of 4.67701e-08.
+solver took 0.416255s.
+|| q_h - q_ex || / || q_ex || = 8.93096e-05
+|| t_h - t_ex || / || t_ex || = 6.62475e-05

@@ -88,6 +88,9 @@ for i, filename in enumerate(filenames):
 	ref_L2_q = float(ref_out[-2][ref_L2_q_idx+2::])
 	ref_solver_idx = ref_out[-4].find(' ')
 	ref_solver = ref_out[-4][:ref_solver_idx]
+	ref_iters_idx_a = ref_out[-4].find('converged in')
+	ref_iters_idx_b = ref_out[-4].find(' iterations')
+	ref_iters = int(ref_out[-4][ref_iters_idx_a+13:ref_iters_idx_b])
 
 	# Construct the command line
 	if parallel:
@@ -137,18 +140,25 @@ for i, filename in enumerate(filenames):
 		test_L2_q = float(split_cmd_out[-2][test_L2_q_idx+2::])
 		test_solver_idx = split_cmd_out[-4].find(' ')
 		test_solver = split_cmd_out[-4][:test_solver_idx]
+		test_iters_idx_a = split_cmd_out[-4].find('converged in ')
+		test_iters_idx_b = split_cmd_out[-4].find(' iterations')
+		test_iters = int(split_cmd_out[-4][test_iters_idx_a+13:test_iters_idx_b])
 	except:
 		fail = True
 
 	if not fail:
-		if test_solver == ref_solver:
+		if test_solver == ref_solver and test_iters == ref_iters:
 			if equal(ref_L2_t, test_L2_t) and equal(ref_L2_q, test_L2_q):
 				print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
 			else:
 				fail = True
-		else:
+		elif test_solver != ref_solver:
 			print(f"{bcolors.HEADER}SKIPPING:{bcolors.RESET} {command_line} → incompatible preconditioner")
 			skipped += 1
+		else:
+			print(f"{bcolors.WARN}DIFFERS:{bcolors.RESET} {command_line} → different number of iterations")
+			print(cmd_out)
+			failed += 1
 	
 	if fail:
 		print(f"{bcolors.FAIL}FAILING:{bcolors.RESET} {command_line}", flush=True)
