@@ -29,15 +29,6 @@ public:
    /// Return the provisional pressure ParGridFunction.
    ParGridFunction* GetProvisionalPressure() { return npres.get(); }
 
-   void SetTheta(real_t t1=real_t(0.5),real_t t2=real_t(0.5),
-                 real_t t3=real_t(0.5),real_t t4=real_t(0.5))
-   {
-      thet1=t1;
-      thet2=t2;
-      thet3=t3;
-      thet4=t4;
-   }
-
    void SetBrinkman(std::shared_ptr<Coefficient> brink_)
    {
       brink = brink_;
@@ -49,11 +40,13 @@ public:
    }
 
    //velocity boundary conditions
-   void AddVelocityBC(int id, std::shared_ptr<VectorCoefficient> val);
+   void AddVelocityBC(int id, std::shared_ptr<VectorCoefficient> val)
+   {
+       vel_bcs[id]=val;
+   }
 
 private:
 
-   real_t thet1,thet2,thet3,thet4;
 
 
     /// Enable/disable debug output.
@@ -127,7 +120,6 @@ private:
    void SetEssTDofs(mfem::Array<int>& ess_dofs);
    void SetEssTDofs(real_t t, ParGridFunction& pgf);
 
-   std::unique_ptr<ParBilinearForm> K;
 
 };//end NavierSolverGCN
 

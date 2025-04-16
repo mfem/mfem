@@ -7,17 +7,13 @@ namespace mfem {
 
 
 NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coefficient> visc_):
-    pmesh(mesh), order(order), 
-    thet1(real_t(0.5)), thet2(real_t(0.5)),thet3(real_t(0.5)),thet4(real_t(0.5))
+    pmesh(mesh), order(order_)
 {
 
    vfec.reset(new H1_FECollection(order, pmesh->Dimension()));
    pfec.reset(new H1_FECollection(order));
    vfes.reset(new ParFiniteElementSpace(pmesh, vfec.get(), pmesh->Dimension()));
    pfes.reset(new ParFiniteElementSpace(pmesh, pfec.get()));
-
-   int vfes_truevsize = vfes->GetTrueVSize();
-   int pfes_truevsize = pfes->GetTrueVSize();
 
    //velocity
    cvel.reset(new ParGridFunction(vfes.get())); *cvel=real_t(0.0);
@@ -139,28 +135,36 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
    
    // Set up the bilinear form for A11
    A11.reset(new ParBilinearForm(vfes.get()));
+   if(partial_assembly)
+   {
+       A11->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
 
+   //viscosity term
    visc->SetTime(t+dt);
-   nvisc.reset(new ProductCoefficient(dt*thet1, *visc));
+   nvisc.reset(new ProductCoefficient(dt*0.5, *visc));
+   A11->AddDomainIntegrator(new ElasticityIntegrator(zerocoef,*nvisc));
 
+   //mass term
    A11->AddDomainIntegrator(new VectorMassIntegrator(onecoeff));
+
+   //Brinkman term
    if(brink != nullptr)
    {
       brink->SetTime(t+dt);
-      nbrink.reset(new ProductCoefficient(dt*thet1, *brink));
+      nbrink.reset(new ProductCoefficient(dt*0.5, *brink));
       A11->AddDomainIntegrator(new VectorMassIntegrator(*nbrink));
    }
 
-   A11->AddDomainIntegrator(new VectorConvectionIntegrator(nvelc, dt*thet1));
-   A11->AddDomainIntegrator(new ElasticityIntegrator(zerocoef,*nvisc));
 
    A11->Update();   
    A11->Assemble();
    A11->Finalize();
    A11->FormSystemMatrix(ess_tdofv, A11H);
 
-   icoeff.constant = dt*thet1;
+   icoeff.constant = dt*0.5;
 
+   //the blocks A12 and A21 are not scaled with 0.5*dt
    if(A21==nullptr)
    {
       A12.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));  
@@ -184,8 +188,9 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
 
    AB.reset(new BlockOperator(block_true_offsets));
    AB->SetBlock(0,0,A11H.Ptr());
-   AB->SetBlock(0,1,A12H.Ptr(),dt*thet1);
-   AB->SetBlock(1,0,A21H.Ptr(),dt*thet1);
+   //scale the blocks A12 and A21
+   AB->SetBlock(0,1,A12H.Ptr(),dt*0.5);
+   AB->SetBlock(1,0,A21H.Ptr(),dt*0.5);
 
    //set the preconditioner
    
@@ -199,29 +204,6 @@ void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
 
    rhs.SetSize(vfes->TrueVSize());
    rhs = 0.0;
-
-   //set the contribution from the viscous term
-   visc->SetTime(t);
-   K.reset(new ParBilinearForm(vfes.get()));
-   K->AddDomainIntegrator(new ElasticityIntegrator(zerocoef,*visc));
-   K->Update();
-   K->Assemble();
-   K->Finalize();
-
-   Vector& vv=pvel->GetTrueVector();
-   K->Mult(vv, rhs); 
-   
-   //set the contribution from the rest of the terms
-   {
-       if(brink != nullptr)
-       {
-           brink->SetTime(t);
-       }
-       NSResCoeff rescoeff(*pvel,brink,-dt*thet2);
-       ParLinearForm lf(vfes.get());
-   }
-
-
 
 
 }
