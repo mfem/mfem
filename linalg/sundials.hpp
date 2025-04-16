@@ -313,7 +313,7 @@ public:
    /// Typecasting to SUNDIALS' N_Vector type
    operator N_Vector() const { return x; }
 
-   /// Changes the ownership of the the vector
+   /// Changes the ownership of the vector
    N_Vector StealNVector() { own_NVector = 0; return x; }
 
    /// Sets ownership of the internal N_Vector

@@ -638,6 +638,10 @@ public:
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out) const;
 
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<ParGridFunction> ProlongateToMaxOrder() const;
+
    virtual ~ParGridFunction() = default;
 };
 

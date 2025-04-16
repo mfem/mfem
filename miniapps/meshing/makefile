@@ -26,9 +26,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
-	ref321 mesh-quality
+	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	mesh-bounding-boxes
+	phpref mesh-bounding-boxes
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -100,6 +100,10 @@ pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 reflector-test-seq: reflector
 	@$(call mfem-test-file,$<,, Meshing miniapp,reflected.mesh)
+hpref-test-seq: hpref
+	@$(call mfem-test,$<,, Serial hp-refinement)
+phpref-test-par: phpref
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel hp-refinement)
 ref321-test-seq: ref321
 	@$(call mfem-test-file,$<,, Meshing miniapp,ref321.mesh)
 
@@ -127,4 +131,4 @@ clean-exec:
 	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
 	@rm -f optimized* perturbed* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
-	@rm -rf jacobian-determinant-bounds* bounding-box*
+	@rm -f mesh.* order.* sol.* refined.mesh jacobian-determinant-bounds* bounding-box*

@@ -3,6 +3,7 @@
 // Compile with: make ex6p
 //
 // Sample runs:  mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -o 2
+//               mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -pref
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2 -h1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -cs
@@ -28,7 +29,7 @@
 //               mpirun -np 4 ex6p -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
-//               refinement loop. The problem being solved is again the Laplace
+//               refinement loop. The problem being solved is again the Poisson
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
@@ -40,6 +41,12 @@
 //               linear, curved and surface meshes. Interpolation of functions
 //               from coarse to fine meshes, restarting from a checkpoint, as
 //               well as persistent GLVis visualization are also illustrated.
+//
+//               There is also the option to use hp-refinement. Real
+//               applications should use some problem-dependent criteria for
+//               selecting between h- and p-refinement, but in this example, we
+//               simply alternate between refinement types to demonstrate the
+//               capabilities.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -69,6 +76,8 @@ int main(int argc, char *argv[])
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
+   bool rebalance = true;
+   bool usePRefinement = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -90,6 +99,10 @@ int main(int argc, char *argv[])
                   "Stop after reaching this many degrees of freedom.");
    args.AddOption(&smooth_rt, "-rt", "--smooth-rt", "-h1", "--smooth-h1",
                   "Represent the smooth flux in RT or vector H1 space.");
+   args.AddOption(&usePRefinement, "-pref", "--p-refine", "-no-pref",
+                  "--no-p-refine", "Alternate between h- and p-refinement.");
+   args.AddOption(&rebalance, "-reb", "--rebalance", "-no-reb",
+                  "--no-rebalance", "Load balance the nonconforming mesh.");
    args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
                   "Restart computation from the last checkpoint.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -107,6 +120,15 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   if (usePRefinement && rebalance)
+   {
+      rebalance = false;
+      if (myid == 0)
+      {
+         cout << "Load balancing is not performed with p-refinements.\n";
+      }
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -186,7 +208,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(pmesh, &fec);
 
    // 11. As in Example 1p, we set up bilinear and linear forms corresponding to
-   //     the Laplace problem -\Delta u = 1. We don't assemble the discrete
+   //     the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //     problem yet, this will be done in the main loop.
    ParBilinearForm a(&fespace);
    if (pa)
@@ -321,7 +343,15 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
-         sout << "solution\n" << *pmesh << x << flush;
+         if (usePRefinement)
+         {
+            std::unique_ptr<GridFunction> vis_x = x.ProlongateToMaxOrder();
+            sout << "solution\n" << *pmesh << *vis_x << flush;
+         }
+         else
+         {
+            sout << "solution\n" << *pmesh << x << flush;
+         }
       }
 
       if (global_dofs >= max_dofs)
@@ -337,8 +367,31 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
-      refiner.Apply(*pmesh);
-      if (refiner.Stop())
+
+      // Simply alternate between h- and p-refinement.
+      const bool pRefine = usePRefinement && ((it % 2) == 1);
+      bool stop = false;
+      Array<pRefinement> prefinements;
+      if (pRefine)
+      {
+         Array<Refinement> refinements;
+         refiner.MarkWithoutRefining(*pmesh, refinements);
+         stop = pmesh->ReduceInt(refinements.Size()) == 0LL;
+
+         prefinements.SetSize(refinements.Size());
+         for (int i=0; i<refinements.Size(); ++i)
+         {
+            prefinements[i].index = refinements[i].index;
+            prefinements[i].delta = 1;  // Increase the element order by 1
+         }
+      }
+      else
+      {
+         refiner.Apply(*pmesh);
+         stop = refiner.Stop();
+      }
+
+      if (stop)
       {
          if (myid == 0)
          {
@@ -352,12 +405,20 @@ int main(int argc, char *argv[])
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
       //     still represent the same function as before refinement.
-      fespace.Update();
+      if (pRefine)
+      {
+         fespace.PRefineAndUpdate(prefinements);
+      }
+      else
+      {
+         fespace.Update();
+      }
+
       x.Update();
 
       // 25. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
-      if (pmesh->Nonconforming())
+      if (pmesh->Nonconforming() && rebalance)
       {
          pmesh->Rebalance();
 
@@ -387,6 +448,42 @@ int main(int argc, char *argv[])
             cout << "\nCheckpoint saved." << endl;
          }
       }
+   }
+
+   // Save result
+   if (usePRefinement)
+   {
+      L2_FECollection fecL2(0, dim);
+      ParFiniteElementSpace l2fespace(pmesh, &fecL2);
+      ParGridFunction xo(&l2fespace); // Element order field
+      xo = 0.0;
+
+      for (int e=0; e<pmesh->GetNE(); ++e)
+      {
+         const int p_elem = fespace.GetElementOrder(e);
+         Array<int> dofs;
+         l2fespace.GetElementDofs(e, dofs);
+         xo[dofs[0]] = p_elem;
+      }
+
+      ostringstream mesh_name, sol_name, order_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      order_name << "order." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->ParPrint(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+
+      std::unique_ptr<ParGridFunction> vis_x = x.ProlongateToMaxOrder();
+      vis_x->Save(sol_ofs);
+
+      ofstream order_ofs(order_name.str().c_str());
+      order_ofs.precision(8);
+      xo.Save(order_ofs);
    }
 
    delete smooth_flux_fes;

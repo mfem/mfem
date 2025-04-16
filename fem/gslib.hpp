@@ -96,7 +96,7 @@ protected:
    // Tolerance to ignore points found beyond the mesh boundary.
    // i.e. if ||x*-x(r)||_2^2 > bdr_tol, we mark point as not found.
    double     bdr_tol;
-   // Use CPU functions for mesh/gridfunction on device for gslib1.0.7
+   // Use CPU functions for Mesh/GridFunction on device for gslib1.0.7
    bool       gpu_to_cpu_fallback = false;
 
    // Device specific data used for FindPoints
@@ -141,22 +141,16 @@ protected:
 
    // Device functions
    // FindPoints locally on device for 3D.
-   void FindPointsLocal3(const Vector &point_pos,
-                         int point_pos_ordering,
+   void FindPointsLocal3(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
-                         Array<unsigned int> &gsl_elem_dev_l,
-                         Vector &gsl_ref_l,
-                         Vector &gsl_dist_l,
-                         int npt);
+                         Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
+                         Vector &gsl_dist_l, int npt);
 
    // FindPoints locally on device for 2D.
-   void FindPointsLocal2(const Vector &point_pos,
-                         int point_pos_ordering,
+   void FindPointsLocal2(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
-                         Array<unsigned int> &gsl_elem_dev_l,
-                         Vector &gsl_ref_l,
-                         Vector &gsl_dist_l,
-                         int npt);
+                         Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
+                         Vector &gsl_dist_l, int npt);
 
    // Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
@@ -183,7 +177,7 @@ protected:
                            int point_pos_ordering = Ordering::byNODES);
 
    /** Interpolation of field values at prescribed reference space positions.
-       @param[in] field_in_evec E-vector of gridfunction to be interpolated.
+       @param[in] field_in_evec E-vector of grid function to be interpolated.
                                 Assumed ordering is NDOFSxVDIMxNEL
        @param[in] nel           Number of elements in the mesh.
        @param[in] ncomp         Number of components in the field.
@@ -246,8 +240,8 @@ public:
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES,
-                   const double bb_t = 0.1,
-                   const double newt_tol = 1.0e-12,  const int npt_max = 256);
+                   const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+                   const int npt_max = 256);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in    Function values that will be interpolated on the

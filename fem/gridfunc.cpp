@@ -15,6 +15,7 @@
 #include "linearform.hpp"
 #include "bilinearform.hpp"
 #include "quadinterpolator.hpp"
+#include "transfer.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 #ifdef MFEM_USE_GSLIB
@@ -180,21 +181,48 @@ void GridFunction::Update()
    }*/
    fes_sequence = fes->GetSequence();
 
-   const Operator *T = fes->GetUpdateOperator();
-   if (T)
+   if (fes->LastUpdatePRef())
    {
-      Vector old_data;
-      old_data.Swap(*this);
-      SetSize(T->Height());
-      UseDevice(true);
-      T->Mult(old_data, *this);
+      UpdatePRef();
    }
    else
    {
-      SetSize(fes->GetVSize());
+      const Operator *T = fes->GetUpdateOperator();
+      if (T)
+      {
+         Vector old_data;
+         old_data.Swap(*this);
+         SetSize(T->Height());
+         UseDevice(true);
+         T->Mult(old_data, *this);
+      }
+      else
+      {
+         SetSize(fes->GetVSize());
+      }
    }
 
    if (t_vec.Size() > 0) { SetTrueVector(); }
+}
+
+void GridFunction::UpdatePRef()
+{
+   const std::shared_ptr<const PRefinementTransferOperator> Tp =
+      fes->GetPrefUpdateOperator();
+   if (Tp)
+   {
+      Vector old_data;
+      old_data.Swap(*this);
+      MFEM_VERIFY(Tp->Width() == old_data.Size(),
+                  "Wrong size of PRefinementTransferOperator in UpdatePRef");
+      SetSize(Tp->Height());
+      UseDevice(true);
+      Tp->Mult(old_data, *this);
+   }
+   else
+   {
+      MFEM_ABORT("Transfer operator undefined in GridFunction::UpdatePRef");
+   }
 }
 
 void GridFunction::SetSpace(FiniteElementSpace *f)
@@ -1164,31 +1192,30 @@ void GridFunction::GetVectorFieldValues(
    Array<int> vdofs;
    ElementTransformation *transf;
 
-   int d, k, n, sdim, dof;
-
-   n = ir.GetNPoints();
+   const int n = ir.GetNPoints();
    DofTransformation * doftrans = fes->GetElementVDofs(i, vdofs);
    const FiniteElement *fe = fes->GetFE(i);
-   dof = fe->GetDof();
-   sdim = fes->GetMesh()->SpaceDimension();
+   const int dof = fe->GetDof();
+   const int sdim = fes->GetMesh()->SpaceDimension();
+   const int vdim = std::max(sdim, fe->GetRangeDim());
    // int *dofs = &vdofs[comp*dof];
    transf = fes->GetElementTransformation(i);
    transf->Transform(ir, tr);
-   vals.SetSize(n, sdim);
-   DenseMatrix vshape(dof, sdim);
-   Vector loc_data, val(sdim);
+   vals.SetSize(n, vdim);
+   DenseMatrix vshape(dof, vdim);
+   Vector loc_data, val(vdim);
    GetSubVector(vdofs, loc_data);
    if (doftrans)
    {
       doftrans->InvTransformPrimal(loc_data);
    }
-   for (k = 0; k < n; k++)
+   for (int k = 0; k < n; k++)
    {
       const IntegrationPoint &ip = ir.IntPoint(k);
       transf->SetIntPoint(&ip);
       fe->CalcVShape(*transf, vshape);
       vshape.MultTranspose(loc_data, val);
-      for (d = 0; d < sdim; d++)
+      for (int d = 0; d < vdim; d++)
       {
          vals(k,d) = val(d);
       }
@@ -1257,37 +1284,33 @@ void GridFunction::ProjectVectorFieldOn(GridFunction &vec_field, int comp)
 {
    FiniteElementSpace *new_fes = vec_field.FESpace();
 
-   int d, i, k, ind, dof, sdim;
    Array<int> overlap(new_fes->GetVSize());
    Array<int> new_vdofs;
    DenseMatrix vals, tr;
 
-   sdim = fes->GetMesh()->SpaceDimension();
    overlap = 0;
    vec_field = 0.0;
 
-   for (i = 0; i < new_fes->GetNE(); i++)
+   for (int i = 0; i < new_fes->GetNE(); i++)
    {
       const FiniteElement *fe = new_fes->GetFE(i);
       const IntegrationRule &ir = fe->GetNodes();
       GetVectorFieldValues(i, ir, vals, tr, comp);
       new_fes->GetElementVDofs(i, new_vdofs);
-      dof = fe->GetDof();
-      for (d = 0; d < sdim; d++)
+      const int dof = fe->GetDof();
+      for (int d = 0; d < vals.Width(); d++)
       {
-         for (k = 0; k < dof; k++)
+         for (int k = 0; k < dof; k++)
          {
-            if ( (ind=new_vdofs[dof*d+k]) < 0 )
-            {
-               ind = -1-ind, vals(k, d) = - vals(k, d);
-            }
-            vec_field(ind) += vals(k, d);
+            real_t s;
+            int ind = FiniteElementSpace::DecodeDof(new_vdofs[dof*d+k], s);
+            vec_field(ind) += s * vals(k, d);
             overlap[ind]++;
          }
       }
    }
 
-   for (i = 0; i < overlap.Size(); i++)
+   for (int i = 0; i < overlap.Size(); i++)
    {
       vec_field(i) /= overlap[i];
    }
@@ -3976,6 +3999,30 @@ void GridFunction::LegacyNCReorder()
    }
 
    Vector::Swap(tmp);
+}
+
+std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
+{
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElementCollection *fesc = fes->FEColl();
+   const int vdim = fes->GetVDim();
+
+   // Find the max order in the space
+   int maxOrder = fes->GetMaxElementOrder();
+
+   // Create a space of maximum order over all elements for output
+   FiniteElementCollection *fecMax = fesc->Clone(maxOrder);
+   FiniteElementSpace *fesMax = new FiniteElementSpace(mesh, fecMax, vdim,
+                                                       fes->GetOrdering());
+
+   GridFunction *xMax = new GridFunction(fesMax);
+
+   // Interpolate in the maximum-order space
+   PRefinementTransferOperator P(*fes, *fesMax);
+   P.Mult(*this, *xMax);
+
+   xMax->MakeOwner(fecMax);
+   return std::unique_ptr<GridFunction>(xMax);
 }
 
 real_t ZZErrorEstimator(BilinearFormIntegrator &blfi,
