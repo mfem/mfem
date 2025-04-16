@@ -9,13 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include <mfem.hpp>
-#include "linalg/hypre.hpp"
-#include "linalg/petsc.hpp"
 #include "petscmat.h"
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
-#include <fem/dfem/doperator.hpp>
-#include <linalg/tensor.hpp>
+#include "../fem/dfem/doperator.hpp"
+#include "../linalg/tensor.hpp"
 
 #include <limits>
 #include <memory>

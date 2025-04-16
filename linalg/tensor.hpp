@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,8 +18,8 @@
 #ifndef MFEM_INTERNAL_TENSOR_HPP
 #define MFEM_INTERNAL_TENSOR_HPP
 
+#include "../general/backends.hpp"
 #include "dual.hpp"
-#include "general/backends.hpp"
 #include <limits>
 #include <type_traits> // for std::false_type
 
@@ -1715,8 +1715,10 @@ inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
  * @note For N-by-N matrices with N > 3, requires Gaussian elimination
  * with partial pivoting
  */
-template <typename T, int n> MFEM_HOST_DEVICE
-tensor<T, n, n> inv(const tensor<T, n, n>& A)
+template <typename T, int n>
+MFEM_HOST_DEVICE
+typename std::enable_if<(n > 3), tensor<T, n, n>>::type
+                                               inv(const tensor<T, n, n>& A)
 {
    auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
