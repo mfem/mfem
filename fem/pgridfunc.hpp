@@ -577,10 +577,11 @@ public:
                     GridFunction &flux,
                     bool wcoef = true, int subdomain = -1) override;
 
-   /// Computes the \ref PLBound for the gridfunction with number of control
-   /// points based on @a ref_factor, and returns the bounds across each
-   /// vdim for all elements in @b lower and @b upper. We also return the
-   /// PLBound object used to compute the bounds.
+   /// Computes the PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the bounds for each
+   /// vdim across all elements in @b lower and @b upper. We also return the
+   /// PLBound object used to compute the bounds. Note: if vdim < 1, we compute
+   /// the bounds for each vector dimension.
    PLBound GetBounds(Vector &lower, Vector &upper,
                      const int ref_factor=1, const int vdim=-1) override;
 
