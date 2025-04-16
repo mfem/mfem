@@ -140,11 +140,12 @@ int main (int argc, char *argv[])
    }
 
    L2_FECollection fec_pc(0, dim);
-   ParFiniteElementSpace fes_pc(&pmesh, &fec_pc, Ordering::byNODES, vdim);
+   ParFiniteElementSpace fes_pc(&pmesh, &fec_pc, vdim, Ordering::byNODES);
    ParGridFunction lowerb(&fes_pc), upperb(&fes_pc);
 
    // Compute bounds
    pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+   std::cout << lowerb.GetData() << " k102\n";
 
    Vector bound_min(vdim), bound_max(vdim);
    for (int d = 0; d < vdim; d++)
