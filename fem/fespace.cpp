@@ -298,8 +298,9 @@ struct DerefineMatrixOpMultTFunctor<Ordering::byVDIM, Atomic>
 
 } // namespace internal
 
-struct DerefineMatrixOp : public Operator
+class DerefineMatrixOp : public Operator
 {
+public:
    FiniteElementSpace *fespace;
    /// offsets into block_storage
    Array<int> block_offsets;
@@ -391,8 +392,6 @@ struct DerefineMatrixOp : public Operator
          for (int k = 0; k < dtrans.embeddings.Size(); ++k)
          {
             const Embedding &emb = dtrans.embeddings[k];
-            Geometry::Type geom =
-               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
             fe = fespace->GetFE(emb.parent);
             const int ldof = fe->GetDof();
             if (k + 1 < dtrans.embeddings.Size())
