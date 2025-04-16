@@ -30,7 +30,9 @@ namespace mfem
 {
 
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
- *  collection of points.
+ *  collection of points. See Mittal et al., "General Field Evaluation in
+ *  High-Order Meshes on GPUs". (2025). Computers & Fluids. for technical
+ *  details.
  *
  *  There are three key functions in FindPointsGSLIB:
  *
