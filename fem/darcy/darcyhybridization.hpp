@@ -17,6 +17,7 @@
 #include "../nonlinearform.hpp"
 
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#define MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
 namespace mfem
 {
@@ -107,6 +108,10 @@ private:
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
 
+   mutable std::unique_ptr<SparseMatrix> Grad;
+   mutable OperatorHandle pGrad;
+
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    friend class Gradient;
    class Gradient : public Operator
    {
@@ -117,7 +122,7 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override;
    };
-   mutable OperatorHandle pGrad;
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
 #ifdef MFEM_USE_MPI
    friend class ParOperator;
@@ -134,6 +139,7 @@ private:
    };
    mutable OperatorHandle pOp;
 
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    class ParGradient : public Operator
    {
       const DarcyHybridization &dh;
@@ -143,6 +149,7 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override;
    };
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 #endif //MFEM_USE_MPI
 
    enum class LocalOpType { FluxNL, PotNL, FullNL };
@@ -252,7 +259,12 @@ private:
                   Vector &y) const;
    void InvertA();
    void InvertD();
-   void ComputeH();
+   enum class ComputeHMode { Linear, Gradient };
+   void ComputeH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H) const;
+#ifdef MFEM_USE_MPI
+   void ComputeParH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H,
+                    OperatorHandle &pH) const;
+#endif
    void GetCtFaceMatrix(int f, int side, DenseMatrix & Ct) const;
    void GetEFaceMatrix(int f, int side, DenseMatrix &E) const;
    void GetGFaceMatrix(int f, int side, DenseMatrix &G) const;

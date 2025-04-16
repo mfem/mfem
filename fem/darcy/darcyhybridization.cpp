@@ -879,9 +879,10 @@ void DarcyHybridization::InvertD()
    }
 }
 
-void DarcyHybridization::ComputeH()
+void DarcyHybridization::ComputeH(ComputeHMode mode,
+                                  std::unique_ptr<SparseMatrix> &H) const
 {
-   MFEM_ASSERT(!IsNonlinear(),
+   MFEM_ASSERT(mode != ComputeHMode::Linear || !IsNonlinear(),
                "Cannot assemble H matrix in the non-linear regime");
 
    const int skip_zeros = 1;
@@ -906,13 +907,15 @@ void DarcyHybridization::ComputeH()
       int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
 
       // Decompose A
-
-      LUFactors LU_A(&Af_data[Af_offsets[el]], Af_ipiv + Af_f_offsets[el]);
-
-      LU_A.Factor(a_dofs_size);
+      LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
+      if (mode == ComputeHMode::Linear)
+      {
+         LU_A.Factor(a_dofs_size);
+      }
 
       // Construct Schur complement
-      const DenseMatrix B(&Bf_data[Bf_offsets[el]], d_dofs_size, a_dofs_size);
+      const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                          d_dofs_size, a_dofs_size);
       DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       AiBt.SetSize(a_dofs_size, d_dofs_size);
 
@@ -925,6 +928,7 @@ void DarcyHybridization::ComputeH()
       LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
 
       LU_S.Factor(d_dofs_size);
+
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       switch (dim)
       {
@@ -947,7 +951,6 @@ void DarcyHybridization::ComputeH()
          DenseMatrix Ct1;
          GetCtFaceMatrix(faces[f1], el1_1 != el, Ct1);
 
-
          //A^-1 C^T
          AiCt.SetSize(Ct1.Height(), Ct1.Width());
          AiCt = Ct1;
@@ -957,7 +960,7 @@ void DarcyHybridization::ComputeH()
          BAiCt.SetSize(B.Height(), Ct1.Width());
          mfem::Mult(B, AiCt, BAiCt);
 
-         if (c_bfi_p)
+         if (c_bfi_p || mode == ComputeHMode::Gradient)
          {
             DenseMatrix E;
             GetEFaceMatrix(faces[f1], el1_1 != el, E);
@@ -983,7 +986,7 @@ void DarcyHybridization::ComputeH()
             CAiBt.SetSize(Ct2.Width(), B.Height());
             mfem::MultAtB(Ct2, AiBt, CAiBt);
 
-            if (c_bfi_p)
+            if (c_bfi_p || mode == ComputeHMode::Gradient)
             {
                DenseMatrix G;
                GetGFaceMatrix(faces[f2], el2_1 != el, G);
@@ -996,6 +999,13 @@ void DarcyHybridization::ComputeH()
             c_fes.GetFaceVDofs(faces[f1], c_dofs_1);
             if (f1 == f2)
             {
+               //integrate the face contrbution only on one (first) side
+               if (mode == ComputeHMode::Gradient && el2_1 == el)
+               {
+                  DenseMatrix H_f;
+                  GetHFaceMatrix(faces[f1], H_f);
+                  H_l += H_f;
+               }
                H->AddSubMatrix(c_dofs_1, c_dofs_1, H_l, skip_zeros);
             }
             else
@@ -1063,9 +1073,20 @@ void DarcyHybridization::ComputeH()
          }
       }
    }
+}
+
+#ifdef MFEM_USE_MPI
+void DarcyHybridization::ComputeParH(ComputeHMode mode,
+                                     std::unique_ptr<SparseMatrix> &H, OperatorHandle &pH) const
+{
+   ComputeH(mode, H);
+
+   if (!ParallelC())
+   {
+      pH.Reset(H.get(), false);
+   }
    else // parallel
    {
-#ifdef MFEM_USE_MPI
       OperatorHandle dH(pH.Type()), pP(pH.Type());
       dH.MakeSquareBlockDiag(c_pfes->GetComm(), c_pfes->GlobalVSize(),
                              c_pfes->GetDofOffsets(), H.get());
@@ -1074,9 +1095,9 @@ void DarcyHybridization::ComputeH()
       pH.MakePtAP(dH, pP);
       dH.Clear();
       H.reset();
-#endif
    }
 }
+#endif //MFEM_USE_MPI
 
 void DarcyHybridization::GetCtFaceMatrix(
    int f, int side, DenseMatrix &Ct) const
@@ -1229,8 +1250,16 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    Vector y;//dummy
    MultNL(MultNlMode::Grad, darcy_rhs, x, y);
 
+#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+   //assemble gradient matrix
+   Grad.reset();
+   ComputeH(ComputeHMode::Gradient, Grad);
+   return *Grad;
+#else
+   //construct gradient operator
    pGrad.Reset(new Gradient(*this));
    return *pGrad;
+#endif
 }
 
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
@@ -1671,9 +1700,10 @@ void DarcyHybridization::Finalize()
 
    if (!IsNonlinear())
    {
-      ComputeH();
-
-#ifdef MFEM_USE_MPI
+#ifndef MFEM_USE_MPI
+      ComputeH(ComputeHMode::Linear, H);
+#else //MFEM_USE_MPI      
+      ComputeParH(ComputeHMode::Linear, H, pH);
       pOp = pH;
 #endif //MFEM_USE_MPI
    }
@@ -2211,6 +2241,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       LU_A.Factor(a_dofs_size);
    }
 
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    // Construct Schur complement
    const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
                        d_dofs_size, a_dofs_size);
@@ -2225,6 +2256,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
 
    LU_S.Factor(d_dofs_size);
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 }
 
 void DarcyHybridization::AssembleHDGGrad(
@@ -2685,11 +2717,13 @@ void DarcyHybridization::Reset()
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
    dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
 }
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
 #ifdef MFEM_USE_MPI
 void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
@@ -2722,15 +2756,25 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
    Vector y;//dummy
    dh.ParMultNL(MultNlMode::Grad, dh.darcy_rhs, x, y);
 
+#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+   //assemble gradient matrix
+   dh.Grad.reset();
+   pGrad.SetType(dh.pH.Type());
+   dh.ComputeParH(ComputeHMode::Gradient, dh.Grad, pGrad);
+#else
+   //construct gradient operator
    pGrad.Reset(new ParGradient(dh));
+#endif
    return *pGrad;
 }
 
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
    dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
 }
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 #endif // MFEM_USE_MPI
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
