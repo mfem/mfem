@@ -577,7 +577,7 @@ public:
                     GridFunction &flux,
                     bool wcoef = true, int subdomain = -1) override;
 
-    /// Computes the \ref PLBound for the gridfunction with number of control
+   /// Computes the \ref PLBound for the gridfunction with number of control
    /// points based on @a ref_factor, and returns the bounds across each
    /// vdim for all elements in @b lower and @b upper. We also return the
    /// PLBound object used to compute the bounds.
