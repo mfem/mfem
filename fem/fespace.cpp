@@ -536,7 +536,7 @@ struct DerefineMatrixOp : public Operator
          }
          if (!is_dg && !fespace->IsVariableOrder())
          {
-            MFEM_VERIFY(num_marked == Height(),
+            MFEM_VERIFY(num_marked * fespace->GetVDim() == Height(),
                         "internal error: not all rows were set.");
          }
       }
