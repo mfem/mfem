@@ -227,7 +227,7 @@ vertices
 
 nodes
 FiniteElementSpace
-FiniteElementCollection: Quadratic
+FiniteElementCollection: H1_2D_P2
 VDim: 2
 Ordering: 0
 
