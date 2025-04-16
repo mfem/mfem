@@ -209,6 +209,7 @@ void PatchDiffusionGetReducedRule(const int nq, const int nd,
       MFEM_ABORT("NNLSSolver requires building with LAPACK");
 #endif
 
+      // NNLS solves for w>=0; here we remove any weights where w==0
       int nnz = 0;
       for (int i=0; i<sol.Size(); ++i)
       {

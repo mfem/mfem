@@ -321,8 +321,8 @@ int main(int argc, char *argv[])
    // If file does not exist, write the header
    if (results_ofs.tellp() == 0)
    {
-      results_ofs << "patcha, pa, pc, ri, "           // integration & solver settings
-                  << "mesh, refs, deg_inc, ndof, "    // problem
+      results_ofs << "patcha, pa, pc, ri, "           // settings
+                  << "mesh, refs, deg_inc, ndof, "    // mesh
                   << "niter, absnorm, relnorm, "      // solver
                   << "linf, l2, "                     // solution
                   << "t_assemble, t_solve, t_total, " // timing
@@ -330,12 +330,11 @@ int main(int argc, char *argv[])
                   << endl;
    }
 
-   results_ofs << patchAssembly <<
-               ", "               // integration & solver settings
+   results_ofs << patchAssembly << ", "               // settings
                << pa << ", "
                << preconditioner << ", "
                << reduced_integration << ", "
-               << mesh_file << ", "                   // problem
+               << mesh_file << ", "                   // mesh
                << ref_levels << ", "
                << nurbs_degree_increase << ", "
                << Ndof << ", "
