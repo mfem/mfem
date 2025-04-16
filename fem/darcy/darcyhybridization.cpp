@@ -2050,8 +2050,7 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    // Load LU decomposition of A and Schur complement
 
-   LUFactors LU_A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
-                  const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
+   LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
    LUFactors LU_S(&Df_data[Df_offsets[el]], &Df_ipiv[Df_f_offsets[el]]);
 
    // Load B
@@ -2093,10 +2092,9 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
    ElementTransformation *Tr = fes.GetElementTransformation(el);
 
-   DenseMatrix A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
-                 a_dofs_size, a_dofs_size);
+   DenseMatrix A(&Af_data[Af_offsets[el]], a_dofs_size, a_dofs_size);
    DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
-   LUFactors LU_A(A.GetData(), const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
+   LUFactors LU_A(A.GetData(), &Af_ipiv[Af_f_offsets[el]]);
 
    if (m_nlfi)
    {
@@ -2306,8 +2304,7 @@ void DarcyHybridization::AssembleHDGGrad(
    nlfi.AssembleHDGFaceGrad(type, *fe_c, el_arr, *FTr, x_f, x_arr, elmats);
 
    // assemble A element matrices
-   DenseMatrix A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
-                 a_dofs_size, a_dofs_size);
+   DenseMatrix A(&Af_data[Af_offsets[el]], a_dofs_size, a_dofs_size);
    if (elmat_A.Height() != 0) { A += elmat_A; }
 
    // assemble D element matrices
@@ -3243,8 +3240,7 @@ DarcyHybridization::LocalPotNLOperator::LocalPotNLOperator(
    const DarcyHybridization &dh_, int el_, const Vector &bu_,
    const BlockVector &trps_, const Array<int> &faces_)
    : LocalNLOperator(dh_, el_, trps_, faces_), bu(bu_),
-     LU_A(const_cast<real_t*>(&dh.Af_data[dh.Af_offsets[el]]),
-          const_cast<int*>(&dh.Af_ipiv[dh.Af_f_offsets[el]]))
+     LU_A(&dh.Af_data[dh.Af_offsets[el]], &dh.Af_ipiv[dh.Af_f_offsets[el]])
 {
    MFEM_ASSERT(bu.Size() == a_dofs_size, "Incompatible size");
 

@@ -83,8 +83,8 @@ protected:
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
-   Array<real_t> Af_data;
-   Array<int> Af_ipiv;
+   mutable Array<real_t> Af_data;
+   mutable Array<int> Af_ipiv;
 
 #ifdef MFEM_USE_MPI
    std::unique_ptr<HypreParMatrix> pC, P_pc; // for parallel non-conforming meshes
