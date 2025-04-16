@@ -5402,7 +5402,6 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem, PLBound &plb,
    int n_c_pts = std::pow(plb.ncp, rdim);
    lower.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
    upper.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
-   bool check_gslib = plb.b_type == 1 && plb.cp_type == 1;
 
    for (int d = 0; d < fes_dim; d++)
    {

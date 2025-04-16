@@ -1440,9 +1440,9 @@ ParGridFunction::PLBound ParGridFunction::GetBounds(Vector &lower,
    PLBound plb = GridFunction::GetBounds(lower, upper, ref_factor, vdim);
    int siz = vdim > 0 ? 1 : fes->GetVDim();
    MPI_Allreduce(MPI_IN_PLACE, lower.GetData(), siz,
-                  MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
+                 MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
    MPI_Allreduce(MPI_IN_PLACE, upper.GetData(), siz,
-                  MPITypeMap<real_t>::mpi_type, MPI_MAX, pfes->GetComm());
+                 MPITypeMap<real_t>::mpi_type, MPI_MAX, pfes->GetComm());
    return plb;
 }
 
