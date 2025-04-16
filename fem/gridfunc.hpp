@@ -1701,14 +1701,6 @@ private:
    /// for Bernstein bases.
    void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes);
    ///@}
-
-   // void GetElementControlPointsPhysicalLocation(const int elem, PLBound &plb,
-   //                                             Vector &xyz);
-
-#ifdef MFEM_USE_GSLIB
-   void GetBounds(int nb, int ncp, Vector &data_r,
-                  Vector &vect, Vector &qpmin, Vector &qpmax, int dim);
-#endif
 };
 
 /** Overload operator<< for std::ostream and GridFunction; valid also for the
