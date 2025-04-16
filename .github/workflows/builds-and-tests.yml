@@ -114,6 +114,13 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp32
+          - os: macos-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp32
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
 
     runs-on: ${{ matrix.os }}
@@ -154,7 +161,8 @@ jobs:
       - name: get MPI (Linux)
         if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt-get install mpich libmpich-dev
+          sudo apt-get install openmpi-bin libopenmpi-dev
+          export OMPI_MCA_rmaps_base_oversubscribe=1
 
       - name: get lcov (Linux)
         if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
@@ -191,7 +199,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
+          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
 
       - name: get hypre
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'

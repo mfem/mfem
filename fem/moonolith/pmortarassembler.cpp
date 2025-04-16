@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+
 #include "../../config/config.hpp"
 
+#ifdef MFEM_USE_MOONOLITH
 #ifdef MFEM_USE_MPI
 
 #include "pmortarassembler.hpp"
@@ -54,7 +56,8 @@ public:
 
    void ensure_solver()
    {
-      if(!solver) {
+      if (!solver)
+      {
          solver = std::make_shared<BiCGSTABSolver>(comm);
          solver->SetMaxIter(20000);
          solver->SetRelTol(1e-6);
@@ -91,7 +94,8 @@ public:
 
 ParMortarAssembler::~ParMortarAssembler() = default;
 
-void ParMortarAssembler::SetSolver(const std::shared_ptr<IterativeSolver> &solver)
+void ParMortarAssembler::SetSolver(const std::shared_ptr<IterativeSolver>
+                                   &solver)
 {
    impl_->solver = solver;
 }
@@ -828,7 +832,8 @@ static bool Assemble(moonolith::Communicator &comm,
    return true;
 }
 
-static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &source_vdofs,
+static void add_matrix(const Array<int> &destination_vdofs,
+                       const Array<int> &source_vdofs,
                        const DenseMatrix &elem_mat, moonolith::SparseMatrix<double> &mat_buffer)
 {
    for (int i = 0; i < destination_vdofs.Size(); ++i)
@@ -862,9 +867,10 @@ static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &so
 
 std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
    const std::vector<moonolith::Integer> &destination_ranges,
-    HYPRE_BigInt *s_offsets,
-    HYPRE_BigInt *m_offsets,
-   moonolith::SparseMatrix<double> &mat_buffer)  {
+   HYPRE_BigInt *s_offsets,
+   HYPRE_BigInt *m_offsets,
+   moonolith::SparseMatrix<double> &mat_buffer)
+{
 
    auto && comm = mat_buffer.comm();
 
@@ -900,8 +906,8 @@ std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
 int order_multiplier(const Geometry::Type type, const int dim)
 {
    return
-   (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
-      type == Geometry::SEGMENT)? 1 : dim;
+      (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
+       type == Geometry::SEGMENT)? 1 : dim;
 }
 
 template <int Dimensions>
@@ -979,7 +985,8 @@ Assemble(moonolith::Communicator &comm,
       const int dest_order = dest_order_mult * dest_fe.GetOrder();
 
       int contraction_order = src_order + dest_order;
-      if(impl.assemble_mass_and_coupling_together) {
+      if (impl.assemble_mass_and_coupling_together)
+      {
          contraction_order = std::max(contraction_order, 2 * dest_order);
       }
 
@@ -1017,16 +1024,20 @@ Assemble(moonolith::Communicator &comm,
          local_element_matrices_sum += Sum(cumulative_elemmat);
          add_matrix(destination_vdofs, source_vdofs, cumulative_elemmat, mat_buffer);
 
-         if(impl.assemble_mass_and_coupling_together) {
+         if (impl.assemble_mass_and_coupling_together)
+         {
             mass_integr->SetIntRule(&dest_ir);
             mass_integr->AssembleElementMatrix(dest_fe, dest_Trans, elemmat);
 
-            if(lump_mass) {
+            if (lump_mass)
+            {
                int n = destination_vdofs.Size();
 
-               for(int i = 0; i < n; ++i) {
+               for (int i = 0; i < n; ++i)
+               {
                   double row_sum = 0.;
-                  for(int j = 0; j < n; ++j) {
+                  for (int j = 0; j < n; ++j)
+                  {
                      row_sum += elemmat(i, j);
                      elemmat(i, j) = 0.;
                   }
@@ -1072,13 +1083,15 @@ Assemble(moonolith::Communicator &comm,
                    moonolith::MPIMax());
 
    pmat = convert_to_hypre_matrix(
-      destination_ranges,
-      s_offsets,
-       m_offsets,
-      mat_buffer);
+             destination_ranges,
+             s_offsets,
+             m_offsets,
+             mat_buffer);
 
-   if(impl.assemble_mass_and_coupling_together) {
-      impl.mass_matrix = convert_to_hypre_matrix(destination_ranges, s_offsets, s_offsets, mass_mat_buffer);
+   if (impl.assemble_mass_and_coupling_together)
+   {
+      impl.mass_matrix = convert_to_hypre_matrix(destination_ranges, s_offsets,
+                                                 s_offsets, mass_mat_buffer);
    }
 
    return true;
@@ -1109,13 +1122,13 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
    if (impl_->source->GetMesh()->Dimension() == 2)
    {
       ok = mfem::Assemble<2>(comm, *impl_, settings,
-                               impl_->verbose);
+                             impl_->verbose);
    }
 
    if (impl_->source->GetMesh()->Dimension() == 3)
    {
       ok = mfem::Assemble<3>(comm, *impl_, settings,
-                               impl_->verbose);
+                             impl_->verbose);
    }
 
    pmat = impl_->coupling_matrix;
@@ -1155,7 +1168,8 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
 
    impl_->solver->SetOperator(D);
 
-   if(verbose) {
+   if (verbose)
+   {
       impl_->solver->SetPrintLevel(3);
    }
 
@@ -1221,7 +1235,8 @@ bool ParMortarAssembler::Update()
 
    auto &B = *impl_->coupling_matrix;
 
-   if(!impl_->assemble_mass_and_coupling_together) {
+   if (!impl_->assemble_mass_and_coupling_together)
+   {
       ParBilinearForm b_form(impl_->destination.get());
       b_form.AddDomainIntegrator(impl_->new_mass_integrator());
       b_form.Assemble();
@@ -1290,3 +1305,4 @@ bool ParMortarAssembler::Update()
 } // namespace mfem
 
 #endif // MFEM_USE_MPI
+#endif // MFEM_USE_MOONOLITH
