@@ -1671,7 +1671,7 @@ public:
    /// Destroys grid function.
    virtual ~GridFunction() { Destroy(); }
 private:
-   ///@a{
+   ///@{
    /// Helper functions used with the \ref PLBound to compute bounds on
    /// the gridfunction. The user is recommended to use the \ref PLBound object
    /// with \ref GetElementBounds and \ref GetElementBoundsAtControlPoints.

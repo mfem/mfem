@@ -42,7 +42,7 @@ int main (int argc, char *argv[])
    const char *sltn_file = "../gslib/triple-pt-1.gf";
    int  ref              = 2;
    bool visualization    = true;
-   bool visit            = true;
+   bool visit            = false;
    int  b_type           = -1;
    bool continuous       = true;
    int  nbrute           = 0;
