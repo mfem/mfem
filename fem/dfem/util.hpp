@@ -1128,7 +1128,7 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 
    if constexpr (is_value_fop<field_operator_t>::value)
    {
-      return GetVDim(f) * GetVectorFEDim(f);
+      return GetVDim(f);
    }
    else if constexpr (is_gradient_fop<field_operator_t>::value)
    {
