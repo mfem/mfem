@@ -100,12 +100,12 @@ public:
     double E(const BlockVector &, const Vector &, const Vector &, double, bool);
     double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
-    Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
-    Array<double> & GetDMaxMinRatios() {return dmaxmin_ratio;}
-    Array<double> & GetJtDJMaxMinRatios() {return jtdj_ratio;}
-    Array<double> & GetAdiagMaxMinRatios() {return Adiag_ratio;}
-    Array<int> & GetCGNoContactIterNumbers() {return cgnum_iterations_nocontact;}
-    int GetNumIterations() {return iter;}
+    Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
+    Array<double> & GetDMaxMinRatios() {return dmaxmin_ratio;};
+    Array<double> & GetJtDJMaxMinRatios() {return jtdj_ratio;};
+    Array<double> & GetAdiagMaxMinRatios() {return Adiag_ratio;};
+    Array<int> & GetCGNoContactIterNumbers() {return cgnum_iterations_nocontact;};
+    int GetNumIterations() {return iter;};
     double theta(const BlockVector &);
     double phi(const BlockVector &, double);
     double phi(const BlockVector &, double, int &);

@@ -809,8 +809,10 @@ int main(int argc, char *argv[])
 
       // Hypotherical AMG solver in the absense of contact for each time step
       // This is only for the linear case
-      NoContactCGiterations.Append(optimizer.GetCGNoContactIterNumbers()[0]);
-
+      if (optimizer.GetCGNoContactIterNumbers().Size() > 0 )
+      {
+         NoContactCGiterations.Append(optimizer.GetCGNoContactIterNumbers()[0]);
+      }
       if (Mpi::Root())
       {
          mfem::out << endl;
@@ -821,7 +823,10 @@ int main(int argc, char *argv[])
          mfem::out << " Global number of contact dofs   = " << gncols << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
-         mfem::out << " No Contact CG Solver iterations = " << optimizer.GetCGNoContactIterNumbers()[0] << endl;
+         if (optimizer.GetCGNoContactIterNumbers().Size() > 0)
+	 {
+	    mfem::out << " No Contact CG Solver iterations = " << optimizer.GetCGNoContactIterNumbers()[0] << endl;
+	 }
          if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6 || linsolver == 7)
          {
             mfem::out << " CG iteration numbers            = " ;

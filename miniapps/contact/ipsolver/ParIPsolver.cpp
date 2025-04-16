@@ -1236,19 +1236,20 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
    sd = max(sMax, (ll1 + zl1) / (double(gdimC + gdimM))) / sMax;
    
    
-   optimalityError = max(max(E1 / sd, E2), E3 / sc);
-   
+   optimalityError = max(max(E1, E2), E3);
+
    if(iAmRoot && printEeval)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
-      cout << "(scaled) stationarity measure = "    << E1 / sd << endl;
+      cout << "stationarity measure = " << E1 << endl;
       cout << "feasibility measure  = "    << E2      << endl;
-      cout << "(scaled) complimentarity measure = " << E3 / sc << endl;
+      cout << "complimentarity measure = " << E3 << endl;
       cout << "optimality error = " << optimalityError << endl;
+
       if( sc > 1.e2 || sd > 1.e2)
       {
-         cout << "WARNING: optimality errors are being non-trivially scaled\n";
-	 cout << "         hence we may terminate early\n";
+         cout << "WARNING: skipping non-trivial optimality error scaling\n";
+	 cout << "sc = " << sc << ", sd = " << sd << endl;
       }
    }
    return optimalityError;

@@ -684,6 +684,7 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
 
    // Update contact mesh decomposition
    tribol::updateMfemParallelDecomposition(tribol_nranks);
+   //tribol::updateMfemParallelDecomposition();
 
    // Update contact gaps, forces, and tangent stiffness
    int cycle = 1;   // pseudo cycle
@@ -702,11 +703,22 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
    Array<int> nonzero_rows;
+   
+   double max_l1_row_norm = 0.0;
+   double rel_row_norm_threshold = 1.e-5;
+   for (int i = 0; i < h; i++)
+   {
+      if (!merged.RowIsEmpty(i))
+      {
+         max_l1_row_norm = max( max_l1_row_norm, merged.GetRowNorml1(i));
+      }
+   }
+
    for (int i = 0; i<h; i++)
    {
       if (!merged.RowIsEmpty(i))
       {
-         if (merged.GetRowNorml1(i) > 1.e-9)
+         if (merged.GetRowNorml1(i) > rel_row_norm_threshold * max_l1_row_norm)
          {
             nonzero_rows.Append(i);
          }
