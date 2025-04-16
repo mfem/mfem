@@ -160,18 +160,18 @@ constexpr auto get_type_name() -> std::string_view
 template <typename Tuple, std::size_t... Is>
 void print_tuple_impl(const Tuple& t, std::index_sequence<Is...>)
 {
-   ((std::cout << (Is == 0 ? "" : ", ") << std::get<Is>(t)), ...);
+   ((out << (Is == 0 ? "" : ", ") << std::get<Is>(t)), ...);
 }
 
 template <typename... Args>
 void print_tuple(const std::tuple<Args...>& t)
 {
-   std::cout << "(";
+   out << "(";
    print_tuple_impl(t, std::index_sequence_for<Args...> {});
-   std::cout << ")";
+   out << ")";
 }
 
-/// @brief Pretty print an mfem::DenseMatrix to std::cout
+/// @brief Pretty print an mfem::DenseMatrix to out
 ///
 /// Formatted s.t. the output is
 /// [[v00, v01, ..., v0n],
@@ -182,26 +182,26 @@ void print_tuple(const std::tuple<Args...>& t)
 /// @param m mfem::DenseMatrix to print
 void pretty_print(const mfem::DenseMatrix& m)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < m.NumRows(); i++)
    {
       for (int j = 0; j < m.NumCols(); j++)
       {
-         std::cout << m(i, j);
+         out << m(i, j);
          if (j < m.NumCols() - 1)
          {
-            std::cout << ", ";
+            out << ", ";
          }
       }
       if (i < m.NumRows() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
-/// @brief Pretty print an mfem::Vector to std::cout
+/// @brief Pretty print an mfem::Vector to out
 ///
 /// Formatted s.t. the output is [v0, v1, ..., vn] which
 /// is compatible with numpy syntax.
@@ -209,19 +209,19 @@ void pretty_print(const mfem::DenseMatrix& m)
 /// @param v Vector of vectors to print
 void pretty_print(const mfem::Vector& v)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < v.Size(); i++)
    {
-      std::cout << v(i);
+      out << v(i);
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
-/// @brief Pretty print an mfem::Array to std::cout
+/// @brief Pretty print an mfem::Array to out
 ///
 /// T has to have an overloaded operator<<
 ///
@@ -232,19 +232,19 @@ void pretty_print(const mfem::Vector& v)
 template <typename T>
 void pretty_print(const mfem::Array<T>& v)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < v.Size(); i++)
    {
-      std::cout << v[i];
+      out << v[i];
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
-/// @brief Pretty prints an unordered map of std::array to std::cout
+/// @brief Pretty prints an unordered map of std::array to out
 ///
 /// Useful for printing the output of make_dependency_map
 ///
@@ -254,24 +254,24 @@ void pretty_print(const mfem::Array<T>& v)
 template<typename K, typename T, size_t N>
 void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 {
-   std::cout << "{";
+   out << "{";
    size_t count = 0;
    for (const auto& [key, value] : map)
    {
-      std::cout << key << ": [";
+      out << key << ": [";
       for (size_t i = 0; i < N; i++)
       {
-         std::cout << value[i];
-         if (i < N-1) { std::cout << ", "; }
+         out << value[i];
+         if (i < N-1) { out << ", "; }
       }
-      std::cout << "]";
+      out << "]";
       if (count < map.size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
       count++;
    }
-   std::cout << "}\n";
+   out << "}\n";
 }
 
 void print_mpi_root(const std::string& msg)
@@ -279,8 +279,8 @@ void print_mpi_root(const std::string& msg)
    auto myrank = Mpi::WorldRank();
    if (myrank == 0)
    {
-      std::cout << msg << std::endl;
-      std::cout.flush(); // Ensure output is flushed
+      out << msg << std::endl;
+      out.flush(); // Ensure output is flushed
    }
 }
 
@@ -295,7 +295,7 @@ void print_mpi_sync(const std::string& msg)
    if (nranks == 1)
    {
       // Single process case - just print directly
-      std::cout << msg << std::endl;
+      out << msg << std::endl;
       return;
    }
 
@@ -324,9 +324,9 @@ void print_mpi_sync(const std::string& msg)
       // Print all messages in rank order
       for (int r = 0; r < nranks; r++)
       {
-         std::cout << "[Rank " << r << "] " << messages[r] << std::endl;
+         out << "[Rank " << r << "] " << messages[r] << std::endl;
       }
-      std::cout.flush();
+      out.flush();
    }
    else
    {
