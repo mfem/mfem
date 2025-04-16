@@ -1578,10 +1578,10 @@ public:
       int ncp; // #control points in 1D
       int b_type; // bases type: 0 - GL, 1 - GLL, 2 - Bernstein
       int cp_type; // control points type: 0 - GL+Ends, 1 - Chebyshev
-      bool proj = true; // use linear project to compute bounds
+      bool proj = true; // Use linear projection to compute bounds.
       real_t tol = 0.0; // offset bounds to avoid round-off errors
       Vector nodes, weights, control_points;
-      DenseMatrix lbound, ubound;
+      DenseMatrix lbound, ubound; // nb x ncp matrices with bounds of all bases
       // Some auxillary storage for computing the bounds with Bernstein
       DenseMatrix basisMatNodes; // Bernstein bases at equispaced nodes
       DenseMatrix basisMatInt;   // Bernstein bases at GLL nodes
@@ -1629,9 +1629,30 @@ public:
       }
    };
 
+   /// Computes the \ref PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the overall bounds for each
+   /// vdim (across all elements) in @b lower and @b upper. We also return the
+   /// PLBound object used to compute the bounds.
+   /// We compute the bounds for each vdim if @a vdim < 1.
+   /// Note: For most cases, this method/interface will be sufficient.
+   virtual PLBound GetBounds(Vector &lower, Vector &upper,
+                             const int ref_factor=1, const int vdim=-1);
+
+   /// Computes the \ref PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the bounds for each element
+   /// ordered byVDim:
+   /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
+   /// lower_{0,1}, ..., lower_{ne-1,vdim-1}. We also return the
+   /// PLBound object used to compute the bounds.
+   /// We compute the bounds for each vdim if @a vdim < 1.
+   PLBound GetElementBounds(Vector &lower, Vector &upper,
+                            const int ref_factor=1, const int vdim=-1);
+
    /// Method to compute piecewise linear bounds of the bases.
    /// See \ref PLBound for documentation of @b ncp and @b cp_type.
    /// Use the returned @b PLBound with \ref GetElementBounds.
+   /// Note: This interace is provided for advanced use-case where the user
+   /// wants to compute the bounds with specific number of control points.
    PLBound GetPLBound(int ncp = -1, int cp_type = 0);
 
    /// Compute piecewise linear bounds on the given element at the grid of
@@ -1641,12 +1662,11 @@ public:
                                         Vector &lower, Vector &upper,
                                         const int vdim = -1);
 
-   /// Computes the \ref PLBound for the gridfunction with number of control
-   /// points based on @a ref_factor, and returns the bounds across each
-   /// vdim for all elements in @b lower and @b upper. We also return the
-   /// PLBound object used to compute the bounds.
-   virtual PLBound GetBounds(Vector &lower, Vector &upper,
-                             const int ref_factor=1, const int vdim=-1);
+   /// Compute bounds on the grid function for the given element.
+   /// The bounds are stored in @b lower and @b upper.
+   void GetElementBounds(const int elem, PLBound &plb,
+                         Vector &lower, Vector &upper,
+                         const int vdim = -1);
 
    /// Compute bounds on the grid function for all the elements. The bounds
    /// are returned in @b lower and @b upper, ordered byVDim:
@@ -1654,53 +1674,44 @@ public:
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(PLBound &plb, Vector &lower, Vector &upper,
                          const int vdim=-1);
-
-   /// Similar to the method above, except @a PLBound object is first computed
-   /// based on the number of control points dictated by @a ref_factor
-   /// and then used with tbe method above. The PLBound object is also returned.
-   PLBound GetElementBounds(Vector &lower, Vector &upper,
-                            const int ref_factor=1, const int vdim=-1);
-
-   /// Compute bounds on the grid function for the given element.
-   /// The bounds are stored in @b lower and @b upper.
-   void GetElementBounds(const int elem, PLBound &plb,
-                         Vector &lower, Vector &upper,
-                         const int vdim = -1);
    ///@}
 
    /// Destroys grid function.
    virtual ~GridFunction() { Destroy(); }
+
 private:
-   ///@{
-   /// Helper functions used with the \ref PLBound to compute bounds on
-   /// the gridfunction. The user is recommended to use the \ref PLBound object
-   /// with \ref GetElementBounds and \ref GetElementBoundsAtControlPoints.
+   /// The next few functions are helper functions used with the \ref PLBound
+   /// to compute bounds on the gridfunction.
 
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 1D.
    void Get1DBounds(PLBound &plb, Vector &coeff,
                     Vector &intmin, Vector &intmax);
+
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 2D.
    void Get2DBounds(PLBound &plb, Vector &coeff,
                     Vector &intmin, Vector &intmax);
+
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 3D.
    void Get3DBounds(PLBound &plb, Vector &coeff,
                     Vector &intmin, Vector &intmax);
+
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 1D/2D/3D.
    void GetnDBounds(int rdim, PLBound &plb, Vector &coeff,
                     Vector &intmin, Vector &intmax);
+
    /// Setup PLBounds given nb, ncp, b_type, cp_type.
    void SetupPLBounds(const int nb, const int ncp,
                       const int b_type, const int cp_type, const real_t tol,
                       Vector &nodex, Vector &nodew, Vector &intx,
                       DenseMatrix &lbound, DenseMatrix &ubound);
+
    /// Setup matrix used to compute values at given 1D locations in [0,1]
    /// for Bernstein bases.
    void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes);
-   ///@}
 };
 
 /** Overload operator<< for std::ostream and GridFunction; valid also for the
