@@ -377,8 +377,8 @@ int main(int argc, char *argv[])
       }
    }
    bool inactive_elements_global;
-   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1, MPI_C_BOOL,
-                 MPI_LOR, MPI_COMM_WORLD);
+   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1,
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MPI_COMM_WORLD);
    if (inactive_elements_global) { ess_elem.Append(0); }
    pmesh.SetAttributes();
 
@@ -532,7 +532,7 @@ int main(int argc, char *argv[])
                                                          ho_terms), ess_shift_bdr);
    }
 
-   // Add neumann bilinearform integrator.
+   // Add Neumann bilinear form integrator.
    if (neumann_level_set_type > 0)
    {
       a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh,
