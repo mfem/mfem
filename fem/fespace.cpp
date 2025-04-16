@@ -31,7 +31,7 @@ using namespace std;
 
 namespace mfem
 {
-
+/// \cond DO_NOT_DOCUMENT
 namespace internal
 {
 
@@ -389,6 +389,7 @@ public:
          block_offsets.SetSize(dtrans.embeddings.Size());
          block_offsets.HostWrite();
          block_offsets[0] = 0;
+         int total_size = 0;
          for (int k = 0; k < dtrans.embeddings.Size(); ++k)
          {
             const Embedding &emb = dtrans.embeddings[k];
@@ -400,8 +401,9 @@ public:
             }
             total_rows += ldof;
             total_cols += ldof;
+            total_size += ldof * ldof;
          }
-         block_storage.SetSize(block_offsets[dtrans.embeddings.Size()]);
+         block_storage.SetSize(total_size);
       }
       else
       {
@@ -621,6 +623,8 @@ DerefineMatrixOp::MultTKernel::Fallback(Ordering::Type, bool)
 {
    MFEM_ABORT("invalid MultTKernel parameters");
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 template <>
 void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
