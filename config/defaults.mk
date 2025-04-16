@@ -604,20 +604,13 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
-
-# If you want to enable automatic differentiation at compile time, use the
-# options below, adapted to your configuration. To be more flexible, we
-# recommend using the Enzyme plugin during link time optimization. One option is
-# to add your options to the global compiler/linker flags like
-#
-# BASE_FLAGS += -flto
-# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
-#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
-#
-ENZYME_DIR ?= @MFEM_DIR@/../enzyme
-ENZYME_VERSION ?= 14
-ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
+ENZYME_DIR = @MFEM_DIR@/../enzyme
+ENZYME_LLVM_VERSION = 19
+ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
 ENZYME_LIB = ""
+ifeq ($(MFEM_USE_ENZYME),YES)
+   BASE_FLAGS = -std=c++17
+endif
 
 # Google Benchmark, SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
 ifneq ($(filter YES,$(MFEM_USE_BENCHMARK) $(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
