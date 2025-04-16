@@ -1136,6 +1136,7 @@ public:
          current_dt = dt;
          residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
 
+         delete snes;
          snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
          snes->SetOperator(*residual);
          snes->SetRelTol(nonlinear_relative_tolerance);
@@ -1299,6 +1300,14 @@ public:
    virtual MemoryClass GetMemoryClass() const override
    {
       return Device::GetDeviceMemoryClass();
+   }
+
+   ~LagrangianHydroOperator()
+   {
+      delete snes;
+      delete Mv;
+      delete Mv_Jprec;
+      delete Me;
    }
 
    ParFiniteElementSpace &H1;
@@ -1731,7 +1740,7 @@ static auto CreateLagrangianHydroOperator(
                                             derivatives);
    }
 
-   return LagrangianHydroOperator(
+   return new LagrangianHydroOperator(
              H1,
              L2,
              ess_tdof,
@@ -2085,17 +2094,17 @@ int main(int argc, char *argv[])
          out << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return -1;
    }
-   ode_solver->Init(hydro);
+   ode_solver->Init(*hydro);
 
-   hydro.ComputeDensity(rho_gf);
-   const real_t energy_init = hydro.InternalEnergy(e_gf) +
-                              hydro.KineticEnergy(v_gf);
+   hydro->ComputeDensity(rho_gf);
+   const real_t energy_init = hydro->InternalEnergy(e_gf) +
+                              hydro->KineticEnergy(v_gf);
 
    // out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
    //     << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
    real_t t = 0.0;
-   real_t dt = hydro.GetTimeStepEstimate(S);
+   real_t dt = hydro->GetTimeStepEstimate(S);
 
 
    if (Mpi::Root())
@@ -2153,7 +2162,7 @@ int main(int argc, char *argv[])
       steps++;
 
       // Adaptive time step control.
-      const real_t dt_est = hydro.GetTimeStepEstimate(S);
+      const real_t dt_est = hydro->GetTimeStepEstimate(S);
       if (ode_solver_type > 10)
       {
          if (dt_est > 1e2)
@@ -2207,15 +2216,15 @@ int main(int argc, char *argv[])
       //    verr_gf(i) = abs(verr_gf(i) - v_gf(i));
       // }
 
-      hydro.ComputeDensity(rho_gf);
+      hydro->ComputeDensity(rho_gf);
 
       paraview_dc.SetCycle(ti);
       paraview_dc.SetTime(t);
       paraview_dc.Save();
    }
 
-   const real_t energy_final = hydro.InternalEnergy(e_gf)
-                               + hydro.KineticEnergy(v_gf);
+   const real_t energy_final = hydro->InternalEnergy(e_gf)
+                               + hydro->KineticEnergy(v_gf);
    const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
    const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);
    const real_t v_err_l2 = v_gf.ComputeL2Error(v_coeff);
@@ -2229,6 +2238,7 @@ int main(int argc, char *argv[])
           << "L_2    error: " << v_err_l2 << std::endl;
    }
 
+   delete hydro;
 
    MFEMFinalizePetsc();
    return 0;
