@@ -23,6 +23,10 @@
 #include <cmath>
 #include <cstdarg>
 
+#ifdef MFEM_USE_CUDA
+#include <cuda/atomic>
+#endif
+
 using namespace std;
 
 namespace mfem
@@ -39,42 +43,88 @@ struct DerefineMatrixOpFunctorBase
    const real_t *bsptr;
    /// block offsets
    const int *boptr;
-   /// block heights
-   const int *bhptr;
-   /// block widths
-   const int *bwptr;
+   /// block row idcs offsets
+   const int *brptr;
+   /// block col idcs offsets
+   const int *bcptr;
    /// row idcs
    const int *rptr;
    /// col idcs
    const int *cptr;
 
+   // number of blocks
+   int nblocks;
+   // number of components
    int vdims;
+   /// overall operator height (for vdim = 1)
+   int height;
+   /// overall operator width (for vdim = 1)
+   int width;
 };
 
 /// MaxReduceSize must be a power of 2
-template <Ordering::Type Order, int MaxReduceSize>
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
 struct DerefineMatrixOpMultFunctor;
 
-template <int MaxReduceSize>
-struct DerefineMatrixOpMultFunctor<Ordering::byNODES, MaxReduceSize>
+template <bool Atomic, int MaxReduceSize>
+struct DerefineMatrixOpMultFunctor<Ordering::byNODES, Atomic, MaxReduceSize>
    : DerefineMatrixOpFunctorBase
 {
-   void MFEM_HOST_DEVICE operator()(int k) const
+   void MFEM_HOST_DEVICE operator()(int kidx) const
    {
-      // TODO: needs to include vdim
-      MFEM_SHARED real_t sum[MaxReduceSize];
-      MFEM_FOREACH_THREAD(i, x, bhptr[k])
+      int k = kidx % nblocks;
+      int vdim = kidx / nblocks;
+
+      int block_height = brptr[k + 1] - brptr[k];
+      MFEM_FOREACH_THREAD(i, x, block_height)
       {
-         
+         int row = rptr[brptr[k] + i];
+         int rsign = 1;
+         if (row < 0)
+         {
+            row = -1 - row;
+            rsign = -1;
+         }
+         if (row < height)
+         {
+            // row not marked as unused
+            int block_width = bcptr[k + 1] - bcptr[k];
+            real_t sum = 0;
+            for (int j = 0; j < block_width; ++j)
+            {
+               int col = cptr[bcptr[k] + j];
+               int sign = rsign;
+               if (col < 0)
+               {
+                  col = -1 - col;
+                  sign *= -1;
+               }
+               sum += sign * bsptr[boptr[k] + i + j * block_height] *
+                      xptr[col + vdim * width];
+            }
+#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
+            if (Atomic)
+            {
+               atomicAdd(yptr + row + vdim * height, sum);
+            }
+            else
+#endif
+            {
+               yptr[row + vdim * height] += sum;
+            }
+         }
       }
-      // TODO
    }
-  
-   void Run(int N) const { forall_2D(N, MaxReduceSize, vdims, *this); }
+
+   /// N is the number of blocks
+   void Run() const
+   {
+      forall_2D(nblocks * vdims, MaxReduceSize, 1, *this);
+   }
 };
 
-template <int MaxReduceSize>
-struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, MaxReduceSize>
+template <bool Atomic, int MaxReduceSize>
+struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, Atomic, MaxReduceSize>
    : DerefineMatrixOpFunctorBase
 {
    void MFEM_HOST_DEVICE operator()(int k) const
@@ -82,7 +132,12 @@ struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, MaxReduceSize>
       // TODO
    }
 
-  void Run(int N) const { forall_2D(N, vdims, MaxReduceSize, *this); }
+   /// N is the number of blocks
+   void Run() const
+   {
+      throw std::runtime_error("byVDIM");
+      // TODO
+   }
 };
 
 /// MaxReduceSize must be a power of 2
@@ -135,8 +190,10 @@ struct DerefineMatrixOp : public Operator
    FiniteElementSpace *fespace;
    /// offsets into block_storage
    Array<int> block_offsets;
-   Array<int> block_heights;
-   Array<int> block_widths;
+   /// offsets into row_idcs
+   Array<int> block_row_idcs_offsets;
+   /// offsets into col_idcs
+   Array<int> block_col_idcs_offsets;
    /// mapping for row dofs, oob indicates the block row should be ignored.
    /// negative means the row data should be negated.
    Array<int> row_idcs;
@@ -147,15 +204,20 @@ struct DerefineMatrixOp : public Operator
 
    using MultKernelType = void (*)(const DerefineMatrixOp &, const Vector &,
                                    Vector &);
-   MFEM_REGISTER_KERNELS(MultKernel, MultKernelType, (Ordering::Type, int));
+   MFEM_REGISTER_KERNELS(MultKernel, MultKernelType,
+                         (Ordering::Type, bool, int));
 
    MFEM_REGISTER_KERNELS(MultTKernel, MultKernelType,
                          (Ordering::Type, bool, int));
 
    template <int MaxReduceSize> static void AddSpecializations()
    {
-      MultKernel::Specialization<Ordering::byNODES, MaxReduceSize>::Add();
-      MultKernel::Specialization<Ordering::byVDIM, MaxReduceSize>::Add();
+      MultKernel::Specialization<Ordering::byNODES, false,
+                 MaxReduceSize>::Add();
+      MultKernel::Specialization<Ordering::byVDIM, false, MaxReduceSize>::Add();
+      MultKernel::Specialization<Ordering::byNODES, true, MaxReduceSize>::Add();
+      MultKernel::Specialization<Ordering::byVDIM, true, MaxReduceSize>::Add();
+
       MultTKernel::Specialization<Ordering::byNODES, false,
                   MaxReduceSize>::Add();
       MultTKernel::Specialization<Ordering::byVDIM, false, MaxReduceSize>::Add();
@@ -181,11 +243,13 @@ struct DerefineMatrixOp : public Operator
 
    void Mult(const Vector &x, Vector &y) const
    {
-      MultKernel::Run(fespace->GetOrdering(), max_cols, *this, x, y);
+      // TODO: what needs atomic summations?
+      MultKernel::Run(fespace->GetOrdering(), true, max_rows, *this, x, y);
    }
 
    void MultTranspose(const Vector &x, Vector &y) const
    {
+      throw std::runtime_error("MultTranspose not implemented");
       bool is_dg = fespace->FEColl()->GetContType() ==
                    FiniteElementCollection::DISCONTINUOUS;
       MultTKernel::Run(fespace->GetOrdering(), !is_dg, max_rows, *this, x, y);
@@ -290,10 +354,12 @@ struct DerefineMatrixOp : public Operator
       row_idcs.HostWrite();
       col_idcs.SetSize(total_cols);
       col_idcs.HostWrite();
-      block_heights.SetSize(dtrans.embeddings.Size());
-      block_heights.HostWrite();
-      block_widths.SetSize(dtrans.embeddings.Size());
-      block_widths.HostWrite();
+      block_row_idcs_offsets.SetSize(dtrans.embeddings.Size() + 1);
+      block_row_idcs_offsets.HostWrite();
+      block_col_idcs_offsets.SetSize(dtrans.embeddings.Size() + 1);
+      block_col_idcs_offsets.HostWrite();
+      block_row_idcs_offsets[0] = 0;
+      block_col_idcs_offsets[0] = 0;
 
       // compute index information
       Array<int> dofs, old_dofs;
@@ -334,8 +400,10 @@ struct DerefineMatrixOp : public Operator
             }
             DenseMatrix &lR =
                fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
-            block_heights[k] = lR.Height();
-            block_widths[k] = lR.Width();
+            block_row_idcs_offsets[k + 1] =
+               block_row_idcs_offsets[k] + lR.Height();
+            block_col_idcs_offsets[k + 1] =
+               block_col_idcs_offsets[k] + lR.Width();
             // ensure max_rows and max_cols are both powers of 2, and <=
             // max_reduce_size
             while (lR.Height() > max_rows && max_rows < max_reduce_size)
@@ -349,11 +417,6 @@ struct DerefineMatrixOp : public Operator
             // index information
             fespace->elem_dof->GetRow(emb.parent, dofs);
             old_elem_dof->GetRow(k, old_dofs);
-            // sanity checks, shouldn't need to be done
-            // MFEM_VERIFY(dofs.Size() == block_heights[k],
-            //             "block height doesn't match dofs size");
-            // MFEM_VERIFY(old_dofs.Size() == block_widths[k],
-            //             "block width doesn't match old dofs size");
             MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
                         "Parent and child must have same #dofs.");
             for (int i = 0; i < lR.Height(); ++i, ++ridx)
@@ -387,25 +450,36 @@ struct DerefineMatrixOp : public Operator
                         "internal error: not all rows were set.");
          }
       }
+      // if not using GPU, set max_rows/max_cols to zero
+      if (!Device::Allows(Backend::DEVICE_MASK))
+      {
+         max_rows = 1;
+         max_cols = 1;
+      }
    }
 };
 
 namespace internal
 {
-template <Ordering::Type Order, int MaxReduceSize>
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
 void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
 {
-  DerefineMatrixOpMultFunctor<Order, MaxReduceSize> func;
-  func.xptr = x.Read();
-  func.yptr = y.Write();
-  func.bsptr = op.block_storage.Read();
-  func.boptr = op.block_offsets.Read();
-  func.bhptr = op.block_heights.Read();
-  func.bwptr = op.block_widths.Read();
-  func.rptr = op.row_idcs.Read();
-  func.cptr = op.col_idcs.Read();
-  func.vdims = op.fespace->GetVDim();
-  func.Run(op.row_idcs.Size());
+   DerefineMatrixOpMultFunctor<Order, Atomic, MaxReduceSize> func;
+   func.xptr = x.Read();
+   y.UseDevice();
+   y = 0.;
+   func.yptr = y.ReadWrite();
+   func.bsptr = op.block_storage.Read();
+   func.boptr = op.block_offsets.Read();
+   func.brptr = op.block_row_idcs_offsets.Read();
+   func.bcptr = op.block_col_idcs_offsets.Read();
+   func.rptr = op.row_idcs.Read();
+   func.cptr = op.col_idcs.Read();
+   func.vdims = op.fespace->GetVDim();
+   func.nblocks = op.block_offsets.Size();
+   func.width = op.Width() / func.vdims;
+   func.height = op.Height() / func.vdims;
+   func.Run();
 }
 
 template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
@@ -415,10 +489,10 @@ void MultTKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
 }
 } // namespace internal
 
-template <Ordering::Type Order, int MaxReduceSize>
+template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
 DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultKernel::Kernel()
 {
-   return internal::MultKernelImpl<Order, MaxReduceSize>;
+   return internal::MultKernelImpl<Order, Atomic, MaxReduceSize>;
 }
 
 template <Ordering::Type Order, bool Atomic, int MaxReduceSize>
@@ -428,7 +502,7 @@ DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultTKernel::Kernel()
 }
 
 DerefineMatrixOp::MultKernelType
-DerefineMatrixOp::MultKernel::Fallback(Ordering::Type, int)
+DerefineMatrixOp::MultKernel::Fallback(Ordering::Type, bool, int)
 {
    MFEM_ABORT("invalid MultKernel parameters");
 }
