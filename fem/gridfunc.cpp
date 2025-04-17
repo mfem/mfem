@@ -4768,31 +4768,31 @@ constexpr int GridFunction::PLBound::min_ncp_gl_x[2][11];
 constexpr int GridFunction::PLBound::min_ncp_gll_x[2][11];
 constexpr int GridFunction::PLBound::min_ncp_pos_x[2][11];
 
-int GridFunction::PLBound::GetMinimumPointsForGivenBases(int nb, int b_type,
-                                                         int cp_type)
+int GridFunction::PLBound::GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
+                                                         int cp_type_i)
 {
 
-   MFEM_VERIFY(b_type >= 0 && b_type <= 2, "Invalid node type. Specify 0 for "
-               "GL, 1 for GLL, and 2 for positive " "bases.");
-   MFEM_VERIFY(cp_type == 0 || cp_type == 1, "Invalid control point type. "
+   MFEM_VERIFY(b_type_i >= 0 && b_type_i <= 2, "Invalid node type. Specify 0 "
+               "for GL, 1 for GLL, and 2 for positive " "bases.");
+   MFEM_VERIFY(cp_type_i == 0 || cp_type_i == 1, "Invalid control point type. "
                "Specify 0 for GL+end points, 1 for Chebyshev.");
-   if (nb > 12)
+   if (nb_i > 12)
    {
       MFEM_ABORT("GetMinimumPointsForGivenBases can only be used for maximum "
                  "order = 11, i.e. nb=12. 2*nb points should be sufficient to "
                  "bound the bases up to nb = 30.");
    }
-   else if (b_type == 0)
+   else if (b_type_i == 0)
    {
-      return min_ncp_gl_x[cp_type][nb-2];
+      return min_ncp_gl_x[cp_type_i][nb_i-2];
    }
-   else if (b_type == 1)
+   else if (b_type_i == 1)
    {
-      return min_ncp_gll_x[cp_type][nb-2];
+      return min_ncp_gll_x[cp_type_i][nb_i-2];
    }
-   else if (b_type == 2)
+   else if (b_type_i == 2)
    {
-      return min_ncp_pos_x[cp_type][nb-2];
+      return min_ncp_pos_x[cp_type_i][nb_i-2];
    }
    return 0;
 }

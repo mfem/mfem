@@ -1608,7 +1608,7 @@ public:
          {3,5,8,9,11,12,13,13,14,15,16}
       };
 
-      int GetMinimumPointsForGivenBases(int nb, int b_type, int cp_type);
+      int GetMinimumPointsForGivenBases(int nb_i, int b_type_i, int cp_type_i);
 
       void Print(std::ostream &outp = mfem::out)
       {
