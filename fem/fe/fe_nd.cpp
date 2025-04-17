@@ -2903,27 +2903,62 @@ void ND_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
       int idx = dof_map[o++];
       shape(idx,0) = shape_ox(i);
       shape(idx,1) = 0.;
+      shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
       shape(idx,0) = 0.;
-      shape(idx,1) = shape_cx(i);
+      shape(idx,1) = 0.;
+      shape(idx,2) = shape_cx(i);
    }
 }
 
 void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                                        DenseMatrix &shape) const
 {
+   FaceElementTransformations * TF =
+      dynamic_cast<FaceElementTransformations*>(&Trans);
+
+   MFEM_ASSERT(TF != NULL, "ND_R2D_SegmentElement is meant to be used only "
+               "on the trace of a 2D surface mesh and requires a "
+               "FaceElementTransformations object");
+   MFEM_ASSERT(TF->GetConfigurationMask() & 1, "Neighboring element 1 must "
+               "be configured");
+
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 1 && JI.Height() == 1,
-               "ND_R2D_SegmentElement cannot be embedded in "
-               "2 or 3 dimensional spaces");
+
+   MFEM_ASSERT(JI.Height() == 1,
+               "ND_R2D_SegmentElement is only defined on 1D elements");
+   MFEM_ASSERT(JI.Width() == 2 || JI.Width() == 3,
+               "ND_R2D_SegmentElement must be embedded in a "
+               "2 or 3 dimensional space");
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int i=0; i<dof; i++)
    {
-      shape(i, 0) *= JI(0,0);
+      if (JI.Width() == 2)
+      {
+         shape(i, 1) = shape(i, 0) * JI(0,1);
+         shape(i, 0) *= JI(0,0);
+      }
+      else
+      {
+         CalcOrtho(TF->Elem1->Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+
+         real_t st = shape(i, 0);
+         real_t sn = shape(i, 2);
+
+         for (int j=0; j<3; j++)
+         {
+            shape(i, j) = st * JI(0, j) + sn * zhat[j];
+         }
+      }
    }
 }
 
@@ -3074,15 +3109,35 @@ void ND_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
-               "ND_R2D_FiniteElement cannot be embedded in "
-               "3 dimensional spaces");
+
+   MFEM_ASSERT(JI.Height() == 2,
+               "ND_R2D_FiniteElement can only be used with 2D element types");
+   MFEM_ASSERT(JI.Width() == 2 || JI.Width() == 3,
+               "ND_R2D_FiniteElement can only be embedded in 2 or 3 "
+               "dimensional spaces");
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int i=0; i<dof; i++)
    {
       real_t sx = shape(i, 0);
       real_t sy = shape(i, 1);
+      real_t sz = shape(i, 2);
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
+      if (JI.Width() == 3)
+      {
+         shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2);
+
+         CalcOrtho(Trans.Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+
+         for (int j=0; j<3; j++)
+         {
+            shape(i, j) += sz * zhat[j];
+         }
+      }
    }
 }
 

@@ -2309,35 +2309,77 @@ RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
 void RT_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
-   const int p = order;
+   const int pp1 = order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_ox(p);
+   Vector shape_ox(pp1);
 #endif
 
    obasis1d.Eval(ip.x, shape_ox);
 
    int o = 0;
-   // z-components
-   for (int i = 0; i <= p; i++)
+   // y-components
+   for (int i = 0; i < pp1; i++)
    {
       int idx = dof_map[o++];
-      shape(idx,0) = shape_ox(i);
-      shape(idx,1) = 0.;
+      shape(idx,0) = 0.;
+      shape(idx,1) = shape_ox(i);
+      shape(idx,2) = 0.;
    }
 }
 
 void RT_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                                        DenseMatrix &shape) const
 {
+   FaceElementTransformations * TF =
+      dynamic_cast<FaceElementTransformations*>(&Trans);
+
+   MFEM_ASSERT(TF != NULL, "RT_R2D_SegmentElement is meant to be used only "
+               "on the trace of a 2D surface mesh and requires a "
+               "FaceElementTransformations object");
+   MFEM_ASSERT(TF->GetConfigurationMask() & 1, "Neighboring element 1 must "
+               "be configured");
+
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 1 && J.Height() == 1,
-               "RT_R2D_SegmentElement cannot be embedded in "
-               "2 or 3 dimensional spaces");
+
+   MFEM_ASSERT(J.Width() == 1,
+               "RT_R2D_SegmentElement is only defined on 1D elements");
+   MFEM_ASSERT(J.Height() == 2 || J.Height() == 3,
+               "RT_R2D_SegmentElement must be embedded in a "
+               "2 or 3 dimensional space");
+
+   real_t n_data[3];
+   Vector normal3(n_data, 3); normal3 = 0.0;
+
+   real_t t_data[3];
+   Vector tangent(t_data, 3);
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int i=0; i<dof; i++)
    {
-      shape(i, 0) *= J(0,0);
+      real_t sy = shape(i, 1);
+
+      if (J.Height() == 2)
+      {
+         shape(i, 0) = -sy * J(1,0);
+         shape(i, 1) =  sy * J(0,0);
+      }
+      else
+      {
+         CalcOrtho(TF->Elem1->Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+
+         J.GetColumn(0, tangent);
+         zhat.cross3D(tangent, normal3);
+
+         for (int j=0; j<3; j++)
+         {
+            shape(i, j) = sy * normal3[j];
+         }
+      }
    }
    shape *= (1.0 / Trans.Weight());
 }
@@ -2465,15 +2507,35 @@ void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
-               "RT_R2D_FiniteElement cannot be embedded in "
-               "3 dimensional spaces");
+
+   MFEM_ASSERT(J.Width() == 2,
+               "RT_R2D_FiniteElement can only be used with 2D element types");
+   MFEM_ASSERT(J.Height() == 2 || J.Height() == 3,
+               "RT_R2D_FiniteElement can only be embedded in 2 or 3 "
+               "dimensional spaces");
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int i=0; i<dof; i++)
    {
       real_t sx = shape(i, 0);
       real_t sy = shape(i, 1);
+      real_t sz = shape(i, 2);
       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
+      if (J.Height() == 3)
+      {
+         shape(i, 2) = sx * J(2, 0) + sy * J(2, 1);
+
+         CalcOrtho(J, zhat);
+         zhat /= zhat.Norml2();
+
+         for (int j=0; j<3; j++)
+         {
+            shape(i, j) += sz * zhat[j];
+         }
+      }
    }
    shape *= (1.0 / Trans.Weight());
 }
