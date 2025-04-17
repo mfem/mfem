@@ -568,8 +568,9 @@ void QuadratureInterpolator::MultInternal(const Vector &e_vec,
    {
       if (eval_flags & VALUES)
       {
-         TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps_ref.B.Read(),
-                                e_vec.Read(), q_val.Write(), vdim, nd, nq);
+         TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne,
+                                maps_ref.B.Read(), e_vec.Read(), q_val.Write(),
+                                vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
@@ -589,8 +590,9 @@ void QuadratureInterpolator::MultInternal(const Vector &e_vec,
    }
    else // use_tensor_eval == false
    {
-      EvalKernels::Run(dim, vdim, maps_ref.ndof, maps_ref.nqpt, ne,vdim,q_layout,
-                       geom, maps_ref,e_vec, q_val,q_der,q_det,eval_flags);
+      EvalKernels::Run(dim, vdim, maps_ref.ndof, maps_ref.nqpt, ne,vdim,
+                       q_layout, geom, maps_ref,e_vec, q_val, q_der, q_det,
+                       eval_flags);
    }
 }
 

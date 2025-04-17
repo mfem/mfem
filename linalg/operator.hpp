@@ -109,13 +109,15 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    /// Operator application: `y+=|A|(x)` (default) or `y+=a*|A|(x)`.
-   virtual void AddAbsMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
+   virtual void AddAbsMult(const Vector &x, Vector &y,
+                           const real_t a = 1.0) const;
 
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const;
 
-   /// Operator transpose application: `y+=|A|^t(x)` (default) or `y+=a*|A|^t(x)`.
+   /** @brief Operator transpose application: `y+=|A|^t(x)` (default) or
+       `y+=a*|A|^t(x)`. */
    virtual void AddAbsMultTranspose(const Vector &x, Vector &y,
                                     const real_t a = 1.0) const;
 
@@ -976,7 +978,11 @@ public:
 
    /// Operator-wise absolute-value application of the transpose
    void AbsMultTranspose(const Vector & x, Vector & y) const override
-   { Rt.AbsMult(x, APx); A.AbsMultTranspose(APx, Px); P.AbsMultTranspose(Px, y); }
+   {
+      Rt.AbsMult(x, APx);
+      A.AbsMultTranspose(APx, Px);
+      P.AbsMultTranspose(Px, y);
+   }
 };
 
 
@@ -1082,14 +1088,13 @@ public:
    void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    /** @brief Implementation of Mult or MultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
+       TODO - Generalize to allow constraining rows and columns differently. */
    void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /** @brief Implementation of AbsMult or AbsMultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
-   void ConstrainedAbsMult(const Vector &x, Vector &y, const bool transpose) const;
+       TODO - Generalize to allow constraining rows and columns differently. */
+   void ConstrainedAbsMult(const Vector &x, Vector &y,
+                           const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }

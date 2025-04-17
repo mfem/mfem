@@ -782,19 +782,23 @@ public:
    void AbsMult(const Vector &x, Vector &y) const override
    { AbsMult(1.0, x, 0.0, y); }
 
-   /// @brief Computes y += a * |A| * x, using entry-wise absolute values of the matrix A.
-   void AddAbsMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
+   /** @brief Computes y += a * |A| * x, using entry-wise absolute values of the
+       matrix A. */
+   void AddAbsMult(const Vector &x, Vector &y,
+                   const real_t a = 1.0) const override
    { AbsMult(a, x, 1.0, y); }
 
    /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
        values of the transpose of the matrix A. */
    void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
 
-   /// @brief Computes y = |At| * x, using entry-wise absolute values of the matrix A.
+   /** @brief Computes y = |At| * x, using entry-wise absolute values of the
+       matrix A. */
    void AbsMultTranspose(const Vector &x, Vector &y) const override
    { AbsMultTranspose(1.0, x, 0.0, y); }
 
-   /// @brief Computes y += a * |At| * x, using entry-wise absolute values of the matrix A.
+   /** @brief Computes y += a * |At| * x, using entry-wise absolute values of
+       the matrix A. */
    void AddAbsMultTranspose(const Vector &x, Vector &y,
                             const real_t a = 1.0) const override
    { AbsMultTranspose(a, x, 1.0, y); }

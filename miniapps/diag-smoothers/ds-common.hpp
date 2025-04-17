@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LPQ_COMMON_HPP
-#define MFEM_LPQ_COMMON_HPP
+#ifndef MFEM_DS_COMMON_HPP
+#define MFEM_DS_COMMON_HPP
 
 #include "mfem.hpp"
 #include "miniapps/common/mfem-common.hpp"
@@ -123,5 +123,6 @@ void elasticity_source(const Vector &x, Vector &f);
 void maxwell_solution(const Vector &x, Vector &u);
 void maxwell_source(const Vector &x, Vector &f);
 
-} // namespace lpq_jacobi
-#endif // MFEM_LPQ_COMMON_HPP
+} // namespace ds_common
+
+#endif // MFEM_DS_COMMON_HPP

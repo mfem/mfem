@@ -389,16 +389,18 @@ void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
       else if (trial_curl && test_div)
       {
          const bool scalarCoeff = !(DQ || MQ);
-         internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                          true, false, absBo, absBc, absBto_t,
-                                          absBtc_t, abs_pa_data, x, y);
+         internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne,
+                                          scalarCoeff, true, false,
+                                          absBo, absBc, absBto_t, absBtc_t,
+                                          abs_pa_data, x, y);
       }
       else if (trial_div && test_curl)
       {
          const bool scalarCoeff = !(DQ || MQ);
-         internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                          false, false, absBo, absBc, absBto_t,
-                                          absBtc_t, abs_pa_data, x, y);
+         internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne,
+                                          scalarCoeff, false, false,
+                                          absBo, absBc, absBto_t, absBtc_t,
+                                          abs_pa_data, x, y);
       }
       else
       {
@@ -422,8 +424,8 @@ void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
       else if ((trial_curl && test_div) || (trial_div && test_curl))
       {
          const bool scalarCoeff = !(DQ || MQ);
-         internal::PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                          trial_curl, false,
+         internal::PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne,
+                                          scalarCoeff, trial_curl, false,
                                           absBo, absBc, absBto_t, absBtc_t,
                                           abs_pa_data, x, y);
       }

@@ -574,7 +574,8 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
       if (iSz)
       {
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
-         auto H1elem_restrict = dynamic_cast<const ElementRestriction*>(elem_restrict);
+         auto H1elem_restrict =
+            dynamic_cast<const ElementRestriction*>(elem_restrict);
          if (H1elem_restrict && useAbs)
          {
             H1elem_restrict->AbsMult(x, localX);

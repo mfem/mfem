@@ -260,9 +260,10 @@ void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
       }
       else
       {
-         internal::PACurlCurlApply3D<0,0>(dofs1D, quad1D, symmetric, ne,
-                                          absBo, absBc, absBto, absBtc, absGc, absGtc,
-                                          abs_pa_data, x, y, true);
+         internal::PACurlCurlApply3D<0,0>(
+            dofs1D, quad1D, symmetric, ne,
+            absBo, absBc, absBto, absBtc, absGc, absGtc,
+            abs_pa_data, x, y, true);
       }
    }
    else if (dim == 2)
