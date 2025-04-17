@@ -131,4 +131,5 @@ clean-exec:
 	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
 	@rm -f optimized* perturbed* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
-	@rm -f mesh.* order.* sol.* refined.mesh jacobian-determinant-bounds* bounding-box*
+	@rm -f mesh.* order.* sol.* refined.mesh
+	@rm -rf jacobian-determinant-bounds* bounding-box*
