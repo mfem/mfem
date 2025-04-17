@@ -13,14 +13,14 @@
 //                    MG Abs L(1)-Jacobi smoothers miniapp
 //                   --------------------------------------
 //
-// (See lpq-jacobi.cpp first)
+// (See abs-l1-jacobi.cpp first)
 //
 // This miniapp illustrates the use of an absolute value L(1)-Jacobi smoother.
-// We use a multigrid approach (cf. ex26(p)). The global solver and
-// the coarse level solver are user-selected. The current options are SLI and
-// PCG. The intermediate levels are directy smoothed with the absolute value
-// L(1)-Jacobi preconditioner. The systems to solve correspond to a mass matrix,
-// a difussion system, an elasticity system, and a definite Maxwell system.
+// We use a multigrid approach (cf. ex26(p)). The global solver and the coarse
+// level solver are user-selected. The current options are SLI and PCG. The
+// intermediate levels are directy smoothed with the absolute value L(1)-Jacobi
+// preconditioner. The systems to solve correspond to a mass matrix, a difussion
+// system, an elasticity system, and a definite Maxwell system.
 //
 // The preconditioner can be defined at run-time. Similarly, the mesh can be
 // modified by a Kershaw transformation at run-time. Relative tolerance and
@@ -30,10 +30,10 @@
 //
 // Sample runs: mpirun -np 4 ./mg-abs-l1-jacobi
 //              mpirun -np 4 ./mg-abs-l1-jacobi -s 1 -i 3
-//              mpirun -np 4 ./mg-abs-l1-jacobi -m meshes/icf.mesh -f 0.5
-//              mpirun -np 4 ./mg-abs-l1-jacobi -rs 2 -rp 0
+//              mpirun -np 4 ./mg-abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
+//              mpirun -np 4 ./mg-abs-l1-jacobi -rs 2 -rp 1
 //              mpirun -np 4 ./mg-abs-l1-jacobi -t 1e5 -ni 100 -vis
-//              mpirun -np 4 ./mg-abs-l1-jacobi -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
+//              mpirun -np 4 ./mg-abs-l1-jacobi -m ../../data/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
 #include "ds-common.hpp"
 
@@ -43,11 +43,11 @@ using namespace ds_common;
 
 int main(int argc, char *argv[])
 {
-   /// 1. Initialize MPI and HYPRE.
+   // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   /// 2. Parse command line options.
+   // 2. Parse command line options.
    string mesh_file = "../../data/ref-cube.mesh";
    // System properties
    int order = 1;
@@ -78,7 +78,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
    args.AddOption(&geometric_levels, "-gl", "--geometric-levels",
-                  "Number of geometric refinements (levels) done prior to order refinements.");
+                  "Number of geometric refinements (levels) done prior to order"
+                  " refinements.");
    args.AddOption(&order_levels, "-ol", "--order-levels",
                   "Number of order refinements (levels). "
                   "Finest level in the hierarchy has order 2^{or}.");
@@ -124,13 +125,17 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
-   MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
-   MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
-   MFEM_ASSERT((0 <= assembly_type_int) && (assembly_type_int < 6), "");
-   MFEM_ASSERT(geometric_levels >= 0, "geometric_level needs to be non-negative");
-   MFEM_ASSERT(order_levels >= 0, "order_level needs to be non-negative");
-   MFEM_ASSERT((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y in [0,1]");
-   MFEM_ASSERT((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z in [0,1]");
+   MFEM_VERIFY((0 <= solver_type) && (solver_type < num_solvers),
+               "invalid solver type: " << solver_type);
+   MFEM_VERIFY((0 <= integrator_type) && (integrator_type < num_integrators),
+               "invalid integrator type: " << integrator_type);
+   MFEM_VERIFY((0 <= assembly_type_int) && (assembly_type_int < 6),
+               "invalid assembly type: " << assembly_type_int);
+   MFEM_VERIFY(geometric_levels >= 0,
+               "geometric_levels needs to be non-negative");
+   MFEM_VERIFY(order_levels >= 0, "order_levels needs to be non-negative");
+   MFEM_VERIFY((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y must be in [0,1]");
+   MFEM_VERIFY((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z must be in [0,1]");
 
    kappa = freq * M_PI;
 
@@ -182,19 +187,17 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   /// 3. Read the serial mesh from the given mesh file.
-   ///    For convinience, the meshes are available in
-   ///    ./meshes, and the number of serial and parallel
-   ///    refinements are user-defined.
+   // 3. Read the serial mesh from the given mesh file. The number of serial and
+   //    parallel refinements can be set by the user on the command line.
    Mesh *serial_mesh = new Mesh(mesh_file);
    for (int ls = 0; ls < refine_serial; ls++)
    {
       serial_mesh->UniformRefinement();
    }
 
-   /// 4. Define a parallel mesh by a partitioning of the serial mesh.
-   ///    Number of parallel refinements given by the user. If defined,
-   ///    apply Kershaw transformation.
+   // 4. Define a parallel mesh by a partitioning of the serial mesh. The number
+   //    of parallel refinements can be set by the user. If defined, apply
+   //    Kershaw transformation.
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
    for (int lp = 0; lp < refine_parallel; lp++)
@@ -205,7 +208,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    space_dim = mesh->SpaceDimension();
 
-   bool cond_z = (dim < 3)?true:(eps_z != 0.0); // lazy check
+   bool cond_z = (dim < 3) ? true : (eps_z != 0.0); // lazy check
    if (eps_y != 0.0 && cond_z)
    {
       if (dim < 3) { eps_z = 0.0; }
@@ -213,17 +216,18 @@ int main(int argc, char *argv[])
       mesh->Transform(kershawT);
    }
 
-   /// 5. Define a finite element space on the mesh. We use different spaces
-   ///    and collections for different systems.
-   ///    - H1-conforming Lagrange elements for the H1-mass matrix and the
-   ///      diffusion problem.
-   ///    - Vector H1-conforming Lagrange elements for the elasticity problem.
-   ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
+   // 5. Define a finite element space on the mesh. We use different spaces and
+   //    collections for different systems.
+   //    - H1-conforming Lagrange elements for the H1-mass matrix and the
+   //      diffusion problem.
+   //    - Vector H1-conforming Lagrange elements for the elasticity problem.
+   //    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *coarse_fes;
    switch (integrator_type)
    {
-      case mass: case diffusion:
+      case mass:
+      case diffusion:
          fec = new H1_FECollection(order, dim);
          coarse_fes = new ParFiniteElementSpace(mesh, fec);
          break;
@@ -249,9 +253,9 @@ int main(int argc, char *argv[])
       order_levels = 0;
    }
 
-   /// 6. Define a finite element space hierarchy for the multigrid solver.
-   ///    Define a FEC array for the order-refinement levels. Add the refinements
-   ///    to the hierarchy.
+   // 6. Define a finite element space hierarchy for the multigrid solver.
+   //    Define a FEC array for the order-refinement levels. Add the refinements
+   //    to the hierarchy.
    Array<FiniteElementCollection*> fec_array;
    fec_array.Append(fec);
    // Transfer ownership of mesh and coarse_fes to fes_hierarchy
@@ -266,15 +270,17 @@ int main(int argc, char *argv[])
    {
       switch (integrator_type)
       {
-         case mass: case diffusion: case elasticity:
+         case mass:
+         case diffusion:
+         case elasticity:
             fec_array.Append(new H1_FECollection(std::pow(2, lo + 1), dim));
             break;
          case maxwell:
             fec_array.Append(new ND_FECollection(std::pow(2, lo + 1), dim));
             break;
          default:
-            mfem_error("Invalid integrator type! "
-                       "Check FiniteElementCollection for order refinements...");
+            mfem_error("Invalid integrator type! Check "
+                       "FiniteElementCollection for order refinements...");
       }
       fes_hierarchy->AddOrderRefinedLevel(fec_array.Last());
    }
@@ -286,16 +292,16 @@ int main(int argc, char *argv[])
       mfem::out << assembly_description << endl;
    }
 
-   /// 7. Extract the list of the essential boundary DoFs. We mark all boundary
-   ///    attibutes as essential. LpqGeometricMultigrid will determine
-   ///    the DoFs per level.
+   // 7. Extract the list of the essential boundary DoFs. We mark all boundary
+   //    attibutes as essential. AbsL1GeometricMultigrid will determine the
+   //    DoFs per level.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    if (mesh->bdr_attributes.Size()) { ess_bdr = 1; }
 
-   /// 8. Define the linear system. Set up the linear form b(.).
-   ///    The linear form has the standar form (f,v).
-   ///    Define the matrices and vectors associated to the forms, and project
-   ///    the required boundary data into the GridFunction solution.
+   // 8. Define the linear system. Set up the linear form b(.) which has the
+   //    standard form (f,v).
+   //    Also, define the matrices and vectors associated with the forms, and
+   //    project the required boundary data into the GridFunction solution.
    ParLinearForm *b = new ParLinearForm(&fes_hierarchy->GetFinestFESpace());
    LinearFormIntegrator *lfi = nullptr;
 
@@ -328,7 +334,8 @@ int main(int argc, char *argv[])
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case elasticity:
-         vector_u = new VectorFunctionCoefficient(space_dim, elasticity_solution);
+         vector_u = new VectorFunctionCoefficient(space_dim,
+                                                  elasticity_solution);
          vector_f = new VectorFunctionCoefficient(space_dim, elasticity_source);
          lfi = new VectorDomainLFIntegrator(*vector_f);
          x.ProjectBdrCoefficient(*vector_u, ess_bdr);
@@ -345,9 +352,9 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(lfi);
    b->Assemble();
 
-   /// 9. Define a geometric multigrid solver. The bilinear form
-   ///    a(.,.) is assembled internally. Set up the type of cycles
-   ///    and form the linear system.
+   // 9. Define a geometric multigrid solver. The bilinear form a(.,.) is
+   //    assembled internally. Set up the type of cycles and form the linear
+   //    system.
    auto mg = new AbsL1GeometricMultigrid(*fes_hierarchy,
                                          ess_bdr,
                                          integrator_type,
@@ -390,8 +397,8 @@ int main(int argc, char *argv[])
 
    solver->Mult(B, X);
 
-   /// 10. Recover the solution x as a grid function. Send the data by socket
-   ///     to a GLVis server.
+   // 10. Recover the solution x as a grid function. Send the data by socket to
+   //     a GLVis server.
    mg->RecoverFineFEMSolution(X, *b, x);
 
    if (visualization)
@@ -399,21 +406,25 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank()
+               << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *fes_hierarchy->GetFinestFESpace().GetParMesh()
+      sol_sock << "solution\n"
+               << *fes_hierarchy->GetFinestFESpace().GetParMesh()
                << x << flush;
    }
 
-   /// 11. Compute and print the L^2 norm of the error
+   // 11. Compute and print the L^2 norm of the error.
    {
       real_t error = 0.0;
       switch (integrator_type)
       {
-         case mass: case diffusion:
+         case mass:
+         case diffusion:
             error = x.ComputeL2Error(*scalar_u);
             break;
-         case elasticity: case maxwell:
+         case elasticity:
+         case maxwell:
             error = x.ComputeL2Error(*vector_u);
             break;
          default:
@@ -425,7 +436,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   /// 12. Free the memory used
+   // 12. Free the memory used.
    delete mg;
    delete solver;
    delete b;

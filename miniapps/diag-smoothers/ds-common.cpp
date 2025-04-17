@@ -145,8 +145,8 @@ void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
    AddLevel(level_mat.Ptr(), smoother, mg_owned, true);
 }
 
-void AbsL1GeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
-                                                    fespace)
+void AbsL1GeometricMultigrid::ConstructBilinearForm(
+   ParFiniteElementSpace &fespace)
 {
    ParBilinearForm* form = new ParBilinearForm(&fespace);
    form->SetAssemblyLevel(assembly_level);
@@ -230,8 +230,8 @@ real_t diffusion_source(const Vector &x)
 {
    if (dim == 3)
    {
-      return dim * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1)) * sin(
-                kappa * x(2));
+      return dim * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1)) *
+             sin(kappa * x(2));
    }
    else
    {

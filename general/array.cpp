@@ -118,7 +118,10 @@ void Array<T>::Abs()
    const bool useDevice = UseDevice();
    const int N = size;
    auto y = ReadWrite(useDevice);
-   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::abs(y[i]); });
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = std::abs(y[i]);
+   });
 }
 
 // Sum

@@ -94,8 +94,8 @@ void ElasticityIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    abs_maps.Bt.Abs();
    abs_maps.Gt.Abs();
 
-   internal::ElasticityAddAbsMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
-                                    *geom, abs_maps, x, *q_vec, y);
+   internal::ElasticityAddAbsMultPA(vdim, ndofs, *fespace, *lambda_quad,
+                                    *mu_quad, *geom, abs_maps, x, *q_vec, y);
 }
 
 void ElasticityIntegrator::AddAbsMultTransposePA(const Vector &x,

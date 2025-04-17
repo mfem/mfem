@@ -63,8 +63,11 @@ public:
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 
-   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x, y); }
-   void AbsMultTranspose(const Vector &x, Vector &y) const override { MultTransposeUnsigned(x, y); }
+   void AbsMult(const Vector &x, Vector &y) const override
+   { MultUnsigned(x, y); }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultTransposeUnsigned(x, y); }
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
@@ -179,7 +182,8 @@ public:
       MFEM_ABORT("MultUnsigned not implemented yet!");
    }
 
-   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x, y); }
+   void AbsMult(const Vector &x, Vector &y) const override
+   { MultUnsigned(x, y); }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y.
@@ -429,7 +433,8 @@ protected:
                                  const int face_index,
                                  const ElementDofOrdering f_ordering);
 
-   void MultInternal(const Vector &x, Vector &y, const bool useAbs = false) const;
+   void MultInternal(const Vector &x, Vector &y,
+                     const bool useAbs = false) const;
 };
 
 /// @brief Alias for ConformingFaceRestriction, for backwards compatibility and

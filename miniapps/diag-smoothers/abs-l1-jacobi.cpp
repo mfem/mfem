@@ -14,10 +14,10 @@
 //                 -----------------------------------------
 //
 // This miniapp illustrates the implementation of an (slightly generalized)
-// absolute-L(1) Jacobi preconditioner. This preconditioner is tested in different
-// settings. We use Stationary Linear Iterations and Preconditioned Conjugate
-// Gradient as the main solvers.
-// We consider a H1-mass matrix, a diffusion matrix, a elasticity system, and a
+// absolute-L(1) Jacobi preconditioner. This preconditioner is tested in
+// different settings. We use Stationary Linear Iterations and Preconditioned
+// Conjugate Gradient as the main solvers.
+// We consider a H1-mass matrix, a diffusion matrix, an elasticity system, and a
 // definite Maxwell system.
 //
 // The preconditioner can be defined at run-time. Similarly, the mesh can be
@@ -28,10 +28,10 @@
 //
 // Sample runs: mpirun -np 4 ./abs-l1-jacobi
 //              mpirun -np 4 ./abs-l1-jacobi -s 1 -i 3
-//              mpirun -np 4 ./abs-l1-jacobi -m meshes/icf.mesh -f 0.5
-//              mpirun -np 4 ./abs-l1-jacobi -rs 2 -rp 0
+//              mpirun -np 4 ./abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
+//              mpirun -np 4 ./abs-l1-jacobi -rs 3 -rp 1
 //              mpirun -np 4 ./abs-l1-jacobi -t 1e5 -ni 100 -vis
-//              mpirun -np 4 ./abs-l1-jacobi -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
+//              mpirun -np 4 ./abs-l1-jacobi -m ../../data/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
 #include "ds-common.hpp"
 
@@ -41,11 +41,11 @@ using namespace ds_common;
 
 int main(int argc, char *argv[])
 {
-   /// 1. Initialize MPI and HYPRE.
+   // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   /// 2. Parse command line options.
+   // 2. Parse command line options.
    string mesh_file = "../../data/ref-cube.mesh";
    // System properties
    int order = 1;
@@ -128,13 +128,17 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
-   MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
-   MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
-   MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
-   MFEM_ASSERT((0 <= assembly_type_int) && (assembly_type_int < 6), "");
-   MFEM_ASSERT((0 <= pc_type) && (pc_type < num_lpq_pc), "");
-   MFEM_ASSERT((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y in [0,1]");
-   MFEM_ASSERT((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z in [0,1]");
+   MFEM_VERIFY(p_order > 0.0, "p needs to be positive");
+   MFEM_VERIFY((0 <= solver_type) && (solver_type < num_solvers),
+               "invalid solver type: " << solver_type);
+   MFEM_VERIFY((0 <= integrator_type) && (integrator_type < num_integrators),
+               "invalid integrator type: " << integrator_type);
+   MFEM_VERIFY((0 <= assembly_type_int) && (assembly_type_int < 6),
+               "invalid assembly type: " << assembly_type_int);
+   MFEM_VERIFY((0 <= pc_type) && (pc_type < num_lpq_pc),
+               "invalid preconditioner type: " << pc_type);
+   MFEM_VERIFY((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y must be in [0,1]");
+   MFEM_VERIFY((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z must be in [0,1]");
 
    kappa = freq * M_PI;
 
@@ -176,18 +180,17 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   /// 3. Read the serial mesh from the given mesh file.
-   ///    For convinience, the meshes are available in
-   ///    ./meshes, and the number of serial and parallel
-   ///    refinements are user-defined.
+   // 3. Read the serial mesh from the given mesh file. The number of serial and
+   //    parallel refinements can be set by the user on the command line.
    Mesh *serial_mesh = new Mesh(mesh_file);
    for (int ls = 0; ls < refine_serial; ls++)
    {
       serial_mesh->UniformRefinement();
    }
 
-   /// 4. Define a parallel mesh by a partitioning of the serial mesh.
-   ///    Number of parallel refinements given by the user.
+   // 4. Define a parallel mesh by a partitioning of the serial mesh. The number
+   //    of parallel refinements can be set by the user. If defined, apply
+   //    Kershaw transformation.
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
    for (int lp = 0; lp < refine_parallel; lp++)
@@ -198,7 +201,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    space_dim = mesh->SpaceDimension();
 
-   bool cond_z = (dim < 3)?true:(eps_z != 0); // lazy check
+   bool cond_z = (dim < 3) ? true : (eps_z != 0); // lazy check
    if (eps_y != 0.0 && cond_z)
    {
       if (dim < 3) { eps_z = 0.0; }
@@ -206,19 +209,20 @@ int main(int argc, char *argv[])
       mesh->Transform(kershawT);
    }
 
-   /// 5. Define a finite element space on the mesh. We use different spaces
-   ///    and collections for different systems.
-   ///    - H1-conforming Lagrange elements for the H1-mass matrix and the
-   ///      diffusion problem.
-   /// TODO(Gabriel): Elasticity not implemented yet for partial assembly
-   ///    - Vector H1-conforming Lagrange elements for the elasticity problem.
-   ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
+   // 5. Define a finite element space on the mesh. We use different spaces and
+   //    collections for different systems.
+   //    - H1-conforming Lagrange elements for the H1-mass matrix and the
+   //      diffusion problem.
+   // TODO(Gabriel): Elasticity not implemented yet for partial assembly
+   //    - Vector H1-conforming Lagrange elements for the elasticity problem.
+   //    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
 
    switch (integrator_type)
    {
-      case mass: case diffusion:
+      case mass:
+      case diffusion:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
          break;
@@ -240,8 +244,8 @@ int main(int argc, char *argv[])
       mfem::out << "Number of unknowns: " << sys_size << endl;
    }
 
-   /// 6. Extract the list of the essential boundary DoFs. We mark all boundary
-   ///    attibutes as essential. Then we get the list of essential DoFs.
+   // 6. Extract the list of the essential boundary DoFs. We mark all boundary
+   //    attibutes as essential. Then we get the list of essential DoFs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    if (mesh->bdr_attributes.Size())
@@ -250,15 +254,15 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   /// 7. Define the linear system. Set up the bilinear form a(.,.) and the
-   ///    linear form b(.). The current implemented systems are the following:
-   ///    - (u,v), i.e., L2-projection.
-   ///    - (grad(u), grad(v)), i.e., diffusion operator.
-   ///    - (div(u), div(v)) + (e(u),e(v)), i.e., elasticity operator.
-   ///    - (curl(u), curl(v)) + (u,v), i.e., definite Maxwell operator.
-   ///    The linear form has the standard form (f,v).
-   ///    Define the matrices and vectors associated to the forms, and project
-   ///    the required boundary data into the GridFunction solution.
+   // 7. Define the linear system. Set up the bilinear form a(.,.) and the
+   //    linear form b(.). The currently implemented systems are the following:
+   //    - (u,v), i.e., L2-projection.
+   //    - (grad(u), grad(v)), i.e., diffusion operator.
+   //    - (div(u), div(v)) + (e(u),e(v)), i.e., elasticity operator.
+   //    - (curl(u), curl(v)) + (u,v), i.e., definite Maxwell operator.
+   //    The linear form has the standard form (f,v).
+   //    Also, define the matrices and vectors associated with the forms, and
+   //    project the required boundary data into the GridFunction solution.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    ParLinearForm *b = new ParLinearForm(fespace);
 
@@ -299,7 +303,8 @@ int main(int argc, char *argv[])
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case elasticity:
-         vector_u = new VectorFunctionCoefficient(space_dim, elasticity_solution);
+         vector_u = new VectorFunctionCoefficient(space_dim,
+                                                  elasticity_solution);
          vector_f = new VectorFunctionCoefficient(space_dim, elasticity_source);
          lfi = new VectorDomainLFIntegrator(*vector_f);
          bfi = new ElasticityIntegrator(one, one);
@@ -328,8 +333,8 @@ int main(int argc, char *argv[])
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   /// 8. Construct the preconditioner. Uses AbsMult to construct an appoximation
-   ///    of the diagonal of the matrix.
+   // 8. Construct the preconditioner. Uses AbsMult to construct an appoximation
+   //    of the diagonal of the matrix.
 
    Solver *jacobi = nullptr;
    Vector ones(fespace->GetTrueVSize());
@@ -358,10 +363,10 @@ int main(int argc, char *argv[])
          mfem_error("Invalid preconditioner type!");
    }
 
-   /// 9. Construct the solver. The implemented solvers are the following:
-   ///    - Stationary Linear Iteration
-   ///    - Preconditioned Conjugate Gradient
-   ///    Then, solve the system with the used-selected solver.
+   // 9. Construct the solver. The implemented solvers are the following:
+   //    - Stationary Linear Iteration
+   //    - Preconditioned Conjugate Gradient
+   //    Then, solve the system with the used-selected solver.
    Solver *solver = nullptr;
    DataMonitor *monitor = nullptr;
 
@@ -397,8 +402,8 @@ int main(int argc, char *argv[])
 
    solver->Mult(B, X);
 
-   /// 10. Recover the solution x as a grid function. Send the data by socket
-   ///     to a GLVis server.
+   // 10. Recover the solution x as a grid function. Send the data by socket to
+   //     a GLVis server.
    a->RecoverFEMSolution(X, *b, x);
 
    if (visualization)
@@ -407,20 +412,23 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
 
-      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank()
+               << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   /// 11. Compute and print the L^2 norm of the error, print elapsed times
+   // 11. Compute and print the L^2 norm of the error.
    {
       real_t error = 0.0;
       switch (integrator_type)
       {
-         case mass: case diffusion:
+         case mass:
+         case diffusion:
             error = x.ComputeL2Error(*scalar_u);
             break;
-         case elasticity: case maxwell:
+         case elasticity:
+         case maxwell:
             error = x.ComputeL2Error(*vector_u);
             break;
          default:
@@ -432,7 +440,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   /// 12. Free the memory used
+   // 12. Free the memory used.
    delete solver;
    if (jacobi) { delete jacobi; }
    delete a;

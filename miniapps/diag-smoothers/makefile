@@ -34,6 +34,9 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
    $(MFEM_BUILD_DIR)/miniapps/common))
 
+APP_DEPS = $(DS_COMMON_OBJ) ds-common.hpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+APP_LIBS = $(COMMON_LIB) $(MFEM_LIBS)
+
 # Phony targets
 .PHONY: all lib-common clean clean-build clean-exec test
 
@@ -41,8 +44,8 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 all: $(MINIAPPS)
 
 # Build rules
-$(MINIAPPS): %: %.cpp $(DS_COMMON_OBJ) ds-common.hpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) $< $(DS_COMMON_OBJ) -o $@ $(COMMON_LIB) $(MFEM_LIBS)
+$(MINIAPPS): %: %.cpp $(APP_DEPS) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< $(DS_COMMON_OBJ) -o $@ $(APP_LIBS)
 
 $(DS_COMMON_OBJ): %.o: %.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@

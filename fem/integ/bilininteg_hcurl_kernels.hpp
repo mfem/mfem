@@ -972,8 +972,16 @@ inline void PACurlCurlApply3D(const int d1d,
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                      curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz; // (u_0)_{x_2}
-                     if (!useAbs) { curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz; }  // -(u_0)_{x_1}
-                     else { curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz; }  // +(u_0)_{x_1}
+                     if (!useAbs)
+                     {
+                        // -(u_0)_{x_1}
+                        curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz;
+                     }
+                     else
+                     {
+                        // +(u_0)_{x_1}
+                        curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;
+                     }
                   }
                }
             }
@@ -1041,8 +1049,16 @@ inline void PACurlCurlApply3D(const int d1d,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-                     if (!useAbs) { curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz; } // -(u_1)_{x_2}
-                     else { curl[qz][qy][qx][0] += gradXY[qy][qx][1] * wDz; } // ++u_1)_{x_2}
+                     if (!useAbs)
+                     {
+                        // -(u_1)_{x_2}
+                        curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz;
+                     }
+                     else
+                     {
+                        // +(u_1)_{x_2}
+                        curl[qz][qy][qx][0] += gradXY[qy][qx][1] * wDz;
+                     }
                      curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
                   }
                }
@@ -1113,8 +1129,16 @@ inline void PACurlCurlApply3D(const int d1d,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      curl[qz][qy][qx][0] += gradYZ[qz][qy][1] * wx;  // (u_2)_{x_1}
-                     if (!useAbs) { curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx; } // -(u_2)_{x_0}
-                     else { curl[qz][qy][qx][1] += gradYZ[qz][qy][0] * wDx; } // +u_2)_{x_0}
+                     if (!useAbs)
+                     {
+                        // -(u_2)_{x_0}
+                        curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx;
+                     }
+                     else
+                     {
+                        // +(u_2)_{x_0}
+                        curl[qz][qy][qx][1] += gradYZ[qz][qy][0] * wDx;
+                     }
                   }
                }
             }
@@ -1214,17 +1238,20 @@ inline void PACurlCurlApply3D(const int d1d,
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+                     const int idx = dx + ((dy + (dz * D1Dy)) * D1Dx) + osc;
                      if (!useAbs)
                      {
-                        // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                        Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                          e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
+                        // (u_0)_{x_2} * (op * curl)_1 -
+                        // (u_0)_{x_1} * (op * curl)_2
+                        Y(idx, e) += (gradXY21[dy][dx] * wDz) -
+                                     (gradXY12[dy][dx] * wz);
                      }
                      else
                      {
-                        // (u_0)_{x_2} * (op * curl)_1 + (u_0)_{x_1} * (op * curl)_2
-                        Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                          e) += (gradXY21[dy][dx] * wDz) + (gradXY12[dy][dx] * wz);
+                        // (u_0)_{x_2} * (op * curl)_1 +
+                        // (u_0)_{x_1} * (op * curl)_2
+                        Y(idx, e) += (gradXY21[dy][dx] * wDz) +
+                                     (gradXY12[dy][dx] * wz);
                      }
                   }
                }
@@ -1292,18 +1319,21 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
+                     const int idx = dx + ((dy + (dz * D1Dy)) * D1Dx) + osc;
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
                      if (!useAbs)
                      {
-                        // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                        Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                          e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+                        // -(u_1)_{x_2} * (op * curl)_0 +
+                        //  (u_1)_{x_0} * (op * curl)_2
+                        Y(idx, e) += (-gradXY20[dy][dx] * wDz) +
+                                     (gradXY02[dy][dx] * wz);
                      }
                      else
                      {
-                        // +(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                        Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                          e) += (gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+                        // +(u_1)_{x_2} * (op * curl)_0 +
+                        //  (u_1)_{x_0} * (op * curl)_2
+                        Y(idx, e) += (gradXY20[dy][dx] * wDz) +
+                                     (gradXY02[dy][dx] * wz);
                      }
                   }
                }
@@ -1374,18 +1404,21 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
+                     const int idx = dx + ((dy + (dz * D1Dy)) * D1Dx) + osc;
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      if (!useAbs)
                      {
-                        // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-                        Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                          e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
+                        // (u_2)_{x_1} * (op * curl)_0 -
+                        // (u_2)_{x_0} * (op * curl)_1
+                        Y(idx, e) += (gradYZ10[dz][dy] * wx) -
+                                     (gradYZ01[dz][dy] * wDx);
                      }
                      else
                      {
-                        // (u_2)_{x_1} * (op * curl)_0 + (u_2)_{x_0} * (op * curl)_1
-                        Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                          e) += (gradYZ10[dz][dy] * wx) + (gradYZ01[dz][dy] * wDx);
+                        // (u_2)_{x_1} * (op * curl)_0 +
+                        // (u_2)_{x_0} * (op * curl)_1
+                        Y(idx, e) += (gradYZ10[dz][dy] * wx) +
+                                     (gradYZ01[dz][dy] * wDx);
                      }
                   }
                }
@@ -1593,7 +1626,7 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                         }
 
                         if (!useAbs) { curl[qy][qx][0] -= v; } // -(u_1)_{x_2}
-                        else { curl[qy][qx][0] += v; } // -(u_1)_{x_2}
+                        else { curl[qy][qx][0] += v; } // +(u_1)_{x_2}
                         curl[qy][qx][2] += u; // (u_1)_{x_0}
                      }
                      else // z component
@@ -1681,38 +1714,50 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                            const real_t wx = sBo[dx][qx];
                            if (!useAbs)
                            {
-                              // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                              dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
+                              // (u_0)_{x_2} * (op * curl)_1 -
+                              // (u_0)_{x_1} * (op * curl)_2
+                              dxyz1 += (wx * c2 * wcy * wcDz) -
+                                       (wx * c3 * wcDy * wcz);
                            }
                            else
                            {
-                              // (u_0)_{x_2} * (op * curl)_1 + (u_0)_{x_1} * (op * curl)_2
-                              dxyz1 += (wx * c2 * wcy * wcDz) + (wx * c3 * wcDy * wcz);
+                              // (u_0)_{x_2} * (op * curl)_1 +
+                              // (u_0)_{x_1} * (op * curl)_2
+                              dxyz1 += (wx * c2 * wcy * wcDz) +
+                                       (wx * c3 * wcDy * wcz);
                            }
                         }
 
                         // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
                         if (!useAbs)
                         {
-                           // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                           dxyz2 += (-wy * c1 * wcx * wcDz) + (wy * c3 * wDx * wcz);
+                           // -(u_1)_{x_2} * (op * curl)_0 +
+                           //  (u_1)_{x_0} * (op * curl)_2
+                           dxyz2 += (-wy * c1 * wcx * wcDz) +
+                                    (wy * c3 * wDx * wcz);
                         }
                         else
                         {
-                           // +(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                           dxyz2 += (wy * c1 * wcx * wcDz) + (wy * c3 * wDx * wcz);
+                           // +(u_1)_{x_2} * (op * curl)_0 +
+                           //  (u_1)_{x_0} * (op * curl)_2
+                           dxyz2 += (wy * c1 * wcx * wcDz) +
+                                    (wy * c3 * wDx * wcz);
                         }
 
                         // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                         if (!useAbs)
                         {
-                           // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-                           dxyz3 += (wcDy * wz * c1 * wcx) - (wcy * wz * c2 * wDx);
+                           // (u_2)_{x_1} * (op * curl)_0 -
+                           // (u_2)_{x_0} * (op * curl)_1
+                           dxyz3 += (wcDy * wz * c1 * wcx) -
+                                    (wcy * wz * c2 * wDx);
                         }
                         else
                         {
-                           // (u_2)_{x_1} * (op * curl)_0 + (u_2)_{x_0} * (op * curl)_1
-                           dxyz3 += (wcDy * wz * c1 * wcx) + (wcy * wz * c2 * wDx);
+                           // (u_2)_{x_1} * (op * curl)_0 +
+                           // (u_2)_{x_0} * (op * curl)_1
+                           dxyz3 += (wcDy * wz * c1 * wcx) +
+                                    (wcy * wz * c2 * wDx);
                         }
                      } // qx
                   } // qy
