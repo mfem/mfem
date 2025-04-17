@@ -179,123 +179,6 @@ struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, Atomic>
    }
 };
 
-template <Ordering::Type Order, bool Atomic>
-struct DerefineMatrixOpMultTFunctor;
-
-template <bool Atomic>
-struct DerefineMatrixOpMultTFunctor<Ordering::byNODES, Atomic>
-   : DerefineMatrixOpFunctorBase
-{
-   void MFEM_HOST_DEVICE operator()(int kidx) const
-   {
-      int k = kidx % nblocks;
-      int vdim = kidx / nblocks;
-
-      int block_width = bcptr[k + 1] - bcptr[k];
-      int block_height = brptr[k + 1] - brptr[k];
-      MFEM_FOREACH_THREAD(j, x, block_width)
-      {
-         int col = cptr[bcptr[k] + j];
-         int csign = 1;
-         if (col < 0)
-         {
-            col = -1 - col;
-            csign = -1;
-         }
-         real_t sum = 0;
-         for (int i = 0; i < block_height; ++i)
-         {
-            // row not marked as unused
-            int row = rptr[brptr[k] + i];
-            int sign = csign;
-            if (row < 0)
-            {
-               row = -1 - row;
-               sign *= -1;
-            }
-            if (row < height)
-            {
-               sum += sign * bsptr[boptr[k] + i + j * block_height] *
-                      xptr[row + vdim * height];
-            }
-         }
-#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
-         if (Atomic)
-         {
-            atomicAdd(yptr + col + vdim * width, sum);
-         }
-         else
-#endif
-         {
-            yptr[col + vdim * width] += sum;
-         }
-      }
-   }
-
-   /// N is the max block col size (doesn't have to be a power of 2)
-   void Run(int N) const
-   {
-      forall_2D(nblocks * vdims, N, 1, *this);
-   }
-};
-
-template <bool Atomic>
-struct DerefineMatrixOpMultTFunctor<Ordering::byVDIM, Atomic>
-   : DerefineMatrixOpFunctorBase
-{
-   void MFEM_HOST_DEVICE operator()(int kidx) const
-   {
-      int k = kidx % nblocks;
-      int vdim = kidx / nblocks;
-
-      int block_width = bcptr[k + 1] - bcptr[k];
-      int block_height = brptr[k + 1] - brptr[k];
-      MFEM_FOREACH_THREAD(j, x, block_width)
-      {
-         int col = cptr[bcptr[k] + j];
-         int csign = 1;
-         if (col < 0)
-         {
-            col = -1 - col;
-            csign = -1;
-         }
-         real_t sum = 0;
-         for (int i = 0; i < block_height; ++i)
-         {
-            // row not marked as unused
-            int row = rptr[brptr[k] + i];
-            int sign = csign;
-            if (row < 0)
-            {
-               row = -1 - row;
-               sign *= -1;
-            }
-            if (row < height)
-            {
-               sum += sign * bsptr[boptr[k] + i + j * block_height] *
-                      xptr[vdim + row * vdims];
-            }
-         }
-#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
-         if (Atomic)
-         {
-            atomicAdd(yptr + col + vdim * width, sum);
-         }
-         else
-#endif
-         {
-            yptr[vdim + col * vdims] += sum;
-         }
-      }
-   }
-
-   /// N is the max block col size (doesn't have to be a power of 2)
-   void Run(int N) const
-   {
-      forall_2D(nblocks * vdims, N, 1, *this);
-   }
-};
-
 } // namespace internal
 
 class DerefineMatrixOp : public Operator
@@ -314,16 +197,12 @@ public:
    /// mapping for col dofs, negative means the col data should be negated.
    Array<int> col_idcs;
    Vector block_storage;
-   int max_rows, max_cols;
+   int max_rows;
 
    using MultKernelType = void (*)(const DerefineMatrixOp &, const Vector &,
                                    Vector &);
    /// template args: ordering, atomic
    MFEM_REGISTER_KERNELS(MultKernel, MultKernelType,
-                         (Ordering::Type, bool));
-
-   /// template args: ordering, atomic
-   MFEM_REGISTER_KERNELS(MultTKernel, MultKernelType,
                          (Ordering::Type, bool));
 
    struct Kernels
@@ -334,11 +213,6 @@ public:
          MultKernel::Specialization<Ordering::byVDIM, false>::Add();
          MultKernel::Specialization<Ordering::byNODES, true>::Add();
          MultKernel::Specialization<Ordering::byVDIM, true>::Add();
-
-         MultTKernel::Specialization<Ordering::byNODES, false>::Add();
-         MultTKernel::Specialization<Ordering::byVDIM, false>::Add();
-         MultTKernel::Specialization<Ordering::byNODES, true>::Add();
-         MultTKernel::Specialization<Ordering::byVDIM, true>::Add();
       }
    };
 
@@ -348,13 +222,6 @@ public:
                    FiniteElementCollection::DISCONTINUOUS;
       // DG needs atomic summation
       MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
-   }
-
-   void MultTranspose(const Vector &x, Vector &y) const
-   {
-      // TODO: what can get away without atomic summations?
-      // TODO: is this every used?
-      MultTKernel::Run(fespace->GetOrdering(), true, *this, x, y);
    }
 
    DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
@@ -466,7 +333,6 @@ public:
       // compute index information
       Array<int> dofs, old_dofs;
       max_rows = 1;
-      max_cols = 1;
 
       {
          Array<int> mark(fespace->GetNDofs());
@@ -507,7 +373,6 @@ public:
             block_col_idcs_offsets[k + 1] =
                block_col_idcs_offsets[k] + lR.Width();
             max_rows = std::min(lR.Height(), max_rows);
-            max_cols = std::min(lR.Width(), max_cols);
             // index information
             fespace->elem_dof->GetRow(emb.parent, dofs);
             old_elem_dof->GetRow(k, old_dofs);
@@ -548,12 +413,10 @@ public:
       if (!Device::Allows(Backend::DEVICE_MASK))
       {
          max_rows = 1;
-         max_cols = 1;
       }
       else
       {
          max_rows = std::min(max_rows, max_team_size);
-         max_cols = std::min(max_cols, max_team_size);
       }
    }
 };
@@ -582,27 +445,6 @@ static void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
    func.Run(op.max_rows);
 }
 
-template <Ordering::Type Order, bool Atomic>
-static void MultTKernelImpl(const DerefineMatrixOp &op, const Vector &x,
-                            Vector &y)
-{
-   DerefineMatrixOpMultTFunctor<Order, Atomic> func;
-   func.xptr = x.Read();
-   y.UseDevice();
-   y = 0.;
-   func.yptr = y.ReadWrite();
-   func.bsptr = op.block_storage.Read();
-   func.boptr = op.block_offsets.Read();
-   func.brptr = op.block_row_idcs_offsets.Read();
-   func.bcptr = op.block_col_idcs_offsets.Read();
-   func.rptr = op.row_idcs.Read();
-   func.cptr = op.col_idcs.Read();
-   func.vdims = op.fespace->GetVDim();
-   func.nblocks = op.block_offsets.Size();
-   func.width = op.Width() / func.vdims;
-   func.height = op.Height() / func.vdims;
-   func.Run(op.max_cols);
-}
 } // namespace internal
 
 template <Ordering::Type Order, bool Atomic>
@@ -611,22 +453,10 @@ DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultKernel::Kernel()
    return internal::MultKernelImpl<Order, Atomic>;
 }
 
-template <Ordering::Type Order, bool Atomic>
-DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultTKernel::Kernel()
-{
-   return internal::MultTKernelImpl<Order, Atomic>;
-}
-
 DerefineMatrixOp::MultKernelType
 DerefineMatrixOp::MultKernel::Fallback(Ordering::Type, bool)
 {
    MFEM_ABORT("invalid MultKernel parameters");
-}
-
-DerefineMatrixOp::MultKernelType
-DerefineMatrixOp::MultTKernel::Fallback(Ordering::Type, bool)
-{
-   MFEM_ABORT("invalid MultTKernel parameters");
 }
 
 /// \endcond DO_NOT_DOCUMENT
