@@ -232,23 +232,20 @@ protected:
    Array<FaceInfo> faces_info;
    Array<NCFaceInfo> nc_faces_info;
 
-   Table *el_to_edge;
-   Table *el_to_face;
-   Table *el_to_el;
+   Table *elem_to_edge;
+   Table *elem_to_face;
+   Table *elem_to_elem;
    Array<int> be_to_face; // faces = vertices (1D), edges (2D), faces (3D)
 
-   Table *bel_to_edge;    // for 3D only
+   Table *bele_to_edge;    // for 3D only
 
-   // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these three tables, only face_to_edge and
-   // edge_to_vertex are returned by access functions.
-   mutable Table face_to_el;       // Used by FindFaceNeighbors, not returned.
-   mutable Table face_to_edge;     // Returned by GetFaceEdgeTable().
-   mutable Table edge_to_vertex;   // Returned by GetEdgeVertexTable().
-   mutable Table vertex_to_el;
-   mutable Table vertex_to_face;
-   mutable Table face_to_vertex;
-   mutable Table vertex_to_edge;
+   mutable Table face_to_elem;      // Returned by GetFaceToElementTable().
+   mutable Table face_to_edge;      // Returned by GetFaceEdgeTable().
+   mutable Table edge_to_vert;      // Returned by GetEdgeVertexTable().
+   mutable Table vert_to_elem;      // Returned by GetVertexToElementTable().
+   mutable Table vert_to_face;      // Returned by GetVertexToFace().
+   mutable Table face_to_vert;      // Returned by GetFaceToVertexTable().
+   mutable Table vert_to_edge;    // Returned by GetVertexToEdgeTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -550,7 +547,7 @@ protected:
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
-                                        Table &el_to_edge);
+                                        Table &elem_to_edge);
 
    /** Return element to edge table and the indices for the boundary edges.
        The entries in the table are ordered according to the order of the
@@ -1125,8 +1122,8 @@ public:
     */
    void DeleteBoundaryElementToEdge()
    {
-      delete bel_to_edge;
-      bel_to_edge = nullptr;
+      delete bele_to_edge;
+      bele_to_edge = nullptr;
    }
 
    /// @}
@@ -1642,7 +1639,7 @@ public:
    /// Returns the vertex-to-face Table (3D)
    Table *GetVertexToFaceTable() const;
 
-   /// Returns the face_to_vertex Table (3D)
+   /// Returns the face_to_vert Table (3D)
    Table *GetFaceToVertexTable() const;
 
    /// Return the "face"-element Table. Here "face" refers to face (3D),
