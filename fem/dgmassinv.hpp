@@ -32,7 +32,7 @@ protected:
    const DofToQuad *d2q; ///< Change of basis. Not owned.
    Array<real_t> B_; ///< Inverse of change of basis.
    Array<real_t> Bt_; ///< Inverse of change of basis, transposed.
-   class BilinearForm *M; ///< Mass bilinear form, owned.
+   std::unique_ptr<class BilinearForm> M; ///< Mass bilinear form.
    class MassIntegrator *m; ///< Mass integrator, owned by the form @ref M.
    Vector diag_inv; ///< Jacobi preconditioner.
    real_t rel_tol = 1e-12; ///< Relative CG tolerance.

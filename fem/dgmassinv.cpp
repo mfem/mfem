@@ -71,7 +71,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    // Only need transformed RHS if basis is different
    if (btype_orig != btype) { b2_.SetSize(height); }
 
-   M = new BilinearForm(&fes);
+   M.reset(new BilinearForm(&fes));
    M->AddDomainIntegrator(m); // M assumes ownership of m
    M->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
@@ -112,10 +112,7 @@ void DGMassInverse::Update()
    diag_inv.Reciprocal();
 }
 
-DGMassInverse::~DGMassInverse()
-{
-   delete M;
-}
+DGMassInverse::~DGMassInverse() = default;
 
 template<int DIM, int D1D, int Q1D>
 void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
