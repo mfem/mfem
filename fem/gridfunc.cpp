@@ -4764,6 +4764,10 @@ void GridFunction::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes)
    }
 }
 
+constexpr int GridFunction::PLBound::min_ncp_gl_x[2][11];
+constexpr int GridFunction::PLBound::min_ncp_gll_x[2][11];
+constexpr int GridFunction::PLBound::min_ncp_pos_x[2][11];
+
 int GridFunction::PLBound::GetMinimumPointsForGivenBases(int nb, int b_type,
                                                          int cp_type)
 {
@@ -4885,118 +4889,6 @@ GridFunction::PLBound GridFunction::GetPLBound(int ncp, int cp_type)
 
    return plb;
 }
-
-// GridFunction::PLBound GridFunction::GetPLBound(std::string filename,
-//                                                int b_type)
-// {
-//    std::ifstream file(filename);
-//    if (!file.is_open())
-//    {
-//       mfem::out << filename << std::endl;
-//       MFEM_ABORT("File did not open\n");
-//    }
-//    PLBound plb;
-//    plb.b_type = b_type;
-//    plb.cp_type = 2;
-
-//    int n;
-//    real_t val;
-
-//    file >> n;
-//    plb.nb = n;
-//    plb.nodes.SetSize(n);
-//    for (int i = 0; i < n; ++i)
-//    {
-//       file >> val;
-//       plb.nodes(i) = val;
-//    }
-//    plb.weights.SetSize(n);
-//    IntegrationRule irule(plb.nb);
-//    if (b_type == 0)
-//    {
-//       QuadratureFunctions1D::GaussLegendre(plb.nb, &irule);
-//       for (int i = 0; i < plb.nb; i++)
-//       {
-//          plb.weights(i) = irule.IntPoint(i).weight;
-//       }
-//    }
-//    else if (b_type == 1)
-//    {
-//       QuadratureFunctions1D::GaussLobatto(plb.nb, &irule);
-//       for (int i = 0; i < plb.nb; i++)
-//       {
-//          plb.weights(i) = irule.IntPoint(i).weight;
-//       }
-//    }
-//    else if (b_type == 2)
-//    {
-//       QuadratureFunctions1D::ClosedUniform(plb.nb, &irule);
-//       for (int i = 0; i < plb.nb; i++)
-//       {
-//          plb.weights(i) = irule.IntPoint(i).weight;
-//       }
-//    }
-
-//    int m;
-//    file >> m;
-//    plb.ncp = m;
-//    plb.control_points.SetSize(m);
-//    for (int i = 0; i < m; ++i)
-//    {
-//       file >> val;
-//       plb.control_points(i) = val;
-//    }
-
-//    plb.lbound.SetSize(n, m);
-//    plb.ubound.SetSize(n, m);
-
-//    for (int i = 0; i < n; i++)
-//    {
-//       for (int j = 0; j < m; j++)
-//       {
-//          file >> val;
-//          plb.lbound(i,j) = val;
-//       }
-//       for (int j = 0; j < m; j++)
-//       {
-//          file >> val;
-//          plb.ubound(i,j) = val;
-//       }
-//    }
-
-//    if (plb.b_type == 2)
-//    {
-//       plb.nodes_int.SetSize(plb.nb);
-//       plb.weights_int.SetSize(plb.nb);
-//       IntegrationRule irule(plb.nb);
-//       {
-//          QuadratureFunctions1D::GaussLobatto(plb.nb, &irule);
-//          for (int i = 0; i < plb.nb; i++)
-//          {
-//             plb.weights_int(i) = irule.IntPoint(i).weight;
-//             plb.nodes_int(i) = irule.IntPoint(i).x;
-//          }
-//       }
-
-//       SetupBernsteinBasisMat(plb.basisMatNodes, plb.nodes);
-//       // Compute and store the lu factors
-//       plb.basisMatLU = plb.basisMatNodes;
-//       plb.lu.data = plb.basisMatLU.GetData();
-//       plb.lu_ip.SetSize(plb.nb);
-//       plb.lu.ipiv = plb.lu_ip.GetData();
-//       bool factor = plb.lu.Factor(plb.nb);
-//       MFEM_VERIFY(factor,"Failure in LU factorization in PLBound.");
-
-//       SetupBernsteinBasisMat(plb.basisMatInt, plb.nodes_int);
-//    }
-//    else
-//    {
-//       plb.nodes_int.SetDataAndSize(plb.nodes.GetData(), plb.nb);
-//       plb.weights_int.SetDataAndSize(plb.weights.GetData(), plb.nb);
-//    }
-
-//    return plb;
-// }
 
 void GridFunction::Get1DBounds(PLBound &plb, Vector &coeff,
                                Vector &intmin, Vector &intmax)
