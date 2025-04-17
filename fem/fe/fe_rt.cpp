@@ -2286,7 +2286,7 @@ RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
    // Override default dimension for VectorFiniteElements
-   vdim = 2;
+   vdim = 3;
 
    const real_t *op = poly1d.OpenPoints(p, ob_type);
 
@@ -2298,7 +2298,7 @@ RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
 
    int o = 0;
    // interior
-   // z-components
+   // y-components
    for (int i = 0; i <= p; i++)
    {
       Nodes.IntPoint(o).x = op[i];
@@ -2387,6 +2387,65 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void RT_R2D_SegmentElement::Project(VectorCoefficient &vc,
+                                    ElementTransformation &Trans,
+                                    Vector &dofs) const
+{
+   FaceElementTransformations * TF =
+      dynamic_cast<FaceElementTransformations*>(&Trans);
+
+   MFEM_ASSERT(TF != NULL, "RT_R2D_SegmentElement is meant to be used only "
+               "on the trace of a 2D surface mesh and requires a "
+               "FaceElementTransformations object");
+   MFEM_ASSERT(TF->GetConfigurationMask() & 1, "Neighboring element 1 must "
+               "be configured");
+
+   real_t data[3];
+   Vector vk1(data, 1);
+   Vector vk2(data, 2);
+   Vector vk3(data, 3);
+
+   real_t n_data[3];
+   Vector normal2(n_data, 2);
+   Vector normal3(n_data, 3); normal3 = 0.0;
+
+   real_t t_data[3];
+   Vector tangent(t_data, 3);
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
+   for (int k = 0; k < dof; k++)
+   {
+      TF->SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+
+      if (TF->Elem1->Jacobian().Height() > 2)
+      {
+         CalcOrtho(TF->Elem1->Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+      }
+
+      vc.Eval(vk3, Trans, Nodes.IntPoint(k));
+
+      if (TF->Elem1->Jacobian().Height() == 2)
+      {
+         normal2[0] = -J(1,0);
+         normal2[1] =  J(0,0);
+
+         dofs(k) = normal2 * vk2;
+      }
+      else
+      {
+         J.GetColumn(0, tangent);
+         zhat.cross3D(tangent, normal3);
+
+         dofs(k) = normal3 * vk3;
+      }
+   }
+
 }
 
 RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
@@ -2518,6 +2577,9 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
 
    real_t * nk_ptr = const_cast<real_t*>(nk);
 
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
@@ -2527,8 +2589,19 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
       Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
       Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
 
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
-                Trans.Weight() * vk3(2) * n3(2);
+      if (Trans.Jacobian().Height() == 2)
+      {
+         dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
+                   Trans.Weight() * vk3(2) * n3(2);
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+
+         dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk3, n2) +
+                   Trans.Weight() * (vk3 * zhat) * n3(2);
+      }
    }
 }
 

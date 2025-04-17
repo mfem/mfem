@@ -2845,8 +2845,8 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
    // Override default dimensions for VectorFiniteElements
-   vdim = 2;
-   cdim = 1;
+   vdim = 3;
+   cdim = 3;
 
    const real_t *cp = poly1d.ClosedPoints(p, cb_type);
    const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
@@ -2999,6 +2999,16 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
                                     ElementTransformation &Trans,
                                     Vector &dofs) const
 {
+   FaceElementTransformations * TF =
+      dynamic_cast<FaceElementTransformations*>(&Trans);
+
+   MFEM_ASSERT(TF != NULL, "ND_R2D_SegmentElement is meant to be used only "
+               "on the trace of a 2D surface mesh and requires a "
+               "FaceElementTransformations object");
+
+   MFEM_ASSERT(TF->GetConfigurationMask() & 1, "Neighboring element 1 must "
+               "be configured");
+
    real_t data[3];
    Vector vk1(data, 1);
    Vector vk2(data, 2);
@@ -3006,16 +3016,37 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 
    real_t * tk_ptr = const_cast<real_t*>(tk);
 
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int k = 0; k < dof; k++)
    {
-      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      TF->SetIntPoint(&Nodes.IntPoint(k));
+
+      if (TF->Elem1->Jacobian().Height() == 2)
+      {
+         // By default assume xy-plane with +z-axis as the normal direction
+         zhat = 0.0; zhat[2] = 1.0;
+      }
+      else
+      {
+         CalcOrtho(TF->Elem1->Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+      }
 
       vc.Eval(vk3, Trans, Nodes.IntPoint(k));
       // dof_k = vk^t J tk
       Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
       Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
 
-      dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t2(1) * vk3(2);
+      if (TF->Elem1->Jacobian().Height() == 2)
+      {
+         dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t2(1) * vk3(2);
+      }
+      else
+      {
+         dofs(k) = Trans.Jacobian().InnerProduct(t1, vk3) + t2(1) * (zhat * vk3);
+      }
    }
 
 }
@@ -3174,6 +3205,9 @@ void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
 
    real_t * tk_ptr = const_cast<real_t*>(tk);
 
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
@@ -3183,7 +3217,16 @@ void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
       Vector t2(&tk_ptr[dof2tk[k] * 3], 2);
       Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
 
-      dofs(k) = Trans.Jacobian().InnerProduct(t2, vk2) + t3(2) * vk3(2);
+      if (Trans.Jacobian().Height() == 2)
+      {
+         dofs(k) = Trans.Jacobian().InnerProduct(t2, vk2) + t3(2) * vk3(2);
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+         dofs(k) = Trans.Jacobian().InnerProduct(t2, vk3) + t3(2) * (zhat * vk3);
+      }
    }
 
 }
