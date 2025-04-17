@@ -46,7 +46,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
       const FiniteElement &fe = *fes.GetTypicalFE();
       d2q = &fe_orig.GetDofToQuad(fe.GetNodes(), mode);
 
-      int n = d2q->ndof;
+      const int n = d2q->ndof;
       Array<real_t> B_inv = d2q->B; // deep copy
       Array<int> ipiv(n);
       // solver basis to original
@@ -271,7 +271,11 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 
    const int id = (d1d << 4) | q1d;
 
-   if (dim == 2)
+   if (dim == 1)
+   {
+      return DGMassCGIteration<1>(Mu, u);
+   }
+   else if (dim == 2)
    {
       switch (id)
       {
@@ -309,6 +313,10 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
          case 0x67: return DGMassCGIteration<3,6,7>(Mu, u);
          default: return DGMassCGIteration<3>(Mu, u); // Fallback
       }
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
    }
 }
 
