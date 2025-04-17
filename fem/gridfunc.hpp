@@ -1602,8 +1602,8 @@ public:
          {3,5,8,10,12,13,15,17,19,21,22}
       };
 
-      // stores min_ncp for nb = 2..12 for Positive bases on uniform nodes
-      // with GL+end points and Chebyshev points as control points
+      // stores min_ncp for nb = 2..12 for Bernstein bases with GL+end points
+      // and Chebyshev points as control points
       static constexpr int min_ncp_pos_x[2][11]= {{3,5,7,8,8,9,10,10,11,12,13},
          {3,5,8,9,11,12,13,13,14,15,16}
       };
