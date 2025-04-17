@@ -27,6 +27,187 @@
 
 namespace mfem
 {
+/// \cond DO_NOT_DOCUMENT
+namespace internal
+{
+}
+
+class ParDerefineMatrixOp : public Operator
+{
+public:
+   ParFiniteElementSpace *fespace;
+   /// offsets into block_storage
+   Array<int> block_offsets;
+   /// offsets into row_idcs
+   Array<int> block_row_idcs_offsets;
+   /// offsets into col_idcs
+   Array<int> block_col_idcs_offsets;
+   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// negative means the row data should be negated.
+   Array<int> row_idcs;
+   /// mapping for col dofs, negative means the col data should be negated.
+   Array<int> col_idcs;
+   Vector block_storage;
+   int max_rows;
+   /// TODO: handle off-diagonals
+   mutable Vector xghost;
+   mutable std::vector<MPI_Request> requests;
+
+   using MultKernelType = void (*)(const ParDerefineMatrixOp &, const Vector &,
+                                   Vector &);
+   /// template args: ordering, atomic
+   MFEM_REGISTER_KERNELS(MultKernel, MultKernelType, (Ordering::Type, bool));
+   /// TODO: is MultTranspose needed?
+
+   struct Kernels
+   {
+      Kernels()
+      {
+         MultKernel::Specialization<Ordering::byNODES, false>::Add();
+         MultKernel::Specialization<Ordering::byVDIM, false>::Add();
+         MultKernel::Specialization<Ordering::byNODES, true>::Add();
+         MultKernel::Specialization<Ordering::byVDIM, true>::Add();
+      }
+   };
+
+   void Mult(const Vector &x, Vector &y) const
+   {
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      // DG needs atomic summation
+      // TODO
+      MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
+      // use this to prevent xghost from being re-purposed for subsequent Mult
+      // calls
+      MFEM_DEVICE_SYNC;
+   }
+
+   ParDerefineMatrixOp(ParFiniteElementSpace &fespace_, int old_ndofs,
+                       const Table *old_elem_dof, const Table *old_elem_fos)
+      : Operator(fespace_.GetVSize(), old_ndofs * fespace_.GetVDim()),
+        fespace(&fespace_)
+   {
+      // TODO
+      static Kernels kernels;
+      constexpr int max_team_size = 256;
+
+      int NRanks = fespace->GetNRanks();
+
+      int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
+
+      MFEM_VERIFY(fespace->Nonconforming(),
+                  "Not implemented for conforming meshes.");
+      MFEM_VERIFY(fespace->old_dof_offsets[nrk],
+                  "Missing previous (finer) space.");
+
+      int MyRank = fespace->GetMyRank();
+      ParNCMesh* old_pncmesh = fespace->GetParMesh()->pncmesh;
+      const CoarseFineTransformations &dtrans =
+         old_pncmesh->GetDerefinementTransforms();
+      const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
+
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      DenseMatrix localRVO; // for variable-order only
+
+      DenseTensor localR[Geometry::NumGeom];
+      int total_rows = 0;
+      int total_cols = 0;
+      HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
+                                ? fespace->old_dof_offsets[0]
+                                : fespace->old_dof_offsets[MyRank];
+
+      auto get_ldofs = [&](int k) -> int
+      {
+         const Embedding &emb = dtrans.embeddings[k];
+         if (fespace->IsVariableOrder())
+         {
+            const FiniteElement *fe = fespace->GetFE(emb.parent);
+            return fe->GetDof();
+         }
+         else
+         {
+            Geometry::Type geom =
+            fespace->GetParMesh()->GetElementBaseGeometry(emb.parent);
+            return fespace->FEColl()->FiniteElementForGeometry(geom)->GetDof();
+         }
+      };
+      Array<int> dofs;
+      // identify dofs in x we need to send/receive
+      std::map<int, std::vector<int>> to_send;
+      std::map<int, std::vector<int>> to_recv;
+      for (int k = 0; k < dtrans.embeddings.Size(); ++k)
+      {
+         const Embedding &emb = dtrans.embeddings[k];
+         int fine_rank = old_ranks[k];
+         int coarse_rank = (emb.parent < 0)
+                           ? (-1 - emb.parent)
+                           : old_pncmesh->ElementRank(emb.parent);
+         if (coarse_rank != MyRank && fine_rank == MyRank)
+         {
+            // this rank needs to send data to course_rank
+            old_elem_dof->GetRow(k, dofs);
+            auto &tmp = to_send[k];
+            for (int i = 0; i < dofs.Size(); ++i)
+            {
+               tmp.emplace_back(dofs[i]);
+            }
+         }
+         else if (coarse_rank == MyRank && fine_rank != MyRank)
+         {
+            // this rank needs to receive data from fine_rank
+            MFEM_ASSERT(emb.parent >= 0, "");
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+            auto &tmp = to_recv[k];
+            tmp.resize(get_ldofs(k) + tmp.size());
+         }
+      }
+      // coalesced isend/irecv
+      requests.resize(to_send.size() + to_recv.size());
+   }
+};
+
+namespace internal
+{
+template <Ordering::Type Order, bool Atomic>
+static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
+                           Vector &y)
+{
+   // TODO
+   // DerefineMatrixOpMultFunctor<Order, Atomic> func;
+   // func.xptr = x.Read();
+   // y.UseDevice();
+   // y = 0.;
+   // func.yptr = y.ReadWrite();
+   // func.bsptr = op.block_storage.Read();
+   // func.boptr = op.block_offsets.Read();
+   // func.brptr = op.block_row_idcs_offsets.Read();
+   // func.bcptr = op.block_col_idcs_offsets.Read();
+   // func.rptr = op.row_idcs.Read();
+   // func.cptr = op.col_idcs.Read();
+   // func.vdims = op.fespace->GetVDim();
+   // func.nblocks = op.block_offsets.Size();
+   // func.width = op.Width() / func.vdims;
+   // func.height = op.Height() / func.vdims;
+   // func.Run(op.max_rows);
+}
+} // namespace internal
+
+
+template <Ordering::Type Order, bool Atomic>
+ParDerefineMatrixOp::MultKernelType ParDerefineMatrixOp::MultKernel::Kernel()
+{
+   return internal::MultKernelImpl<Order, Atomic>;
+}
+
+ParDerefineMatrixOp::MultKernelType
+ParDerefineMatrixOp::MultKernel::Fallback(Ordering::Type, bool)
+{
+   MFEM_ABORT("invalid MultKernel parameters");
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 ParFiniteElementSpace::ParFiniteElementSpace(
    const ParFiniteElementSpace &orig, ParMesh *pmesh,
