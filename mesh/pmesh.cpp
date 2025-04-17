@@ -197,8 +197,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
 
       if (Dim > 1)
       {
-         el_to_edge = new Table;
-         NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge);
+         elem_to_edge = new Table;
+         NumOfEdges = Mesh::GetElementToEdgeTable(*elem_to_edge);
       }
 
       STable3D *faces_tbl = NULL;
@@ -3368,9 +3368,9 @@ void ParMesh::ReorientTetMesh()
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (el_to_edge)
+      if (elem_to_edge)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*elem_to_edge);
       }
    }
    else
@@ -3596,16 +3596,16 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       RefineGroups(old_nv, v_to_v);
 
       // 5. Update the groups after refinement.
-      if (el_to_face != NULL)
+      if (elem_to_face != NULL)
       {
          GetElementToFaceTable();
          GenerateFaces();
       }
 
       // 6. Update element-to-edge relations.
-      if (el_to_edge != NULL)
+      if (elem_to_edge != NULL)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*elem_to_edge);
       }
    } //  'if (Dim == 3)'
 
@@ -3841,9 +3841,9 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] edge2;
       delete [] middle;
 
-      if (el_to_edge != NULL)
+      if (elem_to_edge != NULL)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*elem_to_edge);
          GenerateFaces();
       }
    } //  'if (Dim == 2)'
