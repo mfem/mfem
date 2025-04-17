@@ -13,7 +13,7 @@
 #define MFEM_DS_COMMON_HPP
 
 #include "mfem.hpp"
-#include "miniapps/common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 

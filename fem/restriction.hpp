@@ -433,6 +433,8 @@ protected:
                                  const int face_index,
                                  const ElementDofOrdering f_ordering);
 
+public:
+   // This method needs to be public due to 'nvcc' restriction.
    void MultInternal(const Vector &x, Vector &y,
                      const bool useAbs = false) const;
 };

@@ -185,7 +185,7 @@ public:
                            ElementDofOrdering ordering,
                            bool add_bdr);
 
-protected:
+   // This method needs to be public due to 'nvcc' restriction.
    void MultInternal(const Vector &x, Vector &y, const bool useTranspose,
                      const bool useAbs = false) const;
 };
