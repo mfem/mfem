@@ -123,10 +123,12 @@ void MultigridBase::SetCycleType(CycleType cycleType_, int preSmoothingSteps_,
 
 void MultigridBase::Mult(const Vector& x, Vector& y) const
 {
-   Array<const Vector*> X_(1);
-   Array<Vector*> Y_(1);
-   X_[0] = &x;
-   Y_[0] = &y;
+   const Vector *x_array[1] = { &x };
+   Array<const Vector*> X_(x_array, 1); // no heap allocation
+
+   Vector *y_array[1] = { &y };
+   Array<Vector*> Y_(y_array, 1); // no heap allocation
+
    ArrayMult(X_, Y_);
 }
 
@@ -169,13 +171,18 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
    if (zero)
    {
       MFEM_ASSERT(!transpose, "internal error!");
-      Array<Vector *> X_(X[level], nrhs), Y_(Y[level], nrhs);
-      GetSmootherAtLevel(level)->ArrayMult(X_, Y_);
+      const Array<const Vector *> cX_((const Vector **)(X[level]), nrhs);
+      Array<Vector *> Y_(Y[level], nrhs);
+
+      GetSmootherAtLevel(level)->ArrayMult(cX_, Y_);
    }
    else
    {
+      const Array<const Vector *> cY_((const Vector **)(Y[level]), nrhs),
+            cR_((const Vector **)(R[level]), nrhs);
       Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs);
-      GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
+
+      GetOperatorAtLevel(level)->ArrayMult(cY_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
          // *R_[j] = *X(level, j) - *R_[j]
@@ -183,11 +190,11 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
       }
       if (transpose)
       {
-         GetSmootherAtLevel(level)->ArrayAddMultTranspose(R_, Y_);
+         GetSmootherAtLevel(level)->ArrayAddMultTranspose(cR_, Y_);
       }
       else
       {
-         GetSmootherAtLevel(level)->ArrayAddMult(R_, Y_);
+         GetSmootherAtLevel(level)->ArrayAddMult(cR_, Y_);
       }
    }
 }
@@ -199,19 +206,24 @@ void MultigridBase::CoarseSolve(bool zero) const
 
    if (zero)
    {
-      Array<Vector *> X_(X[0], nrhs), Y_(Y[0], nrhs);
-      coarse_solver->ArrayMult(X_, Y_);
+      const Array<const Vector *> cX_((const Vector **)(X[0]), nrhs);
+      Array<Vector *> Y_(Y[0], nrhs);
+
+      coarse_solver->ArrayMult(cX_, Y_);
    }
    else
    {
+      const Array<const Vector *> cY_((const Vector **)(Y[0]), nrhs),
+            cR_((const Vector **)(R[0]), nrhs);
       Array<Vector *> Y_(Y[0], nrhs), R_(R[0], nrhs);
-      GetOperatorAtLevel(0)->ArrayMult(Y_, R_);
+
+      GetOperatorAtLevel(0)->ArrayMult(cY_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
          // *R_[j] = *X(0, j) - *R_[j]
          subtract(*X(0, j), *R_[j], *R_[j]);
       }
-      coarse_solver->ArrayAddMult(R_, Y_);
+      coarse_solver->ArrayAddMult(cR_, Y_);
    }
 }
 
@@ -243,21 +255,24 @@ void MultigridBase::Cycle(int level, bool zero) const
    // Compute residual and restrict
    if (preSmoothingSteps == 0 && zero)
    {
-      Array<Vector *> X_l(X[level], nrhs), X_lm1(X[level - 1], nrhs);
-      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(X_l, X_lm1);
+      const Array<const Vector *> cX_l((const Vector **)(X[level]), nrhs);
+      Array<Vector *> X_lm1(X[level - 1], nrhs);
+
+      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(cX_l, X_lm1);
    }
    else
    {
-      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
-            X_(X[level - 1], nrhs);
+      const Array<const Vector *> cY_((const Vector **)(Y[level]), nrhs),
+            cR_((const Vector **)(R[level]), nrhs);
+      Array<Vector *> R_(R[level], nrhs), X_(X[level - 1], nrhs);
 
-      GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
+      GetOperatorAtLevel(level)->ArrayMult(cY_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
          // *R_[j] = *X(level, j) - *R_[j]
          subtract(*X(level, j), *R_[j], *R_[j]);
       }
-      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(R_, X_);
+      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(cR_, X_);
    }
 
    // Corrections
@@ -273,14 +288,16 @@ void MultigridBase::Cycle(int level, bool zero) const
 
    // Prolongate and add
    {
-      Array<Vector *> Y_lm1(Y[level - 1], nrhs), Y_l(Y[level], nrhs);
+      const Array<const Vector *> cY_lm1((const Vector **)(Y[level - 1]), nrhs);
+      Array<Vector *> Y_l(Y[level], nrhs);
+
       if (preSmoothingSteps == 0 && zero)
       {
-         GetProlongationAtLevel(level - 1)->ArrayMult(Y_lm1, Y_l);
+         GetProlongationAtLevel(level - 1)->ArrayMult(cY_lm1, Y_l);
       }
       else
       {
-         GetProlongationAtLevel(level - 1)->ArrayAddMult(Y_lm1, Y_l);
+         GetProlongationAtLevel(level - 1)->ArrayAddMult(cY_lm1, Y_l);
       }
    }
 

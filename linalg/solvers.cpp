@@ -352,7 +352,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    diag(d),
    coeffs(order),
    ess_tdof_list(ess_tdofs),
-   residual(N),
+   residual(order > 1 ? N : 0),
    z(order > 1 ? N : 0),
    oper(&oper_) { Setup(); }
 
@@ -374,7 +374,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
      diag(d),
      coeffs(order),
      ess_tdof_list(ess_tdofs),
-     residual(N),
+     residual(order > 1 ? N : 0),
      z(order > 1 ? N : 0),
      oper(&oper_)
 {
@@ -440,6 +440,7 @@ void OperatorChebyshevSmoother::SetOrder(int new_order)
 
    order = new_order;
    coeffs.SetSize(order);
+   residual.SetSize(order > 1 ? N : 0);
    z.SetSize(order > 1 ? N : 0);
 
    // Set up Chebyshev coefficients
@@ -527,12 +528,22 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
    const real_t C_0 = coeffs[0];
    auto Dinv = dinv.Read();
    auto X = x.Read();
-   auto R0 = residual.Write();
    auto Y0 = y.Write();
-   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+   if (order == 1)
    {
-      Y0[i] = C_0 * (R0[i] = Dinv[i] * X[i]);
-   });
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y0[i] = C_0 * Dinv[i] * X[i];
+      });
+   }
+   else
+   {
+      auto R0 = residual.Write();
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y0[i] = C_0 * (R0[i] = Dinv[i] * X[i]);
+      });
+   }
 
    for (int k = 1; k < order; ++k)
    {
@@ -544,12 +555,22 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       //   y += C_k r
       const real_t C_k = coeffs[k];
       auto Z = z.Read();
-      auto R = residual.Write();
       auto Y = y.ReadWrite();
-      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      if (k < order-1)
       {
-         Y[i] += C_k * (R[i] = Dinv[i] * Z[i]);
-      });
+         auto R = residual.Write();
+         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+         {
+            Y[i] += C_k * (R[i] = Dinv[i] * Z[i]);
+         });
+      }
+      else
+      {
+         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+         {
+            Y[i] += C_k * Dinv[i] * Z[i];
+         });
+      }
    }
 }
 
