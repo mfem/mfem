@@ -672,6 +672,9 @@ public:
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
 
+   void CalcPhysCurlShape(ElementTransformation &Trans,
+                          DenseMatrix &curl_shape) const override;
+
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
    { LocalInterpolation(*this, Trans, I); }

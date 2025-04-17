@@ -2981,13 +2981,73 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    {
       int idx = dof_map[o++];
       curl_shape(idx,0) = 0.;
+      curl_shape(idx,1) = 0.;
+      curl_shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
-      curl_shape(idx,0) = -dshape_cx(i);
+      curl_shape(idx,0) = 0.;
+      curl_shape(idx,1) = -dshape_cx(i);
+      curl_shape(idx,2) = 0.;
    }
+}
+
+void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
+                                              DenseMatrix &curl_shape) const
+{
+   FaceElementTransformations * TF =
+      dynamic_cast<FaceElementTransformations*>(&Trans);
+
+   MFEM_ASSERT(TF != NULL, "ND_R2D_SegmentElement is meant to be used only "
+               "on the trace of a 2D surface mesh and requires a "
+               "FaceElementTransformations object");
+   MFEM_ASSERT(TF->GetConfigurationMask() & 1, "Neighboring element 1 must "
+               "be configured");
+
+   CalcCurlShape(Trans.GetIntPoint(), curl_shape);
+   const DenseMatrix & J = Trans.Jacobian();
+
+   MFEM_ASSERT(J.Width() == 1,
+               "ND_R2D_SegmentElement is only defined on 1D elements");
+   MFEM_ASSERT(J.Height() == 2 || J.Height() == 3,
+               "ND_R2D_SegmentElement must be embedded in a "
+               "2 or 3 dimensional space");
+
+   real_t n_data[3];
+   Vector normal3(n_data, 3); normal3 = 0.0;
+
+   real_t t_data[3];
+   Vector tangent(t_data, 3);
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
+   for (int i=0; i<dof; i++)
+   {
+      real_t sy = curl_shape(i, 1);
+
+      if (J.Height() == 2)
+      {
+         curl_shape(i, 0) = -sy * J(1, 0);
+         curl_shape(i, 1) =  sy * J(0, 0);
+      }
+      else
+      {
+         CalcOrtho(TF->Elem1->Jacobian(), zhat);
+         zhat /= zhat.Norml2();
+
+         J.GetColumn(0, tangent);
+         zhat.cross3D(tangent, normal3);
+
+         for (int j=0; j<3; j++)
+         {
+            curl_shape(i, j) = sy * normal3[j];
+         }
+      }
+   }
+   curl_shape *= (1.0 / Trans.Weight());
 }
 
 void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
@@ -3146,15 +3206,35 @@ void ND_R2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
 {
    CalcCurlShape(Trans.GetIntPoint(), curl_shape);
    const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
-               "ND_R2D_FiniteElement cannot be embedded in "
-               "3 dimensional spaces");
+
+   MFEM_ASSERT(J.Width() == 2,
+               "ND_R2D_FiniteElement can only be used with 2D element types");
+   MFEM_ASSERT(J.Height() == 2 || J.Height() == 3,
+               "ND_R2D_FiniteElement can only be embedded in 2 or 3 "
+               "dimensional spaces");
+
+   real_t zhat_data[3];
+   Vector zhat(zhat_data, 3);
+
    for (int i=0; i<dof; i++)
    {
       real_t sx = curl_shape(i, 0);
       real_t sy = curl_shape(i, 1);
+      real_t sz = curl_shape(i, 2);
       curl_shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
       curl_shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
+      if (J.Height() == 3)
+      {
+         curl_shape(i, 2) = sx * J(2, 0) + sy * J(2, 1);
+
+         CalcOrtho(J, zhat);
+         zhat /= zhat.Norml2();
+
+         for (int j=0; j<3; j++)
+         {
+            curl_shape(i, j) += sz * zhat[j];
+         }
+      }
    }
    curl_shape *= (1.0 / Trans.Weight());
 }
