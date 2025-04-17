@@ -786,8 +786,10 @@ public:
       Rx = kx;
       Rx -= uv;
 
-      hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
-      hydro.momentum_mf->Mult(uv, Rv);
+      hydro.UpdateQuadratureData(u);
+
+      hydro.momentum_pa->SetParameters({&hydro.qdata->stressp});
+      hydro.momentum_pa->Mult(uv, Rv);
 
       // hydro.Mv.TrueAddMult(kv, Rv);
       Vector kvc, Rvc;
@@ -803,8 +805,8 @@ public:
       Rv.SetSubVector(hydro.ess_tdof, 0.0);
       // Rv = 0.0;
 
-      hydro.energy_conservation_mf->SetParameters({&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
-      hydro.energy_conservation_mf->Mult(ue, Re);
+      hydro.energy_conservation_pa->SetParameters({&uv, &hydro.qdata->stressp});
+      hydro.energy_conservation_pa->Mult(ue, Re);
 
       Re.Neg();
 
