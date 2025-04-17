@@ -145,7 +145,6 @@ int main (int argc, char *argv[])
 
    // Compute bounds
    pfunc_proj->GetElementBounds(lowerb, upperb, ref);
-   std::cout << lowerb.GetData() << " k102\n";
 
    Vector bound_min(vdim), bound_max(vdim);
    for (int d = 0; d < vdim; d++)
