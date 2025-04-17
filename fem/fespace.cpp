@@ -344,13 +344,16 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      // TODO: what can get away without atomic summations?
-      MultKernel::Run(fespace->GetOrdering(), true, *this, x, y);
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      // DG needs atomic summation
+      MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
    }
 
    void MultTranspose(const Vector &x, Vector &y) const
    {
       // TODO: what can get away without atomic summations?
+      // TODO: is this every used?
       MultTKernel::Run(fespace->GetOrdering(), true, *this, x, y);
    }
 
@@ -558,7 +561,8 @@ public:
 namespace internal
 {
 template <Ordering::Type Order, bool Atomic>
-void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
+static void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
+                           Vector &y)
 {
    DerefineMatrixOpMultFunctor<Order, Atomic> func;
    func.xptr = x.Read();
@@ -579,7 +583,8 @@ void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
 }
 
 template <Ordering::Type Order, bool Atomic>
-void MultTKernelImpl(const DerefineMatrixOp &op, const Vector &x, Vector &y)
+static void MultTKernelImpl(const DerefineMatrixOp &op, const Vector &x,
+                            Vector &y)
 {
    DerefineMatrixOpMultTFunctor<Order, Atomic> func;
    func.xptr = x.Read();
