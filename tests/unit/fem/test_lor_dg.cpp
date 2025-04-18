@@ -369,7 +369,7 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
                               "../../data/beam-hex.mesh",
                               "../../data/fichera.mesh"
                            );
-
+   CAPTURE(mesh_fname);
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
 
    mesh.Transform([](const Vector &xin, Vector &xout)

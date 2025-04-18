@@ -371,9 +371,10 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_ij.Size()/ndof_per_el/nel_ho;
    const int dim = fes_ho.GetMesh()->Dimension();
-   const int num_rows = nel_ho*ndof_per_el;
+   const int nrows = nel_ho*ndof_per_el;
    const int p = fes_ho.GetMaxElementOrder();
-   const int nnz = num_rows*nnz_per_row;
+   const int pp1 = p + 1;
+   const int nnz = nrows*nnz_per_row;
    auto I = A.HostWriteI();
 
    EnsureCapacity(A.GetMemoryJ(), nnz);
@@ -384,125 +385,119 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    auto J = A.WriteJ();
    auto AV = A.WriteData();
 
-   Array<int> neighbor_info_arr(nel_ho*3*2*dim);
-   auto h_neighbor_info_arr = Reshape(neighbor_info_arr.HostWrite(), nel_ho, 2*dim,
-                                      3);
-   //int global_border_counter = 0;
-   int num_faces = fes_ho.GetMesh()->GetNumFaces();
-   for (int f = 0; f< num_faces; f++)
+   Array<int> nbr_info(nel_ho*3*2*dim);
+
+   auto h_nbr_info = Reshape(nbr_info.HostWrite(), nel_ho, 2*dim, 3);
+   const int num_faces = fes_ho.GetMesh()->GetNumFaces();
+   for (int f = 0; f < num_faces; f++)
    {
-      Mesh::FaceInformation face = fes_ho.GetMesh()->GetFaceInformation(f);
-      int i = face.element[0].index;
-      int k = face.element[0].local_face_id;
-      if (face.IsBoundary())
+      Mesh::FaceInformation finfo = fes_ho.GetMesh()->GetFaceInformation(f);
+      int e0 = finfo.element[0].index;
+      int f0 = finfo.element[0].local_face_id;
+      if (finfo.IsBoundary())
       {
-         h_neighbor_info_arr(i,k,0) = -1;
-         h_neighbor_info_arr(i,k,1)= -1;
-         h_neighbor_info_arr(i,k,2)= -1;
-         //global_border_counter = global_border_counter + (p+1);
+         h_nbr_info(e0,f0,0) = -1;
+         h_nbr_info(e0,f0,1)= -1;
+         h_nbr_info(e0,f0,2)= -1;
       }
       else
       {
-         int j = face.element[1].index;
-         int l = face.element[1].local_face_id;
-         h_neighbor_info_arr(i,k,0) = j;
-         h_neighbor_info_arr(i,k,1)= face.element[1].orientation;
-         h_neighbor_info_arr(i,k,2)= l;
-         h_neighbor_info_arr(j,l,0) = i;
-         h_neighbor_info_arr(j,l,1) = face.element[1].orientation;
-         h_neighbor_info_arr(j,l,2) = k;
+         int e1 = finfo.element[1].index;
+         int f1 = finfo.element[1].local_face_id;
+         h_nbr_info(e0,f0,0) = e1;
+         h_nbr_info(e0,f0,1)= finfo.element[1].orientation;
+         h_nbr_info(e0,f0,2)= f1;
+         h_nbr_info(e1,f1,0) = e0;
+         h_nbr_info(e1,f1,1) = finfo.element[1].orientation;
+         h_nbr_info(e1,f1,2) = f0;
       }
    };
+
    I[0] = 0;
-   for (int i=0; i<num_rows; ++i)
+   for (int i = 0; i < nrows; ++i)
    {
-      int loc_border_counter = 0;
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
-      const int local_x = iloc % (p+1);
-      const int local_y = (iloc/(p+1))%(p+1);
-      const int local_z = iloc/(p+1)/(p+1);
       static const int lex_map_2[4] = {3, 1, 0, 2};
-      static const int lex_map_3[6] = {4,2,1,3,0,5};
-      int local_i[3] = {local_x, local_y, local_z};
+      static const int lex_map_3[6] = {4, 2, 1, 3, 0, 5};
+      int local_i[3] = {iloc % pp1, (iloc/pp1)%pp1, iloc/pp1/pp1};
+      int bdr_count = 0;
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
          for (int e_i = 0; e_i < 2; ++e_i)
          {
             const int j_lex = e_i + n_idx*2;
-            const int j = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
+            const int f = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
             const bool boundary = (local_i[n_idx] == e_i * p);
             if (boundary)
             {
-               int neighbor_idx = h_neighbor_info_arr(iel_ho, j, 0);
+               int neighbor_idx = h_nbr_info(iel_ho, f, 0);
                if (neighbor_idx == -1)
                {
-                  loc_border_counter = loc_border_counter + 1;
+                  ++bdr_count;
                }
             }
          }
       }
-      I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
+      I[i+1] = I[i] + (nnz_per_row - bdr_count);
    }
 
    auto I_d = A.ReadI();
-   auto d_neighbor_info_arr = Reshape(neighbor_info_arr.Read(), nel_ho, 2*dim, 3);
-   mfem::forall(num_rows, [=] MFEM_HOST_DEVICE (int i)
+   auto d_nbr_info = Reshape(nbr_info.Read(), nel_ho, 2*dim, 3);
+   mfem::forall(nrows, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int iel_ho = i / ndof_per_el;
+      const int e = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
-      const int local_x = iloc % (p+1);
-      const int local_y = (iloc/(p+1))%(p+1);
-      const int local_z = iloc/(p+1)/(p+1);
+      const int local_x = iloc % pp1;
+      const int local_y = (iloc/pp1)%pp1;
+      const int local_z = iloc/pp1/pp1;
       int local_i[3] = {local_x, local_y, local_z};
-      const int nnz_so_far_current = I_d[i];
+      int offset = I_d[i];
       static const int lex_map_2[4] = {3, 1, 0, 2};
       static const int lex_map_3[6] = {4,2,1,3,0,5};
-      AV[nnz_so_far_current] = V(0, iloc, iel_ho);
-      J[nnz_so_far_current] = i;
-      int k = 1;
+      const int *lex_map = (dim == 2) ? lex_map_2 : lex_map_3;
+      AV[offset] = V(0, iloc, e);
+      J[offset] = i;
+      ++offset;
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
+         // qi is the face lexicographic index, obtained by taking the
+         // lexicographic index of the coordinates ommiting n_idx.
+         int qi = 0;
+         int idx = 0;
+         for (int d = 0; d < dim; ++d)
+         {
+            if (d != n_idx)
+            {
+               qi += local_i[d]*pow(pp1, idx);
+               ++idx;
+            }
+         }
          for (int e_i = 0; e_i < 2; ++e_i)
          {
             const int j_lex = e_i + n_idx*2;
-            const int j = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
-            const bool boundary = (local_i[n_idx] == e_i * p);
-            if (boundary)
+            const int f = lex_map[j_lex];
+            const bool bdr = (local_i[n_idx] == e_i * p);
+            if (bdr)
             {
-               int neighbor_idx = d_neighbor_info_arr(iel_ho, j, 0);
-               int neighbor_face = d_neighbor_info_arr(iel_ho, j, 2);
-               int neighbor_orientation = d_neighbor_info_arr(iel_ho, j, 1);
-               if (neighbor_idx != -1)
+               const int nbr_e = d_nbr_info(e, f, 0);
+               const int nbr_ori = d_nbr_info(e, f, 1);
+               const int nbr_f = d_nbr_info(e, f, 2);
+               if (nbr_e != -1)
                {
-                  int x_n; int y_n; int z_n;
-                  if (dim == 3)
-                  {
-                     int qi = (n_idx == 0) ? (local_y + (p+1)*local_z)
-                              : ((n_idx == 1) ? ((p+1)*local_z + local_x)
-                                 : (local_x + (p+1)*local_y));
-                     internal::FaceIdxToVolIdx3D(qi, p+1, j, neighbor_face, 1, neighbor_orientation,
-                                                 x_n, y_n, z_n);
-                  }
-                  else
-                  {
-                     int qi = (n_idx == 0) ? local_y : local_x;
-                     internal::FaceIdxToVolIdx2D(qi, p+1, j, neighbor_face, 1, x_n, y_n);
-                     z_n = 0;
-                  }
-                  int neighbor_loc_idx = x_n + (p+1)*y_n + (p+1)*(p+1)*z_n;
-                  int neighbor_lor_entry = neighbor_idx*ndof_per_el + neighbor_loc_idx;
-                  J[nnz_so_far_current + k] = neighbor_lor_entry;
-                  AV[nnz_so_far_current + k] = V(j+1, iloc, iel_ho);
-                  k=k+1;
+                  const int nbr_loc_idx = internal::FaceIdxToVolIdx(
+                                             dim, qi, pp1, f, nbr_f, 1, nbr_ori);
+                  J[offset] = nbr_e*ndof_per_el + nbr_loc_idx;
+                  AV[offset] = V(f+1, iloc, e);
+                  ++offset;
                }
             }
             else
             {
                int pm = (e_i == 0) ? -pow(p+1, n_idx) : pow(p+1, n_idx);
-               J[nnz_so_far_current + k] = i + pm;
-               AV[nnz_so_far_current + k] = V(j+1, iloc, iel_ho);
-               k = k+1;
+               J[offset] = i + pm;
+               AV[offset] = V(f+1, iloc, e);
+               ++offset;
             }
          }
       }
