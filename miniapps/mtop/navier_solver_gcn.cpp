@@ -159,9 +159,6 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
         }
     }
 
-   // Set up boundary conditions
-   SetEssTDofs(t+dt, *nvel, ess_tdofv);
-
    // Set up the velocity coefficients
    nvelc.SetGridFunction(nvel.get());
    pvelc.SetGridFunction(pvel.get());
@@ -171,7 +168,6 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
    npresc.SetGridFunction(npres.get());
    ppresc.SetGridFunction(ppres.get());
    cpresc.SetGridFunction(cpres.get());
-
 
    
    // Set up the bilinear form for A11
@@ -203,8 +199,6 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
    A11->FormSystemMatrix(ess_tdofv, A11H);
 
    std::cout<<"A11 Finalized"<<std::endl;
-
-   icoeff.constant = dt*0.5;
 
    //off-diagonal operators
    A21.reset(new ParMixedBilinearForm(vfes, pfes));
@@ -254,11 +248,46 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
 
 void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
 {
+    // Set up the velocity coefficients
+    nvelc.SetGridFunction(nvel.get());
+    pvelc.SetGridFunction(pvel.get());
+    cvelc.SetGridFunction(cvel.get());
+
+    // Set the pressure coefficients
+    npresc.SetGridFunction(npres.get());
+    ppresc.SetGridFunction(ppres.get());
+    cpresc.SetGridFunction(cpres.get());
+
+
    //the RHS should be set up after the operator is set up
    //the ess_tdofv array should be set up before assembling the RHS
 
    rhs.SetSize(vfes->TrueVSize());
    rhs = 0.0;
+
+
+   lf.reset(new ParLinearForm(vfes));
+   //inertial term integrator
+   lf->AddDomainIntegrator(new VectorDomainLFIntegrator(cvelc));
+
+   //Brinkman term
+   if(brink != nullptr)
+   {
+       brink->SetTime(t);
+       cbrink.reset(new ProductCoefficient(-dt*0.5, *brink));
+       scvelc.reset(new ProductScalarVectorCoeff(*cbrink,cvelc));
+       lf->AddDomainIntegrator(new VectorDomainLFIntegrator(*scvelc));
+   }
+
+   //set the current pressure grid function
+   gradcp.SetGridFunction(cpres.get());
+   scgradcp.reset(new ProductScalarVectorCoeff(*cbrink,cvelc))
+
+
+
+
+
+
 
 
 }
@@ -269,6 +298,9 @@ void NavierSolverGCN::Step(real_t &time, real_t dt, int cur_step, bool provision
     nvel->SetFromTrueDofs(cvel->GetTrueVector());
     //copy the current pressure to the next pressure
     npres->SetFromTrueDofs(cpres->GetTrueVector());
+    // Set up boundary conditions
+    SetEssTDofs(time+dt, *nvel, ess_tdofv);
+
 
     //set the operator and the preconditioners
     SetupOperator(time,dt);

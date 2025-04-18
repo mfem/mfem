@@ -132,6 +132,8 @@ private:
    std::unique_ptr<BlockOperator> AB;
    Array<int> block_true_offsets;
 
+   std::unique_ptr<ParLinearForm> lf;
+
    Vector rhs;
 
    VectorGridFunctionCoefficient nvelc;
@@ -145,9 +147,14 @@ private:
    ConstantCoefficient onecoeff;
    ConstantCoefficient zerocoef;
 
-   std::unique_ptr<ProductCoefficient> nbrink;
-   std::unique_ptr<ProductCoefficient> nvisc;
-   ConstantCoefficient icoeff; //thet1*dt
+   std::unique_ptr<ProductCoefficient> nbrink; //next brinkman
+   std::unique_ptr<ProductCoefficient> nvisc;  //next viscosity
+
+   std::unique_ptr<ProductCoefficient> cbrink; //current brinkman
+   std::unique_ptr<ProductCoefficient> cvisc;  //current viscosity
+   std::unique_ptr<VectorCoefficient>  scvelc; //scaled current velocity
+   GradientGridFunctionCoefficient     gradcp; //current pressure gradient
+   std::unique_ptr<VectorCoefficient>  scgradcp;//scaled gradient of the pressure
 
    //boundary conditions
    std::map<int, std::shared_ptr<VectorCoefficient>> vel_bcs;
@@ -175,6 +182,64 @@ private:
 
 };//end NavierSolverGCN
 
+class ViscStressCoeff: public VectorCoefficient
+{
+public:
+    ViscStressCoeff(Coefficient* visc_, GridFunction* gf_)
+        :VectorCoefficient(gf_->VectorDim()*gf_->VectorDim())
+    {
+        visc=visc_;
+        gf=gf_;
+    }
+
+    void Eval(Vector &v, ElementTransformation &Trans, const IntegrationPoint &ip) override
+    {
+        v.SetSize(gf->VectorDim()*gf->VectorDim());
+
+        //evaluate velocity gradient
+        DenseMatrix grad(v.GetData(),gf->VectorDim(),gf->VectorDim());
+        Trans.SetIntPoint(&ip);
+        gf->GetVectorGradient(Trans,grad);
+
+        //evaluate viscosity
+        real_t mu=visc->Eval(Trans,ip);
+
+        //symmetrize the gradient and compute the viscous stress
+        for(int i=0;i<gf->VectorDim();i++){
+            for(int j=i+1;j<gf->VectorDim();j++){
+                grad(i,j)=mu*(grad(i,j)+grad(j,i));
+                grad(j,i)=grad(i,j);
+            }
+            grad(i,i)=2*mu*grad(i,i);
+        }
+    }
+
+private:
+
+    Coefficient* visc;
+    GridFunction* gf;
+};
+
+class ProductScalarVectorCoeff: public VectorCoefficient
+{
+public:
+    ProductScalarVectorCoeff(Coefficient& sc_, VectorCoefficient& vc_):VectorCoefficient(vc_.GetVDim())
+    {
+        sc=&sc_;
+        vc=&vc_;
+    }
+
+    void Eval(Vector &v, ElementTransformation &Trans, const IntegrationPoint &ip) override
+    {
+        real_t s=sc->Eval(Trans,ip);
+        vc->Eval(v,Trans,ip);
+        v*=s;
+    }
+
+private:
+    Coefficient* sc;
+    VectorCoefficient* vc;
+};
 
 // evaluates u+cc*(u \nabla u + brink*u)
 class NSResCoeff: public VectorCoefficient
