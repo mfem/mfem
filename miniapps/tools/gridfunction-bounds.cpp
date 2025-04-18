@@ -12,6 +12,17 @@
 //    ---------------------------------------------------------------------
 //            Compute bounds of the given grid-function
 //    ---------------------------------------------------------------------
+/
+// This miniapp computes piecewise linear bounds on a given gridfunction, and
+// visualizes the lower and upper bound for each element. The bounding approach
+// is based on the method described in:
+//
+// (1) Section 3 of Mittal et al., "General Field Evaluation in High-Order
+//     Meshes on GPUs"
+// and
+// (2) Dzanic et al., "A method for bounding high-order finite element
+//     functions: Applications to mesh validity and bounds-preserving limiters".
+//
 //
 // Compile with: make gridfunction-bounds
 //

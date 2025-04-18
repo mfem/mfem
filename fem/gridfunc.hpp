@@ -1569,6 +1569,11 @@ public:
        to @b cp_type = 0 as it requires fewer number of points to bound the bases. Typically, @b ncp = 2 @b nb is sufficient to get fairly compact bounds, and increasing @b ncp results in tighter bounds.
 
        Finally, only tensor-product elements are currently supported.
+
+       For more technical details see:
+       Mittal et al., "General Field Evaluation in High-Order Meshes on GPUs" &
+       Dzanic et al., "A method for bounding high-order finite element
+       functions: Applications to mesh validity and bounds-preserving limiters".
     */
    ///@{
    /// Struct to store piecewise linear bounds on the bases.
