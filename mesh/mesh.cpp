@@ -7618,7 +7618,10 @@ Array<int> Mesh::FindFaceNeighbors(const int elem) const
 
 void Mesh::ElemsWithVert(int vi, Array<int> &elems)
 {
-   GetVertexToElementTable();    // Ensure vert_to_elem is built
+   if (vert_to_elem.Size() > 0)
+   {
+      GetVertexToElementTable();    // Ensure vert_to_elem is built
+   }
    vert_to_elem.GetRow(vi, elems);
 }
 
@@ -7636,7 +7639,10 @@ void Mesh::EdgesWithVert(int vi, Array<int> &edges)
 
 void Mesh::ElemsWithAllVerts(const Array<int> &verts, Array<int> &elems)
 {
-   GetVertexToElementTable();    // Ensure vert_to_elem is built
+   if (vert_to_elem.Size() > 0)
+   {
+      GetVertexToElementTable();    // Ensure vert_to_elem is built
+   }
    elems.Reserve(verts.Size());
 
    // Find all the elements touched by the vertices
@@ -13664,7 +13670,10 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    if (pts_found != npts)
    {
       Array<int> elvertices;
-      Table *vtoel = GetVertexToElementTable();
+      if (vert_to_elem.Size() > 0)
+      {
+         GetVertexToElementTable();    // Ensure vert_to_elem is built
+      }
       for (int k = 0; k < npts; k++)
       {
          if (elem_ids[k] != -1) { continue; }
@@ -13674,8 +13683,8 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
          for (int v = 0; v < elvertices.Size(); v++)
          {
             int vv = elvertices[v];
-            int ne = vtoel->RowSize(vv);
-            const int* els = vtoel->GetRow(vv);
+            int ne = vert_to_elem.RowSize(vv);
+            const int* els = vert_to_elem.GetRow(vv);
             for (int e = 0; e < ne; e++)
             {
                if (els[e] == e_idx[k]) { continue; }
