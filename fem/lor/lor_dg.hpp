@@ -21,6 +21,7 @@ namespace mfem
 // classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_DG : BatchedLORKernel
 {
+   IntegrationRule ir_face;
    real_t kappa;
 public:
    template <int ORDER, int SDIM> void Assemble2D();
@@ -30,7 +31,9 @@ public:
                  Vector &X_vert_,
                  Vector &sparse_ij_,
                  Array<int> &sparse_mapping_)
-      : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
+      : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_),
+        ir_face(GetLobattoIntRule(fes_ho_.GetMesh()->GetTypicalFaceGeometry(),
+                                  fes_ho_.GetMaxElementOrder() + 1))
    {
       ProjectLORCoefficient<MassIntegrator>(a, c1);
       ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
@@ -45,6 +48,10 @@ public:
          kappa = 0.0;
       }
    }
+
+   Array<int> GetFaceInfo();
+   Vector GetBdrPenaltyFactor();
+   void AssembleFaceTerms();
 };
 
 }
