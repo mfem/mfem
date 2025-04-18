@@ -544,7 +544,7 @@ public:
     Specifically, given the Dirichlet data $u_D$, the linear form assembles the
     following integrals on the boundary:
    $$
-    \sigma \langle u_D, (Q \nabla v)) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
+    \sigma \langle u_D, (Q \nabla v) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
    $$
     where Q is a scalar or matrix diffusion coefficient and v is the test
     function. The parameters $\sigma$ and $\kappa$ should be the same as the ones
