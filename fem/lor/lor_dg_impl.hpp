@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-Array<int> BatchedLOR_DG::GetFaceInfo()
+Array<int> BatchedLOR_DG::GetFaceInfo() const
 {
    Mesh &mesh = *fes_ho.GetMesh();
    const int nf = mesh.GetNumFaces();
@@ -30,7 +30,7 @@ Array<int> BatchedLOR_DG::GetFaceInfo()
       h_face_info(0, f) = finfo.element[0].index;
       h_face_info(1, f) = finfo.element[0].local_face_id;
       h_face_info(2, f) = finfo.element[0].orientation;
-      if (finfo.IsInterior() && !finfo.IsShared()) // Equivalently, finfo.IsLocal()
+      if (finfo.IsLocal()) // Interior, non-shared face
       {
          h_face_info(3, f) = finfo.element[1].index;
          h_face_info(4, f) = finfo.element[1].local_face_id;
@@ -46,7 +46,7 @@ Array<int> BatchedLOR_DG::GetFaceInfo()
    return face_info;
 }
 
-Vector BatchedLOR_DG::GetBdrPenaltyFactor()
+Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
 {
    Mesh &mesh = *fes_ho.GetMesh();
 
