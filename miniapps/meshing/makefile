@@ -104,6 +104,8 @@ hpref-test-seq: hpref
 	@$(call mfem-test,$<,, Serial hp-refinement)
 phpref-test-par: phpref
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel hp-refinement)
+mesh-bounding-boxes-test-par: mesh-bounding-boxes
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel bounding boxes)
 ref321-test-seq: ref321
 	@$(call mfem-test-file,$<,, Meshing miniapp,ref321.mesh)
 
