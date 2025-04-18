@@ -305,28 +305,9 @@ public:
    }
 };
 
-TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
+static void TestBatchedLOR_DG(Mesh &mesh, int order)
 {
-   const int order = 4;
-   //const auto mesh_fname = GENERATE(
-   //                            //"../../data/star-q3.mesh"
-   //                            //"../../data/star-surf.mesh",
-   //                             "../../data/fichera-q3.mesh"
-   //                            "../../data/inline-quad.mesh"
-   //                            //"../../data/ref-square.mesh"
-   //                         );
-   //const bool add_diffusion = GENERATE(true, false);
-
-   const int dim = 3;
-   const int orientation1 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
-   const int orientation2 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
-   //const int orientation1 = 0;
-   //const int orientation2 = 1;
-   CAPTURE(orientation1, orientation2);
-   Mesh mesh = MeshOrientation(dim, orientation1, orientation2);
-
    const bool add_diffusion = true;
-   //Mesh mesh = Mesh::LoadFromFile("../../data/inline-hex.mesh");
 
    DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fespace(&mesh, &fec);
@@ -400,4 +381,40 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 
       TestSameMatrices(A1, A_diag);
    }
+}
+
+TEST_CASE("LOR Batched DG Orientation", "[LOR][BatchedLOR][CUDA]")
+{
+   const int order = 3;
+   const int dim = launch_all_non_regression_tests ? GENERATE(2, 3) : 2;
+   const int orientation1 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+   const int orientation2 = GENERATE_COPY(range(0, dim == 2 ? 4 : 24));
+
+   CAPTURE(order, dim, orientation1, orientation2);
+
+   Mesh mesh = MeshOrientation(dim, orientation1, orientation2);
+   TestBatchedLOR_DG(mesh, order);
+}
+
+TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
+{
+   const int order = 3;
+   const auto mesh_fname = GENERATE(
+                              "../../data/beam-quad.mesh",
+                              "../../data/l-shape.mesh",
+                              "../../data/beam-hex.mesh",
+                              "../../data/fichera.mesh"
+                           );
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+
+   mesh.Transform([](const Vector &xin, Vector &xout)
+   {
+      for (int d = 0; d < xin.Size(); ++d)
+      {
+         xout[d] = xin[d] * (1.0 + d / 3.0);
+      }
+   });
+
+   TestBatchedLOR_DG(mesh, order);
 }

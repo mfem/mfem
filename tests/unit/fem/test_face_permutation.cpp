@@ -76,7 +76,7 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
    {
       for (int fp1=0; fp1<4; ++fp1)
       {
-         Mesh mesh = Mesh2D_Orientation(fp1, fp2);
+         Mesh mesh = MeshOrientation(2, fp1, fp2);
          real_t error = TestFaceRestriction(mesh, order);
          max_err = std::max(max_err, error);
       }
@@ -92,7 +92,7 @@ TEST_CASE("3D Face Permutation", "[Face Permutation]")
    {
       for (int fp1=0; fp1<24; ++fp1)
       {
-         Mesh mesh = Mesh3D_Orientation(fp1, fp2);
+         Mesh mesh = MeshOrientation(3, fp1, fp2);
          real_t error = TestFaceRestriction(mesh, order);
          max_err = std::max(max_err, error);
       }
