@@ -78,8 +78,12 @@ public:
        called. */
    void AddMultPA(const Vector &x, Vector &y) const override;
 
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
+
    /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
+
+   virtual void AddAbsMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -89,6 +93,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
    /** The result of the element assembly is added to the @a emat Vector if
@@ -113,6 +119,8 @@ public:
        called. */
    void AddMultMF(const Vector &x, Vector &y) const override;
 
+   virtual void AddAbsMultMF(const Vector &x, Vector &y) const;
+
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
        represent the element-wise discontinuous version of the FE space.
@@ -120,6 +128,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposeMF(const Vector &x, Vector &y) const;
 
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -496,7 +506,11 @@ public:
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
+   void AddAbsMultTransposePA(const Vector &x, Vector &y) const override;
+
    void AddMultPA(const Vector& x, Vector& y) const override;
+
+   void AddAbsMultPA(const Vector& x, Vector& y) const override;
 
    void AssembleMF(const FiniteElementSpace &fes) override;
 
@@ -2320,7 +2334,11 @@ public:
 
    void AddMultPA(const Vector&, Vector&) const override;
 
+   void AddAbsMultPA(const Vector&, Vector&) const override;
+
    void AddMultTransposePA(const Vector&, Vector&) const override;
+
+   void AddAbsMultTransposePA(const Vector&, Vector&) const override;
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
 
@@ -2419,7 +2437,11 @@ public:
 
    void AddMultPA(const Vector&, Vector&) const override;
 
+   void AddAbsMultPA(const Vector&, Vector&) const override;
+
    void AddMultTransposePA(const Vector&, Vector&) const override;
+
+   void AddAbsMultTransposePA(const Vector&, Vector&) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -2816,6 +2838,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
@@ -2933,6 +2956,7 @@ public:
    void AssemblePA(const FiniteElementSpace &trial_fes,
                    const FiniteElementSpace &test_fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -3195,7 +3219,11 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
+
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   void AddAbsMultTransposePA(const Vector &x, Vector &y) const override;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric

@@ -11,6 +11,14 @@
 Version 4.8.1 (development)
 ===========================
 
+- API addition: in class `Operator`, added virtual functions: `AbsMult`,
+  `AbsMultTranspose`, `AddAbsMult`, and `AddAbsMultTranspose`.
+
+- Added miniapp to demonstrate an implementation of the absolute-value
+  L(1)-Jacobi preconditioners in partially assembled operators. This includes
+  Multigrid wrappers to demonstrate the effectiveness of these Jacobi-type
+  operators as smoothers.
+
 
 Version 4.8, released on Apr 9, 2025
 ====================================

@@ -232,10 +232,37 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      Vector abs_pa_data(pa_data);
+      abs_pa_data.Abs();
+      Array<real_t> absB(maps->B);
+      Array<real_t> absBt(maps->Bt);
+      absB.Abs();
+      absBt.Abs();
+
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, absB, absBt, abs_pa_data,
+                          x, y, dofs1D, quad1D);
+   }
+}
+
 void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddMultPA(x, y);
+}
+
+void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
+{
+   // Mass integrator is symmetric
+   AddAbsMultPA(x, y);
 }
 
 } // namespace mfem
