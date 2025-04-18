@@ -133,27 +133,6 @@ void BatchedLOR_DG::AssembleFaceTerms()
    // Sparse matrix entries
    auto V = Reshape(sparse_ij.ReadWrite(), nnz_per_row, nd, nel_ho);
 
-   auto face_idx_to_vol_idx =
-      MFEM_HOST_DEVICE [pp1,dim] (int i, int f0, int f1, int s, int o)
-   {
-      if (dim == 2)
-      {
-         int ix, iy;
-         internal::FaceIdxToVolIdx2D(i, pp1, f0, f1, s, ix, iy);
-         return ix + iy*pp1;
-      }
-      else if (dim == 3)
-      {
-         int ix, iy, iz;
-         internal::FaceIdxToVolIdx3D(i, pp1, f0, f1, s, o, ix, iy, iz);
-         return ix + pp1*iy + pp1*pp1*iz;
-      }
-      else
-      {
-         MFEM_ABORT_KERNEL("Invalid dimension");
-      }
-   };
-
    mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
    {
       const int f_0 = d_face_info(1, f);
@@ -166,7 +145,7 @@ void BatchedLOR_DG::AssembleFaceTerms()
          const int v_idx = 1 + ((el_i == 0) ? f_0 : f_1);
          for (int i = 0; i < nd_face; ++i)
          {
-            const int ii = face_idx_to_vol_idx(i, f_0, f_1, el_i, o);
+            const int ii = internal::FaceIdxToVolIdx(dim, i, pp1, f_0, f_1, el_i, o);
             const real_t Jh = d_face_Jh(i, f);
             const real_t dq = const_dq ? DQ(0,0) : DQ(ii, e);
             V(v_idx, ii, e) = -dq*d_kappa*Jh*w_face[i];
