@@ -423,6 +423,10 @@ MFEM_USE_GNUTLS = YES/NO
    When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
    also used, see below.
 
+MFEM_USE_HDF5 = YES/NO
+   The HDF5 library is used for input and output of HDF5 files, for example
+   Cubit mesh files or VTKHDF files for ParaView.
+
 MFEM_USE_NETCDF = YES/NO
    NetCDF is the library that is used by the SNL Cubit mesh generator to create
    Genesis mesh files. This option enables a reader for these files, which
@@ -733,6 +737,9 @@ The specific libraries and their options are:
   Options: GNUTLS_OPT, GNUTLS_LIB.
   Versions: GnuTLS >= 2.12.0, older versions may work too.
 
+- HDF5 (optional), used when MFEM_USE_HDF5 = YES, required for reading and
+  writing files in VTKHDF format.
+
 - NetCDF (optional), used when MFEM_USE_NETCDF = YES, required for reading Cubit
   mesh files. Also requires installation of HDF5 and ZLIB, as explained at the
   NetCDF web site. Note that we use the plain vanilla "C" version of NetCDF, you
@@ -1038,6 +1045,7 @@ MFEM_USE_STRUMPACK
 MFEM_USE_GINKGO
 MFEM_USE_AMGX
 MFEM_USE_GNUTLS
+MFEM_USE_HDF5
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_ZLIB
