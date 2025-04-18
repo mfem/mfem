@@ -375,18 +375,12 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int p = fes_ho.GetMaxElementOrder();
    const int pp1 = p + 1;
    const int nnz = nrows*nnz_per_row;
-   auto I = A.HostWriteI();
+   auto h_I = A.HostWriteI();
 
    EnsureCapacity(A.GetMemoryJ(), nnz);
    EnsureCapacity(A.GetMemoryData(), nnz);
 
-   const auto V = Reshape(sparse_ij.Read(), nnz_per_row, ndof_per_el, nel_ho);
-
-   auto J = A.WriteJ();
-   auto AV = A.WriteData();
-
    Array<int> nbr_info(nel_ho*3*2*dim);
-
    auto h_nbr_info = Reshape(nbr_info.HostWrite(), nel_ho, 2*dim, 3);
    const int num_faces = fes_ho.GetMesh()->GetNumFaces();
    for (int f = 0; f < num_faces; f++)
@@ -413,14 +407,14 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       }
    };
 
-   I[0] = 0;
+   h_I[0] = 0;
    for (int i = 0; i < nrows; ++i)
    {
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
       static const int lex_map_2[4] = {3, 1, 0, 2};
       static const int lex_map_3[6] = {4, 2, 1, 3, 0, 5};
-      int local_i[3] = {iloc % pp1, (iloc/pp1)%pp1, iloc/pp1/pp1};
+      const int local_i[3] = {iloc % pp1, (iloc/pp1)%pp1, iloc/pp1/pp1};
       int bdr_count = 0;
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
@@ -439,10 +433,14 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
             }
          }
       }
-      I[i+1] = I[i] + (nnz_per_row - bdr_count);
+      h_I[i+1] = h_I[i] + (nnz_per_row - bdr_count);
    }
 
-   auto I_d = A.ReadI();
+   const auto V = Reshape(sparse_ij.Read(), nnz_per_row, ndof_per_el, nel_ho);
+   auto J = A.WriteJ();
+   auto AV = A.WriteData();
+   auto I = A.ReadI();
+
    auto d_nbr_info = Reshape(nbr_info.Read(), nel_ho, 2*dim, 3);
    mfem::forall(nrows, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -451,8 +449,8 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       const int local_x = iloc % pp1;
       const int local_y = (iloc/pp1)%pp1;
       const int local_z = iloc/pp1/pp1;
-      int local_i[3] = {local_x, local_y, local_z};
-      int offset = I_d[i];
+      const int local_i[3] = {local_x, local_y, local_z};
+      int offset = I[i];
       static const int lex_map_2[4] = {3, 1, 0, 2};
       static const int lex_map_3[6] = {4,2,1,3,0,5};
       const int *lex_map = (dim == 2) ? lex_map_2 : lex_map_3;
@@ -464,13 +462,13 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          // qi is the face lexicographic index, obtained by taking the
          // lexicographic index of the coordinates ommiting n_idx.
          int qi = 0;
-         int idx = 0;
+         int stride = 1;
          for (int d = 0; d < dim; ++d)
          {
             if (d != n_idx)
             {
-               qi += local_i[d]*pow(pp1, idx);
-               ++idx;
+               qi += local_i[d]*stride;
+               stride *= pp1;
             }
          }
          for (int e_i = 0; e_i < 2; ++e_i)
@@ -494,8 +492,9 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
             }
             else
             {
-               int pm = (e_i == 0) ? -pow(p+1, n_idx) : pow(p+1, n_idx);
-               J[offset] = i + pm;
+               int shift = (e_i == 0) ? -1 : 1;
+               for (int n = 0; n < n_idx; ++n) { shift *= pp1; }
+               J[offset] = i + shift;
                AV[offset] = V(f+1, iloc, e);
                ++offset;
             }
