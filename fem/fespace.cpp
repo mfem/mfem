@@ -17,16 +17,623 @@
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
 
+#include "kernel_dispatch.hpp"
+
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
+
+#ifdef MFEM_USE_CUDA
+#include <cuda/atomic>
+#endif
 
 using namespace std;
 
 namespace mfem
 {
+/// \cond DO_NOT_DOCUMENT
+namespace internal
+{
 
-template <> void Ordering::
-DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim, Array<int> &dofs)
+struct DerefineMatrixOpFunctorBase
+{
+   const real_t *xptr;
+   real_t *yptr;
+   /// block storage
+   const real_t *bsptr;
+   /// block offsets
+   const int *boptr;
+   /// block row idcs offsets
+   const int *brptr;
+   /// block col idcs offsets
+   const int *bcptr;
+   /// row idcs
+   const int *rptr;
+   /// col idcs
+   const int *cptr;
+
+   // number of blocks
+   int nblocks;
+   // number of components
+   int vdims;
+   /// overall operator height (for vdim = 1)
+   int height;
+   /// overall operator width (for vdim = 1)
+   int width;
+};
+
+template <Ordering::Type Order, bool Atomic>
+struct DerefineMatrixOpMultFunctor;
+
+template <bool Atomic>
+struct DerefineMatrixOpMultFunctor<Ordering::byNODES, Atomic>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int kidx) const
+   {
+      int k = kidx % nblocks;
+      int vdim = kidx / nblocks;
+
+      int block_height = brptr[k + 1] - brptr[k];
+      int block_width = bcptr[k + 1] - bcptr[k];
+      MFEM_FOREACH_THREAD(i, x, block_height)
+      {
+         int row = rptr[brptr[k] + i];
+         int rsign = 1;
+         if (row < 0)
+         {
+            row = -1 - row;
+            rsign = -1;
+         }
+         if (row < height)
+         {
+            // row not marked as unused
+            real_t sum = 0;
+            for (int j = 0; j < block_width; ++j)
+            {
+               int col = cptr[bcptr[k] + j];
+               int sign = rsign;
+               if (col < 0)
+               {
+                  col = -1 - col;
+                  sign *= -1;
+               }
+               sum += sign * bsptr[boptr[k] + i + j * block_height] *
+                      xptr[col + vdim * width];
+            }
+#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
+            if (Atomic)
+            {
+               atomicAdd(yptr + row + vdim * height, sum);
+            }
+            else
+#endif
+            {
+               yptr[row + vdim * height] += sum;
+            }
+         }
+      }
+   }
+
+   /// N is the max block row size (doesn't have to be a power of 2)
+   void Run(int N) const
+   {
+      forall_2D(nblocks * vdims, N, 1, *this);
+   }
+};
+
+template <bool Atomic>
+struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, Atomic>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int kidx) const
+   {
+      int k = kidx % nblocks;
+      int vdim = kidx / nblocks;
+
+      int block_height = brptr[k + 1] - brptr[k];
+      int block_width = bcptr[k + 1] - bcptr[k];
+      MFEM_FOREACH_THREAD(i, x, block_height)
+      {
+         int row = rptr[brptr[k] + i];
+         int rsign = 1;
+         if (row < 0)
+         {
+            row = -1 - row;
+            rsign = -1;
+         }
+         if (row < height)
+         {
+            // row not marked as unused
+            real_t sum = 0;
+            for (int j = 0; j < block_width; ++j)
+            {
+               int col = cptr[bcptr[k] + j];
+               int sign = rsign;
+               if (col < 0)
+               {
+                  col = -1 - col;
+                  sign *= -1;
+               }
+               sum += sign * bsptr[boptr[k] + i + j * block_height] *
+                      xptr[vdim + col * vdims];
+            }
+#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
+            if (Atomic)
+            {
+               atomicAdd(yptr + row + vdim * height, sum);
+            }
+            else
+#endif
+            {
+               yptr[vdim + row * vdims] += sum;
+            }
+         }
+      }
+   }
+
+   /// N is the max block row size (doesn't have to be a power of 2)
+   void Run(int N) const
+   {
+      forall_2D(nblocks * vdims, N, 1, *this);
+   }
+};
+
+template <Ordering::Type Order, bool Atomic>
+struct DerefineMatrixOpMultTFunctor;
+
+template <bool Atomic>
+struct DerefineMatrixOpMultTFunctor<Ordering::byNODES, Atomic>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int kidx) const
+   {
+      int k = kidx % nblocks;
+      int vdim = kidx / nblocks;
+
+      int block_width = bcptr[k + 1] - bcptr[k];
+      int block_height = brptr[k + 1] - brptr[k];
+      MFEM_FOREACH_THREAD(j, x, block_width)
+      {
+         int col = cptr[bcptr[k] + j];
+         int csign = 1;
+         if (col < 0)
+         {
+            col = -1 - col;
+            csign = -1;
+         }
+         real_t sum = 0;
+         for (int i = 0; i < block_height; ++i)
+         {
+            // row not marked as unused
+            int row = rptr[brptr[k] + i];
+            int sign = csign;
+            if (row < 0)
+            {
+               row = -1 - row;
+               sign *= -1;
+            }
+            if (row < height)
+            {
+               sum += sign * bsptr[boptr[k] + i + j * block_height] *
+                      xptr[row + vdim * height];
+            }
+         }
+#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
+         if (Atomic)
+         {
+            atomicAdd(yptr + col + vdim * width, sum);
+         }
+         else
+#endif
+         {
+            yptr[col + vdim * width] += sum;
+         }
+      }
+   }
+
+   /// N is the max block col size (doesn't have to be a power of 2)
+   void Run(int N) const
+   {
+      forall_2D(nblocks * vdims, N, 1, *this);
+   }
+};
+
+template <bool Atomic>
+struct DerefineMatrixOpMultTFunctor<Ordering::byVDIM, Atomic>
+   : DerefineMatrixOpFunctorBase
+{
+   void MFEM_HOST_DEVICE operator()(int kidx) const
+   {
+      int k = kidx % nblocks;
+      int vdim = kidx / nblocks;
+
+      int block_width = bcptr[k + 1] - bcptr[k];
+      int block_height = brptr[k + 1] - brptr[k];
+      MFEM_FOREACH_THREAD(j, x, block_width)
+      {
+         int col = cptr[bcptr[k] + j];
+         int csign = 1;
+         if (col < 0)
+         {
+            col = -1 - col;
+            csign = -1;
+         }
+         real_t sum = 0;
+         for (int i = 0; i < block_height; ++i)
+         {
+            // row not marked as unused
+            int row = rptr[brptr[k] + i];
+            int sign = csign;
+            if (row < 0)
+            {
+               row = -1 - row;
+               sign *= -1;
+            }
+            if (row < height)
+            {
+               sum += sign * bsptr[boptr[k] + i + j * block_height] *
+                      xptr[vdim + row * vdims];
+            }
+         }
+#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
+         if (Atomic)
+         {
+            atomicAdd(yptr + col + vdim * width, sum);
+         }
+         else
+#endif
+         {
+            yptr[vdim + col * vdims] += sum;
+         }
+      }
+   }
+
+   /// N is the max block col size (doesn't have to be a power of 2)
+   void Run(int N) const
+   {
+      forall_2D(nblocks * vdims, N, 1, *this);
+   }
+};
+
+} // namespace internal
+
+class DerefineMatrixOp : public Operator
+{
+public:
+   FiniteElementSpace *fespace;
+   /// offsets into block_storage
+   Array<int> block_offsets;
+   /// offsets into row_idcs
+   Array<int> block_row_idcs_offsets;
+   /// offsets into col_idcs
+   Array<int> block_col_idcs_offsets;
+   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// negative means the row data should be negated.
+   Array<int> row_idcs;
+   /// mapping for col dofs, negative means the col data should be negated.
+   Array<int> col_idcs;
+   Vector block_storage;
+   int max_rows, max_cols;
+
+   using MultKernelType = void (*)(const DerefineMatrixOp &, const Vector &,
+                                   Vector &);
+   /// template args: ordering, atomic
+   MFEM_REGISTER_KERNELS(MultKernel, MultKernelType,
+                         (Ordering::Type, bool));
+
+   /// template args: ordering, atomic
+   MFEM_REGISTER_KERNELS(MultTKernel, MultKernelType,
+                         (Ordering::Type, bool));
+
+   struct Kernels
+   {
+      Kernels()
+      {
+         MultKernel::Specialization<Ordering::byNODES, false>::Add();
+         MultKernel::Specialization<Ordering::byVDIM, false>::Add();
+         MultKernel::Specialization<Ordering::byNODES, true>::Add();
+         MultKernel::Specialization<Ordering::byVDIM, true>::Add();
+
+         MultTKernel::Specialization<Ordering::byNODES, false>::Add();
+         MultTKernel::Specialization<Ordering::byVDIM, false>::Add();
+         MultTKernel::Specialization<Ordering::byNODES, true>::Add();
+         MultTKernel::Specialization<Ordering::byVDIM, true>::Add();
+      }
+   };
+
+   void Mult(const Vector &x, Vector &y) const
+   {
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      // DG needs atomic summation
+      MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
+   }
+
+   void MultTranspose(const Vector &x, Vector &y) const
+   {
+      // TODO: what can get away without atomic summations?
+      // TODO: is this every used?
+      MultTKernel::Run(fespace->GetOrdering(), true, *this, x, y);
+   }
+
+   DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
+                    const Table *old_elem_dof, const Table *old_elem_fos)
+      : Operator(fespace_.GetVSize(), old_ndofs * fespace_.GetVDim()),
+        fespace(&fespace_)
+   {
+      static Kernels kernels;
+      constexpr int max_team_size = 256;
+      /// TODO: Implement DofTransformation support
+
+      MFEM_VERIFY(fespace->Nonconforming(),
+                  "Not implemented for conforming meshes.");
+      MFEM_VERIFY(old_ndofs, "Missing previous (finer) space.");
+      MFEM_VERIFY(fespace->GetNDofs() <= old_ndofs,
+                  "Previous space is not finer.");
+
+      const CoarseFineTransformations &dtrans =
+         fespace->GetMesh()->ncmesh->GetDerefinementTransforms();
+
+      MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
+
+      bool is_dg = fespace->FEColl()->GetContType() ==
+                   FiniteElementCollection::DISCONTINUOUS;
+      const FiniteElement *fe = nullptr;
+      DenseMatrix localRVO; // for variable-order only
+
+      DenseTensor localR[Geometry::NumGeom];
+      int total_rows = 0;
+      int total_cols = 0;
+      if (fespace->IsVariableOrder())
+      {
+         // TODO: any potential for some compression here?
+         // determine storage size and offsets
+         block_offsets.SetSize(dtrans.embeddings.Size());
+         block_offsets.HostWrite();
+         block_offsets[0] = 0;
+         int total_size = 0;
+         for (int k = 0; k < dtrans.embeddings.Size(); ++k)
+         {
+            const Embedding &emb = dtrans.embeddings[k];
+            fe = fespace->GetFE(emb.parent);
+            const int ldof = fe->GetDof();
+            if (k + 1 < dtrans.embeddings.Size())
+            {
+               block_offsets[k + 1] = block_offsets[k] + ldof * ldof;
+            }
+            total_rows += ldof;
+            total_cols += ldof;
+            total_size += ldof * ldof;
+         }
+         block_storage.SetSize(total_size);
+      }
+      else
+      {
+         // compression scheme:
+         // block_offsets is the start of each block, potentially repeated
+         block_offsets.SetSize(dtrans.embeddings.Size());
+         block_offsets.HostWrite();
+         // only need to store localR for used shapes
+         Mesh::GeometryList elem_geoms(*fespace->GetMesh());
+
+         int geom_offsets[Geometry::NumGeom];
+         {
+            int size = 0;
+            for (int i = 0; i < elem_geoms.Size(); ++i)
+            {
+               fespace->GetLocalDerefinementMatrices(elem_geoms[i],
+                                                     localR[elem_geoms[i]]);
+               geom_offsets[elem_geoms[i]] = size;
+               size += localR[elem_geoms[i]].TotalSize();
+            }
+            block_storage.SetSize(size);
+            // copy blocks into block_storage
+            auto bs_ptr = block_storage.HostWrite();
+            for (int i = 0; i < elem_geoms.Size(); ++i)
+            {
+               std::copy(localR[elem_geoms[i]].Data(),
+                         localR[elem_geoms[i]].Data() +
+                         localR[elem_geoms[i]].TotalSize(),
+                         bs_ptr);
+               bs_ptr += localR[elem_geoms[i]].TotalSize();
+            }
+         }
+         for (int k = 0; k < dtrans.embeddings.Size(); k++)
+         {
+            const Embedding &emb = dtrans.embeddings[k];
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+
+            auto size = localR[geom].SizeI() * localR[geom].SizeJ();
+            total_rows += localR[geom].SizeI();
+            total_cols += localR[geom].SizeJ();
+            // set block offsets and sizes
+            block_offsets[k] = geom_offsets[geom] + size * emb.matrix;
+         }
+      }
+      row_idcs.SetSize(total_rows);
+      row_idcs.HostWrite();
+      col_idcs.SetSize(total_cols);
+      col_idcs.HostWrite();
+      block_row_idcs_offsets.SetSize(dtrans.embeddings.Size() + 1);
+      block_row_idcs_offsets.HostWrite();
+      block_col_idcs_offsets.SetSize(dtrans.embeddings.Size() + 1);
+      block_col_idcs_offsets.HostWrite();
+      block_row_idcs_offsets[0] = 0;
+      block_col_idcs_offsets[0] = 0;
+
+      // compute index information
+      Array<int> dofs, old_dofs;
+      max_rows = 1;
+      max_cols = 1;
+
+      {
+         Array<int> mark(fespace->GetNDofs());
+         mark = 0;
+         auto bs_ptr = block_storage.HostWrite();
+         int ridx = 0;
+         int cidx = 0;
+         int num_marked = 0;
+         for (int k = 0; k < dtrans.embeddings.Size(); k++)
+         {
+            const Embedding &emb = dtrans.embeddings[k];
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+
+            if (fespace->IsVariableOrder())
+            {
+               fe = fespace->GetFE(emb.parent);
+               const DenseTensor &pmats = dtrans.point_matrices[geom];
+               const int ldof = fe->GetDof();
+
+               IsoparametricTransformation isotr;
+               isotr.SetIdentityTransformation(geom);
+
+               localRVO.SetSize(ldof, ldof);
+               isotr.SetPointMat(pmats(emb.matrix));
+               // Local restriction is size ldofxldof assuming that the parent
+               // and child are of same polynomial order.
+               fe->GetLocalRestriction(isotr, localRVO);
+               // copy block
+               auto size = localRVO.Height() * localRVO.Width();
+               std::copy(localRVO.Data(), localRVO.Data() + size, bs_ptr);
+               bs_ptr += size;
+            }
+            DenseMatrix &lR =
+               fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
+            block_row_idcs_offsets[k + 1] =
+               block_row_idcs_offsets[k] + lR.Height();
+            block_col_idcs_offsets[k + 1] =
+               block_col_idcs_offsets[k] + lR.Width();
+            max_rows = std::min(lR.Height(), max_rows);
+            max_cols = std::min(lR.Width(), max_cols);
+            // index information
+            fespace->elem_dof->GetRow(emb.parent, dofs);
+            old_elem_dof->GetRow(k, old_dofs);
+            MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
+                        "Parent and child must have same #dofs.");
+            for (int i = 0; i < lR.Height(); ++i, ++ridx)
+            {
+               if (!std::isfinite(lR(i, 0)))
+               {
+                  row_idcs[ridx] = Height();
+                  continue;
+               }
+               int r = dofs[i];
+               int m = (r >= 0) ? r : (-1 - r);
+               if (is_dg || !mark[m])
+               {
+                  row_idcs[ridx] = r;
+                  mark[m] = 1;
+                  ++num_marked;
+               }
+               else
+               {
+                  row_idcs[ridx] = Height();
+               }
+            }
+            for (int i = 0; i < lR.Width(); ++i, ++cidx)
+            {
+               col_idcs[cidx] = old_dofs[i];
+            }
+         }
+         if (!is_dg && !fespace->IsVariableOrder())
+         {
+            MFEM_VERIFY(num_marked * fespace->GetVDim() == Height(),
+                        "internal error: not all rows were set.");
+         }
+      }
+      // if not using GPU, set max_rows/max_cols to zero
+      if (!Device::Allows(Backend::DEVICE_MASK))
+      {
+         max_rows = 1;
+         max_cols = 1;
+      }
+      else
+      {
+         max_rows = std::min(max_rows, max_team_size);
+         max_cols = std::min(max_cols, max_team_size);
+      }
+   }
+};
+
+namespace internal
+{
+template <Ordering::Type Order, bool Atomic>
+static void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
+                           Vector &y)
+{
+   DerefineMatrixOpMultFunctor<Order, Atomic> func;
+   func.xptr = x.Read();
+   y.UseDevice();
+   y = 0.;
+   func.yptr = y.ReadWrite();
+   func.bsptr = op.block_storage.Read();
+   func.boptr = op.block_offsets.Read();
+   func.brptr = op.block_row_idcs_offsets.Read();
+   func.bcptr = op.block_col_idcs_offsets.Read();
+   func.rptr = op.row_idcs.Read();
+   func.cptr = op.col_idcs.Read();
+   func.vdims = op.fespace->GetVDim();
+   func.nblocks = op.block_offsets.Size();
+   func.width = op.Width() / func.vdims;
+   func.height = op.Height() / func.vdims;
+   func.Run(op.max_rows);
+}
+
+template <Ordering::Type Order, bool Atomic>
+static void MultTKernelImpl(const DerefineMatrixOp &op, const Vector &x,
+                            Vector &y)
+{
+   DerefineMatrixOpMultTFunctor<Order, Atomic> func;
+   func.xptr = x.Read();
+   y.UseDevice();
+   y = 0.;
+   func.yptr = y.ReadWrite();
+   func.bsptr = op.block_storage.Read();
+   func.boptr = op.block_offsets.Read();
+   func.brptr = op.block_row_idcs_offsets.Read();
+   func.bcptr = op.block_col_idcs_offsets.Read();
+   func.rptr = op.row_idcs.Read();
+   func.cptr = op.col_idcs.Read();
+   func.vdims = op.fespace->GetVDim();
+   func.nblocks = op.block_offsets.Size();
+   func.width = op.Width() / func.vdims;
+   func.height = op.Height() / func.vdims;
+   func.Run(op.max_cols);
+}
+} // namespace internal
+
+template <Ordering::Type Order, bool Atomic>
+DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultKernel::Kernel()
+{
+   return internal::MultKernelImpl<Order, Atomic>;
+}
+
+template <Ordering::Type Order, bool Atomic>
+DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultTKernel::Kernel()
+{
+   return internal::MultTKernelImpl<Order, Atomic>;
+}
+
+DerefineMatrixOp::MultKernelType
+DerefineMatrixOp::MultKernel::Fallback(Ordering::Type, bool)
+{
+   MFEM_ABORT("invalid MultKernel parameters");
+}
+
+DerefineMatrixOp::MultKernelType
+DerefineMatrixOp::MultTKernel::Fallback(Ordering::Type, bool)
+{
+   MFEM_ABORT("invalid MultTKernel parameters");
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
+template <>
+void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
+                                              Array<int> &dofs)
 {
    // static method
    int size = dofs.Size();
@@ -40,8 +647,9 @@ DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim, Array<int> &dofs)
    }
 }
 
-template <> void Ordering::
-DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
+template <>
+void Ordering::DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim,
+                                             Array<int> &dofs)
 {
    // static method
    int size = dofs.Size();
@@ -54,7 +662,6 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
       }
    }
 }
-
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
@@ -4242,7 +4849,11 @@ void FiniteElementSpace::Update(bool want_transform)
          case Mesh::DEREFINE:
          {
             BuildConformingInterpolation();
+#if 0
             Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
+#else
+            Th.Reset(new DerefineMatrixOp(*this, old_ndofs, old_elem_dof, old_elem_fos));
+#endif
             if (IsVariableOrder())
             {
                if (cP && cR_hp)
