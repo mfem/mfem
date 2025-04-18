@@ -54,6 +54,15 @@ doc/warnings.log
 # Example and miniapp binaries and outputs
 
 examples/ex[0-9]
+examples/ex5-max
+examples/ex5-hdg
+examples/ex5p-hdg
+examples/ex5-heat
+examples/ex5-nguyen
+examples/ex5p-nguyen
+examples/ex5-plasma
+examples/ex5-aniso
+examples/ex5-scatter
 examples/ex[0-9]p
 examples/ex1[04-9]
 examples/ex1[0-9]p
@@ -67,7 +76,7 @@ examples/ex4[0-9]p
 examples/refined.mesh
 examples/displaced.mesh
 examples/mesh.*
-examples/ex5.mesh
+examples/ex5*.mesh
 examples/Example5*
 examples/ParaView
 examples/Example9*
@@ -77,6 +86,8 @@ examples/sphere_refined.*
 examples/sol.*
 examples/sol_u.*
 examples/sol_p.*
+examples/sol_q.*
+examples/sol_t.*
 examples/sol_r.*
 examples/sol_i.*
 examples/ex6p-checkpoint.*
@@ -90,7 +101,7 @@ examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
 examples/mode_deriv_*
-examples/ex5-p-*.bp
+examples/ex5*-p-*.bp
 examples/ex9-p-*.bp
 examples/ex12-p-*.bp
 examples/ex16-p-*.bp
