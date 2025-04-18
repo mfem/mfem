@@ -1554,11 +1554,11 @@ public:
        GetElementEdges/GetBdrElementEdges. */
    void GetBdrElementFace(int i, int *f, int *o) const;
 
-   /// Return the indices of the faces connected to vertex vi.
-   void FacesWithVert(int vi, Array<int> &faces);
-
    /// Return the indices of the elements connected to vertex vi.
    void ElemsWithVert(int vi, Array<int> &elems);
+
+   /// Return the indices of the faces connected to vertex vi.
+   void FacesWithVert(int vi, Array<int> &faces);
 
    /// Return the indices of the edges conected to vertex vi.
    void EdgesWithVert(int vi, Array<int> &edges);

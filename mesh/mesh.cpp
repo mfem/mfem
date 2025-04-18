@@ -7634,7 +7634,6 @@ void Mesh::EdgesWithVert(int vi, Array<int> &edges)
    vert_to_edge.GetRow(vi, edges);
 }
 
-
 void Mesh::ElemsWithAllVerts(const Array<int> &verts, Array<int> &elems)
 {
    GetVertexToElementTable();    // Ensure vert_to_elem is built
