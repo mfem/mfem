@@ -365,7 +365,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    });
 }
 
-void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
+void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
 {
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
@@ -375,10 +375,32 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int p = fes_ho.GetMaxElementOrder();
    const int pp1 = p + 1;
    const int nnz = nrows*nnz_per_row;
-   auto h_I = A.HostWriteI();
 
-   EnsureCapacity(A.GetMemoryJ(), nnz);
-   EnsureCapacity(A.GetMemoryData(), nnz);
+   const int face_nbr_vsize = [this]()
+   {
+#ifdef MFEM_USE_MPI
+      if (auto *par_fes = dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
+      {
+         return par_fes->GetFaceNbrVSize();
+      }
+#endif
+      return 0;
+   }();
+
+   // If A contains an existing SparseMatrix, reuse it (and try to reuse its
+   // I, J, A arrays if they are big enough)
+   SparseMatrix *A_mat = A.Is<SparseMatrix>();
+   if (!A_mat)
+   {
+      A_mat = new SparseMatrix;
+      A.Reset(A_mat);
+   }
+
+   A_mat->OverrideSize(nrows, nrows + face_nbr_vsize);
+
+   EnsureCapacity(A_mat->GetMemoryI(), nrows + 1);
+   EnsureCapacity(A_mat->GetMemoryJ(), nnz);
+   EnsureCapacity(A_mat->GetMemoryData(), nnz);
 
    Array<int> nbr_info(nel_ho*3*2*dim);
    auto h_nbr_info = Reshape(nbr_info.HostWrite(), nel_ho, 2*dim, 3);
@@ -394,7 +416,14 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          h_nbr_info(e0,f0,1)= -1;
          h_nbr_info(e0,f0,2)= -1;
       }
-      else
+      else if (finfo.IsShared())
+      {
+         // Face neighbors elements are indexed after the last local element
+         h_nbr_info(e0,f0,0) = nel_ho + finfo.element[1].index;
+         h_nbr_info(e0,f0,1)= finfo.element[1].orientation;
+         h_nbr_info(e0,f0,2)= finfo.element[1].local_face_id;
+      }
+      else if (finfo.IsInterior())
       {
          int e1 = finfo.element[1].index;
          int f1 = finfo.element[1].local_face_id;
@@ -407,6 +436,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       }
    };
 
+   auto h_I = A_mat->HostWriteI();
    h_I[0] = 0;
    for (int i = 0; i < nrows; ++i)
    {
@@ -437,9 +467,9 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    }
 
    const auto V = Reshape(sparse_ij.Read(), nnz_per_row, ndof_per_el, nel_ho);
-   auto J = A.WriteJ();
-   auto AV = A.WriteData();
-   auto I = A.ReadI();
+   auto J = A_mat->WriteJ();
+   auto AV = A_mat->WriteData();
+   auto I = A_mat->ReadI();
 
    auto d_nbr_info = Reshape(nbr_info.Read(), nel_ho, 2*dim, 3);
    mfem::forall(nrows, [=] MFEM_HOST_DEVICE (int i)
@@ -519,18 +549,10 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
    A_mat->OverrideSize(nvdof, nvdof);
    EnsureCapacity(A_mat->GetMemoryI(), nvdof + 1);
 
-   // Assembling the CSR matrix for DG spaces uses a different algorithm
-   if (dynamic_cast<const DG_FECollection*>(fes_ho.FEColl()))
-   {
-      SparseIJToCSR_DG(*A_mat);
-   }
-   else
-   {
-      const int nnz = FillI(*A_mat);
-      EnsureCapacity(A_mat->GetMemoryJ(), nnz);
-      EnsureCapacity(A_mat->GetMemoryData(), nnz);
-      FillJAndData(*A_mat);
-   }
+   const int nnz = FillI(*A_mat);
+   EnsureCapacity(A_mat->GetMemoryJ(), nnz);
+   EnsureCapacity(A_mat->GetMemoryData(), nnz);
+   FillJAndData(*A_mat);
 }
 
 template <int ORDER, int SDIM, typename LOR_KERNEL>
@@ -583,18 +605,24 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
    // Assemble the matrix, depending on what the form is.
    // This fills in the arrays sparse_ij and sparse_mapping.
    const FiniteElementCollection *fec = fes_ho.FEColl();
+
+   // Handle DG case separately, because assembly of CSR matrix requires
+   // handling face terms.
+   if (dynamic_cast<const DG_FECollection*>(fec))
+   {
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+      {
+         AssemblyKernel<BatchedLOR_DG>(a);
+      }
+      SparseIJToCSR_DG(A);
+      return;
+   }
+
    if (dynamic_cast<const H1_FECollection*>(fec))
    {
       if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
       {
          AssemblyKernel<BatchedLOR_H1>(a);
-      }
-   }
-   else if (dynamic_cast<const DG_FECollection*>(fec))
-   {
-      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
-      {
-         AssemblyKernel<BatchedLOR_DG>(a);
       }
    }
    else if (dynamic_cast<const ND_FECollection*>(fec))
@@ -612,10 +640,47 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
       }
    }
 
-   return SparseIJToCSR(A);
+   SparseIJToCSR(A);
 }
 
 #ifdef MFEM_USE_MPI
+void BatchedLORAssembly::ParAssemble_DG(SparseMatrix &A_local,
+                                        OperatorHandle &A)
+{
+   auto &par_fes = static_cast<ParFiniteElementSpace&>(fes_ho);
+
+   // handle the case when 'a' contains off-diagonal
+   const int lvsize = par_fes.GetVSize();
+   const Array<HYPRE_BigInt> &face_nbr_glob_ldof =
+      par_fes.GetFaceNbrGlobalDofMapArray();
+   const HYPRE_BigInt ldof_offset = par_fes.GetMyDofOffset();
+
+   const int nnz_local = A_local.NumNonZeroElems();
+   Array<HYPRE_BigInt> glob_J(nnz_local);
+
+   const HYPRE_BigInt *d_face_nbr_glob_ldof = face_nbr_glob_ldof.Read();
+   const int *d_J = A_local.ReadJ();
+   HYPRE_BigInt *d_glob_J = glob_J.Write();
+
+   mfem::forall(nnz_local, [=] MFEM_HOST_DEVICE (int i)
+   {
+      if (d_J[i] < lvsize)
+      {
+         d_glob_J[i] = d_J[i] + ldof_offset;
+      }
+      else
+      {
+         d_glob_J[i] = d_face_nbr_glob_ldof[d_J[i] - lvsize];
+      }
+   });
+
+   A.Reset(new HypreParMatrix(
+              par_fes.GetComm(), lvsize, par_fes.GlobalVSize(),
+              par_fes.GlobalVSize(), A_local.HostReadWriteI(),
+              glob_J.HostReadWrite(), A_local.HostReadWriteData(),
+              par_fes.GetDofOffsets(), par_fes.GetDofOffsets()));
+}
+
 void BatchedLORAssembly::ParAssemble(
    BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
@@ -623,13 +688,18 @@ void BatchedLORAssembly::ParAssemble(
    OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
 
-   ParBilinearForm *pa =
-      dynamic_cast<ParBilinearForm*>(&a);
-
-   pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
-
-   A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
-                                       Operator::DiagonalPolicy::DIAG_ONE);
+   if (dynamic_cast<const DG_FECollection*>(fes_ho.FEColl()))
+   {
+      ParAssemble_DG(*A_local.As<SparseMatrix>(), A);
+   }
+   else
+   {
+      ParBilinearForm *pa =
+         dynamic_cast<ParBilinearForm*>(&a);
+      pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
+      A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
+                                          Operator::DiagonalPolicy::DIAG_ONE);
+   }
 }
 #endif
 

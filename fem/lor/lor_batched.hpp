@@ -75,7 +75,7 @@ public:
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
    /// Specialized implementation of SparseIJToCSR for DG spaces.
-   void SparseIJToCSR_DG(SparseMatrix &A) const;
+   void SparseIJToCSR_DG(OperatorHandle &A) const;
 
 protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
@@ -109,6 +109,9 @@ public:
    void FillJAndData(SparseMatrix &A) const;
 
 #ifdef MFEM_USE_MPI
+   /// Assemble the parallel DG matrix (with shared faces).
+   void ParAssemble_DG(SparseMatrix &A_local, OperatorHandle &A);
+
    /// Assemble the system in parallel and place the result in @a A.
    void ParAssemble(BilinearForm &a, const Array<int> &ess_dofs,
                     OperatorHandle &A);
