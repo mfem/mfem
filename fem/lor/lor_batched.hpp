@@ -74,7 +74,7 @@ public:
    /// Return the vertices of the LOR mesh in E-vector format
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
-    /// Specialized implementation of SparseIJToCSR for DG spaces.
+   /// Specialized implementation of SparseIJToCSR for DG spaces.
    void SparseIJToCSR_DG(SparseMatrix &A) const;
 
 protected:
@@ -159,8 +159,9 @@ static T *GetInteriorFaceIntegrator(BilinearForm &a)
    return GetIntegrator<T>(a.GetFBFI());
 }
 
-IntegrationRule GetLobattoIntRule(FiniteElementSpace &fes, int nd1d);
+IntegrationRule GetLobattoIntRule(Geometry::Type geom, int nd1d);
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes);
+IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes);
 
 template <typename INTEGRATOR>
 void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)

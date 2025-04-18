@@ -97,7 +97,8 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    Vector nodal_evec(nodal_restriction->Height());
    nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
-   const IntegrationRule ir = GetLobattoIntRule(fes_ho, nd1d);
+   const IntegrationRule ir = GetLobattoIntRule(
+                                 mesh_ho.GetTypicalElementGeometry(), nd1d);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
    X_vert.SetSize(sdim*ndof_per_el*nel_ho);
@@ -369,7 +370,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_ij.Size()/ndof_per_el/nel_ho;
-   const int dim = fes_ho.GetMesh()->Dimension(); 
+   const int dim = fes_ho.GetMesh()->Dimension();
    const int num_rows = nel_ho*ndof_per_el;
    const int p = fes_ho.GetMaxElementOrder();
    const int nnz = num_rows*nnz_per_row;
@@ -384,7 +385,8 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    auto AV = A.WriteData();
 
    Array<int> neighbor_info_arr(nel_ho*3*2*dim);
-   auto h_neighbor_info_arr = Reshape(neighbor_info_arr.HostWrite(), nel_ho, 2*dim, 3);
+   auto h_neighbor_info_arr = Reshape(neighbor_info_arr.HostWrite(), nel_ho, 2*dim,
+                                      3);
    //int global_border_counter = 0;
    int num_faces = fes_ho.GetMesh()->GetNumFaces();
    for (int f = 0; f< num_faces; f++)
@@ -419,12 +421,14 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
       const int local_y = (iloc/(p+1))%(p+1);
-      const int local_z = iloc/(p+1)/(p+1); 
+      const int local_z = iloc/(p+1)/(p+1);
       static const int lex_map_2[4] = {3, 1, 0, 2};
       static const int lex_map_3[6] = {4,2,1,3,0,5};
       int local_i[3] = {local_x, local_y, local_z};
-      for (int n_idx = 0; n_idx < dim; ++n_idx){
-         for (int e_i = 0; e_i < 2; ++e_i){
+      for (int n_idx = 0; n_idx < dim; ++n_idx)
+      {
+         for (int e_i = 0; e_i < 2; ++e_i)
+         {
             const int j_lex = e_i + n_idx*2;
             const int j = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
             const bool boundary = (local_i[n_idx] == e_i * p);
@@ -449,7 +453,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
       const int local_y = (iloc/(p+1))%(p+1);
-      const int local_z = iloc/(p+1)/(p+1); 
+      const int local_z = iloc/(p+1)/(p+1);
       int local_i[3] = {local_x, local_y, local_z};
       const int nnz_so_far_current = I_d[i];
       static const int lex_map_2[4] = {3, 1, 0, 2};
@@ -457,25 +461,31 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       AV[nnz_so_far_current] = V(0, iloc, iel_ho);
       J[nnz_so_far_current] = i;
       int k = 1;
-      for (int n_idx = 0; n_idx < dim; ++n_idx){
-         for (int e_i = 0; e_i < 2; ++e_i){
+      for (int n_idx = 0; n_idx < dim; ++n_idx)
+      {
+         for (int e_i = 0; e_i < 2; ++e_i)
+         {
             const int j_lex = e_i + n_idx*2;
             const int j = (dim == 3) ? lex_map_3[j_lex]:lex_map_2[j_lex];
             const bool boundary = (local_i[n_idx] == e_i * p);
-            if (boundary){
+            if (boundary)
+            {
                int neighbor_idx = d_neighbor_info_arr(iel_ho, j, 0);
                int neighbor_face = d_neighbor_info_arr(iel_ho, j, 2);
-               int neighbor_orientation = d_neighbor_info_arr(iel_ho, j, 1); 
+               int neighbor_orientation = d_neighbor_info_arr(iel_ho, j, 1);
                if (neighbor_idx != -1)
                {
                   int x_n; int y_n; int z_n;
-                  if (dim == 3){
-                     int qi = (n_idx == 0) ? (local_y + (p+1)*local_z) 
-                     : ((n_idx == 1) ? ((p+1)*local_z + local_x) 
-                     : (local_x + (p+1)*local_y));
-                     internal::FaceIdxToVolIdx3D(qi, p+1, j, neighbor_face, 1, neighbor_orientation, x_n, y_n, z_n);
+                  if (dim == 3)
+                  {
+                     int qi = (n_idx == 0) ? (local_y + (p+1)*local_z)
+                              : ((n_idx == 1) ? ((p+1)*local_z + local_x)
+                                 : (local_x + (p+1)*local_y));
+                     internal::FaceIdxToVolIdx3D(qi, p+1, j, neighbor_face, 1, neighbor_orientation,
+                                                 x_n, y_n, z_n);
                   }
-                  else{
+                  else
+                  {
                      int qi = (n_idx == 0) ? local_y : local_x;
                      internal::FaceIdxToVolIdx2D(qi, p+1, j, neighbor_face, 1, x_n, y_n);
                      z_n = 0;
@@ -487,9 +497,10 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
                   k=k+1;
                }
             }
-            else{
+            else
+            {
                int pm = (e_i == 0) ? -pow(p+1, n_idx) : pow(p+1, n_idx);
-               J[nnz_so_far_current + k] = i + pm; 
+               J[nnz_so_far_current + k] = i + pm;
                AV[nnz_so_far_current + k] = V(j+1, iloc, iel_ho);
                k = k+1;
             }
@@ -651,17 +662,22 @@ BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    FormLORVertexCoordinates(fes_ho, X_vert);
 }
 
-IntegrationRule GetLobattoIntRule(FiniteElementSpace &fes, int nd1d)
+IntegrationRule GetLobattoIntRule(Geometry::Type geom, int nd1d)
 {
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const Geometry::Type geom = fes.GetMesh()->GetTypicalElementGeometry();
-   const int nd1d = fes.GetMaxElementOrder() + 1;
    return irs.Get(geom, 2*nd1d - 3);
 }
 
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
 {
-   return GetLobattoIntRule(fes, fes.GetMaxElementOrder() + 1);
+   const Geometry::Type geom = fes.GetMesh()->GetTypicalElementGeometry();
+   return GetLobattoIntRule(geom, fes.GetMaxElementOrder() + 1);
+}
+
+IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes)
+{
+   const Geometry::Type geom = fes.GetMesh()->GetTypicalFaceGeometry();
+   return GetLobattoIntRule(geom, fes.GetMaxElementOrder() + 1);
 }
 
 } // namespace mfem
