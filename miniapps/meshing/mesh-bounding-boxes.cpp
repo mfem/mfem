@@ -13,6 +13,18 @@
 //    Bounding Boxes Miniapp: Construct Bounding Boxes of Quad/Hex Meshes
 //    ---------------------------------------------------------------------
 //
+// This miniapp computes bounding boxes for each element in a given mesh, and
+// also computes the bounds on the determinant of the Jacobian of the
+// transformation for each element. The bounding approach is based on the
+// method described in:
+//
+// (1) Section 3 of Mittal et al., "General Field Evaluation in High-Order
+//     Meshes on GPUs"
+// and
+// (2) Dzanic et al., "A method for bounding high-order finite element
+//     functions: Applications to mesh validity and bounds-preserving limiters".
+//
+//
 // Compile with: make mesh-bounding-boxes
 //
 // Sample runs:
