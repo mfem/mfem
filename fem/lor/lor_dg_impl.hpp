@@ -12,6 +12,7 @@
 #include "lor_util.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
+#include "../../mesh/face_nbr_geom.hpp"
 #include "lor_dg.hpp"
 
 namespace mfem
@@ -29,7 +30,7 @@ Array<int> BatchedLOR_DG::GetFaceInfo()
       h_face_info(0, f) = finfo.element[0].index;
       h_face_info(1, f) = finfo.element[0].local_face_id;
       h_face_info(2, f) = finfo.element[0].orientation;
-      if (finfo.IsInterior())
+      if (finfo.IsInterior() && !finfo.IsShared()) // Equivalently, finfo.IsLocal()
       {
          h_face_info(3, f) = finfo.element[1].index;
          h_face_info(4, f) = finfo.element[1].local_face_id;
