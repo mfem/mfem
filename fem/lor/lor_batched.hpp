@@ -162,8 +162,18 @@ static T *GetInteriorFaceIntegrator(BilinearForm &a)
    return GetIntegrator<T>(a.GetFBFI());
 }
 
+/// @brief Return the Gauss-Lobatto rule for geometry @a geom with @a nd1d
+/// points per dimension.
 IntegrationRule GetLobattoIntRule(Geometry::Type geom, int nd1d);
+
+/// @brief Return the Gauss-Lobatto rule collocated with the element nodes.
+///
+/// Assumes @a fes uses Gauss-Lobatto basis.
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes);
+
+/// @brief Return the Gauss-Lobatto rule collocated with face nodes.
+///
+/// Assumes @a fes uses Gauss-Lobatto basis.
 IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes);
 
 template <typename INTEGRATOR>

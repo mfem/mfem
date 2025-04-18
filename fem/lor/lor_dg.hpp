@@ -21,8 +21,8 @@ namespace mfem
 // classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_DG : BatchedLORKernel
 {
-   IntegrationRule ir_face;
-   real_t kappa;
+   IntegrationRule ir_face; ///< Collocated Gauss-Lobatto face quadrature rule.
+   real_t kappa; ///< DG penalty parameter.
 public:
    template <int ORDER, int SDIM> void Assemble2D();
    template <int ORDER> void Assemble3D();
@@ -49,8 +49,26 @@ public:
       }
    }
 
-   Array<int> GetFaceInfo();
-   Vector GetBdrPenaltyFactor();
+   /// @brief Compute and return the face info array.
+   ///
+   /// The face info array has shape (6, nf), where @a nf is the number of
+   /// faces. For each face @a i, the column (:,i) has entries (e0, f0, o0, e1,
+   /// f1, o1), where @a e is adjacent element, @a f is the local face index,
+   /// and @a o is the orientation. For boundary and shared faces, (e1, f1, o1)
+   /// are all set to -1.
+   Array<int> GetFaceInfo() const;
+
+   /// @brief Compute and return the boundary penalty factor.
+   ///
+   /// The returned vector has shape (nq, nf), where @a nq is the number of
+   /// nodes per face, and @a nf is the number of faces.
+   ///
+   /// The boundary penalty factor is $J_f / h = J_f^2 / J_e$ (since $h = J_e /
+   /// J_f$), where $J_f$ is the face Jacobian determinant, and $J_e$ is the
+   /// element Jacobian determinant.
+   Vector GetBdrPenaltyFactor() const;
+
+   /// Assemble the face penalty terms in the matrix @a sparse_ij.
    void AssembleFaceTerms();
 };
 
