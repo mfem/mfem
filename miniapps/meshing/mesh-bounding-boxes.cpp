@@ -205,21 +205,21 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
       }
       if (sdim == 2)
       {
-         double xyz[2];
-         xyz[0] = xyzminmax_el(0);
-         xyz[1] = xyzminmax_el(1);
+         Vector xyz(2);
+         xyz(0) = xyzminmax_el(0);
+         xyz(1) = xyzminmax_el(1);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(2);
-         xyz[1] = xyzminmax_el(1);
+         xyz(0) = xyzminmax_el(2);
+         xyz(1) = xyzminmax_el(1);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(2);
-         xyz[1] = xyzminmax_el(3);
+         xyz(0) = xyzminmax_el(2);
+         xyz(1) = xyzminmax_el(3);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(0);
-         xyz[1] = xyzminmax_el(3);
+         xyz(0) = xyzminmax_el(0);
+         xyz(1) = xyzminmax_el(3);
          meshbb.AddVertex(xyz);
 
          const int inds[4] = {vidx++, vidx++, vidx++, vidx++};
@@ -229,45 +229,45 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
       }
       else if (sdim == 3)
       {
-         double xyz[3];
-         xyz[0] = xyzminmax_el(0);
-         xyz[1] = xyzminmax_el(1);
-         xyz[2] = xyzminmax_el(2);
+         Vector xyz(3);
+         xyz(0) = xyzminmax_el(0);
+         xyz(1) = xyzminmax_el(1);
+         xyz(2) = xyzminmax_el(2);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(3);
-         xyz[1] = xyzminmax_el(1);
-         xyz[2] = xyzminmax_el(2);
+         xyz(0) = xyzminmax_el(3);
+         xyz(1) = xyzminmax_el(1);
+         xyz(2) = xyzminmax_el(2);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(3);
-         xyz[1] = xyzminmax_el(4);
-         xyz[2] = xyzminmax_el(2);
+         xyz(0) = xyzminmax_el(3);
+         xyz(1) = xyzminmax_el(4);
+         xyz(2) = xyzminmax_el(2);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(0);
-         xyz[1] = xyzminmax_el(4);
-         xyz[2] = xyzminmax_el(2);
+         xyz(0) = xyzminmax_el(0);
+         xyz(1) = xyzminmax_el(4);
+         xyz(2) = xyzminmax_el(2);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(0);
-         xyz[1] = xyzminmax_el(1);
-         xyz[2] = xyzminmax_el(5);
+         xyz(0) = xyzminmax_el(0);
+         xyz(1) = xyzminmax_el(1);
+         xyz(2) = xyzminmax_el(5);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(3);
-         xyz[1] = xyzminmax_el(1);
-         xyz[2] = xyzminmax_el(5);
+         xyz(0) = xyzminmax_el(3);
+         xyz(1) = xyzminmax_el(1);
+         xyz(2) = xyzminmax_el(5);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(3);
-         xyz[1] = xyzminmax_el(4);
-         xyz[2] = xyzminmax_el(5);
+         xyz(0) = xyzminmax_el(3);
+         xyz(1) = xyzminmax_el(4);
+         xyz(2) = xyzminmax_el(5);
          meshbb.AddVertex(xyz);
 
-         xyz[0] = xyzminmax_el(0);
-         xyz[1] = xyzminmax_el(4);
-         xyz[2] = xyzminmax_el(5);
+         xyz(0) = xyzminmax_el(0);
+         xyz(1) = xyzminmax_el(4);
+         xyz(2) = xyzminmax_el(5);
          meshbb.AddVertex(xyz);
 
          const int inds[8] = {vidx++, vidx++, vidx++, vidx++,
