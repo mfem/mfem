@@ -10,47 +10,53 @@ NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coef
     pmesh(mesh), order(order_)
 {
 
-   vfec.reset(new H1_FECollection(order, pmesh->Dimension()));
-   pfec.reset(new H1_FECollection(order));
-   vfes.reset(new ParFiniteElementSpace(pmesh, vfec.get(), pmesh->Dimension()));
-   pfes.reset(new ParFiniteElementSpace(pmesh, pfec.get()));
 
-   //velocity
-   cvel.reset(new ParGridFunction(vfes.get())); *cvel=real_t(0.0);
-   nvel.reset(new ParGridFunction(vfes.get())); *nvel=real_t(0.0);
-   pvel.reset(new ParGridFunction(vfes.get())); *pvel=real_t(0.0);
-   //pressure
-   ppres.reset(new ParGridFunction(pfes.get())); *ppres=real_t(0.0);
-   npres.reset(new ParGridFunction(pfes.get())); *npres=real_t(0.0);
-   cpres.reset(new ParGridFunction(pfes.get())); *cpres=real_t(0.0);
+    vfec.reset(new H1_FECollection(order, pmesh->Dimension()));
+    pfec.reset(new H1_FECollection(order));
+    vfes.reset(new ParFiniteElementSpace(pmesh, vfec.get(), pmesh->Dimension()));
+    pfes.reset(new ParFiniteElementSpace(pmesh, pfec.get()));
+
+    if(mesh->GetMyRank()==0){
+        mfem::out<<"VDOFs="<<vfes->GlobalTrueVSize()<<" PDOFs="<<pfes->GlobalTrueVSize()<<std::endl;
+        mfem::out.flush();
+    }
+
+    //velocity
+    cvel.reset(new ParGridFunction(vfes.get())); *cvel=real_t(0.0);
+    nvel.reset(new ParGridFunction(vfes.get())); *nvel=real_t(0.0);
+    pvel.reset(new ParGridFunction(vfes.get())); *pvel=real_t(0.0);
+    //pressure
+    ppres.reset(new ParGridFunction(pfes.get())); *ppres=real_t(0.0);
+    npres.reset(new ParGridFunction(pfes.get())); *npres=real_t(0.0);
+    cpres.reset(new ParGridFunction(pfes.get())); *cpres=real_t(0.0);
 
 
-   nvelc.SetGridFunction(nvel.get());
-   pvelc.SetGridFunction(pvel.get());
-   cvelc.SetGridFunction(cvel.get());
+    nvelc.SetGridFunction(nvel.get());
+    pvelc.SetGridFunction(pvel.get());
+    cvelc.SetGridFunction(cvel.get());
 
-   ppresc.SetGridFunction(ppres.get());   
-   npresc.SetGridFunction(npres.get());
-   cpresc.SetGridFunction(cpres.get());
+    ppresc.SetGridFunction(ppres.get());
+    npresc.SetGridFunction(npres.get());
+    cpresc.SetGridFunction(cpres.get());
 
-   brink.reset();
-   if (visc_ != nullptr)
-   {
-      visc = visc_;
-   }
-   else
-   {
-      visc.reset(new ConstantCoefficient(1.0));
-   }
+    brink.reset();
+    if (visc_ != nullptr)
+    {
+       visc = visc_;
+    }
+    else
+    {
+       visc.reset(new ConstantCoefficient(1.0));
+    }
 
-   onecoeff.constant = 1.0;
-   zerocoef.constant = 0.0;
+    onecoeff.constant = 1.0;
+    zerocoef.constant = 0.0;
 
-   block_true_offsets.SetSize(3);
-   block_true_offsets[0] = 0;
-   block_true_offsets[1] = vfes->TrueVSize();
-   block_true_offsets[2] = pfes->TrueVSize();
-   block_true_offsets.PartialSum();
+    block_true_offsets.SetSize(3);
+    block_true_offsets[0] = 0;
+    block_true_offsets[1] = vfes->TrueVSize();
+    block_true_offsets[2] = pfes->TrueVSize();
+    block_true_offsets.PartialSum();
 
 }
 
@@ -62,74 +68,93 @@ NavierSolverGCN::~NavierSolverGCN()
 
 void NavierSolverGCN::SetEssTDofs(real_t t, ParGridFunction& pgf, Array<int>& ess_dofs)
 {
-   // Set the essential boundary conditions
-   ess_dofs.DeleteAll();
 
-   Array<int> ess_tdofv_temp;
+    // Set the essential boundary conditions
+    ess_dofs.DeleteAll();
 
-   for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
-   {
-      int attr = it->first;
-      std::shared_ptr<VectorCoefficient> coeff = it->second;
-      coeff->SetTime(t);
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr=0;
-      ess_bdr[attr-1] = 1;
-      ess_tdofv_temp.DeleteAll();
-      vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
-      ess_dofs.Append(ess_tdofv_temp);
+    Array<int> ess_tdofv_temp;
 
-      pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
-   }
+    for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
+    {
+       int attr = it->first;
+       std::shared_ptr<VectorCoefficient> coeff = it->second;
+       coeff->SetTime(t);
+       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+       ess_bdr=0;
+       ess_bdr[attr-1] = 1;
+       ess_tdofv_temp.DeleteAll();
+       vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
+       ess_dofs.Append(ess_tdofv_temp);
+
+       pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
+    }
 }  
 
 void NavierSolverGCN::SetEssTDofs(real_t t, ParGridFunction& pgf)
 {
 
-   for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
-   {
-      int attr = it->first;
-      std::shared_ptr<VectorCoefficient> coeff = it->second;
-      coeff->SetTime(t);
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr=0;
-      ess_bdr[attr-1] = 1;
 
-      pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
-   }
+    for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
+    {
+       int attr = it->first;
+       std::shared_ptr<VectorCoefficient> coeff = it->second;
+       coeff->SetTime(t);
+       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+       ess_bdr=0;
+       ess_bdr[attr-1] = 1;
+
+       pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
+    }
 }  
 
 void NavierSolverGCN::SetEssTDofs(Array<int>& ess_dofs)
 {
-   // Set the essential boundary conditions
-   ess_dofs.DeleteAll();
 
-   Array<int> ess_tdofv_temp;
+    // Set the essential boundary conditions
+    ess_dofs.DeleteAll();
 
-   for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
-   {
-      int attr = it->first;
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr=0;
-      ess_bdr[attr-1] = 1;
-      ess_tdofv_temp.DeleteAll();
-      vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
-      ess_dofs.Append(ess_tdofv_temp);
-   }
+    Array<int> ess_tdofv_temp;
+
+    for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
+    {
+       int attr = it->first;
+       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+       ess_bdr=0;
+       ess_bdr[attr-1] = 1;
+       ess_tdofv_temp.DeleteAll();
+       vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
+       ess_dofs.Append(ess_tdofv_temp);
+    }
 }
 
 void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
 {
 
+    if (verbose && pmesh->GetMyRank() == 0)
+    {
+        mfem::out << "Setup" << std::endl;
+        if (partial_assembly)
+        {
+            mfem::out << "Using Partial Assembly" << std::endl;
+        }
+        else
+        {
+            mfem::out << "Using Full Assembly" << std::endl;
+        }
+    }
+
    // Set up boundary conditions
    SetEssTDofs(t+dt, *nvel, ess_tdofv);
 
-   // Set up the velocity and pressure coefficients
+   // Set up the velocity coefficients
    nvelc.SetGridFunction(nvel.get());
    pvelc.SetGridFunction(pvel.get());
    cvelc.SetGridFunction(cvel.get());
-   ppresc.SetGridFunction(ppres.get());
+
+   // Set the pressure coefficients
    npresc.SetGridFunction(npres.get());
+   ppresc.SetGridFunction(ppres.get());
+   cpresc.SetGridFunction(cpres.get());
 
 
    
@@ -157,34 +182,42 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
    }
 
 
-   A11->Update();   
    A11->Assemble();
    A11->Finalize();
    A11->FormSystemMatrix(ess_tdofv, A11H);
 
    icoeff.constant = dt*0.5;
 
-   //the blocks A12 and A21 are not scaled with 0.5*dt
-   if(A21==nullptr)
+   //off-diagonal operators
+   A21.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));
+   A12.reset(new ParMixedBilinearForm(pfes.get(), vfes.get()));
+
+   if(partial_assembly)
    {
-      A12.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));  
-      A21.reset(new ParMixedBilinearForm(pfes.get(), vfes.get()));
-      A12->AddDomainIntegrator(new VectorDivergenceIntegrator());
-      A21->AddDomainIntegrator(new GradientIntegrator());
-
-      A21->Update();
-      A12->Assemble();
-      A12->Finalize();
-      A12->FormRectangularSystemMatrix(ess_tdofv, ess_tdofp, A12H);
-
-      A21->Update();
-      A21->Assemble();  
-      A21->Finalize();
-      A21->FormRectangularSystemMatrix(ess_tdofp, ess_tdofv, A21H);
+       A21->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+       A12->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
+
+   A21->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   A12->AddDomainIntegrator(new GradientIntegrator());
+
+   A12->Assemble();
+   A12->Finalize();
+   A12->FormRectangularSystemMatrix(ess_tdofv, ess_tdofp, A12H);
+
+   A21->Assemble();
+   A21->Finalize();
+   A21->FormRectangularSystemMatrix(ess_tdofp, ess_tdofv, A21H);
+
 
 
    //set the block operator
+   if(pmesh->GetMyRank()==0){
+       std::cout<<"A11 H="<<A11H->Height()<<" W="<<A11H->Width()<<std::endl;
+       std::cout<<"A12 H="<<A12H->Height()<<" W="<<A12H->Width()<<std::endl;
+       std::cout<<"A21 H="<<A21H->Height()<<" W="<<A21H->Width()<<std::endl;
+       std::cout.flush();
+   }
 
    AB.reset(new BlockOperator(block_true_offsets));
    AB->SetBlock(0,0,A11H.Ptr());
@@ -210,6 +243,21 @@ void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
 
 void NavierSolverGCN::Step(real_t &time, real_t dt, int cur_step, bool provisional)
 {
+    //copy the current velocity to the next velocity
+    nvel->SetFromTrueDofs(cvel->GetTrueVector());
+    //copy the current pressure to the next pressure
+    npres->SetFromTrueDofs(cpres->GetTrueVector());
+
+    //set the operator and the preconditioners
+    SetupOperator(time,dt);
+
+    //set the RHS
+
+    //solve
+
+    if(provisional==false){
+        UpdateHistory();
+    }
 
 }
 

@@ -29,6 +29,42 @@ public:
    /// Return the provisional pressure ParGridFunction.
    ParGridFunction* GetProvisionalPressure() { return npres.get(); }
 
+   /// Set current velocity using true dofs
+   void SetCVelocity(Vector& vvel)
+   {
+       cvel->SetFromTrueDofs(vvel);
+   }
+
+   /// Set previous velocity using true dofs
+   void SetPVelocity(Vector& vvel)
+   {
+       pvel->SetFromTrueDofs(vvel);
+   }
+
+   /// Set current velocity using vector coefficient
+   void SetCVelocity(VectorCoefficient& vc)
+   {
+       cvel->ProjectCoefficient(vc);
+   }
+
+   /// Set current pressure using true dofs
+   void SetCPressure(Vector& vpres)
+   {
+       cpres->SetFromTrueDofs(vpres);
+   }
+
+   /// Set previous pressure using true dofs
+   void SetPPressure(Vector& vpress)
+   {
+       ppres->SetFromTrueDofs(vpress);
+   }
+
+   /// Set current pressure using coefficient
+   void SetCPressure(Coefficient& pc)
+   {
+       cpres->ProjectCoefficient(pc);
+   }
+
    void SetBrinkman(std::shared_ptr<Coefficient> brink_)
    {
       brink = brink_;
@@ -44,6 +80,10 @@ public:
    {
        vel_bcs[id]=val;
    }
+
+
+   /// Set the Dirichlet BC on a given ParGridFunction.
+   void SetEssTDofs(real_t t, ParGridFunction& pgf);
 
 private:
 
@@ -63,6 +103,7 @@ private:
 
     /// The order of the velocity and pressure space.
    int order;
+
 
    std::shared_ptr<Coefficient> visc;
    std::shared_ptr<Coefficient> brink;
@@ -118,7 +159,17 @@ private:
 
    void SetEssTDofs(real_t t, ParGridFunction& pgf, mfem::Array<int>& ess_dofs);
    void SetEssTDofs(mfem::Array<int>& ess_dofs);
-   void SetEssTDofs(real_t t, ParGridFunction& pgf);
+
+
+   /// copy cvel->pvel, nvel->cvel, cpres->ppres, npres->cpres
+   void UpdateHistory()
+   {
+       std::swap(cvel,pvel);
+       std::swap(cvel,nvel);
+
+       std::swap(cpres,ppres);
+       std::swap(cpres,npres);
+   }
 
 
 };//end NavierSolverGCN
