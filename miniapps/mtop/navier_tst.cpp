@@ -156,6 +156,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   std::cout<<"My rank="<<pmesh.GetMyRank()<<std::endl;
 
    mfem::ConstantCoefficient* visc=new mfem::ConstantCoefficient(0.01);
    mfem::NavierSolverGCN* solver=new mfem::NavierSolverGCN(&pmesh,2,std::shared_ptr<mfem::Coefficient>(visc));

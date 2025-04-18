@@ -9,11 +9,9 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-list(APPEND SEQMTOP_COMMON_SOURCES
-	)
+list(APPEND SEQMTOP_COMMON_SOURCES)
 
-list(APPEND SEQMTOP_COMMON_HEADERS
-	)
+list(APPEND SEQMTOP_COMMON_HEADERS)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)

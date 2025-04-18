@@ -11,7 +11,8 @@ namespace mfem {
 class NavierSolverGCN
 {
 public:
-   NavierSolverGCN(ParMesh* mesh, int order, std::shared_ptr<Coefficient> visc);
+   NavierSolverGCN(ParMesh* mesh, int order, std::shared_ptr<Coefficient> visc,
+                   bool partial_assembly_=true, bool verbose_=true);
 
 
    ~NavierSolverGCN();
@@ -116,10 +117,10 @@ private:
    std::unique_ptr<ParGridFunction> npres; //previous pressure
    std::unique_ptr<ParGridFunction> cpres; //current pressure
 
-   std::unique_ptr<H1_FECollection> vfec;
-   std::unique_ptr<H1_FECollection> pfec;
-   std::unique_ptr<ParFiniteElementSpace> vfes;
-   std::unique_ptr<ParFiniteElementSpace> pfes;
+   H1_FECollection* vfec;
+   H1_FECollection* pfec;
+   ParFiniteElementSpace* vfes;
+   ParFiniteElementSpace* pfes;
 
    std::unique_ptr<ParBilinearForm> A11;
    std::unique_ptr<ParMixedBilinearForm> A12;

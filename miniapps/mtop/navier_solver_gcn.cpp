@@ -6,29 +6,39 @@
 namespace mfem {
 
 
-NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coefficient> visc_):
-    pmesh(mesh), order(order_)
+NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coefficient> visc_,
+                                 bool partial_assembly_, bool verbose_):
+                                 pmesh(mesh), order(order_)
 {
+    partial_assembly=partial_assembly_;
+    verbose=verbose_;
 
+    if(order_<2){ order_=2;}
+    order=order_;
 
-    vfec.reset(new H1_FECollection(order, pmesh->Dimension()));
-    pfec.reset(new H1_FECollection(order));
-    vfes.reset(new ParFiniteElementSpace(pmesh, vfec.get(), pmesh->Dimension()));
-    pfes.reset(new ParFiniteElementSpace(pmesh, pfec.get()));
+    std::cout<<"My rank="<<mesh->GetMyRank()<<std::endl;
+
+    vfec=new H1_FECollection(order, pmesh->Dimension());
+    pfec=new H1_FECollection(order-1);
+    vfes=new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
+    pfes=new ParFiniteElementSpace(pmesh, pfec);
+
+    HYPRE_BigInt gvd=vfes->GlobalTrueVSize();
+    HYPRE_BigInt gpd=pfes->GlobalTrueVSize();
 
     if(mesh->GetMyRank()==0){
-        mfem::out<<"VDOFs="<<vfes->GlobalTrueVSize()<<" PDOFs="<<pfes->GlobalTrueVSize()<<std::endl;
+        mfem::out<<"VDOFs="<<gvd<<" PDOFs="<<gpd<<std::endl;
         mfem::out.flush();
     }
 
     //velocity
-    cvel.reset(new ParGridFunction(vfes.get())); *cvel=real_t(0.0);
-    nvel.reset(new ParGridFunction(vfes.get())); *nvel=real_t(0.0);
-    pvel.reset(new ParGridFunction(vfes.get())); *pvel=real_t(0.0);
+    cvel.reset(new ParGridFunction(vfes)); *cvel=real_t(0.0);
+    nvel.reset(new ParGridFunction(vfes)); *nvel=real_t(0.0);
+    pvel.reset(new ParGridFunction(vfes)); *pvel=real_t(0.0);
     //pressure
-    ppres.reset(new ParGridFunction(pfes.get())); *ppres=real_t(0.0);
-    npres.reset(new ParGridFunction(pfes.get())); *npres=real_t(0.0);
-    cpres.reset(new ParGridFunction(pfes.get())); *cpres=real_t(0.0);
+    ppres.reset(new ParGridFunction(pfes)); *ppres=real_t(0.0);
+    npres.reset(new ParGridFunction(pfes)); *npres=real_t(0.0);
+    cpres.reset(new ParGridFunction(pfes)); *cpres=real_t(0.0);
 
 
     nvelc.SetGridFunction(nvel.get());
@@ -58,11 +68,17 @@ NavierSolverGCN::NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coef
     block_true_offsets[2] = pfes->TrueVSize();
     block_true_offsets.PartialSum();
 
+    ess_tdofp.SetSize(0);
+    ess_tdofv.SetSize(0);
+
 }
 
 NavierSolverGCN::~NavierSolverGCN()
 {
-
+    delete vfes;
+    delete pfes;
+    delete vfec;
+    delete pfec;
 }
 
 
@@ -159,7 +175,7 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
 
    
    // Set up the bilinear form for A11
-   A11.reset(new ParBilinearForm(vfes.get()));
+   A11.reset(new ParBilinearForm(vfes));
    if(partial_assembly)
    {
        A11->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -186,28 +202,34 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
    A11->Finalize();
    A11->FormSystemMatrix(ess_tdofv, A11H);
 
+   std::cout<<"A11 Finalized"<<std::endl;
+
    icoeff.constant = dt*0.5;
 
    //off-diagonal operators
-   A21.reset(new ParMixedBilinearForm(vfes.get(), pfes.get()));
-   A12.reset(new ParMixedBilinearForm(pfes.get(), vfes.get()));
-
+   A21.reset(new ParMixedBilinearForm(vfes, pfes));
    if(partial_assembly)
    {
        A21->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-       A12->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-
    A21->AddDomainIntegrator(new VectorDivergenceIntegrator());
-   A12->AddDomainIntegrator(new GradientIntegrator());
-
-   A12->Assemble();
-   A12->Finalize();
-   A12->FormRectangularSystemMatrix(ess_tdofv, ess_tdofp, A12H);
-
    A21->Assemble();
    A21->Finalize();
-   A21->FormRectangularSystemMatrix(ess_tdofp, ess_tdofv, A21H);
+   A21->FormRectangularSystemMatrix(ess_tdofv, ess_tdofp, A21H);
+
+   std::cout<<"A21 Finalized"<<std::endl;
+
+
+   A12.reset(new ParMixedBilinearForm(pfes, vfes));
+   if(partial_assembly)
+   {
+       A12->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   A12->AddDomainIntegrator(new GradientIntegrator());
+   A12->Assemble();
+   A12->Finalize();
+   A12->FormRectangularSystemMatrix(ess_tdofp, ess_tdofv, A12H);
+
 
 
 
