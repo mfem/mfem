@@ -371,6 +371,7 @@ int main (int argc, char *argv[])
       cout << "What would you like to do?\n"
            "r) Refine\n"
            "c) Change curvature\n"
+           "i) Increase space dimension\n"
            "s) Scale\n"
            "t) Transform\n"
            "j) Jitter\n"
@@ -532,6 +533,37 @@ int main (int argc, char *argv[])
             }
          }
          print_char = 1;
+      }
+
+      if (mk == 'i')
+      {
+         int curr_sdim = mesh->SpaceDimension();
+         cout << "Current space dimension is " << curr_sdim << "\n";
+         cout << "Enter new space dimension --> " << flush;
+         int new_sdim;
+         cin >> new_sdim;
+         if (new_sdim > curr_sdim && new_sdim <= 3)
+         {
+            if (mesh->GetNodes() == NULL)
+            {
+               mesh->SetCurvature(1, false, new_sdim); // Set Space Dimension
+               mesh->SetCurvature(-1); // Remove Nodes GridFunction created
+               //                      // by the previous line
+            }
+            else
+            {
+               const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+               const int order = fes->GetMaxElementOrder();
+               const FiniteElementCollection *fec = fes->FEColl();
+               const bool discont = dynamic_cast<const L2_FECollection*>(fec);
+               mesh->SetCurvature(order, discont, new_sdim);
+            }
+         }
+         else
+         {
+            cout << "New space dimension must be greater than current space "
+                 << "dimension and less than 4." << endl;
+         }
       }
 
       if (mk == 'c')
