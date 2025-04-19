@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
    bool checkpoint = false;
    int tribol_nranks = num_procs;
    double tribol_ratio = 8.0;
-   
+   int nsolves = 1;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -317,7 +317,7 @@ int main(int argc, char *argv[])
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
    args.AddOption(&outputfiles, "-out", "--output", "-no-out",
-                  "--no-ouput",
+                  "--no-output",
                   "Enable or disable output to files.");          
    args.AddOption(&monitor, "-monitor", "--monitor", "-no-monitor",
                   "--no-monitor",
@@ -333,7 +333,9 @@ int main(int argc, char *argv[])
                      "Tribol-proximity-parameter.");                  
    args.AddOption(&tribol_nranks, "-tn", "--tribol-nprocs",
       "Number of ranks used in tribol redecomposition" );
-
+   args.AddOption(&nsolves, "-nsolves", "--nsolves",
+         "Number of solves for each time step" );
+   
 
    args.Parse();
    if (!args.Good())
@@ -355,6 +357,11 @@ int main(int argc, char *argv[])
    }
 
    const char *mesh_file = nullptr;
+
+   std::ostringstream tolStream;
+   tolStream << std::scientific << std::setprecision(1) << optimizer_tol;
+   std::string tolStr = tolStream.str();
+
 
    int istep=0;   
    ParGridFunction * restart_gf=nullptr;
@@ -642,11 +649,18 @@ int main(int argc, char *argv[])
    double eps_min = 1.e-4;
 
 
-   //double p = 20.0;
-   double p = 40.0;
+   double p = 30.0;
+   // double p = 40.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
    int total_steps = nsteps + msteps;
+
+   if (testNo == 6)
+   {
+      // total_steps = nsteps + 5;
+      total_steps = nsolves*nsteps;
+   }
+
    Vector DCvals;
    int ibegin = (restart) ? istep+1 : 0;
    Array<int> NoContactCGiterations;
@@ -656,7 +670,8 @@ int main(int argc, char *argv[])
       {
          ess_bdr = 0;
          ess_bdr[2] = 1;
-         f.constant = -p*(i+1)/nsteps;
+         int ii = i/nsolves;
+         f.constant = -p*(ii+1)/nsteps;
          prob.SetNeumanPressureData(f,ess_bdr);
       }
       else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
@@ -734,12 +749,13 @@ int main(int argc, char *argv[])
       xBCtrue.GetSubVector(ess_tdof_list, DCvals);
       xrefbc.SetSubVector(ess_tdof_list, DCvals);
    
-      bool enable_bound_constraints = (bound_constraints && i > int(total_steps / 2)) ? true : false;
+      int bound_constraints_step = 3;
+
+      bool enable_bound_constraints = (bound_constraints && i >= bound_constraints_step) ? true : false;
 
       OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc, tribol_ratio, tribol_nranks, qp, enable_bound_constraints);
       
-      if( i > int(total_steps / 2) && bound_constraints)
-      // if( i > int(0) && bound_constraints)
+      if( i >= bound_constraints_step && bound_constraints)
       {
          eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
          // update eps and set parameters
@@ -850,7 +866,7 @@ int main(int argc, char *argv[])
          }
          if (outputfiles)
          {
-            std::string output_dir = "output/test" + std::to_string(testNo) + "/tol" + std::to_string(optimizer_tol) + "/ref"
+            std::string output_dir = "output/test" + std::to_string(testNo) + "/tol" + tolStr + "/ref"
                                    + std::to_string(sref+pref);
             std::string mkdir_command = "mkdir -p " + output_dir;
             int ret = system(mkdir_command.c_str());
