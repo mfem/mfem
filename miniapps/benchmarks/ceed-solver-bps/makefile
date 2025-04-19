@@ -13,7 +13,7 @@
 MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
 MFEM_INSTALL_DIR ?= ../../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/benchmarks/ceed-solver-bps/,)
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/benchmarks/ceed-solver-bps/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
@@ -44,14 +44,14 @@ EXTRA_OBJECTS = $(EXTRA_SOURCES:.cpp=.o)
 all: $(MINIAPPS)
 
 # Rule for building solver-bp
-solver-bp: $(SRC)solver-bp.cpp $(addprefix $(SRC),$(EXTRA_HEADERS)) \
+solver-bp: solver-bp.o $(addprefix $(SRC),$(EXTRA_HEADERS)) \
  $(EXTRA_OBJECTS) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(EXTRA_OBJECTS) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(EXTRA_OBJECTS) $(MFEM_LIBS)
 
 # Rules for compiling *.o files
-$(EXTRA_OBJECTS): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+# -I$(MFEM_DIR) is needed for "general/forall.hpp" for out-of-source builds
+%.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -I$(MFEM_DIR) -c $(<) -o $(@)
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -59,7 +59,7 @@ include $(MFEM_TEST_MK)
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 solver-bp-test-par: solver-bp
-	@$(call mfem-test,$<, $(RUN_MPI), CEED Solver BP,)
+	@$(call mfem-test,$<, $(RUN_MPI), CEED Solver BP,,SKIP-NO-VIS)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

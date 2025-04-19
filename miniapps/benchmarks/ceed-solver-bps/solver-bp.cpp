@@ -736,7 +736,7 @@ void report_env_vars()
       for (int ev = 0; ev < num_env_vars; ev++)
       {
          const char *env_var_val = getenv(env_vars[ev]);
-         buflen = env_var_val ? strlen(env_var_val)+1 : -1;
+         buflen = env_var_val ? int(strlen(env_var_val)+1) : -1;
          MPI_Send(&buflen, 1, MPI_INT, 0, tag, MPI_COMM_WORLD);
          if (env_var_val)
          {
