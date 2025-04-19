@@ -17,7 +17,8 @@
 namespace mfem
 {
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
+                             Coefficient *coeff,
                              const IntegrationRule *ir,
                              int btype)
    : Solver(fes_orig.GetTrueVSize()),
@@ -79,19 +80,19 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    Update();
 }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                              int btype)
    : DGMassInverse(fes_, &coeff, nullptr, btype) { }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                              const IntegrationRule &ir, int btype)
    : DGMassInverse(fes_, &coeff, &ir, btype) { }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_,
                              const IntegrationRule &ir, int btype)
    : DGMassInverse(fes_, nullptr, &ir, btype) { }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, int btype)
    : DGMassInverse(fes_, nullptr, nullptr, btype) { }
 
 void DGMassInverse::SetOperator(const Operator &op)

@@ -14,6 +14,7 @@
 
 #include "../linalg/operator.hpp"
 #include "fespace.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -48,7 +49,7 @@ protected:
    ///
    /// Custom coefficient and integration rule are used if @a coeff and @a ir
    /// are non-NULL.
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
+   DGMassInverse(const FiniteElementSpace &fes_, Coefficient *coeff,
                  const IntegrationRule *ir, int btype);
 public:
    /// @brief Construct the DG inverse mass operator for @a fes_.
@@ -61,36 +62,37 @@ public:
    /// The solution and right-hand side used for the solver are not affected by
    /// this basis (they correspond to the basis of @a fes_). @a btype is only
    /// used internally, and only has an effect on the convergence rate.
-   DGMassInverse(FiniteElementSpace &fes_, int btype=BasisType::GaussLegendre);
+   DGMassInverse(const FiniteElementSpace &fes_,
+                 int btype=BasisType::GaussLegendre);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// Coefficient @a coeff.
    ///
    /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
    /// btype.
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+   DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                  int btype=BasisType::GaussLegendre);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// Coefficient @a coeff and IntegrationRule @a ir.
    ///
    /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
    /// btype.
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+   DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                  const IntegrationRule &ir, int btype=BasisType::GaussLegendre);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// IntegrationRule @a ir.
    ///
    /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
    /// btype.
-   DGMassInverse(FiniteElementSpace &fes_, const IntegrationRule &ir,
+   DGMassInverse(const FiniteElementSpace &fes_, const IntegrationRule &ir,
                  int btype=BasisType::GaussLegendre);
    /// @brief Solve the system M b = u.
    ///
    /// If @ref iterative_mode is @a true, @a u is used as an initial guess.
-   void Mult(const Vector &b, Vector &u) const;
+   void Mult(const Vector &b, Vector &u) const override;
    /// Same as Mult() since the mass matrix is symmetric.
-   void MultTranspose(const Vector &b, Vector &u) const { Mult(b, u); }
+   void MultTranspose(const Vector &b, Vector &u) const override { Mult(b, u); }
    /// Not implemented. Aborts.
-   void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
    /// Set the relative tolerance.
    void SetRelTol(const real_t rel_tol_);
    /// Set the absolute tolerance.
