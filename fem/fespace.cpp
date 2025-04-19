@@ -246,24 +246,23 @@ public:
 
       bool is_dg = fespace->FEColl()->GetContType() ==
                    FiniteElementCollection::DISCONTINUOUS;
-      const FiniteElement *fe = nullptr;
       DenseMatrix localRVO; // for variable-order only
 
       DenseTensor localR[Geometry::NumGeom];
       int total_rows = 0;
       int total_cols = 0;
+      block_offsets.SetSize(dtrans.embeddings.Size());
+      block_offsets.HostWrite();
       if (fespace->IsVariableOrder())
       {
          // TODO: any potential for some compression here?
          // determine storage size and offsets
-         block_offsets.SetSize(dtrans.embeddings.Size());
-         block_offsets.HostWrite();
          block_offsets[0] = 0;
          int total_size = 0;
          for (int k = 0; k < dtrans.embeddings.Size(); ++k)
          {
             const Embedding &emb = dtrans.embeddings[k];
-            fe = fespace->GetFE(emb.parent);
+            const FiniteElement *fe = fespace->GetFE(emb.parent);
             const int ldof = fe->GetDof();
             if (k + 1 < dtrans.embeddings.Size())
             {
@@ -279,8 +278,6 @@ public:
       {
          // compression scheme:
          // block_offsets is the start of each block, potentially repeated
-         block_offsets.SetSize(dtrans.embeddings.Size());
-         block_offsets.HostWrite();
          // only need to store localR for used shapes
          Mesh::GeometryList elem_geoms(*fespace->GetMesh());
 
@@ -306,7 +303,7 @@ public:
                bs_ptr += localR[elem_geoms[i]].TotalSize();
             }
          }
-         for (int k = 0; k < dtrans.embeddings.Size(); k++)
+         for (int k = 0; k < dtrans.embeddings.Size(); ++k)
          {
             const Embedding &emb = dtrans.embeddings[k];
             Geometry::Type geom =
@@ -349,7 +346,7 @@ public:
 
             if (fespace->IsVariableOrder())
             {
-               fe = fespace->GetFE(emb.parent);
+               const FiniteElement *fe = fespace->GetFE(emb.parent);
                const DenseTensor &pmats = dtrans.point_matrices[geom];
                const int ldof = fe->GetDof();
 
