@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+struct DGMassInvKernels { DGMassInvKernels(); };
+
 DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
                              Coefficient *coeff,
                              const IntegrationRule *ir,
@@ -28,6 +30,8 @@ DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
          fes_orig.GetTypicalFE()->GetMapType()),
      fes(fes_orig.GetMesh(), &fec)
 {
+   static DGMassInvKernels kernels;
+
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
    MFEM_VERIFY(!fes.IsVariableOrder(), "Variable orders not supported.");
 
@@ -267,55 +271,54 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
    const int d1d = m->dofs1D;
    const int q1d = m->quad1D;
 
-   const int id = (d1d << 4) | q1d;
+   CGKernels::Run(dim, d1d, q1d, *this, Mu, u);
+}
 
-   if (dim == 1)
-   {
-      return DGMassCGIteration<1>(Mu, u);
-   }
-   else if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x11: return DGMassCGIteration<2,1,1>(Mu, u);
-         case 0x22: return DGMassCGIteration<2,2,2>(Mu, u);
-         case 0x33: return DGMassCGIteration<2,3,3>(Mu, u);
-         case 0x35: return DGMassCGIteration<2,3,5>(Mu, u);
-         case 0x44: return DGMassCGIteration<2,4,4>(Mu, u);
-         case 0x46: return DGMassCGIteration<2,4,6>(Mu, u);
-         case 0x55: return DGMassCGIteration<2,5,5>(Mu, u);
-         case 0x57: return DGMassCGIteration<2,5,7>(Mu, u);
-         case 0x66: return DGMassCGIteration<2,6,6>(Mu, u);
-         case 0x68: return DGMassCGIteration<2,6,8>(Mu, u);
-         default: return DGMassCGIteration<2>(Mu, u); // Fallback
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x22: return DGMassCGIteration<3,2,2>(Mu, u);
-         case 0x23: return DGMassCGIteration<3,2,3>(Mu, u);
-         case 0x33: return DGMassCGIteration<3,3,3>(Mu, u);
-         case 0x34: return DGMassCGIteration<3,3,4>(Mu, u);
-         case 0x35: return DGMassCGIteration<3,3,5>(Mu, u);
-         case 0x44: return DGMassCGIteration<3,4,4>(Mu, u);
-         case 0x45: return DGMassCGIteration<3,4,5>(Mu, u);
-         case 0x46: return DGMassCGIteration<3,4,6>(Mu, u);
-         case 0x48: return DGMassCGIteration<3,4,8>(Mu, u);
-         case 0x55: return DGMassCGIteration<3,5,5>(Mu, u);
-         case 0x56: return DGMassCGIteration<3,5,6>(Mu, u);
-         case 0x57: return DGMassCGIteration<3,5,7>(Mu, u);
-         case 0x58: return DGMassCGIteration<3,5,8>(Mu, u);
-         case 0x66: return DGMassCGIteration<3,6,6>(Mu, u);
-         case 0x67: return DGMassCGIteration<3,6,7>(Mu, u);
-         default: return DGMassCGIteration<3>(Mu, u); // Fallback
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-   }
+DGMassInvKernels::DGMassInvKernels()
+{
+   using k = DGMassInverse::CGKernels;
+   // 2D
+   k::Specialization<2,1,1>::Add();
+   k::Specialization<2,2,2>::Add();
+   k::Specialization<2,3,3>::Add();
+   k::Specialization<2,3,5>::Add();
+   k::Specialization<2,4,4>::Add();
+   k::Specialization<2,4,6>::Add();
+   k::Specialization<2,5,5>::Add();
+   k::Specialization<2,5,7>::Add();
+   k::Specialization<2,6,6>::Add();
+   k::Specialization<2,6,8>::Add();
+   // 3D
+   k::Specialization<3,2,2>::Add();
+   k::Specialization<3,2,3>::Add();
+   k::Specialization<3,3,3>::Add();
+   k::Specialization<3,3,4>::Add();
+   k::Specialization<3,3,5>::Add();
+   k::Specialization<3,4,4>::Add();
+   k::Specialization<3,4,5>::Add();
+   k::Specialization<3,4,6>::Add();
+   k::Specialization<3,4,8>::Add();
+   k::Specialization<3,5,5>::Add();
+   k::Specialization<3,5,6>::Add();
+   k::Specialization<3,5,7>::Add();
+   k::Specialization<3,5,8>::Add();
+   k::Specialization<3,6,6>::Add();
+   k::Specialization<3,6,7>::Add();
+}
+
+template <int DIM, int D1D, int Q1D>
+DGMassInverse::CGKernelType DGMassInverse::CGKernels::Kernel()
+{
+   return &DGMassInverse::DGMassCGIteration<DIM,D1D,Q1D>;
+}
+
+DGMassInverse::CGKernelType DGMassInverse::CGKernels::Fallback(
+   int dim, int, int)
+{
+   if (dim == 1) { return &DGMassInverse::DGMassCGIteration<1>; }
+   else if (dim == 2) { return &DGMassInverse::DGMassCGIteration<2>; }
+   else if (dim == 3) { return &DGMassInverse::DGMassCGIteration<3>; }
+   else { MFEM_ABORT(""); }
 }
 
 } // namespace mfem
