@@ -35,19 +35,33 @@ attribute_sets
 "Base" 1 9
 "E Even" 1 16
 "E Odd" 1 17
-"East" 2 16 17
+"East"
+2
+16
+17
 "N Even" 1 10
 "N Odd" 1 11
 "North" 2 10 11
 "Rose" 8 10 11 12 13 14 15 16 17
-"Rose Even" 4 10 12 14 16
-"Rose Odd" 4 11 13 15 17
+"Rose Even" 4
+10
+12
+14
+16
+"Rose Odd"
+4
+11
+13
+15
+17
 "S Even" 1 14
 "S Odd" 1 15
-"South" 2 14 15
+South 2
+14
+15
 "W Even" 1 12
 "W Odd" 1 13
-"West" 2 12 13
+West 2 12 13
 
 boundary
 8
@@ -68,13 +82,19 @@ bdr_attribute_sets
 "Eastern Boundary" 2 1 8
 "NNE" 1 2
 "NNW" 1 3
-"Northern Boundary" 2 2 3
+"Northern Boundary"
+2
+2
+3
 "SSE" 1 7
 "SSW" 1 6
-"Southern Boundary" 2 6 7
+"Southern Boundary" 2
+6
+7
 "WNW" 1 4
 "WSW" 1 5
-"Western Boundary" 2 4 5
+"Western Boundary" 2 4
+5
 
 vertices
 13
