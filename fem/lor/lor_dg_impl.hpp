@@ -83,20 +83,25 @@ Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
       auto *geom_face = mesh.GetFaceGeometricFactors(
                            ir_face, FaceGeometricFactors::DETERMINANTS, ft);
 
-      auto *r = fes_ho.GetFaceRestriction(ElementDofOrdering::LEXICOGRAPHIC, ft);
-      Vector detJ_r(nq * 2 * nft);
+      const L2FaceValues fv = (ft == FaceType::Interior)
+                              ? L2FaceValues::DoubleValued
+                              : L2FaceValues::SingleValued;
+      const int m = (fv == L2FaceValues::DoubleValued) ? 2 : 1;
+
+      auto *r = fes_ho.GetFaceRestriction(ElementDofOrdering::LEXICOGRAPHIC, ft, fv);
+      Vector detJ_r(nq * m * nft);
       r->Mult(geom->detJ, detJ_r);
 
       const auto *d_i = (ft == FaceType::Interior) ? f_int.Read() : f_bdr.Read();
       const auto d_detJ_face = Reshape(geom_face->detJ.Read(), nq, nft);
-      const auto d_detJ_r = Reshape(detJ_r.Read(), nq, 2, nft);
+      const auto d_detJ_r = Reshape(detJ_r.Read(), nq, m, nft);
       auto d_face_Jh = Reshape(face_Jh.Write(), nq, nf);
 
       mfem::forall(nft * nq, [=] MFEM_HOST_DEVICE (int ii)
       {
          const int i = ii % nq;
          const int f = ii / nq;
-         const real_t J_el = 0.5*(d_detJ_r(i, 0, f) + d_detJ_r(i, 0, f));
+         const real_t J_el = 0.5*(d_detJ_r(i, 0, f) + d_detJ_r(i, m==2?1:0, f));
          const real_t J_f = d_detJ_face(i, f);
          d_face_Jh(i, d_i[f]) = J_f * J_f / J_el;
       });
@@ -163,8 +168,14 @@ void BatchedLOR_DG::Assemble2D()
    static constexpr int pp1 = ORDER + 1;
    static constexpr int ndof_per_el = pp1*pp1;
    static constexpr int nnz_per_row = 5;
-
    const int nel_ho = fes_ho.GetNE();
+
+   // Get element geometric factors; calling before AssembleFaceTerms, since
+   // in AssembleFaceTerms, element Jacobian determinants are used, potentially
+   // saving recomputation.
+   const auto factors = GeometricFactors::DETERMINANTS |
+                        GeometricFactors::JACOBIANS;
+   const auto *geom = fes_ho.GetMesh()->GetGeometricFactors(ir, factors);
 
    // Sparse matrix entries
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
@@ -196,11 +207,6 @@ void BatchedLOR_DG::Assemble2D()
                    ? Reshape(c2.Read(), 1, 1, 1)
                    : Reshape(c2.Read(), pp1, pp1, nel_ho);
 
-   // Geometric factors and quadrature weights
-   Mesh &mesh = *fes_ho.GetMesh();
-   const auto factors = GeometricFactors::DETERMINANTS |
-                        GeometricFactors::JACOBIANS;
-   const auto *geom = mesh.GetGeometricFactors(ir, factors);
    const auto detJ = Reshape(geom->detJ.Read(), pp1, pp1, nel_ho);
    const auto J = Reshape(geom->J.Read(), pp1, pp1, 2, 2, nel_ho);
    const auto W = Reshape(ir.GetWeights().Read(), pp1, pp1);
@@ -259,6 +265,13 @@ void BatchedLOR_DG::Assemble3D()
    static constexpr int nnz_per_row = 7;
    const int nel_ho = fes_ho.GetNE();
 
+   // Get element geometric factors; calling before AssembleFaceTerms, since
+   // in AssembleFaceTerms, element Jacobian determinants are used, potentially
+   // saving recomputation.
+   const auto factors = GeometricFactors::DETERMINANTS |
+                        GeometricFactors::JACOBIANS;
+   const auto geom = fes_ho.GetMesh()->GetGeometricFactors(ir, factors);
+
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    sparse_ij.UseDevice(true);
    sparse_ij = 0.0;
@@ -288,9 +301,6 @@ void BatchedLOR_DG::Assemble3D()
                    : Reshape(c2.Read(), pp1, pp1, pp1, nel_ho);
    const auto W = Reshape(ir.GetWeights().Read(), pp1, pp1, pp1);
 
-   const auto factors = GeometricFactors::DETERMINANTS |
-                        GeometricFactors::JACOBIANS;
-   const auto geom = fes_ho.GetMesh()->GetGeometricFactors(ir, factors);
    const auto detJ = Reshape(geom->detJ.Read(), pp1, pp1, pp1, nel_ho);
    const auto J = Reshape(geom->J.Read(), pp1, pp1, pp1, 3, 3, nel_ho);
 
@@ -340,27 +350,27 @@ void BatchedLOR_DG::Assemble3D()
                      const real_t J21 = J(ix, iy, iz, 2, 1, iel_ho);
                      const real_t J22 = J(ix, iy, iz, 2, 2, iel_ho);
 
-                     real_t J_diag = 0.0;
+                     real_t JinvJinvT_diag = 0.0;
                      if (n_idx == 0)
                      {
-                        J_diag = J02*J02*(J11*J11 + J21*J21) + (J12*J21 - J11*J22)*
-                                 (J12*J21 - J11*J22) - 2*J01*J02*(J11*J12 + J21*J22) + J01*J01*
-                                 (J12*J12 + J22*J22);
+                        JinvJinvT_diag = J02*J02*(J11*J11 + J21*J21) + (J12*J21 - J11*J22)*
+                                         (J12*J21 - J11*J22) - 2*J01*J02*(J11*J12 + J21*J22) + J01*J01*
+                                         (J12*J12 + J22*J22);
                      }
                      else if (n_idx == 1)
                      {
-                        J_diag = J02*J02*(J10*J10 + J20*J20) + (J12*J20 - J10*J22)*
-                                 (J12*J20 - J10*J22) - 2*J00*J02*(J10*J12 + J20*J22) + J00*J00*
-                                 (J12*J12 + J22*J22);
+                        JinvJinvT_diag = J02*J02*(J10*J10 + J20*J20) + (J12*J20 - J10*J22)*
+                                         (J12*J20 - J10*J22) - 2*J00*J02*(J10*J12 + J20*J22) + J00*J00*
+                                         (J12*J12 + J22*J22);
                      }
                      else if (n_idx == 2)
                      {
-                        J_diag = J01*J01*(J10*J10 + J20*J20) + (J11*J20 - J10*J21)*
-                                 (J11*J20 - J10*J21) - 2*J00*J01*(J10*J11 + J20*J21) + J00*J00*
-                                 (J11*J11 + J21*J21);
+                        JinvJinvT_diag = J01*J01*(J10*J10 + J20*J20) + (J11*J20 - J10*J21)*
+                                         (J11*J20 - J10*J21) - 2*J00*J01*(J10*J11 + J20*J21) + J00*J00*
+                                         (J11*J11 + J21*J21);
                      }
 
-                     const real_t Jh = J_diag / DETJ;
+                     const real_t Jh = JinvJinvT_diag / DETJ;
 
                      V(v_idx, ix, iy, iz, iel_ho) = -dq * Jh * w_1d[w_idx_1] * w_1d[w_idx_2] /
                                                     (x_pp1[x_idx] - x_pp1[x_idx -1]);
