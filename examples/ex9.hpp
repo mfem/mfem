@@ -59,11 +59,11 @@ protected:
 public:
    CG_FE_Evolution(FiniteElementSpace &fes_,
                    const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
-                   VectorFunctionCoefficient &vel, BilinearForm &M) :
-       TimeDependentOperator(lumpedmassmatrix_.Size()),
-       lumpedmassmatrix(lumpedmassmatrix_), fes(fes_),
-       I(M.SpMat().GetI()), J(M.SpMat().GetJ()), b_lumped(&fes), u_inflow(&fes),
-       conv_int(vel), mass_int()
+                   VectorFunctionCoefficient &vel, BilinearForm &M)
+      : TimeDependentOperator(lumpedmassmatrix_.Size()),
+        lumpedmassmatrix(lumpedmassmatrix_), fes(fes_),
+        I(M.SpMat().GetI()), J(M.SpMat().GetJ()), b_lumped(&fes),
+        u_inflow(&fes), conv_int(vel), mass_int()
    {
       u_inflow.ProjectCoefficient(inflow);
 
@@ -107,7 +107,7 @@ public:
                          const Vector &lumpedmassmatrix_,
                          FunctionCoefficient &inflow,
                          VectorFunctionCoefficient &velocity, BilinearForm &M)
-   : CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
+      : CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
    {
       udot.SetSize(lumpedmassmatrix.Size());
    }
@@ -122,7 +122,7 @@ public:
    LowOrderScheme(FiniteElementSpace &fes_,
                   const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                   VectorFunctionCoefficient &velocity, BilinearForm &M)
-   : CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M) { }
+      : CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M) { }
 
    virtual void Mult(const Vector &x, Vector &y) const override
    {
@@ -144,7 +144,7 @@ public:
    ClipAndScale(FiniteElementSpace &fes_,
                 const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                 VectorFunctionCoefficient &velocity, BilinearForm &M)
-   : CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
+      : CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
    {
       umin.SetSize(lumpedmassmatrix.Size());
       umax.SetSize(lumpedmassmatrix.Size());

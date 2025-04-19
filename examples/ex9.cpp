@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
    else if (scheme == 13 && (pa || ea))
    {
       cout << "The CG Limiter needs full assembly of the mass matrix to obtain "
-              "the local stencil via its sparsity pattern.\n";
+           << "the local stencil via its sparsity pattern.\n";
       return 7;
    }
 
@@ -485,11 +485,11 @@ int main(int argc, char *argv[])
    {
       case 1: adv.reset(new DG_FE_Evolution(m, k, b)); break;
       case 11: adv.reset(new LowOrderScheme(*fes, lumpedmassmatrix,
-                                            inflow, velocity, m)); break;
+                                               inflow, velocity, m)); break;
       case 12: adv.reset(new HighOrderTargetScheme(*fes, lumpedmassmatrix,
-                                                   inflow, velocity, m)); break;
+                                                      inflow, velocity, m)); break;
       case 13: adv.reset(new ClipAndScale(*fes, lumpedmassmatrix,
-                                          inflow, velocity, m)); break;
+                                             inflow, velocity, m)); break;
       default: cout << "Unknown scheme: " << scheme << '\n'; return 8;
    }
 

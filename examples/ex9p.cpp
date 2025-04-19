@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          cout << "The CG Limiter needs full assembly of the mass matrix to "
-                 "obtain the local stencil via its sparsity pattern.\n";
+              << "obtain the local stencil via its sparsity pattern.\n";
       }
       return 7;
    }
@@ -685,11 +685,11 @@ int main(int argc, char *argv[])
    {
       case 1: adv.reset(new DG_FE_Evolution(m, k, *B, prec_type)); break;
       case 11: adv.reset(new LowOrderScheme(*fes, lumpedmassmatrix,
-                                            inflow, velocity, m)); break;
+                                               inflow, velocity, m)); break;
       case 12: adv.reset(new HighOrderTargetScheme(*fes, lumpedmassmatrix,
-                                                   inflow, velocity, m)); break;
+                                                      inflow, velocity, m)); break;
       case 13: adv.reset(new ClipAndScale(*fes, lumpedmassmatrix,
-                                          inflow, velocity, m)); break;
+                                             inflow, velocity, m)); break;
    }
 
    real_t t = 0.0;
