@@ -50,9 +50,9 @@ double u_xx(int k, double x)
    double csc_2kpix = 1.0/sin(2*kpix);
    double sgn = sin(2*kpix) < 0 ? -1.0 : 1.0;
    return 2*exp(-csc_2kpix*csc_2kpix)*k*k*M_PI*M_PI
-      *(1 + 6*cos(4*kpix) + cos(8*kpix))
-      *pow(csc_2kpix,6)
-      *sgn;
+          *(1 + 6*cos(4*kpix) + cos(8*kpix))
+          *pow(csc_2kpix,6)
+          *sgn;
 }
 
 MFEM_HOST_DEVICE inline
@@ -248,8 +248,8 @@ MFEM_HOST_DEVICE inline
 double rhs_3d(const int n, const double *xyz)
 {
    return -w_xx(n, xyz[0])*w(n, xyz[1])*w(n, xyz[2])
-            - w(n, xyz[0])*w_xx(n, xyz[1])*w(n, xyz[2])
-            - w(n, xyz[0])*w(n, xyz[1])*w_xx(n, xyz[2]);
+          - w(n, xyz[0])*w_xx(n, xyz[1])*w(n, xyz[2])
+          - w(n, xyz[0])*w(n, xyz[1])*w_xx(n, xyz[2]);
 }
 
 using RHSFunctionType = double(*)(int dim, const double *xyz);
@@ -316,14 +316,14 @@ struct RHS : Coefficient
       else // dim == 3
       {
          return -w_xx(n, xyz[0])*w(n, xyz[1])*w(n, xyz[2])
-              - w(n, xyz[0])*w_xx(n, xyz[1])*w(n, xyz[2])
-              - w(n, xyz[0])*w(n, xyz[1])*w_xx(n, xyz[2]);
+                - w(n, xyz[0])*w_xx(n, xyz[1])*w(n, xyz[2])
+                - w(n, xyz[0])*w(n, xyz[1])*w_xx(n, xyz[2]);
       }
    }
 
    void Project(QuadratureFunction &qf) override
    {
-      ProjectRHS(n ,qf);
+      ProjectRHS(n,qf);
    }
 };
 
