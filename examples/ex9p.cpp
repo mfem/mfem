@@ -318,10 +318,10 @@ int main(int argc, char *argv[])
                   "            22 - Implicit Midpoint Method,\n\t"
                   "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&scheme, "-sc", "--scheme",
-                  "FE scheme: 1 - Standard DG,\n\t"
-                  "           11 - Clip and Scale Limiter for CG,\n\t"
-                  "           12 - High-order target schme for CG,\n\t"
-                  "           13 - Low-order schme for CG.");
+                  "FE scheme: 1 - DG high-order, unstabilized,\n\t"
+                  "           11 - CG low-order,\n\t"
+                  "           12 - CG high-order, stabilized,\n\t"
+                  "           13 - CG high-order, stabilized, limited.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   const bool DG = (scheme < 11);
+   const bool DG = (scheme < 10);
 
    // Limiter is only implemented to run on cpu.
    if (!DG && strcmp(device_config, "cuda") == 0)
@@ -398,12 +398,7 @@ int main(int argc, char *argv[])
    //    time-stepping methods.
    if (!DG && ode_solver_type > 10)
    {
-      if (Mpi::Root())
-      {
-         cout << "The stabilized CG method is only implemented ";
-         cout << "for explicit Runge-Kutta methods."
-              << endl;
-      }
+      cout << "The CG methods are supported only with explicit RK schemes.\n";
       return 4;
    }
    // Limiter and low order scheme are only provably
@@ -415,24 +410,23 @@ int main(int argc, char *argv[])
          MFEM_WARNING("Non-SSP-RK mehod! Bounds might be violated.");
       }
    }
-
-   ODESolver *ode_solver = NULL;
+   unique_ptr<ODESolver> ode_solver = nullptr;
    switch (ode_solver_type)
    {
       // Explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
+      case 1: ode_solver.reset(new ForwardEulerSolver); break;
+      case 2: ode_solver.reset(new RK2Solver(1.0)); break;
+      case 3: ode_solver.reset(new RK3SSPSolver); break;
+      case 4: ode_solver.reset(new RK4Solver); break;
+      case 6: ode_solver.reset(new RK6Solver); break;
       // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
+      case 11: ode_solver.reset(new BackwardEulerSolver); break;
+      case 12: ode_solver.reset(new SDIRK23Solver(2)); break;
+      case 13: ode_solver.reset(new SDIRK33Solver); break;
       // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
+      case 22: ode_solver.reset(new ImplicitMidpointSolver); break;
+      case 23: ode_solver.reset(new SDIRK23Solver); break;
+      case 24: ode_solver.reset(new SDIRK34Solver); break;
       default:
          if (Mpi::Root())
          {
@@ -459,35 +453,29 @@ int main(int argc, char *argv[])
    // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
 
    // 7. Define the parallel discontinuous DG finite element or continuouts CG
    // space on the parallel refined mesh of the given polynomial order.
    DG_FECollection fec_DG(order, dim, BasisType::GaussLobatto);
    H1_FECollection fec_CG(order, dim, BasisType::Positive);
-
-   ParFiniteElementSpace *fes = NULL;
+   unique_ptr<ParFiniteElementSpace> fes = nullptr;
    switch (scheme)
    {
-      case 1:
-         fes = new ParFiniteElementSpace(pmesh, &fec_DG);
-         break;
+      case 1: fes.reset(new ParFiniteElementSpace(&pmesh, &fec_DG)); break;
       case 11:
       case 12:
-      case 13:
-         fes = new ParFiniteElementSpace(pmesh, &fec_CG);
-         break;
+      case 13: fes.reset(new ParFiniteElementSpace(&pmesh, &fec_CG)); break;
       default:
          if (Mpi::Root())
          {
             cout << "Unknown scheme: " << scheme << '\n';
          }
-         delete pmesh;
          return 6;
    }
 
@@ -504,91 +492,82 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   ParBilinearForm *m = new ParBilinearForm(fes);
-   ParBilinearForm *k = new ParBilinearForm(fes);
-   ParBilinearForm *mL = new ParBilinearForm(fes);
+   ParBilinearForm m(fes.get());
+   ParBilinearForm k(fes.get());
    if (DG)
    {
       if (pa)
       {
-         m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
       else if (ea)
       {
-         m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-         k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+         m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+         k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
       }
       else if (fa)
       {
-         m->SetAssemblyLevel(AssemblyLevel::FULL);
-         k->SetAssemblyLevel(AssemblyLevel::FULL);
+         m.SetAssemblyLevel(AssemblyLevel::FULL);
+         k.SetAssemblyLevel(AssemblyLevel::FULL);
       }
    }
-   else if (scheme == 11 && (pa || ea))
+   else if (scheme == 13 && (pa || ea))
    {
       if (Mpi::Root())
       {
-         cout << "The CG Limiter needs full assembly of the ";
-         cout << "mass matrix to obtain the local stencil via ";
-         cout << "its sparsity pattern. " << endl;
+         cout << "The CG Limiter needs full assembly of the mass matrix to "
+                 "obtain the local stencil via its sparsity pattern.\n";
       }
-      delete pmesh;
-      delete fes;
       return 7;
    }
 
-   m->AddDomainIntegrator(new MassIntegrator);
-   m->Assemble();
-   m->Finalize();
+   m.AddDomainIntegrator(new MassIntegrator);
+   m.Assemble();
+   m.Finalize();
 
    constexpr real_t alpha = -1.0;
    int skip_zeros = 0;
-   Vector lumpedmassmatrix(mL->Height());
+   Vector lumpedmassmatrix(m.Height());
 
    // The convective bilinear form is not needed in the CG case.
    if (DG)
    {
-      k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-      k->AddInteriorFaceIntegrator(
+      k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+      k.AddInteriorFaceIntegrator(
          new NonconservativeDGTraceIntegrator(velocity, alpha));
-      k->AddBdrFaceIntegrator(
+      k.AddBdrFaceIntegrator(
          new NonconservativeDGTraceIntegrator(velocity, alpha));
 
-      k->Assemble(skip_zeros);
-      k->Finalize(skip_zeros);
+      k.Assemble(skip_zeros);
+      k.Finalize(skip_zeros);
    }
    // lumped mass matrix not needed in the DG case
    else
    {
-      mL->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-      mL->Assemble();
-      mL->Finalize();
-      mL->SpMat().GetDiag(lumpedmassmatrix);
+      ParBilinearForm mL(fes.get());
+      mL.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      mL.Assemble();
+      mL.Finalize();
+      mL.SpMat().GetDiag(lumpedmassmatrix);
    }
-   delete mL;
 
-   ParLinearForm *b = new ParLinearForm(fes);
-   b->AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
-   b->Assemble();
-
-   HypreParVector *B = b->ParallelAssemble();
+   ParLinearForm b(fes.get());
+   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   b.Assemble();
+   unique_ptr<HypreParVector> B(b.ParallelAssemble());
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   ParGridFunction *u = new ParGridFunction(fes);
-   u->ProjectCoefficient(u0);
+   ParGridFunction u(fes.get());
+   u.ProjectCoefficient(u0);
 
    // DG uses a HypreParVector to communicate between processess.
    // In the implementation of the element-based Clip & Scale limiter we do
    // this by hand.
-   HypreParVector *U = NULL;
-   if (DG)
-   {
-      U = u->GetTrueDofs();
-   }
+   unique_ptr<HypreParVector> U = nullptr;
+   if (DG) { U.reset(u.GetTrueDofs()); }
 
    {
       ostringstream mesh_name, sol_name;
@@ -596,15 +575,15 @@ int main(int argc, char *argv[])
       sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
-      pmesh->Print(omesh);
+      pmesh.Print(omesh);
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
-      u->Save(osol);
+      u.Save(osol);
    }
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
-   DataCollection *dc = NULL;
+   unique_ptr<DataCollection> dc = nullptr;
    if (visit)
    {
       if (binary)
@@ -617,23 +596,23 @@ int main(int argc, char *argv[])
       }
       else
       {
-         dc = new VisItDataCollection("Example9-Parallel", pmesh);
+         dc.reset(new VisItDataCollection("Example9-Parallel", &pmesh));
          dc->SetPrecision(precision);
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
-      dc->RegisterField("solution", u);
+      dc->RegisterField("solution", &u);
       dc->SetCycle(0);
       dc->SetTime(0.0);
       dc->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
+   unique_ptr<ParaViewDataCollection> pd = nullptr;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example9P", pmesh);
+      pd.reset(new ParaViewDataCollection("Example9P", &pmesh));
       pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", u);
+      pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -645,7 +624,7 @@ int main(int argc, char *argv[])
    // Optionally output a BP (binary pack) file using ADIOS2. This can be
    // visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
-   ADIOS2DataCollection *adios2_dc = NULL;
+   unique_ptr<ADIOS2DataCollection> adios2_dc = nullptr;
    if (adios2)
    {
       std::string postfix(mesh_file);
@@ -653,7 +632,7 @@ int main(int argc, char *argv[])
       postfix += "_o" + std::to_string(order);
       const std::string collection_name = "ex9-p-" + postfix + ".bp";
 
-      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc.reset(ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh));
       // output data substreams are half the number of mpi processes
       adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
       // adios2_dc->SetLevelsOfDetail(2);
@@ -687,7 +666,7 @@ int main(int argc, char *argv[])
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
-         sout << "solution\n" << *pmesh << *u;
+         sout << "solution\n" << pmesh << u;
          sout << "pause\n";
          sout << flush;
          if (Mpi::Root())
@@ -701,16 +680,16 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   TimeDependentOperator *adv = NULL;
+   unique_ptr<TimeDependentOperator> adv = nullptr;
    switch (scheme)
    {
-      case 1: adv = new DG_FE_Evolution(*m, *k, *B, prec_type); break;
-      case 11: adv = new ClipAndScale(*fes, lumpedmassmatrix, inflow,
-                                         velocity, *m); break;
-      case 12: adv = new HighOrderTargetScheme(*fes, lumpedmassmatrix, inflow,
-                                                  velocity, *m); break;
-      case 13: adv = new LowOrderScheme(*fes, lumpedmassmatrix, inflow,
-                                           velocity, *m); break;
+      case 1: adv.reset(new DG_FE_Evolution(m, k, *B, prec_type)); break;
+      case 11: adv.reset(new LowOrderScheme(*fes, lumpedmassmatrix,
+                                            inflow, velocity, m)); break;
+      case 12: adv.reset(new HighOrderTargetScheme(*fes, lumpedmassmatrix,
+                                                   inflow, velocity, m)); break;
+      case 13: adv.reset(new ClipAndScale(*fes, lumpedmassmatrix,
+                                          inflow, velocity, m)); break;
    }
 
    real_t t = 0.0;
@@ -721,16 +700,11 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       real_t dt_real = min(dt, t_final - t);
-      if (DG)
-      {
-         ode_solver->Step(*U, t, dt_real);
-      }
-      else
-      {
-         ode_solver->Step(*u, t, dt_real);
-      }
-      ti++;
 
+      if (DG) { ode_solver->Step(*U, t, dt_real); }
+      else    { ode_solver->Step(u, t, dt_real); }
+
+      ti++;
       done = (t >= t_final - 1e-8*dt);
 
       if (done || ti % vis_steps == 0)
@@ -741,17 +715,14 @@ int main(int argc, char *argv[])
          }
 
          // 11. In case of DG extract the parallel grid function corresponding
-         //     to the finite element approximation U
+         //     to the finite element approximation U.
          //     (the local solution on each processor).
-         if (DG)
-         {
-            *u = *U;
-         }
+         if (DG) { u = *U; }
 
          if (visualization)
          {
             sout << "parallel " << num_procs << " " << myid << "\n";
-            sout << "solution\n" << *pmesh << *u << flush;
+            sout << "solution\n" << pmesh << u << flush;
          }
 
          if (visit)
@@ -787,34 +758,11 @@ int main(int argc, char *argv[])
       sol_name << "ex9-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
-      u->Save(osol);
+      u.Save(osol);
    }
 
    ConstantCoefficient zero(0.0);
-   std::cout << "Norm: " << u->ComputeL2Error(zero) << std::endl;
-
-   // 13. Free the used memory.
-   if (DG)
-   {
-      delete U;
-   }
-   delete u;
-   delete B;
-   delete b;
-   delete k;
-   delete m;
-   delete fes;
-   delete pmesh;
-   delete ode_solver;
-   delete pd;
-   delete adv;
-#ifdef MFEM_USE_ADIOS2
-   if (adios2)
-   {
-      delete adios2_dc;
-   }
-#endif
-   delete dc;
+   std::cout << "Norm: " << u.ComputeL2Error(zero) << std::endl;
 
    return 0;
 }

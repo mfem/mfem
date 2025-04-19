@@ -211,10 +211,10 @@ int main(int argc, char *argv[])
                   "            22 - Implicit Midpoint Method,\n\t"
                   "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&scheme, "-sc", "--scheme",
-                  "FE scheme: 1 - Standard DG,\n\t"
-                  "           11 - Clip and Scale Limiter for CG,\n\t"
-                  "           12 - High-order target schme for CG,\n\t"
-                  "           13 - Low-order schme for CG.");
+                  "FE scheme: 1 - DG high-order, unstabilized,\n\t"
+                  "           11 - CG low-order,\n\t"
+                  "           12 - CG high-order, stabilized,\n\t"
+                  "           13 - CG high-order, stabilized, limited.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   const bool DG = (scheme < 11);
+   const bool DG = (scheme < 10);
 
    // Limiter is only implemented to run on cpu.
    if (!DG && strcmp(device_config, "cuda") == 0)
@@ -269,34 +269,32 @@ int main(int argc, char *argv[])
    //    The CG Limiter is only implemented for explicit time-stepping methods.
    if (!DG && ode_solver_type > 10)
    {
-      cout << "The stabilized CG method is only implemented ";
-      cout << "for explicit Runge-Kutta methods."
-           << endl;
+      cout << "The CG methods are supported only with explicit RK schemes.\n";
       return 4;
    }
    // Limiter and low order scheme are only provably bound preserving
    // when employing SSP-RK time-stepping methods
    else if ((scheme == 11 || scheme == 13) && ode_solver_type > 3)
    {
-      MFEM_WARNING("Non-SSP-RK mehod! Bounds might be violated.");
+      MFEM_WARNING("Non-SSP-RK method! Bounds might be violated.");
    }
-   ODESolver *ode_solver = NULL;
+   unique_ptr<ODESolver> ode_solver = nullptr;
    switch (ode_solver_type)
    {
       // Explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
+      case 1: ode_solver.reset(new ForwardEulerSolver); break;
+      case 2: ode_solver.reset(new RK2Solver(1.0)); break;
+      case 3: ode_solver.reset(new RK3SSPSolver); break;
+      case 4: ode_solver.reset(new RK4Solver); break;
+      case 6: ode_solver.reset(new RK6Solver); break;
       // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
+      case 11: ode_solver.reset(new BackwardEulerSolver); break;
+      case 12: ode_solver.reset(new SDIRK23Solver(2)); break;
+      case 13: ode_solver.reset(new SDIRK33Solver); break;
       // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
+      case 22: ode_solver.reset(new ImplicitMidpointSolver); break;
+      case 23: ode_solver.reset(new SDIRK23Solver); break;
+      case 24: ode_solver.reset(new SDIRK34Solver); break;
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -317,25 +315,18 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
-   //    polynomial order on the refined mesh.
+   // 5. Define the finite element space of the given polynomial order on the
+   //    refined mesh. Continuous H1 and discontinuous L2 spaces are supported.
    DG_FECollection fec_DG(order, dim, BasisType::GaussLobatto);
    H1_FECollection fec_CG(order, dim, BasisType::Positive);
-
-   FiniteElementSpace *fes = NULL;
+   unique_ptr<FiniteElementSpace> fes = nullptr;
    switch (scheme)
    {
-      case 1:
-         fes = new FiniteElementSpace(&mesh, &fec_DG);
-         break;
+      case 1: fes.reset(new FiniteElementSpace(&mesh, &fec_DG)); break;
       case 11:
       case 12:
-      case 13:
-         fes = new FiniteElementSpace(&mesh, &fec_CG);
-         break;
-      default:
-         cout << "Unknown scheme: " << scheme << '\n';
-         return 6;
+      case 13: fes.reset(new FiniteElementSpace(&mesh, &fec_CG)); break;
+      default: cout << "Unknown scheme: " << scheme << endl; return 6;
    }
 
    cout << "Number of unknowns: " << fes->GetVSize() << endl;
@@ -347,8 +338,8 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   BilinearForm m(fes);
-   BilinearForm k(fes);
+   BilinearForm m(fes.get());
+   BilinearForm k(fes.get());
    if (DG)
    {
       if (pa)
@@ -367,12 +358,10 @@ int main(int argc, char *argv[])
          k.SetAssemblyLevel(AssemblyLevel::FULL);
       }
    }
-   else if (scheme == 11 && (pa || ea))
+   else if (scheme == 13 && (pa || ea))
    {
-      cout << "The CG Limiter needs full assembly of the ";
-      cout << "mass matrix to obtain the local stencil via ";
-      cout << "its sparsity pattern. " << endl;
-      delete fes;
+      cout << "The CG Limiter needs full assembly of the mass matrix to obtain "
+              "the local stencil via its sparsity pattern.\n";
       return 7;
    }
 
@@ -399,22 +388,21 @@ int main(int argc, char *argv[])
    // lumped mass matrix not needed in the DG case
    else
    {
-      BilinearForm mL(fes);
+      BilinearForm mL(fes.get());
       mL.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
       mL.Assemble();
       mL.Finalize();
       mL.SpMat().GetDiag(lumpedmassmatrix);
    }
 
-   LinearForm b(fes);
-   b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   LinearForm b(fes.get());
+   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
    b.Assemble();
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(fes);
+   GridFunction u(fes.get());
    u.ProjectCoefficient(u0);
 
    {
@@ -428,7 +416,7 @@ int main(int argc, char *argv[])
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
-   DataCollection *dc = NULL;
+   unique_ptr<DataCollection> dc = nullptr;
    if (visit)
    {
       if (binary)
@@ -441,7 +429,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         dc = new VisItDataCollection("Example9", &mesh);
+         dc.reset(new VisItDataCollection("Example9", &mesh));
          dc->SetPrecision(precision);
       }
       dc->RegisterField("solution", &u);
@@ -450,10 +438,10 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
+   unique_ptr<ParaViewDataCollection> pd = nullptr;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example9", &mesh);
+      pd.reset(new ParaViewDataCollection("Example9", &mesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(order);
@@ -492,16 +480,17 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    //DG_FE_Evolution adv(m, k, b);
-   TimeDependentOperator *adv = NULL;
+   unique_ptr<TimeDependentOperator> adv = nullptr;
    switch (scheme)
    {
-      case 1: adv = new DG_FE_Evolution(m, k, b); break;
-      case 11: adv = new ClipAndScale(*fes, lumpedmassmatrix, inflow,
-                                         velocity, m); break;
-      case 12: adv = new HighOrderTargetScheme(*fes, lumpedmassmatrix, inflow,
-                                                  velocity, m); break;
-      case 13: adv = new LowOrderScheme(*fes, lumpedmassmatrix, inflow,
-                                           velocity, m); break;
+      case 1: adv.reset(new DG_FE_Evolution(m, k, b)); break;
+      case 11: adv.reset(new LowOrderScheme(*fes, lumpedmassmatrix,
+                                            inflow, velocity, m)); break;
+      case 12: adv.reset(new HighOrderTargetScheme(*fes, lumpedmassmatrix,
+                                                   inflow, velocity, m)); break;
+      case 13: adv.reset(new ClipAndScale(*fes, lumpedmassmatrix,
+                                          inflow, velocity, m)); break;
+      default: cout << "Unknown scheme: " << scheme << '\n'; return 8;
    }
 
    real_t t = 0.0;
@@ -552,13 +541,6 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient zero(0.0);
    std::cout << "Norm: " << u.ComputeL2Error(zero) << std::endl;
-
-   // 10. Free the used memory.
-   delete ode_solver;
-   delete pd;
-   delete dc;
-   delete fes;
-   delete adv;
 
    return 0;
 }

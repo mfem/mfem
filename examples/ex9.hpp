@@ -205,7 +205,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      // Distribute
+      // Sum over the shared DOFs.
       Array<real_t> udot_array(udot.GetData(), udot.Size());
       pfes->GroupComm().Reduce<real_t>(udot_array, GroupCommunicator::Sum);
       pfes->GroupComm().Bcast(udot_array);
@@ -267,7 +267,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      // Distribute.
+      // Sum over the shared DOFs.
       Array<real_t> y_array(y.GetData(), y.Size());
       pfes->GroupComm().Reduce<real_t>(y_array, GroupCommunicator::Sum);
       pfes->GroupComm().Bcast(y_array);
@@ -278,8 +278,9 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
    y /= lumpedmassmatrix;
 }
 
-void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min,
-    Array<real_t> &u_max) const
+void ClipAndScale::ComputeBounds(const Vector &u,
+                                 Array<real_t> &u_min,
+                                 Array<real_t> &u_max) const
 {
    // iterate over local number of dofs on this processor
    // and compute maximum and minimum over local stencil
@@ -299,7 +300,7 @@ void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      // Distribute min and max over the shared DOFs.
+      // Reduce min and max over the shared DOFs.
       pfes->GroupComm().Reduce<real_t>(umax, GroupCommunicator::Max);
       pfes->GroupComm().Bcast(umax);
       pfes->GroupComm().Reduce<real_t>(umin, GroupCommunicator::Min);
@@ -414,7 +415,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      // Distribute.
+      // Sum over the shared DOFs.
       Array<real_t> y_array(y.GetData(), y.Size());
       pfes->GroupComm().Reduce<real_t>(y_array, GroupCommunicator::Sum);
       pfes->GroupComm().Bcast(y_array);
