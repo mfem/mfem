@@ -748,32 +748,41 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          Xhat.GetBlock(0) = 0.;
 	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
-         //if (monitor) 
-         //{  
-         //   delete sol_monitor;
-         //   mfem::out << "Program paused. Press enter to continue...\n"; 
-         //   cin.get();
-         //}
-         int n = AreducedSolver.GetNumIterations();
-         if (iAmRoot)
+
+         int n;
+         if (AreducedSolver.GetConverged())
          {
-            mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
-            mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
-         }
-         if (iAmRoot)
-         {
-            std::cout << std::string(50,'-') << "\n" << endl;
-            if (!AreducedSolver.GetConverged())
+            n = AreducedSolver.GetNumIterations();
+            cgnum_iterations.Append(n);
+            if (iAmRoot)
             {
-               if (iAmRoot)
-               {
-                  mfem::out << "CG interagtions = "; 
-                  cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
-               }
+               mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
+               mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
             }
          }
-         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
-         cgnum_iterations.Append(n);
+         else
+         {
+            if (iAmRoot)
+            {
+               std::cout << std::string(50,'-') << "\n" << endl;
+               MFEM_WARNING("CG solver did not converge");
+               mfem::out << "CG interagtions = "; 
+               cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
+            }
+            GMRESSolver gmres(MPI_COMM_WORLD);
+            gmres.SetRelTol(linSolveRelTol);
+            gmres.SetMaxIter(500);
+            gmres.SetPrintLevel(3);
+            gmres.SetOperator(*Areduced);
+            gmres.SetPreconditioner(prec);
+            chrono.Clear();
+            chrono.Start();
+            Xhat.GetBlock(0) = 0.;
+	         gmres.Mult(breduced, Xhat.GetBlock(0));
+            n = gmres.GetNumIterations();
+            cgnum_iterations.Append(-n);
+            MFEM_VERIFY(gmres.GetConverged(), "GMRES solver did not converge");
+         }
 
          // CGsolver for no-contact   
          if (no_contact_solve)
