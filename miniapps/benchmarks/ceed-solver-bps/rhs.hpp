@@ -27,39 +27,41 @@
 namespace mfem
 {
 
+constexpr real_t pi = real_t(M_PI);
+
 #if (CEED_SOLVER_BP_SOLUTION_OPTION == 0)
 
 MFEM_HOST_DEVICE inline
-double s(int k, double x)
+real_t s(int k, real_t x)
 {
-   return sin(2*M_PI*k*x);
+   return sin(2*pi*k*x);
 }
 
 MFEM_HOST_DEVICE inline
-double u(int k, double x)
+real_t u(int k, real_t x)
 {
-   double skx = s(k,x);
-   double sgn = skx < 0 ? -1.0 : 1.0;
+   real_t skx = s(k,x);
+   real_t sgn = skx < 0 ? -1.0 : 1.0;
    return exp(-1/skx/skx)*sgn;
 }
 
 MFEM_HOST_DEVICE inline
-double u_xx(int k, double x)
+real_t u_xx(int k, real_t x)
 {
-   double kpix = k*M_PI*x;
-   double csc_2kpix = 1.0/sin(2*kpix);
-   double sgn = sin(2*kpix) < 0 ? -1.0 : 1.0;
-   return 2*exp(-csc_2kpix*csc_2kpix)*k*k*M_PI*M_PI
+   real_t kpix = k*pi*x;
+   real_t csc_2kpix = 1.0/sin(2*kpix);
+   real_t sgn = sin(2*kpix) < 0 ? -1.0 : 1.0;
+   return 2*exp(-csc_2kpix*csc_2kpix)*k*k*pi*pi
           *(1 + 6*cos(4*kpix) + cos(8*kpix))
           *pow(csc_2kpix,6)
           *sgn;
 }
 
 MFEM_HOST_DEVICE inline
-double w(int n, double x)
+real_t w(int n, real_t x)
 {
-   double wkx = 0.0;
-   double xx = 2*x - 1; // transform from [0,1] to [-1,1]
+   real_t wkx = 0.0;
+   real_t xx = 2*x - 1; // transform from [0,1] to [-1,1]
    for (int j=0; j<n; ++j)
    {
       int k = pow(3, j);
@@ -69,10 +71,10 @@ double w(int n, double x)
 }
 
 MFEM_HOST_DEVICE inline
-double w_xx(int n, double x)
+real_t w_xx(int n, real_t x)
 {
-   double wkx = 0.0;
-   double xx = 2*x - 1; // transform from [0,1] to [-1,1]
+   real_t wkx = 0.0;
+   real_t xx = 2*x - 1; // transform from [0,1] to [-1,1]
    if (xx == 0.0) { return 0.0; }
    for (int j=0; j<n; ++j)
    {
@@ -85,13 +87,13 @@ double w_xx(int n, double x)
 #elif (CEED_SOLVER_BP_SOLUTION_OPTION == 1)
 
 MFEM_HOST_DEVICE inline
-double w(int n, double x)
+real_t w(int n, real_t x)
 {
    //  w(n,x) = \sum_{k=0}^n a^k \cos(b^k \pi (x - 1/2))
-   const double a = 0.5, b = 3.;
-   double ak = 1.0;
-   double xk = M_PI * (x - 0.5);
-   double w_ = ak * cos(xk);
+   const real_t a = 0.5, b = 3.;
+   real_t ak = 1.0;
+   real_t xk = pi * (x - 0.5);
+   real_t w_ = ak * cos(xk);
    for (int k = 1; k <= n; k++)
    {
       ak *= a;
@@ -102,13 +104,13 @@ double w(int n, double x)
 }
 
 MFEM_HOST_DEVICE inline
-double w_x(int n, double x)
+real_t w_x(int n, real_t x)
 {
    //  w'(n,x) = -\pi \sum_{k=0}^n a^k b^k \sin(b^k \pi (x - 1/2))
-   const double a = 0.5, b = 3.;
-   double ck = -M_PI;
-   double xk = M_PI * (x - 0.5);
-   double w_x_ = ck * sin(xk);
+   const real_t a = 0.5, b = 3.;
+   real_t ck = -pi;
+   real_t xk = pi * (x - 0.5);
+   real_t w_x_ = ck * sin(xk);
    for (int k = 1; k <= n; k++)
    {
       ck *= a * b;
@@ -119,13 +121,13 @@ double w_x(int n, double x)
 }
 
 MFEM_HOST_DEVICE inline
-double w_xx(int n, double x)
+real_t w_xx(int n, real_t x)
 {
    // w''(n,x) = -\pi^2 \sum_{k=0}^n a^k b^{2 k} \cos(b^k \pi (x - 1/2))
-   const double a = 0.5, b = 3.;
-   double ck = -(M_PI * M_PI);
-   double xk = M_PI * (x - 0.5);
-   double w_xx_ = ck * cos(xk);
+   const real_t a = 0.5, b = 3.;
+   real_t ck = -(pi * pi);
+   real_t xk = pi * (x - 0.5);
+   real_t w_xx_ = ck * cos(xk);
    for (int k = 1; k <= n; k++)
    {
       ck *= a * b*b;
@@ -138,13 +140,13 @@ double w_xx(int n, double x)
 #elif (CEED_SOLVER_BP_SOLUTION_OPTION == 2)
 
 MFEM_HOST_DEVICE inline
-double w(int n, double x)
+real_t w(int n, real_t x)
 {
    //  w(n,x) = \sum_{k=0}^n a^k \sin(b^k \pi x)
-   const double a = 0.5, b = 3.;
-   double ak = 1.0;
-   double xk = M_PI * x;
-   double w_ = ak * sin(xk);
+   const real_t a = 0.5, b = 3.;
+   real_t ak = 1.0;
+   real_t xk = pi * x;
+   real_t w_ = ak * sin(xk);
    for (int k = 1; k <= n; k++)
    {
       ak *= a;
@@ -155,13 +157,13 @@ double w(int n, double x)
 }
 
 MFEM_HOST_DEVICE inline
-double w_xx(int n, double x)
+real_t w_xx(int n, real_t x)
 {
    // w''(n,x) = -\pi^2 \sum_{k=0}^n a^k b^{2 k} \sin(b^k \pi x)
-   const double a = 0.5, b = 3.;
-   double ck = -(M_PI * M_PI);
-   double xk = M_PI * x;
-   double w_xx_ = ck * sin(xk);
+   const real_t a = 0.5, b = 3.;
+   real_t ck = -(pi * pi);
+   real_t xk = pi * x;
+   real_t w_xx_ = ck * sin(xk);
    for (int k = 1; k <= n; k++)
    {
       ck *= a * b*b;
@@ -178,9 +180,9 @@ struct ExactSolution : Coefficient
    int dim, n;
    ExactSolution(int dim_, int n_=0) : dim(dim_), n(n_) { }
    using Coefficient::Eval;
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      double xyz[3];
+      real_t xyz[3];
       Vector transip(xyz, 3);
       T.Transform(ip, transip);
       if (dim == 1)
@@ -207,7 +209,7 @@ struct ExactGrad : VectorCoefficient
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
-      double xyz[3];
+      real_t xyz[3];
       Vector transip(xyz, 3);
       T.Transform(ip, transip);
       V.SetSize(dim);
@@ -222,9 +224,9 @@ struct ExactGrad : VectorCoefficient
       }
       else // dim == 3
       {
-         const double wnx = w(n, xyz[0]);
-         const double wny = w(n, xyz[1]);
-         const double wnz = w(n, xyz[2]);
+         const real_t wnx = w(n, xyz[0]);
+         const real_t wny = w(n, xyz[1]);
+         const real_t wnz = w(n, xyz[2]);
          V(0) = w_x(n, xyz[0])*wny           *wnz;
          V(1) = wnx           *w_x(n, xyz[1])*wnz;
          V(2) = wnx           *wny           *w_x(n, xyz[2]);
@@ -233,26 +235,26 @@ struct ExactGrad : VectorCoefficient
 };
 
 MFEM_HOST_DEVICE inline
-double rhs_1d(const int n, const double *xyz)
+real_t rhs_1d(const int n, const real_t *xyz)
 {
    return -w_xx(n, xyz[0]);
 }
 
 MFEM_HOST_DEVICE inline
-double rhs_2d(const int n, const double *xyz)
+real_t rhs_2d(const int n, const real_t *xyz)
 {
    return -w_xx(n, xyz[0])*w(n, xyz[1]) - w(n, xyz[0])*w_xx(n, xyz[1]);
 }
 
 MFEM_HOST_DEVICE inline
-double rhs_3d(const int n, const double *xyz)
+real_t rhs_3d(const int n, const real_t *xyz)
 {
    return -w_xx(n, xyz[0])*w(n, xyz[1])*w(n, xyz[2])
           - w(n, xyz[0])*w_xx(n, xyz[1])*w(n, xyz[2])
           - w(n, xyz[0])*w(n, xyz[1])*w_xx(n, xyz[2]);
 }
 
-using RHSFunctionType = double(*)(int dim, const double *xyz);
+using RHSFunctionType = real_t(*)(int dim, const real_t *xyz);
 
 template <RHSFunctionType F>
 void ProjectRHS_(int n, QuadratureFunction &qf)
@@ -267,14 +269,14 @@ void ProjectRHS_(int n, QuadratureFunction &qf)
    const int nq = ir.Size();
    const int N = qf.Size();
 
-   const double *d_x = geom->X.Read();
-   double *d_q = qf.Write();
+   const real_t *d_x = geom->X.Read();
+   real_t *d_q = qf.Write();
 
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int ii)
    {
       const int i = ii / nq;
       const int j = ii % nq;
-      double xvec[3];
+      real_t xvec[3];
       for (int d = 0; d < dim; ++d)
       {
          xvec[d] = d_x[j + d*nq + i*dim*nq];
@@ -300,9 +302,9 @@ struct RHS : Coefficient
    int dim, n;
    RHS(int dim_, int n_=0) : dim(dim_), n(n_) { }
    using Coefficient::Eval;
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      double xyz[3];
+      real_t xyz[3];
       Vector transip(xyz, 3);
       T.Transform(ip, transip);
       if (dim == 1)

@@ -62,13 +62,13 @@ struct MGRefinement
 
 struct CGMonitor : IterativeSolverMonitor
 {
-   const double tol;
-   double initial_nrm, final_nrm, saved_nrm;
+   const real_t tol;
+   real_t initial_nrm, final_nrm, saved_nrm;
    int final_it, saved_it;
 
-   CGMonitor(double tol_) : tol(tol_) { }
+   CGMonitor(real_t tol_) : tol(tol_) { }
 
-   void MonitorResidual(int it, double norm, const Vector &r, bool final)
+   void MonitorResidual(int it, real_t norm, const Vector &r, bool final)
    override
    {
       MFEM_CONTRACT_VAR(norm);
@@ -77,7 +77,7 @@ struct CGMonitor : IterativeSolverMonitor
       // (possibly triggering the monitor convergence criterion) and a second
       // time with final = true.
       bool init_call = (it == 0 && !final);
-      const double nrm =
+      const real_t nrm =
          (!init_call && it == saved_it) ?
          saved_nrm :
          sqrt(InnerProduct(iter_solver->GetComm(), r, r));
@@ -111,7 +111,7 @@ struct CGMonitor : IterativeSolverMonitor
          }
          else
          {
-            const double rel_nrm = nrm/initial_nrm;
+            const real_t rel_nrm = nrm/initial_nrm;
             mfem::out << rel_nrm << '\n';
             mfem::out << "Average l2 reduction factor: ";
             if (it == 0) { mfem::out << "N/A"; }
@@ -124,7 +124,7 @@ struct CGMonitor : IterativeSolverMonitor
 
 void report_hypre_gpu_status(bool gpu_aware_mpi_requested);
 void report_env_vars();
-double verify_ess_bdr(const Vector &b, const Vector &x,
+real_t verify_ess_bdr(const Vector &b, const Vector &x,
                       const Array<int> &ess_tdof_list);
 
 template <typename T> void PrintPair(const string &name, T val)
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
    const char *mg_spec = "1";
    int q1d_inc = 0; // num 1D qpts = p + 1 + q1d_inc
    int smoothers_cheby_order = 1;
-   double epsy = 1.0, epsz = -1;
+   real_t epsy = 1.0, epsz = -1;
    int ref_par = 0;
    bool glvis = false;
    bool paraview = false;
@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
    if (Device::Allows(Backend::DEVICE_MASK)) { MFEM_STREAM_SYNC; }
    // make sure all ranks are done with all setup tasks:
    MPI_Barrier(MPI_COMM_WORLD);
-   const double t_setup = tic_toc.RealTime();
+   const real_t t_setup = tic_toc.RealTime();
 
    ParGridFunction x(&fes);
    x = 0.0;
@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
    Vector X, B;
    MG.FormFineLinearSystem(x, b, A, X, B);
 
-   const double l2_tol = 1e-8;
+   const real_t l2_tol = 1e-8;
    CGMonitor monitor(l2_tol);
 
    CGSolver cg(MPI_COMM_WORLD);
@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
 
    const int niter = cg.GetConverged() ? cg.GetNumIterations() : -1;
 
-   const double bdr_err = verify_ess_bdr(B, X, MG.GetFineEssentialTrueDofs());
+   const real_t bdr_err = verify_ess_bdr(B, X, MG.GetFineEssentialTrueDofs());
    if (Mpi::Root())
    {
       MFEM_VERIFY(bdr_err == 0.0, "Incorrect boundary values in solution!"
@@ -528,8 +528,8 @@ int main(int argc, char *argv[])
 
    ExactSolution exact_coeff(dim, rhs_n);
    // ExactGrad exact_grad_coeff(dim, rhs_n);
-   double L2_err = x.ComputeL2Error(exact_coeff);
-   // double grad_err = x.ComputeGradError(&exact_grad_coeff);
+   real_t L2_err = x.ComputeL2Error(exact_coeff);
+   // real_t grad_err = x.ComputeGradError(&exact_grad_coeff);
    if (Mpi::Root())
    {
       cout << "\nL2 Error: " << setprecision(10) << scientific
@@ -674,8 +674,8 @@ int main(int argc, char *argv[])
       cout << ',' << nx << ',' << ny << ',' << nz; // 6,7,8
       cout << ',' << order; // 9
       // DiffusionMultigrid::ConstructBilinearForm p+1+q1d_inc 1D points
-      double Q1D = order + 1 + q1d_inc;
-      cout << ',' << defaultfloat << Q1D; // 10 (note: written as double)
+      real_t Q1D = order + 1 + q1d_inc;
+      cout << ',' << defaultfloat << Q1D; // 10 (note: written as real_t)
       cout << ',' << scientific << epsy << ',' << epsz; // 11,12
       cout << ',' << ndof; // 13
       cout << ',' << niter; // 14
@@ -791,7 +791,7 @@ void report_env_vars()
    }
 }
 
-double verify_ess_bdr(const Vector &b, const Vector &x,
+real_t verify_ess_bdr(const Vector &b, const Vector &x,
                       const Array<int> &ess_tdof_list)
 {
    Vector d(ess_tdof_list.Size());
@@ -804,7 +804,8 @@ double verify_ess_bdr(const Vector &b, const Vector &x,
       const int ind = d_ess_ind[i];
       d_d[i] = -fabs(d_b[ind] - d_x[ind]);
    });
-   double d_max = -d.Min(); // max is not implemented on device
-   MPI_Allreduce(MPI_IN_PLACE, &d_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   real_t d_max = -d.Min(); // max is not implemented on device
+   MPI_Allreduce(MPI_IN_PLACE, &d_max, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 MPI_COMM_WORLD);
    return d_max;
 }

@@ -14,21 +14,24 @@
 
 #include "mfem.hpp"
 
+namespace mfem
+{
+
 // 1D transformation at the right boundary.
-double right(const double eps, const double x)
+real_t right(const real_t eps, const real_t x)
 {
    return (x <= 0.5) ? (2-eps) * x : 1 + eps*(x-1);
 }
 
 // 1D transformation at the left boundary
-double left(const double eps, const double x)
+real_t left(const real_t eps, const real_t x)
 {
    return 1-right(eps,1-x);
 }
 
 // Transition from a value of "a" for x=0, to a value of "b" for x=1. Smoothness
 // is controlled by the parameter "s", taking values 0, 1, or 2.
-double step(const double a, const double b, double x, int s)
+real_t step(const real_t a, const real_t b, real_t x, int s)
 {
    if (x <= 0) { return a; }
    if (x >= 1) { return b; }
@@ -50,14 +53,14 @@ double step(const double a, const double b, double x, int s)
 // ny, nz divisible by 2.
 //
 // The eps parameters are in (0, 1]. Uniform mesh is recovered for epsy=epsz=1.
-void kershaw(const double epsy, const double epsz, const int smoothness,
-             const double x, const double y, const double z,
-             double &X, double &Y, double &Z)
+void kershaw(const real_t epsy, const real_t epsz, const int smoothness,
+             const real_t x, const real_t y, const real_t z,
+             real_t &X, real_t &Y, real_t &Z)
 {
    X = x;
 
    int layer = x*6.0;
-   double lambda = (x-layer/6.0)*6;
+   real_t lambda = (x-layer/6.0)*6;
 
    // The x-range is split in 6 layers going from left-to-left, left-to-right,
    // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
@@ -87,20 +90,17 @@ void kershaw(const double epsy, const double epsz, const int smoothness,
    }
 }
 
-namespace mfem
-{
-
 struct KershawTransformation : VectorCoefficient
 {
-   double epsy, epsz;
+   real_t epsy, epsz;
    int dim, s;
-   KershawTransformation(int dim_, double epsy_, double epsz_, int s_=0)
+   KershawTransformation(int dim_, real_t epsy_, real_t epsz_, int s_=0)
       : VectorCoefficient(dim_), epsy(epsy_), epsz(epsz_), dim(dim_), s(s_) { }
    using VectorCoefficient::Eval;
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
-      double xyz[3];
+      real_t xyz[3];
       Vector transip(xyz, 3);
       T.Transform(ip, transip);
       if (dim == 1)
@@ -109,7 +109,7 @@ struct KershawTransformation : VectorCoefficient
       }
       else if (dim == 2)
       {
-         double z=0, zt;
+         real_t z=0, zt;
          kershaw(epsy, epsz, s, xyz[0], xyz[1], z, V[0], V[1], zt);
       }
       else // dim == 3
@@ -119,7 +119,7 @@ struct KershawTransformation : VectorCoefficient
    }
 };
 
-ParMesh CreateKershawMesh(int nx, int ny, int nz, double epsy, double epsz)
+ParMesh CreateKershawMesh(int nx, int ny, int nz, real_t epsy, real_t epsz)
 {
    const bool sfc_order = true;
    Mesh serial_mesh;
@@ -146,7 +146,7 @@ ParMesh CreateKershawMesh(int nx, int ny, int nz, double epsy, double epsz)
    return ParMesh(MPI_COMM_WORLD, serial_mesh);
 }
 
-ParMesh CreateKershawMesh(int n, double eps)
+ParMesh CreateKershawMesh(int n, real_t eps)
 {
    return CreateKershawMesh(n, n, n, eps, eps);
 }
