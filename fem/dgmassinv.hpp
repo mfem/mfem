@@ -14,6 +14,7 @@
 
 #include "../linalg/operator.hpp"
 #include "fespace.hpp"
+#include "kernel_dispatch.hpp"
 #include <memory>
 
 namespace mfem
@@ -109,6 +110,9 @@ public:
    /// extended lambda used in an mfem::forall kernel (nvcc limitation)
    template<int DIM, int D1D = 0, int Q1D = 0>
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
+
+   using CGKernelType = void(DGMassInverse::*)(const Vector &b_, Vector &u) const;
+   MFEM_REGISTER_KERNELS(CGKernels, CGKernelType, (int, int, int));
 };
 
 } // namespace mfem
