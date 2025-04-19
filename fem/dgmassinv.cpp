@@ -306,6 +306,8 @@ DGMassInvKernels::DGMassInvKernels()
    k::Specialization<3,6,7>::Add();
 }
 
+/// @cond Suppress_Doxygen_warnings
+
 template <int DIM, int D1D, int Q1D>
 DGMassInverse::CGKernelType DGMassInverse::CGKernels::Kernel()
 {
@@ -320,5 +322,7 @@ DGMassInverse::CGKernelType DGMassInverse::CGKernels::Fallback(
    else if (dim == 3) { return &DGMassInverse::DGMassCGIteration<3>; }
    else { MFEM_ABORT(""); }
 }
+
+/// @endcond
 
 } // namespace mfem
