@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
    //     discontinuous flux (L2) and a space for the smoothed flux.
    L2_FECollection flux_fec(order, dim);
    ParFiniteElementSpace flux_fes(pmesh, &flux_fec, sdim);
-   FiniteElementCollection *smooth_flux_fec = NULL;
+   const FiniteElementCollection *smooth_flux_fec = NULL;
    ParFiniteElementSpace *smooth_flux_fes = NULL;
    if (smooth_rt && dim > 1)
    {

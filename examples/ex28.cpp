@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor.
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   const FiniteElementCollection *fec = new H1_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl;

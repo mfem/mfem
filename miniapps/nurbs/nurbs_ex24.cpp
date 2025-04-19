@@ -130,8 +130,8 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use Nedelec or
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *trial_fec = nullptr;
-   FiniteElementCollection *test_fec = nullptr;
+   const FiniteElementCollection *trial_fec = nullptr;
+   const FiniteElementCollection *test_fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
    if (mesh->NURBSext && NURBS)
    {

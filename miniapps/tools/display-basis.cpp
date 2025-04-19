@@ -733,7 +733,7 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
       mesh->Transform(defCoef);
    }
 
-   FiniteElementCollection * FEC = NULL;
+   const FiniteElementCollection * FEC = NULL;
    switch (bType)
    {
       case 'h':

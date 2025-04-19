@@ -4491,7 +4491,8 @@ void FiniteElementSpace
    }
 }
 
-FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
+const FiniteElementCollection *FiniteElementSpace::Load(Mesh *m,
+                                                        std::istream &input)
 {
    string buff;
    int fes_format = 0, ord;
@@ -4515,7 +4516,8 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    getline(input, buff, ' '); // 'Ordering:'
    input >> ord;
 
-   NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
+   NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>
+                                  (r_fec);
    if (nurbs_fec) { nurbs_fec->SetDim(m->Dimension()); }
    NURBSExtension *nurbs_ext = NULL;
    if (fes_format == 90) // original format, v0.9

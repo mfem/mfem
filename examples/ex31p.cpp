@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
-   FiniteElementCollection *fec = NULL;
+   const FiniteElementCollection *fec = NULL;
    if (dim == 1)
    {
       fec = new ND_R1D_FECollection(order, dim);

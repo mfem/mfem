@@ -171,25 +171,26 @@ int main(int argc, char *argv[])
    };
 
    // L2 space for p
-   FiniteElementCollection *p_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *p_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *p_fes = new FiniteElementSpace(&mesh,p_fec);
 
    // Vector L2 space for u
-   FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec, dim);
 
    // H^1/2 space for p̂
-   FiniteElementCollection * hatp_fec = new H1_Trace_FECollection(order,dim);
+   const FiniteElementCollection * hatp_fec = new H1_Trace_FECollection(order,dim);
    FiniteElementSpace *hatp_fes = new FiniteElementSpace(&mesh,hatp_fec);
 
    // H^-1/2 space for û
-   FiniteElementCollection * hatu_fec = new RT_Trace_FECollection(order-1,dim);
+   const FiniteElementCollection * hatu_fec = new RT_Trace_FECollection(order-1,
+                                                                        dim);
    FiniteElementSpace *hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
 
    // testspace fe collections
    int test_order = order+delta_order;
-   FiniteElementCollection * q_fec = new H1_FECollection(test_order, dim);
-   FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
+   const FiniteElementCollection * q_fec = new H1_FECollection(test_order, dim);
+   const FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -202,7 +203,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negomeg(-omega);
 
    Array<FiniteElementSpace * > trial_fes;
-   Array<FiniteElementCollection * > test_fec;
+   Array<const FiniteElementCollection * > test_fec;
 
    trial_fes.Append(p_fes);
    trial_fes.Append(u_fes);
