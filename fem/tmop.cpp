@@ -496,12 +496,12 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
 }
 
 void TMOP_Combo_QualityMetric::
-ComputeBalancedWeights(const GridFunction &nodes,
-                       const TargetConstructor &tc, Vector &weights) const
+ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
+                       Vector &weights, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size();
    Vector averages;
-   ComputeAvgMetrics(nodes, tc, averages);
+   ComputeAvgMetrics(nodes, tc, averages, IntRule);
    weights.SetSize(m_cnt);
 
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
@@ -525,9 +525,9 @@ ComputeBalancedWeights(const GridFunction &nodes,
                "Error: sum should be 1 always: " << weights.Sum());
 }
 
-void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
-                                                 const TargetConstructor &tc,
-                                                 Vector &averages) const
+void TMOP_Combo_QualityMetric::
+ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
+                  Vector &averages, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
@@ -542,8 +542,9 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
    for (int e = 0; e < NE; e++)
    {
       const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
-      const IntegrationRule &ir = IntRules.Get(fe_pos.GetGeomType(),
-                                               2 * fe_pos.GetOrder());
+      const IntegrationRule &ir =(IntRule) ? *IntRule
+                                 /* */     : IntRules.Get(fe_pos.GetGeomType(),
+                                                          2*fe_pos.GetOrder());
       const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
 
       DenseMatrix dshape(dof, dim);
