@@ -22,6 +22,9 @@
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
 
+#include "kernel_dispatch.hpp"
+#include "fes_kernels.hpp"
+
 #include <limits>
 #include <list>
 
@@ -36,28 +39,54 @@ class ParDerefineMatrixOp : public Operator
 {
 public:
    ParFiniteElementSpace *fespace;
-   /// offsets into block_storage
+   /// offsets into block_storage for diagonal
    Array<int> block_offsets;
-   /// offsets into row_idcs
+   /// offsets into row_idcs for diagonal
    Array<int> block_row_idcs_offsets;
-   /// offsets into col_idcs
+   /// offsets into col_idcs for diagonal
    Array<int> block_col_idcs_offsets;
+
+   /// offsets into block_storage for off-diagonal
+   Array<int> off_diag_block_offsets;
+   /// offsets into row_idcs for off-diagonal
+   Array<int> block_off_diag_row_idcs_offsets;
+   /// virtual offsets into col_idcs for off-diagonal (compressed range storage
+   /// since re-ordering and sign change is handled by the sender)
+   Array<int> block_off_diag_col_idcs_offsets;
    /// mapping for row dofs, oob indicates the block row should be ignored.
    /// negative means the row data should be negated.
+   /// only for diagonal blocks
    Array<int> row_idcs;
    /// mapping for col dofs, negative means the col data should be negated.
+   /// only for diagonal blocks
    Array<int> col_idcs;
+
+   Array<int> pack_col_idcs;
+
+   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// negative means the row data should be negated.
+   /// only for off-diagonal blocks
+   Array<int> row_off_diag_idcs;
    Vector block_storage;
    int max_rows;
-   /// TODO: handle off-diagonals
-   mutable Vector xghost;
+
+   /// quasi Ordering::byNODES, broken into sections by ranks we need to send
+   /// the data to
+   mutable Vector xghost_send;
+   /// quasi Ordering::byNODES, broken into sections by ranks we received
+   /// the data from
+   mutable Vector xghost_recv;
+   /// how to permute/sign change values from our local x to send to other ranks
+   Array<int> send_permutations;
+   /// key: coarse rank to send data to
+   /// value: buffer offsets for our local x that needs to be sent
+   std::unordered_map<int, std::array<size_t, 2>> send_offsets;
    mutable std::vector<MPI_Request> requests;
 
    using MultKernelType = void (*)(const ParDerefineMatrixOp &, const Vector &,
                                    Vector &);
    /// template args: ordering, atomic
    MFEM_REGISTER_KERNELS(MultKernel, MultKernelType, (Ordering::Type, bool));
-   /// TODO: is MultTranspose needed?
 
    struct Kernels
    {
@@ -77,7 +106,7 @@ public:
       // DG needs atomic summation
       // TODO
       MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
-      // use this to prevent xghost from being re-purposed for subsequent Mult
+      // use this to prevent xghost* from being re-purposed for subsequent Mult
       // calls
       MFEM_DEVICE_SYNC;
    }
@@ -87,7 +116,6 @@ public:
       : Operator(fespace_.GetVSize(), old_ndofs * fespace_.GetVDim()),
         fespace(&fespace_)
    {
-      // TODO
       static Kernels kernels;
       constexpr int max_team_size = 256;
 
@@ -111,8 +139,9 @@ public:
       DenseMatrix localRVO; // for variable-order only
 
       DenseTensor localR[Geometry::NumGeom];
-      int total_rows = 0;
-      int total_cols = 0;
+      int diag_rows = 0;
+      int off_diag_rows = 0;
+      int diag_cols = 0;
       HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
                                 ? fespace->old_dof_offsets[0]
                                 : fespace->old_dof_offsets[MyRank];
@@ -132,10 +161,26 @@ public:
             return fespace->FEColl()->FiniteElementForGeometry(geom)->GetDof();
          }
       };
-      Array<int> dofs;
-      // identify dofs in x we need to send/receive
+      Array<int> dofs, old_dofs;
+      max_rows = 1;
+      // first pass:
+      // - determine memory block lengths
+      // - identify dofs in x we need to send/receive
+      // don't need to send the indices, fine rank will re-arrange x before
+      // transmitting the ghost data
+      // key: coarse rank to send to
+      // value: old dofs to send (with sign)
       std::map<int, std::vector<int>> to_send;
-      std::map<int, std::vector<int>> to_recv;
+      // key: coarse rank
+      // value: indices into dtrans.embeddings
+      std::map<int, std::vector<int>> od_ks;
+      int send_len = 0;
+      int recv_len = 0;
+      // size of block_storage, if fespace->IsVariableOrder()
+      // otherwise unused
+      int total_size = 0;
+      int num_diagonal_blocks = 0;
+      int num_offdiagonal_blocks = 0;
       for (int k = 0; k < dtrans.embeddings.Size(); ++k)
       {
          const Embedding &emb = dtrans.embeddings[k];
@@ -146,11 +191,12 @@ public:
          if (coarse_rank != MyRank && fine_rank == MyRank)
          {
             // this rank needs to send data in x to course_rank
-            old_elem_dof->GetRow(k, dofs);
-            auto &tmp = to_send[k];
-            for (int i = 0; i < dofs.Size(); ++i)
+            old_elem_dof->GetRow(k, old_dofs);
+            auto &tmp = to_send[coarse_rank];
+            send_len += old_dofs.Size();
+            for (int i = 0; i < old_dofs.Size(); ++i)
             {
-               tmp.emplace_back(dofs[i]);
+               tmp.emplace_back(old_dofs[i]);
             }
          }
          else if (coarse_rank == MyRank && fine_rank != MyRank)
@@ -159,12 +205,268 @@ public:
             MFEM_ASSERT(emb.parent >= 0, "");
             Geometry::Type geom =
                fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-            auto &tmp = to_recv[k];
-            tmp.resize(get_ldofs(k) + tmp.size());
+            auto ldofs = get_ldofs(k);
+            off_diag_rows += ldofs;
+            recv_len += ldofs;
+            od_ks[coarse_rank].emplace_back(k);
+            ++num_offdiagonal_blocks;
+            if (fespace->IsVariableOrder())
+            {
+               total_size += ldofs * ldofs;
+            }
+         }
+         else if (coarse_rank == MyRank && fine_rank == MyRank)
+         {
+            // diagonal
+            ++num_diagonal_blocks;
+            auto ldofs = get_ldofs(k);
+            diag_rows += ldofs;
+            diag_cols += ldofs;
+            if (fespace->IsVariableOrder())
+            {
+               const FiniteElement *fe = fespace->GetFE(emb.parent);
+               total_size += ldofs * ldofs;
+            }
          }
       }
-      // coalesced isend/irecv
-      requests.resize(to_send.size() + to_recv.size());
+      {
+         size_t csum = 0;
+         for (auto &tmp : to_send)
+         {
+            auto &v = send_offsets[tmp.first];
+            v[0] = csum;
+            v[1] += tmp.second.size();
+         }
+      }
+      // set sizes
+      row_idcs.SetSize(diag_rows);
+      row_idcs.HostWrite();
+      row_off_diag_idcs.SetSize(off_diag_rows);
+      row_off_diag_idcs.HostWrite();
+      col_idcs.SetSize(diag_cols);
+      col_idcs.HostWrite();
+      block_row_idcs_offsets.SetSize(num_diagonal_blocks + 1);
+      block_row_idcs_offsets.HostWrite();
+      block_col_idcs_offsets.SetSize(num_diagonal_blocks + 1);
+      block_col_idcs_offsets.HostWrite();
+      block_off_diag_row_idcs_offsets.SetSize(num_offdiagonal_blocks + 1);
+      block_off_diag_col_idcs_offsets.SetSize(num_offdiagonal_blocks + 1);
+      pack_col_idcs.SetSize(send_len);
+      xghost_send.SetSize(send_len * fespace->GetVDim());
+      xghost_recv.SetSize(recv_len * fespace->GetVDim());
+      send_permutations.SetSize(recv_len);
+      block_offsets.SetSize(num_diagonal_blocks);
+      block_offsets.HostWrite();
+      off_diag_block_offsets.SetSize(num_offdiagonal_blocks);
+      off_diag_block_offsets.HostWrite();
+      int geom_offsets[Geometry::NumGeom];
+      real_t *bs_ptr;
+
+      if (fespace->IsVariableOrder())
+      {
+         block_storage.SetSize(total_size);
+         bs_ptr = block_storage.HostWrite();
+         // compute block data later
+      }
+      else
+      {
+         // compression scheme:
+         // block_offsets is the start of each block, potentially repeated
+         // only need to store localR for used shapes
+         Mesh::GeometryList elem_geoms(*fespace->GetMesh());
+
+         int size = 0;
+         for (int i = 0; i < elem_geoms.Size(); ++i)
+         {
+            fespace->GetLocalDerefinementMatrices(elem_geoms[i],
+                                                  localR[elem_geoms[i]]);
+            geom_offsets[elem_geoms[i]] = size;
+            size += localR[elem_geoms[i]].TotalSize();
+         }
+         block_storage.SetSize(size);
+         bs_ptr = block_storage.HostWrite();
+         // copy blocks into block_storage
+         for (int i = 0; i < elem_geoms.Size(); ++i)
+         {
+            std::copy(localR[elem_geoms[i]].Data(),
+                      localR[elem_geoms[i]].Data() +
+                      localR[elem_geoms[i]].TotalSize(),
+                      bs_ptr);
+            bs_ptr += localR[elem_geoms[i]].TotalSize();
+         }
+      }
+
+      // second pass:
+      // - initialize buffers
+
+      {
+         auto ptr = send_permutations.HostWrite();
+         for (auto &v : to_send)
+         {
+            ptr = std::copy(v.second.begin(), v.second.end(), ptr);
+         }
+      }
+
+      block_row_idcs_offsets[0] = 0;
+      block_col_idcs_offsets[0] = 0;
+      block_off_diag_row_idcs_offsets[0] = 0;
+      block_off_diag_col_idcs_offsets[0] = 0;
+      Array<int> mark(fespace->GetNDofs());
+      mark = 0;
+      // key: index into dtrans.embeddings
+      // value: off-diagonal block offset, od_ridx
+      std::unordered_map<int, std::array<int, 2>> ks_map;
+      {
+         int od_ridx = 0;
+         for (auto &v1 : od_ks)
+         {
+            for (auto k : v1.second)
+            {
+               auto &tmp = ks_map[k];
+               tmp[0] = ks_map.size();
+               tmp[1] = od_ridx;
+               od_ridx += get_ldofs(k);
+            }
+         }
+      }
+      int diag_idx = 0;
+      int var_offset = 0;
+      int ridx = 0;
+      int cidx = 0;
+      // can't break this up into separate diagonals/off-diagonals loops because
+      // of mark
+      for (int k = 0; k < dtrans.embeddings.Size(); ++k)
+      {
+         const Embedding &emb = dtrans.embeddings[k];
+         int fine_rank = old_ranks[k];
+         int coarse_rank = (emb.parent < 0)
+                           ? (-1 - emb.parent)
+                           : old_pncmesh->ElementRank(emb.parent);
+         if (coarse_rank == MyRank)
+         {
+            // either diagonal or off-diagonal
+            Geometry::Type geom =
+               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+            if (fespace->IsVariableOrder())
+            {
+               const FiniteElement *fe = fespace->GetFE(emb.parent);
+               const DenseTensor &pmats = dtrans.point_matrices[geom];
+               const int ldof = fe->GetDof();
+
+               IsoparametricTransformation isotr;
+               isotr.SetIdentityTransformation(geom);
+
+               localRVO.SetSize(ldof, ldof);
+               isotr.SetPointMat(pmats(emb.matrix));
+               // Local restriction is size ldofxldof assuming that the parent
+               // and child are of same polynomial order.
+               fe->GetLocalRestriction(isotr, localRVO);
+               // copy block
+               auto s = localRVO.Height() * localRVO.Width();
+               std::copy(localRVO.Data(), localRVO.Data() + s, bs_ptr);
+               bs_ptr += s;
+            }
+            DenseMatrix &lR =
+               fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
+            max_rows = std::min(lR.Height(), max_rows);
+            auto size = lR.Height() * lR.Width();
+            fespace->elem_dof->GetRow(emb.parent, dofs);
+            if (fine_rank == MyRank)
+            {
+               // diagonal
+               old_elem_dof->GetRow(k, old_dofs);
+               MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
+                           "Parent and child must have same #dofs.");
+               block_row_idcs_offsets[diag_idx + 1] =
+                  block_row_idcs_offsets[diag_idx] + lR.Height();
+               block_col_idcs_offsets[diag_idx + 1] =
+                  block_col_idcs_offsets[diag_idx] + lR.Width();
+
+               if (fespace->IsVariableOrder())
+               {
+                  block_offsets[diag_idx] = var_offset;
+                  var_offset += size;
+               }
+               else
+               {
+                  block_offsets[diag_idx] =
+                     geom_offsets[geom] + size * emb.matrix;
+               }
+               for (int i = 0; i < lR.Height(); ++i, ++ridx)
+               {
+                  if (!std::isfinite(lR(i, 0)))
+                  {
+                     row_idcs[ridx] = Height();
+                     continue;
+                  }
+                  int r = dofs[i];
+                  int m = (r >= 0) ? r : (-1 - r);
+                  if (is_dg || !mark[m])
+                  {
+                     row_idcs[ridx] = r;
+                     mark[m] = 1;
+                  }
+                  else
+                  {
+                     row_idcs[ridx] = Height();
+                  }
+               }
+               for (int i = 0; i < lR.Width(); ++i, ++cidx)
+               {
+                  col_idcs[cidx] = old_dofs[i];
+               }
+               ++diag_idx;
+            }
+            else
+            {
+               // off-diagonal
+               auto& tmp = ks_map.at(k);
+               auto od_idx = tmp[0];
+               auto od_ridx = tmp[1];
+               block_off_diag_row_idcs_offsets[od_idx + 1] = lR.Height();
+               block_off_diag_col_idcs_offsets[od_idx + 1] = lR.Width();
+               if (fespace->IsVariableOrder())
+               {
+                  off_diag_block_offsets[od_idx] = var_offset;
+                  var_offset += size;
+               }
+               else
+               {
+                  block_offsets[od_idx] =
+                     geom_offsets[geom] + size * emb.matrix;
+               }
+               for (int i = 0; i < lR.Height(); ++i, ++od_ridx)
+               {
+                  if (!std::isfinite(lR(i, 0)))
+                  {
+                     row_off_diag_idcs[od_ridx] = Height();
+                     continue;
+                  }
+                  int r = dofs[i];
+                  int m = (r >= 0) ? r : (-1 - r);
+                  if (is_dg || !mark[m])
+                  {
+                     row_off_diag_idcs[ridx] = r;
+                     mark[m] = 1;
+                  }
+                  else
+                  {
+                     row_off_diag_idcs[ridx] = Height();
+                  }
+               }
+               ++od_idx;
+            }
+         }
+      }
+      // if not using GPU, set max_rows/max_cols to zero
+      if (!Device::Allows(Backend::DEVICE_MASK))
+      {
+         max_rows = 1;
+      }
+      else
+      {
+         max_rows = std::min(max_rows, max_team_size);
+      }
    }
 };
 
@@ -174,23 +476,27 @@ template <Ordering::Type Order, bool Atomic>
 static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
                            Vector &y)
 {
-   // TODO
-   // DerefineMatrixOpMultFunctor<Order, Atomic> func;
-   // func.xptr = x.Read();
-   // y.UseDevice();
-   // y = 0.;
-   // func.yptr = y.ReadWrite();
-   // func.bsptr = op.block_storage.Read();
-   // func.boptr = op.block_offsets.Read();
-   // func.brptr = op.block_row_idcs_offsets.Read();
-   // func.bcptr = op.block_col_idcs_offsets.Read();
-   // func.rptr = op.row_idcs.Read();
-   // func.cptr = op.col_idcs.Read();
-   // func.vdims = op.fespace->GetVDim();
-   // func.nblocks = op.block_offsets.Size();
-   // func.width = op.Width() / func.vdims;
-   // func.height = op.Height() / func.vdims;
-   // func.Run(op.max_rows);
+   // TODO initialize off-diagonal receive and send
+   // diagonal
+   DerefineMatrixOpMultFunctor<Order, Atomic> func;
+   func.xptr = x.Read();
+   y.UseDevice();
+   y = 0.;
+   func.yptr = y.ReadWrite();
+   func.bsptr = op.block_storage.Read();
+   func.boptr = op.block_offsets.Read();
+   func.brptr = op.block_row_idcs_offsets.Read();
+   func.bcptr = op.block_col_idcs_offsets.Read();
+   func.rptr = op.row_idcs.Read();
+   func.cptr = op.col_idcs.Read();
+   func.vdims = op.fespace->GetVDim();
+   func.nblocks = op.block_offsets.Size();
+   func.width = op.Width() / func.vdims;
+   func.height = op.Height() / func.vdims;
+   func.Run(op.max_rows);
+   // TODO wait for comm to finish
+   MPI_Waitall(op.requests.size(), op.requests.data(), MPI_STATUSES_IGNORE);
+   // TODO off-diagonal kernel
 }
 } // namespace internal
 
@@ -5132,7 +5438,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
-#if 1
+#if 0
             Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
                                                 old_elem_fos));
 #else

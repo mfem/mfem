@@ -18,168 +18,17 @@
 #include "ceed/interface/util.hpp"
 
 #include "kernel_dispatch.hpp"
+#include "fes_kernels.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
-
-#ifdef MFEM_USE_CUDA
-#include <cuda/atomic>
-#endif
 
 using namespace std;
 
 namespace mfem
 {
 /// \cond DO_NOT_DOCUMENT
-namespace internal
-{
-
-struct DerefineMatrixOpFunctorBase
-{
-   const real_t *xptr;
-   real_t *yptr;
-   /// block storage
-   const real_t *bsptr;
-   /// block offsets
-   const int *boptr;
-   /// block row idcs offsets
-   const int *brptr;
-   /// block col idcs offsets
-   const int *bcptr;
-   /// row idcs
-   const int *rptr;
-   /// col idcs
-   const int *cptr;
-
-   // number of blocks
-   int nblocks;
-   // number of components
-   int vdims;
-   /// overall operator height (for vdim = 1)
-   int height;
-   /// overall operator width (for vdim = 1)
-   int width;
-};
-
-template <Ordering::Type Order, bool Atomic>
-struct DerefineMatrixOpMultFunctor;
-
-template <bool Atomic>
-struct DerefineMatrixOpMultFunctor<Ordering::byNODES, Atomic>
-   : DerefineMatrixOpFunctorBase
-{
-   void MFEM_HOST_DEVICE operator()(int kidx) const
-   {
-      int k = kidx % nblocks;
-      int vdim = kidx / nblocks;
-
-      int block_height = brptr[k + 1] - brptr[k];
-      int block_width = bcptr[k + 1] - bcptr[k];
-      MFEM_FOREACH_THREAD(i, x, block_height)
-      {
-         int row = rptr[brptr[k] + i];
-         int rsign = 1;
-         if (row < 0)
-         {
-            row = -1 - row;
-            rsign = -1;
-         }
-         if (row < height)
-         {
-            // row not marked as unused
-            real_t sum = 0;
-            for (int j = 0; j < block_width; ++j)
-            {
-               int col = cptr[bcptr[k] + j];
-               int sign = rsign;
-               if (col < 0)
-               {
-                  col = -1 - col;
-                  sign *= -1;
-               }
-               sum += sign * bsptr[boptr[k] + i + j * block_height] *
-                      xptr[col + vdim * width];
-            }
-#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
-            if (Atomic)
-            {
-               atomicAdd(yptr + row + vdim * height, sum);
-            }
-            else
-#endif
-            {
-               yptr[row + vdim * height] += sum;
-            }
-         }
-      }
-   }
-
-   /// N is the max block row size (doesn't have to be a power of 2)
-   void Run(int N) const
-   {
-      forall_2D(nblocks * vdims, N, 1, *this);
-   }
-};
-
-template <bool Atomic>
-struct DerefineMatrixOpMultFunctor<Ordering::byVDIM, Atomic>
-   : DerefineMatrixOpFunctorBase
-{
-   void MFEM_HOST_DEVICE operator()(int kidx) const
-   {
-      int k = kidx % nblocks;
-      int vdim = kidx / nblocks;
-
-      int block_height = brptr[k + 1] - brptr[k];
-      int block_width = bcptr[k + 1] - bcptr[k];
-      MFEM_FOREACH_THREAD(i, x, block_height)
-      {
-         int row = rptr[brptr[k] + i];
-         int rsign = 1;
-         if (row < 0)
-         {
-            row = -1 - row;
-            rsign = -1;
-         }
-         if (row < height)
-         {
-            // row not marked as unused
-            real_t sum = 0;
-            for (int j = 0; j < block_width; ++j)
-            {
-               int col = cptr[bcptr[k] + j];
-               int sign = rsign;
-               if (col < 0)
-               {
-                  col = -1 - col;
-                  sign *= -1;
-               }
-               sum += sign * bsptr[boptr[k] + i + j * block_height] *
-                      xptr[vdim + col * vdims];
-            }
-#if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
-            if (Atomic)
-            {
-               atomicAdd(yptr + row + vdim * height, sum);
-            }
-            else
-#endif
-            {
-               yptr[vdim + row * vdims] += sum;
-            }
-         }
-      }
-   }
-
-   /// N is the max block row size (doesn't have to be a power of 2)
-   void Run(int N) const
-   {
-      forall_2D(nblocks * vdims, N, 1, *this);
-   }
-};
-
-} // namespace internal
 
 class DerefineMatrixOp : public Operator
 {
