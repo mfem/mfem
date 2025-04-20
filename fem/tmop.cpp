@@ -542,9 +542,9 @@ ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
    for (int e = 0; e < NE; e++)
    {
       const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
-      const IntegrationRule &ir =(IntRule) ? *IntRule
-                                 /* */     : IntRules.Get(fe_pos.GetGeomType(),
-                                                          2*fe_pos.GetOrder());
+      const IntegrationRule &ir = (IntRule) ? *IntRule
+                                  /* */     : IntRules.Get(fe_pos.GetGeomType(),
+                                                           2*fe_pos.GetOrder());
       const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
 
       DenseMatrix dshape(dof, dim);
