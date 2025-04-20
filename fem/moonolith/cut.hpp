@@ -12,7 +12,7 @@
 #ifndef MFEM_TRANSFER_CUT_HPP
 #define MFEM_TRANSFER_CUT_HPP
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MOONOLITH
 
