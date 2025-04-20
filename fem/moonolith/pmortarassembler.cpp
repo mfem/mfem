@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+
 #include "../../config/config.hpp"
 
+#ifdef MFEM_USE_MOONOLITH
 #ifdef MFEM_USE_MPI
 
 #include "pmortarassembler.hpp"
@@ -853,7 +855,8 @@ static void add_matrix(const Array<int> &destination_vdofs,
 
 std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
    const std::vector<moonolith::Integer> &destination_ranges,
-   HYPRE_BigInt *s_offsets, HYPRE_BigInt *m_offsets,
+   HYPRE_BigInt *s_offsets,
+   HYPRE_BigInt *m_offsets,
    moonolith::SparseMatrix<double> &mat_buffer)
 {
 
@@ -890,10 +893,9 @@ std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
 
 int order_multiplier(const Geometry::Type type, const int dim)
 {
-   return (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
-           type == Geometry::SEGMENT)
-          ? 1
-          : dim;
+   return
+      (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
+       type == Geometry::SEGMENT)? 1 : dim;
 }
 
 template <int Dimensions>
@@ -1308,3 +1310,4 @@ bool ParMortarAssembler::Update()
 } // namespace mfem
 
 #endif // MFEM_USE_MPI
+#endif // MFEM_USE_MOONOLITH

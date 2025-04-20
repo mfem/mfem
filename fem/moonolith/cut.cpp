@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_MOONOLITH
+
 #include "cut.hpp"
 
 #include "transferutils.hpp"
@@ -51,14 +53,15 @@ protected:
    {
       Point p;
 
-      for(int d = 0; d < Dim; ++d) {
+      for (int d = 0; d < Dim; ++d)
+      {
          p[d] = p_mfem[d];
       }
 
       moonolith::HPolytope<double, Dim> poly;
       poly.make(from());
 
-      if(!poly.contains(p, 1e-8)) return false;
+      if (!poly.contains(p, 1e-8)) { return false; }
 
       poly.make(to());
 
@@ -106,7 +109,8 @@ protected:
          auto &qp = ir[k];
          result.points[k][0] = qp.x;
          result.points[k][1] = qp.y;
-         if constexpr (Dim == 3) {
+         if constexpr (Dim == 3)
+         {
             result.points[k][12] = qp.z;
          }
 
@@ -238,7 +242,8 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       script.plot(to_, "\'r.\'");
       script.plot(physical_quadrature_.points, "\'*b\'");
 
-      std::cout << "measure(" << counter << "): " << moonolith::measure(physical_quadrature_) << "\n";
+      mfem::out << "measure(" << counter << "): " << moonolith::measure(
+                   physical_quadrature_) << "\n";
 
       script.save("out_" + std::to_string(counter++) + ".m");
    }
@@ -259,12 +264,15 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       *to_space.GetElementTransformation(to_elem_idx);
 
 
-   const bool from_is_linear = (from_type == Geometry::CUBE && from_trans.OrderW() <= 2) || from_trans.OrderW() <= 1;
-   const bool to_is_linear = (to_type == Geometry::CUBE && to_trans.OrderW() <= 2) || to_trans.OrderW() <= 1;
+   const bool from_is_linear = (from_type == Geometry::CUBE &&
+                                from_trans.OrderW() <= 2) || from_trans.OrderW() <= 1;
+   const bool to_is_linear = (to_type == Geometry::CUBE &&
+                              to_trans.OrderW() <= 2) || to_trans.OrderW() <= 1;
 
-   if(!from_is_linear || !to_is_linear) {
+   if (!from_is_linear || !to_is_linear)
+   {
       MFEM_ABORT("CutGeneric::BuildQuadrature() detected high-order element geometries."
-      "Moonolith only supports elements with affine faces.\n");
+                 "Moonolith only supports elements with affine faces.\n");
    }
 
    double from_measure = moonolith::measure(from_);
@@ -460,3 +468,5 @@ std::shared_ptr<Cut> NewCut(const int dim)
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH

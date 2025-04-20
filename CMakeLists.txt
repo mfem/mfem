@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.7.1)
+set(${PROJECT_NAME}_VERSION 4.8.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -388,6 +388,11 @@ if (MFEM_USE_GSLIB)
   find_package(GSLIB REQUIRED)
 endif()
 
+# HDF5
+if (MFEM_USE_HDF5)
+  find_package(HDF5 REQUIRED)
+endif()
+
 # NetCDF
 if (MFEM_USE_NETCDF)
   find_package(NetCDF REQUIRED)
@@ -569,7 +574,7 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ

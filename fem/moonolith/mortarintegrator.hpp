@@ -60,7 +60,7 @@ public:
    virtual ~MortarIntegrator() {}
 
    /*!
-    * @return an equivalent BilinearFormIntegrator 
+    * @return an equivalent BilinearFormIntegrator
     */
    virtual BilinearFormIntegrator * newBFormIntegrator() const = 0;
 };
