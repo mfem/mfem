@@ -276,10 +276,14 @@ void ArraysByName<T>::Load(std::istream &in)
       {
          // If no double quotes found locate set name using white space
          q1 = ArrayLine.find(' ');
-         ArrayName = ArrayLine.substr(0,q1-1);
+         ArrayName = ArrayLine.substr(0,q1);
       }
 
-      AttributeLine = ArrayLine.substr(q1+1);
+      if (q1 < ArrayLine.size()-1)
+      {
+
+         AttributeLine = ArrayLine.substr(q1+1);
+      }
 
       while (std::getline(in, ArrayLine))
       {
