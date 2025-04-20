@@ -217,6 +217,7 @@ public:
          }
          else if (coarse_rank == MyRank && fine_rank == MyRank)
          {
+            MFEM_ASSERT(emb.parent >= 0, "");
             // diagonal
             ++num_diagonal_blocks;
             auto ldofs = get_ldofs(k);
@@ -250,11 +251,13 @@ public:
       block_col_idcs_offsets.SetSize(num_diagonal_blocks + 1);
       block_col_idcs_offsets.HostWrite();
       block_off_diag_row_idcs_offsets.SetSize(num_offdiagonal_blocks + 1);
+      block_off_diag_row_idcs_offsets.HostWrite();
       block_off_diag_col_idcs_offsets.SetSize(num_offdiagonal_blocks + 1);
+      block_off_diag_col_idcs_offsets.HostWrite();
       pack_col_idcs.SetSize(send_len);
       xghost_send.SetSize(send_len * fespace->GetVDim());
       xghost_recv.SetSize(recv_len * fespace->GetVDim());
-      send_permutations.SetSize(recv_len);
+      send_permutations.SetSize(send_len);
       block_offsets.SetSize(num_diagonal_blocks);
       block_offsets.HostWrite();
       off_diag_block_offsets.SetSize(num_offdiagonal_blocks);
@@ -323,7 +326,7 @@ public:
             for (auto k : v1.second)
             {
                auto &tmp = ks_map[k];
-               tmp[0] = ks_map.size();
+               tmp[0] = ks_map.size() - 1;
                tmp[1] = od_ridx;
                od_ridx += get_ldofs(k);
             }
@@ -338,6 +341,10 @@ public:
       for (int k = 0; k < dtrans.embeddings.Size(); ++k)
       {
          const Embedding &emb = dtrans.embeddings[k];
+         if (emb.parent < 0)
+         {
+            continue;
+         }
          int fine_rank = old_ranks[k];
          int coarse_rank = (emb.parent < 0)
                            ? (-1 - emb.parent)
@@ -420,7 +427,7 @@ public:
             else
             {
                // off-diagonal
-               auto& tmp = ks_map.at(k);
+               auto &tmp = ks_map.at(k);
                auto od_idx = tmp[0];
                auto od_ridx = tmp[1];
                block_off_diag_row_idcs_offsets[od_idx + 1] = lR.Height();
@@ -432,7 +439,7 @@ public:
                }
                else
                {
-                  block_offsets[od_idx] =
+                  off_diag_block_offsets[od_idx] =
                      geom_offsets[geom] + size * emb.matrix;
                }
                for (int i = 0; i < lR.Height(); ++i, ++od_ridx)
@@ -446,12 +453,12 @@ public:
                   int m = (r >= 0) ? r : (-1 - r);
                   if (is_dg || !mark[m])
                   {
-                     row_off_diag_idcs[ridx] = r;
+                     row_off_diag_idcs[od_ridx] = r;
                      mark[m] = 1;
                   }
                   else
                   {
-                     row_off_diag_idcs[ridx] = Height();
+                     row_off_diag_idcs[od_ridx] = Height();
                   }
                }
                ++od_idx;
@@ -477,6 +484,7 @@ static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
                            Vector &y)
 {
    // TODO initialize off-diagonal receive and send
+   op.requests.clear();
    // diagonal
    DerefineMatrixOpMultFunctor<Order, Atomic> func;
    func.xptr = x.Read();
@@ -494,8 +502,11 @@ static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
    func.width = op.Width() / func.vdims;
    func.height = op.Height() / func.vdims;
    func.Run(op.max_rows);
-   // TODO wait for comm to finish
-   MPI_Waitall(op.requests.size(), op.requests.data(), MPI_STATUSES_IGNORE);
+   // wait for comm to finish
+   if (op.requests.size())
+   {
+      MPI_Waitall(op.requests.size(), op.requests.data(), MPI_STATUSES_IGNORE);
+   }
    // TODO off-diagonal kernel
 }
 } // namespace internal
