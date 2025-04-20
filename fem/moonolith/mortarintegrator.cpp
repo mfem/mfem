@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_MOONOLITH
+
 #include "mortarintegrator.hpp"
 
 namespace mfem
@@ -217,13 +219,14 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
 BilinearFormIntegrator * VectorL2MortarIntegrator::newBFormIntegrator() const { return new VectorFEMassIntegrator(); }
 
 
-void LagrangeVectorL2MortarIntegrator::AssembleElementMatrix(const FiniteElement &trial,
-                              const IntegrationRule &trial_ir,
-                              ElementTransformation &trial_Trans,
-                              const FiniteElement &test,
-                              const IntegrationRule &test_ir,
-                              ElementTransformation &test_Trans,
-                              DenseMatrix &elmat)
+void LagrangeVectorL2MortarIntegrator::AssembleElementMatrix(
+   const FiniteElement &trial,
+   const IntegrationRule &trial_ir,
+   ElementTransformation &trial_Trans,
+   const FiniteElement &test,
+   const IntegrationRule &test_ir,
+   ElementTransformation &test_Trans,
+   DenseMatrix &elmat)
 {
    int tr_nd = trial.GetDof();
    int te_nd = test.GetDof();
@@ -300,6 +303,9 @@ void LagrangeVectorL2MortarIntegrator::AssembleElementMatrix(const FiniteElement
    }
 }
 
-BilinearFormIntegrator * LagrangeVectorL2MortarIntegrator::newBFormIntegrator() const { return new VectorMassIntegrator(); }
+BilinearFormIntegrator * LagrangeVectorL2MortarIntegrator::newBFormIntegrator()
+const { return new VectorMassIntegrator(); }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH
