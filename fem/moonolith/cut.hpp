@@ -12,6 +12,10 @@
 #ifndef MFEM_TRANSFER_CUT_HPP
 #define MFEM_TRANSFER_CUT_HPP
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
+
 #include "../fem.hpp"
 #include <memory>
 
@@ -75,4 +79,5 @@ std::shared_ptr<Cut> NewCut(const int dim);
 
 } // namespace mfem
 
+#endif // MFEM_USE_MOONOLITH
 #endif // MFEM_TRANSFER_CUT_HPP

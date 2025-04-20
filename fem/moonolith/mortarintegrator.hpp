@@ -12,6 +12,10 @@
 #ifndef MFEML2_MORTAR_INTEGRATOR_HPP
 #define MFEML2_MORTAR_INTEGRATOR_HPP
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
+
 #include "../fem.hpp"
 
 namespace mfem
@@ -180,4 +184,5 @@ private:
 
 } // namespace mfem
 
+#endif // MFEM_USE_MOONOLITH
 #endif // MFEML2_MORTAR_INTEGRATOR_HPP
