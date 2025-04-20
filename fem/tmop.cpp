@@ -3785,7 +3785,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for gradient on background mesh
    MFEM_VERIFY(s_bg_grad.ParFESpace()->GetOrdering() ==
                s0_grad.ParFESpace()->GetOrdering(),
-               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "Nodal ordering for grid function on source mesh and current mesh"
                "should be the same.");
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
@@ -3800,7 +3800,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for Hessian on background mesh
    MFEM_VERIFY(s_bg_hess.ParFESpace()->GetOrdering() ==
                s0_hess.ParFESpace()->GetOrdering(),
-               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "Nodal ordering for grid function on source mesh and current mesh"
                "should be the same.");
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);

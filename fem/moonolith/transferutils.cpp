@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_MOONOLITH
+
 #include "transferutils.hpp"
 #include <assert.h>
 
@@ -154,3 +156,5 @@ double Sum(const DenseMatrix &mat)
 } // namespace internal
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH

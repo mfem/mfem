@@ -145,6 +145,7 @@ MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
 MFEM_USE_GNUTLS        = NO
+MFEM_USE_HDF5          = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
@@ -401,9 +402,14 @@ MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
 GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
+# HDF5 library configuration
+HDF5_DIR   = $(HOME)/local
+HDF5_OPT = -I$(HDF5_DIR)/include
+HDF5_LIB = $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5 \
+           $(ZLIB_LIB)
+
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
-HDF5_DIR   = $(HOME)/local
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
@@ -484,8 +490,8 @@ SIDRE_LIB = \
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
 PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
-PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
-   -llion -lmth -lapf_zoltan -lspr
+PUMI_LIB = -L$(PUMI_DIR)/lib64 -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf\
+   -lpcu -lgmi -lparma -llion -lmth -lapf_zoltan -lspr
 
 # HIOP
 HIOP_DIR = @MFEM_DIR@/../hiop/install
