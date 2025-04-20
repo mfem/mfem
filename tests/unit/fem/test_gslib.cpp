@@ -548,7 +548,7 @@ TEST_CASE("GSLIBGSOP", "[GSLIBGSOP][Parallel][GSLIB]")
    if (myid != 0) { vals.Randomize(); }
    gs.GS(vals, GSOPGSLIB::GSOp::MUL);
 
-   // Check for multipled values to be negative
+   // Check for multiplied values to be negative
    for (int i = 0; i < nlen; i++)
    {
       REQUIRE(vals(i) < 0);
