@@ -280,29 +280,31 @@ void ArraysByName<T>::Load(std::istream &in)
       }
 
       AttributeLine = ArrayLine.substr(q1+1);
-      
-      while (std::getline(in, ArrayLine)) {
+
+      while (std::getline(in, ArrayLine))
+      {
          // save position after reading so we can rewind
-         std::streampos const pos = in.tellg(); 
+         std::streampos const pos = in.tellg();
 
          std::istringstream iss(ArrayLine);
          int x;
-   
+
          // check if line contains only integers
          while (iss >> x);
 
          // rewind to start of the line if we find non-attribute data
-         if (!iss.eof()) {
+         if (!iss.eof())
+         {
 
             in.clear();
             in.seekg(pos - std::streamoff(ArrayLine.size() + 1));
-              
+
             break;
          }
 
          AttributeLine += " " + ArrayLine;
       }
-  
+
       std::istringstream iss(AttributeLine);
       data[ArrayName].Load(iss, 0);
    }
