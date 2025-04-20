@@ -41,8 +41,10 @@ attribute_sets
 17
 "N Even" 1 10
 "N Odd" 1 11
-"North" 2 10 11
-"Rose" 8 10 11 12 13 14 15 16 17
+"North" 2 10     11
+"Rose" 8 10 11     12
+13    14 
+15    16     17
 "Rose Even" 4
 10
 12
