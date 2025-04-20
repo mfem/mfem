@@ -12,7 +12,7 @@
 #ifndef MFEM_L2P_MESH_UTILS_HPP
 #define MFEM_L2P_MESH_UTILS_HPP
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MOONOLITH
 

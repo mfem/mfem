@@ -12,7 +12,7 @@
 #ifndef MFEML2_MORTAR_INTEGRATOR_HPP
 #define MFEML2_MORTAR_INTEGRATOR_HPP
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MOONOLITH
 
