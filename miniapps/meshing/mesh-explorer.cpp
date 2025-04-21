@@ -608,12 +608,110 @@ int main (int argc, char *argv[])
          char type;
          cout << "Choose a transformation:\n"
               "u) User-defined transform through mesh-explorer::transformation()\n"
+              "a) Affine transform\n"
               "k) Kershaw transform\n"
               "s) Spiral transform\n"<< "---> " << flush;
          cin >> type;
          if (type == 'u')
          {
             mesh->Transform(transformation);
+         }
+         else if (type == 'a')
+         {
+            const int sdim = mesh->SpaceDimension();
+            DenseMatrix A(sdim);
+            Vector b(sdim);
+
+            char type;
+            cout << "Type of transformation matrix:\n"
+                 "i) Identity\n"
+                 "r) Rotation\n"
+                 "s) Scale\n"
+                 "g) General\n" << " ---> " << flush;
+            cin >> type;
+
+            if (type == 'i')
+            {
+               A = 0.0;
+               A(0,0) = 1.0;
+               if (sdim > 1) { A(1,1) = 1.0; }
+               if (sdim > 2) { A(2,2) = 1.0; }
+            }
+            if (type == 'r')
+            {
+               if (sdim == 2)
+               {
+                  real_t angle_deg;
+                  cout << "Rotation angle (degrees) --> " << flush;
+                  cin >> angle_deg;
+                  const real_t angle = angle_deg * M_PI / 180.0;
+                  A(0,0) = cos(angle);
+                  A(1,0) = sin(angle);
+                  A(0,1) = -A(1,0);
+                  A(1,1) =  A(0,0);
+               }
+               else
+               {
+                  real_t a_deg, b_deg, c_deg;
+                  cout << "Euler angles z-x-z (degrees) --> " << flush;
+                  cin >> a_deg >> b_deg >> c_deg;
+
+                  const real_t alpha = a_deg * M_PI / 180.0;
+                  const real_t beta  = b_deg * M_PI / 180.0;
+                  const real_t gamma = c_deg * M_PI / 180.0;
+
+                  const real_t ca = cos(alpha), sa = sin(alpha);
+                  const real_t cb = cos(beta ), sb = sin(beta );
+                  const real_t cc = cos(gamma), sc = sin(gamma);
+
+                  A(0,0) = ca * cc - cb * sa * sc;
+                  A(0,1) = -ca * sc - cb * cc * sa;
+                  A(0,2) = sa * sb;
+
+                  A(1,0) = cc * sa + ca * cb * sc;
+                  A(1,1) = ca * cb * cc - sa * sc;
+                  A(1,2) = -ca * sb;
+
+                  A(2,0) = sb * sc;
+                  A(2,1) = cc * sb;
+                  A(2,2) = cb;
+               }
+            }
+            if (type == 's')
+            {
+               A = 0.0;
+               cout << "Scale factors for each cartesian direction --> "
+                    << flush;
+               cin >> A(0,0);
+               if (sdim > 1) { cin >> A(1,1); }
+               if (sdim > 2) { cin >> A(2,2); }
+            }
+            if (type == 'g')
+            {
+               cout << "General matrix entries in column major order --> "
+                    << flush;
+               for (int j=0; j<sdim; j++)
+                  for (int i=0; i<sdim; i++)
+                  {
+                     cin >> A(i,j);
+                  }
+
+               const real_t detA = A.Det();
+               if (detA <= 0.0)
+               {
+                  cout << "Warning - transformation matrix has non-positive "
+                       << "determinant. Elements may be flattened or "
+                       << "inverted.\n";
+               }
+            }
+
+            cout << "Translation vector components --> " << flush;
+            cin >> b(0);
+            if (sdim > 1) { cin >> b(1); }
+            if (sdim > 2) { cin >> b(2); }
+
+            common::AffineTransformation affineT(sdim, A, b);
+            mesh->Transform(affineT);
          }
          else if (type == 'k')
          {
