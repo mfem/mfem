@@ -1133,6 +1133,8 @@ public:
          snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
          snes->SetOperator(*residual);
          snes->SetRelTol(nonlinear_relative_tolerance);
+         // ATTENTION:
+         // If we use global LU, this should be `Operator::PETSC_MATAIJ` !!!
          snes->SetJacobianType(Operator::PETSC_MATNEST);
       }
 
