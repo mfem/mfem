@@ -31,10 +31,10 @@ if (METIS_FETCH OR FETCH_TPLS)
     GIT_SHALLOW TRUE
     UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
-    CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3-mac.tgz --strip=1
+    CONFIGURE_COMMAND tar -xzf ../metis/metis-${METIS_FETCH_VERSION}-mac.tgz --strip=1
     INSTALL_COMMAND mkdir -p ${PREFIX}/lib && cp libmetis.a ${PREFIX}/lib/)
   # set imported library target properties
-  add_dependencies(METIS metis metis-install)
+  add_dependencies(METIS metis)
   set_target_properties(METIS PROPERTIES
     IMPORTED_LOCATION ${PREFIX}/lib/libmetis.a)
   # set cache variables that would otherwise be set after mfem_find_package call

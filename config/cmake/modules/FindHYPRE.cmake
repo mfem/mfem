@@ -32,7 +32,7 @@ if (HYPRE_FOUND OR TARGET HYPRE)
 endif()
 
 if (HYPRE_FETCH OR FETCH_TPLS)
-  set(HYPRE_FETCH_VERSION 2.32.0)
+  set(HYPRE_FETCH_VERSION 2.33.0)
   add_library(HYPRE STATIC IMPORTED)
   # set options and associated dependencies
   set(CMAKE_OPTIONS)
@@ -65,7 +65,7 @@ if (HYPRE_FETCH OR FETCH_TPLS)
     CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} -DCMAKE_INSTALL_LIBDIR:PATH=lib ${CMAKE_OPTIONS})
   file(MAKE_DIRECTORY ${PREFIX}/include)
   # set imported library target properties
-  add_dependencies(HYPRE hypre hypre-install)
+  add_dependencies(HYPRE hypre)
   set_target_properties(HYPRE PROPERTIES
     IMPORTED_LOCATION ${PREFIX}/lib/libHYPRE.a
     INTERFACE_INCLUDE_DIRECTORIES ${PREFIX}/include)
