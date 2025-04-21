@@ -38,7 +38,7 @@ struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, true>
 
    int MFEM_HOST_DEVICE Col(int j, int k) const { return cptr[bcptr[k] + j]; }
 
-   int MFEM_HOST_DEVICE IndexX(int col, int vdim) const
+   int MFEM_HOST_DEVICE IndexX(int col, int vdim, int) const
    {
       return col + vdim * static_cast<const Base *>(this)->width;
    }
@@ -63,9 +63,73 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, true>
 
    int MFEM_HOST_DEVICE Col(int j, int k) const { return cptr[bcptr[k] + j]; }
 
-   int MFEM_HOST_DEVICE IndexX(int col, int vdim) const
+   int MFEM_HOST_DEVICE IndexX(int col, int vdim, int) const
    {
       return vdim + col * static_cast<const Base *>(this)->vdims;
+   }
+   int MFEM_HOST_DEVICE IndexY(int row, int vdim) const
+   {
+      return vdim + row * static_cast<const Base *>(this)->vdims;
+   }
+};
+
+template <class Base>
+struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, false>
+{
+   const int* segptr;
+   const int *rsptr;
+
+   const int *coptr;
+   const int *bwptr;
+
+   int MFEM_HOST_DEVICE BlockWidth(int k) const
+   {
+      return bwptr[k];
+   }
+
+   int MFEM_HOST_DEVICE Col(int j, int k) const
+   {
+      return coptr[k] + j;
+   }
+
+   int MFEM_HOST_DEVICE IndexX(int col, int vdim, int k) const
+   {
+      int tmp = rsptr[k];
+      int segwidth = segptr[tmp + 1] - segptr[tmp];
+      return segptr[tmp] * static_cast<const Base *>(this)->vdims + col +
+             vdim * segwidth;
+   }
+   int MFEM_HOST_DEVICE IndexY(int row, int vdim) const
+   {
+      return row + vdim * static_cast<const Base *>(this)->height;
+   }
+};
+
+template <class Base>
+struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, false>
+{
+   const int* segptr;
+   const int *rsptr;
+
+   const int *coptr;
+   const int *bwptr;
+
+   int MFEM_HOST_DEVICE BlockWidth(int k) const
+   {
+      return bwptr[k];
+   }
+
+   int MFEM_HOST_DEVICE Col(int j, int k) const
+   {
+      return coptr[k] + j;
+   }
+
+   int MFEM_HOST_DEVICE IndexX(int col, int vdim, int k) const
+   {
+      int tmp = rsptr[k];
+      int segwidth = segptr[tmp + 1] - segptr[tmp];
+      return segptr[tmp] * static_cast<const Base *>(this)->vdims + col +
+             vdim * segwidth;
    }
    int MFEM_HOST_DEVICE IndexY(int row, int vdim) const
    {
@@ -130,7 +194,7 @@ struct DerefineMatrixOpMultFunctor
                   sign *= -1;
                }
                sum += sign * bsptr[boptr[k] + i + j * block_height] *
-                      xptr[this->IndexX(col, vdim)];
+                      xptr[this->IndexX(col, vdim, k)];
             }
 #if defined(__CUDA_ARCH__) or defined(__HIP_DEVICE_COMPILE__)
             if (Atomic)

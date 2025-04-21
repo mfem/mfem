@@ -107,7 +107,6 @@ public:
       bool is_dg = fespace->FEColl()->GetContType() ==
                    FiniteElementCollection::DISCONTINUOUS;
       // DG needs atomic summation
-      // TODO
       MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
       // use this to prevent xghost* from being re-purposed for subsequent Mult
       // calls
@@ -531,8 +530,8 @@ public:
 namespace internal
 {
 template <Ordering::Type Order, bool Atomic>
-static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
-                           Vector &y)
+static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
+                                   const Vector &x, Vector &y)
 {
    // pack sends
    if (op.xghost_send.Size())
@@ -565,6 +564,7 @@ static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
          }
       });
       // TODO: is this needed so we can send the packed data correctly?
+      // unclear for GPU-aware MPI, definitely required otherwise
       MFEM_DEVICE_SYNC;
    }
    // initialize off-diagonal receive and send
@@ -600,7 +600,7 @@ static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
    }
    {
       // diagonal
-      DerefineMatrixOpMultFunctor<Order, Atomic> func;
+      DerefineMatrixOpMultFunctor<Order, Atomic, true> func;
       func.xptr = x.Read();
       y.UseDevice();
       y = 0.;
@@ -621,7 +621,28 @@ static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
    if (op.requests.size())
    {
       MPI_Waitall(op.requests.size(), op.requests.data(), MPI_STATUSES_IGNORE);
-      // TODO off-diagonal kernel
+      if (op.xghost_recv.Size())
+      {
+         // off-diagonal kernel
+         DerefineMatrixOpMultFunctor<Order, Atomic, false> func;
+         // directly read from host-pinned memory if not using GPU-aware MPI
+         func.xptr = Device::GetGPUAwareMPI() ? op.xghost_recv.Read()
+                     : op.xghost_recv.HostRead();
+         func.yptr = y.ReadWrite();
+         func.bsptr = op.block_storage.Read();
+         func.boptr = op.off_diag_block_offsets.Read();
+         func.brptr = op.block_off_diag_row_idcs_offsets.Read();
+         func.rsptr = op.recv_segment_idcs.Read();
+         func.segptr = op.recv_segments.Read();
+         func.coptr = op.block_off_diag_col_offsets.Read();
+         func.bwptr = op.block_off_diag_widths.Read();
+         func.rptr = op.row_off_diag_idcs.Read();
+         func.vdims = op.fespace->GetVDim();
+         func.nblocks = op.off_diag_block_offsets.Size();
+         func.width = op.Width() / func.vdims;
+         func.height = op.Height() / func.vdims;
+         func.Run(op.max_rows);
+      }
    }
 }
 } // namespace internal
@@ -630,7 +651,7 @@ static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
 template <Ordering::Type Order, bool Atomic>
 ParDerefineMatrixOp::MultKernelType ParDerefineMatrixOp::MultKernel::Kernel()
 {
-   return internal::MultKernelImpl<Order, Atomic>;
+   return internal::ParDerefMultKernelImpl<Order, Atomic>;
 }
 
 ParDerefineMatrixOp::MultKernelType
