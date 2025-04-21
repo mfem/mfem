@@ -3022,12 +3022,14 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
-
    surf_fit_gf_bg = true;
    surf_fit_eval->SetParMetaInfo(*s_bg.ParFESpace()->GetParMesh(),
                                  *s_bg.ParFESpace());
    surf_fit_eval->SetInitialField
    (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+   GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
+   surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
+                                       nodes->FESpace()->GetOrdering());
 
    // Setup for gradient on background mesh
    MFEM_VERIFY(s_bg_grad.ParFESpace()->GetOrdering() ==
@@ -3293,11 +3295,12 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
+         double w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                    1.0 / surf_fit_dof_count[scalar_dof_id];
 
          if (surf_fit_gf)
          {
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      sigma_e(s) * sigma_e(s);
+            energy += w * sigma_e(s) * sigma_e(s);
          }
          if (surf_fit_pos)
          {
@@ -3308,8 +3311,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                pos(d) = PMatI(s, d);
                pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
             }
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      surf_fit_limiter->Eval(pos, pos_target, 1.0);
+            energy += w * surf_fit_limiter->Eval(pos, pos_target, 1.0);
          }
       }
    }

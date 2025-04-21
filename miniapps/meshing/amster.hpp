@@ -548,10 +548,12 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x, bool vis = false)
       solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
    const int order = pfes.GetFE(0)->GetOrder();
    double min_detJ = MinDetJ(pmesh, quad_order);
+   double init_energy = nlf->GetParGridFunctionEnergy(x);
    if (myid == 0)
    {
       cout << "\n*** Optimizing Order " << order << " ***\n\n";
       cout << "Min detJ before opt: " << min_detJ << endl;
+      cout << "Energy before opt: " << init_energy << endl;
    }
 
    // Optimize.
