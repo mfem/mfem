@@ -257,12 +257,15 @@ void ArraysByName<T>::Load(std::istream &in)
 {
    int NumArrays;
    in >> NumArrays;
+   in >> std::ws;
 
-   std::string ArrayLine, ArrayName, AttributeLine;
+
    for (int i=0; i < NumArrays; i++)
    {
-      in >> std::ws;
-      getline(in, ArrayLine);
+      std::string ArrayLine, ArrayName, AttributeLine;
+
+      std::getline(in, ArrayLine);
+
 
       std::size_t q0 = ArrayLine.find('"');
       std::size_t q1 = ArrayLine.rfind('"');
@@ -285,23 +288,56 @@ void ArraysByName<T>::Load(std::istream &in)
          AttributeLine = ArrayLine.substr(q1+1);
       }
 
-      while (std::getline(in, ArrayLine))
+
+      // As seek might not be available in all streams, we need to track the number
+      // of attributes read so far to determine when parsing is done.
+      int expected_number_attributes = -1;
+      int read_attributes = 0;
+
+      if (!AttributeLine.empty())
       {
-         // save position after reading so we can rewind
-         std::streampos const pos = in.tellg();
+         std::istringstream iss(AttributeLine);
+         iss >> expected_number_attributes;
+
+         int x;
+         while (iss >> x)
+         {
+            read_attributes++;
+         }
+      }
+
+      while (true)
+      {
+
+         if (read_attributes == expected_number_attributes)
+         {
+            break;
+         }
+
+
+
+         if (!std::getline(in, ArrayLine))
+         {
+            break;
+         }
 
          std::istringstream iss(ArrayLine);
+
          int x;
 
-         // check if line contains only integers
-         while (iss >> x);
-
-         // rewind to start of the line if we find non-attribute data
-         if (!iss.eof())
+         if (expected_number_attributes == -1)
          {
+            iss >> expected_number_attributes;
+         }
 
-            in.clear();
-            in.seekg(pos - std::streamoff(ArrayLine.size() + 1));
+
+         while (iss >> x)
+         {
+            read_attributes++;
+         }
+
+         if (!iss.eof() && iss.fail())
+         {
 
             break;
          }
