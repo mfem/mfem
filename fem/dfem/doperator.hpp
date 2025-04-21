@@ -35,9 +35,28 @@ using restriction_callback_t =
                       const std::vector<Vector> &,
                       std::vector<Vector> &)>;
 
+/// Class representing the derivative (Jacobian) operator of a
+/// DifferentiableOperator.
+///
+/// This class implements a derivative operator that computes directional
+/// derivatives for a given set of solution and parameter fields. It supports
+/// both forward and transpose operations, as well as assembly into sparse
+/// matrices.
+///
+/// @note The derivative operator uses only forward mode differentiation in Mult
+/// and MultTranspose. It does not support reverse mode differentiation. The
+/// MultTranspose operation is achieved by using the transpose of the derivative
+/// actions on each quadrature point.
+///
+/// @see DifferentiableOperator
 class DerivativeOperator : public Operator
 {
 public:
+   /// Constructor for the DerivativeOperator class.
+   ///
+   /// This is usually not called directly from a user. A DifferentiableOperator
+   /// calls this constructor when using
+   /// DifferentiableOperator::GetDerivative().
    DerivativeOperator(
       const int &height,
       const int &width,
@@ -81,7 +100,13 @@ public:
       restriction_callback(s_l, p_l, fields_e);
    }
 
-   void Mult(const Vector &direction_t, Vector &y) const override
+   /// @brief Compute the action of the derivative operator on a given vector.
+   ///
+   /// @param direction_t The direction vector in which to compute the
+   /// derivative. This has to be a T-dof vector.
+   /// @param result_t Result vector of the action of the derivative on
+   /// direction_t on T-dofs.
+   void Mult(const Vector &direction_t, Vector &result_t) const override
    {
       daction_l.SetSize(daction_l_size);
       daction_l = 0.0;
@@ -91,10 +116,21 @@ public:
       {
          derivative_actions[i](fields_e, direction_l, daction_l);
       }
-      prolongation_transpose(daction_l, y);
+      prolongation_transpose(daction_l, result_t);
    };
 
-   void MultTranspose(const Vector &direction_t, Vector &y) const override
+   /// @brief Compute the transpose of the derivative operator on a given
+   /// vector.
+   ///
+   /// This function computes the transpose of the derivative operator on a
+   /// given vector by transposing the quadrature point local forward derivative
+   /// action. It does not use reverse mode automatic differentiation.
+   ///
+   /// @param direction_t The direction vector in which to compute the
+   /// derivative. This has to be a T-dof vector.
+   /// @param result_t Result vector of the transpose action of the derivative on
+   /// direction_t on T-dofs.
+   void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
       daction_l.SetSize(width);
       daction_l = 0.0;
@@ -104,9 +140,13 @@ public:
       {
          derivative_actions_transpose[i](fields_e, direction_l, daction_l);
       }
-      prolongation_transpose(daction_l, y);
+      prolongation_transpose(daction_l, result_t);
    };
 
+   /// @brief Assemble the derivative operator into a HypreParMatrix.
+   ///
+   /// @param A The HypreParMatrix to assemble the derivative operator into. Can
+   /// be an uninitialized object.
    void Assemble(HypreParMatrix &A)
    {
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
@@ -119,15 +159,27 @@ public:
    }
 
 private:
+   /// Derivative action callbacks. Depending on the requested derivatives in
+   /// DifferentiableOperator the callbacks represent certain combinations of
+   /// actions of derivatives of the forward operator.
    std::vector<derivative_action_t> derivative_actions;
+
    FieldDescriptor direction;
+
    mutable Vector daction_l;
+
    const int daction_l_size;
 
+   /// Transpose Derivative action callbacks. Depending on the requested
+   /// derivatives in DifferentiableOperator the callbacks represent certain
+   /// combinations of actions of derivatives of the forward operator.
    std::vector<derivative_action_t> derivative_actions_transpose;
+
    FieldDescriptor transpose_direction;
+
    mutable Vector daction_transpose_l;
 
+   /// Callbacks that assemble derivatives into a HypreParMatrix.
    std::vector<assemble_derivative_hypreparmatrix_callback_t>
    assemble_derivative_hypreparmatrix_callbacks;
 
@@ -138,15 +190,42 @@ private:
    std::function<void(Vector &, Vector &)> prolongation_transpose;
 };
 
+/// Class representing a differentiable operator which acts on solution and
+/// parameter fields to compute residuals.
+///
+/// This class provides functionality to define differentiable operators by
+/// composing functions that compute values at quadrature points. It supports
+/// automatic differentiation to compute derivatives with respect to solutions
+/// (Jacobians) and parameter fields (general derivative operators).
+///
+/// The operator is constructed with solution fields that it will act on and
+/// parameter fields that define coefficients. Quadrature functions are added by
+/// e.g. using AddDomainIntegrator() which specify how the operator evaluates f
+/// those functionas and parameters at quadrature points.
+///
+/// Derivatives can be computed by obtaining a DerivativeOperator using
+/// GetDerivative().
+///
+/// @see DerivativeOperator
 class DifferentiableOperator : public Operator
 {
 public:
+   /// Constructor for the DifferentiableOperator class.
+   ///
+   /// @param solutions The solution fields that the operator will act on.
+   /// @param parameters The parameter fields that define coefficients.
+   /// @param mesh The mesh on which the operator is defined.
    DifferentiableOperator(
       const std::vector<FieldDescriptor> &solutions,
       const std::vector<FieldDescriptor> &parameters,
       const ParMesh &mesh);
 
-   void Mult(const Vector &solutions_t, Vector &y) const override
+   /// @brief Compute the action of the operator on a given vector.
+   ///
+   /// @param solutions_t The solution vector in which to compute the action. This has to be a T-dof vector.
+   /// @param result_t Result vector of the action of the operator on
+   /// solutions_t. The result is a T-dof vector.
+   void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
@@ -154,9 +233,16 @@ public:
       {
          action(solutions_l, parameters_l, residual_l);
       }
-      prolongation_transpose(residual_l, y);
+      prolongation_transpose(residual_l, result_t);
    }
 
+   /// @brief Add a domain integrator to the operator.
+   ///
+   /// @param qfunc The quadrature function to be added.
+   /// @param inputs Tuple of FieldOperators for the inputs of the quadrature
+   /// function.
+   /// @param outputs Tuple of FieldOperators for the outputs of the quadrature
+   /// function.
    template <
       typename func_t,
       typename... input_ts,
@@ -170,13 +256,43 @@ public:
       const Array<int> domain_attributes,
       const derivative_indices_t derivative_indices = {});
 
+   /// @brief Set the parameters for the operator.
+   ///
+   /// This has to be called before using Mult() or MultTranspose().
+   /// 
+   /// @param p The parameters to be set. This should be a vector of pointers to
+   /// the parameter vectors. The vectors have to be L-vectors (e.g.
+   /// GridFunctions).
    void SetParameters(std::vector<Vector *> p) const;
 
+   /// @brief Disable the use of tensor product structure.
+   ///
+   /// This function disables the use of tensor product structure for the
+   /// operator. Usually, DifferentiableOperator creates callbacks based on
+   /// heuristics that achieve good performance for each element type. Some
+   /// functionality is not implemented for these performant algorithms but only
+   /// for generic assembly. Therefore the user can decide to use fallback
+   /// methods.
    void DisableTensorProductStructure(bool disable = true)
    {
       use_tensor_product_structure = !disable;
    }
 
+   /// @brief Get the derivative operator for a given derivative ID.
+   ///
+   /// This function returns a shared pointer to a DerivativeOperator that
+   /// computes the derivative of the operator with respect to the given
+   /// derivative ID. The derivative ID is used to identify the specific
+   /// derivative action to be performed.
+   ///
+   /// @param derivative_id The ID of the derivative to be computed.
+   /// @param solutions_l The solution vectors to be used for the derivative
+   /// computation. This should be a vector of pointers to the solution
+   /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
+   /// @param parameters_l The parameter vectors to be used for the derivative
+   /// computation. This should be a vector of pointers to the parameter
+   /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
+   /// @return A shared pointer to the DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id,
       std::vector<Vector *> solutions_l,
