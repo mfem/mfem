@@ -50,9 +50,8 @@ public:
    Array<int> off_diag_block_offsets;
    /// offsets into row_idcs for off-diagonal
    Array<int> block_off_diag_row_idcs_offsets;
-   /// virtual offsets into col_idcs for off-diagonal (compressed range storage
-   /// since re-ordering and sign change is handled by the sender)
-   Array<int> block_off_diag_col_idcs_offsets;
+   Array<int> block_off_diag_col_offsets;
+   Array<int> block_off_diag_widths;
    /// mapping for row dofs, oob indicates the block row should be ignored.
    /// negative means the row data should be negated.
    /// only for diagonal blocks
@@ -76,11 +75,15 @@ public:
    /// quasi Ordering::byNODES, broken into sections by ranks we received
    /// the data from
    mutable Vector xghost_recv;
+   /// maps off-diagonal k to segment
+   Array<int> recv_segment_idcs;
+   Array<int> recv_segments;
+   Array<int> recv_ranks;
+   Array<int> send_segment_idcs;
+   Array<int> send_segments;
+   Array<int> send_ranks;
    /// how to permute/sign change values from our local x to send to other ranks
    Array<int> send_permutations;
-   /// key: coarse rank to send data to
-   /// value: buffer offsets for our local x that needs to be sent
-   std::unordered_map<int, std::array<size_t, 2>> send_offsets;
    mutable std::vector<MPI_Request> requests;
 
    using MultKernelType = void (*)(const ParDerefineMatrixOp &, const Vector &,
@@ -166,14 +169,18 @@ public:
       // first pass:
       // - determine memory block lengths
       // - identify dofs in x we need to send/receive
-      // don't need to send the indices, fine rank will re-arrange x before
-      // transmitting the ghost data
+      // don't need to send the indices, fine rank will re-arrange and sign
+      // change x before transmitting the ghost data
+
       // key: coarse rank to send to
       // value: old dofs to send (with sign)
       std::map<int, std::vector<int>> to_send;
-      // key: coarse rank
+      // key: fine rank
       // value: indices into dtrans.embeddings
       std::map<int, std::vector<int>> od_ks;
+      // key: fine rank
+      // value: recv segment length
+      std::map<int, int> od_seg_lens;
       int send_len = 0;
       int recv_len = 0;
       // size of block_storage, if fespace->IsVariableOrder()
@@ -208,7 +215,8 @@ public:
             auto ldofs = get_ldofs(k);
             off_diag_rows += ldofs;
             recv_len += ldofs;
-            od_ks[coarse_rank].emplace_back(k);
+            od_ks[fine_rank].emplace_back(k);
+            od_seg_lens[fine_rank] += ldofs;
             ++num_offdiagonal_blocks;
             if (fespace->IsVariableOrder())
             {
@@ -230,15 +238,27 @@ public:
             }
          }
       }
+      send_segments.SetSize(to_send.size() + 1);
+      send_segments.HostWrite();
+      send_ranks.SetSize(to_send.size());
+      send_ranks.HostWrite();
       {
-         size_t csum = 0;
+         int idx = 0;
+         send_segments[0] = 0;
          for (auto &tmp : to_send)
          {
-            auto &v = send_offsets[tmp.first];
-            v[0] = csum;
-            v[1] += tmp.second.size();
+            send_ranks[idx] = tmp.first;
+            send_segments[idx + 1] = send_segments[idx] + tmp.second.size();
+            ++idx;
          }
       }
+      recv_segment_idcs.SetSize(off_diag_rows);
+      recv_segment_idcs.HostWrite();
+      recv_segments.SetSize(od_ks.size() + 1);
+      recv_segments.HostWrite();
+      recv_ranks.SetSize(od_ks.size());
+      recv_ranks.HostWrite();
+
       // set sizes
       row_idcs.SetSize(diag_rows);
       row_idcs.HostWrite();
@@ -252,12 +272,19 @@ public:
       block_col_idcs_offsets.HostWrite();
       block_off_diag_row_idcs_offsets.SetSize(num_offdiagonal_blocks + 1);
       block_off_diag_row_idcs_offsets.HostWrite();
-      block_off_diag_col_idcs_offsets.SetSize(num_offdiagonal_blocks + 1);
-      block_off_diag_col_idcs_offsets.HostWrite();
+      block_off_diag_col_offsets.SetSize(num_offdiagonal_blocks);
+      block_off_diag_col_offsets.HostWrite();
+      block_off_diag_widths.SetSize(num_offdiagonal_blocks);
+      block_off_diag_widths.HostWrite();
       pack_col_idcs.SetSize(send_len);
-      xghost_send.SetSize(send_len * fespace->GetVDim());
-      xghost_recv.SetSize(recv_len * fespace->GetVDim());
+      xghost_send.SetSize(send_len * fespace->GetVDim(),
+                          Device::GetGPUAwareMPI() ? MemoryType::DEFAULT
+                          : MemoryType::HOST_PINNED);
+      xghost_recv.SetSize(recv_len * fespace->GetVDim(),
+                          Device::GetGPUAwareMPI() ? MemoryType::DEFAULT
+                          : MemoryType::HOST_PINNED);
       send_permutations.SetSize(send_len);
+      send_segment_idcs.SetSize(send_len);
       block_offsets.SetSize(num_diagonal_blocks);
       block_offsets.HostWrite();
       off_diag_block_offsets.SetSize(num_offdiagonal_blocks);
@@ -304,23 +331,41 @@ public:
 
       {
          auto ptr = send_permutations.HostWrite();
+         auto ptr2 = send_segment_idcs.HostWrite();
+         int i = 0;
          for (auto &v : to_send)
          {
             ptr = std::copy(v.second.begin(), v.second.end(), ptr);
+            for (auto &v2 : v.second)
+            {
+               *ptr2 = i;
+               ++ptr2;
+            }
+            ++i;
          }
       }
 
       block_row_idcs_offsets[0] = 0;
       block_col_idcs_offsets[0] = 0;
       block_off_diag_row_idcs_offsets[0] = 0;
-      block_off_diag_col_idcs_offsets[0] = 0;
       Array<int> mark(fespace->GetNDofs());
       mark = 0;
+      {
+         int idx = 0;
+         recv_segments[0] = 0;
+         for (auto &v : od_seg_lens)
+         {
+            recv_ranks[idx] = v.first;
+            recv_segments[idx + 1] = recv_segments[idx] + v.second;
+            ++idx;
+         }
+      }
       // key: index into dtrans.embeddings
-      // value: off-diagonal block offset, od_ridx
-      std::unordered_map<int, std::array<int, 2>> ks_map;
+      // value: off-diagonal block offset, od_ridx, seg id
+      std::unordered_map<int, std::array<int, 3>> ks_map;
       {
          int od_ridx = 0;
+         int seg_id = 0;
          for (auto &v1 : od_ks)
          {
             for (auto k : v1.second)
@@ -328,8 +373,10 @@ public:
                auto &tmp = ks_map[k];
                tmp[0] = ks_map.size() - 1;
                tmp[1] = od_ridx;
+               tmp[2] = seg_id;
                od_ridx += get_ldofs(k);
             }
+            ++seg_id;
          }
       }
       int diag_idx = 0;
@@ -430,8 +477,12 @@ public:
                auto &tmp = ks_map.at(k);
                auto od_idx = tmp[0];
                auto od_ridx = tmp[1];
-               block_off_diag_row_idcs_offsets[od_idx + 1] = lR.Height();
-               block_off_diag_col_idcs_offsets[od_idx + 1] = lR.Width();
+               block_off_diag_row_idcs_offsets[od_idx + 1] =
+                  block_off_diag_row_idcs_offsets[od_idx] + lR.Height();
+               block_off_diag_col_offsets[od_idx] = od_ridx;
+               block_off_diag_widths[od_idx] = lR.Width();
+               recv_segment_idcs[od_idx] = tmp[2];
+
                if (fespace->IsVariableOrder())
                {
                   off_diag_block_offsets[od_idx] = var_offset;
@@ -483,31 +534,95 @@ template <Ordering::Type Order, bool Atomic>
 static void MultKernelImpl(const ParDerefineMatrixOp &op, const Vector &x,
                            Vector &y)
 {
-   // TODO initialize off-diagonal receive and send
+   // pack sends
+   if (op.xghost_send.Size())
+   {
+      auto src = x.Read();
+      auto idcs = op.send_permutations.Read();
+      auto dst = Device::GetGPUAwareMPI() ? op.xghost_send.Write()
+                 : op.xghost_send.HostWrite();
+      auto vdims = op.fespace->GetVDim();
+      auto sptr = op.send_segment_idcs.Read();
+      auto lptr = op.send_segments.Read();
+      auto old_ndofs = x.Size() / vdims;
+      forall(op.send_permutations.Size(), [=] MFEM_HOST_DEVICE(int i)
+      {
+         int seg = sptr[i];
+         int width = lptr[seg + 1] - lptr[seg];
+         auto tdst = dst + i + lptr[seg] * vdims;
+         int sign = 1;
+         int col = idcs[i];
+         if (col < 0)
+         {
+            sign = -1;
+            col = -1 - col;
+         }
+         for (int vdim = 0; vdim < vdims; ++vdim)
+         {
+            tdst[vdim * width] =
+               sign * src[Order == Ordering::byNODES ? (col + vdim * old_ndofs)
+                                : (col * vdims + vdim)];
+         }
+      });
+      // TODO: is this needed so we can send the packed data correctly?
+      MFEM_DEVICE_SYNC;
+   }
+   // initialize off-diagonal receive and send
    op.requests.clear();
-   // diagonal
-   DerefineMatrixOpMultFunctor<Order, Atomic> func;
-   func.xptr = x.Read();
-   y.UseDevice();
-   y = 0.;
-   func.yptr = y.ReadWrite();
-   func.bsptr = op.block_storage.Read();
-   func.boptr = op.block_offsets.Read();
-   func.brptr = op.block_row_idcs_offsets.Read();
-   func.bcptr = op.block_col_idcs_offsets.Read();
-   func.rptr = op.row_idcs.Read();
-   func.cptr = op.col_idcs.Read();
-   func.vdims = op.fespace->GetVDim();
-   func.nblocks = op.block_offsets.Size();
-   func.width = op.Width() / func.vdims;
-   func.height = op.Height() / func.vdims;
-   func.Run(op.max_rows);
-   // wait for comm to finish
+   if (op.xghost_recv.Size())
+   {
+      auto vdims = op.fespace->GetVDim();
+      auto rcv = Device::GetGPUAwareMPI() ? op.xghost_recv.Write()
+                 : op.xghost_recv.HostWrite();
+      for (int i = 0; i < op.recv_ranks.Size(); ++i)
+      {
+         op.requests.emplace_back();
+         MPI_Irecv(rcv + op.recv_segments[i] * vdims,
+                   (op.recv_segments[i + 1] - op.recv_segments[i]) * vdims,
+                   MPITypeMap<real_t>::mpi_type, op.recv_ranks[i], 291,
+                   op.fespace->GetComm(), &op.requests.back());
+      }
+   }
+   if (op.xghost_send.Size())
+   {
+      auto vdims = op.fespace->GetVDim();
+      // only is a GPU mem ptr if GPU-aware MPI is enabled
+      auto dst = Device::GetGPUAwareMPI() ? op.xghost_send.Write()
+                 : op.xghost_send.HostWrite();
+      for (int i = 0; i < op.send_ranks.Size(); ++i)
+      {
+         op.requests.emplace_back();
+         MPI_Isend(dst + op.send_segments[i] * vdims,
+                   (op.send_segments[i + 1] - op.send_segments[i]) * vdims,
+                   MPITypeMap<real_t>::mpi_type, op.send_ranks[i], 291,
+                   op.fespace->GetComm(), &op.requests.back());
+      }
+   }
+   {
+      // diagonal
+      DerefineMatrixOpMultFunctor<Order, Atomic> func;
+      func.xptr = x.Read();
+      y.UseDevice();
+      y = 0.;
+      func.yptr = y.ReadWrite();
+      func.bsptr = op.block_storage.Read();
+      func.boptr = op.block_offsets.Read();
+      func.brptr = op.block_row_idcs_offsets.Read();
+      func.bcptr = op.block_col_idcs_offsets.Read();
+      func.rptr = op.row_idcs.Read();
+      func.cptr = op.col_idcs.Read();
+      func.vdims = op.fespace->GetVDim();
+      func.nblocks = op.block_offsets.Size();
+      func.width = op.Width() / func.vdims;
+      func.height = op.Height() / func.vdims;
+      func.Run(op.max_rows);
+   }
+   // wait for comm to finish, if any
    if (op.requests.size())
    {
       MPI_Waitall(op.requests.size(), op.requests.data(), MPI_STATUSES_IGNORE);
+      // TODO off-diagonal kernel
    }
-   // TODO off-diagonal kernel
 }
 } // namespace internal
 
