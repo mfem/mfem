@@ -320,7 +320,7 @@ DGMassInverse::CGKernelType DGMassInverse::CGKernels::Fallback(
    if (dim == 1) { return &DGMassInverse::DGMassCGIteration<1>; }
    else if (dim == 2) { return &DGMassInverse::DGMassCGIteration<2>; }
    else if (dim == 3) { return &DGMassInverse::DGMassCGIteration<3>; }
-   else { MFEM_ABORT(""); }
+   else { MFEM_ABORT("Unsupported dimension."); }
 }
 
 /// @endcond
