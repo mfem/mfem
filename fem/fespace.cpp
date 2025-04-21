@@ -270,8 +270,8 @@ public:
 namespace internal
 {
 template <Ordering::Type Order, bool Atomic>
-static void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
-                           Vector &y)
+static void DerefMultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
+                                Vector &y)
 {
    DerefineMatrixOpMultFunctor<Order, Atomic> func;
    func.xptr = x.Read();
@@ -296,7 +296,7 @@ static void MultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
 template <Ordering::Type Order, bool Atomic>
 DerefineMatrixOp::MultKernelType DerefineMatrixOp::MultKernel::Kernel()
 {
-   return internal::MultKernelImpl<Order, Atomic>;
+   return internal::DerefMultKernelImpl<Order, Atomic>;
 }
 
 DerefineMatrixOp::MultKernelType
