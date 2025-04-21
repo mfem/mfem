@@ -292,7 +292,7 @@ public:
 
    /** Query the device driver for what memory type a given @a ptr is allocated
     * with. */
-   static MemoryType QueryMemoryType(void* ptr);
+   static MemoryType QueryMemoryType(const void* ptr);
 
    /** @brief The number of hardware compute units/streaming multiprocessors
     * available on a given compute device @a dev. */
