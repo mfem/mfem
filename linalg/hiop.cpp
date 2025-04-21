@@ -110,6 +110,24 @@ bool HiopOptimizationProblem::eval_grad_f(const size_type &n, const double *x,
    return true;
 }
 
+bool HiopOptimizationProblem::apply_M(const hiop::size_type& n,
+                const double* x, double* y)
+{
+   MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
+
+   Vector x_vec(ntdofs_loc);
+   Vector y_vec(ntdofs_loc);
+   x_vec = x;
+
+   mfem::HypreParMatrix * MMat = nullptr;
+   problem.CalcObjectiveHessian( MMat);
+
+   MMat->Mult(x_vec, y_vec);
+   std::memcpy(y, y_vec.GetData(), ntdofs_loc * sizeof(double));
+
+   return true;
+}
+
 bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
                                         const size_type &num_cons,
                                         const index_type *idx_cons,

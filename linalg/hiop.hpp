@@ -107,6 +107,8 @@ public:
    virtual bool eval_f(const hiop::size_type &n, const double *x, bool new_x,
                        double& obj_value);
 
+   virtual bool apply_M(const hiop::size_type& n, const double* x, double* y);
+
    /** Gradient of the objective function (local chunk). */
    virtual bool eval_grad_f(const hiop::size_type &n, const double *x, bool new_x,
                             double *gradf);

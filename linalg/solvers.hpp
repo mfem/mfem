@@ -872,6 +872,8 @@ public:
    /// The result grad is expected to enter with the correct size.
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    { MFEM_ABORT("The objective gradient is not implemented."); }
+   virtual void CalcObjectiveHessian( HypreParMatrix * Hess) const
+   { MFEM_ABORT("The objective Hessian is not implemented."); }
    virtual void CalcConstraint(const int constNumber, const Vector &x, Vector &constVal) const
    { MFEM_ABORT("The constraint  is not implemented."); }
 
