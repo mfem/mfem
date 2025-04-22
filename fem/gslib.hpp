@@ -231,7 +231,7 @@ public:
        @param[in] npt_max   (Optional) Number of points for simultaneous
                             iteration. This alters performance and
                             memory footprint.*/
-   /// (@deprecated) Use the constructor that includes the Mesh/ParMesh.
+
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
    /** Searches positions given in physical space by \p point_pos.
