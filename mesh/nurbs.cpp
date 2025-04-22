@@ -2687,12 +2687,14 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
    }
 
    bool writeSpacing = false;
+   bool writeRefinements = false;
    if (patchTopo->ncmesh)
    {
       // Writing MFEM NURBS NC-patch mesh v1.0
       patchTopo->ncmesh->Print(os, comments, true);
       patchTopo->PrintTopoEdges(os, edge_to_knot, true);
       writeSpacing = true;
+      writeRefinements = true;
    }
    else
    {
@@ -2709,7 +2711,7 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
          knotVectors[i]->Print(os);
       }
 
-      if (ref_factors.Size() > 0)
+      if (writeRefinements && ref_factors.Size() > 0)
       {
          os << "\nrefinements\n";
          for (int i=0; i<ref_factors.Size(); ++i)
