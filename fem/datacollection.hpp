@@ -656,8 +656,10 @@ protected:
    void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
-   void SaveCoeffFieldVTU(std::ostream& out, int ref_, const CoeffFieldMapIterator& it);
-   void SaveVCoeffFieldVTU(std::ostream& out, int ref_, const VCoeffFieldMapIterator& it);
+   void SaveCoeffFieldVTU(std::ostream& out, int ref_,
+                          const CoeffFieldMapIterator& it);
+   void SaveVCoeffFieldVTU(std::ostream& out, int ref_,
+                           const VCoeffFieldMapIterator& it);
    const char *GetDataFormatString() const;
    const char *GetDataTypeString() const;
 
