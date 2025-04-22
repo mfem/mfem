@@ -89,7 +89,7 @@ void SaveState(ParGridFunction &x_gf, const Vector& eps, const Vector& dx, int s
    }
 }
 
-void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf, Vector*& eps, Vector*& dx, int & step, int & testNo, bool nonlinear)
+void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf, Vector*& eps, Vector*& dx, int & step, int & testNo, bool bound_constraints)
 {
    std::ostringstream mesh_file, gf_file;
    mesh_file << state_file << ".mesh";
@@ -133,7 +133,7 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
    MFEM_VERIFY(gfifs.good(), "Checkpoint file " << gfname << " not found.");
    x_gf = new ParGridFunction(pmesh, gfifs);
 
-   if (nonlinear)
+   if (bound_constraints)
    {
       std::ostringstream eps_file, dx_file;
       eps_file << state_file << "_eps.vec";
@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
    ParMesh * pmesh = nullptr;
    if (restart)
    {
-      LoadState(restart_file, pmesh, restart_gf, restart_eps, restart_dx, istep, testNo, nonlinear);
+      LoadState(restart_file, pmesh, restart_gf, restart_eps, restart_dx, istep, testNo, bound_constraints);
       if (!pmesh)
       {
          mfem::out << "Pmesh pointer is null" << endl;
@@ -636,7 +636,7 @@ int main(int argc, char *argv[])
    Vector xl(xref.Size()); xl = 0.0;
    Vector eps(xref.Size());
    Vector dx(xref.Size());
-   if (restart)
+   if (restart && bound_constraints)
    {
       eps = *restart_eps;
       dx = *restart_dx;
