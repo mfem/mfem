@@ -228,7 +228,7 @@ public:
             {
                if (!std::isfinite(lR(i, 0)))
                {
-                  row_idcs[ridx] = Height();
+                  row_idcs[ridx] = INT_MAX;
                   continue;
                }
                int r = dofs[i];
@@ -241,7 +241,7 @@ public:
                }
                else
                {
-                  row_idcs[ridx] = Height();
+                  row_idcs[ridx] = INT_MAX;
                }
             }
             for (int i = 0; i < lR.Width(); ++i, ++cidx)
