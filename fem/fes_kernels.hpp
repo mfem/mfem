@@ -196,7 +196,7 @@ struct DerefineMatrixOpMultFunctor
             row = -1 - row;
             rsign = -1;
          }
-         if (row < height)
+         if (row < INT_MAX)
          {
             // row not marked as unused
             real_t sum = 0;
