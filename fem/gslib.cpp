@@ -155,7 +155,9 @@ FindPointsGSLIB::FindPointsGSLIB(Mesh *mesh_in, const double bb_t,
 FindPointsGSLIB::~FindPointsGSLIB()
 {
    FreeData();
+#ifdef MFEM_USE_MPI
    if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
+#endif
    {
       crystal_free(cr);
       comm_free(gsl_comm);
@@ -1161,7 +1163,9 @@ void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
 void FindPointsGSLIB::FreeData()
 {
    if (!setupflag) { return; }
-   if (!Mpi::IsFinalized()) // currently segfaults inside gslib otherwise
+#ifdef MFEM_USE_MPI
+   if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
+#endif
    {
       if (dim == 2)
       {
