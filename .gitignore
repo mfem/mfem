@@ -401,7 +401,6 @@ miniapps/tribol/contact-patch-test
 
 miniapps/diag-smoothers/abs-l1-jacobi
 miniapps/diag-smoothers/mg-abs-l1-jacobi
-miniapps/diag-smoothers/meshes
 
 # Unit test binary and outputs
 tests/unit/output_meshes
