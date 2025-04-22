@@ -242,9 +242,21 @@ void NavierSolverGCN::SetupOperator(real_t t, real_t dt)
    AB->SetBlock(1,0,A21H.Ptr(),dt*0.5);
 
    //set the preconditioner
-   
+
+   ls.reset(new MINRESSolver(pmesh->GetComm()));
+   //ls.reset(new GMRESSolver(pmesh->GetComm());
+   ls->SetAbsTol(linear_atol);
+   ls->SetRelTol(linear_rtol);
+   ls->SetMaxIter(linear_iter);
+   ls->SetOperator(*AB);
+
+   //set the preconditioner
+   prec.reset(new NSBlockPrec(A11H.As<HypreParMatrix>(),A12H.As<HypreParMatrix>(),A21H.As<HypreParMatrix>()));
+   ls->SetPreconditioner(*prec);
 
 }
+
+
 
 void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
 {
@@ -265,8 +277,12 @@ void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
    rhs.SetSize(vfes->TrueVSize());
    rhs = 0.0;
 
+   ProductCoefficient* cbrink; //current brinkman
+   ProductCoefficient* cvisc;  //current viscosity
+   VectorCoefficient*  scvelc; //scaled current velocity
+   VectorCoefficient*  scgradcp;//scaled gradient of the pressure
 
-   lf.reset(new ParLinearForm(vfes));
+   ParLinearForm* lf=new ParLinearForm(vfes);
    //inertial term integrator
    lf->AddDomainIntegrator(new VectorDomainLFIntegrator(cvelc));
 
@@ -274,22 +290,17 @@ void NavierSolverGCN::SetupRHS(real_t t, real_t dt)
    if(brink != nullptr)
    {
        brink->SetTime(t);
-       cbrink.reset(new ProductCoefficient(-dt*0.5, *brink));
-       scvelc.reset(new ProductScalarVectorCoeff(*cbrink,cvelc));
+       cbrink=new ProductCoefficient(-dt*0.5, *brink);
+       scvelc=new ProductScalarVectorCoeff(*cbrink,cvelc);
        lf->AddDomainIntegrator(new VectorDomainLFIntegrator(*scvelc));
    }
 
    //set the current pressure grid function
-   gradcp.SetGridFunction(cpres.get());
-   scgradcp.reset(new ProductScalarVectorCoeff(*cbrink,cvelc))
 
 
 
 
-
-
-
-
+    delete lf;
 }
 
 void NavierSolverGCN::Step(real_t &time, real_t dt, int cur_step, bool provisional)

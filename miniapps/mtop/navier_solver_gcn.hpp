@@ -11,8 +11,8 @@ namespace mfem {
 class NavierSolverGCN
 {
 public:
-   NavierSolverGCN(ParMesh* mesh, int order, std::shared_ptr<Coefficient> visc,
-                   bool partial_assembly_=true, bool verbose_=true);
+   NavierSolverGCN(ParMesh* mesh, int order_, std::shared_ptr<Coefficient> visc_,
+                   bool partial_assembly_=false, bool verbose_=true);
 
 
    ~NavierSolverGCN();
@@ -105,6 +105,10 @@ private:
     /// The order of the velocity and pressure space.
    int order;
 
+   real_t linear_atol;
+   real_t linear_rtol;
+   int  linear_iter;
+
 
    std::shared_ptr<Coefficient> visc;
    std::shared_ptr<Coefficient> brink;
@@ -132,8 +136,6 @@ private:
    std::unique_ptr<BlockOperator> AB;
    Array<int> block_true_offsets;
 
-   std::unique_ptr<ParLinearForm> lf;
-
    Vector rhs;
 
    VectorGridFunctionCoefficient nvelc;
@@ -150,11 +152,6 @@ private:
    std::unique_ptr<ProductCoefficient> nbrink; //next brinkman
    std::unique_ptr<ProductCoefficient> nvisc;  //next viscosity
 
-   std::unique_ptr<ProductCoefficient> cbrink; //current brinkman
-   std::unique_ptr<ProductCoefficient> cvisc;  //current viscosity
-   std::unique_ptr<VectorCoefficient>  scvelc; //scaled current velocity
-   GradientGridFunctionCoefficient     gradcp; //current pressure gradient
-   std::unique_ptr<VectorCoefficient>  scgradcp;//scaled gradient of the pressure
 
    //boundary conditions
    std::map<int, std::shared_ptr<VectorCoefficient>> vel_bcs;
@@ -167,6 +164,10 @@ private:
 
    void SetEssTDofs(real_t t, ParGridFunction& pgf, mfem::Array<int>& ess_dofs);
    void SetEssTDofs(mfem::Array<int>& ess_dofs);
+
+   std::unique_ptr<IterativeSolver> ls;
+   std::unique_ptr<Solver> prec;
+
 
 
    /// copy cvel->pvel, nvel->cvel, cpres->ppres, npres->cpres
@@ -181,6 +182,208 @@ private:
 
 
 };//end NavierSolverGCN
+
+
+
+class PCLSC:public IterativeSolver
+{
+public:
+
+    /// Approximates the inverse of the Schur complement S
+    /// Constructor taking A11 as operator amd A12 and A21 as matrices
+    /// Ad is a diagonal matrix - if null no scaling is performed.
+    /// if Ai=Ad^{-1} is the inverse of Ad
+    /// S^{-1}=(A21*Ai*A12)^{-1} *(A21*Ai*A11*Ai*A12)*(A21*Ai*A12)^{-1}
+    PCLSC(Operator* A11_, HypreParMatrix* A12_, HypreParMatrix* A21_,mfem::HypreParVector* Ad_=nullptr)
+    {
+        A11=A11_;
+        A12=A12_;
+        A21=A21_;
+
+        Ad=Ad_;
+
+        if(Ad!=nullptr){
+            MA21.reset(new HypreParMatrix(*A21));
+            MA21->InvScaleRows(*Ad);
+            M=std::unique_ptr<mfem::HypreParMatrix>(mfem::ParMult(MA21.get(),A12));
+        }else{
+            M=std::unique_ptr<mfem::HypreParMatrix>(mfem::ParMult(A21,A12));
+        }
+
+        prec=std::unique_ptr<mfem::HypreBoomerAMG>(new mfem::HypreBoomerAMG());
+        prec->SetOperator(*M);
+        prec->SetPrintLevel(1);
+
+        p.SetSize(M->GetNumCols());
+        u.SetSize(A12->GetNumRows());
+        v.SetSize(A12->GetNumRows());
+
+        mfem::Operator::width=M->GetNumCols();
+        mfem::Operator::height=M->GetNumCols();
+
+        ls=std::unique_ptr<mfem::IterativeSolver>(new mfem::CGSolver(A12->GetComm()));
+        ls->SetOperator(*M);
+        ls->SetPreconditioner(*prec);
+        ls->SetAbsTol(1e-8);
+        ls->SetRelTol(1e-8);
+        ls->SetMaxIter(100);
+        ls->SetPrintLevel(1);
+
+        std::cout<<" PCLSC allocated"<<std::endl;
+    }
+
+    virtual
+    ~PCLSC(){}
+
+    /// Operator application
+    void Mult (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        ls->Mult(x,p);
+        A12->Mult(p,u);
+        if(Ad!=nullptr){u/=*Ad;}
+        A11->Mult(u,v);
+        if(Ad!=nullptr){v/=*Ad;}
+        A21->Mult(v,p);
+        ls->Mult(p,y);
+    }
+
+    /// Action of the transpose operator
+    void MultTranspose (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        Mult(x,y);
+    }
+
+    virtual void SetPrintLevel(int print_lvl) override
+    {
+        prec->SetPrintLevel(print_lvl);
+        ls->SetPrintLevel(print_lvl);
+    }
+
+
+    virtual void SetAbsTol(real_t tol_)
+    {
+        ls->SetAbsTol(tol_);
+    }
+
+    virtual void SetRelTol(real_t tol_)
+    {
+       ls->SetRelTol(tol_);
+    }
+
+    virtual void SetMaxIter(int it)
+    {
+        ls->SetMaxIter(it);
+    }
+
+private:
+    mfem::HypreParMatrix *A12;
+    mfem::HypreParMatrix *A21;
+    mfem::Operator *A11;
+
+    mfem::HypreParVector* Ad;
+
+    std::unique_ptr<mfem::HypreParMatrix> MA21;
+
+    std::unique_ptr<mfem::HypreParMatrix> M;
+    std::unique_ptr<mfem::HypreBoomerAMG> prec;
+    std::unique_ptr<mfem::IterativeSolver> ls;
+
+    mutable mfem::Vector p;
+    mutable mfem::Vector u;
+    mutable mfem::Vector v;
+};
+
+
+class NSBlockPrec:public IterativeSolver
+{
+public:
+    NSBlockPrec(HypreParMatrix* A11_, HypreParMatrix* A12_, HypreParMatrix* A21_,mfem::HypreParVector* Ad_=nullptr)
+    {
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = A11_->Height();
+        block_true_offsets[2] = A21_->Height();
+        block_true_offsets.PartialSum();
+
+
+        lsc.reset(new PCLSC(A11_,A12_,A21_,Ad_));
+
+        std::cout<<"LSC H"<<lsc->Height()<<" W="<<lsc->Width()<<std::endl;
+
+        prec.reset(new mfem::HypreBoomerAMG());
+        prec->SetPrintLevel(1);
+
+        ls.reset(new mfem::CGSolver(A11_->GetComm()));
+        ls->SetAbsTol(atol);
+        ls->SetRelTol(rtol);
+        ls->SetMaxIter(max_iter);
+        ls->SetOperator(*A11_);
+
+        prec->SetOperator(*A11_);
+        ls->SetPreconditioner(*prec);
+
+        std::cout<<"ls H="<<ls->Height()<<" W="<<ls->Width()<<std::endl;
+
+        Operator::width=block_true_offsets[2];
+        Operator::height=block_true_offsets[2];
+
+        bop.reset(new BlockDiagonalPreconditioner(block_true_offsets));
+        bop->SetDiagonalBlock(0,ls.get());
+        bop->SetDiagonalBlock(1,lsc.get());
+    }
+
+    virtual
+    ~NSBlockPrec(){}
+
+    /// Operator application
+    void Mult (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        bop->Mult(x,y);
+    }
+
+    virtual void SetPrintLevel(int print_lvl) override
+    {
+        prec->SetPrintLevel(print_lvl);
+        ls->SetPrintLevel(print_lvl);
+        lsc->SetPrintLevel(print_lvl);
+    }
+
+    virtual void SetAbsTol(real_t tol_)
+    {
+        ls->SetAbsTol(tol_);
+        lsc->SetAbsTol(tol_);
+    }
+
+    virtual void SetRelTol(real_t tol_)
+    {
+       ls->SetRelTol(tol_);
+       lsc->SetRelTol(tol_);
+    }
+
+    virtual void SetMaxIter(int it)
+    {
+        ls->SetMaxIter(it);
+        lsc->SetMaxIter(it);
+    }
+
+
+private:
+    Array<int> block_true_offsets;
+
+    std::unique_ptr<PCLSC> lsc;
+
+    std::unique_ptr<HypreBoomerAMG> prec;
+    std::unique_ptr<IterativeSolver> ls;
+
+    real_t atol=1e-8;
+    real_t rtol=1e-8;
+    int max_iter=10;
+
+    std::unique_ptr<BlockDiagonalPreconditioner> bop;
+};
+
+
+
 
 class ViscStressCoeff: public VectorCoefficient
 {

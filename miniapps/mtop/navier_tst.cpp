@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 
    real_t dt=0.01;
    real_t time=0.0;
-   for(int i=0;i<10;i++){
+   for(int i=0;i<3;i++){
        solver->Step(time,dt,i);
    }
 
