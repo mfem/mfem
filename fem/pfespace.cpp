@@ -144,9 +144,6 @@ public:
       int diag_rows = 0;
       int off_diag_rows = 0;
       int diag_cols = 0;
-      HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
-                                ? fespace->old_dof_offsets[0]
-                                : fespace->old_dof_offsets[MyRank];
 
       auto get_ldofs = [&](int k) -> int
       {
@@ -209,8 +206,6 @@ public:
          {
             // this rank needs to receive data in x from fine_rank
             MFEM_ASSERT(emb.parent >= 0, "");
-            Geometry::Type geom =
-               fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
             auto ldofs = get_ldofs(k);
             off_diag_rows += ldofs;
             recv_len += ldofs;
@@ -232,7 +227,6 @@ public:
             diag_cols += ldofs;
             if (fespace->IsVariableOrder())
             {
-               const FiniteElement *fe = fespace->GetFE(emb.parent);
                total_size += ldofs * ldofs;
             }
          }
