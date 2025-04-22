@@ -53,7 +53,6 @@
     if(const int i=hipThreadIdx_ ##k; i<N)
 #else
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) MFEM_FOREACH_THREAD(i,k,N)
-#error "no c++17"
 #endif
 #endif
 
