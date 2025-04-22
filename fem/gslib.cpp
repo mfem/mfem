@@ -182,11 +182,11 @@ FindPointsGSLIB::FindPointsGSLIB(ParMesh *mesh_in, const double bb_t,
 }
 #endif
 
-void FindPointsGSLIB::Setup(Mesh &m, const double bb_t,
-                            const double newt_tol, const int npt_max)
+void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
+                            const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
+   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -2439,9 +2439,10 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
-   const int gfOrder = gfmax ? gfmax->FESpace()->GetMaxElementOrder() : 0;
-   MFEM_VERIFY(meshOrder >= gfOrder,
-               "Mesh order must be greater than gfmax order.");
+   const int gfOrder = gfmax ? gfmax->FESpace()->GetMaxElementOrder() :
+                       meshOrder;
+   MFEM_VERIFY(meshOrder == gfOrder,
+               "Mesh order must match gfmax order in OversetFindPointsGSLIB.");
 
    // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
