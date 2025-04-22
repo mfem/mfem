@@ -13,7 +13,11 @@
 #define MFEM_GSLIB
 
 #include "../config/config.hpp"
+#ifdef MFEM_USE_MPI
+#include "pgridfunc.hpp"
+#else
 #include "gridfunc.hpp"
+#endif
 
 #ifdef MFEM_USE_GSLIB
 
@@ -129,6 +133,10 @@ protected:
                                                  IntegrationRule *irule,
                                                  int order);
 
+   /// Helper function that calls \ref SetupSplitMeshes and
+   /// \ref SetupIntegrationRuleForSplitMesh.
+   virtual void SetupSplitMeshesAndIntegrationRules(const int order);
+
    /// Get GridFunction value at the points expected by GSLIB.
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
@@ -194,11 +202,18 @@ protected:
    void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
                             const int nel, const int ncomp,
                             const int dof1dsol, const int ordering);
+
 public:
    FindPointsGSLIB();
+   FindPointsGSLIB(Mesh *mesh_in, const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,
+                   const int npt_max = 256);
 
 #ifdef MFEM_USE_MPI
    FindPointsGSLIB(MPI_Comm comm_);
+   FindPointsGSLIB(ParMesh *mesh_in, const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,
+                   const int npt_max = 256);
 #endif
 
    virtual ~FindPointsGSLIB();
@@ -216,8 +231,8 @@ public:
        @param[in] npt_max   (Optional) Number of points for simultaneous
                             iteration. This alters performance and
                             memory footprint.*/
-   void Setup(Mesh &m, const double bb_t = 0.1,
-              const double newt_tol = 1.0e-12,
+   /// (@deprecated) Use the constructor that includes the Mesh/ParMesh.
+   void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
    /** Searches positions given in physical space by \p point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
@@ -383,10 +398,18 @@ protected:
 public:
    OversetFindPointsGSLIB() : FindPointsGSLIB(),
       overset(true) { }
+   OversetFindPointsGSLIB(Mesh *m, const int meshid, GridFunction *gfmax = NULL,
+                          const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+                          const int npt_max = 256);
 
 #ifdef MFEM_USE_MPI
    OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
       overset(true) { }
+   OversetFindPointsGSLIB(ParMesh *m, const int meshid,
+                          GridFunction *gfmax = NULL,
+                          const double bb_t = 0.1,
+                          const double newt_tol = 1.0e-12,
+                          const int npt_max = 256);
 #endif
 
    /** Initializes the internal mesh in gslib, by sending the positions of the

@@ -85,22 +85,22 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL),
-     fec_map_lin(NULL),
-     fdataD(NULL), cr(NULL), gsl_comm(NULL),
+   : mesh(nullptr),
+     fec_map_lin(nullptr),
+     fdataD(nullptr), cr(nullptr), gsl_comm(nullptr),
      dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
-   mesh_split.SetSize(4);
-   ir_split.SetSize(4);
-   fes_rst_map.SetSize(4);
-   gf_rst_map.SetSize(4);
+   mesh_split.SetSize(6);
+   ir_split.SetSize(6);
+   fes_rst_map.SetSize(6);
+   gf_rst_map.SetSize(6);
    for (int i = 0; i < mesh_split.Size(); i++)
    {
-      mesh_split[i] = NULL;
-      ir_split[i] = NULL;
-      fes_rst_map[i] = NULL;
-      gf_rst_map[i] = NULL;
+      mesh_split[i] = nullptr;
+      ir_split[i] = nullptr;
+      fes_rst_map[i] = nullptr;
+      gf_rst_map[i] = nullptr;
    }
 
    gsl_comm = new gslib::comm;
@@ -117,40 +117,79 @@ FindPointsGSLIB::FindPointsGSLIB()
    crystal_init(cr, gsl_comm);
 }
 
+FindPointsGSLIB::FindPointsGSLIB(Mesh *mesh_in, const double bb_t,
+                                 const double newt_tol, const int npt_max)
+   : mesh(mesh_in),
+     fec_map_lin(nullptr),
+     fdataD(nullptr), cr(nullptr), gsl_comm(nullptr),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
+     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
+{
+   mesh_split.SetSize(6);
+   ir_split.SetSize(6);
+   fes_rst_map.SetSize(6);
+   gf_rst_map.SetSize(6);
+   for (int i = 0; i < mesh_split.Size(); i++)
+   {
+      mesh_split[i] = nullptr;
+      ir_split[i] = nullptr;
+      fes_rst_map[i] = nullptr;
+      gf_rst_map[i] = nullptr;
+   }
+
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
+#ifdef MFEM_USE_MPI
+   int initialized = 0;
+   MPI_Initialized(&initialized);
+   if (!initialized) { MPI_Init(NULL, NULL); }
+   MPI_Comm comm = MPI_COMM_WORLD;
+   comm_init(gsl_comm, comm);
+#else
+   comm_init(gsl_comm, 0);
+#endif
+   crystal_init(cr, gsl_comm);
+   Setup(*mesh, bb_t, newt_tol, npt_max);
+}
+
 FindPointsGSLIB::~FindPointsGSLIB()
 {
-   crystal_free(cr);
-   comm_free(gsl_comm);
-   delete gsl_comm;
-   delete cr;
-   for (int i = 0; i < 4; i++)
+   FreeData();
+   if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
    {
-      if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = NULL; }
-      if (ir_split[i]) { delete ir_split[i]; ir_split[i] = NULL; }
-      if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = NULL; }
-      if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = NULL; }
+      crystal_free(cr);
+      comm_free(gsl_comm);
+      delete gsl_comm;
+      delete cr;
    }
-   if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
+   for (int i = 0; i < mesh_split.Size(); i++)
+   {
+      if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = nullptr; }
+      if (ir_split[i]) { delete ir_split[i]; ir_split[i] = nullptr; }
+      if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = nullptr; }
+      if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = nullptr; }
+   }
+   if (fec_map_lin) { delete fec_map_lin; fec_map_lin = nullptr; }
 }
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
-   : mesh(NULL),
-     fec_map_lin(NULL),
-     fdataD(NULL), cr(NULL), gsl_comm(NULL),
+   : mesh(nullptr),
+     fec_map_lin(nullptr),
+     fdataD(nullptr), cr(nullptr), gsl_comm(nullptr),
      dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
-   mesh_split.SetSize(4);
-   ir_split.SetSize(4);
-   fes_rst_map.SetSize(4);
-   gf_rst_map.SetSize(4);
+   mesh_split.SetSize(6);
+   ir_split.SetSize(6);
+   fes_rst_map.SetSize(6);
+   gf_rst_map.SetSize(6);
    for (int i = 0; i < mesh_split.Size(); i++)
    {
-      mesh_split[i] = NULL;
-      ir_split[i] = NULL;
-      fes_rst_map[i] = NULL;
-      gf_rst_map[i] = NULL;
+      mesh_split[i] = nullptr;
+      ir_split[i] = nullptr;
+      fes_rst_map[i] = nullptr;
+      gf_rst_map[i] = nullptr;
    }
 
    gsl_comm = new gslib::comm;
@@ -158,50 +197,49 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    comm_init(gsl_comm, comm_);
    crystal_init(cr, gsl_comm);
 }
+
+FindPointsGSLIB::FindPointsGSLIB(ParMesh *mesh_in, const double bb_t,
+                                 const double newt_tol, const int npt_max)
+   : mesh(mesh_in),
+     fec_map_lin(nullptr),
+     fdataD(nullptr), cr(nullptr), gsl_comm(nullptr),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
+     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
+{
+   mesh_split.SetSize(6);
+   ir_split.SetSize(6);
+   fes_rst_map.SetSize(6);
+   gf_rst_map.SetSize(6);
+   for (int i = 0; i < mesh_split.Size(); i++)
+   {
+      mesh_split[i] = nullptr;
+      ir_split[i] = nullptr;
+      fes_rst_map[i] = nullptr;
+      gf_rst_map[i] = nullptr;
+   }
+
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, mesh_in->GetComm());
+   crystal_init(cr, gsl_comm);
+   Setup(*mesh, bb_t, newt_tol, npt_max);
+}
 #endif
 
-void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
-                            const int npt_max)
+void FindPointsGSLIB::Setup(Mesh &m, const double bb_t,
+                            const double newt_tol, const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
+   int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
 
    mesh = &m;
    dim  = mesh->Dimension();
-   unsigned dof1D = meshOrder + 1;
+   const unsigned int dof1D = meshOrder+1;
 
-   SetupSplitMeshes();
-   if (dim == 2)
-   {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
-
-      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
-   }
-   else if (dim == 3)
-   {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
-
-      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-      ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
-
-      if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
-      ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], meshOrder);
-
-      if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
-      ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
-   }
+   SetupSplitMeshesAndIntegrationRules(meshOrder);
 
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
@@ -1123,13 +1161,16 @@ void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
 void FindPointsGSLIB::FreeData()
 {
    if (!setupflag) { return; }
-   if (dim == 2)
+   if (!Mpi::IsFinalized()) // currently segfaults inside gslib otherwise
    {
-      findpts_free_2((gslib::findpts_data_2 *)this->fdataD);
-   }
-   else
-   {
-      findpts_free_3((gslib::findpts_data_3 *)this->fdataD);
+      if (dim == 2)
+      {
+         findpts_free_2((gslib::findpts_data_2 *)this->fdataD);
+      }
+      else
+      {
+         findpts_free_3((gslib::findpts_data_3 *)this->fdataD);
+      }
    }
    gsl_code.DeleteAll();
    gsl_proc.DeleteAll();
@@ -1137,14 +1178,6 @@ void FindPointsGSLIB::FreeData()
    gsl_mesh.Destroy();
    gsl_ref.Destroy();
    gsl_dist.Destroy();
-   for (int i = 0; i < 4; i++)
-   {
-      if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = NULL; }
-      if (ir_split[i]) { delete ir_split[i]; ir_split[i] = NULL; }
-      if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = NULL; }
-      if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = NULL; }
-   }
-   if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
    setupflag = false;
    DEV.setup_device = false;
    DEV.find_device  = false;
@@ -1153,8 +1186,11 @@ void FindPointsGSLIB::FreeData()
 
 void FindPointsGSLIB::SetupSplitMeshes()
 {
-   fec_map_lin = new H1_FECollection(1, dim);
-   if (mesh->Dimension() == 2)
+   if (fec_map_lin == nullptr)
+   {
+      fec_map_lin = new H1_FECollection(1, dim);
+   }
+   if (dim == 2)
    {
       int Nvert = 7;
       int NEsplit = 3;
@@ -1196,15 +1232,15 @@ void FindPointsGSLIB::SetupSplitMeshes()
       mesh_split[1] = new Mesh(Mesh::MakeCartesian2D(1, 1,
                                                      Element::QUADRILATERAL));
    }
-   else if (mesh->Dimension() == 3)
+   else if (dim == 3)
    {
-      mesh_split[0] = new Mesh(Mesh::MakeCartesian3D(1, 1, 1,
+      mesh_split[2] = new Mesh(Mesh::MakeCartesian3D(1, 1, 1,
                                                      Element::HEXAHEDRON));
       // Tetrahedron
       {
          int Nvert = 15;
          int NEsplit = 4;
-         mesh_split[1] = new Mesh(3, Nvert, NEsplit, 0, 3);
+         mesh_split[3] = new Mesh(3, Nvert, NEsplit, 0, 3);
 
          const double hex_v[15][3] =
          {
@@ -1224,24 +1260,24 @@ void FindPointsGSLIB::SetupSplitMeshes()
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh_split[1]->AddVertex(hex_v[j]);
+            mesh_split[3]->AddVertex(hex_v[j]);
          }
          for (int j = 0; j < NEsplit; j++)
          {
             int attribute = j + 1;
-            mesh_split[1]->AddHex(hex_e[j], attribute);
+            mesh_split[3]->AddHex(hex_e[j], attribute);
          }
-         mesh_split[1]->FinalizeHexMesh(1, 1, true);
+         mesh_split[3]->FinalizeHexMesh(1, 1, true);
 
-         fes_rst_map[1] = new FiniteElementSpace(mesh_split[1], fec_map_lin, dim);
-         gf_rst_map[1] = new GridFunction(fes_rst_map[1]);
-         gf_rst_map[1]->UseDevice(false);
-         const int npt = gf_rst_map[1]->Size()/dim;
+         fes_rst_map[3] = new FiniteElementSpace(mesh_split[3], fec_map_lin, dim);
+         gf_rst_map[3] = new GridFunction(fes_rst_map[3]);
+         gf_rst_map[3]->UseDevice(false);
+         const int npt = gf_rst_map[3]->Size()/dim;
          for (int k = 0; k < dim; k++)
          {
             for (int j = 0; j < npt; j++)
             {
-               (*gf_rst_map[1])(j+k*npt) = hex_v[j][k];
+               (*gf_rst_map[3])(j+k*npt) = hex_v[j][k];
             }
          }
       }
@@ -1249,7 +1285,7 @@ void FindPointsGSLIB::SetupSplitMeshes()
       {
          int Nvert = 14;
          int NEsplit = 3;
-         mesh_split[2] = new Mesh(3, Nvert, NEsplit, 0, 3);
+         mesh_split[4] = new Mesh(3, Nvert, NEsplit, 0, 3);
 
          const double hex_v[14][3] =
          {
@@ -1267,24 +1303,24 @@ void FindPointsGSLIB::SetupSplitMeshes()
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh_split[2]->AddVertex(hex_v[j]);
+            mesh_split[4]->AddVertex(hex_v[j]);
          }
          for (int j = 0; j < NEsplit; j++)
          {
             int attribute = j + 1;
-            mesh_split[2]->AddHex(hex_e[j], attribute);
+            mesh_split[4]->AddHex(hex_e[j], attribute);
          }
-         mesh_split[2]->FinalizeHexMesh(1, 1, true);
+         mesh_split[4]->FinalizeHexMesh(1, 1, true);
 
-         fes_rst_map[2] = new FiniteElementSpace(mesh_split[2], fec_map_lin, dim);
-         gf_rst_map[2] = new GridFunction(fes_rst_map[2]);
-         gf_rst_map[2]->UseDevice(false);
-         const int npt = gf_rst_map[2]->Size()/dim;
+         fes_rst_map[4] = new FiniteElementSpace(mesh_split[4], fec_map_lin, dim);
+         gf_rst_map[4] = new GridFunction(fes_rst_map[4]);
+         gf_rst_map[4]->UseDevice(false);
+         const int npt = gf_rst_map[4]->Size()/dim;
          for (int k = 0; k < dim; k++)
          {
             for (int j = 0; j < npt; j++)
             {
-               (*gf_rst_map[2])(j+k*npt) = hex_v[j][k];
+               (*gf_rst_map[4])(j+k*npt) = hex_v[j][k];
             }
          }
       }
@@ -1292,7 +1328,7 @@ void FindPointsGSLIB::SetupSplitMeshes()
       {
          int Nvert = 23;
          int NEsplit = 8;
-         mesh_split[3] = new Mesh(3, Nvert, NEsplit, 0, 3);
+         mesh_split[5] = new Mesh(3, Nvert, NEsplit, 0, 3);
 
          const double hex_v[23][3] =
          {
@@ -1319,24 +1355,24 @@ void FindPointsGSLIB::SetupSplitMeshes()
 
          for (int j = 0; j < Nvert; j++)
          {
-            mesh_split[3]->AddVertex(hex_v[j]);
+            mesh_split[5]->AddVertex(hex_v[j]);
          }
          for (int j = 0; j < NEsplit; j++)
          {
             int attribute = j + 1;
-            mesh_split[3]->AddHex(hex_e[j], attribute);
+            mesh_split[5]->AddHex(hex_e[j], attribute);
          }
-         mesh_split[3]->FinalizeHexMesh(1, 1, true);
+         mesh_split[5]->FinalizeHexMesh(1, 1, true);
 
-         fes_rst_map[3] = new FiniteElementSpace(mesh_split[3], fec_map_lin, dim);
-         gf_rst_map[3] = new GridFunction(fes_rst_map[3]);
-         gf_rst_map[3]->UseDevice(false);
-         const int npt = gf_rst_map[3]->Size()/dim;
+         fes_rst_map[5] = new FiniteElementSpace(mesh_split[5], fec_map_lin, dim);
+         gf_rst_map[5] = new GridFunction(fes_rst_map[5]);
+         gf_rst_map[5]->UseDevice(false);
+         const int npt = gf_rst_map[5]->Size()/dim;
          for (int k = 0; k < dim; k++)
          {
             for (int j = 0; j < npt; j++)
             {
-               (*gf_rst_map[3])(j+k*npt) = hex_v[j][k];
+               (*gf_rst_map[5])(j+k*npt) = hex_v[j][k];
             }
          }
       }
@@ -1426,6 +1462,45 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
    }
 }
 
+void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
+{
+   MFEM_VERIFY(mesh, "Mesh not provided to FindPointsGSLIB constructor.");
+   if (mesh_split[dim-1] == nullptr)
+   {
+      const int dof1D = order+1;
+      const int dim = mesh->Dimension();
+      SetupSplitMeshes();
+      if (dim == 2)
+      {
+         if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
+         ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
+         SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], order);
+
+         if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
+         ir_split[1] = new IntegrationRule(pow(dof1D, dim));
+         SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], order);
+      }
+      else if (dim == 3)
+      {
+         if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
+         ir_split[2] = new IntegrationRule(pow(dof1D, dim));
+         SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], order);
+
+         if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
+         ir_split[3] = new IntegrationRule(4*pow(dof1D, dim));
+         SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], order);
+
+         if (ir_split[4]) { delete ir_split[4]; ir_split[4] = NULL; }
+         ir_split[4] = new IntegrationRule(3*pow(dof1D, dim));
+         SetupIntegrationRuleForSplitMesh(mesh_split[4], ir_split[4], order);
+
+         if (ir_split[5]) { delete ir_split[5]; ir_split[5] = NULL; }
+         ir_split[5] = new IntegrationRule(8*pow(dof1D, dim));
+         SetupIntegrationRuleForSplitMesh(mesh_split[5], ir_split[5], order);
+      }
+   }
+}
+
 void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
                                      Vector &node_vals)
 {
@@ -1460,15 +1535,15 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       }
       else if (gt == Geometry::TETRAHEDRON)
       {
-         ir_split_temp = ir_split[1];
+         ir_split_temp = ir_split[3];
       }
       else if (gt == Geometry::PRISM)
       {
-         ir_split_temp = ir_split[2];
+         ir_split_temp = ir_split[4];
       }
       else if (gt == Geometry::PYRAMID)
       {
-         ir_split_temp = ir_split[3];
+         ir_split_temp = ir_split[5];
       }
       else if (gt == Geometry::SQUARE)
       {
@@ -1477,7 +1552,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       }
       else if (gt == Geometry::CUBE)
       {
-         ir_split_temp = ir_split[0];
+         ir_split_temp = ir_split[2];
          el_to_split = gf_in->FESpace()->IsVariableOrder();
       }
       else
@@ -1612,15 +1687,15 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       }
       else if (gt == Geometry::TETRAHEDRON)
       {
-         gf_rst_map_temp = gf_rst_map[1];
+         gf_rst_map_temp = gf_rst_map[3];
       }
       else if (gt == Geometry::PRISM)
       {
-         gf_rst_map_temp = gf_rst_map[2];
+         gf_rst_map_temp = gf_rst_map[4];
       }
       else if (gt == Geometry::PYRAMID)
       {
-         gf_rst_map_temp = gf_rst_map[3];
+         gf_rst_map_temp = gf_rst_map[5];
       }
 
       int local_elem = split_element_index[elem];
@@ -1685,15 +1760,15 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          }
          else if (gt == Geometry::TETRAHEDRON)
          {
-            gf_rst_map_temp = gf_rst_map[1];
+            gf_rst_map_temp = gf_rst_map[3];
          }
          else if (gt == Geometry::PRISM)
          {
-            gf_rst_map_temp = gf_rst_map[2];
+            gf_rst_map_temp = gf_rst_map[4];
          }
          else if (gt == Geometry::PYRAMID)
          {
-            gf_rst_map_temp = gf_rst_map[3];
+            gf_rst_map_temp = gf_rst_map[5];
          }
 
          int local_elem = split_element_index[elem];
@@ -2186,7 +2261,7 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
 
 void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
 {
-   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+   MFEM_VERIFY(setupflag, "Use FindPointsGSLIB constructor with mesh first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
    int nve   = dim == 2 ? 4 : 8;
@@ -2257,7 +2332,7 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
 void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
                                                Vector &obbV)
 {
-   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+   MFEM_VERIFY(setupflag, "Use FindPointsGSLIB constructor with mesh first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
    int nve   = dim == 2 ? 4 : 8;
@@ -2368,6 +2443,29 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
    }
 }
 
+OversetFindPointsGSLIB::OversetFindPointsGSLIB(Mesh *m, const int meshid,
+                                               GridFunction *gfmax,
+                                               const double bb_t, const double newt_tol,
+                                               const int npt_max)
+{
+   FindPointsGSLIB();
+   this->Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
+   overset = true;
+}
+
+#ifdef MFEM_USE_MPI
+OversetFindPointsGSLIB::OversetFindPointsGSLIB(ParMesh *m, const int meshid,
+                                               GridFunction *gfmax,
+                                               const double bb_t,
+                                               const double newt_tol,
+                                               const int npt_max)
+{
+   FindPointsGSLIB(m->GetComm());
+   this->Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
+   overset = true;
+}
+#endif
+
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    GridFunction *gfmax,
                                    const double bb_t, const double newt_tol,
@@ -2375,6 +2473,9 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
+   const int gfOrder = gfmax ? gfmax->FESpace()->GetMaxElementOrder() : 0;
+   MFEM_VERIFY(meshOrder >= gfOrder,
+               "Mesh order must be greater than gfmax order.");
 
    // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -2384,35 +2485,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetTypicalFE();
    unsigned dof1D = fe->GetOrder() + 1;
 
-   SetupSplitMeshes();
-   if (dim == 2)
-   {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
-
-      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
-   }
-   else if (dim == 3)
-   {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
-
-      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-      ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
-
-      if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
-      ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], meshOrder);
-
-      if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
-      ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
-   }
+   SetupSplitMeshesAndIntegrationRules(meshOrder);
 
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
@@ -2467,9 +2540,9 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                                         Array<unsigned int> &point_id,
                                         int point_pos_ordering)
 {
-   MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
-               "finding points.");
-   MFEM_VERIFY(overset, "Please setup FindPoints for overlapping grids.");
+   MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB constructor first that "
+               "includes the Mesh/ParMesh class");
+   MFEM_VERIFY(overset, "Please use OversetFindPoints for overlapping grids.");
    points_cnt = point_pos.Size() / dim;
    unsigned int match = 0; // Don't find points in the mesh if point_id=mesh_id
 

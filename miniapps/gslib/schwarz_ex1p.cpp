@@ -309,8 +309,7 @@ int main(int argc, char *argv[])
    Vector vxyz = pmesh->GetNodes()->GetTrueVector();
 
 
-   OversetFindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(*pmesh, color);
+   OversetFindPointsGSLIB finder(pmesh, color);
 
    Array<int> ess_tdof_list_int;
    GetInterdomainBoundaryPoints(finder, vxyz, color,
@@ -431,7 +430,6 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   finder.FreeData();
    delete a;
    delete fespace;
    if (order > 0) { delete fec; }

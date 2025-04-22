@@ -305,8 +305,7 @@ int main (int argc, char *argv[])
 
    // Evaluate source grid function.
    Vector interp_vals(nodes_cnt*tar_ncomp);
-   FindPointsGSLIB finder;
-   finder.Setup(mesh_1);
+   FindPointsGSLIB finder(&mesh_1);
    finder.Interpolate(vxyz, *func_source, interp_vals, point_ordering);
 
    // Project the interpolated values to the target FiniteElementSpace.
