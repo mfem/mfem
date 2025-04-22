@@ -119,36 +119,9 @@ FindPointsGSLIB::FindPointsGSLIB()
 
 FindPointsGSLIB::FindPointsGSLIB(Mesh *mesh_in, const double bb_t,
                                  const double newt_tol, const int npt_max)
-   : mesh(mesh_in),
-     fec_map_lin(nullptr),
-     fdataD(nullptr), cr(nullptr), gsl_comm(nullptr),
-     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
-     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
+   : FindPointsGSLIB()
 {
-   mesh_split.SetSize(6);
-   ir_split.SetSize(6);
-   fes_rst_map.SetSize(6);
-   gf_rst_map.SetSize(6);
-   for (int i = 0; i < mesh_split.Size(); i++)
-   {
-      mesh_split[i] = nullptr;
-      ir_split[i] = nullptr;
-      fes_rst_map[i] = nullptr;
-      gf_rst_map[i] = nullptr;
-   }
-
-   gsl_comm = new gslib::comm;
-   cr       = new gslib::crystal;
-#ifdef MFEM_USE_MPI
-   int initialized = 0;
-   MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(NULL, NULL); }
-   MPI_Comm comm = MPI_COMM_WORLD;
-   comm_init(gsl_comm, comm);
-#else
-   comm_init(gsl_comm, 0);
-#endif
-   crystal_init(cr, gsl_comm);
+   mesh = mesh_in;
    Setup(*mesh, bb_t, newt_tol, npt_max);
 }
 
@@ -202,28 +175,9 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
 
 FindPointsGSLIB::FindPointsGSLIB(ParMesh *mesh_in, const double bb_t,
                                  const double newt_tol, const int npt_max)
-   : mesh(mesh_in),
-     fec_map_lin(nullptr),
-     fdataD(nullptr), cr(nullptr), gsl_comm(nullptr),
-     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
-     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
+   : FindPointsGSLIB(mesh_in->GetComm())
 {
-   mesh_split.SetSize(6);
-   ir_split.SetSize(6);
-   fes_rst_map.SetSize(6);
-   gf_rst_map.SetSize(6);
-   for (int i = 0; i < mesh_split.Size(); i++)
-   {
-      mesh_split[i] = nullptr;
-      ir_split[i] = nullptr;
-      fes_rst_map[i] = nullptr;
-      gf_rst_map[i] = nullptr;
-   }
-
-   gsl_comm = new gslib::comm;
-   cr      = new gslib::crystal;
-   comm_init(gsl_comm, mesh_in->GetComm());
-   crystal_init(cr, gsl_comm);
+   mesh = mesh_in;
    Setup(*mesh, bb_t, newt_tol, npt_max);
 }
 #endif
