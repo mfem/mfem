@@ -1546,6 +1546,19 @@ public:
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 
+#ifdef MFEM_USE_HDF5
+   /// @brief Save the GridFunction in %VTKHDF format.
+   ///
+   /// If @a high-order is true, then @a ref controls the order of output. If
+   /// @a ref is -1, then the order of the grid function will be used.
+   ///
+   /// If @a high-order is false, then low-order output will be used. @a ref
+   /// controls the number of mesh refinements; if @a ref is -1, no refinements
+   /// will be performed.
+   void SaveVTKHDF(const std::string &fname, const std::string &name="u",
+                   bool high_order=true, int ref=-1);
+#endif
+
    /** @brief Write the GridFunction in STL format. Note that the mesh dimension
        must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
