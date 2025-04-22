@@ -270,12 +270,19 @@ public:
       block_off_diag_widths.SetSize(num_offdiagonal_blocks);
       block_off_diag_widths.HostWrite();
       pack_col_idcs.SetSize(send_len);
+      // memory manager doesn't appear to have a grace-full fallback for
+      // HOST_PINNED if not built with CUDA or HIP
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
       xghost_send.SetSize(send_len * fespace->GetVDim(),
                           Device::GetGPUAwareMPI() ? MemoryType::DEFAULT
                           : MemoryType::HOST_PINNED);
       xghost_recv.SetSize(recv_len * fespace->GetVDim(),
                           Device::GetGPUAwareMPI() ? MemoryType::DEFAULT
                           : MemoryType::HOST_PINNED);
+#else
+      xghost_send.SetSize(send_len * fespace->GetVDim());
+      xghost_recv.SetSize(recv_len * fespace->GetVDim());
+#endif
       send_permutations.SetSize(send_len);
       send_segment_idcs.SetSize(send_len);
       block_offsets.SetSize(num_diagonal_blocks);
@@ -474,6 +481,10 @@ public:
                   block_off_diag_row_idcs_offsets[od_idx] + lR.Height();
                block_off_diag_col_offsets[od_idx] = od_ridx;
                block_off_diag_widths[od_idx] = lR.Width();
+               MFEM_VERIFY(od_idx < recv_segment_idcs.Size(),
+                           "recv_segment_idcs oob");
+               MFEM_VERIFY(tmp[2] + 1 < recv_segments.Size(),
+                           "recv_segment oob");
                recv_segment_idcs[od_idx] = tmp[2];
 
                if (fespace->IsVariableOrder())
@@ -528,6 +539,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
                                    const Vector &x, Vector &y)
 {
    // pack sends
+   int MyRank = op.fespace->GetMyRank();
    if (op.xghost_send.Size())
    {
       auto src = x.Read();
@@ -538,6 +550,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
       auto sptr = op.send_segment_idcs.Read();
       auto lptr = op.send_segments.Read();
       auto old_ndofs = x.Size() / vdims;
+
       forall(op.send_permutations.Size(), [=] MFEM_HOST_DEVICE(int i)
       {
          int seg = sptr[i];
@@ -563,6 +576,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
    }
    // initialize off-diagonal receive and send
    op.requests.clear();
+   op.requests.reserve(op.recv_ranks.Size() + op.send_ranks.Size());
    if (op.xghost_recv.Size())
    {
       auto vdims = op.fespace->GetVDim();
@@ -633,7 +647,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          func.rptr = op.row_off_diag_idcs.Read();
          func.vdims = op.fespace->GetVDim();
          func.nblocks = op.off_diag_block_offsets.Size();
-         func.width = op.Width() / func.vdims;
+         func.width = op.xghost_recv.Size() / func.vdims;
          func.height = op.Height() / func.vdims;
          func.Run(op.max_rows);
       }
