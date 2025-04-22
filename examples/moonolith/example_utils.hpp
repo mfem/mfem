@@ -104,6 +104,7 @@ inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title, con
    sol_sock << "solution\n" << mesh << x
             << "window_title '"<< title << "'\n" << flush;
 
+   sol_sock << "window_geometry ";
    sol_sock << (plot_number * 600)  << " " << 0 << " " << 600 << " " << 600 << "\n";
 
    if(mesh.Dimension() == 2) {
