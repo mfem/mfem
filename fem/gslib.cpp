@@ -2411,9 +2411,9 @@ OversetFindPointsGSLIB::OversetFindPointsGSLIB(Mesh *m, const int meshid,
                                                GridFunction *gfmax,
                                                const double bb_t, const double newt_tol,
                                                const int npt_max)
-                                               : FindPointsGSLIB()
+   : FindPointsGSLIB()
 {
-   this->Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
+   Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
 }
 
 #ifdef MFEM_USE_MPI
@@ -2422,9 +2422,9 @@ OversetFindPointsGSLIB::OversetFindPointsGSLIB(ParMesh *m, const int meshid,
                                                const double bb_t,
                                                const double newt_tol,
                                                const int npt_max)
-                                               : FindPointsGSLIB(m->GetComm())
+   : FindPointsGSLIB(m->GetComm())
 {
-   this->Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
+   Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
 }
 #endif
 
