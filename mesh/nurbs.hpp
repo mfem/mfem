@@ -53,6 +53,12 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
+   // Stores the demko points
+   mutable Vector demko;
+
+   /// Compute all the Demko points
+   void ComputeDemko() const;
+
 public:
    /// Create an empty KnotVector.
    KnotVector() { }
@@ -75,6 +81,8 @@ public:
    */
    KnotVector(int order, const Vector& intervals,
               const Array<int>& continuity );
+   /** @brief Create a KnotVector with order @a order and knots @a knot. */
+   KnotVector(int order, const Vector &k);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -105,13 +113,67 @@ public:
        with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
-   /** @brief Return the parameter for element reference coordinate @a xi
-       in [0,1], for the element beginning at knot @a ni. */
-   real_t getKnotLocation(real_t xi, int ni) const
-   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
+   /// Return whether knot location @a u is in a given span @a ni.
+   bool inSpan(real_t u, int ni) const
+   {
+      if ((u < knot(ni)) || (u > knot(ni+1))) { return false; }
+      return true;
+   }
 
    /// Return the index of the knot span containing parameter @a u.
-   int findKnotSpan(real_t u) const;
+   int GetSpan(real_t u) const;
+
+   /** @brief Return the reference coordinate in [0,1] for parameter @a u
+       in the element beginning at knot @a ni. */
+   real_t GetRefPoint(real_t u, int ni) const
+   { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
+
+   /** @brief Return the knot location for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   real_t GetKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
+
+   /** @brief Return the parameter for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   MFEM_DEPRECATED real_t getKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); } // Use GetKnot instead
+
+   /// Return the index of the knot span containing parameter @a u.
+   MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
+
+   /** Gives the @a i average knot location. Average is taken over @a Order
+       number of nodes. For background see:
+
+       G. Farin,
+       Curves and Surfaces for Computer Aided Geometric Design, fourth ed.
+       Academic Press, San Diego, CA, 1997*/
+   real_t GetGreville(int i) const;
+
+   /** Gives the knot location where the @a i shape function is maximum.
+       Reverts to the Greville point if knot is repeated @a Order +1 times.
+       For background see:
+
+       Botella, Olivier, and Karim Shariff.
+       "B-spline methods in fluid dynamics."
+       International Journal of Computational Fluid Dynamics 17.2 (2003): 133-149.
+
+       Points are found using Newton iteration, with the Greville point as the
+       starting value. */
+   real_t GetBotella(int i) const;
+
+   /** Gives the knot location of the @a i extremum of the Chebyshev spline.
+       For background see:
+
+       Stephen Demko
+       "On the existence of interpolating projections onto spline spaces."
+       Journal of approximation theory 43.2 (1985): 151-156.
+
+       Points are found using Remez iteration:
+        - Find interpolant, given by a, through given points, given by Demko
+        - Find extrema of this polynom and update Demko points
+        - Repeat untill converged
+        - Use the Greville point as starting point */
+   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -138,14 +200,26 @@ public:
    /** @brief Gives the locations of the maxima of the KnotVector in reference
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
-       @a u. */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
+       @a u.
+       The main purpose of this function is its use in FindInterpolant.
+       Use GetBotella instead for each shape function separately, perhaps in
+       conjuction with GetSpan and GetRefPoint.*/
+   MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
-       curve are returned in @a x in the same form. */
-   void FindInterpolant(Array<Vector*> &x);
+       curve are returned in @a x in the same form.
+       Use GetInterpolant instead. For the knot location one can use either
+       GetBotella, GetDemko or GetGreville. FindInterpolant uses the Botella
+       points, however, the Demko points might be more appropriate. */
+   MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x);
+
+   /** @brief Get the control points @a for an interpolating spline that has the
+      values @a x at the knot location @a u.
+      For the knot location one can use  for instance GetBotella, GetDemko or
+      GetGreville. The Demko points might be most appropriate.*/
+   void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -190,6 +264,18 @@ public:
        to count the elements before using this function. @a samples is the
        number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &os, int samples=11) const;
+
+   /** Prints the function with basis function coefficient @a a, and its first
+       and second derivatives associated with the KnotVector per element.
+       Use GetElements() to count the elements before using this function.
+       @a samples is the number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, const Vector &a, int samples=11) const;
+
+   /** Prints the @a i-th function and its first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, int i, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }

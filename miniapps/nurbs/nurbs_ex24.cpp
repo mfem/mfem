@@ -128,8 +128,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use Nedelec or
-   //    Raviart-Thomas finite elements of the specified order.
+   // 5. Define a finite element space on the mesh. Here we use H^1, H(Div) or
+   //    H(Curl) finite elements of the specified order.
    FiniteElementCollection *trial_fec = nullptr;
    FiniteElementCollection *test_fec = nullptr;
    NURBSExtension *NURBSext = nullptr;

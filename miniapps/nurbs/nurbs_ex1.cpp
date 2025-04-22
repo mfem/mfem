@@ -139,10 +139,24 @@ public:
 
 };
 
+real_t sol(const Vector & x)
+{
+   if (x.Size() >= 2)
+   {
+      if ((x[1] - x[0] - 0.5 < 0.0) &&
+          (x[0] + x[1] -0.99 < 0.0))
+      {
+         return 1.0;
+      }
+   }
+
+   return 0.0;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
    const char *ref_file  = "";
    int ref_levels = -1;
@@ -158,6 +172,7 @@ int main(int argc, char *argv[])
    Array<int> order(1);
    int visport = 19916;
    order[0] = 1;
+   bool homogenousBC = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -174,11 +189,14 @@ int main(int argc, char *argv[])
                   "Slave boundaries for periodic BCs");
    args.AddOption(&neu, "-n", "--neu",
                   "Boundaries with Neumann BCs");
+   args.AddOption(&homogenousBC, "-h", "--hom",
+                  "-nh", "--no-hom",
+                  "Selection for using homogenous Dirichelet boundary conditions.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
-                  "--no-ibp",
+   args.AddOption(&ibp, "-ibp", "--ibp",
+                  "-no-ibp", "--no-ibp",
                   "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
    args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
                   "--weak-bc",
@@ -411,7 +429,15 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
-   x = 0.0;
+   if (homogenousBC)
+   {
+      x = 0.0;
+   }
+   else
+   {
+      FunctionCoefficient sol_cf(sol);
+      x.ProjectCoefficient(sol_cf);
+   }
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion

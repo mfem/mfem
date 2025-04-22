@@ -162,8 +162,9 @@ int main(int argc, char *argv[])
 
    // 5. Define the vector finite element space representing the current and the
    //    initial temperature, u_ref.
-   H1_FECollection fe_coll(order, dim);
-   FiniteElementSpace fespace(mesh, &fe_coll);
+   FiniteElementCollection *fe_coll = FECollection::NewH1(order, dim,
+                                                          mesh->IsNURBS());
+   FiniteElementSpace fespace(mesh, fe_coll);
 
    int fe_size = fespace.GetTrueVSize();
    cout << "Number of temperature unknowns: " << fe_size << endl;
@@ -267,6 +268,8 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
+   delete ode_solver;
+   delete fe_coll;
    delete mesh;
 
    return 0;

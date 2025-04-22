@@ -174,6 +174,27 @@ public:
    */
    static FiniteElementCollection *New(const char *name);
 
+   /** @brief Factory method: return a newly allocated H1 conforming FiniteElementCollection.
+       The NURBS flag determines if this needs to be a NURBS-based FiniteElementCollection.
+       Caller gets ownership. */
+   static FiniteElementCollection *NewH1(int order, int dim, bool NURBS = false);
+
+   /** @brief Factory method: return a newly allocated L2 conforming FiniteElementCollection.
+       The NURBS flag determines if this needs to be a NURBS-based FiniteElementCollection.
+       Caller gets ownership. */
+   static FiniteElementCollection *NewL2(int order, int dim, bool NURBS = false);
+
+   /** @brief Factory method: return a newly allocated HDiv conforming FiniteElementCollection.
+       The NURBS flag determines if this needs to be a NURBS-based FiniteElementCollection.
+       Caller gets ownership. */
+   static FiniteElementCollection *NewHDiv(int order, int dim, bool NURBS = false);
+
+   /** @brief Factory method: return a newly allocated HCurl conforming FiniteElementCollection.
+       The NURBS flag determines if this needs to be a NURBS-based FiniteElementCollection.
+       Caller gets ownership. */
+   static FiniteElementCollection *NewHCurl(int order, int dim,
+                                            bool NURBS = false);
+
    /** @brief Get the local dofs for a given sub-manifold.
 
       Return the local dofs for a SDim-dimensional sub-manifold (0D - vertex, 1D
@@ -265,6 +286,8 @@ protected:
        for the given Geometry, or the input is not a valid Geometry. */
    mutable ErrorMode error_mode = RAISE_MFEM_ERROR;
 };
+
+using FECollection = FiniteElementCollection;
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
 class H1_FECollection : public FiniteElementCollection

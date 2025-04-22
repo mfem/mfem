@@ -87,6 +87,51 @@ KnotVector::KnotVector(int order, const Vector& intervals,
          ++NumOfElements;
       }
    }
+KnotVector::KnotVector(int order, const Vector &k)
+{
+   Order = order;
+
+   bool repeated = true;
+   const int size = k.Size();
+   const int last = size - 1;
+   if (k.Size() < 2*Order  + 2)
+   {
+      repeated = false;
+   }
+   else
+   {
+      for (int i = 0; i <= Order; i++)
+      {
+         if (k[i] != k[0]) { repeated = false; }
+         if (k[last - i] != k[last]) { repeated = false; }
+      }
+   }
+
+   if (repeated)
+   {
+      knot = k;
+   }
+   else
+   {
+      knot.SetSize(size + 2*Order);
+      for (int i = 0; i <= Order; i++)
+      {
+         knot[i] = k[0];
+      }
+
+      for (int i = 0; i < last; i++)
+      {
+         knot[i + Order + 1] = k[i+1];
+      }
+
+      for (int i = 0; i <= Order; i++)
+      {
+         knot[Order + last + i] = k[last];
+      }
+   }
+
+   NumOfControlPoints = knot.Size() - Order - 1;
+   GetElements();
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
@@ -99,6 +144,165 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    if (kv.spacing) { spacing = kv.spacing->Clone(); }
 
    return *this;
+}
+
+int KnotVector::GetSpan(real_t u) const
+{
+   int low, mid, high;
+
+   if (u == knot(NumOfControlPoints+Order))
+   {
+      mid = NumOfControlPoints-1;
+   }
+   else if (u == knot(0))
+   {
+      mid = Order;
+   }
+   else if ((u > knot(0)) && (u < knot(NumOfControlPoints+Order)))
+   {
+      low = Order;
+      high = NumOfControlPoints;
+      mid = (low + high)/2;
+      while ( (u < knot(mid)) || (u >= knot(mid+1)) )
+      {
+         if (u < knot(mid))
+         {
+            high = mid;
+         }
+         else
+         {
+            low = mid;
+         }
+         mid = (low + high)/2;
+      }
+   }
+   else
+   {
+      mfem_error("Knot location outside of the range of the KnotVector");
+   }
+
+   return mid;
+}
+
+real_t KnotVector::GetGreville(int i) const
+{
+   real_t sum = 0.0;
+   for (int j = 1; j < Order+1; j++) { sum += knot[i + j]; }
+   return sum/real_t(Order);
+}
+
+real_t KnotVector::GetBotella(int i) const
+{
+   constexpr int itermax = 10;
+   constexpr real_t tol = 1e-8;
+
+   Vector grad(Order+1);
+   Vector hess(Order+1);
+
+   real_t u,xi;
+   int iter, ks, o;
+
+   // Get initial guess
+   u = GetGreville(i);
+
+   // Check for a repeated knot -- include begin and end
+   if (knot[i + 1] == knot[i + Order])
+   {
+      return u;
+   }
+
+   for (iter = 0; iter < itermax; iter++)
+   {
+      ks = GetSpan (u);
+      xi = GetRefPoint(u, ks);
+      o = Order - (ks - i);
+
+      CalcDShape(grad, ks-Order, xi);
+      CalcD2Shape(hess, ks-Order, xi);
+
+      u -= (grad[o]/hess[o])*(knot(ks+1) - knot(ks));
+
+      if (fabs(grad[o])< tol) { break; }
+   }
+   if (iter >= itermax)
+   {
+      MFEM_WARNING("KnotVector::GetBotella not converged");
+      mfem::out<<"i = "<<i<<",iter = "<<iter<<", grad = "<< grad[o]<<endl;
+   }
+   return u;
+}
+
+void KnotVector::ComputeDemko() const
+{
+   if (demko.Size() == GetNCP()) { return; }
+
+   const int itermax1 = 10;
+   const int itermax2 = 10;
+
+   const real_t tol1 = 1e-12;
+   const real_t tol2 = 1e-12;
+
+   Vector x(GetNCP());
+   for ( int i = 0; i <x.Size(); i++)
+   {
+      x[i] = std::pow(-1.0, i);
+   }
+
+   demko.SetSize(GetNCP());
+   for (int i = 0; i <GetNCP(); i++)
+   {
+      demko[i] = GetGreville(i);
+   }
+
+   // Remez iteration
+   //  - Find interpolant, given by a, through given points, given by demko
+   //  - Find extrema of this polynom and update demko points
+   //  - Repeat untill converged
+   Vector a(GetNCP()),anew(GetNCP());
+   Vector shgrad(Order+1);
+   Vector shhess(Order+1);
+
+   real_t u,xi, grad, hess;
+   int iter1, iter2, ks;
+
+   GetInterpolant(x, demko, a);
+   for (iter1 = 0; iter1 < itermax1; iter1++)
+   {
+      for (int i = 0; i <GetNCP(); i++)
+      {
+         // Check for a repeated knot -- include begin and end
+         if (knot[i + 1] == knot[i + Order])
+         {
+            continue;
+         }
+
+         u = demko[i];
+         for (iter2 = 0; iter2 <itermax2; iter2++)
+         {
+            ks = GetSpan (u);
+            xi = GetRefPoint(u, ks);
+
+            CalcDShape(shgrad, ks-Order, xi);
+            CalcD2Shape(shhess, ks-Order, xi);
+            grad = hess = 0.0;
+            for (int p = 0; p <Order+1; p++)
+            {
+               grad += a[ks-Order + p]*shgrad[p];
+               hess += a[ks-Order + p]*shhess[p];
+            }
+            u -= (grad/hess)*(knot(ks+1) - knot(ks));
+
+            if (fabs(grad)< tol2) { break; }
+         }
+         if (iter2 >= itermax2) { mfem::out<<"Demko: Iteration to find extremum not converged"<<fabs(grad)<<endl; }
+         demko[i] = u;
+      }
+      GetInterpolant(x, demko, anew);
+      a -= anew;
+      if (a.Norml2() < tol1) { break; }
+      a = anew;
+   }
+   if (iter1 >= itermax1) { mfem::out<<"Demko: Remez iteration  not converged"<<a.Norml2()<<endl; }
 }
 
 KnotVector *KnotVector::DegreeElevate(int t) const
@@ -336,33 +540,85 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 
    Vector shape(Order+1);
 
-   real_t x, dx = 1.0/real_t (samples - 1);
+   real_t xi, dxi = 1.0/real_t (samples - 1);
 
-   /* @a cnt is a counter including elements between repeated knots if
-      present. This is required for usage of CalcShape. */
-   int cnt = 0;
-
-   for (int e = 0; e < GetNE(); e++, cnt++)
+   for (int ks = 0; ks < GetNKS(); ks++)
    {
       // Avoid printing shapes between repeated knots
-      if (!isElement(cnt)) { e--; continue; }
+      if (!isElement(ks)) { continue; }
 
       for (int j = 0; j <samples; j++)
       {
-         x = j*dx;
-         os << x + e;
+         xi =j*dxi;
+         os <<GetKnotLocation(xi, ks+Order)<<"\t";
 
-         CalcShape(shape, cnt, x);
+         CalcShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcDShape(shape, cnt, x);
+         CalcDShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcD2Shape(shape, cnt, x);
+         CalcD2Shape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
          os << endl;
       }
    }
+}
+
+void KnotVector::PrintFunction(std::ostream &os, const Vector &a,
+                               int samples) const
+{
+   MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().");
+
+   Vector shape(Order+1);
+
+   real_t xi, val, dxi = 1.0/real_t (samples - 1);
+
+   /* @a cnt is a counter including elements between repeated knots if
+      present. This is required for usage of CalcShape. */
+   for (int ks = 0; ks < GetNKS(); ks++)
+   {
+      // Avoid printing shapes between repeated knots
+      if (!isElement(ks)) { continue; }
+
+      for (int j = 0; j <samples; j++)
+      {
+         xi =j*dxi;
+         os <<GetKnotLocation(xi, ks+Order)<<"\t";
+
+         CalcShape ( shape, ks, xi);
+         val = 0.0;
+         for (int p = 0; p <Order+1; p++)
+         {
+            val += a[ks + p]*shape[p];
+         }
+         os<<val<<"\t";
+
+         CalcDShape ( shape, ks, xi);
+         val = 0.0;
+         for (int p = 0; p <Order+1; p++)
+         {
+            val += a[ks + p]*shape[p];
+         }
+         os<<val<<"\t";
+
+         CalcD2Shape ( shape, ks, xi);
+         val = 0.0;
+         for (int p = 0; p <Order+1; p++)
+         {
+            val += a[ks + p]*shape[p];
+         }
+         os<<val<<endl;
+      }
+   }
+}
+
+void KnotVector::PrintFunction(std::ostream &os, int i, int samples) const
+{
+   Vector a(GetNCP());
+   a = 0.0;
+   a[i] = 1.0;
+   PrintFunction(os, a, samples);
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
@@ -373,7 +629,7 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
    real_t left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
@@ -398,7 +654,7 @@ void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
    real_t ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -456,7 +712,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip);
    real_t temp, saved, d;
    real_t a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
@@ -605,7 +861,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
                maxima[j] = max;
                ks[j] = i;
                xi[j] = arg;
-               u[j]  = getKnotLocation(arg, i+Order);
+               u[j]  = GetKnotLocation(arg, i+Order);
             }
          }
       }
@@ -620,9 +876,14 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    int ncp = GetNCP();
 
    // Find interpolation points
-   Vector xi_args, u_args;
-   Array<int> i_args;
-   FindMaxima(i_args,xi_args, u_args);
+   Vector xi_args(ncp), u_args(ncp);
+   Array<int> i_args(ncp);
+   for (int i = 0; i < ncp; i++)
+   {
+      u_args[i] = GetBotella(i);
+      i_args[i] = GetSpan(u_args[i]) - Order;
+      xi_args[i] = GetRefPoint(u_args[i],i_args[i]+Order);
+   }
 
    // Assemble collocation matrix
    Vector shape(order+1);
@@ -646,6 +907,35 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
       A.Mult(tmp,*x[i]);
    }
 }
+
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A9.1 p. 369
+void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
+                                Vector &a) const
+{
+   // Assemble collocation matrix
+   Vector shape(Order+1);
+   DenseMatrix A(NumOfControlPoints);
+   A = 0.0;
+
+   for (int i = 0; i < NumOfControlPoints; i++)
+   {
+      const int ks = GetSpan(u[i]);
+      const real_t xi = GetRefPoint(u[i], ks);
+      CalcShape ( shape, ks-Order, xi);
+
+      for (int p = 0; p < Order+1; p++)
+      {
+         A(i, ks - Order + p ) =  shape[p];
+      }
+   }
+
+   // Solve problem
+   // Note: A is banded, which is not exploited -> future optimization possible
+   A.Invert();
+   A.Mult(x,a);
+}
+
 
 int KnotVector::findKnotSpan(real_t u) const
 {
@@ -1158,8 +1448,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
    }
 
    int rr = knot.Size() - 1;
-   int a  = oldkv.findKnotSpan(knot(0))  - 1;
-   int b  = oldkv.findKnotSpan(knot(rr)) - 1;
+   int a  = oldkv.GetSpan(knot(0));
+   int b  = oldkv.GetSpan(knot(rr));
    int pl = oldkv.GetOrder();
    int ml = oldkv.GetNCP();
 

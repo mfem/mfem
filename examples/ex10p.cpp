@@ -260,8 +260,9 @@ int main(int argc, char *argv[])
    //    discontinuous higher-order space. Since x and v are integrated in time
    //    as a system, we group them together in block vector vx, on the unique
    //    parallel degrees of freedom, with offsets given by array true_offset.
-   H1_FECollection fe_coll(order, dim);
-   ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
+   FiniteElementCollection *fe_coll = FECollection::NewH1(order, dim,
+                                                          pmesh->IsNURBS());
+   ParFiniteElementSpace fespace(pmesh, fe_coll, dim);
 
    HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
@@ -282,8 +283,9 @@ int main(int argc, char *argv[])
    ParGridFunction x_ref(&fespace);
    pmesh->GetNodes(x_ref);
 
-   L2_FECollection w_fec(order + 1, dim);
-   ParFiniteElementSpace w_fespace(pmesh, &w_fec);
+   FiniteElementCollection *w_fec = FECollection::NewL2(order+1, dim,
+                                                        pmesh->IsNURBS());
+   ParFiniteElementSpace w_fespace(pmesh, w_fec);
    ParGridFunction w_gf(&w_fespace);
 
    // 8. Set the initial conditions for v_gf, x_gf and vx, and define the
@@ -405,6 +407,9 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
+   delete ode_solver;
+   delete fe_coll;
+   delete w_fec;
    delete pmesh;
 
    return 0;

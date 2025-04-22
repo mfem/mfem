@@ -2360,29 +2360,45 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
       }
       else
       {
-         // Define and assemble linear form
-         LinearForm b(fes);
-         b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
-         b.Assemble();
+         Array<int> vdofs;
+         Vector vals;
+         constexpr real_t signal = std::numeric_limits<real_t>::min();
 
-         // Define and assemble bilinear form
-         BilinearForm a(fes);
-         a.AddDomainIntegrator(new MassIntegrator());
-         a.Assemble();
+         for (int i = 0; i < fes->GetNE(); i++)
+         {
+            doftrans = fes->GetElementVDofs(i, vdofs);
+            vals.SetSize(vdofs.Size());
+            vals = signal;
 
-         // Set solver and preconditioner
-         SparseMatrix A(a.SpMat());
-         GSSmoother  prec(A);
-         CGSolver cg;
-         cg.SetOperator(A);
-         cg.SetPreconditioner(prec);
-         cg.SetRelTol(1e-12);
-         cg.SetMaxIter(1000);
-         cg.SetPrintLevel(0);
+            fes->GetFE(i)->Project(coeff,
+                                   *fes->GetElementTransformation(i),
+                                   vals);
+            if (doftrans)
+            {
+               doftrans->TransformPrimal(vals);
+            }
 
-         // Solve and get solution
-         *this = 0.0;
-         cg.Mult(b,*this);
+            // Remove undefined dofs
+            // The knot location (either Botella, Demko or Greville point)
+            // where the NURBS dof are evaluated might fall outside of the
+            // domain of the element. In that case the value is not set, and
+            // the value remains the signal value.
+            int s = 0;
+            for (int ii = 0; ii < vals.Size(); ii++)
+            {
+               if (vals[ii] != signal)
+               {
+                  vdofs[s] = vdofs[ii];
+                  vals(s) = vals(ii);
+                  s++;
+               }
+            }
+            vdofs.SetSize(s);
+            vals.SetSize(s);
+
+            // Add reduced dofs to global vector
+            SetSubVector(vdofs, vals);
+         }
       }
    }
    else
@@ -2393,6 +2409,34 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
 
       (*this) *= (delta_c->Scale() / integral);
    }
+}
+
+void GridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
+                                              int iter)
+{
+   // Define and assemble linear form
+   LinearForm b(fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   BilinearForm a(fes);
+   a.AddDomainIntegrator(new MassIntegrator());
+   a.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
 }
 
 void GridFunction::ProjectCoefficient(
@@ -2421,15 +2465,13 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
+   Array<int> vdofs;
+   Vector vals;
+   DofTransformation * doftrans = NULL;
+
    if (fes->GetNURBSext() == NULL)
    {
-      int i;
-      Array<int> vdofs;
-      Vector vals;
-
-      DofTransformation * doftrans = NULL;
-
-      for (i = 0; i < fes->GetNE(); i++)
+      for (int i = 0; i < fes->GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
@@ -2443,30 +2485,75 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    }
    else
    {
-      // Define and assemble linear form
-      LinearForm b(fes);
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
-      b.Assemble();
+      constexpr real_t signal = std::numeric_limits<real_t>::min();
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         doftrans = fes->GetElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         vals = signal;
+         fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+         if (doftrans)
+         {
+            doftrans->TransformPrimal(vals);
+         }
+         // Remove undefined dofs
+         // The knot location (either Botella, Demko or Greville point)
+         // where the NURBS dof are evaluated might fall outside of the
+         // domain of the element. In that case the value is not set, and
+         // the value remains the signal value.
+         int s = 0;
+         for (int ii = 0; ii < vals.Size(); ii++)
+         {
+            if (vals[ii] != signal)
+            {
+               vdofs[s] = vdofs[ii];
+               vals(s) = vals(ii);
+               s++;
+            }
+         }
+         vdofs.SetSize(s);
+         vals.SetSize(s);
 
-      // Define and assemble bilinear form
-      BilinearForm a(fes);
-      a.AddDomainIntegrator(new VectorFEMassIntegrator());
-      a.Assemble();
-
-      // Set solver and preconditioner
-      SparseMatrix A(a.SpMat());
-      GSSmoother  prec(A);
-      CGSolver cg;
-      cg.SetOperator(A);
-      cg.SetPreconditioner(prec);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(0);
-
-      // Solve and get solution
-      *this = 0.0;
-      cg.Mult(b,*this);
+         // Add reduced dofs to global vector
+         SetSubVector(vdofs, vals);
+      }
    }
+}
+
+void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                              real_t rtol, int iter)
+{
+   // Define and assemble linear form
+   LinearForm b(fes);
+   BilinearForm a(fes);
+
+   // Dimension argument to GetRangeType is arbitrary to be 3, could also be 2.
+   if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+   a.Assemble();
+   b.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
 }
 
 void GridFunction::ProjectCoefficient(

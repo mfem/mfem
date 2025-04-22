@@ -571,8 +571,7 @@ public:
 
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, NULL, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to

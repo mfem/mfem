@@ -45,6 +45,10 @@ add_mfem_miniapp(nurbs_printfunc
   MAIN nurbs_printfunc.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_mesh_info
+  MAIN nurbs_mesh_info.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(nurbs_patch_ex1
   MAIN nurbs_patch_ex1.cpp
   LIBRARIES mfem)

@@ -305,6 +305,8 @@ miniapps/nurbs/nurbs_naca_cmesh
 miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
+miniapps/nurbs/nurbs_mesh_info
+miniapps/nurbs/k[0-1]_*.dat
 
 miniapps/performance/ex1
 miniapps/performance/ex1p

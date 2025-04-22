@@ -225,8 +225,9 @@ int main(int argc, char *argv[])
    //    higher-order space. Since x and v are integrated in time as a system,
    //    we group them together in block vector vx, with offsets given by the
    //    fe_offset array.
-   H1_FECollection fe_coll(order, dim);
-   FiniteElementSpace fespace(mesh, &fe_coll, dim);
+   FiniteElementCollection *fe_coll = FECollection::NewH1(order, dim,
+                                                          mesh->IsNURBS());
+   FiniteElementSpace fespace(mesh, fe_coll, dim);
 
    int fe_size = fespace.GetTrueVSize();
    cout << "Number of velocity/deformation unknowns: " << fe_size << endl;
@@ -243,8 +244,9 @@ int main(int argc, char *argv[])
    GridFunction x_ref(&fespace);
    mesh->GetNodes(x_ref);
 
-   L2_FECollection w_fec(order + 1, dim);
-   FiniteElementSpace w_fespace(mesh, &w_fec);
+   FiniteElementCollection *w_fec = FECollection::NewL2(order+1, dim,
+                                                        mesh->IsNURBS());
+   FiniteElementSpace w_fespace(mesh, w_fec);
    GridFunction w(&w_fespace);
 
    // 6. Set the initial conditions for v and x, and the boundary conditions on
@@ -346,6 +348,9 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
+   delete ode_solver;
+   delete fe_coll;
+   delete w_fec;
    delete mesh;
 
    return 0;
