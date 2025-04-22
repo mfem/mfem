@@ -218,7 +218,7 @@ public:
                block_row_idcs_offsets[k] + lR.Height();
             block_col_idcs_offsets[k + 1] =
                block_col_idcs_offsets[k] + lR.Width();
-            max_rows = std::min(lR.Height(), max_rows);
+            max_rows = std::max(lR.Height(), max_rows);
             // index information
             fespace->elem_dof->GetRow(emb.parent, dofs);
             old_elem_dof->GetRow(k, old_dofs);
@@ -256,13 +256,13 @@ public:
          }
       }
       // if not using GPU, set max_rows/max_cols to zero
-      if (!Device::Allows(Backend::DEVICE_MASK))
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
-         max_rows = 1;
+         max_rows = std::min(max_rows, max_team_size);
       }
       else
       {
-         max_rows = std::min(max_rows, max_team_size);
+         max_rows = 1;
       }
    }
 };
