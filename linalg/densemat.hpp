@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,6 +100,9 @@ public:
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
+
+   // Total size = width*height
+   int TotalSize() const { return width*height; }
 
    /// Change the size of the DenseMatrix to s x s.
    void SetSize(int s) { SetSize(s, s); }
@@ -1319,7 +1322,6 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
     @param [in, out] X vector storing right-hand side and then solution -
     dimension m x n. */
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
-
 
 // Inline methods
 

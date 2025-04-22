@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -300,7 +300,12 @@ public:
    inline const real_t &operator[](int i) const { return (*this)(i); }
 
    /// Dot product with a `double *` array.
-   real_t operator*(const real_t *) const;
+   /// This function always executes on the CPU. A HostRead() will be called if
+   /// required.
+   /// To optionally execute on the device:
+   /// Vector tmp(v, Size());
+   /// res = (*this) * tmp;
+   real_t operator*(const real_t *v) const;
 
    /// Return the inner-product.
    real_t operator*(const Vector &v) const;

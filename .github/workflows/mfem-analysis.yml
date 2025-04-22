@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -22,6 +22,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
@@ -34,11 +38,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       - name: checkout MFEM
         uses: actions/checkout@v4
         with:
@@ -46,14 +45,15 @@ jobs:
 
       - name: Get MPI (Linux)
         run: |
-          sudo apt-get install mpich libmpich-dev
+          sudo apt-get install openmpi-bin libopenmpi-dev
+          export OMPI_MCA_rmaps_base_oversubscribe=1
 
       - name: Cache Hypre Install
         id: hypre-cache
         uses: actions/cache@v4
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2.5
+          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-v2.5
 
       - name: Get Hypre
         if: steps.hypre-cache.outputs.cache-hit != 'true'

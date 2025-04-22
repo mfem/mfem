@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -99,6 +99,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_GSLIB
       "MFEM_USE_GSLIB\n"
+#endif
+#ifdef MFEM_USE_HDF5
+      "MFEM_USE_HDF5\n"
 #endif
 #ifdef MFEM_USE_HIOP
       "MFEM_USE_HIOP\n"

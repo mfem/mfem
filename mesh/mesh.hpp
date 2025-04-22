@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -895,6 +895,9 @@ public:
 
    ///@}
 
+   /// Construct a Mesh from a NURBSExtension
+   explicit Mesh( const NURBSExtension& ext );
+
    /** @anchor mfem_Mesh_construction
        @name Methods for piecewise Mesh construction.
 
@@ -1230,7 +1233,7 @@ public:
        present.
 
        @return A bitmask:
-       - bit 0 - simplices are present in the mesh (triangles, tets),
+       - bit 0 - simplices are present in the mesh (segments, triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
        - bit 3 - the mesh has pyramid elements.
@@ -1421,10 +1424,24 @@ public:
    /// Return the Geometry::Type associated with face @a i.
    Geometry::Type GetFaceGeometry(int i) const;
 
+   /// @brief If the local mesh is not empty, return GetFaceGeometry(0);
+   /// otherwise return a typical face geometry present in the global mesh.
+   ///
+   /// Note that in mixed meshes or meshes with prism or pyramid elements, there
+   /// will be more than one face geometry.
+   Geometry::Type GetTypicalFaceGeometry() const;
+
    Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
+
+   /** @brief If the local mesh is not empty, return GetElementGeometry(0);
+       otherwise, return a typical Geometry present in the global mesh.
+
+       This method can be used to replace calls like GetElementGeometry(0) in
+       order to handle empty local meshes better. */
+   Geometry::Type GetTypicalElementGeometry() const;
 
    Geometry::Type GetBdrElementGeometry(int i) const
    {
@@ -1662,8 +1679,21 @@ public:
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
-   /// Also, this pointer should NOT be deleted by the caller.
+   /// Also, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
+
+   /// @brief If the local mesh is not empty return GetElementTransformation(0);
+   /// otherwise, return the identity transformation for a typical geometry in
+   /// the mesh and a typical finite element in the nodal finite element space
+   /// (if present).
+   ///
+   /// This method can be used to replace calls like GetElementTransformation(0)
+   /// in order to handle empty local meshes better.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// this pointer should @b not be deleted by the caller.
+   ElementTransformation *GetTypicalElementTransformation();
 
    /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
@@ -2066,6 +2096,56 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
+   /// @brief Populate a marker array identifying exterior faces
+   ///
+   /// @param[in,out] face_marker Resized if necessary to the number of
+   ///                            local faces. The array entries will be
+   ///                            zero for interior faces and 1 for exterior
+   ///                            faces.
+   virtual void GetExteriorFaceMarker(Array<int> &face_marker) const;
+
+   /// @brief Unmark boundary attributes of internal boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with internal boundaries
+   ///                           will be set to zero. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only unmark entries which exclusively contain
+   ///                           internal faces [default: true].
+   virtual void UnmarkInternalBoundaries(Array<int> &bdr_marker,
+                                         bool excl = true) const;
+
+   /// @brief Unmark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to zero. Other entries will remain
+   ///                           unchanged.
+   virtual void UnmarkNamedBoundaries(const std::string &set_name,
+                                      Array<int> &bdr_marker) const;
+
+   /// @brief Mark boundary attributes of external boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with external boundaries
+   ///                           will be set to one. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only mark entries which exclusively contain
+   ///                           external faces [default: true].
+   virtual void MarkExternalBoundaries(Array<int> &bdr_marker,
+                                       bool excl = true) const;
+
+   /// @brief Mark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to one. Other entries will remain
+   ///                           unchanged.
+   virtual void MarkNamedBoundaries(const std::string &set_name,
+                                    Array<int> &bdr_marker) const;
+
    /// @}
 
    /// @name Methods related to mesh partitioning
@@ -2281,8 +2361,17 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
+   /// Return a bool indicating whether this mesh is conforming.
    bool Conforming() const { return ncmesh == NULL; }
+   /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return ncmesh != NULL; }
+
+   /** Designate this mesh for output as "NC mesh v1.1", meaning it is
+       nonconforming with nonuniform refinement spacings. */
+   void SetScaledNCMesh()
+   {
+      ncmesh->using_scaling = true;
+   }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
@@ -2384,6 +2473,11 @@ public:
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
                     int compression_level=0);
+
+#ifdef MFEM_USE_HDF5
+   /// @brief Save the Mesh in %VTKHDF format.
+   void SaveVTKHDF(const std::string &fname, bool high_order=true);
+#endif
 
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.
@@ -2926,8 +3020,8 @@ public:
    Vector X;
 
    /// Jacobians of the element transformations at all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
-       NF) where
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x
+       (DIM-1) x NF) where
        - NQ = number of quadrature points per face,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
        - DIM = dimension of the mesh = mesh.Dimension(), and

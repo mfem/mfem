@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
+#include "vtkhdf.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/binaryio.hpp"
@@ -385,6 +386,29 @@ void Mesh::GetElementTransformation(int i,
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
+}
+
+ElementTransformation *Mesh::GetTypicalElementTransformation()
+{
+   if (GetNE() > 0) { return GetElementTransformation(0); }
+
+   Transformation.Attribute = -1;
+   Transformation.ElementNo = -1;
+   Transformation.ElementType = ElementTransformation::ELEMENT;
+   Transformation.mesh = this;
+   Transformation.Reset();
+   const Geometry::Type geom = GetTypicalElementGeometry();
+   if (Nodes == NULL)
+   {
+      Element::Type el_type = Element::TypeFromGeometry(geom);
+      Transformation.SetFE(GetTransformationFEforElementType(el_type));
+   }
+   else
+   {
+      Transformation.SetFE(GetNodalFESpace()->GetTypicalFE());
+   }
+   Transformation.SetIdentityTransformation(geom);
+   return &Transformation;
 }
 
 ElementTransformation *Mesh::GetElementTransformation(int i)
@@ -1470,6 +1494,22 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
    return Geometry::INVALID;
 }
 
+Geometry::Type Mesh::GetTypicalFaceGeometry() const
+{
+   Geometry::Type elem_geom = GetTypicalElementGeometry();
+   switch (elem_geom)
+   {
+      case Geometry::SEGMENT: return Geometry::POINT;
+      case Geometry::TRIANGLE: return Geometry::SEGMENT;
+      case Geometry::SQUARE: return Geometry::SEGMENT;
+      case Geometry::TETRAHEDRON: return Geometry::TRIANGLE;
+      case Geometry::CUBE: return Geometry::SQUARE;
+      case Geometry::PRISM: return Geometry::TRIANGLE;
+      case Geometry::PYRAMID: return Geometry::TRIANGLE;
+      default: return Geometry::INVALID;
+   }
+}
+
 Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
@@ -1484,6 +1524,181 @@ Array<int> Mesh::GetFaceToBdrElMap() const
       face_to_be[GetBdrElementFaceIndex(i)] = i;
    }
    return face_to_be;
+}
+
+Geometry::Type Mesh::GetTypicalElementGeometry() const
+{
+   if (GetNE() > 0) { return GetElementGeometry(0); }
+
+   const int dim = Dimension();
+   if (dim == 1)
+   {
+      return Geometry::SEGMENT;
+   }
+   Geometry::Type geom = Geometry::INVALID;
+   if (dim == 2)
+   {
+      geom = ((meshgen & 1) ? Geometry::TRIANGLE :
+              ((meshgen & 2) ? Geometry::SQUARE : Geometry::INVALID));
+   }
+   else if (dim == 3)
+   {
+      geom = ((meshgen & 1) ? Geometry::TETRAHEDRON :
+              ((meshgen & 2) ? Geometry::CUBE :
+               ((meshgen & 4) ? Geometry::PRISM :
+                ((meshgen & 8) ? Geometry::PYRAMID : Geometry::INVALID))));
+   }
+   MFEM_VERIFY(geom != Geometry::INVALID,
+               "Could not determine a typical element Geometry!");
+   return geom;
+}
+
+void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
+{
+   const int num_faces = GetNumFaces();
+
+   face_marker.SetSize(num_faces);
+
+   for (int f = 0; f < num_faces; f++)
+   {
+      if (FaceIsTrueInterior(f))
+      {
+         face_marker[f] = 0;
+      }
+      else
+      {
+         face_marker[f] = 1;
+      }
+   }
+}
+
+void Mesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
+
+   // Identify attributes which contain interior faces and those which
+   // contain exterior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      if (bdr_marker[bea-1] != 0)
+      {
+         const int f = be_to_face[be];
+
+         if (FaceIsTrueInterior(f))
+         {
+            interior_bdr[bea-1] = true;
+         }
+         else
+         {
+            exterior_bdr[bea-1] = true;
+         }
+      }
+   }
+
+   // Unmark attributes which are currently marked, contain interior faces,
+   // and satisfy the appropriate exclusivity requirement.
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (bdr_marker[b] != 0 && interior_bdr[b])
+      {
+         if (!excl || !exterior_bdr[b])
+         {
+            bdr_marker[b] = 0;
+         }
+      }
+   }
+}
+
+void Mesh::UnmarkNamedBoundaries(const std::string &set_name,
+                                 Array<int> &bdr_marker) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_attribute_sets.AttributeSetExists(set_name),
+               "Named set is not defined in this mesh!");
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> set_marker = bdr_attribute_sets.GetAttributeSetMarker(set_name);
+
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (set_marker[b])
+      {
+         bdr_marker[b] = 0;
+      }
+   }
+}
+
+void Mesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
+
+   // Mark boundary attributes containing exterior faces while keeping track of
+   // those which also contain interior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      const int f = be_to_face[be];
+
+      if (FaceIsTrueInterior(f))
+      {
+         interior_bdr[bea-1] = true;
+      }
+      else
+      {
+         exterior_bdr[bea-1] = true;
+      }
+   }
+
+   // Mark attributes which were found to contain exterior faces and satisfy
+   // the appropriate exclusivity requirement.
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (bdr_marker[b] == 0 && exterior_bdr[b])
+      {
+         if (!excl || !interior_bdr[b])
+         {
+            bdr_marker[b] = 1;
+         }
+      }
+   }
+}
+
+void Mesh::MarkNamedBoundaries(const std::string &set_name,
+                               Array<int> &bdr_marker) const
+{
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_attribute_sets.AttributeSetExists(set_name),
+               "Named set is not defined in this mesh!");
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> set_marker = bdr_attribute_sets.GetAttributeSetMarker(set_name);
+
+   for (int b = 0; b < max_bdr_attr; b++)
+   {
+      if (set_marker[b])
+      {
+         bdr_marker[b] = 1;
+      }
+   }
 }
 
 void Mesh::Init()
@@ -3595,6 +3810,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    }
 
 #undef VTX
+#undef VTXP
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -4411,6 +4627,49 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    FinalizeTopology();
 }
 
+Mesh::Mesh( const NURBSExtension& ext )
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
+{
+   SetEmpty();
+   /// make an internal copy of the NURBSExtension
+   NURBSext = new NURBSExtension( ext );
+
+   Dim              = NURBSext->Dimension();
+   NumOfVertices    = NURBSext->GetNV();
+   NumOfElements    = NURBSext->GetNE();
+   NumOfBdrElements = NURBSext->GetNBE();
+
+   NURBSext->GetElementTopo(elements);
+   NURBSext->GetBdrElementTopo(boundary);
+
+   vertices.SetSize(NumOfVertices);
+   if (NURBSext->HavePatches())
+   {
+      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+                                                       Ordering::byVDIM);
+      Nodes = new GridFunction(fes);
+      Nodes->MakeOwner(fec);
+      NURBSext->SetCoordsFromPatches(*Nodes);
+      own_nodes = 1;
+      spaceDim = Nodes->VectorDim();
+      for (int i = 0; i < spaceDim; i++)
+      {
+         Vector vert_val;
+         Nodes->GetNodalValues(vert_val, i+1);
+         for (int j = 0; j < NumOfVertices; j++)
+         {
+            vertices[j](i) = vert_val(j);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS mesh has no patches.");
+   }
+   FinalizeMesh();
+}
+
 Element *Mesh::NewElement(int geom)
 {
    switch (geom)
@@ -4564,6 +4823,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
    int mfem_nc_version = 0;
    if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
+   else if (mesh_type == "MFEM NC mesh v1.1") { mfem_nc_version = 11; }
    else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
@@ -6182,7 +6442,7 @@ void Mesh::EnsureNodes()
       }
       else // Mesh using a legacy FE_Collection
       {
-         const int order = GetNodalFESpace()->GetElementOrder(0);
+         const int order = GetNodalFESpace()->GetMaxElementOrder();
          if (NURBSext)
          {
 #ifndef MFEM_USE_MPI
@@ -6243,8 +6503,16 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    }
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
+
+   const int old_space_dim = spaceDim;
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+
+   if (spaceDim != old_space_dim)
+   {
+      // Fix dimension of the vertices if the space dimension changes
+      SetVerticesFromNodes(Nodes);
+   }
 }
 
 void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
@@ -6417,7 +6685,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     mfem::Swap(vi[1], vi[3]);
+                     fo++;
                   }
                }
                break;
@@ -9761,6 +10030,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
                       oface+qf0, attr);
 #endif
+            // Tetrahedral elements may be new to this mesh so ensure that
+            // the relevant flags are switched on
+            mesh_geoms |= (1 << Geometry::TETRAHEDRON);
+            meshgen |= 1;
          }
          break;
 
@@ -10646,7 +10919,7 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
       }
 
       // infer 'type' of local refinement from first element's 'ref_type'
-      int type, rt = (refinements.Size() ? refinements[0].ref_type : 7);
+      int type, rt = (refinements.Size() ? refinements[0].GetType() : 7);
       if (rt == 1 || rt == 2 || rt == 4)
       {
          type = 1; // bisection
@@ -11722,7 +11995,7 @@ void Mesh::PrintVTU(std::string fname,
 
    fname = fname + ".vtu";
    std::fstream os(fname.c_str(),std::ios::out);
-   os << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   os << "<VTKFile type=\"UnstructuredGrid\" version=\"2.2\"";
    if (compression_level != 0)
    {
       os << " compressor=\"vtkZLibDataCompressor\"";
@@ -11864,7 +12137,7 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
             const int *p = VTKGeometry::VertexPermutation[geom];
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(os, buf, np + RG[p ? p[j] : j], " ",
+               WriteBinaryOrASCII(os, buf, np + RG[p ? (j - k + p[k]) : j], " ",
                                   format);
             }
             if (format == VTKFormat::ASCII) { os << '\n'; }
@@ -12096,6 +12369,28 @@ void Mesh::PrintVTK(std::ostream &os, int ref, int field_data)
    // prepare to write data
    os << "POINT_DATA " << np << '\n' << flush;
 }
+
+#ifdef MFEM_USE_HDF5
+
+void Mesh::SaveVTKHDF(const std::string &fname, bool high_order)
+{
+#ifdef MFEM_USE_MPI
+   if (ParMesh *pmesh = dynamic_cast<ParMesh*>(this))
+   {
+#ifdef MFEM_PARALLEL_HDF5
+      VTKHDF vtkhdf(fname, pmesh->GetComm());
+      vtkhdf.SaveMesh(*this, high_order);
+      return;
+#else
+      MFEM_ABORT("Requires HDF5 library with parallel support enabled");
+#endif
+   }
+#endif
+   VTKHDF vtkhdf(fname);
+   vtkhdf.SaveMesh(*this, high_order);
+}
+
+#endif
 
 void Mesh::GetElementColoring(Array<int> &colors, int el0)
 {
@@ -14264,7 +14559,7 @@ void GeometricFactors::Compute(const GridFunction &nodes,
 {
 
    const FiniteElementSpace *fespace = nodes.FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
@@ -14351,7 +14646,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF, my_d_mt);
+      J.SetSize(vdim*(mesh->Dimension() - 1)*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)

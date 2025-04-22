@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,13 @@ using namespace mfem;
 
 namespace get_value
 {
+
+static int first_1D_et = (int)Element::SEGMENT;
+static int  last_1D_et = (int)Element::SEGMENT;
+static int first_2D_et = (int)Element::TRIANGLE;
+static int  last_2D_et = (int)Element::QUADRILATERAL;
+static int first_3D_et = (int)Element::TETRAHEDRON;
+static int  last_3D_et = (int)Element::PYRAMID;
 
 double func_1D_lin(const Vector &x)
 {
@@ -133,8 +140,7 @@ TEST_CASE("1D GetValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
+   for (int type = first_1D_et; type <= last_1D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
 
@@ -411,8 +417,7 @@ TEST_CASE("1D GetValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
+   for (int type = first_1D_et; type <= last_1D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -571,8 +576,7 @@ TEST_CASE("2D GetValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -884,8 +888,7 @@ TEST_CASE("2D GetValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -1043,8 +1046,7 @@ TEST_CASE("3D GetValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -1392,8 +1394,7 @@ TEST_CASE("3D GetValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -1559,8 +1560,7 @@ TEST_CASE("2D GetVectorValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -2093,8 +2093,7 @@ TEST_CASE("2D GetVectorValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -2390,8 +2389,7 @@ TEST_CASE("3D GetVectorValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3054,8 +3052,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3371,8 +3368,7 @@ TEST_CASE("1D GetGradient",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
+   for (int type = first_1D_et; type <= last_1D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
 
@@ -3572,8 +3568,7 @@ TEST_CASE("2D GetGradient",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -3780,8 +3775,7 @@ TEST_CASE("3D GetGradient",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3813,6 +3807,8 @@ TEST_CASE("3D GetGradient",
 
          SECTION("Domain Evaluation 3D")
          {
+            mfem::out << "Domain Evaluation 3D for element type "
+                      << std::to_string(type) << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -3993,8 +3989,7 @@ TEST_CASE("2D GetCurl",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -4239,8 +4234,7 @@ TEST_CASE("3D GetCurl",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4504,8 +4498,7 @@ TEST_CASE("2D GetDivergence",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -4732,8 +4725,7 @@ TEST_CASE("3D GetDivergence",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);

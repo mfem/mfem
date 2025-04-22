@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,6 +88,8 @@ int CheckPoisson(Mesh &mesh, int order, int disabled_boundary_attribute)
    bool satisfy_bc = true;
    Vector tvec;
    sol.GetTrueDofs(tvec);
+   ess_tdof_list.HostRead();
+   tvec.HostRead();
    for (auto dof : ess_tdof_list)
    {
       if (tvec[dof] != 0.0)

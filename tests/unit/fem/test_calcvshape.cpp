@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,6 +138,25 @@ void GetReferenceTransformation(const Element::Type ElemType,
          T.GetPointMat()(2, 5) = 1.0;
          T.SetFE(&WedgeFE);
          break;
+      case Element::PYRAMID :
+         T.GetPointMat().SetSize(3, 5);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(2, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(2, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 1.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(2, 2) = 0.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 1.0;
+         T.GetPointMat()(2, 3) = 0.0;
+         T.GetPointMat()(0, 4) = 0.0;
+         T.GetPointMat()(1, 4) = 0.0;
+         T.GetPointMat()(2, 4) = 1.0;
+         T.SetFE(&PyramidFE);
+         break;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
@@ -193,6 +212,14 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
       for (int j=0; j < ipArr.Size(); ++j)
       {
          IntegrationPoint& ip = ipArr[j];
+
+         // Pyramid basis functions are poorly behaved outside the
+         // reference pyramid
+         if (fe->GetGeomType() == Geometry::PYRAMID &&
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+
+         CAPTURE(ip.x, ip.y, ip.z);
+
          fe->CalcVShape(ip, weights);
 
          weights.MultTranspose(dofsx, v);
@@ -217,6 +244,7 @@ TEST_CASE("CalcVShape ND",
           "[ND_QuadrilateralElement]"
           "[ND_TetrahedronElement]"
           "[ND_WedgeElement]"
+          "[ND_FuentesPyramidElement]"
           "[ND_HexahedronElement]")
 {
    const int maxOrder = 5;
@@ -270,6 +298,15 @@ TEST_CASE("CalcVShape ND",
       TestCalcVShape(&fe, &T, resolution);
    }
 
+   SECTION("ND_FuentesPyramidElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      ND_FuentesPyramidElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
    SECTION("ND_HexahedronElement")
    {
       IsoparametricTransformation T;
@@ -285,6 +322,7 @@ TEST_CASE("CalcVShape RT",
           "[RT_QuadrilateralElement]"
           "[RT_TetrahedronElement]"
           "[RT_WedgeElement]"
+          "[RT_FuentesPyramidElement]"
           "[RT_HexahedronElement]")
 {
    const int maxOrder = 5;
@@ -326,6 +364,15 @@ TEST_CASE("CalcVShape RT",
       GetReferenceTransformation(Element::WEDGE, T);
 
       RT_WedgeElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("RT_FuentesElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      RT_FuentesPyramidElement fe(order);
       TestCalcVShape(&fe, &T, resolution);
    }
 

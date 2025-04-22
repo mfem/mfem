@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -422,6 +422,8 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    {
       if (cP) { cP->MultTranspose(py, y); }
 
+      y.HostReadWrite();
+      ess_tdof_list.HostRead();
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          y(ess_tdof_list[i]) = 0.0;

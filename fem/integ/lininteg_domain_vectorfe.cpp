@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -278,7 +278,7 @@ static void HdivDLFAssemble(const FiniteElementSpace &fes,
 {
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
-   const FiniteElement *el = fes.GetFE(0);
+   const FiniteElement *el = fes.GetTypicalFE();
    const auto *vel = dynamic_cast<const VectorTensorFiniteElement *>(el);
    MFEM_VERIFY(vel != nullptr, "Must be VectorTensorFiniteElement");
    const MemoryType mt = Device::GetDeviceMemoryType();
@@ -329,7 +329,7 @@ void VectorFEDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
