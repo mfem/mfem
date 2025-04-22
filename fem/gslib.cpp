@@ -1190,10 +1190,7 @@ void FindPointsGSLIB::FreeData()
 
 void FindPointsGSLIB::SetupSplitMeshes()
 {
-   if (fec_map_lin == nullptr)
-   {
-      fec_map_lin = new H1_FECollection(1, dim);
-   }
+   if (fec_map_lin == nullptr) { fec_map_lin = new H1_FECollection(1, dim); }
    if (dim == 2)
    {
       int Nvert = 7;
@@ -1468,7 +1465,7 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
 
 void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
 {
-   MFEM_VERIFY(mesh, "Mesh not provided to FindPointsGSLIB constructor.");
+   MFEM_VERIFY(mesh, "Setup FindPointsGSLIB with mesh first.");
    if (mesh_split[dim-1] == nullptr)
    {
       const int dof1D = order+1;
@@ -2265,7 +2262,7 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
 
 void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
 {
-   MFEM_VERIFY(setupflag, "Use FindPointsGSLIB constructor with mesh first");
+   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
    int nve   = dim == 2 ? 4 : 8;
@@ -2336,7 +2333,7 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
 void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
                                                Vector &obbV)
 {
-   MFEM_VERIFY(setupflag, "Use FindPointsGSLIB constructor with mesh first");
+   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
    int nve   = dim == 2 ? 4 : 8;
@@ -2544,8 +2541,8 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                                         Array<unsigned int> &point_id,
                                         int point_pos_ordering)
 {
-   MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB constructor first that "
-               "includes the Mesh/ParMesh class");
+   MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
+                          "finding points.");
    MFEM_VERIFY(overset, "Please use OversetFindPoints for overlapping grids.");
    points_cnt = point_pos.Size() / dim;
    unsigned int match = 0; // Don't find points in the mesh if point_id=mesh_id
