@@ -481,10 +481,6 @@ public:
                   block_off_diag_row_idcs_offsets[od_idx] + lR.Height();
                block_off_diag_col_offsets[od_idx] = od_ridx;
                block_off_diag_widths[od_idx] = lR.Width();
-               MFEM_VERIFY(od_idx < recv_segment_idcs.Size(),
-                           "recv_segment_idcs oob");
-               MFEM_VERIFY(tmp[2] + 1 < recv_segments.Size(),
-                           "recv_segment oob");
                recv_segment_idcs[od_idx] = tmp[2];
 
                if (fespace->IsVariableOrder())
@@ -529,6 +525,7 @@ public:
       {
          max_rows = 1;
       }
+      requests.reserve(recv_ranks.Size() + send_ranks.Size());
    }
 };
 
@@ -539,7 +536,6 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
                                    const Vector &x, Vector &y)
 {
    // pack sends
-   int MyRank = op.fespace->GetMyRank();
    if (op.xghost_send.Size())
    {
       auto src = x.Read();
@@ -576,7 +572,6 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
    }
    // initialize off-diagonal receive and send
    op.requests.clear();
-   op.requests.reserve(op.recv_ranks.Size() + op.send_ranks.Size());
    if (op.xghost_recv.Size())
    {
       auto vdims = op.fespace->GetVDim();
