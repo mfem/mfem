@@ -183,9 +183,7 @@ int main(int argc, char *argv[])
       mesharr[1]->SetNodes(mesh_nodes_2);
    }
 
-   FindPointsGSLIB finder1, finder2;
-   finder1.Setup(*mesharr[0]);
-   finder2.Setup(*mesharr[1]);
+   FindPointsGSLIB finder1(mesharr[0]), finder2(mesharr[1]);
 
    Array<int> ess_tdof_list1_int, ess_tdof_list2_int;
    GetInterdomainBoundaryPoints(finder1, finder2, mesh_nodes_1, mesh_nodes_2,
@@ -325,9 +323,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Free the used memory.
-   finder1.FreeData();
-   finder2.FreeData();
    for (int i = 0; i < nmeshes; i++)
    {
       delete a_ar[i];
