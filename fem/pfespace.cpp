@@ -421,7 +421,7 @@ public:
             }
             DenseMatrix &lR =
                fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
-            max_rows = std::min(lR.Height(), max_rows);
+            max_rows = std::max(lR.Height(), max_rows);
             auto size = lR.Height() * lR.Width();
             fespace->elem_dof->GetRow(emb.parent, dofs);
             if (fine_rank == MyRank)
@@ -516,13 +516,13 @@ public:
          }
       }
       // if not using GPU, set max_rows/max_cols to zero
-      if (!Device::Allows(Backend::DEVICE_MASK))
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
-         max_rows = 1;
+         max_rows = std::min(max_rows, max_team_size);
       }
       else
       {
-         max_rows = std::min(max_rows, max_team_size);
+         max_rows = 1;
       }
    }
 };

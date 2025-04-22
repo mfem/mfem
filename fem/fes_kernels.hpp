@@ -36,7 +36,15 @@ struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, true>
       return bcptr[k + 1] - bcptr[k];
    }
 
-   int MFEM_HOST_DEVICE Col(int j, int k) const { return cptr[bcptr[k] + j]; }
+   void MFEM_HOST_DEVICE Col(int j, int k, int &col, int &sign) const
+   {
+      col = cptr[bcptr[k] + j];
+      if (col < 0)
+      {
+         col = -1 - col;
+         sign = -sign;
+      }
+   }
 
    int MFEM_HOST_DEVICE IndexX(int col, int vdim, int) const
    {
@@ -61,7 +69,15 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, true>
       return bcptr[k + 1] - bcptr[k];
    }
 
-   int MFEM_HOST_DEVICE Col(int j, int k) const { return cptr[bcptr[k] + j]; }
+   void MFEM_HOST_DEVICE Col(int j, int k, int& col, int& sign) const
+   {
+      col = cptr[bcptr[k] + j];
+      if (col < 0)
+      {
+         col = -1 - col;
+         sign = -sign;
+      }
+   }
 
    int MFEM_HOST_DEVICE IndexX(int col, int vdim, int) const
    {
@@ -87,9 +103,9 @@ struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, false>
       return bwptr[k];
    }
 
-   int MFEM_HOST_DEVICE Col(int j, int k) const
+   void MFEM_HOST_DEVICE Col(int j, int k, int &col, int &sign) const
    {
-      return coptr[k] + j;
+      col = coptr[k] + j;
    }
 
    int MFEM_HOST_DEVICE IndexX(int col, int vdim, int k) const
@@ -119,9 +135,9 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, false>
       return bwptr[k];
    }
 
-   int MFEM_HOST_DEVICE Col(int j, int k) const
+   void MFEM_HOST_DEVICE Col(int j, int k, int &col, int &sign) const
    {
-      return coptr[k] + j;
+      col = coptr[k] + j;
    }
 
    int MFEM_HOST_DEVICE IndexX(int col, int vdim, int k) const
@@ -186,13 +202,8 @@ struct DerefineMatrixOpMultFunctor
             real_t sum = 0;
             for (int j = 0; j < block_width; ++j)
             {
-               int col = this->Col(j, k);
-               int sign = rsign;
-               if (col < 0)
-               {
-                  col = -1 - col;
-                  sign *= -1;
-               }
+               int col, sign = rsign;
+               this->Col(j, k, col, sign);
                sum += sign * bsptr[boptr[k] + i + j * block_height] *
                       xptr[this->IndexX(col, vdim, k)];
             }
