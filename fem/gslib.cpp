@@ -2553,7 +2553,7 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                                         int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
-                          "finding points.");
+               "finding points.");
    MFEM_VERIFY(overset, "Please use OversetFindPoints for overlapping grids.");
    points_cnt = point_pos.Size() / dim;
    unsigned int match = 0; // Don't find points in the mesh if point_id=mesh_id
