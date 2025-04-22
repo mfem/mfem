@@ -373,8 +373,6 @@ int main (int argc, char *argv[])
         << "\nPoints not found:    " << not_found
         << "\nPoints on faces:     " << face_pts << endl;
 
-   if (mesh_prefinement) { delete mesh_nodes_pref; }
-   if (prefinement) { delete field_vals_pref; }
    delete fec;
 
    return 0;
