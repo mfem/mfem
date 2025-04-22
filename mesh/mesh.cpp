@@ -7618,7 +7618,7 @@ Array<int> Mesh::FindFaceNeighbors(const int elem) const
 
 void Mesh::ElemsWithVert(int vi, Array<int> &elems)
 {
-   if (vert_to_elem.Size() > 0)
+   if (vert_to_elem.Size() <= 0)
    {
       GetVertexToElementTable();    // Ensure vert_to_elem is built
    }
@@ -7639,7 +7639,7 @@ void Mesh::EdgesWithVert(int vi, Array<int> &edges)
 
 void Mesh::ElemsWithAllVerts(const Array<int> &verts, Array<int> &elems)
 {
-   if (vert_to_elem.Size() > 0)
+   if (vert_to_elem.Size() <= 0)
    {
       GetVertexToElementTable();    // Ensure vert_to_elem is built
    }
@@ -13670,7 +13670,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    if (pts_found != npts)
    {
       Array<int> elvertices;
-      if (vert_to_elem.Size() > 0)
+      if (vert_to_elem.Size() <= 0)
       {
          GetVertexToElementTable();    // Ensure vert_to_elem is built
       }
@@ -14204,8 +14204,9 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    // sorted.
    boundary_to_part.DeleteAll();
 
-   Table *vert_element = mesh.GetVertexToElementTable();
-   vertex_to_element.Copy(*vert_element);
+   Table *temp_v_to_e = mesh.GetVertexToElementTable();
+   vertex_to_element = *temp_v_to_e;
+   delete temp_v_to_e;
 }
 
 void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
