@@ -329,7 +329,7 @@ public:
          for (auto &v : to_send)
          {
             ptr = std::copy(v.second.begin(), v.second.end(), ptr);
-            for (auto &v2 : v.second)
+            for (size_t idx = 0; idx < v.second.size(); ++idx)
             {
                *ptr2 = i;
                ++ptr2;

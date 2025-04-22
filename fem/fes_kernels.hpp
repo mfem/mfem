@@ -229,6 +229,7 @@ struct DerefineMatrixOpMultFunctor
 };
 
 } // namespace internal
+/// \endcond DO_NOT_DOCUMENT
 }
 
 #endif
