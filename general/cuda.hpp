@@ -47,6 +47,13 @@
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
+#if __cplusplus >= 201703L
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
+    if(const int i=threadIdx.k; i<N)
+#else
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) MFEM_FOREACH_THREAD(i,k,N)
+#error "no c++17"
+#endif
 #endif
 
 namespace mfem
