@@ -41,7 +41,7 @@ class GPUBlas
    HandleType handle = nullptr; ///< The internal handle.
    GPUBlas(); ///< Create the handle.
    ~GPUBlas(); ///< Destroy the handle.
-   static GPUBlas &Instance(); ///< Get the unique instnce.
+   static GPUBlas &Instance(); ///< Get the unique instance.
 public:
    /// Return the handle, creating it if needed.
    static HandleType Handle();

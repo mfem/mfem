@@ -222,7 +222,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
          }
       }
 
-      ListOfIntegerSets  groups;
+      ListOfIntegerSets groups;
       {
          // the first group is the local one
          IntegerSet group;
@@ -1569,7 +1569,7 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
       attr_marker[attr[i] - 1] = true;
    }
    MPI_Allreduce(attr_marker, glb_attr_marker, glb_max_attr,
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    delete [] attr_marker;
 
    // Translate from the marker array to a unique, sorted list of attributes
@@ -6417,7 +6417,7 @@ void ParMesh::PrintVTU(std::string pathname,
 
       os << "<?xml version=\"1.0\"?>\n";
       os << "<VTKFile type=\"PUnstructuredGrid\"";
-      os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      os << " version =\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
       os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
       os << "<PPoints>\n";
@@ -6723,9 +6723,9 @@ void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
    Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
 
    MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
 
    // Unmark attributes which are currently marked, contain interior faces,
    // and satisfy the appropriate exclusivity requirement.
@@ -6776,9 +6776,9 @@ void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
    Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
 
    MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
 
    // Mark the attributes which are currently unmarked, containing exterior
    // faces, and satisfying the necessary exclusivity requirements.
