@@ -84,7 +84,7 @@ void vector_fun(const mfem::Vector &x, mfem::Vector &f)
    f = n;
 }
 
-inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title)
+inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title, const int plot_number = 0)
 {
    using namespace std;
    using namespace mfem;
@@ -103,5 +103,13 @@ inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title)
    sol_sock.precision(8);
    sol_sock << "solution\n" << mesh << x
             << "window_title '"<< title << "'\n" << flush;
+
+   sol_sock << (plot_number * 600)  << " " << 0 << " " << 600 << " " << 600 << "\n";
+
+   if(mesh.Dimension() == 2) {
+      sol_sock  << "keys jRmclA\n";
+   } else {
+      sol_sock  << "keys rmclAa\n";
+   }
    sol_sock << flush;
 }

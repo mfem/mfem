@@ -190,8 +190,8 @@ int main(int argc, char *argv[])
                       << std::endl;
          }
 
-         plot(*p_src_mesh, src_fun, "source");
-         plot(*p_dest_mesh, dest_fun, "destination");
+         plot(*p_src_mesh, src_fun, "source", 0);
+         plot(*p_dest_mesh, dest_fun, "destination", 1);
       }
    }
    else
