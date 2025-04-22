@@ -397,9 +397,6 @@ int main (int argc, char *argv[])
    func_target.Save(rho_ofs);
    rho_ofs.close();
 
-   // Free the internal gslib data.
-   finder.FreeData();
-
    // Delete remaining memory.
    if (func_source->OwnFEC())
    {
