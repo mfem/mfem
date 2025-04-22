@@ -308,7 +308,10 @@ public:
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as it
-       calls MPI_Comm_free() for internal gslib communicators. */
+       calls MPI_Comm_free() for internal gslib communicators. FreeData is
+       also called by the class destructor and there are no memory if the
+       destructor is called before MPI_Finalize().
+   */
    virtual void FreeData();
 
    /// Return code for each point searched by FindPoints: inside element (0), on
