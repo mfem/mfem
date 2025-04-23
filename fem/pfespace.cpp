@@ -66,7 +66,13 @@ public:
    /// negative means the row data should be negated.
    /// only for off-diagonal blocks
    Array<int> row_off_diag_idcs;
+   /// dense block matrices which can be reused to construct the full matrix
+   /// operation. These are stored contiguously and blocks have no restrictions
+   /// on shape (can be rectangle and differ from block to block).
+   /// This is only for the diagonal block.
    Vector block_storage;
+   /// maximum height of any block in block_storage for GPU
+   /// parallelization, or 1 for CPU runs.
    int max_rows;
 
    /// quasi Ordering::byNODES, broken into sections by ranks we need to send
@@ -77,13 +83,19 @@ public:
    mutable Vector xghost_recv;
    /// maps off-diagonal k to segment
    Array<int> recv_segment_idcs;
+   /// cumulative count of dofs which will be received from other ranks
    Array<int> recv_segments;
+   /// Source rank of each recv segment
    Array<int> recv_ranks;
+   /// What send segment each entry in send_permutations corresponds to
    Array<int> send_segment_idcs;
+   /// cumulative count of dofs which will be sent to other ranks
    Array<int> send_segments;
+   /// Destination rank of each send segment
    Array<int> send_ranks;
    /// how to permute/sign change values from our local x to send to other ranks
    Array<int> send_permutations;
+   /// internal buffer for MPI requests
    mutable std::vector<MPI_Request> requests;
 
    using MultKernelType = void (*)(const ParDerefineMatrixOp &, const Vector &,
