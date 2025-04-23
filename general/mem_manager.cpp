@@ -57,9 +57,6 @@
 namespace mfem
 {
 
-static struct sigaction old_segv_action;
-static struct sigaction old_bus_action;
-
 MemoryType GetMemoryType(MemoryClass mc)
 {
    switch (mc)
@@ -269,6 +266,9 @@ public:
 #ifndef _WIN32
 static uintptr_t pagesize = 0;
 static uintptr_t pagemask = 0;
+
+static struct sigaction old_segv_action;
+static struct sigaction old_bus_action;
 
 /// Returns the restricted base address of the DEBUG segment
 inline const void *MmuAddrR(const void *ptr)
