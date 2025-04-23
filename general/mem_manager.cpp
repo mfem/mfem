@@ -57,6 +57,9 @@
 namespace mfem
 {
 
+static struct sigaction old_segv_action;
+static struct sigaction old_bus_action;
+
 MemoryType GetMemoryType(MemoryClass mc)
 {
    switch (mc)
@@ -313,7 +316,7 @@ inline uintptr_t MmuLengthP(const void *ptr, const size_t bytes)
 }
 
 /// The protected access error, used for the host
-static void MmuError(int, siginfo_t *si, void*)
+static void MmuError(int sig, siginfo_t *si, void* context)
 {
    constexpr size_t buf_size = 64;
    fflush(0);
@@ -321,7 +324,25 @@ static void MmuError(int, siginfo_t *si, void*)
    const void *ptr = si->si_addr;
    snprintf(str, buf_size, "Error while accessing address %p!", ptr);
    mfem::out << std::endl << "An illegal memory access was made!";
-   MFEM_ABORT(str);
+   mfem::out << std::endl << "Caught signal " << sig << ", code " << si->si_code << " at " << ptr << std::endl;
+   // chain to previous handler
+   struct sigaction *old_action = (sig == SIGSEGV) ? &old_segv_action : &old_bus_action;
+   if(old_action->sa_flags & SA_SIGINFO && old_action->sa_sigaction)
+   {
+      // old action uses three argument handler.
+      old_action->sa_sigaction(sig, si, context);
+   }
+   else if(old_action->sa_handler == SIG_DFL)
+   {
+      // reinstall and raise the default handler.
+      sigaction(sig, old_action, NULL);
+      raise(sig);
+   }
+   else
+   {
+      MFEM_ABORT(str);
+   }
+
 }
 
 /// MMU initialization, setting SIGBUS & SIGSEGV signals to MmuError
@@ -332,8 +353,8 @@ static void MmuInit()
    sa.sa_flags = SA_SIGINFO;
    sigemptyset(&sa.sa_mask);
    sa.sa_sigaction = MmuError;
-   if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
-   if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+   if (sigaction(SIGBUS, &sa, &old_bus_action) == -1) { mfem_error("SIGBUS"); }
+   if (sigaction(SIGSEGV, &sa, &old_segv_action) == -1) { mfem_error("SIGSEGV"); }
    pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
    MFEM_ASSERT(pagesize > 0, "pagesize must not be less than 1");
    pagemask = pagesize - 1;
