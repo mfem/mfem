@@ -1981,6 +1981,7 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
+   //     It's always 1 during the TMOP iteration.
    // X0: E-vector for initial nodal coordinates.
    //     Does not change during the TMOP iteration.
    // XL: E-vector for nodal coordinates used for limiting.
@@ -2108,10 +2109,16 @@ protected:
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
 
-   real_t GetLocalStateEnergyPA_2D(const Vector&) const;
+   void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
+   void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
+                                           real_t &met_energy,
+                                           real_t &lim_energy);
+   void GetLocalNormalizationEnergiesPA_3D(const Vector &x,
+                                           real_t &met_energy,
+                                           real_t &lim_energy);
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;

@@ -939,10 +939,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Has to be after the enabling of the limiting / alignment, as it computes
-   // normalization factors for these terms as well.
-   if (normalization) { tmop_integ->ParEnableNormalization(x0); }
-
    //
    // Setup the ParNonlinearForm which defines the integral of interest, its
    // first and second derivatives.
@@ -995,6 +991,10 @@ int main (int argc, char *argv[])
    else { a.AddDomainIntegrator(tmop_integ); }
    // The PA setup must be performed after all integrators have been added.
    if (pa) { a.Setup(); }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
    // Compute the minimum det(J) of the starting mesh.
    min_detJ = infinity();

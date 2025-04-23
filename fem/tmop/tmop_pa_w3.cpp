@@ -80,7 +80,7 @@ real_t EvalW_338(const real_t *J, const real_t *w)
    return w[0] * EvalW_302(J) + w[1] * EvalW_318(J);
 }
 
-MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
+MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_3D,
                            const real_t metric_normal,
                            const Vector &mc_,
                            const Array<real_t> &metric_param,
@@ -93,6 +93,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
                            const Vector &ones,
                            const Vector &x_,
                            Vector &energy,
+                           Vector &l_energy,
+                           real_t &metric_energy,
+                           real_t &lim_energy,
                            const int d1d,
                            const int q1d)
 {
@@ -116,6 +119,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
+   auto L = Reshape(l_energy.Write(), Q1D, Q1D, Q1D, NE);
 
    const real_t *metric_data = metric_param.Read();
 
@@ -174,14 +178,17 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
                   mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
+               L(qx,qy,qz,e) = weight;
             }
          }
       }
    });
-   return energy * ones;
+   metric_energy = energy * ones;
+   lim_energy    = l_energy * ones;
 }
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
+void TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X,
+                                               real_t &energy) const
 {
    const int N = PA.ne;
    const int M = metric->Id();
@@ -196,6 +203,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
    const Array<real_t> &G = PA.maps->G;
    const Vector &O = PA.O;
    Vector &E = PA.E;
+   Vector L(E.Size(), Device::GetMemoryType()); L.UseDevice(true);
 
    Array<real_t> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
@@ -203,7 +211,38 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,MC,mp,M,N,J,W,B,G,O,X,E);
+   real_t lim_energy;
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,MC,mp,M,N,J,W,B,G,O,X,E,L,
+                           energy, lim_energy);
+}
+
+void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
+                                                         real_t &met_energy,
+                                                         real_t &lim_energy)
+{
+   const int N = PA.ne;
+   const int M = metric->Id();
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const real_t mn = 1.0;
+   Vector MC(1); MC = 1.0;
+   const DenseTensor &J = PA.Jtr;
+   const Array<real_t> &W = PA.ir->GetWeights();
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
+   const Vector &O = PA.O;
+   Vector &E = PA.E;
+   Vector L(E.Size(), Device::GetMemoryType()); L.UseDevice(true);
+
+   Array<real_t> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,MC,mp,M,N,J,W,B,G,O,X,E,L,
+                           met_energy,lim_energy);
 }
 
 } // namespace mfem

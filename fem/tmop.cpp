@@ -5131,6 +5131,40 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &lim_energy,
                                                    real_t &surf_fit_gf_energy)
 {
+   if (PA.enabled)
+   {
+      MFEM_VERIFY(PA.E.Size() > 0, "Must be called after AssemblePA!");
+      MFEM_VERIFY(surf_fit_gf == nullptr,
+                  "Normalization + PA + Fitting is not implemented!");
+
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      auto R = x.FESpace()->GetElementRestriction(ord);
+      Vector xe(R->Height());
+      R->Mult(x, xe);
+
+      if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
+      {
+         ComputeAllElementTargets(xe);
+      }
+      if (PA.dim == 2)
+      {
+         GetLocalNormalizationEnergiesPA_2D(xe, metric_energy, lim_energy);
+      }
+      else
+      {
+         GetLocalNormalizationEnergiesPA_3D(xe, metric_energy, lim_energy);
+      }
+
+      // Cases when integration is not over the target element, or when the
+      // targets don't contain volumetric information.
+      if (integ_over_target == false || targetC->ContainsVolumeInfo() == false)
+      {
+         lim_energy = x.FESpace()->GetNE();
+      }
+
+      return;
+   }
+
    Array<int> vdofs;
    Vector x_vals;
    const FiniteElementSpace* const fes = x.FESpace();
