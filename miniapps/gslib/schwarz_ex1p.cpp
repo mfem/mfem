@@ -308,8 +308,8 @@ int main(int argc, char *argv[])
    pmesh->GetNodes()->SetTrueVector();
    Vector vxyz = pmesh->GetNodes()->GetTrueVector();
 
-
-   OversetFindPointsGSLIB finder(pmesh, color);
+   OversetFindPointsGSLIB finder(MPI_COMM_WORLD);
+   finder.Setup(*pmesh, color);
 
    Array<int> ess_tdof_list_int;
    GetInterdomainBoundaryPoints(finder, vxyz, color,

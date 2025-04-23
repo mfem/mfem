@@ -395,18 +395,10 @@ protected:
 public:
    OversetFindPointsGSLIB() : FindPointsGSLIB(),
       overset(true) { }
-   OversetFindPointsGSLIB(Mesh *m, const int meshid, GridFunction *gfmax = NULL,
-                          const double bb_t = 0.1, const double newt_tol = 1.0e-12,
-                          const int npt_max = 256);
 
 #ifdef MFEM_USE_MPI
    OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
       overset(true) { }
-   OversetFindPointsGSLIB(ParMesh *m, const int meshid,
-                          GridFunction *gfmax = NULL,
-                          const double bb_t = 0.1,
-                          const double newt_tol = 1.0e-12,
-                          const int npt_max = 256);
 #endif
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
