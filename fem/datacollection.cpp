@@ -211,11 +211,6 @@ void DataCollection::Save()
    {
       SaveOneQField(it);
    }
-
-   MFEM_VERIFY(coeff_field_map.begin() == coeff_field_map.end() &&
-               vcoeff_field_map.begin() == vcoeff_field_map.end(),
-               "Coefficient/VectorCoefficient output is not supported for "
-               "DataCollection class!");
 }
 
 void DataCollection::SaveMesh()
@@ -1120,15 +1115,13 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    }
    // save the coefficient functions
    // iterate over all Coefficient and VectorCoefficient functions
-   for (CoeffFieldMapIterator it=coeff_field_map.begin();
-        it!=coeff_field_map.end(); ++it)
+   for (const auto &kv : coeff_field_map)
    {
-      SaveCoeffFieldVTU(os,ref,it);
+      SaveCoeffFieldVTU(os, ref, kv.first, *kv.second);
    }
-   for (VCoeffFieldMapIterator it=vcoeff_field_map.begin();
-        it!=vcoeff_field_map.end(); ++it)
+   for (const auto &kv : vcoeff_field_map)
    {
-      SaveVCoeffFieldVTU(os,ref,it);
+      SaveVCoeffFieldVTU(os, ref, kv.first, *kv.second);
    }
    os << "</PointData>\n";
    // close the mesh
@@ -1189,14 +1182,14 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
 }
 
 void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
-                                               const CoeffFieldMapIterator &it)
+                                               const std::string &name, Coefficient &coeff)
 {
    RefinedGeometry *RefG;
    real_t val;
    std::vector<char> buf;
    int vec_dim = 1;
    os << "<DataArray type=\"" << GetDataTypeString()
-      << "\" Name=\"" << it->first
+      << "\" Name=\"" << name
       << "\" NumberOfComponents=\"" << vec_dim << "\""
       << " format=\"" << GetDataFormatString() << "\" >" << '\n';
    {
@@ -1214,7 +1207,7 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
             {
                const IntegrationPoint &ip = ir->IntPoint(j);
                eltrans->SetIntPoint(&ip);
-               val = it->second->Eval(*eltrans, ip);
+               val = coeff.Eval(*eltrans, ip);
                WriteBinaryOrASCII(os, buf, val, "\n", pv_data_format);
             }
          }
@@ -1232,7 +1225,7 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
             {
                const IntegrationPoint &ip = ir->IntPoint(j);
                eltrans->SetIntPoint(&ip);
-               val = it->second->Eval(*eltrans, ip);
+               val = coeff.Eval(*eltrans, ip);
                WriteBinaryOrASCII(os, buf, val, "\n", pv_data_format);
             }
          }
@@ -1246,14 +1239,14 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
 }
 
 void ParaViewDataCollection::SaveVCoeffFieldVTU(std::ostream &os, int ref_,
-                                                const VCoeffFieldMapIterator &it)
+                                                const std::string &name, VectorCoefficient &coeff)
 {
    RefinedGeometry *RefG;
    Vector val;
    std::vector<char> buf;
-   int vec_dim = it->second->GetVDim();
+   int vec_dim = coeff.GetVDim();
    os << "<DataArray type=\"" << GetDataTypeString()
-      << "\" Name=\"" << it->first
+      << "\" Name=\"" << name
       << "\" NumberOfComponents=\"" << vec_dim << "\""
       << " format=\"" << GetDataFormatString() << "\" >" << '\n';
    {
@@ -1271,7 +1264,7 @@ void ParaViewDataCollection::SaveVCoeffFieldVTU(std::ostream &os, int ref_,
             {
                const IntegrationPoint &ip = ir->IntPoint(j);
                eltrans->SetIntPoint(&ip);
-               it->second->Eval(val, *eltrans, ip);
+               coeff.Eval(val, *eltrans, ip);
                for (int jj = 0; jj < val.Size(); jj++)
                {
                   WriteBinaryOrASCII(os, buf, val(jj), " ", pv_data_format);
@@ -1293,7 +1286,7 @@ void ParaViewDataCollection::SaveVCoeffFieldVTU(std::ostream &os, int ref_,
             {
                const IntegrationPoint &ip = ir->IntPoint(j);
                eltrans->SetIntPoint(&ip);
-               it->second->Eval(val, *eltrans, ip);
+               coeff.Eval(val, *eltrans, ip);
                for (int jj = 0; jj < val.Size(); jj++)
                {
                   WriteBinaryOrASCII(os, buf, val(jj), " ", pv_data_format);

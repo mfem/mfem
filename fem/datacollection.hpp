@@ -134,9 +134,6 @@ private:
    /// A collection of named QuadratureFunctions
    typedef NamedFieldsMap<QuadratureFunction> QFieldMap;
 
-   /// A collection of named Coefficients and VectorCoefficients
-   typedef NamedFieldsMap<Coefficient> CoeffFieldMap;
-   typedef NamedFieldsMap<VectorCoefficient> VCoeffFieldMap;
 public:
    typedef GFieldMap::MapType FieldMapType;
    typedef GFieldMap::iterator FieldMapIterator;
@@ -145,14 +142,6 @@ public:
    typedef QFieldMap::MapType QFieldMapType;
    typedef QFieldMap::iterator QFieldMapIterator;
    typedef QFieldMap::const_iterator QFieldMapConstIterator;
-
-   typedef CoeffFieldMap::MapType CoeffFieldMapType;
-   typedef CoeffFieldMap::iterator CoeffFieldMapIterator;
-   typedef CoeffFieldMap::const_iterator CoeffFieldMapConstIterator;
-
-   typedef VCoeffFieldMap::MapType VCoeffFieldMapType;
-   typedef VCoeffFieldMap::iterator VCoeffFieldMapIterator;
-   typedef VCoeffFieldMap::const_iterator VCoeffFieldMapConstIterator;
 
    /// Format constants to be used with SetFormat().
    /** Derived classes can define their own format enumerations and override the
@@ -180,11 +169,6 @@ protected:
 
    /** A FieldMap mapping registered names to QuadratureFunction pointers. */
    QFieldMap q_field_map;
-
-   /** A FieldMap mapping registered names to Coefficient and VectorCoefficient
-       pointers. */
-   CoeffFieldMap coeff_field_map;
-   VCoeffFieldMap vcoeff_field_map;
 
    /// The (common) mesh for the collected fields
    Mesh *mesh;
@@ -274,20 +258,6 @@ public:
    virtual void DeregisterQField(const std::string& field_name)
    { q_field_map.Deregister(field_name, own_data); }
 
-   /// Add a Coefficient or VectorCoefficient to the collection.
-   virtual void RegisterCoeffField(const std::string& field_name,
-                                   Coefficient *coeff)
-   { coeff_field_map.Register(field_name, coeff, own_data); }
-   virtual void RegisterVCoeffField(const std::string& field_name,
-                                    VectorCoefficient *vcoeff)
-   { vcoeff_field_map.Register(field_name, vcoeff, own_data); }
-
-   /// Remove a Coefficient or VectorCoefficient from the collection
-   virtual void DeregisterCoeffField(const std::string& field_name)
-   { coeff_field_map.Deregister(field_name, own_data); }
-   virtual void DeregisterVCoeffField(const std::string& field_name)
-   { vcoeff_field_map.Deregister(field_name, own_data); }
-
    /// Check if a grid function is part of the collection
    bool HasField(const std::string& field_name) const
    { return field_map.Has(field_name); }
@@ -318,20 +288,6 @@ public:
    QuadratureFunction *GetQField(const std::string& field_name)
    { return q_field_map.Get(field_name); }
 
-   /** Check if a Coefficient or VectorCoefficient with the given name is in
-       the collection. */
-   bool HasCoeffField(const std::string& field_name) const
-   { return coeff_field_map.Has(field_name); }
-   bool HasVCoeffField(const std::string& field_name) const
-   { return vcoeff_field_map.Has(field_name); }
-
-   /// Get a pointer to a Coefficient or VectorCoefficient in the collection.
-   /** Returns NULL if @a field_name is not in the collection. */
-   Coefficient *GetCoeffField(const std::string& field_name)
-   { return coeff_field_map.Get(field_name); }
-   VectorCoefficient *GetVCoeffField(const std::string& field_name)
-   { return vcoeff_field_map.Get(field_name); }
-
    /// Get a const reference to the internal field map.
    /** The keys in the map are the field names and the values are pointers to
        GridFunction%s. */
@@ -343,14 +299,6 @@ public:
        QuadratureFunction%s. */
    const QFieldMapType &GetQFieldMap() const
    { return q_field_map.GetMap(); }
-
-   /// Get a const reference to the internal coefficient-field map.
-   /** The keys in the map are the coefficient-field names and the values are
-       pointers to Coefficient%s or VectorCoefficient%s. */
-   const CoeffFieldMapType &GetCoeffFieldMap() const
-   { return coeff_field_map.GetMap(); }
-   const VCoeffFieldMapType &GetVCoeffFieldMap() const
-   { return vcoeff_field_map.GetMap(); }
 
    /// Get a pointer to the mesh in the collection
    Mesh *GetMesh() { return mesh; }
@@ -424,19 +372,6 @@ public:
    virtual void SaveField(const std::string &field_name);
    /// Save one q-field, assuming the collection directory already exists.
    virtual void SaveQField(const std::string &field_name);
-   /** Save one coefficient-field, assuming the collection directory already
-       exists. */
-   virtual void SaveCoeffField(const std::string &field_name)
-   {
-      MFEM_ABORT("SaveCoeffField not implemented for DataCollection class!");
-   }
-   /** Save one coefficient-field, assuming the collection directory already
-       exists. */
-   virtual void SaveVCoeffField(const std::string &field_name)
-   {
-      MFEM_ABORT("SaveVCoeffField not implemented for DataCollection class!");
-   }
-
    /// Load the collection. Not implemented in the base class DataCollection.
    virtual void Load(int cycle_ = 0);
 
@@ -578,6 +513,7 @@ protected:
    bool restart_mode = false;
    bool bdr_output = false;
    VTKFormat pv_data_format = VTKFormat::BINARY;
+
 public:
    ParaViewDataCollectionBase(const std::string &name, Mesh *mesh);
 
@@ -651,15 +587,23 @@ class ParaViewDataCollection : public ParaViewDataCollectionBase
 private:
    std::fstream pvd_stream;
 
+   /// A collection of named Coefficients and VectorCoefficients
+   using CoeffFieldMap = NamedFieldsMap<Coefficient>;
+   using VCoeffFieldMap = NamedFieldsMap<VectorCoefficient>;
+
+   /** A FieldMap mapping registered names to Coefficient and VectorCoefficient
+       pointers. */
+   CoeffFieldMap coeff_field_map;
+   VCoeffFieldMap vcoeff_field_map;
 protected:
    void WritePVTUHeader(std::ostream &out);
    void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
-   void SaveCoeffFieldVTU(std::ostream& out, int ref_,
-                          const CoeffFieldMapIterator& it);
-   void SaveVCoeffFieldVTU(std::ostream& out, int ref_,
-                           const VCoeffFieldMapIterator& it);
+   void SaveCoeffFieldVTU(std::ostream& out, int ref_, const std::string &name,
+                          Coefficient &coeff);
+   void SaveVCoeffFieldVTU(std::ostream& out, int ref_, const std::string &name,
+                           VectorCoefficient& coeff);
    const char *GetDataFormatString() const;
    const char *GetDataTypeString() const;
 
@@ -677,6 +621,25 @@ public:
        be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
    ParaViewDataCollection(const std::string& collection_name,
                           Mesh *mesh_ = nullptr);
+
+   /// Get a const reference to the internal coefficient-field map.
+   const typename CoeffFieldMap::MapType &GetCoeffFieldMap() const
+   { return coeff_field_map.GetMap(); }
+   const typename VCoeffFieldMap::MapType &GetVCoeffFieldMap() const
+   { return vcoeff_field_map.GetMap(); }
+
+   /// Add a Coefficient or VectorCoefficient to the collection.
+   void RegisterCoeffField(const std::string& field_name, Coefficient *coeff)
+   { coeff_field_map.Register(field_name, coeff, own_data); }
+   void RegisterVCoeffField(const std::string& field_name,
+                            VectorCoefficient *vcoeff)
+   { vcoeff_field_map.Register(field_name, vcoeff, own_data); }
+
+   /// Remove a Coefficient or VectorCoefficient from the collection
+   void DeregisterCoeffField(const std::string& field_name)
+   { coeff_field_map.Deregister(field_name, own_data); }
+   void DeregisterVCoeffField(const std::string& field_name)
+   { vcoeff_field_map.Deregister(field_name, own_data); }
 
    /// Save the collection - the directory name is constructed based on the
    /// cycle value
