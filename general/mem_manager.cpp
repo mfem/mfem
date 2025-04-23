@@ -324,15 +324,17 @@ static void MmuError(int sig, siginfo_t *si, void* context)
    const void *ptr = si->si_addr;
    snprintf(str, buf_size, "Error while accessing address %p!", ptr);
    mfem::out << std::endl << "An illegal memory access was made!";
-   mfem::out << std::endl << "Caught signal " << sig << ", code " << si->si_code << " at " << ptr << std::endl;
+   mfem::out << std::endl << "Caught signal " << sig << ", code " << si->si_code <<
+             " at " << ptr << std::endl;
    // chain to previous handler
-   struct sigaction *old_action = (sig == SIGSEGV) ? &old_segv_action : &old_bus_action;
-   if(old_action->sa_flags & SA_SIGINFO && old_action->sa_sigaction)
+   struct sigaction *old_action = (sig == SIGSEGV) ? &old_segv_action :
+                                  &old_bus_action;
+   if (old_action->sa_flags & SA_SIGINFO && old_action->sa_sigaction)
    {
       // old action uses three argument handler.
       old_action->sa_sigaction(sig, si, context);
    }
-   else if(old_action->sa_handler == SIG_DFL)
+   else if (old_action->sa_handler == SIG_DFL)
    {
       // reinstall and raise the default handler.
       sigaction(sig, old_action, NULL);
