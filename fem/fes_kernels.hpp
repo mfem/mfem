@@ -20,6 +20,22 @@ namespace mfem
 namespace internal
 {
 
+///
+/// Implements matrix-vector multiply $y = A x$ for a sparse matrix composed of
+/// a sum of smaller dense blocks. There is additional permutation/sign
+/// information associated with each block. The base class only implements
+/// helper routines such as computing block widths, index into x, index into y,
+/// and column in A given sub-block information.
+/// @sa DerefineMatrixOpMultFunctor
+///
+/// @tparam Order vdim ordering for x and y. Note that for Diag = false this is
+/// ignored for x as x has a special interleaved order.
+/// @tparam Base used for the curious recurring template pattern (CRTP) so the
+/// base class can access child class fields without virtual functions
+/// @tparam Diag true if this corresponds to the diagonal block (coarse element
+/// and fine element are on our rank), false otherwise (coarse element is on our
+/// rank, fine element is on a different rank).
+///
 template <Ordering::Type Order, class Base, bool Diag = true>
 struct DerefineMatrixOpFunctorBase;
 
@@ -69,7 +85,7 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, true>
       return bcptr[k + 1] - bcptr[k];
    }
 
-   void MFEM_HOST_DEVICE Col(int j, int k, int& col, int& sign) const
+   void MFEM_HOST_DEVICE Col(int j, int k, int &col, int &sign) const
    {
       col = cptr[bcptr[k] + j];
       if (col < 0)
@@ -92,16 +108,13 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, true>
 template <class Base>
 struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, false>
 {
-   const int* segptr;
+   const int *segptr;
    const int *rsptr;
 
    const int *coptr;
    const int *bwptr;
 
-   int MFEM_HOST_DEVICE BlockWidth(int k) const
-   {
-      return bwptr[k];
-   }
+   int MFEM_HOST_DEVICE BlockWidth(int k) const { return bwptr[k]; }
 
    void MFEM_HOST_DEVICE Col(int j, int k, int &col, int &sign) const
    {
@@ -124,16 +137,13 @@ struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, false>
 template <class Base>
 struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, false>
 {
-   const int* segptr;
+   const int *segptr;
    const int *rsptr;
 
    const int *coptr;
    const int *bwptr;
 
-   int MFEM_HOST_DEVICE BlockWidth(int k) const
-   {
-      return bwptr[k];
-   }
+   int MFEM_HOST_DEVICE BlockWidth(int k) const { return bwptr[k]; }
 
    void MFEM_HOST_DEVICE Col(int j, int k, int &col, int &sign) const
    {
@@ -222,14 +232,11 @@ struct DerefineMatrixOpMultFunctor
    }
 
    /// N is the max block row size (doesn't have to be a power of 2)
-   void Run(int N) const
-   {
-      forall_2D(nblocks * vdims, N, 1, *this);
-   }
+   void Run(int N) const { forall_2D(nblocks * vdims, N, 1, *this); }
 };
 
 } // namespace internal
 /// \endcond DO_NOT_DOCUMENT
-}
+} // namespace mfem
 
 #endif

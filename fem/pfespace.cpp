@@ -52,7 +52,7 @@ public:
    Array<int> block_off_diag_row_idcs_offsets;
    Array<int> block_off_diag_col_offsets;
    Array<int> block_off_diag_widths;
-   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// mapping for row dofs, INT_MAX indicates the block row should be ignored.
    /// negative means the row data should be negated.
    /// only for diagonal blocks
    Array<int> row_idcs;
@@ -62,7 +62,7 @@ public:
 
    Array<int> pack_col_idcs;
 
-   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// mapping for row dofs, INT_MAX indicates the block row should be ignored.
    /// negative means the row data should be negated.
    /// only for off-diagonal blocks
    Array<int> row_off_diag_idcs;
@@ -121,23 +121,23 @@ public:
       static Kernels kernels;
       constexpr int max_team_size = 256;
 
-      int NRanks = fespace->GetNRanks();
+      const int NRanks = fespace->GetNRanks();
 
-      int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
+      const int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
 
       MFEM_VERIFY(fespace->Nonconforming(),
                   "Not implemented for conforming meshes.");
       MFEM_VERIFY(fespace->old_dof_offsets[nrk],
                   "Missing previous (finer) space.");
 
-      int MyRank = fespace->GetMyRank();
+      const int MyRank = fespace->GetMyRank();
       ParNCMesh* old_pncmesh = fespace->GetParMesh()->pncmesh;
       const CoarseFineTransformations &dtrans =
          old_pncmesh->GetDerefinementTransforms();
       const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
-      bool is_dg = fespace->FEColl()->GetContType() ==
-                   FiniteElementCollection::DISCONTINUOUS;
+      const bool is_dg = fespace->FEColl()->GetContType() ==
+                         FiniteElementCollection::DISCONTINUOUS;
       DenseMatrix localRVO; // for variable-order only
 
       DenseTensor localR[Geometry::NumGeom];
