@@ -7414,7 +7414,7 @@ Table *Mesh::GetVertexToEdgeTable() const
 {
    if (vert_to_edge.Size() > 0) {return &vert_to_edge;}
    GetEdgeVertexTable();      // Ensure edge_to_vert is built
-   vert_to_edge = *Transpose(edge_to_vert);
+   Transpose(edge_to_vert, vert_to_edge);
    vert_to_edge.Finalize();
    return &vert_to_edge;
 }
@@ -7459,7 +7459,7 @@ Table *Mesh::GetVertexToFaceTable() const
 {
    if (vert_to_face.Size() > 0) {return &vert_to_face;}
    GetFaceToVertexTable();    // Ensure face_to_vert is built
-   vert_to_face = *Transpose(face_to_vert);
+   Transpose(face_to_vert, vert_to_face);
    vert_to_face.Finalize();
    return &vert_to_face;
 }
