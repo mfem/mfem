@@ -13192,6 +13192,32 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
    NodesUpdated();
 }
 
+void Mesh::Transform(const std::function<void(const Vector &, Vector&)>& f)
+{
+   // TODO: support for different new spaceDim.
+   if (Nodes == NULL)
+   {
+      Vector vold(spaceDim), vnew(NULL, spaceDim);
+      for (int i = 0; i < vertices.Size(); i++)
+      {
+         for (int j = 0; j < spaceDim; j++)
+         {
+            vold(j) = vertices[i](j);
+         }
+         vnew.SetData(vertices[i]());
+         f(vold, vnew);
+      }
+   }
+   else
+   {
+      GridFunction xnew(Nodes->FESpace());
+      VectorFunctionCoefficient f_pert(spaceDim, f);
+      xnew.ProjectCoefficient(f_pert);
+      *Nodes = xnew;
+   }
+   NodesUpdated();
+}
+
 void Mesh::Transform(VectorCoefficient &deformation)
 {
    MFEM_VERIFY(spaceDim == deformation.GetVDim(),
