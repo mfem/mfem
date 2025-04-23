@@ -81,6 +81,7 @@ public:
    */
    KnotVector(int order, const Vector& intervals,
               const Array<int>& continuity );
+
    /** @brief Create a KnotVector with order @a order and knots @a knot. */
    KnotVector(int order, const Vector &k);
 

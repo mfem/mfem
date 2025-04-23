@@ -96,10 +96,9 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
-   const bool isNURBS = mesh.NURBSext;
 
    // Verify mesh is valid for this problem
-   MFEM_VERIFY(isNURBS, "Example is for NURBS meshes");
+   MFEM_VERIFY(mesh.IsNURBS(), "Example is for NURBS meshes");
    MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
    if (mesh.bdr_attributes.Max() < 2)
    {

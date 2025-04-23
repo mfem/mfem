@@ -87,6 +87,8 @@ KnotVector::KnotVector(int order, const Vector& intervals,
          ++NumOfElements;
       }
    }
+}
+
 KnotVector::KnotVector(int order, const Vector &k)
 {
    Order = order;

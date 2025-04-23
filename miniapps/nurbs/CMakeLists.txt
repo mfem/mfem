@@ -21,6 +21,10 @@ add_mfem_miniapp(mesh_gen
   MAIN mesh_gen.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_lor
+  MAIN nurbs_lor.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
   LIBRARIES mfem)
