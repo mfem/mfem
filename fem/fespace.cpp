@@ -40,12 +40,17 @@ public:
    Array<int> block_row_idcs_offsets;
    /// offsets into col_idcs
    Array<int> block_col_idcs_offsets;
-   /// mapping for row dofs, oob indicates the block row should be ignored.
+   /// mapping for row dofs, INT_MAX indicates the block row should be ignored.
    /// negative means the row data should be negated.
    Array<int> row_idcs;
    /// mapping for col dofs, negative means the col data should be negated.
    Array<int> col_idcs;
+   /// dense block matrices which can be reused to construct the full matrix
+   /// operation. These are stored contiguously and blocks have no restrictions
+   /// on shape (can be rectangle and differ from block to block).
    Vector block_storage;
+   /// maximum height of any block in block_storage for GPU
+   /// parallelization, or 1 for CPU runs.
    int max_rows;
 
    using MultKernelType = void (*)(const DerefineMatrixOp &, const Vector &,
@@ -93,8 +98,8 @@ public:
 
       MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
-      bool is_dg = fespace->FEColl()->GetContType() ==
-                   FiniteElementCollection::DISCONTINUOUS;
+      const bool is_dg = fespace->FEColl()->GetContType() ==
+                         FiniteElementCollection::DISCONTINUOUS;
       DenseMatrix localRVO; // for variable-order only
 
       DenseTensor localR[Geometry::NumGeom];
