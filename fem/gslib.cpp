@@ -121,7 +121,7 @@ FindPointsGSLIB::FindPointsGSLIB(Mesh *mesh_in, const double bb_t,
                                  const double newt_tol, const int npt_max)
    : FindPointsGSLIB()
 {
-   Setup(*mesh, bb_t, newt_tol, npt_max);
+   Setup(*mesh_in, bb_t, newt_tol, npt_max);
 }
 
 FindPointsGSLIB::~FindPointsGSLIB()
@@ -176,7 +176,7 @@ FindPointsGSLIB::FindPointsGSLIB(ParMesh *mesh_in, const double bb_t,
                                  const double newt_tol, const int npt_max)
    : FindPointsGSLIB(mesh_in->GetComm())
 {
-   Setup(*mesh, bb_t, newt_tol, npt_max);
+   Setup(*mesh_in, bb_t, newt_tol, npt_max);
 }
 #endif
 
@@ -2406,27 +2406,6 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
       }
    }
 }
-
-OversetFindPointsGSLIB::OversetFindPointsGSLIB(Mesh *m, const int meshid,
-                                               GridFunction *gfmax,
-                                               const double bb_t, const double newt_tol,
-                                               const int npt_max)
-   : FindPointsGSLIB()
-{
-   Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
-}
-
-#ifdef MFEM_USE_MPI
-OversetFindPointsGSLIB::OversetFindPointsGSLIB(ParMesh *m, const int meshid,
-                                               GridFunction *gfmax,
-                                               const double bb_t,
-                                               const double newt_tol,
-                                               const int npt_max)
-   : FindPointsGSLIB(m->GetComm())
-{
-   Setup(*m, meshid, gfmax, bb_t, newt_tol, npt_max);
-}
-#endif
 
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    GridFunction *gfmax,
