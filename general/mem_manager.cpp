@@ -340,11 +340,7 @@ static void MmuError(int sig, siginfo_t *si, void* context)
       sigaction(sig, old_action, NULL);
       raise(sig);
    }
-   else
-   {
-      MFEM_ABORT(str);
-   }
-
+   MFEM_ABORT(str);
 }
 
 /// MMU initialization, setting SIGBUS & SIGSEGV signals to MmuError
