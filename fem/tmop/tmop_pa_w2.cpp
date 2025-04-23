@@ -16,6 +16,10 @@
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR ::gpu::nvtx::kCyan
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -98,6 +102,8 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(T_D1D > 0 || D1D <= T_MAX, "D1D > T_MAX!");
+   MFEM_VERIFY(T_Q1D > 0 || Q1D <= T_MAX, "Q1D > T_MAX!");
 
    const auto MC = const_m0 ?
                    Reshape(mc_.Read(), 1, 1, 1) :
@@ -170,6 +176,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
 {
+   dbg();
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
