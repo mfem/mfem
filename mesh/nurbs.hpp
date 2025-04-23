@@ -376,6 +376,9 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int dir) { return kv[dir]; }
 
+   /// Get the data (control points) of this patch
+   const real_t* GetData() const { return data; }
+
    // Standard B-NET access functions
 
    /// 1D access function. @a i is a B-NET index, and @a l is a variable index.
@@ -910,6 +913,9 @@ public:
    /** @brief Return the degrees of freedom in @a dofs on patch @a patch, in
        Cartesian order. */
    void GetPatchDofs(const int patch, Array<int> &dofs);
+
+   /// Return NURBSPatch object
+   const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
 
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
