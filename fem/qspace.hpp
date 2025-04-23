@@ -62,6 +62,7 @@ protected:
    /// Compute the integration weights.
    void ConstructWeights() const;
 
+public:
    /// @brief Gets the offset for a given entity @a idx.
    ///
    /// The quadrature point values for entity i are stored in the indices
@@ -71,7 +72,15 @@ protected:
       return (offsets.Size() == 1) ? (idx * offsets[0]) : offsets[idx];
    }
 
-public:
+   /// @brief Entity quadrature point offset array.
+   ///
+   /// Supports a constant compression scheme for meshes which have a single
+   /// geometry type. When compressed, will have a single value. The true offset
+   /// can be computed as i * offsets[0], where i is the entity index. Otherwise
+   /// has size num_entities + 1.
+   ///
+   const Array<int> &Offsets() const { return offsets; }
+
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
 
