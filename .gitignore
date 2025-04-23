@@ -5,6 +5,7 @@
 #
 # Also ignore OS-specific files like .DS_Store on Mac
 # ------------------------------------------------------------------------------
+nvtx.hpp
 
 # Object and library files
 *.o

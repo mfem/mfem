@@ -529,6 +529,7 @@ void TMOP_Combo_QualityMetric::
 ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
                   Vector &averages, const IntegrationRule *IntRule) const
 {
+   assert(false);
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
              dim   = nodes.FESpace()->GetMesh()->Dimension();
