@@ -10881,6 +10881,23 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
    }
 }
 
+Array<NURBSPatch*> Mesh::GetNURBSPatches()
+{
+   MFEM_VERIFY(NURBSext, "Must be NURBS mesh");
+   NURBSext->ConvertToPatches(*Nodes);
+
+   const int NP = NURBSext->GetNP();
+   // Copy
+   Array<NURBSPatch*> newPatches(NP);
+   for (int p = 0; p < NP; p++)
+   {
+      newPatches[p] = new NURBSPatch(*NURBSext->GetPatch(p));
+   }
+
+   UpdateNURBS(); // deletes patches
+   return newPatches;
+}
+
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
                              int nonconforming, int nc_limit)
 {

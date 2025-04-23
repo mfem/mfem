@@ -39,6 +39,7 @@ namespace mfem
 class GeometricFactors;
 class FaceGeometricFactors;
 class KnotVector;
+class NURBSPatch;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
@@ -1408,6 +1409,9 @@ public:
 
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
+
+   /// Returns a copy of patches
+   Array<NURBSPatch*> GetNURBSPatches();
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
