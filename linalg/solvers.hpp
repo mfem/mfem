@@ -1294,6 +1294,45 @@ private:
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
 
+/// Solver wrapper which orthogonalizes a block of the input and output BlockVector
+/**
+ * BlockOrthoSolver wraps an existing Solver and orthogonalizes a block of an input BlockVector
+ * before passing it to the Mult() method of the Solver. This is a convenience
+ * implementation to handle e.g. a Stokes flow problem with pure dirichlet boundary
+ * conditions.
+ */
+class BlockOrthoSolver : public Solver
+{
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm mycomm;
+   mutable HYPRE_BigInt global_size;
+   const bool parallel;
+#else
+   mutable int global_size;
+#endif
+   Array<int> bOffsets, vblock, pblock;
+
+public:
+   BlockOrthoSolver(Array<int> &bOffsets_);
+#ifdef MFEM_USE_MPI
+   BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_);
+#endif
+
+   void SetSolver(Solver &s);
+
+   virtual void SetOperator(const Operator &op);
+
+   void Mult(const Vector &b, Vector &x) const;
+
+private:
+   Solver *solver = nullptr;
+
+   mutable Vector b_ortho, p_ortho, p_vec, temp;
+
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
+};
+
 #ifdef MFEM_USE_MPI
 /** This smoother does relaxations on an auxiliary space (determined by a map
     from the original space to the auxiliary space provided by the user).

@@ -63,6 +63,7 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
+examples/dg_stokes
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -122,6 +123,8 @@ examples/cond_j.*
 examples/cond_mesh.*
 examples/port_mesh.*
 examples/port_mode.*
+examples/dg_stokes.mesh 
+examples/dg_stokes_sol*
 
 examples/euler-*
 

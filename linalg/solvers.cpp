@@ -3658,6 +3658,147 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
    }
 }
 
+BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
+   : Solver(0, false), global_size(-1)
+#ifdef MFEM_USE_MPI
+   , parallel(false)
+#endif
+   , bOffsets(bOffsets_)
+{
+   // form index array corresponding to velocity block
+   int start_ind = bOffsets[0];
+   int vblock_size = bOffsets[1] - bOffsets[0];
+   vblock.SetSize(vblock_size);
+   for (int i=0; i < vblock_size; i++)
+   {
+      vblock[i] = start_ind + i;
+   }
+
+   // form index array corresponding to pressure block
+   start_ind = bOffsets[1];
+   int pblock_size = bOffsets[2] - bOffsets[1];
+   pblock.SetSize(pblock_size);
+   for (int i=0; i < pblock_size; i++)
+   {
+      pblock[i] = start_ind + i;
+   }
+
+   p_vec.SetSize(pblock.Size());
+   p_vec = 0.0;
+   p_ortho = p_vec;
+}
+
+#ifdef MFEM_USE_MPI
+BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_)
+   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true),
+     bOffsets(bOffsets_)
+{
+   // form index array corresponding to velocity block
+   int start_ind = bOffsets[0];
+   int vblock_size = bOffsets[1] - bOffsets[0];
+   vblock.SetSize(vblock_size);
+   for (int i=0; i < vblock_size; i++)
+   {
+      vblock[i] = start_ind + i;
+   }
+
+   // form index array corresponding to pressure block
+   start_ind = bOffsets[1];
+   int pblock_size = bOffsets[2] - bOffsets[1];
+   pblock.SetSize(pblock_size);
+   for (int i=0; i < pblock_size; i++)
+   {
+      pblock[i] = start_ind + i;
+   }
+
+   p_vec.SetSize(pblock.Size());
+   p_vec = 0.0;
+   p_ortho = p_vec;
+}
+#endif
+
+void BlockOrthoSolver::SetSolver(Solver &s)
+{
+   solver = &s;
+   height = s.Height();
+   width = s.Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void BlockOrthoSolver::SetOperator(const Operator &op)
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   solver->SetOperator(op);
+   height = solver->Height();
+   width = solver->Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void BlockOrthoSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   MFEM_VERIFY(height == solver->Height(),
+               "solver was modified externally! call SetSolver() again!");
+   MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
+   MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
+
+   // Orthogonalize input pressure block
+   b.GetSubVector(pblock,p_vec);
+   Orthogonalize(p_vec, p_ortho);
+
+   temp = b;
+   temp.SetSubVector(pblock,p_ortho); // update pressure block
+
+   // Propagate iterative_mode to the solver:
+   solver->iterative_mode = iterative_mode;
+
+   // Apply the Solver
+   solver->Mult(temp, x);
+
+   // Orthogonalize output
+   x.GetSubVector(pblock,p_vec);
+   Orthogonalize(p_vec,p_ortho);
+
+   x.SetSubVector(pblock,p_ortho);
+}
+
+void BlockOrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
+{
+   if (global_size == -1)
+   {
+      global_size = height;
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, HYPRE_MPI_BIG_INT,
+                       MPI_SUM, mycomm);
+      }
+#endif
+   }
+
+   // TODO: GPU/device implementation
+
+   double global_sum = v.Sum();
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+   }
+#endif
+
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   v.HostRead();
+   v_ortho.HostWrite();
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
+}
+
 #ifdef MFEM_USE_MPI
 AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
                                    HypreParMatrix *aux_map,
