@@ -541,7 +541,8 @@ public:
       PetscCall(MatAYPX(dRvdv_petsc, h, Mv_petsc,
                         MatStructure::DIFFERENT_NONZERO_PATTERN));
 
-      dRvdv_petsc.EliminateRowsCols(hydro.ess_tdof);
+      auto tmp0 = dRvdv_petsc.EliminateRowsCols(hydro.ess_tdof);
+      delete tmp0;
 
       // dRvde = h * dF/de
       HypreParMatrix dRvde_mat;
@@ -567,8 +568,8 @@ public:
       // dRedv = -h * dF^T/dv
       HypreParMatrix dRedv_mat;
       dRedv->Assemble(dRedv_mat);
-      auto tmp = dRedv_mat.EliminateCols(hydro.ess_tdof);
-      delete tmp;
+      auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
+      delete tmp1;
       PetscParMatrix dRedv_petsc(&dRedv_mat);
       dRedv_petsc *= -h;
 
@@ -726,6 +727,13 @@ public:
       return Device::GetDeviceMemoryClass();
    }
 
+   ~LagrangianHydroJacobianOperator()
+   {
+      delete block_petsc;
+      delete w_petsc;
+      delete y_petsc;
+   }
+
    real_t h;
    std::function<int(const Vector &, Vector &)> jvp, assembled_jvp;
    const int H1tsize;
@@ -828,7 +836,8 @@ public:
    Operator& GetGradient(const Vector &k) const override
    {
       // tic();
-      jacobian.reset(new LagrangianHydroJacobianOperator(dt, H1tsize, L2tsize));
+      jacobian = std::make_shared<LagrangianHydroJacobianOperator>(dt, H1tsize,
+                                                                   L2tsize);
 
       u = k;
       u *= dt;
@@ -852,7 +861,7 @@ public:
 
       if (fd_gradient)
       {
-         fd_jacobian.reset(new FDJacobian(*this, k, 1e-8));
+         fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
          // std::ofstream fd_out("fd_blockmat.dat");
          // fd_jacobian->PrintMatlab(fd_out);
          // fd_out.close();
@@ -1083,6 +1092,7 @@ public:
             e_source.UseFastAssembly(true);
             e_source.Assemble();
             rhse += e_source;
+            delete d;
          }
 
          CGSolver cg(L2.GetParMesh()->GetComm());
