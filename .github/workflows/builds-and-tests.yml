@@ -128,8 +128,11 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp64
-            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=/opt/homebrew/Cellar/enzyme ENZYME_LLVM_VERSION=`clang -dumpversion | cut -d'.' -f1`
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=/opt/homebrew/Cellar/enzyme ENZYME_LLVM_VERSION=`mpicxx -dumpversion | cut -d'.' -f1`
             enzyme: true
+            env: OMPI_CC=/opt/homebrew/opt/llvm/bin/clang
+              OMPI_CXX=/opt/homebrew/opt/llvm/bin/clang++
+
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
     runs-on: ${{ matrix.os }}
