@@ -73,6 +73,7 @@ real_t EvalW_094(const real_t *Jpt, const real_t *w)
 
 MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_2D,
                            const real_t metric_normal,
+                           const bool use_detA,
                            const Vector &mc_,
                            const Array<real_t> &metric_param,
                            const int mid,
@@ -90,7 +91,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 56 || mid == 77
                || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
@@ -140,9 +141,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_2D,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             const real_t *Jtr = &J(0,0,qx,qy,e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
             const real_t m_coef = const_m0 ? MC(0,0,0) : MC(qx,qy,e);
-            const real_t weight = metric_normal * m_coef * W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             real_t Jrt[4];
@@ -156,11 +155,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_2D,
             real_t Jpt[4];
             kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
 
+            const real_t det =
+                (use_detA) ? kernels::Det<2>(Jpr) : kernels::Det<2>(Jtr);
+            const real_t weight = metric_normal * m_coef * W(qx,qy) * det;
+
             // metric->EvalW(Jpt);
             const real_t EvalW =
                mid ==  1 ? EvalW_001(Jpt) :
                mid ==  2 ? EvalW_002(Jpt) :
                mid ==  7 ? EvalW_007(Jpt) :
+               mid == 56 ? EvalW_056(Jpt) :
                mid == 77 ? EvalW_077(Jpt) :
                mid == 80 ? EvalW_080(Jpt, metric_data) :
                mid == 94 ? EvalW_094(Jpt, metric_data) : 0.0;
@@ -199,13 +203,13 @@ void TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X,
    }
 
    real_t lim_energy;
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,MC,mp,M,N,J,W,B,G,X,O,E,L,
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,false,MC,mp,M,N,J,W,B,G,X,O,E,L,
                            energy, lim_energy);
 }
 
 void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
                                                          real_t &met_energy,
-                                                         real_t &lim_energy)
+                                                         real_t &lim_energy) const
 {
    const int N = PA.ne;
    const int M = metric->Id();
@@ -228,8 +232,50 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,MC,mp,M,N,J,W,B,G,X,O,E,L,
-                           met_energy,lim_energy);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,false,MC,mp,M,N,J,W,B,G,X,O,E,L,
+                           met_energy, lim_energy);
+}
+
+void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
+                                                   const TargetConstructor &tc,
+                                                   int m_index,
+                                                   real_t &energy, real_t &vol,
+                                                   const IntegrationRule &ir) const
+{
+   auto fes = nodes.FESpace();
+
+   const int N = fes->GetNE();
+   const int M = tmop_q_arr[m_index]->Id();
+   auto fe = fes->GetTypicalFE();
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   auto maps = fe->GetDofToQuad(ir, mode);
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const real_t mn = 1.0;
+   Vector MC(1); MC = 1.0;
+   const Array<real_t> &W = ir.GetWeights();
+   const Array<real_t> &B = maps.B;
+   const Array<real_t> &G = maps.G;
+   Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O = 1.0;
+   Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+
+   auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   Vector X(R->Height());
+   R->Mult(nodes, X);
+
+   DenseTensor Jtr(2, 2, N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   tc.ComputeAllElementTargets(*fes, ir, X, Jtr);
+
+   Array<real_t> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(tmop_q_arr[m_index]))
+   {
+      m->GetWeights(mp);
+   }
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,true,MC,mp,M,N,Jtr,W,B,G,X,O,E,L,
+                           energy, vol);
 }
 
 } // namespace mfem
