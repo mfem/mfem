@@ -658,8 +658,8 @@ void QuadratureInterpolator::Values(const Vector &e_vec,
    Mult(e_vec, VALUES, q_val, empty, empty);
 }
 
-void QuadratureInterpolator::PhysicalValues(const Vector &e_vec,
-                                            Vector &q_val) const
+void QuadratureInterpolator::PhysValues(const Vector &e_vec,
+                                        Vector &q_val) const
 {
    Vector empty;
    Mult(e_vec, PHYSICAL_VALUES, q_val, empty, empty);
