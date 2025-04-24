@@ -856,7 +856,7 @@ int main(int argc, char *argv[])
    {
       Vector bal_weights;
       auto ir = irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, &ir);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, &ir);
       metric_combo->SetWeights(bal_weights);
    }
 
@@ -901,10 +901,6 @@ int main(int argc, char *argv[])
                                 300, 600, 300, 300);
       }
    }
-
-   // Has to be after the enabling of the limiting / alignment, as it computes
-   // normalization factors for these terms as well.
-   if (normalization) { tmop_integ->EnableNormalization(x0); }
 
    //
    // Setup the NonlinearForm which defines the integral of interest, its
@@ -958,6 +954,10 @@ int main(int argc, char *argv[])
    else { a.AddDomainIntegrator(tmop_integ); }
    // The PA setup must be performed after all integrators have been added.
    if (pa) { a.Setup(); }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization) { tmop_integ->EnableNormalization(x0); }
 
    // Compute the minimum det(J) of the starting mesh.
    min_detJ = infinity();
