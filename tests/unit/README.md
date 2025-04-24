@@ -9,9 +9,9 @@ MFEM's unit test suite includes a number of executables:
 
 * `unit_tests`
 * `gpu_unit_tests` if MFEM is compiled with CUDA/HIP support
-* `sedov_tests_cpu`, `sedov_tests_debug` (and `sedov_tests_cuda` and
-  `sedov_tests_cuda_uvm` if CUDA is enabled), testing a Sedov hydrodynamics case
-* `tmop_pa_tests_cpu`, `tmop_pa_tests_debug` (and `tmop_pa_tests_cuda` if CUDA
+* `sedov_tests_cpu`, `sedov_tests_debug` (and `sedov_tests_gpu` and
+  `sedov_tests_gpu_uvm` if GPU is enabled), testing a Sedov hydrodynamics case
+* `tmop_pa_tests_cpu`, `tmop_pa_tests_debug` (and `tmop_pa_tests_gpu` if GPU
   is enabled), testing TMOP with partial assembly
 
 There are also parallel versions of these executables (prefixed with `p`), which
