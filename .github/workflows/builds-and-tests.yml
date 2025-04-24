@@ -80,7 +80,7 @@ jobs:
             codecov: YES
           - os: ubuntu-latest
             target: dbg
-            config-opts: 'CPPFLAGS+=-Og'
+            config-opts: "CPPFLAGS+=-Og"
           - os: macos-latest
             codecov: NO
           - os: windows-latest
@@ -88,7 +88,7 @@ jobs:
           - os: windows-latest
             target: opt
             mpi: par
-            config-opts: '-DBUILD_SHARED_LIBS=ON'
+            config-opts: "-DBUILD_SHARED_LIBS=ON"
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -96,7 +96,7 @@ jobs:
             build-system: cmake
             hypre-target: int32
             precision: fp64
-            config-opts: '-DCMAKE_INSTALL_PREFIX=../cmake-install'
+            config-opts: "-DCMAKE_INSTALL_PREFIX=../cmake-install"
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
@@ -121,7 +121,16 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp32
-    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
+          - os: macos-latest
+            target: dbg
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp64
+            config-options: ENZYME_DIR=/opt/homebrew/opt/enzyme ENZYME_LLVM_VERSION=ENZYME_LLVM_VERSION=`clang -dumpversion | cut -d'.' -f1`
+            enzyme: true
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
     runs-on: ${{ matrix.os }}
 
@@ -131,8 +140,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: easimon/maximize-build-space@v8
         with:
-          overprovision-lvm: 'true'
-          remove-android: 'true'
+          overprovision-lvm: "true"
+          remove-android: "true"
 
       # Checkout MFEM in "mfem" subdirectory. Final path:
       # /home/runner/work/mfem/mfem/mfem
@@ -257,6 +266,14 @@ jobs:
           VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
         run: |
           vcpkg install metis-mfem --triplet=x64-windows-static --overlay-ports=${{ env.MFEM_TOP_DIR }}/config/vcpkg/ports
+
+      # It's usually fine to build the above TPLs with a different compiler.
+      #
+      - name: install latest LLVM and Enzyme (macOS w/ Enzyme)
+        if: matrix.enzyme && matrix.os == 'macos-latest'
+        run: |
+          export HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew install llvm enzyme
 
       # MFEM build and test
       - name: build
