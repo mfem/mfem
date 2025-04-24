@@ -278,6 +278,7 @@ jobs:
           echo "LLVM_PREFIX=$(brew --prefix llvm)" >> $GITHUB_ENV
           echo "OMPI_CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
           echo "OMPI_CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
+          echo "$(ls /opt/homebrew/opt/)"
           echo "$(/opt/homebrew/opt/llvm/bin/clang++ -dumpversion)"
 
       # MFEM build and test
