@@ -1624,13 +1624,18 @@ public:
 
    /// @}
 
+
+   /** @brief Build the internal vertex-to-element table
+       @note Built seperately from GetVertexToElementTable() which creates new copies */
+   void BuildVertexToElementTable() const;
+
    /// @name Access connectivity data
    /// @{
 
    /// Returns the vertex-to-element Table which should be deleted by the caller
    Table *GetVertexToElementTable() const;
 
-   /// @note The returned Table should be deleted by the caller
+   /// Returns the vertex-to-bdrelement Table which should be deleted by the caller
    Table *GetVertexToBdrElementTable();
 
    /// Returns the vertex-to-edge Table (3D)

@@ -7464,11 +7464,8 @@ Table *Mesh::GetVertexToFaceTable() const
    return &vert_to_face;
 }
 
-
-Table *Mesh::GetVertexToElementTable() const
+void Mesh::BuildVertexToElementTable() const
 {
-   if (vert_to_elem.Size() > 0) {return new Table(vert_to_elem);}
-
    vert_to_elem.MakeI(NumOfVertices);
 
    for (int i = 0; i < NumOfElements; i++)
@@ -7495,7 +7492,12 @@ Table *Mesh::GetVertexToElementTable() const
 
    vert_to_elem.ShiftUpI();
    vert_to_elem.Finalize();
+}
 
+
+Table *Mesh::GetVertexToElementTable() const
+{
+   if (vert_to_elem.Size() <= 0) {BuildVertexToElementTable();}
    return new Table(vert_to_elem);
 }
 
@@ -7618,10 +7620,7 @@ Array<int> Mesh::FindFaceNeighbors(const int elem) const
 
 void Mesh::ElemsWithVert(int vi, Array<int> &elems)
 {
-   if (vert_to_elem.Size() <= 0)
-   {
-      GetVertexToElementTable();    // Ensure vert_to_elem is built
-   }
+   if (vert_to_elem.Size() <= 0) {BuildVertexToElementTable();}
    vert_to_elem.GetRow(vi, elems);
 }
 
@@ -7639,10 +7638,7 @@ void Mesh::EdgesWithVert(int vi, Array<int> &edges)
 
 void Mesh::ElemsWithAllVerts(const Array<int> &verts, Array<int> &elems)
 {
-   if (vert_to_elem.Size() <= 0)
-   {
-      GetVertexToElementTable();    // Ensure vert_to_elem is built
-   }
+   if (vert_to_elem.Size() <= 0) {BuildVertexToElementTable();}
    elems.Reserve(verts.Size());
 
    // Find all the elements touched by the vertices
@@ -13670,10 +13666,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    if (pts_found != npts)
    {
       Array<int> elvertices;
-      if (vert_to_elem.Size() <= 0)
-      {
-         GetVertexToElementTable();    // Ensure vert_to_elem is built
-      }
+      if (vert_to_elem.Size() <= 0) {BuildVertexToElementTable();}
       for (int k = 0; k < npts; k++)
       {
          if (elem_ids[k] != -1) { continue; }
