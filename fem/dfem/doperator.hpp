@@ -18,7 +18,7 @@
 #include "qfunction.hpp"
 #include "integrate.hpp"
 
-namespace mfem
+namespace mfem::experimental
 {
 
 using action_t =
@@ -250,8 +250,8 @@ public:
       typename derivative_indices_t>
    void AddDomainIntegrator(
       func_t &qfunc,
-      mfem::tuple<input_ts...> inputs,
-      mfem::tuple<output_ts...> outputs,
+      tuple<input_ts...> inputs,
+      tuple<output_ts...> outputs,
       const IntegrationRule &integration_rule,
       const Array<int> domain_attributes,
       const derivative_indices_t derivative_indices = {});
@@ -259,7 +259,7 @@ public:
    /// @brief Set the parameters for the operator.
    ///
    /// This has to be called before using Mult() or MultTranspose().
-   /// 
+   ///
    /// @param p The parameters to be set. This should be a vector of pointers to
    /// the parameter vectors. The vectors have to be L-vectors (e.g.
    /// GridFunctions).
@@ -404,8 +404,8 @@ template <
    typename derivative_ids_t = std::make_index_sequence<0>>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
-   mfem::tuple<input_ts...> inputs,
-   mfem::tuple<output_ts...> outputs,
+   tuple<input_ts...> inputs,
+   tuple<output_ts...> outputs,
    const IntegrationRule &integration_rule,
    const Array<int> domain_attributes,
    derivative_ids_t derivative_ids)
@@ -413,10 +413,10 @@ void DifferentiableOperator::AddDomainIntegrator(
    using entity_t = Entity::Element;
 
    static constexpr size_t num_inputs =
-      mfem::tuple_size<decltype(inputs)>::value;
+      tuple_size<decltype(inputs)>::value;
 
    static constexpr size_t num_outputs =
-      mfem::tuple_size<decltype(outputs)>::value;
+      tuple_size<decltype(outputs)>::value;
 
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
@@ -435,11 +435,11 @@ void DifferentiableOperator::AddDomainIntegrator(
       static_assert(always_false<qfunc_t>, "quadrature function has no return value");
    }
 
-   constexpr size_t num_qfinputs = mfem::tuple_size<qf_param_ts>::value;
+   constexpr size_t num_qfinputs = tuple_size<qf_param_ts>::value;
    static_assert(num_qfinputs == num_inputs,
                  "quadrature function inputs and descriptor inputs have to match");
 
-   constexpr size_t num_qf_outputs = mfem::tuple_size<qf_output_t>::value;
+   constexpr size_t num_qf_outputs = tuple_size<qf_output_t>::value;
    static_assert(num_qf_outputs == num_outputs,
                  "quadrature function outputs and descriptor outputs have to match");
 
@@ -453,7 +453,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                " This indicates that some fields are not used in the integrator,"
                " which currently is not supported.");
 
-   auto dependency_map = make_dependency_map(mfem::tuple<input_ts...> {});
+   auto dependency_map = make_dependency_map(tuple<input_ts...> {});
 
    // pretty_print(dependency_map);
 
@@ -466,7 +466,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    std::vector<int> inputs_vdim(num_inputs);
    for_constexpr<num_inputs>([&](auto i)
    {
-      inputs_vdim[i] = mfem::get<i>(inputs).vdim;
+      inputs_vdim[i] = get<i>(inputs).vdim;
    });
 
    if ( mesh.GetNE() == 0)
@@ -481,7 +481,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       elem_attributes[i] = mesh.GetAttribute(i);
    }
 
-   const auto output_fop = mfem::get<0>(outputs);
+   const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
 
    bool use_sum_factorization = false;
@@ -717,4 +717,4 @@ void DifferentiableOperator::AddDomainIntegrator(
    }, derivative_ids);
 }
 
-} // namespace mfem
+} // namespace mfem::experimental

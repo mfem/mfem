@@ -17,6 +17,7 @@
 #include "linalg/tensor.hpp"
 
 using namespace mfem;
+using namespace mfem::experimental;
 using mfem::internal::tensor;
 using DOperator = DifferentiableOperator;
 
@@ -36,7 +37,7 @@ template <int DIM> struct Diffusion
                                               const real_t &w) const
       {
          const auto invJ = inv(J), TinJ = transpose(invJ);
-         return mfem::tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
+         return tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
       }
    };
 
@@ -47,7 +48,7 @@ template <int DIM> struct Diffusion
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         return mfem::tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
+         return tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
       }
    };
 
@@ -56,7 +57,7 @@ template <int DIM> struct Diffusion
       MFEM_HOST_DEVICE inline auto operator()(const vecd_t &dudxi,
                                               const matd_t &q) const
       {
-         return mfem::tuple{ q * dudxi };
+         return tuple{ q * dudxi };
       };
    };
 };
@@ -146,9 +147,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 mfem::tuple{ Gradient<U>{}, None<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                 mfem::tuple{ Gradient<U>{} }, *ir,
+                                 tuple{ Gradient<U>{}, None<Rho>{},
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr);
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
@@ -184,8 +185,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
       typename Diffusion<DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
-         mfem::tuple{ None<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
-         mfem::tuple{ None<QData>{} }, *ir, all_domain_attr);
+         tuple{ None<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ None<QData>{} }, *ir, all_domain_attr);
       dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
       pfes.GetRestrictionMatrix()->Mult(x, X);
       dSetup.Mult(X, qdata);
@@ -193,8 +194,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
       typename Diffusion<DIM>::PAApply pa_apply_qf;
       dop_pa.AddDomainIntegrator(pa_apply_qf,
-                                 mfem::tuple{ Gradient<U>{}, None<QData>{} },
-                                 mfem::tuple{ Gradient<U>{} },
+                                 tuple{ Gradient<U>{}, None<QData>{} },
+                                 tuple{ Gradient<U>{} },
                                  *ir, all_domain_attr);
       dop_pa.SetParameters({ &qdata });
 

@@ -28,9 +28,7 @@
 #include "parametricspace.hpp"
 #include "tuple.hpp"
 
-using std::size_t;
-
-namespace mfem
+namespace mfem::experimental
 {
 
 template<typename... Ts>
@@ -43,89 +41,92 @@ constexpr auto to_array(const std::tuple<Ts...>& tuple)
 namespace detail
 {
 
-template <typename lambda, size_t... i>
+template <typename lambda, std::size_t... i>
 constexpr void for_constexpr(lambda&& f,
-                             std::integral_constant<size_t, i>... Is)
+                             std::integral_constant<std::size_t, i>... Is)
 {
    f(Is...);
 }
 
 
-template <size_t... n, typename lambda, typename... arg_types>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, n...>,
+template <std::size_t... n, typename lambda, typename... arg_types>
+constexpr void for_constexpr(lambda&& f,
+                             std::integer_sequence<std::size_t, n...>,
                              arg_types... args)
 {
-   (detail::for_constexpr(f, args..., std::integral_constant<size_t,n> {}), ...);
+   (detail::for_constexpr(f, args..., std::integral_constant<std::size_t,n> {}),
+    ...);
 }
 
 }  // namespace detail
 
-template <typename lambda, size_t... i>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, i ... >)
+template <typename lambda, std::size_t... i>
+constexpr void for_constexpr(lambda&& f,
+                             std::integer_sequence<std::size_t, i ... >)
 {
-   (f(std::integral_constant<size_t, i> {}), ...);
+   (f(std::integral_constant<std::size_t, i> {}), ...);
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t>) {}
+constexpr void for_constexpr(lambda&& f, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
 constexpr void for_constexpr(lambda&& f)
 {
-   detail::for_constexpr(f, std::make_integer_sequence<size_t, n> {}...);
+   detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<size_t>)
+                                      std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
 }
 
-template <typename lambda, typename arg_t, size_t i, size_t... Is>
+template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<size_t, i, Is...>)
+                                      std::integer_sequence<std::size_t, i, Is...>)
 {
-   f(std::integral_constant<size_t, i> {}, mfem::get<i>(arg));
+   f(std::integral_constant<std::size_t, i> {}, get<i>(arg));
    for_constexpr_with_arg(f, std::forward<arg_t>(arg),
-                          std::integer_sequence<size_t, Is...> {});
+                          std::integer_sequence<std::size_t, Is...> {});
 }
 
 template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
-      std::make_index_sequence<mfem::tuple_size<std::remove_reference_t<arg_t>>::value>;
+      std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
 }
 
-template <typename... input_ts, size_t... Is>
+template <typename... input_ts, std::size_t... Is>
 constexpr auto make_dependency_map_impl(
-   mfem::tuple<input_ts...> inputs,
+   tuple<input_ts...> inputs,
    std::index_sequence<Is...>)
 {
-   constexpr size_t N = sizeof...(input_ts);
+   constexpr std::size_t N = sizeof...(input_ts);
    auto make_dependency_array = [&](auto i)
    {
       return std::array<bool, N>
       {
-         (mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>(inputs).GetFieldId())...
+         (get<i>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())...
       };
    };
 
    std::unordered_map<int, std::array<bool, N>> map;
    for_constexpr<N>([&](auto i)
    {
-      map[mfem::get<i>(inputs).GetFieldId()] =
-         make_dependency_array(std::integral_constant<size_t, i> {});
+      map[get<i>(inputs).GetFieldId()] =
+         make_dependency_array(std::integral_constant<std::size_t, i> {});
    });
 
    return map;
 }
 
 template <typename... input_ts>
-auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
@@ -251,15 +252,15 @@ void pretty_print(const mfem::Array<T>& v)
 /// @tparam T Type of array elements
 /// @tparam N Size of array
 /// @param map unordered map to print
-template<typename K, typename T, size_t N>
+template<typename K, typename T, std::size_t N>
 void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 {
    out << "{";
-   size_t count = 0;
+   std::size_t count = 0;
    for (const auto& [key, value] : map)
    {
       out << key << ": [";
-      for (size_t i = 0; i < N; i++)
+      for (std::size_t i = 0; i < N; i++)
       {
          out << value[i];
          if (i < N-1) { out << ", "; }
@@ -360,8 +361,8 @@ void pretty_print_mpi(const mfem::Vector& v)
 
 
 template <typename ... Ts>
-constexpr auto decay_types(mfem::tuple<Ts...> const &)
--> mfem::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+constexpr auto decay_types(tuple<Ts...> const &)
+-> tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
@@ -372,7 +373,7 @@ template <typename output_t, typename... input_ts>
 struct FunctionSignature<output_t(input_ts...)>
 {
    using return_t = output_t;
-   using parameter_ts = mfem::tuple<input_ts...>;
+   using parameter_ts = tuple<input_ts...>;
 };
 
 template <class T> struct create_function_signature;
@@ -447,7 +448,7 @@ constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
    return unique_count;
 }
 
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 auto get_marked_entries(
    const std::array<T, N> &a,
    const std::array<bool, N> &marker)
@@ -472,7 +473,7 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
 
 struct FieldDescriptor
 {
-   size_t id;
+   std::size_t id;
    std::variant<const FiniteElementSpace *,
        const ParFiniteElementSpace *,
        const ParametricSpace *> data;
@@ -617,9 +618,10 @@ private:
 
 
 inline
-size_t FindIdx(const size_t& id, const std::vector<FieldDescriptor>& fields)
+std::size_t FindIdx(const std::size_t& id,
+                    const std::vector<FieldDescriptor>& fields)
 {
-   for (size_t i = 0; i < fields.size(); i++)
+   for (std::size_t i = 0; i < fields.size(); i++)
    {
       if (fields[i].id == id)
       {
@@ -908,7 +910,7 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
    P->Mult(x, field_l);
 }
 
-template <size_t N, size_t M>
+template <std::size_t N, std::size_t M>
 void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
@@ -932,7 +934,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
                   std::vector<Vector> &fields_l)
 {
    int data_offset = 0;
-   for (size_t i = 0; i < fields.size(); i++)
+   for (std::size_t i = 0; i < fields.size(); i++)
    {
       const auto P = get_prolongation(fields[i]);
       const int width = P->Width();
@@ -998,7 +1000,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
-   for (size_t i = 0; i < u.size(); i++)
+   for (std::size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
       MFEM_ASSERT(R->Width() == u_l[i].Size(),
@@ -1010,7 +1012,7 @@ void restriction(const std::vector<FieldDescriptor> u,
 }
 
 // TODO: keep this temporarily
-template <size_t N, size_t M>
+template <std::size_t N, std::size_t M>
 void element_restriction(const std::array<FieldDescriptor, N> u,
                          const std::array<Vector, N> &u_l,
                          std::array<Vector, M> &fields_e,
@@ -1149,14 +1151,14 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 }
 
 template <typename entity_t, typename field_operator_ts>
-std::array<int, mfem::tuple_size<field_operator_ts>::value>
+std::array<int, tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
    field_operator_ts &fops)
 {
-   std::array<int, mfem::tuple_size<field_operator_ts>::value> map;
+   std::array<int, tuple_size<field_operator_ts>::value> map;
 
-   auto find_id = [](const std::vector<FieldDescriptor> &fields, size_t i)
+   auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
    {
       auto it = std::find_if(begin(fields), end(fields),
                              [&](const FieldDescriptor &field)
@@ -1196,9 +1198,9 @@ create_descriptors_to_fields_map(
       }
    };
 
-   for_constexpr<mfem::tuple_size<field_operator_ts>::value>([&](auto idx)
+   for_constexpr<tuple_size<field_operator_ts>::value>([&](auto idx)
    {
-      f(mfem::get<idx>(fops), map[idx]);
+      f(get<idx>(fops), map[idx]);
    });
 
    return map;
@@ -1209,7 +1211,7 @@ std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
    std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp, int num_entities,
    const input_t &inputs, std::index_sequence<i...>)
 {
-   return {DeviceTensor<3>(input_qp_mem[i].Write(), mfem::get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
+   return {DeviceTensor<3>(input_qp_mem[i].Write(), get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
 }
 
 template <typename input_t, std::size_t... i>
@@ -1219,7 +1221,7 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {Vector(mfem::get<i>(inputs).size_on_qp * num_qp * num_entities)...};
+   return {Vector(get<i>(inputs).size_on_qp * num_qp * num_entities)...};
 }
 
 struct DofToQuadMap
@@ -1240,7 +1242,7 @@ std::vector<int> get_input_size_on_qp(
    const input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {mfem::get<i>(inputs).size_on_qp...};
+   return {get<i>(inputs).size_on_qp...};
 }
 
 struct SharedMemory
@@ -1258,7 +1260,7 @@ struct SharedMemory
    };
 };
 
-template <size_t num_fields, size_t num_inputs, size_t num_outputs>
+template <std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs>
 struct SharedMemoryInfo
 {
    int total_size;
@@ -1273,7 +1275,7 @@ struct SharedMemoryInfo
    std::array<int, 6> temp_sizes;
 };
 
-template <typename entity_t, size_t num_fields, size_t num_inputs, size_t num_outputs, typename input_t>
+template <typename entity_t, std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs, typename input_t>
 SharedMemoryInfo<num_fields, num_inputs, num_outputs>
 get_shmem_info(
    std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
@@ -1294,7 +1296,7 @@ get_shmem_info(
    std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
    int max_dtq_qps = 0;
    int max_dtq_dofs = 0;
-   for (size_t i = 0; i < num_inputs; i++)
+   for (std::size_t i = 0; i < num_inputs; i++)
    {
       auto a = input_dtq_maps[i].B.GetShape();
       input_dtq_sizes[i][0] = a[0] * a[1] * a[2];
@@ -1311,7 +1313,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::OUTPUT_DTQ] = total_size;
    std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
-   for (size_t i = 0; i < num_outputs; i++)
+   for (std::size_t i = 0; i < num_outputs; i++)
    {
       auto a = output_dtq_maps[i].B.GetShape();
       output_dtq_sizes[i][0] = a[0] * a[1] * a[2];
@@ -1328,7 +1330,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::FIELD] = total_size;
    std::array<int, num_fields> field_sizes;
-   for (size_t i = 0; i < num_fields; i++)
+   for (std::size_t i = 0; i < num_fields; i++)
    {
       field_sizes[i] = get_restriction<entity_t>(
                           fields[i],
@@ -1349,7 +1351,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::INPUT] = total_size;
    std::array<int, num_inputs> input_sizes;
-   for (size_t i = 0; i < num_inputs; i++)
+   for (std::size_t i = 0; i < num_inputs; i++)
    {
       input_sizes[i] = input_size_on_qp[i] * num_qp;
    }
@@ -1360,7 +1362,7 @@ get_shmem_info(
    std::array<int, num_inputs> shadow_sizes{0};
    if (derivative_action_field_idx != -1)
    {
-      for (size_t i = 0; i < num_inputs; i++)
+      for (std::size_t i = 0; i < num_inputs; i++)
       {
          shadow_sizes[i] = input_size_on_qp[i] * num_qp;
       }
@@ -1381,7 +1383,7 @@ get_shmem_info(
 
    // TODO-bug: this depends on the dimension
    constexpr int hardcoded_temp_num = 6;
-   for (size_t i = 0; i < hardcoded_temp_num; i++)
+   for (std::size_t i = 0; i < hardcoded_temp_num; i++)
    {
       // TODO-bug: over-allocates if q1d <= d1d
       temp_sizes[i] = q1d * q1d * q1d;
@@ -1468,7 +1470,7 @@ void print_shared_memory_info(shmem_info_t &shmem_info)
    out << "\n\n";
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 std::array<DofToQuadMap, N> load_dtq_mem(
    void *mem,
@@ -1477,7 +1479,7 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    const std::array<DofToQuadMap, N> &dtq)
 {
    std::array<DofToQuadMap, N> f;
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
       const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
@@ -1525,7 +1527,7 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    return f;
 }
 
-template <size_t num_fields>
+template <std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<1>, num_fields>
 load_field_mem(
@@ -1584,7 +1586,7 @@ DeviceTensor<1> load_direction_mem(
              &reinterpret_cast<real_t *>(mem)[offset], size);
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<2>, N> load_input_mem(
    void *mem,
@@ -1593,7 +1595,7 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    const int &num_qp)
 {
    std::array<DeviceTensor<2>, N> f;
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset],
                              sizes[i] / num_qp,
@@ -1614,7 +1616,7 @@ DeviceTensor<2> load_residual_mem(
                           num_qp);
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<1>, 6> load_scratch_mem(
    void *mem,
@@ -1622,7 +1624,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    const std::array<int, N> &sizes)
 {
    std::array<DeviceTensor<1>, N> f;
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<1>(&reinterpret_cast<real_t *>(mem)[offset], sizes[i]);
       offset += sizes[i];
@@ -1630,7 +1632,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    return f;
 }
 
-template <typename shared_mem_info_t, size_t num_inputs, size_t num_outputs, size_t num_fields>
+template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 auto unpack_shmem(
    void *shmem,
@@ -1691,7 +1693,7 @@ auto unpack_shmem(
                           input_shmem, residual_shmem, scratch_mem);
 }
 
-template <typename shared_mem_info_t, size_t num_inputs, size_t num_outputs, size_t num_fields>
+template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 auto unpack_shmem(
    void *shmem,
@@ -1784,11 +1786,11 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
    };
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 void set_zero(std::array<DeviceTensor<2>, N> &v)
 {
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       int size = v[i].GetShape()[0] * v[i].GetShape()[1];
       auto vi = Reshape(&v[i][0], size);
@@ -1799,7 +1801,7 @@ void set_zero(std::array<DeviceTensor<2>, N> &v)
    }
 }
 
-template <size_t n>
+template <std::size_t n>
 MFEM_HOST_DEVICE inline
 void set_zero(DeviceTensor<n> &u)
 {
@@ -1839,7 +1841,7 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
 /// @tparam m number of tensors
 /// @param x source tensor array
 /// @param y destination tensor array
-template <int n, size_t m>
+template <int n, std::size_t m>
 MFEM_HOST_DEVICE inline
 void copy(std::array<DeviceTensor<n>, m> &u,
           std::array<DeviceTensor<n>, m> &v)
@@ -1856,7 +1858,7 @@ void copy(std::array<DeviceTensor<n>, m> &u,
 /// @param fields array of field data
 /// @param num_entities number of entities (elements, faces, etc) in mesh
 /// @return array of field data wrapped in DeviceTensors
-template <size_t num_fields>
+template <std::size_t num_fields>
 std::array<DeviceTensor<2>, num_fields> wrap_fields(
    std::vector<Vector> &fields,
    std::array<int, num_fields> &field_sizes,
@@ -1891,7 +1893,7 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
 /// field operators. For each dependent input, it calculates the size required on quadrature
 /// points using GetSizeOnQP() and adds it to the total. Non-dependent inputs contribute
 /// zero to the total size.
-template <typename input_t, size_t num_fields, std::size_t... i>
+template <typename input_t, std::size_t num_fields, std::size_t... i>
 int accumulate_sizes_on_qp(
    const input_t &inputs,
    std::array<bool, sizeof...(i)> &kinput_is_dependent,
@@ -1907,23 +1909,23 @@ int accumulate_sizes_on_qp(
       }
       return GetSizeOnQP(input, field);
    }
-   (mfem::get<i>(inputs),
-    mfem::get<i>(kinput_is_dependent),
+   (get<i>(inputs),
+    get<i>(kinput_is_dependent),
     fields[input_to_field[i]]));
 }
 
 template <
    typename entity_t,
    typename field_operator_ts,
-   size_t N = mfem::tuple_size<field_operator_ts>::value,
-   size_t... Is>
+   std::size_t N = tuple_size<field_operator_ts>::value,
+   std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqs,
    const std::array<int, N> &field_map,
    std::index_sequence<Is...>)
 {
-   auto f = [&](auto fop, size_t idx)
+   auto f = [&](auto fop, std::size_t idx)
    {
       auto g = [&](int idx)
       {
@@ -1981,14 +1983,14 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    };
    return std::array<DofToQuadMap, N>
    {
-      f(mfem::get<Is>(fops), Is)...
+      f(get<Is>(fops), Is)...
    };
 }
 
 template <
    typename entity_t,
    typename field_operator_ts,
-   size_t num_fields>
+   std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
@@ -2003,7 +2005,7 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
 template <
    typename qf_param_ts,
    typename qfunc_t,
-   size_t num_fields> MFEM_HOST_DEVICE inline
+   std::size_t num_fields> MFEM_HOST_DEVICE inline
 void call_qfunction(
    qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,
@@ -2067,7 +2069,7 @@ void call_qfunction(
 template <
    typename qf_param_ts,
    typename qfunc_t,
-   size_t num_fields>
+   std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 void call_qfunction_derivative_action(
    qfunc_t &qfunc,

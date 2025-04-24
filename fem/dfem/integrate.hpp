@@ -12,7 +12,7 @@
 
 #include "util.hpp"
 
-namespace mfem
+namespace mfem::experimental
 {
 
 template <typename output_t>
@@ -445,4 +445,4 @@ void map_quadrature_data_to_fields(
    }
 }
 
-}
+} // namespace mfem::experimental

@@ -13,7 +13,7 @@
 #include "util.hpp"
 #include "../linalg/tensor.hpp"
 
-namespace mfem
+namespace mfem::experimental
 {
 
 template <typename func_t, typename... arg_ts>
@@ -91,9 +91,9 @@ void process_kf_args(
    kf_args &args,
    const int &qp)
 {
-   for_constexpr<mfem::tuple_size<kf_args>::value>([&](auto i)
+   for_constexpr<tuple_size<kf_args>::value>([&](auto i)
    {
-      process_kf_arg(u[i], mfem::get<i>(args), qp);
+      process_kf_arg(u[i], get<i>(args), qp);
    });
 }
 
@@ -187,7 +187,7 @@ void apply_kernel(
    int qp)
 {
    process_kf_args(u, args, qp);
-   process_kf_result(f_qp, mfem::get<0>(mfem::apply(qfunc, args)));
+   process_kf_result(f_qp, get<0>(apply(qfunc, args)));
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -206,9 +206,9 @@ auto fwddiff_apply_enzyme_indexed(qfunc_t &qfunc, arg_ts &&args,
    using qf_return_t = typename create_function_signature<
                        decltype(&qfunc_t::operator())>::type::return_t;
    return __enzyme_fwddiff<qf_return_t>(
-             qfunction_wrapper<qfunc_t, decltype(mfem::get<Is>(args))...>, enzyme_const,
-             (void *)&qfunc, enzyme_dup, &mfem::get<Is>(args)..., enzyme_interleave,
-             &mfem::get<Is>(shadow_args)...);
+             qfunction_wrapper<qfunc_t, decltype(get<Is>(args))...>, enzyme_const,
+             (void *)&qfunc, enzyme_dup, &get<Is>(args)..., enzyme_interleave,
+             &get<Is>(shadow_args)...);
 }
 
 // Interleave function arguments for enzyme
@@ -224,11 +224,11 @@ auto fwddiff_apply_enzyme_indexed(qfunc_t &qfunc, arg_ts &&args,
    using qf_return_t = typename create_function_signature<
                        decltype(&qfunc_t::operator())>::type::return_t;
    return __enzyme_fwddiff<qf_return_t>(
-             qfunction_wrapper<qfunc_t, decltype(mfem::get<Is>(args))...,
-             decltype(mfem::get<Js>(inactive_args))...>,
-             enzyme_const, (void *)&qfunc, enzyme_dup, &mfem::get<Is>(args)...,
-             enzyme_const, &mfem::get<Js>(inactive_args)..., enzyme_interleave,
-             &mfem::get<Is>(shadow_args)...);
+             qfunction_wrapper<qfunc_t, decltype(get<Is>(args))...,
+             decltype(get<Js>(inactive_args))...>,
+             enzyme_const, (void *)&qfunc, enzyme_dup, &get<Is>(args)...,
+             enzyme_const, &get<Js>(inactive_args)..., enzyme_interleave,
+             &get<Is>(shadow_args)...);
 }
 
 template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
@@ -238,10 +238,10 @@ auto fwddiff_apply_enzyme(qfunc_t &qfunc, arg_ts &&args,
                           inactive_arg_ts &&inactive_args)
 {
    auto arg_indices = std::make_index_sequence<
-                      mfem::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
+                      tuple_size<std::remove_reference_t<arg_ts>>::value> {};
 
    auto inactive_arg_indices = std::make_index_sequence<
-                               mfem::tuple_size<std::remove_reference_t<inactive_arg_ts>>::value> {};
+                               tuple_size<std::remove_reference_t<inactive_arg_ts>>::value> {};
 
    return fwddiff_apply_enzyme_indexed(qfunc, args, shadow_args, arg_indices,
                                        inactive_args, inactive_arg_indices);
@@ -261,7 +261,7 @@ void apply_kernel_fwddiff_enzyme(
    process_kf_args(u, args, qp_idx);
    process_kf_args(v, shadow_args, qp_idx);
    process_kf_result(f_qp,
-                     mfem::get<0>(fwddiff_apply_enzyme(qfunc, args, shadow_args, mfem::tuple<> {})));
+                     get<0>(fwddiff_apply_enzyme(qfunc, args, shadow_args, tuple<> {})));
 }
 #endif // MFEM_USE_ENZYME
 

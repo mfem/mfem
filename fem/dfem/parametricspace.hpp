@@ -12,7 +12,7 @@
 
 #include "../fe/fe_base.hpp"
 
-namespace mfem
+namespace mfem::experimental
 {
 
 class ParametricSpace
@@ -123,4 +123,4 @@ public:
 
 };
 
-}
+} // namespace mfem::experimental

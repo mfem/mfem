@@ -15,7 +15,7 @@
 #include <utility>
 #include <mfem.hpp>
 
-namespace mfem
+namespace mfem::experimental
 {
 
 /**
@@ -213,8 +213,8 @@ struct tuple_size
 };
 
 template <class... Types>
-struct tuple_size<mfem::tuple<Types...>> :
-                                      std::integral_constant<std::size_t, sizeof...(Types)>
+struct tuple_size<tuple<Types...>> :
+                                std::integral_constant<std::size_t, sizeof...(Types)>
 {
 };
 
@@ -711,11 +711,11 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
  * @brief helper used to implement printing a tuple of values
  */
 template <typename... T, std::size_t... i>
-auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
+auto& print_helper(std::ostream& out, const tuple<T...>& A,
                    std::integer_sequence<size_t, i...>)
 {
    out << "tuple{";
-   (..., (out << (i == 0 ? "" : ", ") << mfem::get<i>(A)));
+   (..., (out << (i == 0 ? "" : ", ") << get<i>(A)));
    out << "}";
    return out;
 }
@@ -727,7 +727,7 @@ auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
  * @brief print a tuple of values
  */
 template <typename... T>
-auto& operator<<(std::ostream& out, const mfem::tuple<T...>& A)
+auto& operator<<(std::ostream& out, const tuple<T...>& A)
 {
    return print_helper(out, A, std::make_integer_sequence<size_t, sizeof...(T)>());
 }
@@ -828,7 +828,7 @@ struct is_tuple : std::false_type
 
 /// @overload
 template <typename... T>
-struct is_tuple<mfem::tuple<T...>> : std::true_type
+struct is_tuple<tuple<T...>> : std::true_type
 {
 };
 
@@ -844,10 +844,10 @@ struct is_tuple_of_tuples : std::false_type
  * @brief Trait for checking if a type if a @p mfem::tuple containing only @p mfem::tuple
  */
 template <typename... T>
-struct is_tuple_of_tuples<mfem::tuple<T...>>
+struct is_tuple_of_tuples<tuple<T...>>
 {
    static constexpr bool value = (is_tuple<T>::value &&
                                   ...);  ///< true/false result of type check
 };
 
-}  // namespace mfem
+}  // namespace mfem::experimental

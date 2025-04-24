@@ -12,7 +12,7 @@
 
 #include "util.hpp"
 
-namespace mfem
+namespace mfem::experimental
 {
 
 template <typename field_operator_t>
@@ -439,13 +439,13 @@ void map_fields_to_quadrature_data(
          if (dimension == 2)
          {
             map_field_to_quadrature_data_tensor_product_2d(
-               fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], mfem::get<i>(fops),
+               fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], get<i>(fops),
                integration_weights, scratch_mem);
          }
          else if (dimension == 3)
          {
             map_field_to_quadrature_data_tensor_product_3d(
-               fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], mfem::get<i>(fops),
+               fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], get<i>(fops),
                integration_weights, scratch_mem);
          }
          else
@@ -458,7 +458,7 @@ void map_fields_to_quadrature_data(
       else
       {
          map_field_to_quadrature_data(
-            fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], mfem::get<i>(fops),
+            fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], get<i>(fops),
             integration_weights);
       }
    });
@@ -515,7 +515,7 @@ void map_fields_to_quadrature_data_conditional(
    for_constexpr<num_inputs>([&](auto i)
    {
       map_field_to_quadrature_data_conditional(
-         fields_qp[i], fields_e[i], dtqmaps[i], mfem::get<i>(fops), integration_weights,
+         fields_qp[i], fields_e[i], dtqmaps[i], get<i>(fops), integration_weights,
          scratch_mem, conditions[i], use_sum_factorization);
    });
 }
@@ -542,20 +542,20 @@ void map_direction_to_quadrature_data_conditional(
             if (dimension == 2)
             {
                map_field_to_quadrature_data_tensor_product_2d(
-                  directions_qp[i], dtqmaps[i], direction_e, mfem::get<i>(fops),
+                  directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                   integration_weights, scratch_mem);
             }
             else if (dimension == 3)
             {
                map_field_to_quadrature_data_tensor_product_3d(
-                  directions_qp[i], dtqmaps[i], direction_e, mfem::get<i>(fops),
+                  directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                   integration_weights, scratch_mem);
             }
          }
          else
          {
             map_field_to_quadrature_data(
-               directions_qp[i], dtqmaps[i], direction_e, mfem::get<i>(fops),
+               directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                integration_weights);
          }
       }
