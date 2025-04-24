@@ -272,11 +272,12 @@ jobs:
 
       # It's usually fine to build the above TPLs with a different compiler.
       #
-      - name: install latest LLVM and Enzyme (macOS w/ Enzyme)
+      - name: install Enzyme (macOS w/ Enzyme)
         if: matrix.enzyme && matrix.os == 'macos-latest'
         run: |
           export HOMEBREW_NO_INSTALL_CLEANUP=1
-          brew install llvm enzyme
+          brew install enzyme
+          echo "MPICXX SHOWME: `mpicxx --showme`"
 
       # MFEM build and test
       - name: build
