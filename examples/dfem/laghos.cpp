@@ -10,13 +10,17 @@
 // CONTRIBUTING.md for details.
 #include <mfem.hpp>
 #include "petscmat.h"
+#include <petsc/private/pcimpl.h>
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
 #include "../fem/dfem/doperator.hpp"
 #include "../linalg/tensor.hpp"
+#include "petscsnes.h"
+#include "petscsystypes.h"
 
 #include <limits>
 #include <memory>
+#include <string>
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -39,6 +43,8 @@ enum EXT_DATA_IDX
    VISCOSITY_FLAG,
    H0
 };
+
+PetscLogEvent jacobian_assemble_event, residual_eval_event, dfem_jvp_event;
 
 int problem = 0;
 
@@ -460,8 +466,8 @@ public:
 
    void Mult(const Vector &k, Vector &y) const override
    {
-      // jvp(k, y);
-      assembled_jvp(k, y);
+      jvp(k, y);
+      // assembled_jvp(k, y);
    }
 
    template <typename hydro_t>
@@ -474,6 +480,10 @@ public:
              std::shared_ptr<DerivativeOperator> dRede,
              std::shared_ptr<DerivativeOperator> dTaylorSourcedx)
    {
+      PetscCall(PetscLogEventBegin(jacobian_assemble_event, 0, 0, 0, 0));
+
+      out << "assemble\n";
+
       w.SetSize(this->height);
       z.SetSize(this->height);
 
@@ -493,34 +503,40 @@ public:
 
       auto comm = hydro.H1.GetComm();
 
-      Array<int> offset_ess_tdof_v(hydro.ess_tdof);
-      for (int i = 0; i < offset_ess_tdof_v.Size(); i++)
-      {
-         offset_ess_tdof_v[i] += H1tsize;
-      }
+      HYPRE_BigInt *tdof_offsets = hydro.H1.GetTrueDofOffsets();
 
       // First row
       // Rx = x - h * v
       // yx = I * wx - h I * wv
       // where I is identity
-      PetscParVector dRxdx_diag(comm, H1tsize);
-      dRxdx_diag = 1.0;
-      Mat dRxdx_petsc_mat;
-      PetscCall(MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat));
-      PetscParMatrix dRxdx_petsc;
-      dRxdx_petsc.SetMat(dRxdx_petsc_mat);
+      // PetscParVector dRxdx_diag(comm, hydro.H1.GlobalTrueVSize(), tdof_offsets);
+      // dRxdx_diag = 1.0;
+      // Mat dRxdx_petsc_mat;
+      // PetscCall(MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat));
+      // PetscParMatrix dRxdx_petsc(dRxdx_petsc_mat);
+      SparseMatrix dRxdx_diag(hydro.H1.GetTrueVSize());
+      for (int i = 0; i < dRxdx_diag.Height(); i++)
+      {
+         dRxdx_diag.Set(i, i, 1.0);
+      }
+      dRxdx_diag.Finalize();
+      PetscParMatrix dRxdx_petsc(MPI_COMM_WORLD, hydro.H1.GlobalTrueVSize(),
+                                 tdof_offsets, &dRxdx_diag, PETSC_MATAIJ);
 
       // dRxdv = -h * I
-      PetscParVector dRxdv_diag(comm, H1tsize);
-      dRxdv_diag = -h;
+      SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
+      for (int i = 0; i < dRxdv_diag.Height(); i++)
+      {
+         dRxdv_diag.Set(i, i, -h);
+      }
+
       for (int i = 0; i < hydro.ess_tdof.Size(); i++)
       {
-         dRxdv_diag[hydro.ess_tdof[i]] = 0.0;
+         dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
       }
-      Mat dRxdv_petsc_mat;
-      PetscCall(MatCreateDiagonal(dRxdv_diag, &dRxdv_petsc_mat));
-      PetscParMatrix dRxdv_petsc;
-      dRxdv_petsc.SetMat(dRxdv_petsc_mat);
+      dRxdv_diag.Finalize();
+      PetscParMatrix dRxdv_petsc(MPI_COMM_WORLD, hydro.H1.GlobalTrueVSize(),
+                                 tdof_offsets, &dRxdv_diag, PETSC_MATAIJ);
 
       // Second row
       // Rv = Mv * v + F * I
@@ -602,44 +618,46 @@ public:
       delete block_petsc;
       block_petsc = new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ);
 
-      delete w_petsc;
-      w_petsc = new PetscParVector(hydro.H1.GetComm(), *this, true, false);
-      delete y_petsc;
-      y_petsc = new PetscParVector(hydro.H1.GetComm(), *this, false, false);
+      // delete w_petsc;
+      // w_petsc = new PetscParVector(hydro.H1.GetComm(), *this, true, false);
+      // delete y_petsc;
+      // y_petsc = new PetscParVector(hydro.H1.GetComm(), *this, false, false);
 
-      // block_petsc->Print("block_mat.dat", true);
-      // exit(0);
+      PetscCall(PetscLogEventEnd(jacobian_assemble_event, 0, 0, 0, 0));
 
-      assembled_jvp = [&](const Vector &u, Vector &y)
-      {
-         w = u;
-         // Vector wx, wv, we;
-         // wx.MakeRef(w, 0, H1tsize);
-         // wv.MakeRef(w, H1tsize, H1tsize);
-         // we.MakeRef(w, 2*H1tsize, L2tsize);
+      // assembled_jvp = [&](const Vector &u, Vector &y)
+      // {
+      //    w = u;
+      //    // Vector wx, wv, we;
+      //    // wx.MakeRef(w, 0, H1tsize);
+      //    // wv.MakeRef(w, H1tsize, H1tsize);
+      //    // we.MakeRef(w, 2*H1tsize, L2tsize);
 
-         // Vector zx, zv, ze;
-         // zx.MakeRef(z, 0, H1tsize);
-         // zv.MakeRef(z, H1tsize, H1tsize);
-         // ze.MakeRef(z, 2*H1tsize, L2tsize);
+      //    // Vector zx, zv, ze;
+      //    // zx.MakeRef(z, 0, H1tsize);
+      //    // zv.MakeRef(z, H1tsize, H1tsize);
+      //    // ze.MakeRef(z, 2*H1tsize, L2tsize);
 
-         // Vector yx, yv, ye;
-         // yx.MakeRef(y, 0, H1tsize);
-         // yv.MakeRef(y, H1tsize, H1tsize);
-         // ye.MakeRef(y, 2*H1tsize, L2tsize);
+      //    // Vector yx, yv, ye;
+      //    // yx.MakeRef(y, 0, H1tsize);
+      //    // yv.MakeRef(y, H1tsize, H1tsize);
+      //    // ye.MakeRef(y, 2*H1tsize, L2tsize);
 
-         w_petsc->PlaceMemory(w.GetMemory(), true);
-         y_petsc->PlaceMemory(y.GetMemory(), true);
-         PetscCall(MatMult(*block_petsc, *w_petsc, *y_petsc));
-         w_petsc->ResetMemory();
-         y_petsc->ResetMemory();
+      //    w_petsc->PlaceMemory(w.GetMemory(), true);
+      //    y_petsc->PlaceMemory(y.GetMemory(), true);
+      //    PetscCall(MatMult(*block_petsc, *w_petsc, *y_petsc));
+      //    w_petsc->ResetMemory();
+      //    y_petsc->ResetMemory();
 
-         return PETSC_SUCCESS;
-      };
+      //    return PETSC_SUCCESS;
+      // };
 
       jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro]
             (const Vector &u, Vector &y)
       {
+         PetscErrorCode ierr;
+         ierr = PetscLogEventBegin(dfem_jvp_event, 0, 0, 0, 0);
+
          w = u;
          Vector wx, wv, we;
          wx.MakeRef(w, 0, H1tsize);
@@ -716,6 +734,8 @@ public:
          yv.SyncAliasMemory(y);
          ye.SyncAliasMemory(y);
 
+         ierr = PetscLogEventEnd(dfem_jvp_event, 0, 0, 0, 0);
+
          return PETSC_SUCCESS;
       };
 
@@ -753,17 +773,20 @@ public:
       hydro(hydro),
       dt(dt),
       H1tsize(hydro.H1.GetTrueVSize()),
+      H1vsize(hydro.H1.GetVSize()),
       L2tsize(hydro.L2.GetTrueVSize()),
+      L2vsize(hydro.L2.GetVSize()),
       x(x),
       u(x.Size()),
-      ux_l(hydro.H1.GetVSize()),
-      uv_l(hydro.H1.GetVSize()),
-      ue_l(hydro.L2.GetVSize()),
+      u_l(2*H1vsize + L2vsize),
       e_source_t(hydro.L2.GetTrueVSize()),
       fd_gradient(fd_gradient) {}
 
    void Mult(const Vector &k, Vector &R) const override
    {
+      PetscErrorCode ierr;
+      ierr = PetscLogEventBegin(residual_eval_event, 0, 0, 0, 0);
+
       u = k;
       u *= dt;
       u += x;
@@ -784,6 +807,11 @@ public:
       Rv.MakeRef(R, H1tsize, H1tsize);
       Re.MakeRef(R, 2*H1tsize, L2tsize);
 
+      Vector ux_l, uv_l, ue_l;
+      ux_l.MakeRef(u_l, 0, H1vsize);
+      uv_l.MakeRef(u_l, H1vsize, H1vsize);
+      ue_l.MakeRef(u_l, 2*H1vsize, L2vsize);
+
       hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
       hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
       hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
@@ -794,7 +822,7 @@ public:
       Rx = kx;
       Rx -= uv;
 
-      hydro.UpdateQuadratureData(u);
+      hydro.UpdateQuadratureData(u_l);
 
       hydro.momentum_pa->SetParameters({&hydro.qdata->stressp});
       hydro.momentum_pa->Mult(uv, Rv);
@@ -813,7 +841,7 @@ public:
       Rv.SetSubVector(hydro.ess_tdof, 0.0);
       // Rv = 0.0;
 
-      hydro.energy_conservation_pa->SetParameters({&uv, &hydro.qdata->stressp});
+      hydro.energy_conservation_pa->SetParameters({&uv_l, &hydro.qdata->stressp});
       hydro.energy_conservation_pa->Mult(ue, Re);
 
       Re.Neg();
@@ -831,6 +859,8 @@ public:
       Rx.SyncAliasMemory(R);
       Rv.SyncAliasMemory(R);
       Re.SyncAliasMemory(R);
+
+      ierr = PetscLogEventEnd(residual_eval_event, 0, 0, 0, 0);
    }
 
    Operator& GetGradient(const Vector &k) const override
@@ -854,10 +884,14 @@ public:
       uv.MakeRef(u, H1tsize, H1tsize);
       ue.MakeRef(u, 2*H1tsize, L2tsize);
 
+      Vector ux_l, uv_l, ue_l;
+      ux_l.MakeRef(u_l, 0, H1vsize);
+      uv_l.MakeRef(u_l, H1vsize, H1vsize);
+      ue_l.MakeRef(u_l, 2*H1vsize, L2vsize);
+
       hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
       hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
       hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
-
 
       if (fd_gradient)
       {
@@ -895,15 +929,18 @@ public:
 
          // out << "jacobian assemble: " << toc() << "\n";
          return *jacobian->block_petsc;
+         // return *jacobian;
       }
    }
 
    hydro_t &hydro;
    const real_t dt;
    const int H1tsize;
+   const int H1vsize;
    const int L2tsize;
+   const int L2vsize;
    const Vector &x;
-   mutable Vector u, ux_l, uv_l, ue_l, e_source_t;
+   mutable Vector u, u_l, e_source_t;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
    mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
    bool fd_gradient;
@@ -1145,7 +1182,7 @@ public:
          snes->SetRelTol(nonlinear_relative_tolerance);
          // ATTENTION:
          // If we use global LU, this should be `Operator::PETSC_MATAIJ` !!!
-         snes->SetJacobianType(Operator::PETSC_MATNEST);
+         snes->SetJacobianType(Operator::PETSC_MATAIJ);
       }
 
       lag++;
@@ -1155,20 +1192,20 @@ public:
       // gmres.SetKDim(500);
       // gmres.SetRelTol(1e-8);
       // gmres.SetAbsTol(1e-12);
-      // gmres.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      // gmres.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
 
       // NewtonSolver newton(MPI_COMM_WORLD);
-      // newton.SetPrintLevel(IterativeSolver::PrintLevel().None());
+      // newton.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
       // newton.SetOperator(*residual);
       // newton.SetSolver(gmres);
-      // newton.SetAdaptiveLinRtol();
       // newton.SetMaxIter(nonlinear_maximum_iterations);
       // newton.SetRelTol(nonlinear_relative_tolerance);
-      // newton.SetAbsTol(1e-12);
+      // newton.SetAbsTol(0.0);
 
       Vector zero;
       K = X;
       snes->Mult(zero, K);
+      // newton.Mult(zero, K);
 
       Vector Kx, Kv, Ke;
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
@@ -1847,6 +1884,15 @@ int main(int argc, char *argv[])
 
    MFEMInitializePetsc(&petsc_argc, &petsc_args);
 
+   PetscClassId hydro_class_id;
+   PetscCall(PetscClassIdRegister("hydro",&hydro_class_id));
+   PetscCall(PetscLogEventRegister("ResidualEval", hydro_class_id,
+                                   &residual_eval_event));
+   PetscCall(PetscLogEventRegister("dFEMJVP", hydro_class_id,
+                                   &dfem_jvp_event));
+   PetscCall(PetscLogEventRegister("JacobianAssemble", hydro_class_id,
+                                   &jacobian_assemble_event));
+
    out << std::setprecision(6);
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
@@ -2096,6 +2142,7 @@ int main(int argc, char *argv[])
       case 11: ode_solver = new BackwardEulerSolver; break;
       case 12: ode_solver = new ImplicitMidpointSolver; break;
       case 13: ode_solver = new SDIRK33Solver; break;
+      case 14: ode_solver = new SDIRK34Solver; break;
       default:
          out << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return -1;

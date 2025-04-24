@@ -588,7 +588,9 @@ PetscParVector::PetscParVector(MPI_Comm comm, PetscInt glob_size,
    {
       PetscMPIInt myid;
       mpiierr = MPI_Comm_rank(comm, &myid); CCHKERRQ(comm, mpiierr);
-      ierr = VecSetSizes(x,col[myid+1]-col[myid],PETSC_DECIDE); PCHKERRQ(x,ierr);
+      const int size = HYPRE_AssumedPartitionCheck() ?
+                       col[1]-col[0] : col[myid+1]-col[myid];
+      ierr = VecSetSizes(x,size,PETSC_DECIDE); PCHKERRQ(x,ierr);
    }
    else
    {
