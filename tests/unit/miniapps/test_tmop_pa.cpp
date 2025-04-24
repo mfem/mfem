@@ -508,6 +508,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector x_init(x);
    for (int i = 0; i < newton_loop; i++)
    {
+      dbg("Starting newton loop {}", i);
       x = x_init;
       x.SetTrueVector();
 
@@ -572,29 +573,11 @@ static void req_tmop(int id, const char *args[], Req &res)
    REQUIRE(tmop(id, res, argn(args), const_cast<char **>(args)) == 0);
 }
 
-#define DEFAULT_ARGS                         \
-   const char *args[] = { "tmop_pa_tests",   \
-                          "-pa",             \
-                          "-m",    "mesh",   \
-                          "-o",    "0",      \
-                          "-rs",   "0",      \
-                          "-mid",  "0",      \
-                          "-tid",  "0",      \
-                          "-qt",   "1",      \
-                          "-qo",   "0",      \
-                          "-ni",   "10",     \
-                          "-nl",   "1",      \
-                          "-rtol", "1e-8",   \
-                          "-ls",   "2",      \
-                          "-li",   "100",    \
-                          "-lc",   "0",      \
-                          "-lt",   "0",      \
-                          "-no-nor",         \
-                          "-ji",   "0",      \
-                          "-diag",           \
-                          "-cmb",  "0",      \
-                          "-no-bec",         \
-                          nullptr }
+#define DEFAULT_ARGS const char *args[] = { "tmop_pa_tests", "-pa", "-m", "mesh", \
+   "-o", "0", "-rs", "0", "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
+   "-ni", "10", "-nl", "1", "-rtol", "1e-8", "-ls", "2", "-li", "100", "-lc", "0", \
+   "-lt", "0", "-no-nor", "-ji",   "0", "-diag", "-cmb",  "0", "-no-bec", nullptr }
+
 constexpr int ALV = 1, MSH = 3, POR = 5, RS = 7, MID = 9, TID = 11, QTY = 13,
               QOR = 15, NI = 17, NL = 19, RTOL = 21, LS = 23, LI = 25, LC = 27,
               LT = 29, NOR = 30, JI = 32, DIAG = 33, CMB = 35, BEC = 36;
@@ -604,7 +587,7 @@ static void dump_args(int id, const char *args[])
    if (id != 0) { return; }
    const char *format =
       "tmop_pa_tests %6.6s -m %s -o %s -rs %s -mid %s -tid %s -qt %s -qo %s "
-      "-ni %s-nl %s -rtol %s -ls %s -li %s -lc %s -lt %s %s -ji %s %s -cmb %s %s\n";
+      "-ni %s -nl %s -rtol %s -ls %s -li %s -lc %s -lt %s %s -ji %s %s -cmb %s %s\n";
    printf(format, args[ALV], args[MSH], args[POR], args[RS], args[MID], args[TID],
           args[QTY], args[QOR], args[NI], args[NL], args[RTOL], args[LS], args[LI],
           args[LC], args[LT], args[NOR], args[JI], args[DIAG], args[CMB], args[BEC]);
@@ -916,12 +899,13 @@ static void tmop_tests(int id = 0, bool all = false)
           .JI(jitter)
           .NORMALIZATION()
           .TID({ 5 })
-          .MID({ 80 })
+          .MID({ 2 })
           .LS({ 2 })
           .POR({ 2 })
-          .QOR({ 8 })
+          .QOR({ 6 })
           .CMB(2)
-          .BALANCE_EXPLICIT_COMBO())
+          .BALANCE_EXPLICIT_COMBO()
+         )
    .Run(id, all);
 
    // Combo 3D with balance
