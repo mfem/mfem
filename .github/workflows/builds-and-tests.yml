@@ -128,7 +128,7 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp64
-            config-opts: ENZYME_DIR=/opt/homebrew/opt/enzyme ENZYME_LLVM_VERSION=ENZYME_LLVM_VERSION=`clang -dumpversion | cut -d'.' -f1`
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=/opt/homebrew/opt/enzyme ENZYME_LLVM_VERSION=ENZYME_LLVM_VERSION=`clang -dumpversion | cut -d'.' -f1`
             enzyme: true
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
