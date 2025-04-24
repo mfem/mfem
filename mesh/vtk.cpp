@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -285,7 +285,7 @@ int VTKTriangleDOFOffset(int ref, int i, int j)
 
 int CartesianToVTKPrism(int i, int j, int k, int ref)
 {
-   // Cf. https://git.io/JvW0M
+   // Cf. https://t.ly/3Yl9m
    int om1 = ref - 1;
    int ibdr = (i == 0);
    int jbdr = (j == 0);
@@ -364,10 +364,10 @@ int CartesianToVTKPrism(int i, int j, int k, int ref)
       offset += nqfdof; // Skip i-normal face
       if (ijbdr) // on ij-normal face
       {
-         return offset + (ref - i - 1) + om1*(k - 1);
+         return offset + (j - 1) + om1*(k - 1);
       }
       offset += nqfdof; // Skip ij-normal face
-      return offset + j - 1 + om1*(k - 1);
+      return offset + (ref - j - 1) + om1*(k - 1);
    }
 
    // Skip all face DOF
@@ -420,7 +420,7 @@ int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
       }
       case Geometry::CUBE:
       {
-         // Cf: https://git.io/JvZLe
+         // Cf: https://t.ly/HEGbX
          int i = idx_in % n;
          int j = (idx_in / n) % n;
          int k = idx_in / (n*n);
@@ -456,7 +456,7 @@ int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
             }
             // !kbdr, On k axis
             offset += 4*(ref - 1) + 4*(ref - 1);
-            return (k - 1) + (ref - 1)*(i ? (j ? 3 : 1) : (j ? 2 : 0))
+            return (k - 1) + (ref - 1)*(i ? (j ? 2 : 1) : (j ? 3 : 0))
                    + offset;
          }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -487,7 +487,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      // Modify RHS and offdiagonal blocks (imaginary parts of the matrix) to
+      // Modify RHS and off-diagonal blocks (imaginary parts of the matrix) to
       // conform with standard essential BC treatment
       if (A_i.Is<ConstrainedOperator>())
       {
@@ -576,7 +576,7 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
       if (A_i.Is<ConstrainedOperator>())
       {
@@ -1236,7 +1236,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          d_B_r[j] = d_X_r[j];
          d_B_i[j] = d_X_i[j];
       });
-      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
@@ -1324,7 +1324,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {

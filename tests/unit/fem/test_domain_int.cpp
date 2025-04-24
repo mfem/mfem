@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,7 +64,8 @@ enum MeshType
    TETRAHEDRA = 13,
    WEDGE4 = 14,
    MIXED3D6 = 15,
-   MIXED3D8 = 16
+   MIXED3D8 = 16,
+   PYRAMID = 17
 };
 
 Mesh * GetMesh(MeshType type);
@@ -78,7 +79,7 @@ TEST_CASE("Domain Integration (Scalar Field)",
    int order = 2;
 
    for (int mt = (int)MeshType::SEGMENT;
-        mt <= (int)MeshType::MIXED3D8; mt++)
+        mt <= (int)MeshType::PYRAMID; mt++)
    {
       Mesh *mesh = GetMesh((MeshType)mt);
       int  dim = mesh->Dimension();
@@ -653,6 +654,25 @@ Mesh * GetMesh(MeshType type)
          mesh->AddTet(0, 9, 6, 4);
          mesh->AddTet(1, 7, 2, 5);
          mesh->AddTet(8, 2, 7, 5);
+         break;
+      case PYRAMID:
+         mesh = new Mesh(3, 9, 6);
+         mesh->AddVertex(0.0, 0.0, 0.0);
+         mesh->AddVertex(a_, 0.0, 0.0);
+         mesh->AddVertex(a_, b_, 0.0);
+         mesh->AddVertex(0.0, b_, 0.0);
+         mesh->AddVertex(0.5 * a_, 0.5 * b_, 0.5 * c_);
+         mesh->AddVertex(0.0, 0.0, c_);
+         mesh->AddVertex(a_, 0.0, c_);
+         mesh->AddVertex(a_, b_, c_);
+         mesh->AddVertex(0.0, b_, c_);
+
+         mesh->AddPyramid(0, 1, 2, 3, 4);
+         mesh->AddPyramid(0, 5, 6, 1, 4);
+         mesh->AddPyramid(1, 6, 7, 2, 4);
+         mesh->AddPyramid(2, 7, 8, 3, 4);
+         mesh->AddPyramid(3, 8, 5, 0, 4);
+         mesh->AddPyramid(8, 7, 6, 5, 4);
          break;
    }
    mesh->FinalizeTopology();

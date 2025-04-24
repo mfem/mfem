@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -562,8 +562,8 @@ protected:
    void CheckBdrPatches();
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
-       based on the the patch edge orientations. Each entry of @a kvdir is -1 if
-       the KnotVector direction is flipped, +1 otherwise. */
+       based on the patch edge orientations. Each entry of @a kvdir is -1 if the
+       KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
    /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is

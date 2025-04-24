@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -199,7 +199,7 @@ int main (int argc, char *argv[])
    a.SetEssentialVDofs(ess_vdofs);
    a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
-      IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);

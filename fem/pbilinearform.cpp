@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -438,18 +438,37 @@ void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
+   const Operator &P = *pfes->GetProlongationMatrix();
+   const SparseMatrix &R = *pfes->GetRestrictionMatrix();
+
    if (ext)
    {
-      ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      if (hybridization)
+      {
+         HypreParVector true_X(pfes), true_B(pfes);
+         P.MultTranspose(b, true_B);
+         R.Mult(x, true_X);
+
+         FormSystemMatrix(ess_tdof_list, A);
+         ConstrainedOperator *A_constrained;
+         Operator::FormConstrainedSystemOperator(ess_tdof_list, A_constrained);
+         A_constrained->EliminateRHS(true_X, true_B);
+         delete A_constrained;
+         R.MultTranspose(true_B, b);
+         hybridization->ReduceRHS(true_B, B);
+         X.SetSize(B.Size());
+         X = 0.0;
+      }
+      else
+      {
+         ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      }
       return;
    }
 
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    FormSystemMatrix(ess_tdof_list, A);
-
-   const Operator &P = *pfes->GetProlongationMatrix();
-   const SparseMatrix &R = *pfes->GetRestrictionMatrix();
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
@@ -495,7 +514,16 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 {
    if (ext)
    {
-      ext->FormSystemMatrix(ess_tdof_list, A);
+      if (hybridization)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         hybridization->GetParallelMatrix(A);
+      }
+      else
+      {
+         ext->FormSystemMatrix(ess_tdof_list, A);
+      }
       return;
    }
 
@@ -541,7 +569,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
-   if (ext)
+   if (ext && !hybridization)
    {
       ext->RecoverFEMSolution(X, b, x);
       return;

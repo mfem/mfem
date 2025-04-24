@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -256,7 +256,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                (mesh->GetElementType(0)==Element::QUADRILATERAL ||
                                 mesh->GetElementType(0) == Element::HEXAHEDRON));
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MPI_C_BOOL,
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
 
@@ -489,33 +489,34 @@ void FindPointsGSLIB::SetupDevice()
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          int point_pos_ordering)
 {
-   if (!DEV.setup_device) { SetupDevice(); }
+   if (!DEV.setup_device)
+   {
+      SetupDevice();
+   }
    DEV.find_device = true;
 
-   const int id = gsl_comm->id,
-             np = gsl_comm->np;
+   const int id = gsl_comm->id, np = gsl_comm->np;
 
-   gsl_mfem_ref.SetSize(points_cnt*dim);
+   gsl_mfem_ref.SetSize(points_cnt * dim);
    gsl_mfem_elem.SetSize(points_cnt);
-
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
    // Initialize arrays for all points (gsl_code is set to not found on device)
-   gsl_ref       = -1.0;
-   gsl_mfem_ref  = 0.0;
-   gsl_elem      = 0;
+   gsl_ref = -1.0;
+   gsl_mfem_ref = 0.0;
+   gsl_elem = 0;
    gsl_mfem_elem = 0;
-   gsl_proc      = id;
+   gsl_proc = id;
 
    if (dim == 2)
    {
-      FindPointsLocal2(point_pos, point_pos_ordering,
-                       gsl_code, gsl_elem, gsl_ref, gsl_dist, points_cnt);
+      FindPointsLocal2(point_pos, point_pos_ordering, gsl_code, gsl_elem, gsl_ref,
+                       gsl_dist, points_cnt);
    }
    else
    {
-      FindPointsLocal3(point_pos, point_pos_ordering,
-                       gsl_code, gsl_elem, gsl_ref, gsl_dist, points_cnt);
+      FindPointsLocal3(point_pos, point_pos_ordering, gsl_code, gsl_elem, gsl_ref,
+                       gsl_dist, points_cnt);
    }
 
    // Sync from device to host
@@ -535,28 +536,32 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       // and gsl_code using element type, gsl_mfem_ref, and gsl_dist.
       for (int index = 0; index < points_cnt; index++)
       {
-         if (gsl_code[index] == CODE_NOT_FOUND) { continue; }
+         if (gsl_code[index] == CODE_NOT_FOUND)
+         {
+            continue;
+         }
          gsl_mfem_elem[index] = gsl_elem[index];
          for (int d = 0; d < dim; d++)
          {
-            gsl_mfem_ref(index*dim + d) = 0.5*(gsl_ref(index*dim + d)+1.0);
+            gsl_mfem_ref(index * dim + d) = 0.5 * (gsl_ref(index * dim + d) + 1.0);
          }
          IntegrationPoint ip;
          if (dim == 2)
          {
-            ip.Set2(gsl_mfem_ref.GetData() + index*dim);
+            ip.Set2(gsl_mfem_ref.GetData() + index * dim);
          }
          else if (dim == 3)
          {
-            ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+            ip.Set3(gsl_mfem_ref.GetData() + index * dim);
          }
          const int elem = gsl_elem[index];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
          const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
-         int setcode = Geometry::CheckPoint(gt, ip, -rbtol) ?
-                       CODE_INTERNAL : CODE_BORDER;
-         gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
-                           CODE_NOT_FOUND : setcode;
+         int setcode =
+            Geometry::CheckPoint(gt, ip, -rbtol) ? CODE_INTERNAL : CODE_BORDER;
+         gsl_code[index] = setcode == CODE_BORDER && gsl_dist(index) > bdr_tol
+                           ? CODE_NOT_FOUND
+                           : setcode;
       }
       return;
    }
@@ -709,13 +714,13 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
       if (dim == 2)
       {
-         FindPointsLocal2(point_pos_l, point_pos_ordering,
-                          gsl_code_l, gsl_elem_l, gsl_ref_l, gsl_dist_l, n);
+         FindPointsLocal2(point_pos_l, point_pos_ordering, gsl_code_l,
+                          gsl_elem_l, gsl_ref_l, gsl_dist_l, n);
       }
       else
       {
-         FindPointsLocal3(point_pos_l, point_pos_ordering,
-                          gsl_code_l, gsl_elem_l, gsl_ref_l, gsl_dist_l, n);
+         FindPointsLocal3(point_pos_l, point_pos_ordering, gsl_code_l,
+                          gsl_elem_l, gsl_ref_l, gsl_dist_l, n);
       }
 
       gsl_ref_l.HostRead();
@@ -1387,12 +1392,12 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
    meshin->SetNodalFESpace(&nodal_fes);
    const int NEsplit = meshin->GetNE();
 
-   const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
+   const int dof_cnt = nodal_fes.GetTypicalFE()->GetDof(),
              pts_cnt = NEsplit * dof_cnt;
    Vector irlist(dim * pts_cnt);
 
    const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(nodal_fes.GetFE(0));
+      dynamic_cast<const TensorBasisElement *>(nodal_fes.GetTypicalFE());
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
 
@@ -1473,12 +1478,18 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       else if (gt == Geometry::SQUARE)
       {
          ir_split_temp = ir_split[1];
-         el_to_split = gf_in->FESpace()->IsVariableOrder();
+         // "split" if input mesh is not a tensor basis or has mixed order
+         el_to_split =
+            gf_in->FESpace()->IsVariableOrder() ||
+            dynamic_cast<const TensorBasisElement *>(fes->GetFE(e)) == nullptr;
       }
       else if (gt == Geometry::CUBE)
       {
          ir_split_temp = ir_split[0];
-         el_to_split = gf_in->FESpace()->IsVariableOrder();
+         // "split" if input mesh is not a tensor basis or has mixed order
+         el_to_split =
+            gf_in->FESpace()->IsVariableOrder() ||
+            dynamic_cast<const TensorBasisElement *>(fes->GetFE(e)) == nullptr;
       }
       else
       {
@@ -1722,7 +1733,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                (mesh->GetElementType(0)==Element::QUADRILATERAL ||
                                 mesh->GetElementType(0) == Element::HEXAHEDRON));
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MPI_C_BOOL,
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
 
@@ -2381,7 +2392,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 
    mesh = &m;
    dim  = mesh->Dimension();
-   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetTypicalFE();
    unsigned dof1D = fe->GetOrder() + 1;
 
    SetupSplitMeshes();

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -103,7 +103,7 @@ int main (int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // If a gridfunction is specified, set src_fieldtype to -1
+   // If a grid function is specified, set src_fieldtype to -1
    if (strcmp(src_sltn_file, "must_be_provided_by_the_user.gf") != 0)
    {
       src_fieldtype = -1;
@@ -202,7 +202,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   const Geometry::Type gt = mesh_2.GetNodalFESpace()->GetFE(0)->GetGeomType();
+   const Geometry::Type gt = mesh_2.GetTypicalElementGeometry();
    MFEM_VERIFY(gt != Geometry::PRISM, "Wedge elements are not currently "
                "supported.");
    MFEM_VERIFY(mesh_2.GetNumGeometries(mesh_2.Dimension()) == 1, "Mixed meshes"
@@ -266,7 +266,7 @@ int main (int argc, char *argv[])
    GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
-             nsp = tar_fes->GetFE(0)->GetNodes().GetNPoints(),
+             nsp = tar_fes->GetTypicalFE()->GetNodes().GetNPoints(),
              tar_ncomp = func_target.VectorDim();
 
    // Generate list of points where the grid function will be evaluated.

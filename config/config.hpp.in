@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -131,6 +131,9 @@
 
 // Enable Conduit support.
 // #define MFEM_USE_CONDUIT
+
+// Enable functionality based on the HDF5 library
+// #define MFEM_USE_HDF5
 
 // Enable functionality based on the NetCDF library (reading CUBIT files).
 // #define MFEM_USE_NETCDF
