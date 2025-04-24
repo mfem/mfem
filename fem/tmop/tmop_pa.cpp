@@ -17,17 +17,12 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 
-#undef NVTX_COLOR
-#define NVTX_COLOR ::gpu::nvtx::kLawnGreen
-#include "general/nvtx.hpp"
-
 namespace mfem
 {
 
 void TMOP_Integrator::AssembleGradPA(const Vector &de,
                                      const FiniteElementSpace &fes)
 {
-   dbg();
    MFEM_VERIFY(PA.enabled, "PA extension setup has not been done!");
    MFEM_VERIFY(PA.fes == &fes, "");
    // TODO: we need a more robust way to check that the 'fes' used when
@@ -137,7 +132,6 @@ void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                                  const Vector &xe,
                                                  DenseTensor &Jtr) const
 {
-   dbg();
    MFEM_VERIFY(Jtr.SizeI() == Jtr.SizeJ() && Jtr.SizeI() > 1, "");
    const int dim = Jtr.SizeI();
    bool done = false;
@@ -238,7 +232,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg();
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;

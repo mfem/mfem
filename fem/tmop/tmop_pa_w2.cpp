@@ -16,10 +16,6 @@
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
 
-#undef NVTX_COLOR
-#define NVTX_COLOR ::gpu::nvtx::kCyan
-#include "general/nvtx.hpp"
-
 namespace mfem
 {
 
@@ -247,7 +243,6 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
                                                    real_t &energy, real_t &vol,
                                                    const IntegrationRule &ir) const
 {
-   dbg();
    auto fes = nodes.FESpace();
 
    const int N = fes->GetNE();

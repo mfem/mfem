@@ -13,10 +13,6 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
-// #undef NVTX_COLOR
-// #define NVTX_COLOR ::gpu::nvtx::kGold
-// #include "general/nvtx.hpp"
-
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -317,7 +313,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    if (metric_combo && bal_expl_combo)
    {
       Vector bal_weights;
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, /*pa,*/ ir);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, ir);
       metric_combo->SetWeights(bal_weights);
       res.bal_weights = bal_weights.Norml2();
    }
@@ -423,7 +419,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    // Linear solver for the system's Jacobian
    Solver *S = nullptr, *S_prec = nullptr;
-   constexpr real_t linsol_rtol = 1e-12;
+   constexpr real_t linsol_rtol = 1e-13;
    if (lin_solver == 0) { S = new DSmoother(1, 1.0, max_lin_iter); }
    else if (lin_solver == 1)
    {
@@ -508,7 +504,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector x_init(x);
    for (int i = 0; i < newton_loop; i++)
    {
-      mfem::out << "Starting newton loop " << i << std::endl;
       x = x_init;
       x.SetTrueVector();
 
@@ -655,100 +650,28 @@ public:
 
    public:
       Args(const char *name = nullptr): name(name) {}
-      Args &MESH(const char *arg)
-      {
-         mesh = arg;
-         return *this;
-      }
+      Args &MESH(const char *arg) { mesh = arg; return *this; }
       // int
-      Args &NEWTON_ITERATIONS(const int arg)
-      {
-         newton_iter = arg;
-         return *this;
-      }
-      Args &REFINE(const int arg)
-      {
-         rs_levels = arg;
-         return *this;
-      }
-      Args &LINEAR_ITERATIONS(const int arg)
-      {
-         max_lin_iter = arg;
-         return *this;
-      }
-      Args &CMB(const int arg)
-      {
-         combo = arg;
-         return *this;
-      }
-      Args &LIMIT_TYPE(const int arg)
-      {
-         lim_type = arg;
-         return *this;
-      }
+      Args &NEWTON_ITERATIONS(const int arg) { newton_iter = arg; return *this; }
+      Args &REFINE(const int arg) { rs_levels = arg; return *this; }
+      Args &LINEAR_ITERATIONS(const int arg) { max_lin_iter = arg; return *this; }
+      Args &CMB(const int arg) { combo = arg; return *this; }
+      Args &LIMIT_TYPE(const int arg) { lim_type = arg; return *this; }
       // bool
-      Args &NORMALIZATION()
-      {
-         normalization = true;
-         return *this;
-      }
-      Args &DIAGONAL(const bool arg)
-      {
-         diag = arg;
-         return *this;
-      }
-      Args &BALANCE_EXPLICIT_COMBO()
-      {
-         bal_expl_combo = true;
-         return *this;
-      }
+      Args &NORMALIZATION() { normalization = true; return *this; }
+      Args &DIAGONAL(const bool arg) { diag = arg; return *this; }
+      Args &BALANCE_EXPLICIT_COMBO() { bal_expl_combo = true; return *this; }
       // real_t
-      Args &NEWTON_RTOLERANCE(const real_t arg)
-      {
-         newton_rtol = arg;
-         return *this;
-      }
-      Args &LIMITING(const real_t arg)
-      {
-         lim_const = arg;
-         return *this;
-      }
-      Args &JI(const real_t arg)
-      {
-         jitter = arg;
-         return *this;
-      }
+      Args &NEWTON_RTOLERANCE(const real_t arg) { newton_rtol = arg; return *this; }
+      Args &LIMITING(const real_t arg) { lim_const = arg; return *this; }
+      Args &JI(const real_t arg) { jitter = arg; return *this; }
       // lists
-      Args &POR(list_t arg)
-      {
-         order = arg;
-         return *this;
-      }
-      Args &TID(list_t arg)
-      {
-         target_id = arg;
-         return *this;
-      }
-      Args &MID(list_t arg)
-      {
-         metric_id = arg;
-         return *this;
-      }
-      Args &QOR(list_t arg)
-      {
-         quad_order = arg;
-         return *this;
-      }
-      Args &LS(list_t arg)
-      {
-         lin_solver = arg;
-         return *this;
-      }
-      Args &NL(list_t arg)
-      {
-         newton_loop = arg;
-         return *this;
-      }
+      Args &POR(list_t arg) { order = arg; return *this; }
+      Args &TID(list_t arg) { target_id = arg; return *this; }
+      Args &MID(list_t arg) { metric_id = arg; return *this; }
+      Args &QOR(list_t arg) { quad_order = arg; return *this; }
+      Args &LS(list_t arg) { lin_solver = arg; return *this; }
+      Args &NL(list_t arg) { newton_loop = arg; return *this; }
    };
    const char *name, *mesh;
    int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
@@ -774,9 +697,7 @@ public:
       METRIC_IDS(a.metric_id),
       Q_ORDERS(a.quad_order),
       LINEAR_SOLVERS(a.lin_solver),
-      NEWTON_LOOPS(a.newton_loop)
-   {
-   }
+      NEWTON_LOOPS(a.newton_loop) { }
 
    void Run(const int id = 0, bool all = false) const
    {
@@ -785,16 +706,9 @@ public:
       char ni[SZ] {}, nt[SZ] {}, rs[SZ] {}, li[SZ] {}, lc[SZ] {}, ji[SZ] {},
            cmb[SZ] {}, lt[SZ] {};
       args[MSH] = mesh;
-      // POR list
       args[RS] = itoa(REFINE, rs);
-      // MID list
-      // TID list
-      // QTY
-      // QOR list
       args[NI] = itoa(NEWTON_ITERATIONS, ni);
-      // NL list
       args[RTOL] = dtoa(NEWTON_RTOLERANCE, nt);
-      // LS list
       args[LI] = itoa(LINEAR_ITERATIONS, li);
       args[LC] = dtoa(LIMITING, lc);
       args[LT] = itoa(LIMIT_TYPE, lt);
@@ -869,7 +783,9 @@ static void tmop_tests(int id = 0, bool all = false)
       Det::Specialization<3, 3, 4, 6>::Add();
 
       using Grad = QuadratureInterpolator::GradKernels;
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 3, 5>::Add();
       Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add();
 
       using TensorEval = QuadratureInterpolator::TensorEvalKernels;
       TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
@@ -1146,11 +1062,12 @@ static void tmop_tests(int id = 0, bool all = false)
           .TID({ 5 })
           .MID({ 321 })
           .LS({ 3 })
-          .LINEAR_ITERATIONS(100)
+          .NEWTON_ITERATIONS(10)
+          .NEWTON_RTOLERANCE(1e-10)
           .LIMITING(M_PI)
           .NORMALIZATION()
           .POR({ 1, 2, 3 })
-          .QOR({ 2, 4 })
+          .QOR({ 3, 6 })
           .NL({ 1, 2 }))
    .Run(id, all);
 
