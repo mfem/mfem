@@ -128,13 +128,24 @@ public:
    /// Works in parallel when called with a ParGridFunction.
    void ComputeAvgMetrics(const GridFunction &nodes,
                           const TargetConstructor &tc, Vector &averages,
+                          bool use_pa = false,
                           const IntegrationRule *IntRule = nullptr) const;
 
    /// Computes weights so that the averages of all metrics are equal, and the
    /// weights sum to one. Works in parallel when called with a ParGridFunction.
    void ComputeBalancedWeights(const GridFunction &nodes,
                                const TargetConstructor &tc, Vector &weights,
+                               bool use_pa = false,
                                const IntegrationRule *IntRule = nullptr) const;
+
+   void GetLocalEnergyPA_2D(const GridFunction &nodes,
+                            const TargetConstructor &tc,
+                            int m_index, real_t &energy, real_t &vol,
+                            const IntegrationRule &ir) const;
+   void GetLocalEnergyPA_3D(const GridFunction &nodes,
+                            const TargetConstructor &tc,
+                            int m_index, real_t &energy, real_t &vol,
+                            const IntegrationRule &ir) const;
 
    void GetWeights(Array<real_t> &weights) const { weights = wt_arr; }
 
@@ -1981,6 +1992,7 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
+   //     It's always 1 during the TMOP iteration.
    // X0: E-vector for initial nodal coordinates.
    //     Does not change during the TMOP iteration.
    // XL: E-vector for nodal coordinates used for limiting.
@@ -2108,10 +2120,16 @@ protected:
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
 
-   real_t GetLocalStateEnergyPA_2D(const Vector&) const;
+   void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
+   void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
+                                           real_t &met_energy,
+                                           real_t &lim_energy) const;
+   void GetLocalNormalizationEnergiesPA_3D(const Vector &x,
+                                           real_t &met_energy,
+                                           real_t &lim_energy) const;
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
