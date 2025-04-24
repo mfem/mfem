@@ -894,7 +894,6 @@ int main (int argc, char *argv[])
       Vector bal_weights;
       auto ir = irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
       metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, &ir);
-      bal_weights.Print();
       metric_combo->SetWeights(bal_weights);
    }
 
