@@ -127,14 +127,14 @@ public:
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
    void ComputeAvgMetrics(const GridFunction &nodes,
-                          const TargetConstructor &tc,
-                          Vector &averages) const;
+                          const TargetConstructor &tc, Vector &averages,
+                          const IntegrationRule *IntRule = nullptr) const;
 
    /// Computes weights so that the averages of all metrics are equal, and the
    /// weights sum to one. Works in parallel when called with a ParGridFunction.
    void ComputeBalancedWeights(const GridFunction &nodes,
-                               const TargetConstructor &tc,
-                               Vector &weights) const;
+                               const TargetConstructor &tc, Vector &weights,
+                               const IntegrationRule *IntRule = nullptr) const;
 
    void GetWeights(Array<real_t> &weights) const { weights = wt_arr; }
 
@@ -2141,7 +2141,7 @@ protected:
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
-   // Remaps the internal surface fitting gridfunction object at provided
+   // Remaps the internal surface fitting grid function object at provided
    // locations.
    void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                            int new_x_ordering);

@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_MOONOLITH
+
 #include "mortarintegrator.hpp"
 
 namespace mfem
@@ -213,3 +215,5 @@ void VectorL2MortarIntegrator::AssembleElementMatrix(
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH
