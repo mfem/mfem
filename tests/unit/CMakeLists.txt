@@ -173,20 +173,10 @@ if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
 endif()
 
 #-----------------------------------------------------------
-# SERIAL CUDA TESTS: cunit_tests and gpu_unit_tests
+# SERIAL CUDA TESTS: gpu_unit_tests
 #-----------------------------------------------------------
 # Create CUDA executable and test
 if (MFEM_USE_CUDA)
-   # cunit_tests
-   set(CUNIT_TESTS_SRCS cunit_test_main.cpp)
-   set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-   mfem_add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-   target_link_libraries(cunit_tests mfem)
-   add_dependencies(cunit_tests copy_data)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
-   if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-      add_test(NAME cunit_tests COMMAND cunit_tests)
-   endif()
    # gpu_unit_tests
    set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
    set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
@@ -204,15 +194,6 @@ endif()
 #-----------------------------------------------------------
 # Create HIP 'gpu_unit_tests' executable and test
 if (MFEM_USE_HIP)
-   # hip_unit_tests
-   set(HIP_UNIT_TESTS_SRCS hunit_test_main.cpp)
-   mfem_add_executable(hunit_tests ${HIP_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-   target_link_libraries(hunit_tests mfem)
-   add_dependencies(hunit_tests copy_data)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} hunit_tests)
-   if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-      add_test(NAME hunit_tests COMMAND hunit_tests)
-   endif()
    # gpu_unit_tests
    set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
@@ -332,22 +313,6 @@ if (MFEM_USE_MPI)
       endif()
    endforeach()
    if (MFEM_USE_CUDA)
-      # pcunit_tests
-      set(PCUNIT_TESTS_SRCS pcunit_test_main.cpp)
-      set_property(SOURCE ${PCUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-      mfem_add_executable(pcunit_tests ${PCUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-      add_dependencies(pcunit_tests copy_data)
-      target_link_libraries(pcunit_tests mfem)
-      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pcunit_tests)
-      foreach(np 1 ${MFEM_MPI_NP})
-         if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-            add_test(NAME pcunit_tests_np=${np}
-                     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pcunit_tests>
-                     ${MPIEXEC_POSTFLAGS})
-         endif()
-       endforeach()
-
        # pgpu_unit_tests
        set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
        set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
@@ -365,20 +330,6 @@ if (MFEM_USE_MPI)
        endforeach()
     endif()
     if (MFEM_USE_HIP)
-       # phunit_tests
-       set(PHUNIT_TESTS_SRCS phunit_test_main.cpp)
-       mfem_add_executable(phunit_tests ${PHUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-       add_dependencies(phunit_tests copy_data)
-       target_link_libraries(phunit_tests mfem)
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} phunit_tests)
-       foreach(np 1 ${MFEM_MPI_NP})
-          if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-             add_test(NAME phunit_tests_np=${np}
-                      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:phunit_tests>
-                      ${MPIEXEC_POSTFLAGS})
-          endif()
-       endforeach()
        # pgpu_unit_tests
        set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
