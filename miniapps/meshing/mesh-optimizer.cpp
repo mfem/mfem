@@ -856,7 +856,7 @@ int main(int argc, char *argv[])
    {
       Vector bal_weights;
       auto ir = irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, &ir);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, &ir);
       metric_combo->SetWeights(bal_weights);
    }
 
