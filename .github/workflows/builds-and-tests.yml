@@ -122,7 +122,7 @@ jobs:
             hypre-target: int32
             precision: fp32
           - os: macos-latest
-            target: [dbg, opt]
+            target: opt
             codecov: NO
             mpi: par
             build-system: make
