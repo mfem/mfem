@@ -276,8 +276,8 @@ jobs:
           export HOMEBREW_NO_INSTALL_CLEANUP=1
           brew install enzyme
           echo "LLVM_PREFIX=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
-          echo "OMPI_CC=$(LLVM_PREFIX)/bin/clang" >> $GITHUB_ENV
-          echo "OMPI_CXX=`$(LLVM_PREFIX)/bin/clang++" >> $GITHUB_ENV
+          echo "OMPI_CC=${{ env.LLVM_PREFIX }}/bin/clang" >> $GITHUB_ENV
+          echo "OMPI_CXX=${{ env.LLVM_PREFIX }}/bin/clang++" >> $GITHUB_ENV
           echo "brew clang: `brew --prefix llvm`"
 
       # MFEM build and test
