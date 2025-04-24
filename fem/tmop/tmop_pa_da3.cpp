@@ -14,6 +14,10 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR ::gpu::nvtx::kBisque
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -132,6 +136,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                                                const Vector &xe,
                                                DenseTensor &Jtr) const
 {
+   dbg();
    MFEM_VERIFY(target_type == IDEAL_SHAPE_GIVEN_SIZE ||
                target_type == GIVEN_SHAPE_AND_SIZE,"");
 
