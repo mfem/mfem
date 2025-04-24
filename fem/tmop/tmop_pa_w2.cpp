@@ -156,7 +156,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_2D,
             kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
 
             const real_t det =
-                (use_detA) ? kernels::Det<2>(Jpr) : kernels::Det<2>(Jtr);
+               (use_detA) ? kernels::Det<2>(Jpr) : kernels::Det<2>(Jtr);
             const real_t weight = metric_normal * m_coef * W(qx,qy) * det;
 
             // metric->EvalW(Jpt);
