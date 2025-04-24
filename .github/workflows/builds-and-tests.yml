@@ -122,7 +122,7 @@ jobs:
             hypre-target: int32
             precision: fp32
           - os: macos-latest
-            target: dbg
+            target: [dbg, opt]
             codecov: NO
             mpi: par
             build-system: make
@@ -278,7 +278,6 @@ jobs:
           echo "LLVM_PREFIX=$(brew --prefix llvm@19)" >> $GITHUB_ENV
           echo "OMPI_CC=$(brew --prefix llvm@19)/bin/clang" >> $GITHUB_ENV
           echo "OMPI_CXX=$(brew --prefix llvm@19)/bin/clang++" >> $GITHUB_ENV
-          echo "$(ls $(brew --prefix enzyme))"
 
       # MFEM build and test
       - name: build
