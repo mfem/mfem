@@ -22,7 +22,7 @@
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../../mesh/mesh.hpp"
-#include "../linalg/dtensor.hpp"
+#include "../../linalg/dtensor.hpp"
 
 #include "fieldoperator.hpp"
 #include "parametricspace.hpp"
