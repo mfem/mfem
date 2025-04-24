@@ -11,7 +11,7 @@
 
 #include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../linearform.hpp"
+#include "../gridfunc.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -161,8 +161,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_2D,
             real_t Jpt[4];
             kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
 
-            const real_t det =
-               (use_detA) ? kernels::Det<2>(Jpr) : kernels::Det<2>(Jtr);
+            const real_t det = kernels::Det<2>(use_detA ? Jpr : Jtr);
             const real_t weight = metric_normal * m_coef * W(qx,qy) * det;
 
             // metric->EvalW(Jpt);
@@ -248,6 +247,7 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
                                                    real_t &energy, real_t &vol,
                                                    const IntegrationRule &ir) const
 {
+   dbg();
    auto fes = nodes.FESpace();
 
    const int N = fes->GetNE();
