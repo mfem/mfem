@@ -16,6 +16,10 @@
 #include "../general/forall.hpp"
 #include "../linalg/dual.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR ::gpu::nvtx::kCyan
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -525,11 +529,15 @@ ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
                "Error: sum should be 1 always: " << weights.Sum());
 }
 
+void ComputeAvgMetricsPA(Array<TMOP_QualityMetric *> tmop_q_arr,
+                         const GridFunction &nodes, const TargetConstructor &tc,
+                         const IntegrationRule *IntRule,
+                         const Vector &averages_fa, const real_t &volume_fa);
+
 void TMOP_Combo_QualityMetric::
 ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
                   Vector &averages, const IntegrationRule *IntRule) const
 {
-   assert(false);
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
              dim   = nodes.FESpace()->GetMesh()->Dimension();
@@ -579,6 +587,8 @@ ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
          volume += w_detA;
       }
    }
+
+   ComputeAvgMetricsPA(tmop_q_arr, nodes, tc, IntRule, averages, volume);
 
    // Parallel case.
 #ifdef MFEM_USE_MPI
@@ -2192,6 +2202,7 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    const Vector &xe,
    DenseTensor &Jtr) const
 {
+   dbg();
    // Fallback to the 1-element method, ComputeElementTargets()
 
    // When UsesPhysicalCoordinates() == true, we assume 'xe' uses
@@ -5773,6 +5784,7 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 
 void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   dbg();
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssemblePA(fes);
@@ -5782,6 +5794,7 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void TMOPComboIntegrator::AssembleGradPA(const Vector &xe,
                                          const FiniteElementSpace &fes)
 {
+   dbg();
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssembleGradPA(xe,fes);

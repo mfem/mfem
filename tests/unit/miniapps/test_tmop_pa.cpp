@@ -617,7 +617,7 @@ static void dump_args(int id, const char *args[])
 {
    if (id != 0) { return; }
    const char *format = "tmop_pa_tests "
-                        "%s "       // ALV   1: Assembly level
+                        "%6.6s "    // ALV   1: Assembly level
                         "-m %s "    // MSH   3: mesh
                         "-o %s "    // POR   5: order
                         "-rs %s "   // RS    7: refine serial

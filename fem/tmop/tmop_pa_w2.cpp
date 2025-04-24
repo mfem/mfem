@@ -176,7 +176,6 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
 {
-   dbg();
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;

@@ -16,6 +16,10 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR ::gpu::nvtx::kOrange
+#include "general/nvtx.hpp"
+
 using namespace mfem;
 
 namespace mfem
@@ -115,6 +119,7 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
                                                const Vector &,
                                                DenseTensor &Jtr) const
 {
+   dbg();
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
    const Mesh *mesh = fes.GetMesh();
    const int NE = mesh->GetNE();
