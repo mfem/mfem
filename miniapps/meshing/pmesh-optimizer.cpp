@@ -840,15 +840,6 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
 
-   // Automatically balanced gamma in composite metrics.
-   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
-   if (metric_combo && bal_expl_combo)
-   {
-      Vector bal_weights;
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
-      metric_combo->SetWeights(bal_weights);
-   }
-
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
@@ -894,6 +885,16 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::CUBE, quad_order).GetNPoints()
            << "\nPrism quadrature points: "
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
+   }
+
+   // Automatically balanced gamma in composite metrics.
+   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
+   if (metric_combo && bal_expl_combo)
+   {
+      Vector bal_weights;
+      auto ir = irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, &ir);
+      metric_combo->SetWeights(bal_weights);
    }
 
    // Limit the node movement.
