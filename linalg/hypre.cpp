@@ -856,7 +856,7 @@ static bool RowAndColStartsAreEqual(MPI_Comm comm, const HYPRE_BigInt *rows,
          break;
       }
    }
-   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MPI_C_BOOL, MPI_LAND, comm);
+   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MFEM_MPI_CXX_BOOL, MPI_LAND, comm);
    return are_equal;
 }
 
