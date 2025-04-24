@@ -135,6 +135,10 @@ public:
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
 
+   /// @brief Interpolate the physical values of the E-vector @a e_vec at
+   /// quadrature points.
+   void PhysicalValues(const Vector &e_vec, Vector &q_val) const;
+
    /** @brief Interpolate the derivatives (with respect to reference
        coordinates) of the E-vector @a e_vec at quadrature points. */
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
