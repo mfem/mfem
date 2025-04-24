@@ -128,7 +128,7 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp64
-            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=/opt/homebrew/Cellar/enzyme ENZYME_LLVM_VERSION=`mpicxx -dumpversion | cut -d'.' -f1`
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) ENZYME_LLVM_VERSION=$(mpicxx -dumpversion | cut -d'.' -f1)
             enzyme: true
 
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
@@ -278,8 +278,7 @@ jobs:
           echo "LLVM_PREFIX=$(brew --prefix llvm@19)" >> $GITHUB_ENV
           echo "OMPI_CC=$(brew --prefix llvm@19)/bin/clang" >> $GITHUB_ENV
           echo "OMPI_CXX=$(brew --prefix llvm@19)/bin/clang++" >> $GITHUB_ENV
-          echo "$(ls /opt/homebrew/opt/)"
-          echo "$(/opt/homebrew/opt/llvm@19/bin/clang++ -dumpversion)"
+          echo "$(ls $(brew --prefix enzyme))"
 
       # MFEM build and test
       - name: build
