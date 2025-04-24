@@ -349,8 +349,8 @@ endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
 # PARALLEL SEDOV + TMOP TESTS:
-#   psedov_tests_{cpu,debug,cuda,cuda_uvm}
-#   ptmop_pa_tests_{cpu,cuda}
+#   psedov_tests_{cpu,debug,gpu,gpu_uvm}
+#   ptmop_pa_tests_{cpu,gpu}
 #-----------------------------------------------------------
 # Function to add one MPI executable for a test.
 function(add_mpi_executable_test name dev)
@@ -400,10 +400,10 @@ function(add_parallel_miniapp_test name HYPRE_MM)
             list(APPEND backends debug)
         endif()
     endif()
-    if (MFEM_USE_CUDA)
-        list(APPEND backends cuda)
+    if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+        list(APPEND backends gpu)
         if (HYPRE_MM)
-            list(APPEND backends cuda_uvm)
+            list(APPEND backends gpu_uvm)
         endif()
     endif()
 
