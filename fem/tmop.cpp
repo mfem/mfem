@@ -17,7 +17,7 @@
 #include "../linalg/dual.hpp"
 
 #undef NVTX_COLOR
-#define NVTX_COLOR ::gpu::nvtx::kCyan
+#define NVTX_COLOR ::gpu::nvtx::kNavyBlue
 #include "general/nvtx.hpp"
 
 namespace mfem
@@ -503,6 +503,7 @@ void TMOP_Combo_QualityMetric::ComputeBalancedWeights(
    const GridFunction &nodes, const TargetConstructor &tc,
    Vector &weights, bool use_pa, const IntegrationRule *IntRule) const
 {
+   dbg();
    const int m_cnt = tmop_q_arr.Size();
    Vector averages;
    ComputeAvgMetrics(nodes, tc, averages, use_pa, IntRule);
@@ -533,6 +534,7 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(
    const GridFunction &nodes, const TargetConstructor &tc,
    Vector &averages, bool use_pa, const IntegrationRule *IntRule) const
 {
+   dbg();
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
              dim   = nodes.FESpace()->GetMesh()->Dimension();
@@ -548,6 +550,7 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(
    real_t volume = 0.0;
    if (use_pa)
    {
+      dbg("m_cnt:{}",m_cnt);
       for (int m = 0; m < m_cnt; m++)
       {
          if (dim == 2)
@@ -600,8 +603,6 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(
          }
       }
    }
-
-   ComputeAvgMetricsPA(tmop_q_arr, nodes, tc, IntRule, averages, volume);
 
    // Parallel case.
 #ifdef MFEM_USE_MPI
@@ -2215,7 +2216,6 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    const Vector &xe,
    DenseTensor &Jtr) const
 {
-   dbg();
    // Fallback to the 1-element method, ComputeElementTargets()
 
    // When UsesPhysicalCoordinates() == true, we assume 'xe' uses
@@ -5831,7 +5831,7 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 
 void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg();
+   dbg("tmopi.Size():{}",tmopi.Size());
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssemblePA(fes);
@@ -5841,7 +5841,7 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void TMOPComboIntegrator::AssembleGradPA(const Vector &xe,
                                          const FiniteElementSpace &fes)
 {
-   dbg();
+   dbg("tmopi.Size():{}",tmopi.Size());
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssembleGradPA(xe,fes);

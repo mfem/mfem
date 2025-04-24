@@ -126,7 +126,6 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
-  tmop/tmop_pa_avg.cpp
   tmop/tmop_pa_da3.cpp
   tmop/tmop_pa_h2d.cpp
   tmop/tmop_pa_h2d_c0.cpp

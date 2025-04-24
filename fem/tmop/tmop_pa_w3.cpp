@@ -11,7 +11,7 @@
 
 #include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../linearform.hpp"
+#include "../gridfunc.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -165,8 +165,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_3D,
                real_t Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
-               const real_t det =
-                  (use_detA) ? kernels::Det<3>(Jpr) : kernels::Det<3>(Jtr);
+               const real_t det = kernels::Det<3>(use_detA ? Jpr : Jtr);
                const real_t weight = metric_normal * m_coef * W(qx,qy,qz) * det;
 
                // metric->EvalW(Jpt);
