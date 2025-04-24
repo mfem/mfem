@@ -207,8 +207,8 @@ endif()
 
 #-----------------------------------------------------------
 # SERIAL SEDOV + TMOP TESTS:
-#   sedov_tests_{cpu,debug,cuda,cuda_uvm}
-#   tmop_pa_tests_{cpu,debug,cuda}
+#   sedov_tests_{cpu,debug,gpu,gpu_uvm}
+#   tmop_pa_tests_{cpu,debug,gpu}
 #-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
 # All device unit tests are built into a separate executable, in order to be
@@ -237,27 +237,27 @@ function(add_serial_miniapp_test name test_uvm)
         add_test(NAME ${name}_tests_debug COMMAND ${name}_tests_debug)
     endif()
 
-    if (MFEM_USE_CUDA)
-       mfem_add_executable(${name}_tests_cuda ${${NAME}_TESTS_SRCS})
-       target_compile_definitions(${name}_tests_cuda PUBLIC MFEM_${NAME}_DEVICE="cuda")
-       target_link_libraries(${name}_tests_cuda mfem)
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
+    if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+       mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
+       target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
+       target_link_libraries(${name}_tests_gpu mfem)
+       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_gpu)
        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-           add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
+           add_test(NAME ${name}_tests_gpu COMMAND ${name}_tests_gpu)
        endif()
 
        if (test_uvm)
-           mfem_add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
-           target_compile_definitions(${name}_tests_cuda_uvm PUBLIC
-               MFEM_${NAME}_DEVICE="cuda:uvm")
-           target_link_libraries(${name}_tests_cuda_uvm mfem)
+           mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
+           target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
+               MFEM_${NAME}_DEVICE="gpu:uvm")
+           target_link_libraries(${name}_tests_gpu_uvm mfem)
            add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
-               ${name}_tests_cuda_uvm)
+               ${name}_tests_gpu_uvm)
            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-               add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
+               add_test(NAME ${name}_tests_gpu_uvm COMMAND ${name}_tests_gpu_uvm)
            endif()
        endif()
-    endif(MFEM_USE_CUDA)
+    endif()
 endfunction(add_serial_miniapp_test)
 
 add_serial_miniapp_test(sedov ON)  # UVM ON
