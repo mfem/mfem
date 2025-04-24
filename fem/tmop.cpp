@@ -506,7 +506,8 @@ void TMOP_Combo_QualityMetric::ComputeBalancedWeights(
    dbg();
    const int m_cnt = tmop_q_arr.Size();
    Vector averages;
-   ComputeAvgMetrics(nodes, tc, averages, use_pa, IntRule);
+   ComputeAvgMetrics(nodes, tc, averages, false/*use_pa*/,
+                     IntRule); // 🔥🔥🔥
    weights.SetSize(m_cnt);
 
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
@@ -535,6 +536,7 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(
    Vector &averages, bool use_pa, const IntegrationRule *IntRule) const
 {
    dbg();
+   assert(!use_pa);
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
              dim   = nodes.FESpace()->GetMesh()->Dimension();
@@ -5831,7 +5833,6 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 
 void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg("tmopi.Size():{}",tmopi.Size());
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssemblePA(fes);
@@ -5841,7 +5842,6 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void TMOPComboIntegrator::AssembleGradPA(const Vector &xe,
                                          const FiniteElementSpace &fes)
 {
-   dbg("tmopi.Size():{}",tmopi.Size());
    for (int i = 0; i < tmopi.Size(); i++)
    {
       tmopi[i]->AssembleGradPA(xe,fes);

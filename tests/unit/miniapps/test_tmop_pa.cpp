@@ -13,9 +13,9 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
-#undef NVTX_COLOR
-#define NVTX_COLOR ::gpu::nvtx::kGold
-#include "general/nvtx.hpp"
+// #undef NVTX_COLOR
+// #define NVTX_COLOR ::gpu::nvtx::kGold
+// #include "general/nvtx.hpp"
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
@@ -317,7 +317,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    if (metric_combo && bal_expl_combo)
    {
       Vector bal_weights;
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, ir);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, /*pa,*/ ir);
       metric_combo->SetWeights(bal_weights);
       res.bal_weights = bal_weights.Norml2();
    }
@@ -508,7 +508,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector x_init(x);
    for (int i = 0; i < newton_loop; i++)
    {
-      dbg("Starting newton loop {}", i);
+      mfem::out << "Starting newton loop " << i << std::endl;
       x = x_init;
       x.SetTrueVector();
 
@@ -899,7 +899,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .JI(jitter)
           .NORMALIZATION()
           .TID({ 5 })
-          .MID({ 2 })
+          .MID({ 80 })
           .LS({ 2 })
           .POR({ 2 })
           .QOR({ 6 })
