@@ -175,7 +175,6 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    PA.Jtr_needs_update = false;
    PA.Jtr_debug_grad = false;
    const FiniteElementSpace *fes = PA.fes;
-   MFEM_VERIFY(fes != nullptr, "");
    if (PA.ne == 0) { return; }  // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
 
