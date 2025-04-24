@@ -179,15 +179,15 @@ private:
 
    mutable Vector daction_transpose_l;
 
-   /// Callbacks that assemble derivatives into a HypreParMatrix.
-   std::vector<assemble_derivative_hypreparmatrix_callback_t>
-   assemble_derivative_hypreparmatrix_callbacks;
-
    mutable std::vector<Vector> fields_e;
 
    mutable Vector direction_l;
 
    std::function<void(Vector &, Vector &)> prolongation_transpose;
+
+   /// Callbacks that assemble derivatives into a HypreParMatrix.
+   std::vector<assemble_derivative_hypreparmatrix_callback_t>
+   assemble_derivative_hypreparmatrix_callbacks;
 };
 
 /// Class representing a differentiable operator which acts on solution and
@@ -294,18 +294,16 @@ public:
    /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
    /// @return A shared pointer to the DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(
-      size_t derivative_id,
-      std::vector<Vector *> solutions_l,
-      std::vector<Vector *> parameters_l)
+      size_t derivative_id, std::vector<Vector *> sol_l, std::vector<Vector *> par_l)
    {
       MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                   derivative_action_callbacks.end(),
                   "no derivative action has been found for ID " << derivative_id);
 
-      MFEM_ASSERT(solutions_l.size() == solutions.size(),
+      MFEM_ASSERT(sol_l.size() == solutions.size(),
                   "wrong number of solutions");
 
-      MFEM_ASSERT(parameters_l.size() == parameters.size(),
+      MFEM_ASSERT(par_l.size() == parameters.size(),
                   "wrong number of parameters");
 
       const size_t derivative_idx = FindIdx(derivative_id, fields);
@@ -319,8 +317,8 @@ public:
                 daction_transpose_callbacks[derivative_id],
                 fields[test_space_field_idx],
                 GetVSize(fields[test_space_field_idx]),
-                solutions_l,
-                parameters_l,
+                sol_l,
+                par_l,
                 restriction_callback,
                 prolongation_transpose,
                 assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
@@ -605,12 +603,10 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
 
    action_callbacks.push_back(
-      [=, restriction_callback = this->restriction_callback]
-      (std::vector<Vector> &solutions_l,
-       const std::vector<Vector> &parameters_l,
-       Vector &residual_l) mutable
+      [=, restriction_cb = this->restriction_callback]
+      (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res) mutable
    {
-      restriction_callback(solutions_l, parameters_l, fields_e);
+      restriction_cb(sol, par, fields_e);
 
       residual_e = 0.0;
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
@@ -646,7 +642,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
       }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
-      output_restriction_transpose(residual_e, residual_l);
+      output_restriction_transpose(residual_e, res);
    });
 
    // Create the action of the derivatives
