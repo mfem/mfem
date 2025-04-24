@@ -6421,7 +6421,7 @@ void ParMesh::PrintVTU(std::string pathname,
 
       os << "<?xml version=\"1.0\"?>\n";
       os << "<VTKFile type=\"PUnstructuredGrid\"";
-      os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      os << " version =\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
       os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
       os << "<PPoints>\n";
