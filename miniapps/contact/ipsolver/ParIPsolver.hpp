@@ -14,6 +14,7 @@ class ParInteriorPointSolver
 {
 protected:
     OptContactProblem* problem = nullptr;
+    int numActiveConstraints = -1;
     double OptTol;
     int  max_iter;
     int  iter=0;
@@ -85,6 +86,8 @@ protected:
     double linSolveRelTol = 1e-6;
     int relax_type = 88;
     bool monitor = false;
+    bool save_matrix_data = false;
+    int label = -1;
     MPI_Comm comm;
 public:
     ParInteriorPointSolver(OptContactProblem*);
@@ -123,13 +126,23 @@ public:
     void SetElasticityOptions(ParFiniteElementSpace * pfes_)
     {
         pfes = pfes_;
-    }
-    void EnableDynamicSolverChoice() { dynamicsolver = true;}
-    void DisableDynamicSolverChoice() { dynamicsolver = false;}
+    };
+    void EnableDynamicSolverChoice() { dynamicsolver = true;};
+    void DisableDynamicSolverChoice() { dynamicsolver = false;};
     bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat, const Vector &l, const BlockVector & b, const double & delta);
-    void EnableMonitor() { monitor = true;}
-    void DisableMonitor() { monitor = false;}
-    void EnableNoContactSolve() {no_contact_solve = true;}
+    void EnableMonitor() { monitor = true;};
+    void DisableMonitor() { monitor = false;};
+    void EnableSaveMatrix() { save_matrix_data = true;};
+    void DisableSaveMatrix() { save_matrix_data = false;};
+    void EnableNoContactSolve() {no_contact_solve = true;};
+    void SetProblemLabel(int label_) { label = label_;};
+    double GetNumActiveConstraints() { return numActiveConstraints;};
+    void Clear() 
+    {
+       F1.DeleteAll();
+       F2.DeleteAll();
+       mu_k = 1.0;
+    };
     virtual ~ParInteriorPointSolver();
 };
 

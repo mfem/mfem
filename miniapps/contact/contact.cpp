@@ -150,7 +150,7 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
    }
 }
 
-void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
+void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int numactiveconstraints, int optit, const Array<int> & iters)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -162,6 +162,7 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "Final Energy objective          = " << Ef << endl;
    outputfile << "Global number of dofs           = " << dofs << endl;
    outputfile << "Global number of constraints    = " << constr << endl;
+   outputfile << "Global number of active constraints = " << numactiveconstraints << endl;
    outputfile << "Optimizer number of iterations  = " << optit << endl;
    outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
    outputfile << "OptimizerIteration,CGIterations" << endl;
@@ -174,6 +175,7 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
 }
 
 void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, 
+		int numactiveconstraints,
    const std::vector<Array<int>> & iters, const Array<int> & no_contact_iter)
 {
    file_name << ".csv";
@@ -186,6 +188,7 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
    outputfile << "Final Energy objective          = " << Ef << endl;
    outputfile << "Global number of dofs           = " << dofs << endl;
    outputfile << "Global number of constraints    = " << constr << endl;
+   outputfile << "Global number of active constraints = " << numactiveconstraints << endl;
    outputfile << "TimeStep, OptimizerIterations" << endl;
    for (int i = 0; i < iters.size(); i++)
    {
@@ -876,13 +879,13 @@ int main(int argc, char *argv[])
             }                        
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
-            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
+            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumActiveConstraints(), optimizer.GetNumIterations(), CGiterations);
             if (i == total_steps-1)
             {
                ostringstream final_file_name;
                final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-final";
                OutputFinalData(final_file_name, Einitial, Efinal, 
-                  gndofs, numconstr, CGiter, NoContactCGiterations);
+                  gndofs, numconstr, optimizer.GetNumActiveConstraints(), CGiter, NoContactCGiterations);
             }
          }
       }
