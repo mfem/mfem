@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -58,12 +58,13 @@ public:
    /// Return element's type.
    Type GetType() const override { return Element::TETRAHEDRON; }
 
-   void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
+   void  ParseRefinementFlag(int refinement_edges[2], int &type,
+                             int &flag) const;
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
-   void GetMarkedFace(const int face, int *fv);
+   void GetMarkedFace(const int face, int *fv) const;
 
-   int GetRefinementFlag() { return refinement_flag; }
+   int GetRefinementFlag() const { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }
 

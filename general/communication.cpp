@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -275,7 +275,7 @@ void GroupTopology::Save(ostream &os) const
    os << "\ncommunication_groups\n";
    os << "number_of_groups " << NGroups() << "\n\n";
 
-   os << "# number of entities in each group, followed by group ids in group\n";
+   os << "# number of entities in each group, followed by ranks in group\n";
    for (int group_id = 0; group_id < NGroups(); ++group_id)
    {
       int group_size = GetGroupSize(group_id);
@@ -349,7 +349,10 @@ void GroupTopology::Swap(GroupTopology &other)
 
 // Initialize the static mpi_type for the specializations of MPITypeMap:
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
+const MPI_Datatype MPITypeMap<float>::mpi_type = MPI_FLOAT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
+const MPI_Datatype MPITypeMap<int64_t>::mpi_type = MPI_INT64_T;
+const MPI_Datatype MPITypeMap<uint64_t>::mpi_type = MPI_UINT64_T;
 
 
 GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
@@ -1312,6 +1315,12 @@ template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
 
+template void GroupCommunicator::BcastBegin<float>(float *, int) const;
+template void GroupCommunicator::BcastEnd<float>(float *, int) const;
+template void GroupCommunicator::ReduceBegin<float>(const float *) const;
+template void GroupCommunicator::ReduceEnd<float>(
+   float *, int, void (*)(OpData<float>)) const;
+
 // @endcond
 
 // instantiate reduce operators for int and double
@@ -1323,6 +1332,10 @@ template void GroupCommunicator::BitOR<int>(OpData<int>);
 template void GroupCommunicator::Sum<double>(OpData<double>);
 template void GroupCommunicator::Min<double>(OpData<double>);
 template void GroupCommunicator::Max<double>(OpData<double>);
+
+template void GroupCommunicator::Sum<float>(OpData<float>);
+template void GroupCommunicator::Min<float>(OpData<float>);
+template void GroupCommunicator::Max<float>(OpData<float>);
 
 
 #ifdef __bgq__

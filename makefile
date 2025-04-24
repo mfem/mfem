@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40601
+MFEM_VERSION = 40801
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -124,7 +124,7 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke \
+ toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff hooke \
  multidomain dpg hdiv-linear-solver spde
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
@@ -193,7 +193,8 @@ endif
 
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
-# Link flags used by MFEM: library link flags plus LDFLAGS (added last)
+# Link flags used by MFEM: library link flags plus LDFLAGS and LDFLAGS_INTERNAL
+# (added at the end)
 ALL_LIBS =
 
 # Building static and/or shared libraries:
@@ -204,6 +205,14 @@ MFEM_SHARED_BUILD = $(MFEM_SHARED)
 # Internal shortcuts
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
+
+# Error for package integrations that currently don't support single precision
+ifeq ($(MFEM_USE_SINGLE),YES)
+   PKGS_NO_SINGLE = SUNDIALS SUITESPARSE SUPERLU STRUMPACK GINKGO AMGX SLEPC\
+	 PUMI GSLIB ALGOIM CEED MOONOLITH TRIBOL
+   $(foreach pkg,$(PKGS_NO_SINGLE),$(if $(MFEM_USE_$(pkg):NO=),\
+     $(error Package $(pkg) is NOT supported with single precision)))
+endif
 
 # The default value of CXXFLAGS is based on the value of MFEM_DEBUG
 ifeq ($(MFEM_DEBUG),YES)
@@ -277,9 +286,9 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
- SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP\
- GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX CALIPER PARELAG BENCHMARK\
- MOONOLITH ALGOIM
+ SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
+ GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
+ TRIBOL BENCHMARK MOONOLITH ALGOIM
 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
@@ -341,14 +350,14 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
  MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
  MFEM_USE_SUITESPARSE MFEM_USE_GINKGO MFEM_USE_SUPERLU MFEM_USE_SUPERLU5\
- MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_HDF5 MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
- MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
- MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_ALGOIM MFEM_USE_ENZYME\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD
+ MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
+ MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -364,7 +373,7 @@ MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
 MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
-MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
+MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
@@ -382,7 +391,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GSLIB_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -416,10 +425,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
+DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop
+       fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
+       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -573,53 +583,79 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
+# User-definable install permissions.
+# Install permissions for everything except directories and binaries:
+INSTALL_DEF_PERM ?= 644
+# Install permissions for binaries:
+INSTALL_BIN_PERM ?= 755
+# Install permissions for directories (and symlinks on macOS/BSD):
+INSTALL_DIR_PERM ?= 755
+
+# Shortcuts, not to be modified by the user on the command line.
+# We use 'umask' because 'mkdir -p' (and 'install -d') do not use the mode
+# specified with the '-m' flag when creating non-existent parent directories.
+# WARNING: $(MKINSTALLDIR) changes the umask for commands following it as part
+#          of the same shell expression unless it is placed inside '()' to be
+#          executed in a sub-shell.
+override INSTALLDEF   = $(INSTALL) -m $(INSTALL_DEF_PERM)
+override INSTALLMASK  = $(shell printf "%o" $$((~0$(INSTALL_DIR_PERM) & 0777)))
+override MKINSTALLDIR = umask $(INSTALLMASK) && mkdir -p
+
 INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
-   cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
+   cd $(PREFIX_LIB) && chmod $(INSTALL_BIN_PERM) libmfem.$(SO_VER) && \
+   ( umask $(INSTALLMASK) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT) )
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-	mkdir -p $(PREFIX_LIB)
+	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
-	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
+	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
-	mkdir -p $(PREFIX_INC)/mfem
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem
+	$(INSTALLDEF) $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
 	   $(PREFIX_INC)/mfem
 	for hdr in mfem.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
-	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
+	      > $(PREFIX_INC)/$$hdr && \
+	   chmod $(INSTALL_DEF_PERM) $(PREFIX_INC)/$$hdr; done
 # install config include
-	mkdir -p $(PREFIX_INC)/mfem/config
-	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config/_config.hpp
-	$(INSTALL) -m 640 $(SRC)config/config.hpp $(PREFIX_INC)/mfem/config/config.hpp
-	$(INSTALL) -m 640 $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/config
+	$(INSTALLDEF) $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALLDEF) $(SRC)config/config.hpp $(PREFIX_INC)/mfem/config
+	$(INSTALLDEF) $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   if ls $(SRC)$$dir/*.hpp > /dev/null 2>&1; then \
+	      ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	      $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   fi; \
 	done
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
-	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
+	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	   $(INSTALLDEF) $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/convection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/mass/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/convection/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/diffusion/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(MKINSTALLDIR) $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(INSTALLDEF) $(SRC)fem/ceed/integrators/nlconvection/*.h \
+	   $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
-	mkdir -p $(PREFIX_SHARE)
+	$(MKINSTALLDIR) $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
-	$(INSTALL) -m 640 $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
+	$(INSTALLDEF) $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
-	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
+	$(INSTALLDEF) $(SRC)config/test.mk $(PREFIX_SHARE)
 
 $(CONFIG_MK):
 # Skip the error message when '-B' make flag is used (unconditionally
@@ -665,6 +701,10 @@ status info:
 	$(info MFEM_USE_MPI           = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS         = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
+	$(info MFEM_PRECISION         = \
+	   $(if $(MFEM_USE_SINGLE:NO=),single,double))
+	$(info MFEM_USE_DOUBLE        = $(MFEM_USE_DOUBLE))
+	$(info MFEM_USE_SINGLE        = $(MFEM_USE_SINGLE))
 	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
 	$(info MFEM_USE_EXCEPTIONS    = $(MFEM_USE_EXCEPTIONS))
 	$(info MFEM_USE_ZLIB          = $(MFEM_USE_ZLIB))
@@ -683,7 +723,9 @@ status info:
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
+	$(info MFEM_USE_MAGMA         = $(MFEM_USE_MAGMA))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
+	$(info MFEM_USE_HDF5          = $(MFEM_USE_HDF5))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
 	$(info MFEM_USE_SLEPC         = $(MFEM_USE_SLEPC))
@@ -711,6 +753,7 @@ status info:
 	$(info MFEM_USE_CODIPACK      = $(MFEM_USE_CODIPACK))
 	$(info MFEM_USE_BENCHMARK     = $(MFEM_USE_BENCHMARK))
 	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
+	$(info MFEM_USE_TRIBOL        = $(MFEM_USE_TRIBOL))
 	$(info MFEM_USE_ENZYME        = $(MFEM_USE_ENZYME))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
@@ -739,9 +782,10 @@ ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
-FORMAT_FILES += tests/unit/*.?pp
-UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme
 MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels
+FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
 FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp

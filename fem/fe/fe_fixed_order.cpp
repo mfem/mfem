@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -143,7 +143,7 @@ GaussLinear2DFiniteElement::GaussLinear2DFiniteElement()
 void GaussLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   const double x = ip.x, y = ip.y;
+   const real_t x = ip.x, y = ip.y;
 
    shape(0) = 5./3. - 2. * (x + y);
    shape(1) = 2. * (x - 1./6.);
@@ -167,7 +167,7 @@ void GaussLinear2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 // 0.5-0.5/sqrt(3) and 0.5+0.5/sqrt(3)
-const double GaussBiLinear2DFiniteElement::p[] =
+const real_t GaussBiLinear2DFiniteElement::p[] =
 { 0.2113248654051871177454256, 0.7886751345948128822545744 };
 
 GaussBiLinear2DFiniteElement::GaussBiLinear2DFiniteElement()
@@ -186,7 +186,7 @@ GaussBiLinear2DFiniteElement::GaussBiLinear2DFiniteElement()
 void GaussBiLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                              Vector &shape) const
 {
-   const double x = ip.x, y = ip.y;
+   const real_t x = ip.x, y = ip.y;
 
    shape(0) = 3. * (p[1] - x) * (p[1] - y);
    shape(1) = 3. * (x - p[0]) * (p[1] - y);
@@ -197,7 +197,7 @@ void GaussBiLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void GaussBiLinear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                               DenseMatrix &dshape) const
 {
-   const double x = ip.x, y = ip.y;
+   const real_t x = ip.x, y = ip.y;
 
    dshape(0,0) = 3. * (y - p[1]);  dshape(0,1) = 3. * (x - p[1]);
    dshape(1,0) = 3. * (p[1] - y);  dshape(1,1) = 3. * (p[0] - x);
@@ -257,8 +257,8 @@ Quad1DFiniteElement::Quad1DFiniteElement()
 void Quad1DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                     Vector &shape) const
 {
-   double x = ip.x;
-   double l1 = 1.0 - x, l2 = x, l3 = 2. * x - 1.;
+   real_t x = ip.x;
+   real_t l1 = 1.0 - x, l2 = x, l3 = 2. * x - 1.;
 
    shape(0) = l1 * (-l3);
    shape(1) = l2 * l3;
@@ -268,7 +268,7 @@ void Quad1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Quad1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                      DenseMatrix &dshape) const
 {
-   double x = ip.x;
+   real_t x = ip.x;
 
    dshape(0,0) = 4. * x - 3.;
    dshape(1,0) = 4. * x - 1.;
@@ -296,8 +296,8 @@ Quad2DFiniteElement::Quad2DFiniteElement()
 void Quad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                     Vector &shape) const
 {
-   double x = ip.x, y = ip.y;
-   double l1 = 1.-x-y, l2 = x, l3 = y;
+   real_t x = ip.x, y = ip.y;
+   real_t l1 = 1.-x-y, l2 = x, l3 = y;
 
    shape(0) = l1 * (2. * l1 - 1.);
    shape(1) = l2 * (2. * l2 - 1.);
@@ -310,7 +310,7 @@ void Quad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Quad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                      DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    dshape(0,0) =
       dshape(0,1) = 4. * (x + y) - 3.;
@@ -376,7 +376,7 @@ void Quad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-const double GaussQuad2DFiniteElement::p[] =
+const real_t GaussQuad2DFiniteElement::p[] =
 { 0.0915762135097707434595714634022015, 0.445948490915964886318329253883051 };
 
 GaussQuad2DFiniteElement::GaussQuad2DFiniteElement()
@@ -397,7 +397,7 @@ GaussQuad2DFiniteElement::GaussQuad2DFiniteElement()
 
    for (int i = 0; i < 6; i++)
    {
-      const double x = Nodes.IntPoint(i).x, y = Nodes.IntPoint(i).y;
+      const real_t x = Nodes.IntPoint(i).x, y = Nodes.IntPoint(i).y;
       A(0,i) = 1.;
       A(1,i) = x;
       A(2,i) = y;
@@ -412,7 +412,7 @@ GaussQuad2DFiniteElement::GaussQuad2DFiniteElement()
 void GaussQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
-   const double x = ip.x, y = ip.y;
+   const real_t x = ip.x, y = ip.y;
    pol(0) = 1.;
    pol(1) = x;
    pol(2) = y;
@@ -426,7 +426,7 @@ void GaussQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void GaussQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
-   const double x = ip.x, y = ip.y;
+   const real_t x = ip.x, y = ip.y;
    D(0,0) = 0.;      D(0,1) = 0.;
    D(1,0) = 1.;      D(1,1) = 0.;
    D(2,0) = 0.;      D(2,1) = 1.;
@@ -464,8 +464,8 @@ BiQuad2DFiniteElement::BiQuad2DFiniteElement()
 void BiQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                       Vector &shape) const
 {
-   double x = ip.x, y = ip.y;
-   double l1x, l2x, l3x, l1y, l2y, l3y;
+   real_t x = ip.x, y = ip.y;
+   real_t l1x, l2x, l3x, l1y, l2y, l3y;
 
    l1x = (x - 1.) * (2. * x - 1);
    l2x = 4. * x * (1. - x);
@@ -488,9 +488,9 @@ void BiQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void BiQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y;
-   double l1x, l2x, l3x, l1y, l2y, l3y;
-   double d1x, d2x, d3x, d1y, d2y, d3y;
+   real_t x = ip.x, y = ip.y;
+   real_t l1x, l2x, l3x, l1y, l2y, l3y;
+   real_t d1x, d2x, d3x, d1y, d2y, d3y;
 
    l1x = (x - 1.) * (2. * x - 1);
    l2x = 4. * x * (1. - x);
@@ -556,7 +556,7 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 GaussBiQuad2DFiniteElement::GaussBiQuad2DFiniteElement()
    : NodalFiniteElement(2, Geometry::SQUARE, 9, 2, FunctionSpace::Qk)
 {
-   const double p1 = 0.5*(1.-sqrt(3./5.));
+   const real_t p1 = 0.5*(1.-sqrt(3./5.));
 
    Nodes.IntPoint(0).x = p1;
    Nodes.IntPoint(0).y = p1;
@@ -581,11 +581,11 @@ GaussBiQuad2DFiniteElement::GaussBiQuad2DFiniteElement()
 void GaussBiQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   const double a = sqrt(5./3.);
-   const double p1 = 0.5*(1.-sqrt(3./5.));
+   const real_t a = sqrt(5./3.);
+   const real_t p1 = 0.5*(1.-sqrt(3./5.));
 
-   double x = a*(ip.x-p1), y = a*(ip.y-p1);
-   double l1x, l2x, l3x, l1y, l2y, l3y;
+   real_t x = a*(ip.x-p1), y = a*(ip.y-p1);
+   real_t l1x, l2x, l3x, l1y, l2y, l3y;
 
    l1x = (x - 1.) * (2. * x - 1);
    l2x = 4. * x * (1. - x);
@@ -608,12 +608,12 @@ void GaussBiQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void GaussBiQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                             DenseMatrix &dshape) const
 {
-   const double a = sqrt(5./3.);
-   const double p1 = 0.5*(1.-sqrt(3./5.));
+   const real_t a = sqrt(5./3.);
+   const real_t p1 = 0.5*(1.-sqrt(3./5.));
 
-   double x = a*(ip.x-p1), y = a*(ip.y-p1);
-   double l1x, l2x, l3x, l1y, l2y, l3y;
-   double d1x, d2x, d3x, d1y, d2y, d3y;
+   real_t x = a*(ip.x-p1), y = a*(ip.y-p1);
+   real_t l1x, l2x, l3x, l1y, l2y, l3y;
+   real_t d1x, d2x, d3x, d1y, d2y, d3y;
 
    l1x = (x - 1.) * (2. * x - 1);
    l2x = 4. * x * (1. - x);
@@ -697,10 +697,10 @@ BiCubic2DFiniteElement::BiCubic2DFiniteElement()
 void BiCubic2DFiniteElement::CalcShape(
    const IntegrationPoint &ip, Vector &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
-   double w1x, w2x, w3x, w1y, w2y, w3y;
-   double l0x, l1x, l2x, l3x, l0y, l1y, l2y, l3y;
+   real_t w1x, w2x, w3x, w1y, w2y, w3y;
+   real_t l0x, l1x, l2x, l3x, l0y, l1y, l2y, l3y;
 
    w1x = x - 1./3.; w2x = x - 2./3.; w3x = x - 1.;
    w1y = y - 1./3.; w2y = y - 2./3.; w3y = y - 1.;
@@ -736,11 +736,11 @@ void BiCubic2DFiniteElement::CalcShape(
 void BiCubic2DFiniteElement::CalcDShape(
    const IntegrationPoint &ip, DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
-   double w1x, w2x, w3x, w1y, w2y, w3y;
-   double l0x, l1x, l2x, l3x, l0y, l1y, l2y, l3y;
-   double d0x, d1x, d2x, d3x, d0y, d1y, d2y, d3y;
+   real_t w1x, w2x, w3x, w1y, w2y, w3y;
+   real_t l0x, l1x, l2x, l3x, l0y, l1y, l2y, l3y;
+   real_t d0x, d1x, d2x, d3x, d0y, d1y, d2y, d3y;
 
    w1x = x - 1./3.; w2x = x - 2./3.; w3x = x - 1.;
    w1y = y - 1./3.; w2y = y - 2./3.; w3y = y - 1.;
@@ -786,12 +786,12 @@ void BiCubic2DFiniteElement::CalcDShape(
 void BiCubic2DFiniteElement::CalcHessian(
    const IntegrationPoint &ip, DenseMatrix &h) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
-   double w1x, w2x, w3x, w1y, w2y, w3y;
-   double l0x, l1x, l2x, l3x, l0y, l1y, l2y, l3y;
-   double d0x, d1x, d2x, d3x, d0y, d1y, d2y, d3y;
-   double h0x, h1x, h2x, h3x, h0y, h1y, h2y, h3y;
+   real_t w1x, w2x, w3x, w1y, w2y, w3y;
+   real_t l0x, l1x, l2x, l3x, l0y, l1y, l2y, l3y;
+   real_t d0x, d1x, d2x, d3x, d0y, d1y, d2y, d3y;
+   real_t h0x, h1x, h2x, h3x, h0y, h1y, h2y, h3y;
 
    w1x = x - 1./3.; w2x = x - 2./3.; w3x = x - 1.;
    w1y = y - 1./3.; w2y = y - 2./3.; w3y = y - 1.;
@@ -857,8 +857,8 @@ Cubic1DFiniteElement::Cubic1DFiniteElement()
 void Cubic1DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   double x = ip.x;
-   double l1 = x,
+   real_t x = ip.x;
+   real_t l1 = x,
           l2 = (1.0-x),
           l3 = (0.33333333333333333333-x),
           l4 = (0.66666666666666666667-x);
@@ -872,7 +872,7 @@ void Cubic1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Cubic1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   double x = ip.x;
+   real_t x = ip.x;
 
    dshape(0,0) = -5.5 + x * (18. - 13.5 * x);
    dshape(1,0) = 1. - x * (9. - 13.5 * x);
@@ -909,8 +909,8 @@ Cubic2DFiniteElement::Cubic2DFiniteElement()
 void Cubic2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   double x = ip.x, y = ip.y;
-   double l1 = (-1. + x + y),
+   real_t x = ip.x, y = ip.y;
+   real_t l1 = (-1. + x + y),
           lx = (-1. + 3.*x),
           ly = (-1. + 3.*y);
 
@@ -929,7 +929,7 @@ void Cubic2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Cubic2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    dshape(0,0) =  0.5*(-11. + 36.*y - 9.*(x*(-4. + 3.*x) + 6.*x*y + 3.*y*y));
    dshape(1,0) =  1. + 4.5*x*(-2. + 3.*x);
@@ -957,7 +957,7 @@ void Cubic2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 void Cubic2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                                         DenseMatrix &h) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    h(0,0) = 18.-27.*(x+y);
    h(0,1) = 18.-27.*(x+y);
@@ -1069,7 +1069,7 @@ Cubic3DFiniteElement::Cubic3DFiniteElement()
 void Cubic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    shape(0) = -((-1 + x + y + z)*(-2 + 3*x + 3*y + 3*z)*
                 (-1 + 3*x + 3*y + 3*z))/2.;
@@ -1097,7 +1097,7 @@ void Cubic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Cubic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    dshape(0,0) = (-11 + 36*y + 36*z - 9*(3*pow(x,2) + 3*pow(y + z,2) +
                                          x*(-4 + 6*y + 6*z)))/2.;
@@ -1241,7 +1241,7 @@ void Linear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 {
    if (dshape.Height() == 4)
    {
-      double *A = &dshape(0,0);
+      real_t *A = &dshape(0,0);
       A[0] = -1.; A[4] = -1.; A[8]  = -1.;
       A[1] =  1.; A[5] =  0.; A[9]  =  0.;
       A[2] =  0.; A[6] =  1.; A[10] =  0.;
@@ -1341,7 +1341,7 @@ const
 
 
 LinearPyramidFiniteElement::LinearPyramidFiniteElement()
-   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1, FunctionSpace::Uk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -1363,10 +1363,10 @@ LinearPyramidFiniteElement::LinearPyramidFiniteElement()
 void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
-   double ox = 1.-x-z, oy = 1.-y-z, oz = 1.-z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
+   real_t ox = 1.-x-z, oy = 1.-y-z, oz = 1.-z;
 
-   double tol = 1e-6;
+   real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -1381,7 +1381,7 @@ void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
       return;
    }
 
-   double ozi = 1. / oz;
+   real_t ozi = 1. / oz;
 
    shape(0) = ox * oy * ozi;
    shape(1) =  x * oy * ozi;
@@ -1393,10 +1393,10 @@ void LinearPyramidFiniteElement::CalcShape(const IntegrationPoint &ip,
 void LinearPyramidFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                             DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
-   double ox = 1.-x-z, oy = 1.-y-z, oz = 1.-z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
+   real_t ox = 1.-x-z, oy = 1.-y-z, oz = 1.-z;
 
-   double tol = 1e-6;
+   real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -1428,7 +1428,7 @@ void LinearPyramidFiniteElement::CalcDShape(const IntegrationPoint &ip,
       return;
    }
 
-   double ozi = 1. / oz;
+   real_t ozi = 1. / oz;
 
    dshape(0,0) = - oy * ozi;
    dshape(0,1) = - ox * ozi;
@@ -1500,7 +1500,7 @@ Quadratic3DFiniteElement::Quadratic3DFiniteElement()
 void Quadratic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
-   double L0, L1, L2, L3;
+   real_t L0, L1, L2, L3;
 
    L0 = 1. - ip.x - ip.y - ip.z;
    L1 = ip.x;
@@ -1522,7 +1522,7 @@ void Quadratic3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Quadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
-   double x, y, z, L0;
+   real_t x, y, z, L0;
 
    x = ip.x;
    y = ip.y;
@@ -1580,8 +1580,8 @@ TriLinear3DFiniteElement::TriLinear3DFiniteElement()
 void TriLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
-   double ox = 1.-x, oy = 1.-y, oz = 1.-z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
+   real_t ox = 1.-x, oy = 1.-y, oz = 1.-z;
 
    shape(0) = ox * oy * oz;
    shape(1) =  x * oy * oz;
@@ -1596,8 +1596,8 @@ void TriLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
-   double ox = 1.-x, oy = 1.-y, oz = 1.-z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
+   real_t ox = 1.-x, oy = 1.-y, oz = 1.-z;
 
    dshape(0,0) = - oy * oz;
    dshape(0,1) = - ox * oz;
@@ -1696,7 +1696,7 @@ CrouzeixRaviartQuadFiniteElement::CrouzeixRaviartQuadFiniteElement()
 void CrouzeixRaviartQuadFiniteElement::CalcShape(const IntegrationPoint &ip,
                                                  Vector &shape) const
 {
-   const double l1 = ip.x+ip.y-0.5, l2 = 1.-l1, l3 = ip.x-ip.y+0.5, l4 = 1.-l3;
+   const real_t l1 = ip.x+ip.y-0.5, l2 = 1.-l1, l3 = ip.x-ip.y+0.5, l4 = 1.-l3;
 
    shape(0) = l2 * l3;
    shape(1) = l1 * l3;
@@ -1707,7 +1707,7 @@ void CrouzeixRaviartQuadFiniteElement::CalcShape(const IntegrationPoint &ip,
 void CrouzeixRaviartQuadFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                                   DenseMatrix &dshape) const
 {
-   const double x2 = 2.*ip.x, y2 = 2.*ip.y;
+   const real_t x2 = 2.*ip.x, y2 = 2.*ip.y;
 
    dshape(0,0) =  1. - x2; dshape(0,1) = -2. + y2;
    dshape(1,0) =       x2; dshape(1,1) =  1. - y2;
@@ -1730,7 +1730,7 @@ RT0TriangleFiniteElement::RT0TriangleFiniteElement()
 void RT0TriangleFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    shape(0,0) = x;
    shape(0,1) = y - 1.;
@@ -1748,7 +1748,7 @@ void RT0TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(2) = 2.;
 }
 
-const double RT0TriangleFiniteElement::nk[3][2] =
+const real_t RT0TriangleFiniteElement::nk[3][2] =
 { {0, -1}, {1, 1}, {-1, 0} };
 
 void RT0TriangleFiniteElement::GetLocalInterpolation (
@@ -1765,7 +1765,7 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 3; j++)
       {
-         double d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
+         real_t d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
@@ -1784,7 +1784,7 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (k = 0; k < 3; k++)
@@ -1807,7 +1807,7 @@ void RT0TriangleFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (int k = 0; k < 3; k++)
@@ -1840,7 +1840,7 @@ RT0QuadFiniteElement::RT0QuadFiniteElement()
 void RT0QuadFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                       DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    shape(0,0) = 0;
    shape(0,1) = y - 1.;
@@ -1861,7 +1861,7 @@ void RT0QuadFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(3) = 1.;
 }
 
-const double RT0QuadFiniteElement::nk[4][2] =
+const real_t RT0QuadFiniteElement::nk[4][2] =
 { {0, -1}, {1, 0}, {0, 1}, {-1, 0} };
 
 void RT0QuadFiniteElement::GetLocalInterpolation (
@@ -1878,7 +1878,7 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 4; j++)
       {
-         double d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
+         real_t d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
@@ -1897,7 +1897,7 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (k = 0; k < 4; k++)
@@ -1920,7 +1920,7 @@ void RT0QuadFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (int k = 0; k < 4; k++)
@@ -1960,7 +1960,7 @@ RT1TriangleFiniteElement::RT1TriangleFiniteElement()
 void RT1TriangleFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    shape(0,0) = -2 * x * (-1 + x + 2 * y);
    shape(0,1) = -2 * (-1 + y) * (-1 + x + 2 * y);
@@ -1983,7 +1983,7 @@ void RT1TriangleFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void RT1TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                             Vector &divshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    divshape(0) = -2 * (-4 + 3 * x + 6 * y);
    divshape(1) =  2 + 6 * x - 6 * y;
@@ -1995,7 +1995,7 @@ void RT1TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(7) = -9 * (-1 + x + 2 * y);
 }
 
-const double RT1TriangleFiniteElement::nk[8][2] =
+const real_t RT1TriangleFiniteElement::nk[8][2] =
 {
    { 0,-1}, { 0,-1},
    { 1, 1}, { 1, 1},
@@ -2017,7 +2017,7 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 8; j++)
       {
-         double d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
+         real_t d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
@@ -2036,7 +2036,7 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (k = 0; k < 8; k++)
@@ -2058,7 +2058,7 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
 void RT1TriangleFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (int k = 0; k < 8; k++)
@@ -2114,7 +2114,7 @@ RT1QuadFiniteElement::RT1QuadFiniteElement()
 void RT1QuadFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                       DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    // y = 0
    shape(0,0)  = 0;
@@ -2151,7 +2151,7 @@ void RT1QuadFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void RT1QuadFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                         Vector &divshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
    divshape(0)  = -(-3. + 4.*y)*( 2. - 3.*x);
    divshape(1)  = -(-3. + 4.*y)*(-1. + 3.*x);
@@ -2167,7 +2167,7 @@ void RT1QuadFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(11) = ( 4. - 8.*y)*(-1. + 3.*x);
 }
 
-const double RT1QuadFiniteElement::nk[12][2] =
+const real_t RT1QuadFiniteElement::nk[12][2] =
 {
    // y = 0
    {0,-1}, {0,-1},
@@ -2197,7 +2197,7 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 12; j++)
       {
-         double d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
+         real_t d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
@@ -2216,7 +2216,7 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (k = 0; k < 12; k++)
@@ -2238,7 +2238,7 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
 void RT1QuadFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (int k = 0; k < 12; k++)
@@ -2254,7 +2254,7 @@ void RT1QuadFiniteElement::Project (
    }
 }
 
-const double RT2TriangleFiniteElement::M[15][15] =
+const real_t RT2TriangleFiniteElement::M[15][15] =
 {
    // *INDENT-OFF*
    {
@@ -2316,7 +2316,7 @@ const double RT2TriangleFiniteElement::M[15][15] =
 RT2TriangleFiniteElement::RT2TriangleFiniteElement()
    : VectorFiniteElement(2, Geometry::TRIANGLE, 15, 3, H_DIV)
 {
-   const double p = 0.11270166537925831148;
+   const real_t p = 0.11270166537925831148;
 
    Nodes.IntPoint(0).x = p;
    Nodes.IntPoint(0).y = 0.0;
@@ -2353,18 +2353,18 @@ RT2TriangleFiniteElement::RT2TriangleFiniteElement()
 void RT2TriangleFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
-   double Bx[15] = {1., 0., x, 0., y, 0., x*x, 0., x*y, 0., y*y, 0., x*x*x,
+   real_t Bx[15] = {1., 0., x, 0., y, 0., x*x, 0., x*y, 0., y*y, 0., x*x*x,
                     x*x*y, x*y*y
                    };
-   double By[15] = {0., 1., 0., x, 0., y, 0., x*x, 0., x*y, 0., y*y,
+   real_t By[15] = {0., 1., 0., x, 0., y, 0., x*x, 0., x*y, 0., y*y,
                     x*x*y, x*y*y, y*y*y
                    };
 
    for (int i = 0; i < 15; i++)
    {
-      double cx = 0.0, cy = 0.0;
+      real_t cx = 0.0, cy = 0.0;
       for (int j = 0; j < 15; j++)
       {
          cx += M[i][j] * Bx[j];
@@ -2378,15 +2378,17 @@ void RT2TriangleFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void RT2TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                             Vector &divshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
+   constexpr real_t f2 = 2.0;
+   constexpr real_t f4 = 4.0;
 
-   double DivB[15] = {0., 0., 1., 0., 0., 1., 2.*x, 0., y, x, 0., 2.*y,
-                      4.*x*x, 4.*x*y, 4.*y*y
+   real_t DivB[15] = {0., 0., 1., 0., 0., 1., f2*x, 0., y, x, 0., f2*y,
+                      f4*x*x, f4*x*y, f4*y*y
                      };
 
    for (int i = 0; i < 15; i++)
    {
-      double div = 0.0;
+      real_t div = 0.0;
       for (int j = 0; j < 15; j++)
       {
          div += M[i][j] * DivB[j];
@@ -2395,9 +2397,9 @@ void RT2TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const double RT2QuadFiniteElement::pt[4] = {0.,1./3.,2./3.,1.};
+const real_t RT2QuadFiniteElement::pt[4] = {0.,1./3.,2./3.,1.};
 
-const double RT2QuadFiniteElement::dpt[3] = {0.25,0.5,0.75};
+const real_t RT2QuadFiniteElement::dpt[3] = {0.25,0.5,0.75};
 
 RT2QuadFiniteElement::RT2QuadFiniteElement()
    : VectorFiniteElement(2, Geometry::SQUARE, 24, 3, H_DIV,
@@ -2440,44 +2442,44 @@ RT2QuadFiniteElement::RT2QuadFiniteElement()
 void RT2QuadFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                       DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
-   double ax0 =  pt[0] - x;
-   double ax1 =  pt[1] - x;
-   double ax2 =  pt[2] - x;
-   double ax3 =  pt[3] - x;
+   real_t ax0 =  pt[0] - x;
+   real_t ax1 =  pt[1] - x;
+   real_t ax2 =  pt[2] - x;
+   real_t ax3 =  pt[3] - x;
 
-   double by0 = dpt[0] - y;
-   double by1 = dpt[1] - y;
-   double by2 = dpt[2] - y;
+   real_t by0 = dpt[0] - y;
+   real_t by1 = dpt[1] - y;
+   real_t by2 = dpt[2] - y;
 
-   double ay0 =  pt[0] - y;
-   double ay1 =  pt[1] - y;
-   double ay2 =  pt[2] - y;
-   double ay3 =  pt[3] - y;
+   real_t ay0 =  pt[0] - y;
+   real_t ay1 =  pt[1] - y;
+   real_t ay2 =  pt[2] - y;
+   real_t ay3 =  pt[3] - y;
 
-   double bx0 = dpt[0] - x;
-   double bx1 = dpt[1] - x;
-   double bx2 = dpt[2] - x;
+   real_t bx0 = dpt[0] - x;
+   real_t bx1 = dpt[1] - x;
+   real_t bx2 = dpt[2] - x;
 
-   double A01 =  pt[0] -  pt[1];
-   double A02 =  pt[0] -  pt[2];
-   double A12 =  pt[1] -  pt[2];
-   double A03 =  pt[0] -  pt[3];
-   double A13 =  pt[1] -  pt[3];
-   double A23 =  pt[2] -  pt[3];
+   real_t A01 =  pt[0] -  pt[1];
+   real_t A02 =  pt[0] -  pt[2];
+   real_t A12 =  pt[1] -  pt[2];
+   real_t A03 =  pt[0] -  pt[3];
+   real_t A13 =  pt[1] -  pt[3];
+   real_t A23 =  pt[2] -  pt[3];
 
-   double B01 = dpt[0] - dpt[1];
-   double B02 = dpt[0] - dpt[2];
-   double B12 = dpt[1] - dpt[2];
+   real_t B01 = dpt[0] - dpt[1];
+   real_t B02 = dpt[0] - dpt[2];
+   real_t B12 = dpt[1] - dpt[2];
 
-   double tx0 =  (bx1*bx2)/(B01*B02);
-   double tx1 = -(bx0*bx2)/(B01*B12);
-   double tx2 =  (bx0*bx1)/(B02*B12);
+   real_t tx0 =  (bx1*bx2)/(B01*B02);
+   real_t tx1 = -(bx0*bx2)/(B01*B12);
+   real_t tx2 =  (bx0*bx1)/(B02*B12);
 
-   double ty0 =  (by1*by2)/(B01*B02);
-   double ty1 = -(by0*by2)/(B01*B12);
-   double ty2 =  (by0*by1)/(B02*B12);
+   real_t ty0 =  (by1*by2)/(B01*B02);
+   real_t ty1 = -(by0*by2)/(B01*B12);
+   real_t ty2 =  (by0*by1)/(B02*B12);
 
    // y = 0 (p[0])
    shape(0,  0) =  0;
@@ -2540,46 +2542,46 @@ void RT2QuadFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void RT2QuadFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                         Vector &divshape) const
 {
-   double x = ip.x, y = ip.y;
+   real_t x = ip.x, y = ip.y;
 
-   double a01 =  pt[0]*pt[1];
-   double a02 =  pt[0]*pt[2];
-   double a12 =  pt[1]*pt[2];
-   double a03 =  pt[0]*pt[3];
-   double a13 =  pt[1]*pt[3];
-   double a23 =  pt[2]*pt[3];
+   real_t a01 =  pt[0]*pt[1];
+   real_t a02 =  pt[0]*pt[2];
+   real_t a12 =  pt[1]*pt[2];
+   real_t a03 =  pt[0]*pt[3];
+   real_t a13 =  pt[1]*pt[3];
+   real_t a23 =  pt[2]*pt[3];
 
-   double bx0 = dpt[0] - x;
-   double bx1 = dpt[1] - x;
-   double bx2 = dpt[2] - x;
+   real_t bx0 = dpt[0] - x;
+   real_t bx1 = dpt[1] - x;
+   real_t bx2 = dpt[2] - x;
 
-   double by0 = dpt[0] - y;
-   double by1 = dpt[1] - y;
-   double by2 = dpt[2] - y;
+   real_t by0 = dpt[0] - y;
+   real_t by1 = dpt[1] - y;
+   real_t by2 = dpt[2] - y;
 
-   double A01 =  pt[0] -  pt[1];
-   double A02 =  pt[0] -  pt[2];
-   double A12 =  pt[1] -  pt[2];
-   double A03 =  pt[0] -  pt[3];
-   double A13 =  pt[1] -  pt[3];
-   double A23 =  pt[2] -  pt[3];
+   real_t A01 =  pt[0] -  pt[1];
+   real_t A02 =  pt[0] -  pt[2];
+   real_t A12 =  pt[1] -  pt[2];
+   real_t A03 =  pt[0] -  pt[3];
+   real_t A13 =  pt[1] -  pt[3];
+   real_t A23 =  pt[2] -  pt[3];
 
-   double A012 = pt[0] + pt[1] + pt[2];
-   double A013 = pt[0] + pt[1] + pt[3];
-   double A023 = pt[0] + pt[2] + pt[3];
-   double A123 = pt[1] + pt[2] + pt[3];
+   real_t A012 = pt[0] + pt[1] + pt[2];
+   real_t A013 = pt[0] + pt[1] + pt[3];
+   real_t A023 = pt[0] + pt[2] + pt[3];
+   real_t A123 = pt[1] + pt[2] + pt[3];
 
-   double B01 = dpt[0] - dpt[1];
-   double B02 = dpt[0] - dpt[2];
-   double B12 = dpt[1] - dpt[2];
+   real_t B01 = dpt[0] - dpt[1];
+   real_t B02 = dpt[0] - dpt[2];
+   real_t B12 = dpt[1] - dpt[2];
 
-   double tx0 =  (bx1*bx2)/(B01*B02);
-   double tx1 = -(bx0*bx2)/(B01*B12);
-   double tx2 =  (bx0*bx1)/(B02*B12);
+   real_t tx0 =  (bx1*bx2)/(B01*B02);
+   real_t tx1 = -(bx0*bx2)/(B01*B12);
+   real_t tx2 =  (bx0*bx1)/(B02*B12);
 
-   double ty0 =  (by1*by2)/(B01*B02);
-   double ty1 = -(by0*by2)/(B01*B12);
-   double ty2 =  (by0*by1)/(B02*B12);
+   real_t ty0 =  (by1*by2)/(B01*B02);
+   real_t ty1 = -(by0*by2)/(B01*B12);
+   real_t ty2 =  (by0*by1)/(B02*B12);
 
    // y = 0 (p[0])
    divshape(0)  = -(a12 + a13 + a23 - 2.*A123*y + 3.*y*y)/(A01*A02*A03)*tx0;
@@ -2615,7 +2617,7 @@ void RT2QuadFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(23) =  (a01 + a03 + a13 - 2.*A013*y + 3.*y*y)/(A02*A12*A23)*tx2;
 }
 
-const double RT2QuadFiniteElement::nk[24][2] =
+const real_t RT2QuadFiniteElement::nk[24][2] =
 {
    // y = 0
    {0,-1}, {0,-1}, {0,-1},
@@ -2649,7 +2651,7 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 24; j++)
       {
-         double d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
+         real_t d = vshape(j,0)*nk[k][0]+vshape(j,1)*nk[k][1];
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
          {
@@ -2668,7 +2670,7 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (k = 0; k < 24; k++)
@@ -2690,7 +2692,7 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
 void RT2QuadFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   double vk[2];
+   real_t vk[2];
    Vector xk (vk, 2);
 
    for (int k = 0; k < 24; k++)
@@ -2716,7 +2718,7 @@ P1SegmentFiniteElement::P1SegmentFiniteElement()
 void P1SegmentFiniteElement::CalcShape(const IntegrationPoint &ip,
                                        Vector &shape) const
 {
-   double x = ip.x;
+   real_t x = ip.x;
 
    shape(0) = 2. - 3. * x;
    shape(1) = 3. * x - 1.;
@@ -2733,7 +2735,7 @@ void P1SegmentFiniteElement::CalcDShape(const IntegrationPoint &ip,
 P2SegmentFiniteElement::P2SegmentFiniteElement()
    : NodalFiniteElement(1, Geometry::SEGMENT, 3, 2)
 {
-   const double p = 0.11270166537925831148;
+   const real_t p = 0.11270166537925831148;
 
    Nodes.IntPoint(0).x = p;
    Nodes.IntPoint(1).x = 0.5;
@@ -2743,9 +2745,9 @@ P2SegmentFiniteElement::P2SegmentFiniteElement()
 void P2SegmentFiniteElement::CalcShape(const IntegrationPoint &ip,
                                        Vector &shape) const
 {
-   const double p = 0.11270166537925831148;
-   const double w = 1./((1-2*p)*(1-2*p));
-   double x = ip.x;
+   const real_t p = 0.11270166537925831148;
+   const real_t w = 1./((1-2*p)*(1-2*p));
+   real_t x = ip.x;
 
    shape(0) = (2*x-1)*(x-1+p)*w;
    shape(1) = 4*(x-1+p)*(p-x)*w;
@@ -2755,9 +2757,9 @@ void P2SegmentFiniteElement::CalcShape(const IntegrationPoint &ip,
 void P2SegmentFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                         DenseMatrix &dshape) const
 {
-   const double p = 0.11270166537925831148;
-   const double w = 1./((1-2*p)*(1-2*p));
-   double x = ip.x;
+   const real_t p = 0.11270166537925831148;
+   const real_t w = 1./((1-2*p)*(1-2*p));
+   real_t x = ip.x;
 
    dshape(0,0) = (-3+4*x+2*p)*w;
    dshape(1,0) = (4-8*x)*w;
@@ -2774,7 +2776,7 @@ Lagrange1DFiniteElement::Lagrange1DFiniteElement(int degree)
    Nodes.IntPoint(1).x = 1.0;
    for (i = 1; i < m; i++)
    {
-      Nodes.IntPoint(i+1).x = double(i) / m;
+      Nodes.IntPoint(i+1).x = real_t(i) / m;
    }
 
    rwk.SetSize(degree+1);
@@ -2785,7 +2787,7 @@ Lagrange1DFiniteElement::Lagrange1DFiniteElement(int degree)
    rwk(0) = 1.0;
    for (i = 1; i <= m; i++)
    {
-      rwk(i) = rwk(i-1) * ( (double)(m) / (double)(i) );
+      rwk(i) = rwk(i-1) * ( (real_t)(m) / (real_t)(i) );
    }
    for (i = 0; i < m/2+1; i++)
    {
@@ -2800,7 +2802,7 @@ Lagrange1DFiniteElement::Lagrange1DFiniteElement(int degree)
 void Lagrange1DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                         Vector &shape) const
 {
-   double w, wk, x = ip.x;
+   real_t w, wk, x = ip.x;
    int i, k, m = GetOrder();
 
 #ifdef MFEM_THREAD_SAFE
@@ -2814,9 +2816,9 @@ void Lagrange1DFiniteElement::CalcShape(const IntegrationPoint &ip,
    for (i = 0; i <= m; i++)
       if (i != k)
       {
-         wk *= ( rxxk(i) = x - (double)(i) / m );
+         wk *= ( rxxk(i) = x - (real_t)(i) / m );
       }
-   w = wk * ( rxxk(k) = x - (double)(k) / m );
+   w = wk * ( rxxk(k) = x - (real_t)(k) / m );
 
    if (k != 0)
    {
@@ -2848,7 +2850,7 @@ void Lagrange1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Lagrange1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                          DenseMatrix &dshape) const
 {
-   double s, srx, w, wk, x = ip.x;
+   real_t s, srx, w, wk, x = ip.x;
    int i, k, m = GetOrder();
 
 #ifdef MFEM_THREAD_SAFE
@@ -2862,9 +2864,9 @@ void Lagrange1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    for (i = 0; i <= m; i++)
       if (i != k)
       {
-         wk *= ( rxxk(i) = x - (double)(i) / m );
+         wk *= ( rxxk(i) = x - (real_t)(i) / m );
       }
-   w = wk * ( rxxk(k) = x - (double)(k) / m );
+   w = wk * ( rxxk(k) = x - (real_t)(k) / m );
 
    for (i = 0; i <= m; i++)
    {
@@ -2930,7 +2932,7 @@ P1TetNonConfFiniteElement::P1TetNonConfFiniteElement()
 void P1TetNonConfFiniteElement::CalcShape(const IntegrationPoint &ip,
                                           Vector &shape) const
 {
-   double L0, L1, L2, L3;
+   real_t L0, L1, L2, L3;
 
    L1 = ip.x;  L2 = ip.y;  L3 = ip.z;  L0 = 1.0 - L1 - L2 - L3;
    shape(0) = 1.0 - 3.0 * L0;
@@ -3013,7 +3015,7 @@ void P0WdgFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0PyrFiniteElement::P0PyrFiniteElement()
-   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Qk)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Uk)
 {
    Nodes.IntPoint(0).x = 0.375;
    Nodes.IntPoint(0).y = 0.375;
@@ -3244,7 +3246,7 @@ RefinedLinear1DFiniteElement::RefinedLinear1DFiniteElement()
 void RefinedLinear1DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                              Vector &shape) const
 {
-   double x = ip.x;
+   real_t x = ip.x;
 
    if (x <= 0.5)
    {
@@ -3263,7 +3265,7 @@ void RefinedLinear1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void RefinedLinear1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                               DenseMatrix &dshape) const
 {
-   double x = ip.x;
+   real_t x = ip.x;
 
    if (x <= 0.5)
    {
@@ -3301,7 +3303,7 @@ void RefinedLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 {
    int i;
 
-   double L0, L1, L2;
+   real_t L0, L1, L2;
    L0 = 2.0 * ( 1. - ip.x - ip.y );
    L1 = 2.0 * ( ip.x );
    L2 = 2.0 * ( ip.y );
@@ -3349,12 +3351,12 @@ void RefinedLinear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 {
    int i,j;
 
-   double L0, L1, L2;
+   real_t L0, L1, L2;
    L0 = 2.0 * ( 1. - ip.x - ip.y );
    L1 = 2.0 * ( ip.x );
    L2 = 2.0 * ( ip.y );
 
-   double DL0[2], DL1[2], DL2[2];
+   real_t DL0[2], DL1[2], DL2[2];
    DL0[0] = -2.0; DL0[1] = -2.0;
    DL1[0] =  2.0; DL1[1] =  0.0;
    DL2[0] =  0.0; DL2[1] =  2.0;
@@ -3443,7 +3445,7 @@ void RefinedLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 {
    int i;
 
-   double L0, L1, L2, L3, L4, L5;
+   real_t L0, L1, L2, L3, L4, L5;
    L0 = 2.0 * ( 1. - ip.x - ip.y - ip.z );
    L1 = 2.0 * ( ip.x );
    L2 = 2.0 * ( ip.y );
@@ -3530,7 +3532,7 @@ void RefinedLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 {
    int i,j;
 
-   double L0, L1, L2, L3, L4, L5;
+   real_t L0, L1, L2, L3, L4, L5;
    L0 = 2.0 * ( 1. - ip.x - ip.y - ip.z );
    L1 = 2.0 * ( ip.x );
    L2 = 2.0 * ( ip.y );
@@ -3538,7 +3540,7 @@ void RefinedLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    L4 = 2.0 * ( ip.x + ip.y );
    L5 = 2.0 * ( ip.y + ip.z );
 
-   double DL0[3], DL1[3], DL2[3], DL3[3], DL4[3], DL5[3];
+   real_t DL0[3], DL1[3], DL2[3], DL3[3], DL4[3], DL5[3];
    DL0[0] = -2.0; DL0[1] = -2.0; DL0[2] = -2.0;
    DL1[0] =  2.0; DL1[1] =  0.0; DL1[2] =  0.0;
    DL2[0] =  0.0; DL2[1] =  2.0; DL2[2] =  0.0;
@@ -3662,8 +3664,8 @@ void RefinedBiLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                                Vector &shape) const
 {
    int i;
-   double x = ip.x, y = ip.y;
-   double Lx, Ly;
+   real_t x = ip.x, y = ip.y;
+   real_t Lx, Ly;
    Lx = 2.0 * ( 1. - x );
    Ly = 2.0 * ( 1. - y );
 
@@ -3713,8 +3715,8 @@ void RefinedBiLinear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                                 DenseMatrix &dshape) const
 {
    int i,j;
-   double x = ip.x, y = ip.y;
-   double Lx, Ly;
+   real_t x = ip.x, y = ip.y;
+   real_t Lx, Ly;
    Lx = 2.0 * ( 1. - x );
    Ly = 2.0 * ( 1. - y );
 
@@ -3785,9 +3787,9 @@ void RefinedBiLinear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 RefinedTriLinear3DFiniteElement::RefinedTriLinear3DFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 27, 2, FunctionSpace::rQk)
 {
-   double I[27];
-   double J[27];
-   double K[27];
+   real_t I[27];
+   real_t J[27];
+   real_t K[27];
    // nodes
    I[ 0] = 0.0; J[ 0] = 0.0; K[ 0] = 0.0;
    I[ 1] = 1.0; J[ 1] = 0.0; K[ 1] = 0.0;
@@ -3832,8 +3834,8 @@ void RefinedTriLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                                 Vector &shape) const
 {
    int i, N[8];
-   double Lx, Ly, Lz;
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t Lx, Ly, Lz;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    for (i = 0; i < 27; i++)
    {
@@ -3975,8 +3977,8 @@ void RefinedTriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                                  DenseMatrix &dshape) const
 {
    int i, j, N[8];
-   double Lx, Ly, Lz;
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t Lx, Ly, Lz;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    for (i = 0; i < 27; i++)
       for (j = 0; j < 3; j++)
@@ -4196,7 +4198,7 @@ Nedelec1HexFiniteElement::Nedelec1HexFiniteElement()
 void Nedelec1HexFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    shape(0,0) = (1. - y) * (1. - z);
    shape(0,1) = 0.;
@@ -4252,7 +4254,7 @@ void Nedelec1HexFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                              DenseMatrix &curl_shape)
 const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    curl_shape(0,0) = 0.;
    curl_shape(0,1) = y - 1.;
@@ -4303,7 +4305,7 @@ const
    curl_shape(11,2) = 0.;
 }
 
-const double Nedelec1HexFiniteElement::tk[12][3] =
+const real_t Nedelec1HexFiniteElement::tk[12][3] =
 {
    {1,0,0}, {0,1,0}, {1,0,0}, {0,1,0},
    {1,0,0}, {0,1,0}, {1,0,0}, {0,1,0},
@@ -4324,7 +4326,7 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -4342,7 +4344,7 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear (more to have embedding?)
    const DenseMatrix &J = Trans.Jacobian();
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -4367,7 +4369,7 @@ void Nedelec1HexFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < dof; k++)
@@ -4436,7 +4438,7 @@ Nedelec1TetFiniteElement::Nedelec1TetFiniteElement()
 void Nedelec1TetFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    shape(0,0) = 1. - y - z;
    shape(0,1) = x;
@@ -4492,7 +4494,7 @@ const
    curl_shape(5,2) = 0.;
 }
 
-const double Nedelec1TetFiniteElement::tk[6][3] =
+const real_t Nedelec1TetFiniteElement::tk[6][3] =
 {{1,0,0}, {0,1,0}, {0,0,1}, {-1,1,0}, {-1,0,1}, {0,-1,1}};
 
 void Nedelec1TetFiniteElement::GetLocalInterpolation (
@@ -4509,7 +4511,7 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -4527,7 +4529,7 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    const DenseMatrix &J = Trans.Jacobian();
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -4552,7 +4554,7 @@ void Nedelec1TetFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < dof; k++)
@@ -4633,7 +4635,7 @@ Nedelec1WdgFiniteElement::Nedelec1WdgFiniteElement()
 void Nedelec1WdgFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
 
    shape(0,0) = (1. - y) * (1. - z);
    shape(0,1) = x * (1. - z);
@@ -4676,7 +4678,7 @@ void Nedelec1WdgFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                              DenseMatrix &curl_shape)
 const
 {
-   double x = ip.x, y = ip.y, z2 = 2. * ip.z;
+   real_t x = ip.x, y = ip.y, z2 = 2. * ip.z;
 
    curl_shape(0,0) =   x;
    curl_shape(0,1) = - 1. + y;
@@ -4715,7 +4717,7 @@ const
    curl_shape(8,2) =   0.;
 }
 
-const double Nedelec1WdgFiniteElement::tk[9][3] =
+const real_t Nedelec1WdgFiniteElement::tk[9][3] =
 {
    {1,0,0}, {-1,1,0}, {0,-1,0}, {1,0,0}, {-1,1,0}, {0,-1,0},
    {0,0,1}, {0,0,1}, {0,0,1}
@@ -4735,7 +4737,7 @@ void Nedelec1WdgFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -4753,7 +4755,7 @@ void Nedelec1WdgFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    const DenseMatrix &J = Trans.Jacobian();
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -4778,7 +4780,7 @@ void Nedelec1WdgFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < dof; k++)
@@ -4816,7 +4818,7 @@ void Nedelec1WdgFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec1PyrFiniteElement::Nedelec1PyrFiniteElement()
-   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL, FunctionSpace::Uk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -4855,16 +4857,20 @@ Nedelec1PyrFiniteElement::Nedelec1PyrFiniteElement()
 void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z, z2 = 2. * ip.z;
-   double ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+   real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * ip.z;
+   real_t ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
 
-   double tol = 1e-6;
+   real_t tol = 1e-6;
 
    if (oz <= tol)
    {
       // We must return the limit of the basis functions as z->1.  In order to
       // remain inside the pyramid in this limit the x and y coordinates must
-      // be approaching 0. The resulting limiting basis function values are:
+      // be approaching 0. Unfortunately we obtain different limits if we
+      // approach (0,0,1) from different directions. The values provided below
+      // are the limits as x->(1-z)/2 and y->(1-z)/2 i.e. along the line from
+      // the center of the base of the pyramid towards the apex. The resulting
+      // limiting basis function values are:
       shape(0,0) =   0.;
       shape(0,1) =   0.;
       shape(0,2) =   0.;
@@ -4881,26 +4887,26 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       shape(3,1) =   0.;
       shape(3,2) =   0.;
 
-      shape(4,0) =   1.;
-      shape(4,1) =   1.;
-      shape(4,2) =   1.;
+      shape(4,0) =   0.5;
+      shape(4,1) =   0.5;
+      shape(4,2) =   0.75;
 
-      shape(5,0) = - 1.;
-      shape(5,1) =   0.;
-      shape(5,2) =   0.;
+      shape(5,0) = - 0.5;
+      shape(5,1) =   0.5;
+      shape(5,2) =   0.25;
 
-      shape(6,0) =   0.;
-      shape(6,1) =   0.;
-      shape(6,2) =   0.;
+      shape(6,0) = - 0.5;
+      shape(6,1) = - 0.5;
+      shape(6,2) = - 0.25;
 
-      shape(7,0) =   0.;
-      shape(7,1) = - 1.;
-      shape(7,2) =   0.;
+      shape(7,0) =   0.5;
+      shape(7,1) = - 0.5;
+      shape(7,2) =   0.25;
 
       return;
    }
 
-   double ozi = 1.0 / oz;
+   real_t ozi = 1.0 / oz;
 
    shape(0,0) =   oy;
    shape(0,1) =   0.;
@@ -4939,10 +4945,536 @@ void Nedelec1PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                              DenseMatrix &curl_shape)
 const
 {
-   double x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
-   double ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+   real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
+   real_t ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
 
-   double tol = 1e-6;
+   real_t tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis function derivatives as z->1.
+      // In order to remain inside the pyramid in this limit the x and y
+      // coordinates must be approaching 0. The resulting limiting basis
+      // function values are:
+      curl_shape(0,0) = - 0.5;
+      curl_shape(0,1) = - 1.5;
+      curl_shape(0,2) =   1.;
+
+      curl_shape(1,0) =   0.5;
+      curl_shape(1,1) = - 0.5;
+      curl_shape(1,2) =   1.;
+
+      curl_shape(2,0) =   0.5;
+      curl_shape(2,1) = - 0.5;
+      curl_shape(2,2) = - 1.;
+
+      curl_shape(3,0) =   1.5;
+      curl_shape(3,1) =   0.5;
+      curl_shape(3,2) = - 1.;
+
+      curl_shape(4,0) = - 1.;
+      curl_shape(4,1) =   1.;
+      curl_shape(4,2) =   0.;
+
+      curl_shape(5,0) = - 1.;
+      curl_shape(5,1) = - 1.;
+      curl_shape(5,2) =   0.;
+
+      curl_shape(6,0) =   1.;
+      curl_shape(6,1) = - 1.;
+      curl_shape(6,2) =   0.;
+
+      curl_shape(7,0) =   1.;
+      curl_shape(7,1) =   1.;
+      curl_shape(7,2) =   0.;
+
+      return;
+   }
+
+   real_t ozi = 1. / oz;
+
+   curl_shape(0,0) = - x * ozi;
+   curl_shape(0,1) = - 2. + y * ozi;
+   curl_shape(0,2) =   1.;
+
+   curl_shape(1,0) =   x * ozi;
+   curl_shape(1,1) = - y * ozi;
+   curl_shape(1,2) =   1.;
+
+   curl_shape(2,0) =   x * ozi;
+   curl_shape(2,1) = - y * ozi;
+   curl_shape(2,2) = - 1.;
+
+   curl_shape(3,0) =   (2. - x  - z2) * ozi;
+   curl_shape(3,1) =   y * ozi;
+   curl_shape(3,2) = - 1.;
+
+   curl_shape(4,0) = - 2. * ox * ozi;
+   curl_shape(4,1) =   2. * oy * ozi;
+   curl_shape(4,2) =   0.;
+
+   curl_shape(5,0) = - 2. * x * ozi;
+   curl_shape(5,1) = - 2. * oy * ozi;
+   curl_shape(5,2) =   0.;
+
+   curl_shape(6,0) =   2. * x * ozi;
+   curl_shape(6,1) = - 2. * y * ozi;
+   curl_shape(6,2) =   0.;
+
+   curl_shape(7,0) =   2. * ox * ozi;
+   curl_shape(7,1) =   2. * y * ozi;
+   curl_shape(7,2) =   0.;
+}
+
+const real_t Nedelec1PyrFiniteElement::tk[8][3] =
+{{1,0,0}, {0,1,0}, {1,0,0}, {0,1,0}, {0,0,1}, {-1,0,1}, {-1,-1,1}, {0,-1,1}};
+
+void Nedelec1PyrFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < dof; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < dof; j++)
+      {
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+                      vshape(j,2)*tk[k][2] );
+         if (j == k) { d -= 1.0; }
+         if (fabs(d) > 1.0e-12)
+         {
+            mfem::err << "Nedelec1PyrFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   const DenseMatrix &J = Trans.Jacobian();
+   real_t vk[3];
+   Vector xk (vk, 3);
+
+   for (k = 0; k < dof; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
+      CalcVShape (ip, vshape);
+      //  vk = J tk
+      vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2];
+      vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2];
+      vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2];
+      for (j = 0; j < dof; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void Nedelec1PyrFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   real_t vk[3];
+   Vector xk (vk, 3);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      const DenseMatrix &J = Trans.Jacobian();
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t J tk
+      dofs(k) =
+         vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
+         vk[1] * ( J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2] ) +
+         vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
+   }
+}
+
+void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &grad) const
+{
+   DenseMatrix dshape(fe.GetDof(), 3);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk[k], grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
+   }
+}
+
+
+Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
+   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_CURL, FunctionSpace::Uk)
+{
+   const real_t *eop = poly1d.OpenPoints(2 - 1);
+   const real_t  fop = 1. / 3.;
+
+   // not real nodes ...
+   Nodes.IntPoint(0).Set3(eop[0], 0., 0.);
+   Nodes.IntPoint(1).Set3(eop[1], 0., 0.);
+
+   Nodes.IntPoint(2).Set3(1.0, eop[0], 0.);
+   Nodes.IntPoint(3).Set3(1.0, eop[1], 0.);
+
+   Nodes.IntPoint(4).Set3(eop[0], 1.0, 0.);
+   Nodes.IntPoint(5).Set3(eop[1], 1.0, 0.);
+
+   Nodes.IntPoint(6).Set3(0., eop[0], 0.);
+   Nodes.IntPoint(7).Set3(0., eop[1], 0.);
+
+   Nodes.IntPoint(8).Set3(0., 0., eop[0]);
+   Nodes.IntPoint(9).Set3(0., 0., eop[1]);
+
+   Nodes.IntPoint(10).Set3(eop[1], 0., eop[0]);
+   Nodes.IntPoint(11).Set3(eop[0], 0., eop[1]);
+
+   Nodes.IntPoint(12).Set3(eop[1], eop[1], eop[0]);
+   Nodes.IntPoint(13).Set3(eop[0], eop[0], eop[1]);
+
+   Nodes.IntPoint(14).Set3(0., eop[1], eop[0]);
+   Nodes.IntPoint(15).Set3(0., eop[0], eop[1]);
+
+   Nodes.IntPoint(16).Set3(eop[0], 0.5, 0.);
+   Nodes.IntPoint(17).Set3(eop[1], 0.5, 0.);
+
+   Nodes.IntPoint(18).Set3(0.5, eop[0], 0.);
+   Nodes.IntPoint(19).Set3(0.5, eop[1], 0.);
+
+   Nodes.IntPoint(20).Set3(fop, 0., fop);
+   Nodes.IntPoint(21).Set3(fop, 0., fop);
+
+   Nodes.IntPoint(22).Set3(2.*fop, fop, fop);
+   Nodes.IntPoint(23).Set3(2.*fop, fop, fop);
+
+   Nodes.IntPoint(24).Set3(fop, 2.*fop, fop);
+   Nodes.IntPoint(25).Set3(fop, 2.*fop, fop);
+
+   Nodes.IntPoint(26).Set3(0., fop, fop);
+   Nodes.IntPoint(27).Set3(0., fop, fop);
+
+   {
+      int n = 28;
+      DenseMatrix I(n,n);
+      DenseMatrix vecs(n,3);
+      I = 0.0;
+
+      for (int i=0; i<n; i++)
+      {
+         CalcVShape(Nodes.IntPoint(i), vecs);
+         for (int j=0; j<n; j++)
+         {
+            I(j,i) = vecs(j,0)*tk[i][0]+vecs(j,1)*tk[i][1]+vecs(j,2)*tk[i][2];
+         }
+      }
+   }
+}
+
+void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   shape = 0.0;
+
+   const real_t one = 1.0;
+   const real_t x = ip.x, y = ip.y, z = ip.z;
+   const real_t ox = one - x - z, oy = one - y - z, oz = one - z;
+   const real_t sq3 = sqrt(3.0);
+   const real_t tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis functions as z->1.  In order to
+      // remain inside the pyramid in this limit the x and y coordinates must
+      // be approaching 0. The resulting limiting basis function values are:
+      shape(0,0) =   0.;
+      shape(0,1) =   0.;
+      shape(0,2) =   0.;
+
+      shape(1,0) =   0.;
+      shape(1,1) =   0.;
+      shape(1,2) =   0.;
+
+      shape(2,0) =   0.;
+      shape(2,1) =   0.;
+      shape(2,2) =   0.;
+
+      shape(3,0) =   0.;
+      shape(3,1) =   0.;
+      shape(3,2) =   0.;
+
+      shape(4,0) =   0.;
+      shape(4,1) =   0.;
+      shape(4,2) =   0.;
+
+      shape(5,0) =   0.;
+      shape(5,1) =   0.;
+      shape(5,2) =   0.;
+
+      shape(6,0) =   0.;
+      shape(6,1) =   0.;
+      shape(6,2) =   0.;
+
+      shape(7,0) =   0.;
+      shape(7,1) =   0.;
+      shape(7,2) =   0.;
+
+      return;
+   }
+
+   const real_t ozi = one / oz;
+
+   const real_t me0120[3] = {oy, 0., x * oy * ozi};
+   const real_t me1120[3] = {(x - ox) * oy, 0., (x - ox) * x * oy * ozi};
+
+   const real_t me0121[3] = {y, 0., x * y * ozi};
+   const real_t me1121[3] = {(x - ox) * y, 0., (x - ox) * x * y * ozi};
+
+   const real_t me0210[3] = {0., ox, ox * y * ozi};
+   const real_t me1210[3] = {0., ox * (y - oy), ox * y * (y - oy) * ozi};
+
+   const real_t me0211[3] = {0., x, x * y * ozi};
+   const real_t me1211[3] = {0., x * (y - oy), x * y * (y - oy) * ozi};
+
+   const real_t te01[3] = {oy * z * ozi, ox * z * ozi,
+                           (ox * oy + (x * oy + ox * y) * z) * ozi * ozi
+                          };
+   const real_t te11[3] = {oy * z * (z * oz - ox * oy) * ozi * ozi,
+                           ox * z * (z * oz - ox * oy) * ozi * ozi,
+                           (ox * oy + z * (x * oy + ox * y)) *
+                           (z * oz - ox * oy) * ozi * ozi * ozi
+                          };
+
+   const real_t te02[3] = {-oy * z * ozi, x * z * ozi,
+                           x * (y * z + oy * oz) * ozi * ozi
+                          };
+   const real_t te12[3] = {oy * z * (x * oy - z * oz) * ozi * ozi,
+                           -x * z * (x * oy - z * oz) * ozi * ozi,
+                           -x * (y * z + oy * oz) * (x * oy - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
+   const real_t te03[3] = {-y * z * ozi, -x * z * ozi,
+                           x * y * (one - 2_r * z) * ozi * ozi
+                          };
+   const real_t te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
+                           x * z * (x * y - z * oz) * ozi * ozi,
+                           -x * y * (one - 2_r * z) * (x * y - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
+   const real_t te04[3] = {y * z * ozi, -ox * z * ozi,
+                           y * (x * z + ox * oz) * ozi * ozi
+                          };
+   const real_t te14[3] = {-y * z * (ox * y - z * oz) * ozi * ozi,
+                           ox * z * (ox * y - z * oz) * ozi * ozi,
+                           -y * (x * z + ox * oz) * (ox * y - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
+   const real_t qI02[3] = {-y * oy * ozi, 0., -x * y * oy * ozi * ozi};
+   const real_t qI12[3] = {-(x - ox) * y * oy * ozi * ozi, 0.,
+                           -(x - ox) * x * y * oy * ozi * ozi * ozi
+                          };
+
+   const real_t qII02[3] = {0., -x * ox * ozi, -x * y * ox * ozi * ozi};
+   const real_t qII12[3] = {0., -x * ox * (y - oy) * ozi * ozi,
+                            -x * ox * y * (y - oy) * ozi * ozi * ozi
+                           };
+
+   const real_t tI120[3] = {oy * z, 0., x * oy * z * ozi};
+   const real_t tI121[3] = {y * z, 0., x * y * z * ozi};
+   const real_t tI210[3] = {0., ox * z, ox * y * z * ozi};
+   const real_t tI211[3] = {0., x * z, x * y * z * ozi};
+
+   const real_t tII120[3] = {-ox * oy * z * ozi, 0., x * ox * oy * ozi};
+   const real_t tII121[3] = {-ox * y * z * ozi, 0., x * ox * y * ozi};
+   const real_t tII210[3] = {0., -ox * oy * z * ozi, ox * y * oy * ozi};
+   const real_t tII211[3] = {0., -x * oy * z * ozi, x * y * oy * ozi};
+
+   // Edge 0,1
+   for (int d=0; d<3; d++)
+   {
+      shape(0,d) = 0.5 * me0120[d] + qI02[d]
+                   - sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(1,d) = 0.5 * me0120[d] + qI02[d]
+                   + sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
+   }
+
+   // Edge 1,2
+   for (int d=0; d<3; d++)
+   {
+      shape(2,d) = 0.5 * me0211[d] + qII02[d]
+                   - sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(3,d) = 0.5 * me0211[d] + qII02[d]
+                   + sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
+   }
+
+   // Edge 3,2
+   for (int d=0; d<3; d++)
+   {
+      shape(4,d) = 0.5 * me0121[d] + qI02[d]
+                   - sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(5,d) = 0.5 * me0121[d] + qI02[d]
+                   + sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
+   }
+
+   // Edge 0,3
+   for (int d=0; d<3; d++)
+   {
+      shape(6,d) = 0.5 * me0210[d] + qII02[d]
+                   - sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(7,d) = 0.5 * me0210[d] + qII02[d]
+                   + sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
+   }
+
+   // Edge 0,4
+   for (int d=0; d<3; d++)
+   {
+      shape(8,d) = 0.5 * te01[d] - sq3 * 0.5 * te11[d]
+                   - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(9,d) = 0.5 * te01[d] + sq3 * 0.5 * te11[d]
+                   - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
+   }
+
+   // Edge 1,4
+   for (int d=0; d<3; d++)
+   {
+      shape(10,d) = 0.5 * te02[d] - sq3 * 0.5 * te12[d]
+                    - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(11,d) = 0.5 * te02[d] + sq3 * 0.5 * te12[d]
+                    - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
+   }
+
+   // Edge 2,4
+   for (int d=0; d<3; d++)
+   {
+      shape(12,d) = 0.5 * te03[d] - sq3 * 0.5 * te13[d]
+                    - 1.5 * (tII211[d] + tII121[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(13,d) = 0.5 * te03[d] + sq3 * 0.5 * te13[d]
+                    - 1.5 * (tII211[d] + tII121[d]);
+   }
+
+   // Edge 3,4
+   for (int d=0; d<3; d++)
+   {
+      shape(14,d) = 0.5 * te04[d] - sq3 * 0.5 * te14[d]
+                    - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(15,d) = 0.5 * te04[d] + sq3 * 0.5 * te14[d]
+                    - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
+   }
+
+   // Quadrilateral face
+   for (int d=0; d<3; d++)
+   {
+      shape(16,d) = -2. * qI02[d] + 2. * sq3 * qI12[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(17,d) = -2. * qI02[d] - 2. * sq3 * qI12[d];
+   }
+
+   for (int d=0; d<3; d++)
+   {
+      shape(18,d) = 2. * qII02[d] - 2. * sq3 * qII12[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(19,d) = 2. * qII02[d] + 2. * sq3 * qII12[d];
+   }
+
+   // Triangular face 0,1,4
+   for (int d=0; d<3; d++)
+   {
+      shape(20,d) = 3. * tI120[d] - 3. * tII120[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(21,d) = 3. * tI120[d] + 6. * tII120[d];
+   }
+
+   // Triangular face 1,2,4
+   for (int d=0; d<3; d++)
+   {
+      shape(22,d) = 3. * tI211[d] - 3. * tII211[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(23,d) = 3. * tI211[d] + 6. * tII211[d];
+   }
+
+   // Triangular face 2,3,4
+   for (int d=0; d<3; d++)
+   {
+      shape(24,d) = -6. * tI121[d] - 3. * tII121[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(25,d) = 3. * tI121[d] + 6. * tII121[d];
+   }
+
+   // Triangular face 3,0,4
+   for (int d=0; d<3; d++)
+   {
+      shape(26,d) = -6. * tI210[d] - 3. * tII210[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(27,d) = 3. * tI210[d] + 6. * tII210[d];
+   }
+}
+
+void Nedelec2PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape)
+const
+{
+   const real_t one = 1.0;
+   const real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
+   const real_t ox = one - x - z, oy = one - y - z, oz = one - z;
+
+   const real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -4985,7 +5517,7 @@ const
       return;
    }
 
-   double ozi = 1. / oz;
+   real_t ozi = one / oz;
 
    curl_shape(0,0) = - x * ozi;
    curl_shape(0,1) = - 2. + y * ozi;
@@ -5020,10 +5552,18 @@ const
    curl_shape(7,2) =   0.;
 }
 
-const double Nedelec1PyrFiniteElement::tk[8][3] =
-{{1,0,0}, {0,1,0}, {1,0,0}, {0,1,0}, {0,0,1}, {-1,0,1}, {-1,-1,1}, {0,-1,1}};
+const real_t Nedelec2PyrFiniteElement::tk[28][3] =
+{
+   {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
+   {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
+   {0,0,1}, {0,0,1}, {-1,0,1}, {-1,0,1},
+   {-1,-1,1}, {-1,-1,1}, {0,-1,1}, {0,-1,1},
+   {1,0,0}, {1,0,0}, {0,-1,0}, {0,-1,0},
+   {1,0,0}, {0,0,1}, {0,1,0}, {-1,0,1},
+   {-1,0,0}, {-1,-1,1}, {0,-1,0}, {0,-1,1}
+};
 
-void Nedelec1PyrFiniteElement::GetLocalInterpolation (
+void Nedelec2PyrFiniteElement::GetLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I) const
 {
    int k, j;
@@ -5037,7 +5577,7 @@ void Nedelec1PyrFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -5055,7 +5595,7 @@ void Nedelec1PyrFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    const DenseMatrix &J = Trans.Jacobian();
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -5076,11 +5616,11 @@ void Nedelec1PyrFiniteElement::GetLocalInterpolation (
    }
 }
 
-void Nedelec1PyrFiniteElement::Project (
+void Nedelec2PyrFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < dof; k++)
@@ -5097,7 +5637,7 @@ void Nedelec1PyrFiniteElement::Project (
    }
 }
 
-void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
+void Nedelec2PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
                                            ElementTransformation &Trans,
                                            DenseMatrix &grad) const
 {
@@ -5150,7 +5690,7 @@ RT0HexFiniteElement::RT0HexFiniteElement()
 void RT0HexFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                      DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
    // z = 0
    shape(0,0) = 0.;
    shape(0,1) = 0.;
@@ -5188,7 +5728,7 @@ void RT0HexFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(5) = 1.;
 }
 
-const double RT0HexFiniteElement::nk[6][3] =
+const real_t RT0HexFiniteElement::nk[6][3] =
 {{0,0,-1}, {0,-1,0}, {1,0,0}, {0,1,0}, {-1,0,0}, {0,0,1}};
 
 void RT0HexFiniteElement::GetLocalInterpolation (
@@ -5205,7 +5745,7 @@ void RT0HexFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 6; j++)
       {
-         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+         real_t d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -5225,7 +5765,7 @@ void RT0HexFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < 6; k++)
@@ -5250,7 +5790,7 @@ void RT0HexFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < 6; k++)
@@ -5394,7 +5934,7 @@ RT1HexFiniteElement::RT1HexFiniteElement()
 void RT1HexFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                      DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
    // z = 0
    shape(2,0)  = 0.;
    shape(2,1)  = 0.;
@@ -5517,7 +6057,7 @@ void RT1HexFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void RT1HexFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                        Vector &divshape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z;
    // z = 0
    divshape(2)  = -(-3. + 4.*z)*( 2. - 3.*x)*( 2. - 3.*y);
    divshape(3)  = -(-3. + 4.*z)*(-1. + 3.*x)*( 2. - 3.*y);
@@ -5565,7 +6105,7 @@ void RT1HexFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(35) = ( 4. - 8.*z)*(-1. + 3.*x)*(-1. + 3.*y);
 }
 
-const double RT1HexFiniteElement::nk[36][3] =
+const real_t RT1HexFiniteElement::nk[36][3] =
 {
    {0, 0,-1}, {0, 0,-1}, {0, 0,-1}, {0, 0,-1},
    {0,-1, 0}, {0,-1, 0}, {0,-1, 0}, {0,-1, 0},
@@ -5592,7 +6132,7 @@ void RT1HexFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 36; j++)
       {
-         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+         real_t d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -5612,7 +6152,7 @@ void RT1HexFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < 36; k++)
@@ -5637,7 +6177,7 @@ void RT1HexFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < 36; k++)
@@ -5679,7 +6219,7 @@ RT0TetFiniteElement::RT0TetFiniteElement()
 void RT0TetFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                      DenseMatrix &shape) const
 {
-   double x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
+   real_t x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
 
    shape(0,0) = x2;
    shape(0,1) = y2;
@@ -5707,7 +6247,7 @@ void RT0TetFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(3) = 6.0;
 }
 
-const double RT0TetFiniteElement::nk[4][3] =
+const real_t RT0TetFiniteElement::nk[4][3] =
 {{.5,.5,.5}, {-.5,0,0}, {0,-.5,0}, {0,0,-.5}};
 
 void RT0TetFiniteElement::GetLocalInterpolation (
@@ -5724,7 +6264,7 @@ void RT0TetFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < 4; j++)
       {
-         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+         real_t d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -5744,7 +6284,7 @@ void RT0TetFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < 4; k++)
@@ -5769,7 +6309,7 @@ void RT0TetFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < 4; k++)
@@ -5815,7 +6355,7 @@ RT0WdgFiniteElement::RT0WdgFiniteElement()
 void RT0WdgFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                      DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z2 = 2.0*ip.z;
+   real_t x = ip.x, y = ip.y, z2 = 2.0*ip.z;
 
    shape(0,0) = 0.0;
    shape(0,1) = 0.0;
@@ -5848,7 +6388,7 @@ void RT0WdgFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(4) = 2.0;
 }
 
-const double RT0WdgFiniteElement::nk[5][3] =
+const real_t RT0WdgFiniteElement::nk[5][3] =
 {{0.,0.,-.5}, {0.,0.,.5}, {0,-1.,0}, {1.,1.,0}, {-1.,0,0}};
 
 void RT0WdgFiniteElement::GetLocalInterpolation (
@@ -5865,7 +6405,7 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+         real_t d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -5885,7 +6425,7 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -5910,7 +6450,7 @@ void RT0WdgFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < 5; k++)
@@ -5948,7 +6488,8 @@ void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
 }
 
 RT0PyrFiniteElement::RT0PyrFiniteElement(bool rt0tets)
-   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV), rt0(rt0tets)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV, FunctionSpace::Uk),
+     rt0(rt0tets)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -5975,10 +6516,10 @@ RT0PyrFiniteElement::RT0PyrFiniteElement(bool rt0tets)
 void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                      DenseMatrix &shape) const
 {
-   double x = ip.x, y = ip.y, z = ip.z, oz = 1.0 - z;
-   double x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
+   real_t x = ip.x, y = ip.y, z = ip.z, oz = 1.0 - z;
+   real_t x2 = 2.0*ip.x, y2 = 2.0*ip.y, z2 = 2.0*ip.z;
 
-   double tol = 1e-6;
+   real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -6020,7 +6561,7 @@ void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       return;
    }
 
-   double ozi = 1.0 / oz;
+   real_t ozi = 1.0 / oz;
 
    shape(0,0) = x;
    shape(0,1) = y;
@@ -6070,8 +6611,8 @@ void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const double RT0PyrFiniteElement::nk[5][3] =
-{{0.,0.,-1.}, {0,-.5,0}, {.5,0,.5}, {0,.5,.5}, {-.5,0,0}};
+const real_t RT0PyrFiniteElement::nk[5][3] =
+{{0.,0.,-1}, {0,-1,0}, {1,0,1}, {0,1,1}, {-1,0,0}};
 
 void RT0PyrFiniteElement::GetLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I) const
@@ -6087,7 +6628,7 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
+         real_t d = ( vshape(j,0)*nk[k][0] + vshape(j,1)*nk[k][1] +
                       vshape(j,2)*nk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -6107,7 +6648,7 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
    // set Jinv = |J| J^{-t} = adj(J)^t
    const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -6132,7 +6673,7 @@ void RT0PyrFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < dof; k++)
@@ -6202,11 +6743,11 @@ RotTriLinearHexFiniteElement::RotTriLinearHexFiniteElement()
 void RotTriLinearHexFiniteElement::CalcShape(const IntegrationPoint &ip,
                                              Vector &shape) const
 {
-   double x = 2. * ip.x - 1.;
-   double y = 2. * ip.y - 1.;
-   double z = 2. * ip.z - 1.;
-   double f5 = x * x - y * y;
-   double f6 = y * y - z * z;
+   real_t x = 2. * ip.x - 1.;
+   real_t y = 2. * ip.y - 1.;
+   real_t z = 2. * ip.z - 1.;
+   real_t f5 = x * x - y * y;
+   real_t f6 = y * y - z * z;
 
    shape(0) = (1./6.) * (1. - 3. * z -      f5 - 2. * f6);
    shape(1) = (1./6.) * (1. - 3. * y -      f5 +      f6);
@@ -6219,11 +6760,11 @@ void RotTriLinearHexFiniteElement::CalcShape(const IntegrationPoint &ip,
 void RotTriLinearHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                               DenseMatrix &dshape) const
 {
-   const double a = 2./3.;
+   const real_t a = 2./3.;
 
-   double xt = a * (1. - 2. * ip.x);
-   double yt = a * (1. - 2. * ip.y);
-   double zt = a * (1. - 2. * ip.z);
+   real_t xt = a * (1. - 2. * ip.x);
+   real_t yt = a * (1. - 2. * ip.y);
+   real_t zt = a * (1. - 2. * ip.z);
 
    dshape(0,0) = xt;
    dshape(0,1) = yt;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,8 +25,25 @@
 namespace mfem
 {
 
-/// Compute a global Lp norm from the local Lp norms computed by each processor
-double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
+/// @brief Compute a global Lp norm from the local Lp norms computed by each
+///        processor
+///
+/// @param[in] p         Real value indicating the exponent of the $L^p$ norm.
+///                      To avoid domain errors p should have a positive
+///                      value, either finite or infinite.
+/// @param[in] loc_norm  Local $L^p$ norm as computed separately on each
+///                      processor.
+/// @param[in] comm      MPI Communicator
+///
+/// @return              Global $L^p$ norm, returned on every processor
+///
+/// @note Quadratures with negative weights (as in some simplex integration
+///       rules in MFEM) can produce negative integrals even with
+///       non-negative integrands. To avoid returning negative norms this
+///       function uses the absolute values of the local norms.
+///       This may lead to results which are not entirely consistent with
+///       such integration rules.
+real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm);
 
 /// Class for parallel grid function
 class ParGridFunction : public GridFunction
@@ -44,7 +61,7 @@ protected:
    Vector send_data;
 
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
-                              Array<int> &attr);
+                              const Array<int> &attr);
 
 public:
    ParGridFunction() { pfes = NULL; }
@@ -62,7 +79,7 @@ public:
        can be NULL. The data array can be replaced later using the method
        SetData().
     */
-   ParGridFunction(ParFiniteElementSpace *pf, double *data) :
+   ParGridFunction(ParFiniteElementSpace *pf, real_t *data) :
       GridFunction(pf, data), pfes(pf) { }
 
    /** @brief Construct a ParGridFunction using previously allocated Vector
@@ -103,7 +120,7 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Assign constant values to the ParGridFunction data.
-   ParGridFunction &operator=(double value)
+   ParGridFunction &operator=(real_t value)
    { GridFunction::operator=(value); return *this; }
 
    /// Copy the data from a Vector to the ParGridFunction data.
@@ -130,14 +147,14 @@ public:
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. The new space @a f is expected to be a
        ParFiniteElementSpace. */
-   void MakeRef(FiniteElementSpace *f, double *v) override;
+   void MakeRef(FiniteElementSpace *f, real_t *v) override;
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
    /** This method changes the ParFiniteElementSpace associated with the
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. */
-   void MakeRef(ParFiniteElementSpace *f, double *v);
+   void MakeRef(ParFiniteElementSpace *f, real_t *v);
 
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
@@ -162,8 +179,8 @@ public:
        true dofs, i.e. P tv. */
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
-   void AddDistribute(double a, const Vector *tv);
-   void AddDistribute(double a, const Vector &tv) { AddDistribute(a, &tv); }
+   void AddDistribute(real_t a, const Vector *tv);
+   void AddDistribute(real_t a, const Vector &tv) { AddDistribute(a, &tv); }
 
    /// Set the GridFunction from the given true-dof vector.
    void SetFromTrueDofs(const Vector &tv) override { Distribute(tv); }
@@ -209,13 +226,13 @@ public:
    const Vector &FaceNbrData() const { return face_nbr_data; }
 
    // Redefine to handle the case when i is a face-neighbor element
-   double GetValue(int i, const IntegrationPoint &ip,
+   real_t GetValue(int i, const IntegrationPoint &ip,
                    int vdim = 1) const override;
-   double GetValue(ElementTransformation &T)
+   real_t GetValue(ElementTransformation &T)
    { return GetValue(T, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
-   double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+   real_t GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                    int comp = 0, Vector *tr = NULL) const override;
 
    void GetVectorValue(int i, const IntegrationPoint &ip,
@@ -231,7 +248,7 @@ public:
    void CountElementsPerVDof(Array<int> &elem_per_vdof) const override;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
-   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der) const;
 
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. If @a el is greater than or equal to the number
@@ -254,35 +271,69 @@ public:
 
    using GridFunction::ProjectBdrCoefficient;
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                              Array<int> &attr) override
+                              const Array<int> &attr) override
    { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
-   void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr) override
+   void ProjectBdrCoefficient(Coefficient *coeff[],
+                              const Array<int> &attr) override
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                     Array<int> &bdr_attr) override;
+                                     const Array<int> &bdr_attr) override;
 
-   double ComputeL1Error(Coefficient *exsol[],
+   /// @brief Returns ||u_ex - u_h||_L1 in parallel for H1 or L2 elements
+   ///
+   /// @see GridFunction::ComputeL1Error(Coefficient *exsol[],
+   ///                                   const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   ///
+   /// @warning While this function is nominally equivalent to ComputeLpError,
+   ///          with appropriate arguments, the returned errors may differ
+   ///          noticeably because ComputeLpError uses a higher order
+   ///          integration rule by default.
+   ///
+   /// @deprecated See @ref ComputeL1Error(Coefficient &exsol,
+   ///                              const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
+   MFEM_DEPRECATED
+   real_t ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
    {
-      return GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
-                          pfes->GetComm());
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+      real_t glb_err = GlobalLpNorm(1.0,
+                                    GridFunction::ComputeL1Error(exsol, irs),
+                                    pfes->GetComm());
+#pragma GCC diagnostic pop
+      return glb_err;
    }
 
-   double ComputeL1Error(Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L1 in parallel for scalar fields
+   ///
+   /// @see GridFunction::ComputeL1Error(Coefficient &exsol,
+   ///                                   const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeL1Error(Coefficient &exsol,
                          const IntegrationRule *irs[] = NULL) const override
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   double ComputeL1Error(VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L1 in parallel for vector fields
+   ///
+   /// @see GridFunction::ComputeL1Error(VectorCoefficient &exsol,
+   ///                                   const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeL1Error(VectorCoefficient &exsol,
                          const IntegrationRule *irs[] = NULL) const override
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   double ComputeL2Error(Coefficient *exsol[],
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for H1 or L2 elements
+   ///
+   /// @see GridFunction::ComputeL2Error(Coefficient *exsol[],
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   real_t ComputeL2Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
@@ -290,7 +341,13 @@ public:
                           pfes->GetComm());
    }
 
-   double ComputeL2Error(Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for scalar fields
+   ///
+   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   real_t ComputeL2Error(Coefficient &exsol,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
@@ -298,8 +355,13 @@ public:
                           pfes->GetComm());
    }
 
-
-   double ComputeL2Error(VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for vector fields
+   ///
+   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   real_t ComputeL2Error(VectorCoefficient &exsol,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
@@ -307,40 +369,83 @@ public:
                           pfes->GetComm());
    }
 
-   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
-   double ComputeGradError(VectorCoefficient *exgrad,
+   /// @brief Returns ||grad u_ex - grad u_h||_L2 in parallel for H1 or L2
+   ///        elements
+   ///
+   /// @see GridFunction::ComputeGradError(VectorCoefficient *exgrad,
+   ///                                     const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeGradError(VectorCoefficient *exgrad,
                            const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
                           pfes->GetComm());
    }
 
-   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
-   double ComputeCurlError(VectorCoefficient *excurl,
+   /// @brief Returns ||curl u_ex - curl u_h||_L2 in parallel for ND elements
+   ///
+   /// @see GridFunction::ComputeCurlError(VectorCoefficient *excurl,
+   ///                                     const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeCurlError(VectorCoefficient *excurl,
                            const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
                           pfes->GetComm());
    }
 
-   /// Returns ||div u_ex - div u_h||_L2 for RT elements
-   double ComputeDivError(Coefficient *exdiv,
+   /// @brief Returns ||div u_ex - div u_h||_L2 in parallel for RT elements
+   ///
+   /// @see GridFunction::ComputeDivError(Coefficient *exdiv,
+   ///                                    const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeDivError(Coefficient *exdiv,
                           const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
                           pfes->GetComm());
    }
 
-   /// Returns the Face Jumps error for L2 elements
-   double ComputeDGFaceJumpError(Coefficient *exsol,
+   /// @brief Returns the Face Jumps error for L2 elements.
+   ///
+   /// Computes:
+   ///   $$\sqrt{\sum_{faces} \int_f js[f] ell[f] (2 u_{ex} - u_1 - u_2)^2}$$
+   ///
+   /// Where js[f] is the jump_scaling evaluated on the face f and ell is the
+   /// average of ell_coef evaluated in the two elements sharing the face f.
+   ///
+   /// @param[in] exsol         Pointer to a Coefficient object reproducing the
+   ///                          anticipated values of the scalar field, u_ex.
+   /// @param[in] ell_coeff     Pointer to a Coefficient object used to compute
+   ///                          the averaged value ell in the above integral.
+   /// @param[in] jump_scaling  Can be configured to provide scaling by
+   ///                          nu, nu/h, or nu*p^2/h
+   /// @param[in] irs           Optional pointer to a custom integration rule
+   ///                          e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
                                  JumpScaling jump_scaling,
-                                 const IntegrationRule *irs[]=NULL) const override;
+                                 const IntegrationRule *irs[]=NULL
+                                ) const override;
 
    /// Returns either the H1-seminorm or the DG Face Jumps error or both
    /// depending on norm_type = 1, 2, 3
-   double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                         Coefficient *ell_coef, double Nu,
+   ///
+   /// @see GridFunction::ComputeH1Error(Coefficient *exsol,
+   ///                                   VectorCoefficient *exgrad,
+   ///                                   Coefficient *ell_coef,
+   ///                                   real_t NU,
+   ///                                   int norm_type) const
+   ///      for more detailed documentation.
+   real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                         Coefficient *ell_coef, real_t Nu,
                          int norm_type) const override
    {
       return GlobalLpNorm(2.0,
@@ -349,17 +454,27 @@ public:
                           pfes->GetComm());
    }
 
-   /// Returns the error measured in H1-norm for H1 elements or in "broken"
-   /// H1-norm for L2 elements
-   double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   /// @brief Returns the error measured in H1-norm in parallel for H1 or L2
+   /// elements
+   ///
+   /// @see GridFunction::ComputeH1Error(Coefficient *exsol,
+   ///                                   VectorCoefficient *exgrad,
+   ///                                   const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                          const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
                           pfes->GetComm());
    }
 
-   /// Returns the error measured H(div)-norm for RT elements
-   double ComputeHDivError(VectorCoefficient *exsol,
+   /// @brief Returns the error measured H(div)-norm in parallel for RT elements
+   ///
+   /// @see GridFunction::ComputeHDivError(VectorCoefficient *exsol,
+   ///                                     Coefficient *exdiv,
+   ///                                     const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeHDivError(VectorCoefficient *exsol,
                            Coefficient *exdiv,
                            const IntegrationRule *irs[] = NULL) const override
    {
@@ -367,8 +482,14 @@ public:
                           pfes->GetComm());
    }
 
-   /// Returns the error measured H(curl)-norm for ND elements
-   double ComputeHCurlError(VectorCoefficient *exsol,
+   /// @brief Returns the error measured H(curl)-norm in parallel for ND
+   ///        elements
+   ///
+   /// @see GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
+   ///                                     VectorCoefficient *excurl,
+   ///                                     const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeHCurlError(VectorCoefficient *exsol,
                             VectorCoefficient *excurl,
                             const IntegrationRule *irs[] = NULL) const override
    {
@@ -377,7 +498,17 @@ public:
                           pfes->GetComm());
    }
 
-   double ComputeMaxError(Coefficient *exsol[],
+   /// @brief Returns Max|u_ex - u_h| error in parallel for scalar or vector
+   ///        fields
+   ///
+   /// @note This implementation of the max error of a vector field computes
+   ///       the max norm over vector components rather than the magnitude of
+   ///       the vector.
+   ///
+   /// @see GridFunction::ComputeMaxError(Coefficient *exsol[],
+   ///                                    const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeMaxError(Coefficient *exsol[],
                           const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(infinity(),
@@ -385,31 +516,55 @@ public:
                           pfes->GetComm());
    }
 
-   double ComputeMaxError(Coefficient &exsol,
+   /// @brief Returns Max|u_ex - u_h| error in parallel for scalar fields
+   ///
+   /// @see GridFunction::ComputeMaxError(Coefficient &exsol,
+   ///                                    const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeMaxError(Coefficient &exsol,
                           const IntegrationRule *irs[] = NULL) const override
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
-   double ComputeMaxError(VectorCoefficient &exsol,
+   /// @brief Returns Max|u_ex - u_h| error in parallel for vector fields
+   ///
+   /// @see GridFunction::ComputeMaxError(VectorCoefficient &exsol,
+   ///                                    const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeMaxError(VectorCoefficient &exsol,
                           const IntegrationRule *irs[] = NULL) const override
    {
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
-   double ComputeLpError(const double p, Coefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_Lp in parallel for scalar fields
+   ///
+   /// @see GridFunction::ComputeLpError(const real_t p,
+   ///                                   Coefficient &exsol,
+   ///                                   Coefficient *weight,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   real_t ComputeLpError(const real_t p, Coefficient &exsol,
                          Coefficient *weight = NULL,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
-      return GlobalLpNorm(p, GridFunction::ComputeLpError(p, exsol, weight, irs,
-                                                          elems), pfes->GetComm());
+      return GlobalLpNorm(p, GridFunction::ComputeLpError(p, exsol, weight,
+                                                          irs, elems),
+                          pfes->GetComm());
    }
 
-   /** When given a vector weight, compute the pointwise (scalar) error as the
-       dot product of the vector error with the vector weight. Otherwise, the
-       scalar error is the l_2 norm of the vector error. */
-   double ComputeLpError(const double p, VectorCoefficient &exsol,
+   /// @brief Returns ||u_ex - u_h||_Lp in parallel for vector fields
+   ///
+   /// @see GridFunction::ComputeLpError(const real_t p,
+   ///                                   VectorCoefficient &exsol,
+   ///                                   Coefficient *weight,
+   ///                                   VectorCoefficient *v_weight,
+   ///                                   const IntegrationRule *irs[]) const
+   ///      for more detailed documentation.
+   real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                          Coefficient *weight = NULL,
                          VectorCoefficient *v_weight = NULL,
                          const IntegrationRule *irs[] = NULL) const override
@@ -436,12 +591,28 @@ public:
    /// be used for ASCII output.
    void Save(const char *fname, int precision=16) const override;
 
-   /// Returns a GridFunction on MPI rank @a save_rank that does not have any
-   /// duplication of vertices/nodes at processor boundaries.
-   /// serial_mesh is obtained using ParMesh::GetSerialMesh(save_rank).
-   /// Note that the @ save_rank argument must match for the
-   /// ParMesh::GetSerialMesh and GetSerialGridFunction method.
+   /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
+   /// any duplication of vertices/nodes at processor boundaries.
+   ///
+   /// The @a serial_mesh is obtained using ParMesh::GetSerialMesh. Note that
+   /// the @a save_rank must be the same as that used in ParMesh::GetSerialMesh.
+   ///
+   /// @note The returned GridFunction will own the newly created
+   /// FiniteElementCollection and FiniteElementSpace objects.
    GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
+
+   /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
+   /// any duplication of vertices/nodes at processor boundaries.
+   ///
+   /// The given @a serial_fes must be defined on the mesh returned by
+   /// ParMesh::GetSerialMesh (with @a save_rank ranks), for example using the
+   /// space belonging to the GridFunction obtained from @ref
+   /// ParGridFunction::GetSerialGridFunction(int,Mesh &) const.
+   ///
+   /// @note The returned GridFunction does not assume ownership of @a
+   /// serial_fes.
+   GridFunction GetSerialGridFunction(
+      int save_rank, FiniteElementSpace &serial_fes) const;
 
    /// Write the serial GridFunction a single file (written using MPI rank 0).
    /// The given @a precision will be used for ASCII output.
@@ -460,6 +631,10 @@ public:
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out) const;
 
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<ParGridFunction> ProlongateToMaxOrder() const;
+
    virtual ~ParGridFunction() = default;
 };
 
@@ -469,11 +644,11 @@ public:
     least conforming) space, and computes the Lp norms of the differences
     between them on each element. This is one approach to handling conforming
     and non-conforming elements in parallel. Returns the total error estimate. */
-double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
                           ParFiniteElementSpace &flux_fes,
-                          Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
+                          Vector &errors, int norm_p = 2, real_t solver_tol = 1e-12,
                           int solver_max_it = 200);
 
 }

@@ -49,6 +49,7 @@ using namespace std;
 using namespace mfem;
 
 void ComputeCurrentDensityOnSubMesh(int order,
+                                    bool visualization,
                                     const Array<int> &phi0_attr,
                                     const Array<int> &phi1_attr,
                                     const Array<int> &jn_zero_attr,
@@ -73,7 +74,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 1;
    int par_ref_levels = 1;
    int order = 1;
-   double delta_const = 1e-6;
+   real_t delta_const = 1e-6;
    bool mixed = true;
    bool static_cond = false;
    bool pa = false;
@@ -270,8 +271,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes_cond_rt(&pmesh_cond, &fec_cond_rt);
    ParGridFunction j_cond(&fes_cond_rt);
 
-   ComputeCurrentDensityOnSubMesh(order, phi0_attr, phi1_attr, jn_zero_attr,
-                                  j_cond);
+   ComputeCurrentDensityOnSubMesh(order, visualization,
+                                  phi0_attr, phi1_attr, jn_zero_attr, j_cond);
 
    // 7a. Save the SubMesh and associated current density in parallel. This
    //     output can be viewed later using GLVis:
@@ -289,6 +290,7 @@ int main(int argc, char *argv[])
       cond_ofs.precision(8);
       j_cond.Save(cond_ofs);
    }
+
    // 7b. Send the current density, computed on the SubMesh, to a GLVis server.
    if (visualization)
    {
@@ -498,6 +500,7 @@ int main(int argc, char *argv[])
 }
 
 void ComputeCurrentDensityOnSubMesh(int order,
+                                    bool visualization,
                                     const Array<int> &phi0_attr,
                                     const Array<int> &phi1_attr,
                                     const Array<int> &jn_zero_attr,
@@ -586,6 +589,8 @@ void ComputeCurrentDensityOnSubMesh(int order,
       cg.Mult(B, X);
       a_h1.RecoverFEMSolution(X, b_h1, phi_h1);
    }
+
+   if (visualization)
    {
       int num_procs = fes_cond_h1.GetNRanks();
       char vishost[] = "localhost";

@@ -38,7 +38,7 @@ using namespace mfem;
 // Return a mesh with a single element with vertices (0, 0), (1, 0), (1, 1),
 // (offset, 1) to demonstrate boundary conditions on a surface that is not
 // axis-aligned.
-Mesh * build_trapezoid_mesh(double offset)
+Mesh * build_trapezoid_mesh(real_t offset)
 {
    MFEM_VERIFY(offset < 0.9, "offset is too large!");
 
@@ -48,7 +48,7 @@ Mesh * build_trapezoid_mesh(double offset)
    Mesh * mesh = new Mesh(dimension, nvt, 1, nbe);
 
    // vertices
-   double vc[dimension];
+   real_t vc[dimension];
    vc[0] = 0.0; vc[1] = 0.0;
    mesh->AddVertex(vc);
    vc[0] = 1.0; vc[1] = 0.0;
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 #ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
         << "is NOT supported with the GPU version of hypre.\n\n";
-   return 242;
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
    // 1. Initialize MPI and HYPRE.
@@ -97,9 +97,9 @@ int main(int argc, char *argv[])
    int order = 1;
    bool visualization = 1;
    bool reorder_space = false;
-   double offset = 0.3;
+   real_t offset = 0.3;
    bool visit = false;
-   double penalty = 0.0;
+   real_t penalty = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",

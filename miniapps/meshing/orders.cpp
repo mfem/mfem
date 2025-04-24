@@ -154,7 +154,7 @@ int main (int argc, char *argv[])
    {
       socketstream vis_g;
       common::VisualizeMesh(vis_g, "localhost", 19916, pmesh,
-                             "HO Optimized", 800, 0, 400, 400, "mpRj");
+                            "HO Optimized", 800, 0, 400, 400, "mpRj");
    }
 
    return 0;
@@ -194,8 +194,8 @@ void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h)
    h.ParFESpace()->GetEssentialVDofs(ess_bdr, h_ess_marker);
 
    // Doesn't preserve the boundary nodes of h.
-//   TransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
-//   transfer.Mult(l, h);
+   //   TransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
+   //   transfer.Mult(l, h);
 
    Interpolate(l, h_ess_marker, h);
 }
@@ -205,8 +205,8 @@ void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l)
    Array<int> l_ess_vdof_marker(l.Size());
    l_ess_vdof_marker = 0;
    // wrong.
-  // PRefinementTransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
-  // transfer.MultTranspose(h, l);
+   // PRefinementTransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
+   // transfer.MultTranspose(h, l);
 
    // Projects, doesn't interpolate.
    //l.ProjectGridFunction(h);
@@ -248,18 +248,18 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    {
       switch (metric_id)
       {
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 50: metric = new TMOP_Metric_050; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 80: metric = new TMOP_Metric_080(0.1); break;
+         case 1: metric = new TMOP_Metric_001; break;
+         case 2: metric = new TMOP_Metric_002; break;
+         case 50: metric = new TMOP_Metric_050; break;
+         case 58: metric = new TMOP_Metric_058; break;
+         case 80: metric = new TMOP_Metric_080(0.1); break;
       }
    }
    else { metric = new TMOP_Metric_302; }
 
    // Target.
    TargetConstructor::TargetType target =
-         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
    target_c = new TargetConstructor(target, pfes.GetComm());
 
    // Integrator.

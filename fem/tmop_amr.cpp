@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -235,7 +235,7 @@ void TMOPRefinerEstimator::SetTriIntRules()
    // Reftype = 0 // original element
    const int Nvert = 3, NEsplit = 1;
    Mesh meshsplit(2, Nvert, NEsplit, 0, 2);
-   const double tri_v[3][2] =
+   const real_t tri_v[3][2] =
    {
       {0, 0}, {1, 0}, {0, 1}
    };
@@ -278,7 +278,7 @@ void TMOPRefinerEstimator::SetTetIntRules()
    // Reftype = 0 // original element
    const int Nvert = 4, NEsplit = 1;
    Mesh meshsplit(3, Nvert, NEsplit, 0, 3);
-   const double tet_v[4][3] =
+   const real_t tet_v[4][3] =
    {
       {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}
    };
@@ -322,8 +322,8 @@ IntegrationRule* TMOPRefinerEstimator::SetIntRulesFromMesh(Mesh &meshsplit)
    meshsplit.SetNodalFESpace(&nodal_fes);
 
    const int NEsplit = meshsplit.GetNE();
-   const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
-             pts_cnt = NEsplit * dof_cnt;
+   const int dof_cnt = nodal_fes.GetTypicalFE()->GetDof();
+   const int pts_cnt = NEsplit * dof_cnt;
 
    DenseMatrix pos(dof_cnt, dim);
    Vector posV(pos.Data(), dof_cnt * dim);
@@ -372,7 +372,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       Vector local_err(meshcopy.GetNE());
       local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
+      real_t threshold = std::numeric_limits<float>::max();
       meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
       if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE())
@@ -403,7 +403,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       {
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
-         double parent_energy = coarse_energy(pe);
+         real_t parent_energy = coarse_energy(pe);
          for (int fe = 0; fe < nchild; fe++)
          {
             int child = tabrow[fe];
@@ -425,7 +425,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       Vector local_err(meshcopy.GetNE());
       local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
+      real_t threshold = std::numeric_limits<float>::max();
       meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
       if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE())
@@ -456,7 +456,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       {
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
-         double parent_energy = coarse_energy(pe);
+         real_t parent_energy = coarse_energy(pe);
          for (int fe = 0; fe < nchild; fe++)
          {
             int child = tabrow[fe];
@@ -603,6 +603,10 @@ void TMOPHRSolver::Mult()
       return;
    }
 
+   auto fes_mesh_nodes = nlf->FESpace()->GetMesh()->GetNodes()->FESpace();
+   if (fes_mesh_nodes->IsDGSpace())
+   { MFEM_ABORT("Periodic HR-adaptivity is not implemented yet."); }
+
    bool radaptivity = true;
 
    tmop_dr->Reset();
@@ -622,9 +626,9 @@ void TMOPHRSolver::Mult()
          tmopns->Mult(b, x->GetTrueVector());
          x->SetFromTrueVector();
 
-         mfem::out << "TMOP energy after r-adaptivity: " <<
-                   nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                   ", Elements: " << mesh->GetNE() << std::endl;
+         mfem::out << "TMOP energy after r-adaptivity: "
+                   << nlf->GetGridFunctionEnergy(*x) / mesh->GetNE()
+                   << ", Elements: " << mesh->GetNE() << std::endl;
 
          for (int i_h = 0; i_h < h_per_r_iter; i_h++)
          {
@@ -634,15 +638,15 @@ void TMOPHRSolver::Mult()
                tmop_dr->Apply(*mesh);
                Update();
             }
-            mfem::out << "TMOP energy after derefinement: " <<
-                      nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                      ", Elements: " << mesh->GetNE() << std::endl;
+            mfem::out << "TMOP energy after derefinement: "
+                      << nlf->GetGridFunctionEnergy(*x) / mesh->GetNE()
+                      << ", Elements: " << mesh->GetNE() << std::endl;
 
             // Refinement step.
             tmop_r->Apply(*mesh);
             Update();
             mfem::out << "TMOP energy after   refinement: " <<
-                      nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
+                      nlf->GetGridFunctionEnergy(*x) / mesh->GetNE() <<
                       ", Elements: " << mesh->GetNE() << std::endl;
 
             if (!tmop_dr->Derefined() && tmop_r->Stop())
@@ -658,7 +662,7 @@ void TMOPHRSolver::Mult()
    {
 #ifdef MFEM_USE_MPI
       int NEGlob;
-      double tmopenergy;
+      real_t tmopenergy;
       for (int i_hr = 0; i_hr < hr_iter; i_hr++)
       {
          if (!radaptivity)
@@ -837,11 +841,11 @@ void TMOPHRSolver::ParUpdate()
 
 void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh_, NonlinearForm *nlf_)
 {
-   const FiniteElementSpace &fes = *mesh_->GetNodalFESpace();
+   const FiniteElementSpace &fes = *nlf_->FESpace();
 
    // Update Nonlinear form and Set Essential BC
    nlf_->Update();
-   const int dim = fes.GetFE(0)->GetDim();
+   const int dim = fes.GetTypicalFE()->GetDim();
    if (move_bnd == false)
    {
       Array<int> ess_bdr(mesh_->bdr_attributes.Max());

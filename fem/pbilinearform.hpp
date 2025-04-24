@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -99,7 +99,7 @@ public:
        of the parallel/conforming prolongation, and |.| denotes the entry-wise
        absolute value. In general, this is just an approximation of the exact
        diagonal for this case. */
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
@@ -171,7 +171,38 @@ public:
 
    /** @brief Compute @a y += @a a (P^t A P) @a x, where @a x and @a y are
        vectors on the true dofs. */
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
+
+   /// Compute $ y^T M x $
+   /** @warning The calculation is performed on local dofs, assuming that
+       the local vectors are consistent with the prolongations of the true
+       vectors (see ParGridFunction::Distribute()). If this is not the case,
+       use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
+       instead.
+       @note It is assumed that the local matrix is assembled and it has
+       not been replaced by the parallel matrix through FormSystemMatrix().
+       @see TrueInnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   real_t ParInnerProduct(const ParGridFunction &x,
+                          const ParGridFunction &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (grid function version)
+   /** @note The ParGridFunction%s are restricted to the true-vectors for
+       for calculation.
+       @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix().
+       @see ParInnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   real_t TrueInnerProduct(const ParGridFunction &x,
+                           const ParGridFunction &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (Hypre vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   real_t TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
+
+   /// Compute $ y^T M x $ on true dofs (true-vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   real_t TrueInnerProduct(const Vector &x, const Vector &y) const;
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
@@ -181,31 +212,31 @@ public:
    { return static_cond ? static_cond->GetParTraceFESpace() : NULL; }
 
    /// Get the parallel finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return pfes->GetProlongationMatrix(); }
    /// Get the transpose of GetRestriction, useful for matrix-free RAP
    virtual const Operator *GetRestrictionTranspose() const
    { return pfes->GetRestrictionTransposeOperator(); }
    /// Get the parallel finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return pfes->GetRestrictionMatrix(); }
 
    using BilinearForm::FormLinearSystem;
    using BilinearForm::FormSystemMatrix;
 
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-                                 Vector &b, OperatorHandle &A, Vector &X,
-                                 Vector &B, int copy_interior = 0);
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                         Vector &b, OperatorHandle &A, Vector &X,
+                         Vector &B, int copy_interior = 0) override;
 
-   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                 OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A) override;
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override;
 
-   virtual void Update(FiniteElementSpace *nfes = NULL);
+   void Update(FiniteElementSpace *nfes = NULL) override;
 
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
@@ -281,9 +312,9 @@ public:
 
        This returns the same operator as FormRectangularLinearSystem(), but does
        without the transformations of the right-hand side. */
-   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                            const Array<int> &test_tdof_list,
-                                            OperatorHandle &A);
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A) override;
 
    /** @brief Form the parallel linear system A X = B, corresponding to this mixed
        bilinear form and the linear form @a b(.).
@@ -291,13 +322,13 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                            const Array<int> &test_tdof_list, Vector &x,
-                                            Vector &b, OperatorHandle &A, Vector &X,
-                                            Vector &B);
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list, Vector &x,
+                                    Vector &b, OperatorHandle &A, Vector &X,
+                                    Vector &B) override;
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
-   void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
    virtual ~ParMixedBilinearForm() { }
 };

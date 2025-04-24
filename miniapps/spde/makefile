@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,11 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/spde/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
@@ -25,7 +24,8 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SPDE_COMMON_SRC = material_metrics.cpp spde_solver.cpp transformation.cpp util.cpp visualizer.cpp
+SPDE_COMMON_SRC = material_metrics.cpp spde_solver.cpp transformation.cpp\
+ util.cpp visualizer.cpp
 
 SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 
@@ -60,7 +60,8 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 generate_random_field-test-par: generate_random_field
 	@$(call mfem-test,$<,$(RUN_MPI), random field miniapp,-r 3 -rp 2 \
-	 -nu 4 -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh)
+	 -nu 4 -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 -t 0.08 -top 1 -no-rs \
+	 -m ../../data/ref-square.mesh)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

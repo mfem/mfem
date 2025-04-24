@@ -14,7 +14,7 @@
 //
 // Description:  This example code demonstrates the use of the Discontinuous
 //               Petrov-Galerkin (DPG) method in its primal 2x2 block form as a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = f with homogeneous Dirichlet boundary conditions. We
 //               use high-order continuous trial space, a high-order interfacial
 //               (trace) space, and a high-order discontinuous test space
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
       B.Mult(x, LSres);
       LSres -= *trueF;
       matSinv->Mult(LSres, tmp);
-      double res = sqrt(InnerProduct(LSres, tmp));
+      real_t res = sqrt(InnerProduct(LSres, tmp));
       if (myid == 0)
       {
          cout << "\n|| B0*x0 + Bhat*xhat - F ||_{S^-1} = " << res << endl;

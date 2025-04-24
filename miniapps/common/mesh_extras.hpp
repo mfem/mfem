@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,12 +53,12 @@ class KershawTransformation : public VectorCoefficient
 {
 private:
    int dim;
-   double epsy, epsz;
+   real_t epsy, epsz;
    int smooth;
 
 public:
-   KershawTransformation(const int dim_, double epsy_ = 0.3,
-                         double epsz_ = 0.3, int smooth_ = 1)
+   KershawTransformation(const int dim_, real_t epsy_ = 0.3,
+                         real_t epsz_ = 0.3, int smooth_ = 1)
       : VectorCoefficient(dim_), dim(dim_), epsy(epsy_),
         epsz(epsz_), smooth(smooth_)
    {
@@ -76,20 +76,20 @@ public:
    }
 
    // 1D transformation at the right boundary.
-   double right(const double eps, const double x)
+   real_t right(const real_t eps, const real_t x)
    {
       return (x <= 0.5) ? (2-eps) * x : 1 + eps*(x-1);
    }
 
    // 1D transformation at the left boundary
-   double left(const double eps, const double x)
+   real_t left(const real_t eps, const real_t x)
    {
       return 1-right(eps,1-x);
    }
 
    // Transition from a value of "a" for x=0, to a value of "b" for x=1.
    // Controlled through "smooth" parameter.
-   double step(const double a, const double b, double x)
+   real_t step(const real_t a, const real_t b, real_t x)
    {
       if (x <= 0) { return a; }
       if (x >= 1) { return b; }
@@ -98,8 +98,38 @@ public:
       else { return a + (b-a) * (x*x*x*(x*(6*x-15)+10)); }
    }
 
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   using VectorCoefficient::Eval;
+};
+
+/// Transform a [0,1]^D mesh into a spiral. The parameters are:
+/// @a turns - number of turns around the origin,
+/// @a width - for D >= 2, the width of the spiral arm,
+/// @ gap    - gap between adjacent spiral arms at the end of each turn,
+/// @ height - for D = 3, the maximum height of the spiral.
+// Usage:
+// common::SpiralTransformation spiralT(spaceDim, 2.4, 0.1, 0.05, 1.0);
+// pmesh->Transform(spiralT);
+class SpiralTransformation : public VectorCoefficient
+{
+private:
+   real_t dim, turns, width, gap, height;
+
+public:
+   SpiralTransformation(int dim_, real_t turns_ = 1.0, real_t width_ = 0.1,
+                        real_t gap_ = 0.05, real_t height_ = 1.0)
+      : VectorCoefficient(dim_), dim(dim_),
+        turns(turns_), width(width_), gap(gap_), height(height_)
+   {
+      MFEM_VERIFY(turns > 0 && width > 0 && gap > 0 && height > 0,
+                  "Spiral transformation requires positive parameters: turns, "
+                  " width, gap, and height.");
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    using VectorCoefficient::Eval;
 };

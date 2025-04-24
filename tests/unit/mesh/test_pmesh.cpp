@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             }
          }
 
+
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
          int globalN = 0;
@@ -102,8 +103,10 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
             // Verify that the global indices range from 0 to globalN-1.
             {
-               const HYPRE_BigInt localMin = gi.Min();
-               const HYPRE_BigInt localMax = gi.Max();
+               const HYPRE_BigInt localMin = gi.Size() > 0 ? gi.Min() :
+                                             std::numeric_limits<HYPRE_BigInt>::max();
+               const HYPRE_BigInt localMax = gi.Size() > 0 ? gi.Max() :
+                                             std::numeric_limits<HYPRE_BigInt>::min();
 
                HYPRE_BigInt globalMin, globalMax;
                MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_BIG_INT, MPI_MIN,

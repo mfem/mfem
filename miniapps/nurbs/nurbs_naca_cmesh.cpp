@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 // Compile with: make nurbs_naca_cmesh
 //
 // Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40
@@ -46,30 +57,30 @@ class NACA4
 {
 protected:
    // Constants describing the thickness profile
-   double A, B, C, D, E;
+   real_t A, B, C, D, E;
    // Thickness of the foil section
-   double t;
+   real_t t;
    // Chord of the foil section: foil length
-   double c;
+   real_t c;
    // Maximum number of iterations for Newton solver
    int iter_max;
    // Tolerance for Newton solver
-   double epsilon;
+   real_t epsilon;
 public:
-   NACA4(double t_, double c_);
+   NACA4(real_t t_, real_t c_);
    // Returns the coordinate y corresponding to coordinate @a xi
-   double y(double xi) const;
+   real_t y(real_t xi) const;
    // Returns the derivative of the curve at location coordinate @a xi
-   double dydx(double xi) const;
+   real_t dydx(real_t xi) const;
    // Returns the curve length at coordinate @a xi
-   double len(double xi) const;
+   real_t len(real_t xi) const;
    // Returns the derivative of the curve length at coordinate @a xi
-   double dlendx(double xi) const;
+   real_t dlendx(real_t xi) const;
    // Returns the coordinate x corresponding to the curve length @a l from
    // the tip of the foil section
-   double xl(double l) const;
+   real_t xl(real_t l) const;
    // Get the chord of the foil_section
-   double GetChord() const {return c;}
+   real_t GetChord() const {return c;}
 };
 
 // Function that finds the coordinates of the control points of the tip of the
@@ -77,7 +88,7 @@ public:
 // fraction @a tf. We have two cases, with an odd number of control points and
 // with an even number of control points. These may be streamlined in the
 // future.
-void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, double tf,
+void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
               Array<Vector*> &xy);
 
 // Function that returns a uniform knot vector based on the @a order and the
@@ -88,22 +99,22 @@ unique_ptr<KnotVector> UniformKnotVector(int order, int ncp);
 // with the form x^s based on the @a order and the number of control points
 // @a ncp. Special case @a s = 0 will give a uniform knot vector.
 unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp,
-                                              double s = 0.0);
+                                              real_t s = 0.0);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing
 // with a cut-off @c using the @a order and the number of control points @a ncp.
-unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, double c);
+unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, real_t c);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing from
 // both sides of the knot vector with a cut-off @c using the @a order and the
 // number of control points @a ncp.
-unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, double c);
+unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, real_t c);
 
 // Function that evaluates a linear function which describes the boundary
 // distance based on the flair angle @a flair, smallest boundary distance @a bd
 // and coordinate @a x. The flair angle is mainly used to be able to enforce
 // inflow on the top and bottom boundary and to create an elegant mesh.
-double FlairBoundDist(double flair, double bd, double x);
+real_t FlairBoundDist(real_t flair, real_t bd, real_t x);
 
 int main(int argc, char *argv[])
 {
@@ -120,9 +131,9 @@ int main(int argc, char *argv[])
                   "File where the generated mesh is written to.");
 
    // Foil section options
-   double foil_length = 1.0;
-   double foil_thickness = 0.12;
-   double aoa = 0.0;
+   real_t foil_length = 1.0;
+   real_t foil_thickness = 0.12;
+   real_t aoa = 0.0;
    args.AddOption(&foil_length, "-l", "--foil-length",
                   "Length of the used foil in the mesh. ");
    args.AddOption(&foil_thickness, "-t", "--foil-thickness",
@@ -131,10 +142,10 @@ int main(int argc, char *argv[])
                   "Angle of attack of the foil. ");
 
    // Mesh options
-   double boundary_dist = 3.0;
-   double wake_length  = 3.0;
-   double tip_fraction = 0.05;
-   double flair = -999;
+   real_t boundary_dist = 3.0;
+   real_t wake_length  = 3.0;
+   real_t tip_fraction = 0.05;
+   real_t flair = -999;
    args.AddOption(&boundary_dist, "-b", "--boundary-distance",
                   "Radius of the c-mesh, distance between foil and boundary");
    args.AddOption(&wake_length, "-w", "--wake_length",
@@ -159,10 +170,10 @@ int main(int argc, char *argv[])
    args.AddOption(&ncp_bnd, "-nbnd", "--ncp-circ",
                   "Number of control points between the foil and boundary.");
 
-   double str_tip = 1;
-   double str_wake = 1;
-   double str_bnd = 1;
-   double str_tail = 1;
+   real_t str_tip = 1;
+   real_t str_wake = 1;
+   real_t str_bnd = 1;
+   real_t str_tail = 1;
    args.AddOption(&str_tip, "-stip", "--str-tip",
                   "Stretch of the knot vector of the tip.");
    args.AddOption(&str_tail, "-stail", "--str-tail",
@@ -190,10 +201,10 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Convert fraction
-   const double tail_fraction = 1.0 - tip_fraction;
+   const real_t tail_fraction = 1.0 - tip_fraction;
 
    // Convert angles to radians
-   constexpr double deg2rad = M_PI/180;
+   constexpr real_t deg2rad = M_PI/180;
    aoa = aoa*deg2rad;
 
    // 2. Create knot vectors
@@ -232,7 +243,7 @@ int main(int argc, char *argv[])
    //    foil section in patches 1, 2 and 3. Note the case of non-unity weights
    //    in patch 2 to create a circular shape: its coordinates are converted to
    //    homogeneous coordinates. This is not needed for other patches as
-   //    homogeneous coordinates and cartesian coordinates are the same
+   //    homogeneous coordinates and Cartesian coordinates are the same
    //    for patches with unity weight.
 
    // Patch 0: lower wake part behind foil section.
@@ -593,7 +604,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-NACA4::NACA4(double t_, double c_)
+NACA4::NACA4(real_t t_, real_t c_)
 {
    t = t_;
    c = c_;
@@ -602,36 +613,36 @@ NACA4::NACA4(double t_, double c_)
    epsilon = 1e-8;
 }
 
-double NACA4::y(double x) const
+real_t NACA4::y(real_t x) const
 {
-   double y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2)
+   real_t y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2)
                    + D*pow(x/c,3) - E*pow(x/c,4));
    return y*c;
 }
 
-double NACA4::dydx(double x) const
+real_t NACA4::dydx(real_t x) const
 {
-   double y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c
+   real_t y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c
                    + 3* D*pow(x/c,2) - 4* E*pow(x/c,3));
    return y*c;
 }
 
-double NACA4::len(double x) const
+real_t NACA4::len(real_t x) const
 {
-   double l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2)
+   real_t l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2)
                        + D*pow(x/c,3) - E * pow(x/c,4)) + x/c;
    return l*c;
 }
 
-double NACA4::dlendx(double xi) const
+real_t NACA4::dlendx(real_t xi) const
 {
    return 1 + dydx(xi);
 }
 
-double NACA4::xl(double l) const
+real_t NACA4::xl(real_t l) const
 {
-   double x = l; // Initial guess, length should be a good one
-   double h;
+   real_t x = l; // Initial guess, length should be a good one
+   real_t h;
    int i = 0;
    do
    {
@@ -646,12 +657,12 @@ double NACA4::xl(double l) const
    return x;
 }
 
-void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, double tf,
+void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
               Array<Vector*> &xy)
 {
    int ncp = kv.GetNCP();
    // Length of half the curve: the boundary covers both sides of the tip
-   const double l = foil_section.len(tf * foil_section.GetChord());
+   const real_t l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knot vector
    Array<int> i_args;
@@ -668,8 +679,8 @@ void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, double tf,
       Vector xcp(n+1);
       for (int i = 0; i < n+1; i++)
       {
-         double u = 2*(u_args[n+i]-0.5);
-         double lcp = u * l;
+         real_t u = 2*(u_args[n+i]-0.5);
+         real_t lcp = u * l;
          xcp[i] = foil_section.xl(lcp);
       }
 
@@ -694,8 +705,8 @@ void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, double tf,
       Vector xcp(n);
       for (int i = 0; i < n; i++)
       {
-         double u = 2*(u_args[n+i]-0.5);
-         double lcp = u * l;
+         real_t u = 2*(u_args[n+i]-0.5);
+         real_t lcp = u * l;
          xcp[i] = foil_section.xl(lcp);
       }
 
@@ -724,7 +735,7 @@ unique_ptr<KnotVector> UniformKnotVector(int order, int ncp)
    }
    for (int i = order+1; i < ncp; i++)
    {
-      (*kv)[i] = (i-order)/double(ncp-order);
+      (*kv)[i] = (i-order)/real_t(ncp-order);
    }
    for (int i = ncp ; i < ncp + order + 1; i++)
    {
@@ -733,7 +744,7 @@ unique_ptr<KnotVector> UniformKnotVector(int order, int ncp)
    return kv;
 }
 
-unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
+unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp, real_t s)
 {
    unique_ptr<KnotVector> kv(new KnotVector(order, ncp));
 
@@ -743,7 +754,7 @@ unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
    }
    for (int i = order+1; i < ncp; i++)
    {
-      (*kv)[i] = (i-order)/double(ncp-order);
+      (*kv)[i] = (i-order)/real_t(ncp-order);
       if (s > 0) { (*kv)[i] = pow((*kv)[i], s); }
       if (s < 0) { (*kv)[i] = 1.0 - pow(1.0-(*kv)[i], -s); }
    }
@@ -754,7 +765,7 @@ unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
    return kv;
 }
 
-unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, double c)
+unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, real_t c)
 {
    unique_ptr<KnotVector> kv(new KnotVector(order, ncp));
 
@@ -764,7 +775,7 @@ unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, double c)
    }
    for (int i = order+1; i < ncp; i++)
    {
-      (*kv)[i] = (i-order)/double(ncp-order);
+      (*kv)[i] = (i-order)/real_t(ncp-order);
       (*kv)[i] = 1 + tanh(c * ((*kv)[i]-1))/tanh(c);
    }
    for (int i = ncp ; i < ncp + order + 1; i++)
@@ -774,7 +785,7 @@ unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
+unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, real_t c)
 {
    unique_ptr<KnotVector> kv(UniformKnotVector(order, ncp));
 
@@ -786,12 +797,12 @@ unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
    {
       if ((*kv)[i] < 0.5)
       {
-         (*kv)[i] = -1 + 2*( 1 - (i-order)/double(ncp-order));
+         (*kv)[i] = -1 + 2*( 1 - (i-order)/real_t(ncp-order));
          (*kv)[i] = 0.5 * abs((tanh(c * ((*kv)[i]-1))/tanh(c)));
       }
       else
       {
-         (*kv)[i] = 2*((i-order)/double(ncp-order) - 0.5);
+         (*kv)[i] = 2*((i-order)/real_t(ncp-order) - 0.5);
          (*kv)[i] = 0.5 +(1 + tanh(c * ((*kv)[i]-1))/tanh(c))/2;
       }
    }
@@ -802,9 +813,9 @@ unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-double FlairBoundDist(double flair, double bd, double x)
+real_t FlairBoundDist(real_t flair, real_t bd, real_t x)
 {
-   double b = sin(flair);
-   double c = bd*cos(flair) + bd * sin(flair) * sin(flair);
+   real_t b = sin(flair);
+   real_t c = bd*cos(flair) + bd * sin(flair) * sin(flair);
    return b * x + c;
 }

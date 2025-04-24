@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ set(SRCS
   integ/bilininteg_convection_pa.cpp
   integ/bilininteg_convection_ea.cpp
   integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_dgdiffusion_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
@@ -25,6 +26,8 @@ set(SRCS
   integ/bilininteg_diffusion_ea.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
+  integ/bilininteg_elasticity_ea.cpp
+  integ/bilininteg_elasticity_pa.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_pa.cpp
   integ/bilininteg_mass_mf.cpp
@@ -32,6 +35,7 @@ set(SRCS
   integ/bilininteg_mass_ea.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
+  integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
   integ/bilininteg_vecdiffusion_pa.cpp
@@ -41,7 +45,9 @@ set(SRCS
   integ/bilininteg_vectorfediv_pa.cpp
   integ/bilininteg_vectorfemass_pa.cpp
   integ/bilininteg_diffusion_kernels.cpp
+  integ/bilininteg_elasticity_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
+  integ/bilininteg_hdiv_ea.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
   integ/bilininteg_mass_kernels.cpp
@@ -59,6 +65,7 @@ set(SRCS
   dgmassinv.cpp
   doftrans.cpp
   eltrans.cpp
+  batchitrans.cpp
   estimators.cpp
   fe.cpp
   fe/face_map_utils.cpp
@@ -69,6 +76,7 @@ set(SRCS
   fe/fe_nd.cpp
   fe/fe_nurbs.cpp
   fe/fe_pos.cpp
+  fe/fe_pyramid.cpp
   fe/fe_rt.cpp
   fe/fe_ser.cpp
   fe_coll.cpp
@@ -76,6 +84,7 @@ set(SRCS
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
+  hybridization_ext.cpp
   intrules.cpp
   intrules_cut.cpp
   ceed/interface/basis.cpp
@@ -106,14 +115,14 @@ set(SRCS
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
   qinterp/eval_by_vdim.cpp
+  qinterp/eval_hdiv.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
-  qinterp/grad_phys_by_nodes.cpp
-  qinterp/grad_phys_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
+  normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
@@ -145,7 +154,13 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findpts_local_2.cpp
+  gslib/findpts_local_3.cpp
+  gslib/interpolate_local_2.cpp
+  gslib/interpolate_local_3.cpp
   transfer.cpp
+  hyperbolic.cpp
+  integrator.cpp
   )
 
 set(HDRS
@@ -153,6 +168,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   integ/bilininteg_diffusion_kernels.hpp
+  integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
@@ -175,6 +191,7 @@ set(HDRS
   fe/fe_nd.hpp
   fe/fe_nurbs.hpp
   fe/fe_pos.hpp
+  fe/fe_pyramid.hpp
   fe/fe_rt.hpp
   fe/fe_ser.hpp
   fe_coll.hpp
@@ -183,8 +200,12 @@ set(HDRS
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
+  hybridization_ext.hpp
   intrules.hpp
   intrules_cut.hpp
+  kernel_dispatch.hpp
+  kernel_reporter.hpp
+  kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
@@ -216,13 +237,14 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
-  qinterp/dispatch.hpp
   qinterp/eval.hpp
+  qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
   qspace.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
+  normal_deriv_restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
@@ -239,6 +261,8 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
+  hyperbolic.hpp
+  integrator.hpp
   )
 
 if (MFEM_USE_SIDRE)

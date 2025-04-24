@@ -417,18 +417,18 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    {
       switch (metric_id)
       {
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 50: metric = new TMOP_Metric_050; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 80: metric = new TMOP_Metric_080(0.1); break;
+         case 1: metric = new TMOP_Metric_001; break;
+         case 2: metric = new TMOP_Metric_002; break;
+         case 50: metric = new TMOP_Metric_050; break;
+         case 58: metric = new TMOP_Metric_058; break;
+         case 80: metric = new TMOP_Metric_080(0.1); break;
       }
    }
    else { metric = new TMOP_Metric_302; }
 
    // Target.
    TargetConstructor::TargetType target =
-         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
    target_c = new TargetConstructor(target, pfes.GetComm());
 
    // Integrator.
@@ -440,9 +440,9 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    nlf->AddDomainIntegrator(tmop_integ);
 
    // Boundary.
-//   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-//   ess_bdr = 1;
-//   nlf->SetEssentialBC(ess_bdr);
+   //   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+   //   ess_bdr = 1;
+   //   nlf->SetEssentialBC(ess_bdr);
 
    // Linear solver.
    lin_solver = new MINRESSolver(pfes.GetComm());
@@ -501,9 +501,9 @@ void MeshOptimizer::SetupSurfaceFit(ParFiniteElementSpace &pfes_nodes,
    adapt_surf_hess = new InterpolatorFP;
 
    GetIntegrator()->EnableSurfaceFittingFromSource
-      (*backgrnd.dist_bg, *surf_fit, surf_fit_marker, surf_fit_coeff,
-       *adapt_surf, *backgrnd.grad_bg, *surf_fit_grad, *adapt_surf_grad,
-       *backgrnd.hess_bg, *surf_fit_hess, *adapt_surf_hess);
+   (*backgrnd.dist_bg, *surf_fit, surf_fit_marker, surf_fit_coeff,
+    *adapt_surf, *backgrnd.grad_bg, *surf_fit_grad, *adapt_surf_grad,
+    *backgrnd.hess_bg, *surf_fit_hess, *adapt_surf_hess);
 }
 
 double MinDetJ(ParMesh &pmesh, int quad_order)
@@ -548,10 +548,12 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x, bool vis = false)
       solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
    const int order = pfes.GetFE(0)->GetOrder();
    double min_detJ = MinDetJ(pmesh, quad_order);
+   double init_energy = nlf->GetParGridFunctionEnergy(x);
    if (myid == 0)
    {
       cout << "\n*** Optimizing Order " << order << " ***\n\n";
       cout << "Min detJ before opt: " << min_detJ << endl;
+      cout << "Energy before opt: " << init_energy << endl;
    }
 
    // Optimize.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,15 @@
 #include "sets.hpp"
 #include "globals.hpp"
 #include <mpi.h>
+#include <cstdint>
+
+// can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
+// doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
+#ifdef MPI_CXX_BOOL
+#define MFEM_MPI_CXX_BOOL MPI_CXX_BOOL
+#else
+#define MFEM_MPI_CXX_BOOL MPI_C_BOOL
+#endif
 
 namespace mfem
 {
@@ -416,6 +425,17 @@ public:
    ~GroupCommunicator();
 };
 
+enum VarMessageTag
+{
+   NEIGHBOR_ELEMENT_RANK_VM,  ///< NeighborElementRankMessage
+   NEIGHBOR_ORDER_VM,         ///< NeighborOrderMessage
+   NEIGHBOR_DEREFINEMENT_VM,  ///< NeighborDerefinementMessage
+   NEIGHBOR_REFINEMENT_VM,    ///< NeighborRefinementMessage
+   NEIGHBOR_PREFINEMENT_VM,   ///< NeighborPRefinementMessage
+   NEIGHBOR_ROW_VM,           ///< NeighborRowMessage
+   REBALANCE_VM,              ///< RebalanceMessage
+   REBALANCE_DOF_VM           ///< RebalanceDofMessage
+};
 
 /// \brief Variable-length MPI message containing unspecific binary data.
 template<int Tag>
@@ -431,8 +451,8 @@ struct VarMessage
    void Isend(int rank, MPI_Comm comm)
    {
       Encode(rank);
-      MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
-                &send_request);
+      MPI_Isend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
+                Tag, comm, &send_request);
    }
 
    /** @brief Non-blocking synchronous send to processor 'rank'.
@@ -441,8 +461,8 @@ struct VarMessage
    void Issend(int rank, MPI_Comm comm)
    {
       Encode(rank);
-      MPI_Issend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
-                 &send_request);
+      MPI_Issend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
+                 Tag, comm, &send_request);
    }
 
    /// Helper to send all messages in a rank-to-message map container.
@@ -538,7 +558,7 @@ struct VarMessage
    template<typename MapT>
    static void RecvAll(MapT& rank_msg, MPI_Comm comm)
    {
-      int recv_left = rank_msg.size();
+      int recv_left = static_cast<int>(rank_msg.size());
       while (recv_left > 0)
       {
          int rank, size;
@@ -579,8 +599,26 @@ protected:
 template <typename Type> struct MPITypeMap;
 
 // Specializations of MPITypeMap; mpi_type initialized in communication.cpp:
-template<> struct MPITypeMap<int>    { static const MPI_Datatype mpi_type; };
-template<> struct MPITypeMap<double> { static const MPI_Datatype mpi_type; };
+template<> struct MPITypeMap<int>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<double>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<float>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<int64_t>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<uint64_t>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
 
 
 /** Reorder MPI ranks to follow the Z-curve within the physical machine topology

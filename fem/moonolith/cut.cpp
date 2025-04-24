@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,6 +8,8 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+
+#ifdef MFEM_USE_MOONOLITH
 
 #include "cut.hpp"
 
@@ -51,14 +53,15 @@ protected:
    {
       Point p;
 
-      for(int d = 0; d < Dim; ++d) {
+      for (int d = 0; d < Dim; ++d)
+      {
          p[d] = p_mfem[d];
       }
 
       moonolith::HPolytope<double, Dim> poly;
       poly.make(from());
 
-      if(!poly.contains(p, 1e-8)) return false;
+      if (!poly.contains(p, 1e-8)) { return false; }
 
       poly.make(to());
 
@@ -106,7 +109,8 @@ protected:
          auto &qp = ir[k];
          result.points[k][0] = qp.x;
          result.points[k][1] = qp.y;
-         if constexpr (Dim == 3) {
+         if constexpr (Dim == 3)
+         {
             result.points[k][12] = qp.z;
          }
 
@@ -238,7 +242,8 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       script.plot(to_, "\'r.\'");
       script.plot(physical_quadrature_.points, "\'*b\'");
 
-      std::cout << "measure(" << counter << "): " << moonolith::measure(physical_quadrature_) << "\n";
+      mfem::out << "measure(" << counter << "): " << moonolith::measure(
+                   physical_quadrature_) << "\n";
 
       script.save("out_" + std::to_string(counter++) + ".m");
    }
@@ -451,3 +456,5 @@ std::shared_ptr<Cut> NewCut(const int dim)
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH

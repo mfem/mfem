@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,8 +32,6 @@ typedef int socklen_t;
 #define close closesocket
 #endif
 
-using namespace std;
-
 namespace mfem
 {
 
@@ -43,7 +41,7 @@ isockstream::isockstream(int port)
 
    if ( (portID = establish()) < 0)
       mfem::out << "Server couldn't be established on port "
-                << portnum << endl;
+                << portnum << std::endl;
    Buf = NULL;
 }
 
@@ -51,7 +49,7 @@ int isockstream::establish()
 {
    // char myname[129];
    char   myname[] = "localhost";
-   int    sfd;
+   int    sfd = -1;
    struct addrinfo hints, *res, *rp;
 
    memset(&hints, 0, sizeof(hints));
@@ -64,7 +62,7 @@ int isockstream::establish()
    {
       mfem::err << "isockstream::establish(): getaddrinfo() failed!\n"
                 << "isockstream::establish(): getaddrinfo() returned: '"
-                << myname << "'" << endl;
+                << myname << "'" << std::endl;
       error = 1;
       return (-1);
    }
@@ -74,7 +72,7 @@ int isockstream::establish()
    {
       if ((sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol)) < 0)
       {
-         mfem::err << "isockstream::establish(): socket() failed!" << endl;
+         mfem::err << "isockstream::establish(): socket() failed!" << std::endl;
          error = 2;
          return (-1);
       }
@@ -82,17 +80,17 @@ int isockstream::establish()
       int on = 1;
       if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0)
       {
-         mfem::err << "isockstream::establish(): setsockopt() failed!" << endl;
+         mfem::err << "isockstream::establish(): setsockopt() failed!" << std::endl;
          return (-1);
       }
 
 #if defined(__APPLE__)
       if (bind(sfd, (const struct sockaddr *)rp->ai_addr, rp->ai_addrlen) < 0)
 #else
-      if (bind(sfd, rp->ai_addr, rp->ai_addrlen) < 0)
+      if (bind(sfd, rp->ai_addr, static_cast<socklen_t>(rp->ai_addrlen)) < 0)
 #endif
       {
-         mfem::err << "isockstream::establish(): bind() failed!" << endl;
+         mfem::err << "isockstream::establish(): bind() failed!" << std::endl;
          close(sfd);
          error = 3;
          continue;
@@ -152,7 +150,7 @@ void isockstream::receive(std::istringstream **in)
 
    if ((socketID = accept(portID, NULL, NULL)) < 0)
    {
-      mfem::out << "Server failed to accept connection." << endl;
+      mfem::out << "Server failed to accept connection." << std::endl;
       error = 5;
       return;
    }
@@ -171,18 +169,18 @@ void isockstream::receive(std::istringstream **in)
    Buf = new char[size+1];
    if (size != read_data(socketID, Buf, size))
    {
-      mfem::out << "Not all the data has been read" << endl;
+      mfem::out << "Not all the data has been read" << std::endl;
    }
 #ifdef DEBUG
    else
    {
-      mfem::out << "Reading " << size << " bytes is successful" << endl;
+      mfem::out << "Reading " << size << " bytes is successful" << std::endl;
    }
 #endif
    Buf[size] = '\0';
 
    close(socketID);
-   (*in) = new istringstream(Buf);
+   (*in) = new std::istringstream(Buf);
 }
 
 isockstream::~isockstream()

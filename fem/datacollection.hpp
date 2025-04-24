@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -176,10 +176,10 @@ protected:
    /**  When cycle >= 0, it is appended to directory names. */
    int cycle;
    /// Physical time (for time-dependent simulations)
-   double time;
+   real_t time;
 
    /// Time step i.e. delta_t (for time-dependent simulations)
-   double time_step;
+   real_t time_step;
 
    /// Serial or parallel run? False iff mesh is a ParMesh
    bool serial;
@@ -318,17 +318,17 @@ public:
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
    /// Set physical time (for time-dependent simulations)
-   void SetTime(double t) { time = t; }
+   void SetTime(real_t t) { time = t; }
 
    /// Set the simulation time step (for time-dependent simulations)
-   void SetTimeStep(double ts) { time_step = ts; }
+   void SetTimeStep(real_t ts) { time_step = ts; }
 
    /// Get time cycle (for time-dependent simulations)
    int GetCycle() const { return cycle; }
    /// Get physical time (for time-dependent simulations)
-   double GetTime() const { return time; }
+   real_t GetTime() const { return time; }
    /// Get the simulation time step (for time-dependent simulations)
-   double GetTimeStep() const { return time_step; }
+   real_t GetTimeStep() const { return time_step; }
 
    /// Get the name of the collection
    const std::string& GetCollectionName() const { return name; }
@@ -454,28 +454,28 @@ public:
 #endif
 
    /// Set/change the mesh associated with the collection
-   virtual void SetMesh(Mesh *new_mesh) override;
+   void SetMesh(Mesh *new_mesh) override;
 
 #ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh) override;
+   void SetMesh(MPI_Comm comm, Mesh *new_mesh) override;
 #endif
 
    /// Add a grid function to the collection and update the root file
-   virtual void RegisterField(const std::string& field_name,
-                              GridFunction *gf) override;
+   void RegisterField(const std::string& field_name,
+                      GridFunction *gf) override;
 
    /// Add a quadrature function to the collection and update the root file.
    /** Visualization of quadrature function is not supported in VisIt(3.12).
        A patch has been sent to VisIt developers in June 2020. */
-   virtual void RegisterQField(const std::string& q_field_name,
-                               QuadratureFunction *qf) override;
+   void RegisterQField(const std::string& q_field_name,
+                       QuadratureFunction *qf) override;
 
    /// Set the number of digits used for both the cycle and the MPI rank
    /// @note VisIt seems to require 6 pad digits for the MPI rank. Therefore,
    /// this function uses this default value. This behavior can be overridden
    /// by calling SetPadDigitsCycle() and SetPadDigitsRank() instead.
-   virtual void SetPadDigits(int digits) override
+   void SetPadDigits(int digits) override
    { pad_digits_cycle=digits; pad_digits_rank=6; }
 
    /// Set VisIt parameter: default levels of detail for the MultiresControl
@@ -489,72 +489,39 @@ public:
    void DeleteAll();
 
    /// Save the collection and a VisIt root file
-   virtual void Save() override;
+   void Save() override;
 
    /// Save a VisIt root file for the collection
    void SaveRootFile();
 
    /// Load the collection based on its VisIt data (described in its root file)
-   virtual void Load(int cycle_ = 0) override;
+   void Load(int cycle_ = 0) override;
 
    /// We will delete the mesh and fields if we own them
    virtual ~VisItDataCollection() {}
 };
 
 
-/// Helper class for ParaView visualization data
-class ParaViewDataCollection : public DataCollection
+/// Abstract base class for ParaViewDataCollection and ParaViewHDFDataCollection
+class ParaViewDataCollectionBase : public DataCollection
 {
-private:
-   int levels_of_detail;
-   int compression_level;
-   std::fstream pvd_stream;
-   VTKFormat pv_data_format;
-   bool high_order_output;
-   bool restart_mode;
-
 protected:
-   void WritePVTUHeader(std::ostream &out);
-   void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
-   void SaveDataVTU(std::ostream &out, int ref);
-   void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
-   const char *GetDataFormatString() const;
-   const char *GetDataTypeString() const;
-   /// @brief If compression is enabled, return the compression level, otherwise
-   /// return 0.
-   int GetCompressionLevel() const;
-
-   std::string GenerateCollectionPath();
-   std::string GenerateVTUFileName(const std::string &prefix, int rank);
-   std::string GenerateVTUPath();
-   std::string GeneratePVDFileName();
-   std::string GeneratePVTUFileName(const std::string &prefix);
-   std::string GeneratePVTUPath();
-
-
+   int levels_of_detail = 1;
+   int compression_level = -1;
+   bool high_order_output = false;
+   bool restart_mode = false;
+   VTKFormat pv_data_format = VTKFormat::BINARY;
 public:
-   /// Constructor. The collection name is used when saving the data.
-   /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
-       Before saving the data collection, some parameters in the collection can
-       be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-   ParaViewDataCollection(const std::string& collection_name,
-                          mfem::Mesh *mesh_ = NULL);
+   ParaViewDataCollectionBase(const std::string &name, Mesh *mesh);
 
-   /// Set refinement levels - every element is uniformly split based on
-   /// levels_of_detail_. The initial value is 1.
-   void SetLevelsOfDetail(int levels_of_detail_);
-
-   /// Save the collection - the directory name is constructed based on the
-   /// cycle value
-   virtual void Save() override;
-
-   /// Set the data format for the ParaView output files. Possible options are
-   /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
-   /// The ASCII and BINARY options output double precision data, whereas the
-   /// BINARY32 option outputs single precision data.
+   /// @brief Set the refinement level.
    ///
-   /// The initial format is VTKFormat::BINARY.
-   void SetDataFormat(VTKFormat fmt);
+   /// In "low-order mode", every element is uniformly split based on the levels
+   /// of detail. In "high-order mode", this sets the polynomial degree for the
+   /// element transformations.
+   ///
+   /// The initial value is 1.
+   void SetLevelsOfDetail(int levels_of_detail_);
 
    /// @brief Set the zlib compression level.
    ///
@@ -570,28 +537,110 @@ public:
    /// Any nonzero compression level will enable compression.
    void SetCompressionLevel(int compression_level_);
 
-   /// Enable or disable zlib compression. If the input is true, use the default
-   /// zlib compression level (unless the compression level has previously been
-   /// set by calling SetCompressionLevel()).
+   /// @brief Enable or disable zlib compression.
+   ///
+   /// If the input is true, use the default zlib compression level (unless the
+   /// compression level has previously been set by calling
+   /// SetCompressionLevel()).
    void SetCompression(bool compression_) override;
+
+   /// @brief Sets whether or not to output the data as high-order elements
+   /// (false by default).
+   ///
+   /// Reading high-order data requires ParaView 5.5 or later.
+   void SetHighOrderOutput(bool high_order_output_);
+
+   /// If compression is enabled, return the compression level, else return 0.
+   int GetCompressionLevel() const;
+
+   /// @brief Set the data format for the ParaView output files.
+   ///
+   /// Possible options are VTKFormat::ASCII, VTKFormat::BINARY, and
+   /// VTKFormat::BINARY32. The ASCII and BINARY options output double precision
+   /// data, whereas the BINARY32 option outputs single precision data.
+   ///
+   /// The initial format is VTKFormat::BINARY.
+   ///
+   /// VTKFormat::ASCII is not supported by ParaViewHDFDataCollection.
+   void SetDataFormat(VTKFormat fmt);
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;
 
-   /// Sets whether or not to output the data as high-order elements (false
-   /// by default). Reading high-order data requires ParaView 5.5 or later.
-   void SetHighOrderOutput(bool high_order_output_);
-
-   /// Enable or disable restart mode. If restart is enabled, new writes will
-   /// preserve timestep metadata for any solutions prior to the currently
-   /// defined time.
+   /// @brief Enable or disable restart mode.
+   ///
+   /// If restart is enabled, new writes will preserve timestep metadata for any
+   /// solutions prior to the currently defined time.
    ///
    /// Initially, restart mode is disabled.
    void UseRestartMode(bool restart_mode_);
-
-   /// Load the collection - not implemented in the ParaView writer
-   virtual void Load(int cycle_ = 0) override;
 };
+
+/// Writer for ParaView visualization (PVD and VTU format)
+class ParaViewDataCollection : public ParaViewDataCollectionBase
+{
+private:
+   std::fstream pvd_stream;
+
+protected:
+   void WritePVTUHeader(std::ostream &out);
+   void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
+   void SaveDataVTU(std::ostream &out, int ref);
+   void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+   const char *GetDataFormatString() const;
+   const char *GetDataTypeString() const;
+
+   std::string GenerateCollectionPath();
+   std::string GenerateVTUFileName(const std::string &prefix, int rank);
+   std::string GenerateVTUPath();
+   std::string GeneratePVDFileName();
+   std::string GeneratePVTUFileName(const std::string &prefix);
+   std::string GeneratePVTUPath();
+
+public:
+   /// Constructor. The collection name is used when saving the data.
+   /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
+       Before saving the data collection, some parameters in the collection can
+       be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
+   ParaViewDataCollection(const std::string& collection_name,
+                          Mesh *mesh_ = nullptr);
+
+   /// Save the collection - the directory name is constructed based on the
+   /// cycle value
+   void Save() override;
+};
+
+#ifdef MFEM_USE_HDF5
+
+/// Writer for ParaView visualization (%VTKHDF format)
+class ParaViewHDFDataCollection : public ParaViewDataCollectionBase
+{
+   /// The low-level VTKHDF object for I/O (pointer to implementation idiom).
+   std::unique_ptr<class VTKHDF> vtkhdf;
+
+   /// Create the VTKHDF object if it doesn't exist already.
+   void EnsureVTKHDF();
+
+   /// Save the collection (templated on floating point type).
+   template <typename FP_T> void TSave();
+
+public:
+   /// @brief Constructor. The collection name is used when saving the data.
+   ///
+   /// If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
+   /// Before saving the data collection, some parameters in the collection can
+   /// be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc.
+   ParaViewHDFDataCollection(const std::string& collection_name,
+                             Mesh *mesh_ = nullptr);
+
+   /// Save the collection.
+   void Save() override;
+
+   /// Destructor.
+   ~ParaViewHDFDataCollection();
+};
+
+#endif
 
 }
 #endif

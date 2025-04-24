@@ -84,10 +84,10 @@ int main (int argc, char *argv[])
    args.AddOption(&solver_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
    args.AddOption(&worst_case, "-wc", "--worst-case",
-                               "-no-wc", "--no-worst-case",
+                  "-no-wc", "--no-worst-case",
                   "Enable worst case optimization step.");
    args.AddOption(&fit_optimize, "-fit", "--fit_optimize",
-                                 "-no-fit", "--no-fit-optimize",
+                  "-no-fit", "--no-fit-optimize",
                   "Enable optimization with tangential relaxation.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
@@ -167,11 +167,11 @@ int main (int argc, char *argv[])
    {
       switch (metric_id)
       {
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 50: metric = new TMOP_Metric_050; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 80: metric = new TMOP_Metric_080(0.1); break;
+         case 1: metric = new TMOP_Metric_001; break;
+         case 2: metric = new TMOP_Metric_002; break;
+         case 50: metric = new TMOP_Metric_050; break;
+         case 58: metric = new TMOP_Metric_058; break;
+         case 80: metric = new TMOP_Metric_080(0.1); break;
       }
    }
    else { metric = new TMOP_Metric_302; }
@@ -179,9 +179,9 @@ int main (int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    switch (target_id)
    {
-   case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-   case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-   case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
    }
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
@@ -248,7 +248,8 @@ int main (int argc, char *argv[])
       }
    }
    MPI_Allreduce(MPI_IN_PLACE, &max_mu, 1, MPI_DOUBLE, MPI_MAX, pfes.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM,
+                 pfes.GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
    if (myid == 0)
    {
@@ -367,9 +368,9 @@ int main (int argc, char *argv[])
    {
       mesh_opt.SetupSurfaceFit(pfes_nodes_scalar, surf_fit_coeff, backgrnd);
       mesh_opt.GetSolver()->
-            SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+      SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
       mesh_opt.GetSolver()->
-            SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+      SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
 
       if (vis)
       {
@@ -399,6 +400,7 @@ int main (int argc, char *argv[])
    }
 
    mesh_opt.OptimizeNodes(x, vis);
+   // MFEM_ABORT(" ");
 
    MeshOptimizer mesh_opt_2;
    H1_FECollection fec_2(2, dim);
@@ -412,9 +414,9 @@ int main (int argc, char *argv[])
       surf_fit_coeff.constant = surface_fit_const;
       mesh_opt_2.SetupSurfaceFit(pfes_2_scalar, surf_fit_coeff, backgrnd);
       mesh_opt_2.GetSolver()->
-            SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+      SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
       mesh_opt_2.GetSolver()->
-            SetTerminationWithMaxSurfaceFittingError(1e-7);
+      SetTerminationWithMaxSurfaceFittingError(1e-7);
    }
    mesh_opt_2.OptimizeNodes(x_2, vis);
 
@@ -478,10 +480,10 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order)
    if (dim == 2) { metric = new TMOP_Metric_004; }
    else          { metric = new TMOP_Metric_360; }
    TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.5,
-                                                    0.001, 0.001,
-                                                    btype, wctype);
+                                                   0.001, 0.001,
+                                                   btype, wctype);
    TargetConstructor::TargetType target =
-         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
    TargetConstructor target_c(target, pfes.GetComm());
    auto tmop_integ = new TMOP_Integrator(&u_metric, &target_c, nullptr);
    tmop_integ->EnableFiniteDifferences(x);
@@ -543,10 +545,10 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
    if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_304; }
    TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.5,
-                                                    0.001, 0.001,
-                                                    btype, wctype);
+                                                   0.001, 0.001,
+                                                   btype, wctype);
    TargetConstructor::TargetType target =
-         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
    TargetConstructor target_c(target, pfes.GetComm());
    auto tmop_integ = new TMOP_Integrator(&u_metric, &target_c, nullptr);
    tmop_integ->EnableFiniteDifferences(x);
@@ -631,8 +633,8 @@ void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l)
    Array<int> l_ess_vdof_marker(l.Size());
    l_ess_vdof_marker = 0;
    // wrong.
-  // PRefinementTransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
-  // transfer.MultTranspose(h, l);
+   // PRefinementTransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
+   // transfer.MultTranspose(h, l);
 
    // Projects, doesn't interpolate.
    //l.ProjectGridFunction(h);

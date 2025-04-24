@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,13 +45,12 @@ class TestCoeff : public Coefficient
 public:
    TestCoeff() {}
 
-   virtual
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       if (T.GetSpaceDim()==3)
       {
-         double x[3];
+         real_t x[3];
          Vector transip(x, 3);
          T.Transform(ip, transip);
          return std::sin(x[0])*std::cos(x[1]) +
@@ -60,7 +59,7 @@ public:
       }
       else if (T.GetSpaceDim()==2)
       {
-         double x[2];
+         real_t x[2];
          Vector transip(x, 2);
          T.Transform(ip, transip);
          return std::sin(x[0])*std::cos(x[1]) +
@@ -68,7 +67,7 @@ public:
       }
       else
       {
-         double x;
+         real_t x;
          Vector transip(&x,1);
          T.Transform(ip, transip);
          return std::sin(x)+std::cos(x);
@@ -255,7 +254,7 @@ int main(int argc, char* argv[])
       // Compare the results
       Vector tmpv = x;
       tmpv -= y;
-      double l2err = mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
+      real_t l2err = mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
       if (myrank==0)
       {
          std::cout<<"|l2 error|="<<sqrt(l2err)<<std::endl;

@@ -7,7 +7,7 @@
 //               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -fint
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
    bool compareToElementWise = true;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int ref_levels = 0;
+   int visport = 19916;
    int ir_order = -1;
 
    OptionsParser args(argc, argv);
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
    args.AddOption(&compareToElementWise, "-cew", "--compare-element",
                   "-no-compare", "-no-compare-element",
                   "Compute element-wise solution for comparison");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -152,6 +154,11 @@ int main(int argc, char *argv[])
 
    if (patchAssembly && reducedIntegration && !pa)
    {
+#ifdef MFEM_USE_SINGLE
+      cout << "Reduced integration is not supported in single precision.\n";
+      return MFEM_SKIP_RETURN_VALUE;
+#endif
+
       di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
    }
    else if (patchAssembly)
@@ -208,7 +215,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
@@ -229,7 +235,7 @@ int main(int argc, char *argv[])
 
       x.GetTrueDofs(x_ew);
 
-      const double solNorm = x_ew.Norml2();
+      const real_t solNorm = x_ew.Norml2();
       x_ew -= x_pw;
 
       cout << "Element-wise solution norm " << solNorm << endl;
@@ -267,7 +273,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    sw.Stop();
 
-   const double timeAssemble = sw.RealTime();
+   const real_t timeAssemble = sw.RealTime();
 
    sw.Clear();
    sw.Start();
@@ -278,7 +284,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    sw.Stop();
 
-   const double timeFormLinearSystem = sw.RealTime();
+   const real_t timeFormLinearSystem = sw.RealTime();
 
    cout << "Timing for Assemble: " << timeAssemble << " seconds" << endl;
    cout << "Timing for FormLinearSystem: " << timeFormLinearSystem << " seconds"

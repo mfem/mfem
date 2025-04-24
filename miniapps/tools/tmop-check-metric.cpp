@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,12 +29,15 @@ using namespace std;
 int main(int argc, char *argv[])
 {
    int metric_id = 2;
+   bool a_metric_version = false;
    int convergence_iter = 10;
    bool verbose = false;
 
    // Choose metric.
    OptionsParser args(argc, argv);
    args.AddOption(&metric_id, "-mid", "--metric-id", "Metric id");
+   args.AddOption(&a_metric_version, "-A", "-Ametric", "-no-A", "--no-Ametric",
+                  "Use the A-version of the metric, if available.");
    args.AddOption(&verbose, "-v", "-verbose", "-no-v", "--no-verbose",
                   "Enable extra screen output.");
    args.AddOption(&convergence_iter, "-i", "--iterations",
@@ -49,7 +52,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Setup metric.
-   double tauval = -0.1;
+   real_t tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -58,9 +61,13 @@ int main(int argc, char *argv[])
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
-      case 14: metric = new TMOP_Metric_014; break;
+      case 14:
+         if (a_metric_version) { metric = new TMOP_Metric_014; }
+         else                  { metric = new TMOP_AMetric_014; } break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
-      case 50: metric = new TMOP_Metric_050; break;
+      case 50:
+         if (a_metric_version) { metric = new TMOP_Metric_050; }
+         else                  { metric = new TMOP_AMetric_050; } break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
@@ -89,18 +96,32 @@ int main(int argc, char *argv[])
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
       case 338: metric = new TMOP_Metric_338; break;
+      case 342: metric = new TMOP_Metric_342; break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(tauval); break;
       case 360: metric = new TMOP_Metric_360; break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
 
    const int dim = (metric_id < 300) ? 2 : 3;
+   Mesh *mesh;
+   if (dim == 2)
+   {
+      mesh = new Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL));
+   }
+   else
+   {
+      mesh = new Mesh(Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON));
+   }
+   H1_FECollection fec(2, dim);
+   FiniteElementSpace fespace(mesh, &fec, dim);
+
    DenseMatrix T(dim);
    Vector T_vec(T.GetData(), dim * dim);
 
@@ -113,9 +134,12 @@ int main(int argc, char *argv[])
       T(0, 0) += T_vec.Max();
       if (T.Det() <= 0.0) { continue; }
 
-      const double i_form = metric->EvalW(T),
+      auto W = Geometries.GetGeomToPerfGeomJac(fespace.GetFE(0)->GetGeomType());
+      metric->SetTargetJacobian(W);
+
+      const real_t i_form = metric->EvalW(T),
                    m_form = metric->EvalWMatrixForm(T);
-      const double diff = fabs(i_form - m_form) / fabs(m_form);
+      const real_t diff = std::abs(i_form - m_form) / std::abs(m_form);
       if (diff > 1e-8)
       {
          bad_cnt++;
@@ -131,17 +155,6 @@ int main(int argc, char *argv[])
    cout << "--- EvalW:     " << bad_cnt << " errors out of "
         << valid_cnt << " comparisons with det(T) > 0.\n";
 
-   Mesh *mesh;
-   if (dim == 2)
-   {
-      mesh = new Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL));
-   }
-   else
-   {
-      mesh = new Mesh(Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON));
-   }
-   H1_FECollection fec(2, dim);
-   FiniteElementSpace fespace(mesh, &fec, dim);
    NonlinearForm a(&fespace);
    mesh->SetNodalFESpace(&fespace);
    GridFunction x(&fespace);
@@ -162,19 +175,19 @@ int main(int argc, char *argv[])
 
    // Test 1st derivative (assuming EvalW is correct). Should be 2nd order.
    Vector dF_0;
-   const double F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
+   const real_t F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
    integ->AssembleElementVector(fe, Tr, x_loc, dF_0);
    if (verbose) { cout << "***\ndF = \n"; dF_0.Print(); cout << "***\n"; }
-   double dx = 0.1;
-   double rate_dF_sum = 0.0, err_old;
+   real_t dx = 0.1;
+   real_t rate_dF_sum = 0.0, err_old = 1.0;
    for (int k = 0; k < convergence_iter; k++)
    {
-      double err_k = 0.0;
+      real_t err_k = 0.0;
       for (int i = 0; i < x_loc.Size(); i++)
       {
          x_loc(i) += dx;
-         err_k = fmax(err_k, fabs(F_0 + dF_0(i) * dx -
-                                  integ->GetElementEnergy(fe, Tr, x_loc)));
+         err_k = std::max(err_k, std::abs(F_0 + dF_0(i) * dx -
+                                          integ->GetElementEnergy(fe, Tr, x_loc)));
          x_loc(i) -= dx;
       }
       dx *= 0.5;
@@ -185,7 +198,7 @@ int main(int argc, char *argv[])
       }
       if (k > 0)
       {
-         double r = log2(err_old / err_k);
+         real_t r = log2(err_old / err_k);
          rate_dF_sum += r;
          if (verbose)
          {
@@ -198,24 +211,24 @@ int main(int argc, char *argv[])
              << rate_dF_sum / (convergence_iter - 1) << endl;
 
    // Test 2nd derivative (assuming EvalP is correct).
-   double min_avg_rate = 7.0;
+   real_t min_avg_rate = 7.0;
    DenseMatrix ddF_0;
    integ->AssembleElementGrad(fe, Tr, x_loc, ddF_0);
    if (verbose) { cout << "***\nddF = \n"; ddF_0.Print(); cout << "***\n"; }
    for (int i = 0; i < x_loc.Size(); i++)
    {
-      double rate_sum = 0.0;
+      real_t rate_sum = 0.0;
       dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
-         double err_k = 0.0;
+         real_t err_k = 0.0;
 
          for (int j = 0; j < x_loc.Size(); j++)
          {
             x_loc(j) += dx;
             Vector dF_dx;
             integ->AssembleElementVector(fe, Tr, x_loc, dF_dx);
-            err_k = fmax(err_k, fabs(dF_0(i) + ddF_0(i, j) * dx - dF_dx(i)));
+            err_k = std::max(err_k, std::abs(dF_0(i) + ddF_0(i, j) * dx - dF_dx(i)));
             x_loc(j) -= dx;
          }
          dx *= 0.5;
@@ -227,7 +240,7 @@ int main(int argc, char *argv[])
          }
          if (k > 0)
          {
-            double r = log2(err_old / err_k);
+            real_t r = log2(err_old / err_k);
             // Error is zero (2nd derivative is exact) -> put rate 2 (optimal).
             if (err_k < 1e-14) { r = 2.0; }
             rate_sum += r;
@@ -240,7 +253,7 @@ int main(int argc, char *argv[])
          }
          err_old = err_k;
       }
-      min_avg_rate = fmin(min_avg_rate, rate_sum / (convergence_iter - 1));
+      min_avg_rate = std::min(min_avg_rate, rate_sum / (convergence_iter - 1));
    }
    std::cout << "--- AssembleH: avg rate of convergence (should be 2): "
              << min_avg_rate << endl;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -119,12 +119,16 @@ public:
    | ND@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | Nedelec vector elements |
    | ND_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0  | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
    | ND_Trace@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
+   | ND_R1D_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 1D. |
+   | ND_R2D_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 2D. |
    | RT_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | Raviart-Thomas vector elements |
    | RT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | Raviart-Thomas vector elements |
    | RT_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_ValTrace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_ValTrace@[BTYPE]_[DIM]_[ORDER] |  H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_R1D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 1D. |
+   | RT_R2D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
    | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
    | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
    | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
@@ -193,6 +197,17 @@ public:
       if (p == base_p) { return FiniteElementForGeometry(geom); }
       if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
       return var_orders[p]->FiniteElementForGeometry(geom);
+   }
+
+   /// Variable order version of TraceFiniteElementForGeometry().
+   /** The order parameter @a p represents the order of the highest-dimensional
+       FiniteElement%s the fixed-order collection we want to query. In general,
+       this order is different from the order of the returned FiniteElement. */
+   const FiniteElement *GetTraceFE(Geometry::Type geom, int p) const
+   {
+      if (p == base_p) { return TraceFiniteElementForGeometry(geom); }
+      if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
+      return var_orders[p]->TraceFiniteElementForGeometry(geom);
    }
 
    /// Variable order version of DofForGeometry().
@@ -267,7 +282,8 @@ protected:
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
-                            const int btype = BasisType::GaussLobatto);
+                            const int btype = BasisType::GaussLobatto,
+                            const int pyrtype = 1);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -343,7 +359,8 @@ private:
 public:
    L2_FECollection(const int p, const int dim,
                    const int btype = BasisType::GaussLegendre,
-                   const int map_type = FiniteElement::VALUE);
+                   const int map_type = FiniteElement::VALUE,
+                   const int pyrtype = 1);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -680,8 +697,8 @@ public:
 /// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
 class NURBSFECollection : public FiniteElementCollection
 {
-private:
-   PointFiniteElement   *PointFE;
+protected:
+   PointFiniteElement *PointFE;
    NURBS1DFiniteElement *SegmentFE;
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
@@ -701,12 +718,14 @@ public:
       order, or VariableOrder (default). */
    explicit NURBSFECollection(int Order = VariableOrder);
 
-   void Reset() const
+   virtual void Reset() const
    {
       SegmentFE->Reset();
       QuadrilateralFE->Reset();
       ParallelepipedFE->Reset();
    }
+
+   virtual void SetDim(const int dim) {};
 
    /** @brief Get the order of the NURBS collection: either a positive number,
        when using fixed order, or VariableOrder. */
@@ -715,7 +734,7 @@ public:
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   void SetOrder(int Order) const;
+   virtual void SetOrder(int Order) const;
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -732,6 +751,109 @@ public:
    FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~NURBSFECollection();
+};
+
+/// Arbitrary order H(div) NURBS finite elements.
+class NURBS_HDivFECollection : public NURBSFECollection
+{
+private:
+
+   NURBS1DFiniteElement *SegmentFE;
+   NURBS2DFiniteElement *QuadrilateralFE;
+
+   NURBS_HDiv2DFiniteElement *QuadrilateralVFE;
+   NURBS_HDiv3DFiniteElement *ParallelepipedVFE;
+
+   FiniteElement *sFE;
+   FiniteElement *qFE;
+   FiniteElement *hFE;
+
+public:
+
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBS_HDivFECollection(int Order = VariableOrder, const int vdim = -1);
+
+   void Reset() const override
+   {
+      SegmentFE->Reset();
+      QuadrilateralFE->Reset();
+      QuadrilateralVFE->Reset();
+      ParallelepipedVFE->Reset();
+   }
+
+   void SetDim(const int dim) override;
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   void SetOrder(int Order) const override;
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   virtual ~NURBS_HDivFECollection();
+};
+
+/// Arbitrary order H(curl) NURBS finite elements.
+class NURBS_HCurlFECollection : public NURBSFECollection
+{
+private:
+   NURBS1DFiniteElement *SegmentFE;
+   NURBS2DFiniteElement *QuadrilateralFE;
+
+   NURBS_HCurl2DFiniteElement *QuadrilateralVFE;
+   NURBS_HCurl3DFiniteElement *ParallelepipedVFE;
+
+   FiniteElement *sFE;
+   FiniteElement *qFE;
+   FiniteElement *hFE;
+public:
+
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBS_HCurlFECollection(int Order = VariableOrder,
+                                    const int vdim = -1);
+
+   void Reset() const override
+   {
+      SegmentFE->Reset();
+      QuadrilateralFE->Reset();
+      QuadrilateralVFE->Reset();
+      ParallelepipedVFE->Reset();
+   }
+
+   void SetDim(const int dim) override;
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   void SetOrder(int Order) const override;
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   virtual ~NURBS_HCurlFECollection();
 };
 
 /// Piecewise-(bi/tri)linear continuous finite elements.

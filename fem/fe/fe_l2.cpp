@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,7 +23,7 @@ using namespace std;
 L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyOpen(btype), L2_DOF_MAP)
 {
-   const double *op = poly1d.OpenPoints(p, btype);
+   const real_t *op = poly1d.OpenPoints(p, btype);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -58,7 +58,7 @@ void L2_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
    switch (vertex)
    {
@@ -82,7 +82,7 @@ void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int btype)
    : NodalTensorFiniteElement(2, p, VerifyOpen(btype), L2_DOF_MAP)
 {
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -142,7 +142,7 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -200,16 +200,16 @@ void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
       div = 0.0;
 
       const IntegrationRule &ir = IntRules.Get(geom_type, fe.GetOrder());
-      const double *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
 
       // Loop over subcells
       for (int iy = 0; iy < order+1; ++iy)
       {
-         const double hy = gll_pts[iy+1] - gll_pts[iy];
+         const real_t hy = gll_pts[iy+1] - gll_pts[iy];
          for (int ix = 0; ix < order+1; ++ix)
          {
             const int i = ix + iy*(order+1);
-            const double hx = gll_pts[ix+1] - gll_pts[ix];
+            const real_t hx = gll_pts[ix+1] - gll_pts[ix];
             // Loop over subcell quadrature points
             for (int iq = 0; iq < ir.Size(); ++iq)
             {
@@ -218,10 +218,10 @@ void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
                ip.y = gll_pts[iy] + hy*ip.y;
                Trans.SetIntPoint(&ip);
                fe.CalcDivShape(ip, div_shape);
-               double w = ip.weight;
+               real_t w = ip.weight;
                if (map_type == VALUE)
                {
-                  const double detJ = Trans.Weight();
+                  const real_t detJ = Trans.Weight();
                   w /= detJ;
                }
                else if (map_type == INTEGRAL)
@@ -230,7 +230,7 @@ void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
                }
                for (int j = 0; j < fe_ndof; j++)
                {
-                  const double div_j = div_shape(j);
+                  const real_t div_j = div_shape(j);
                   div(i,j) += w*div_j;
                }
             }
@@ -259,17 +259,17 @@ void L2_QuadrilateralElement::Project(Coefficient &coeff,
    if (basis1d.IsIntegratedType())
    {
       const IntegrationRule &ir = IntRules.Get(geom_type, order);
-      const double *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
 
       dofs = 0.0;
       // Loop over subcells
       for (int iy = 0; iy < order+1; ++iy)
       {
-         const double hy = gll_pts[iy+1] - gll_pts[iy];
+         const real_t hy = gll_pts[iy+1] - gll_pts[iy];
          for (int ix = 0; ix < order+1; ++ix)
          {
             const int i = ix + iy*(order+1);
-            const double hx = gll_pts[ix+1] - gll_pts[ix];
+            const real_t hx = gll_pts[ix+1] - gll_pts[ix];
             // Loop over subcell quadrature points
             for (int iq = 0; iq < ir.Size(); ++iq)
             {
@@ -277,8 +277,8 @@ void L2_QuadrilateralElement::Project(Coefficient &coeff,
                ip.x = gll_pts[ix] + hx*ip.x;
                ip.y = gll_pts[iy] + hy*ip.y;
                Trans.SetIntPoint(&ip);
-               const double val = coeff.Eval(Trans, ip);
-               double w = ip.weight;
+               const real_t val = coeff.Eval(Trans, ip);
+               real_t w = ip.weight;
                if (map_type == INTEGRAL)
                {
                   w *= hx*hy*Trans.Weight();
@@ -298,7 +298,7 @@ void L2_QuadrilateralElement::Project(Coefficient &coeff,
 L2_HexahedronElement::L2_HexahedronElement(const int p, const int btype)
    : NodalTensorFiniteElement(3, p, VerifyOpen(btype), L2_DOF_MAP)
 {
-   const double *op = poly1d.OpenPoints(p, btype);
+   const real_t *op = poly1d.OpenPoints(p, btype);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -367,7 +367,7 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -461,19 +461,19 @@ void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
       div = 0.0;
 
       const IntegrationRule &ir = IntRules.Get(geom_type, fe.GetOrder());
-      const double *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
 
       // Loop over subcells
       for (int iz = 0; iz < order+1; ++iz)
       {
-         const double hz = gll_pts[iz+1] - gll_pts[iz];
+         const real_t hz = gll_pts[iz+1] - gll_pts[iz];
          for (int iy = 0; iy < order+1; ++iy)
          {
-            const double hy = gll_pts[iy+1] - gll_pts[iy];
+            const real_t hy = gll_pts[iy+1] - gll_pts[iy];
             for (int ix = 0; ix < order+1; ++ix)
             {
                const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
-               const double hx = gll_pts[ix+1] - gll_pts[ix];
+               const real_t hx = gll_pts[ix+1] - gll_pts[ix];
                // Loop over subcell quadrature points
                for (int iq = 0; iq < ir.Size(); ++iq)
                {
@@ -483,10 +483,10 @@ void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
                   ip.z = gll_pts[iz] + hz*ip.z;
                   Trans.SetIntPoint(&ip);
                   fe.CalcDivShape(ip, div_shape);
-                  double w = ip.weight;
+                  real_t w = ip.weight;
                   if (map_type == VALUE)
                   {
-                     const double detJ = Trans.Weight();
+                     const real_t detJ = Trans.Weight();
                      w /= detJ;
                   }
                   else if (map_type == INTEGRAL)
@@ -495,7 +495,7 @@ void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
                   }
                   for (int j = 0; j < fe_ndof; j++)
                   {
-                     const double div_j = div_shape(j);
+                     const real_t div_j = div_shape(j);
                      div(i,j) += w*div_j;
                   }
                }
@@ -525,19 +525,19 @@ void L2_HexahedronElement::Project(Coefficient &coeff,
    if (basis1d.IsIntegratedType())
    {
       const IntegrationRule &ir = IntRules.Get(geom_type, order);
-      const double *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
 
       dofs = 0.0;
       // Loop over subcells
       for (int iz = 0; iz < order+1; ++iz)
       {
-         const double hz = gll_pts[iz+1] - gll_pts[iz];
+         const real_t hz = gll_pts[iz+1] - gll_pts[iz];
          for (int iy = 0; iy < order+1; ++iy)
          {
-            const double hy = gll_pts[iy+1] - gll_pts[iy];
+            const real_t hy = gll_pts[iy+1] - gll_pts[iy];
             for (int ix = 0; ix < order+1; ++ix)
             {
-               const double hx = gll_pts[ix+1] - gll_pts[ix];
+               const real_t hx = gll_pts[ix+1] - gll_pts[ix];
                const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
                // Loop over subcell quadrature points
                for (int iq = 0; iq < ir.Size(); ++iq)
@@ -547,11 +547,11 @@ void L2_HexahedronElement::Project(Coefficient &coeff,
                   ip.y = gll_pts[iy] + hy*ip.y;
                   ip.z = gll_pts[iz] + hz*ip.z;
                   Trans.SetIntPoint(&ip);
-                  const double val = coeff.Eval(Trans, ip);
-                  double w = ip.weight;
+                  const real_t val = coeff.Eval(Trans, ip);
+                  real_t w = ip.weight;
                   if (map_type == INTEGRAL)
                   {
-                     const double detJ = Trans.Weight();
+                     const real_t detJ = Trans.Weight();
                      w *= detJ*hx*hy*hz;
                   }
                   dofs[i] += val*w;
@@ -571,7 +571,7 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
                         FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -589,7 +589,7 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-         double w = op[i] + op[j] + op[p-i-j];
+         real_t w = op[i] + op[j] + op[p-i-j];
          Nodes.IntPoint(o++).Set2(op[i]/w, op[j]/w);
       }
 
@@ -696,7 +696,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, ((p + 1)*(p + 2)*(p + 3))/6,
                         p, FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -717,7 +717,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
       for (int j = 0; j + k <= p; j++)
          for (int i = 0; i + j + k <= p; i++)
          {
-            double w = op[i] + op[j] + op[k] + op[p-i-j-k];
+            real_t w = op[i] + op[j] + op[k] + op[p-i-j-k];
             Nodes.IntPoint(o++).Set3(op[i]/w, op[j]/w, op[k]/w);
          }
 
@@ -921,6 +921,323 @@ void L2_WedgeElement::CalcDShape(const IntegrationPoint &ip,
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
       dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
    }
+}
+
+L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID, ((p + 1)*(p + 1)*(p + 1)),
+                        p, FunctionSpace::Uk)
+{
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+
+   // These basis functions are not independent on a closed set of
+   // interpolation points when p >= 1. For this reason we force the points
+   // to be open in the z direction whenever closed points are requested.
+   // This should be regarded as a limitation of this choice of basis function.
+   // If a truly closed set of points is needed consider using
+   // L2_BergotPyramidElement instead.
+   real_t a = 1.0;
+   if (IsClosedType(btype) && p > 0)
+   {
+      a = (poly1d.GetPoints(p, BasisType::GaussLegendre))[p];
+   }
+
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+#else
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+#endif
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            Nodes.IntPoint(o++).Set3(op[i] * (1.0 - a * op[k]),
+                                     op[j] * (1.0 - a * op[k]),
+                                     a * op[k]);
+         }
+
+   MFEM_ASSERT(o == dof,
+               "Number of nodes does not match the "
+               "number of degrees of freedom");
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      real_t x = ip.x;
+      real_t y = ip.y;
+      real_t z = ip.z;
+      Vector xy({x,y});
+      CalcHomogenizedScaLegendre(p, mu0(z, xy, 1), mu1(z, xy, 1), shape_x);
+      CalcHomogenizedScaLegendre(p, mu0(z, xy, 2), mu1(z, xy, 2), shape_y);
+      CalcHomogenizedScaLegendre(p, mu0(z), mu1(z), shape_z);
+
+      o = 0;
+      for (int k = 0; k <= p; k++)
+      {
+         for (int j = 0; j <= p; j++)
+         {
+            for (int i = 0; i <= p; i++, o++)
+            {
+               T(o, m) = shape_x[i] * shape_y[j] * shape_z[k];
+            }
+         }
+      }
+   }
+
+   Ti.Factor(T);
+}
+
+void L2_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
+                                         Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector u(dof);
+#endif
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y});
+
+   if (z < 1.0)
+   {
+      CalcHomogenizedScaLegendre(p, mu0(z, xy, 1), mu1(z, xy, 1), shape_x);
+      CalcHomogenizedScaLegendre(p, mu0(z, xy, 2), mu1(z, xy, 2), shape_y);
+   }
+   else
+   {
+      shape_x = 0.0; shape_x(0) = 1.0;
+      shape_y = 0.0; shape_y(0) = 1.0;
+   }
+   CalcHomogenizedScaLegendre(p, mu0(z), mu1(z), shape_z);
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++, o++)
+         {
+            u[o] = shape_x[i] * shape_y[j] * shape_z[k];
+         }
+
+   Ti.Mult(u, shape);
+}
+
+void L2_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                          DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector dshape_x(p + 1);
+   Vector dshape_y(p + 1);
+   Vector dshape_z(p + 1);
+   DenseMatrix du(dof, dim);
+#endif
+
+   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x.GetData(),
+                         dshape_x.GetData());
+   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y.GetData(),
+                         dshape_y.GetData());
+   Poly_1D::CalcLegendre(p, ip.z, shape_z.GetData(), dshape_z.GetData());
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++, o++)
+         {
+            du(o, 0) = dshape_x[i] * shape_y[j] * shape_z[k] / (1.0 - ip.z);
+            du(o, 1) = shape_x[i] * dshape_y[j] * shape_z[k] / (1.0 - ip.z);
+            du(o, 2) = shape_x[i] * shape_y[j] * dshape_z[k] +
+                       (ip.x * dshape_x[i] * shape_y[j] +
+                        ip.y * shape_x[i] * dshape_y[j]) *
+                       shape_z[k] / pow(1.0 - ip.z, 2);
+         }
+   Ti.Mult(du, dshape);
+}
+
+L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID, (p + 1)*(p + 2)*(2*p + 3)/6,
+                        p, FunctionSpace::Pk)
+{
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
+   dshape_z_dt.SetSize(p + 1);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+#else
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector dshape_z_dt(p + 1);
+#endif
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p - k; j++)
+      {
+         const real_t wjk = op[j] + op[k] + op[p-j-k];
+         for (int i = 0; i <= p - k; i++)
+         {
+            const real_t wik = op[i] + op[k] + op[p-i-k];
+            const real_t w = wik * wjk * op[p-k];
+            Nodes.IntPoint(o++).Set3(op[i] * (op[j] + op[p-j-k]) / w,
+                                     op[j] * (op[j] + op[p-j-k]) / w,
+                                     op[k] * op[p-k] / w);
+         }
+      }
+
+   MFEM_ASSERT(o == dof,
+               "Number of nodes does not match the "
+               "number of degrees of freedom");
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+
+      const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+      const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+      const real_t z = ip.z;
+
+      poly1d.CalcLegendre(p, x, shape_x.GetData());
+      poly1d.CalcLegendre(p, y, shape_y.GetData());
+
+      o = 0;
+      for (int i = 0; i <= p; i++)
+      {
+         for (int j = 0; j <= p; j++)
+         {
+            int maxij = std::max(i, j);
+            FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+                                             z, 1.0, shape_z);
+
+            for (int k = 0; k <= p - maxij; k++)
+            {
+               T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
+                           pow(1.0 - ip.z, maxij);
+            }
+         }
+      }
+   }
+
+   Ti.Factor(T);
+}
+
+void L2_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
+                                        Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector u(dof);
+#endif
+
+   const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   const real_t z = ip.z;
+
+   poly1d.CalcLegendre(p, x, shape_x.GetData());
+   poly1d.CalcLegendre(p, y, shape_y.GetData());
+
+   int o = 0;
+   for (int i = 0; i <= p; i++)
+   {
+      for (int j = 0; j <= p; j++)
+      {
+         int maxij = std::max(i, j);
+         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+                                          shape_z);
+
+         for (int k = 0; k <= p - maxij; k++)
+         {
+            u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
+                     pow(1.0 - ip.z, maxij);
+         }
+      }
+   }
+
+   Ti.Mult(u, shape);
+}
+
+void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                         DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector dshape_x(p + 1);
+   Vector dshape_y(p + 1);
+   Vector dshape_z(p + 1);
+   Vector dshape_z_dt(p + 1);
+   DenseMatrix du(dof, dim);
+#endif
+
+   const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   const real_t z = ip.z;
+
+   Poly_1D::CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
+   Poly_1D::CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
+
+   int o = 0;
+   for (int i = 0; i <= p; i++)
+   {
+      for (int j = 0; j <= p; j++)
+      {
+         int maxij = std::max(i, j);
+         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+                                          shape_z, dshape_z, dshape_z_dt);
+
+         for (int k = 0; k <= p - maxij; k++, o++)
+         {
+            du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+            du(o,1) = shape_x(i) * dshape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+            du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
+                      pow(1.0 - ip.z, maxij) +
+                      (ip.x * dshape_x(i) * shape_y(j) +
+                       ip.y * shape_x(i) * dshape_y(j)) *
+                      shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
+                      ((maxij > 0) ? (maxij * shape_x(i) * shape_y(j) * shape_z(k) *
+                                      pow(1.0 - ip.z, maxij - 1)) : 0.0);
+         }
+      }
+   }
+
+   Ti.Mult(du, dshape);
 }
 
 }
