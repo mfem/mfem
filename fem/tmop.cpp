@@ -22,9 +22,9 @@ namespace mfem
 /* AD related definitions below ========================================*/
 
 /// MFEM native AD-type for first derivatives
-typedef internal::dual<real_t, real_t> AD1Type;
+using AD1Type = internal::dual<real_t, real_t>;
 /// MFEM native AD-type for second derivatives
-typedef internal::dual<AD1Type, AD1Type> AD2Type;
+using AD2Type = internal::dual<AD1Type, AD1Type>;
 
 /*
 Functions for 2x2 DenseMatrix cast as std::vector<type>, assuming column-major storage
@@ -158,7 +158,7 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    Id(0,0) = 1; Id(1,1) = 1;
 
    std::vector<type> Mat;
-   add_2D(-1.0, T, &Id, Mat);
+   add_2D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
 };
@@ -171,7 +171,7 @@ type mu342_ad(const std::vector<type> &T, const std::vector<type> &W)
    Id(0,0) = 1; Id(1,1) = 1; Id(2,2) = 1;
 
    std::vector<type> Mat;
-   add_3D(-1.0, T, &Id, Mat);
+   add_3D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_3D(Mat)/sqrt(det_3D(T));
 };
@@ -291,6 +291,30 @@ type nu107_ad(const std::vector<type> &T, const std::vector<type> &W)
 
    add_2D(-aw, A, W, Mat);
    return (0.5/alpha)*fnorm2_2D(Mat);
+};
+
+// 0.5[ 1.0 - cos( phi_A - phi_W ) ]
+template <typename type>
+type skew2D_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   // We assume that both A and W are nonsingular.
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+
+   return 0.5*(1.0 - cos_A*cos_W - sin_A*sin_W);
 };
 
 // Given mu(X,Y), compute dmu/dX or dmu/dY. Y is an optional parameter when
@@ -472,12 +496,12 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
 }
 
 void TMOP_Combo_QualityMetric::
-ComputeBalancedWeights(const GridFunction &nodes,
-                       const TargetConstructor &tc, Vector &weights) const
+ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
+                       Vector &weights, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size();
    Vector averages;
-   ComputeAvgMetrics(nodes, tc, averages);
+   ComputeAvgMetrics(nodes, tc, averages, IntRule);
    weights.SetSize(m_cnt);
 
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
@@ -501,9 +525,9 @@ ComputeBalancedWeights(const GridFunction &nodes,
                "Error: sum should be 1 always: " << weights.Sum());
 }
 
-void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
-                                                 const TargetConstructor &tc,
-                                                 Vector &averages) const
+void TMOP_Combo_QualityMetric::
+ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
+                  Vector &averages, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
@@ -518,8 +542,9 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
    for (int e = 0; e < NE; e++)
    {
       const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
-      const IntegrationRule &ir = IntRules.Get(fe_pos.GetGeomType(),
-                                               2 * fe_pos.GetOrder());
+      const IntegrationRule &ir = (IntRule) ? *IntRule
+                                  /* */     : IntRules.Get(fe_pos.GetGeomType(),
+                                                           2*fe_pos.GetOrder());
       const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
 
       DenseMatrix dshape(dof, dim);
@@ -622,6 +647,43 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1(weight, A.GetData());
+}
+
+real_t TMOP_Metric_skew2D::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+   int matsize = Jpt.TotalSize();
+   std::vector<AD1Type> T(matsize), W(matsize);
+   for (int i=0; i<matsize; i++)
+   {
+      T[i] = AD1Type{Jpt.GetData()[i], 0.0};
+      W[i] = AD1Type{Jtr->GetData()[i], 0.0};
+   }
+   return skew2D_ad(T, W).value;
+}
+
+void TMOP_Metric_skew2D::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(skew2D_ad<AD1Type>, P, Jpt, Jtr);
+   return;
+}
+
+void TMOP_Metric_skew2D::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   ADGrad(skew2D_ad<AD1Type>, PW, Jpt, Jtr, false);
+   return;
+}
+
+void TMOP_Metric_skew2D::AssembleH(const DenseMatrix &Jpt,
+                                   const DenseMatrix &DS,
+                                   const real_t weight,
+                                   DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(skew2D_ad<AD2Type>, H, Jpt, Jtr);
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_Metric_skew3D::EvalW(const DenseMatrix &Jpt) const
@@ -3432,6 +3494,23 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
    }
 }
 
+void TMOP_Integrator::SetInitialMeshPos(const GridFunction *x0)
+{
+   x_0 = x0;
+
+   periodic = (x_0 && x_0->FESpace()->IsDGSpace()) ? true : false;
+
+   // Compute PA.X0 when we're setting x_0 to something.
+   if (PA.enabled && x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *n0_R = x0->FESpace()->GetElementRestriction(ord);
+      PA.X0.UseDevice(true);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      n0_R->Mult(*x_0, PA.X0);
+   }
+}
+
 TMOP_Integrator::~TMOP_Integrator()
 {
    delete lim_func;
@@ -3476,11 +3555,6 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
-   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
-   const char* mesh_fe_name =
-      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
-   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
-               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
@@ -3498,11 +3572,6 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
-   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
-   const char* mesh_fe_name =
-      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
-   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
-               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
    delete adapt_lim_gf;
@@ -3525,6 +3594,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
+
+   const bool per = s0.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
    const int dim = s0.FESpace()->GetMesh()->Dimension();
    Mesh *mesh = s0.FESpace()->GetMesh();
@@ -3561,6 +3633,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
                "Incompatible ordering of spaces!");
 
+   const bool per = pos.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
+
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker  = &smarker;
@@ -3580,6 +3655,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
+
+   const bool per = s0.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
    const int dim = s0.FESpace()->GetMesh()->Dimension();
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
@@ -3686,6 +3764,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
 
+   const bool per = s0.FESpace()->IsDGSpace();
+   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
+
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -3704,7 +3785,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for gradient on background mesh
    MFEM_VERIFY(s_bg_grad.ParFESpace()->GetOrdering() ==
                s0_grad.ParFESpace()->GetOrdering(),
-               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "Nodal ordering for grid function on source mesh and current mesh"
                "should be the same.");
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
@@ -3719,7 +3800,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for Hessian on background mesh
    MFEM_VERIFY(s_bg_hess.ParFESpace()->GetOrdering() ==
                s0_hess.ParFESpace()->GetOrdering(),
-               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "Nodal ordering for grid function on source mesh and current mesh"
                "should be the same.");
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
@@ -3746,9 +3827,16 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 }
 #endif
 
-void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
+void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
                                               real_t &err_avg, real_t &err_max)
 {
+   MFEM_VERIFY(periodic == false,
+               "Fitting is not supported for periodic meshes.");
+
+   Vector pos(d_loc.Size());
+   if (x_0) { add(*x_0, d_loc, pos); }
+   else     { pos = d_loc; }
+
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
    const FiniteElementSpace *fes =
@@ -3838,10 +3926,26 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 
 real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
-                                         const Vector &elfun)
+                                         const Vector &d_el)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
    const int el_id = T.ElementNo;
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(el_id, elfun);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, elfun);
+      }
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    real_t energy;
 
    // No adaptive limiting / surface fitting terms if the function is called
@@ -3875,6 +3979,11 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Array<int> pos_dofs;
       lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
       lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, pos0V);
+      }
       if (lim_dist)
       {
          lim_dist->GetValues(el_id, ir, d_vals);
@@ -4136,39 +4245,55 @@ real_t TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
-                                            const Vector &elfun, Vector &elvect)
+                                            const Vector &d_el, Vector &elvect)
 {
    if (!fdflag)
    {
-      AssembleElementVectorExact(el, T, elfun, elvect);
+      AssembleElementVectorExact(el, T, d_el, elvect);
    }
    else
    {
-      AssembleElementVectorFD(el, T, elfun, elvect);
+      AssembleElementVectorFD(el, T, d_el, elvect);
    }
 }
 
 void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           ElementTransformation &T,
-                                          const Vector &elfun,
+                                          const Vector &d_el,
                                           DenseMatrix &elmat)
 {
    if (!fdflag)
    {
-      AssembleElementGradExact(el, T, elfun, elmat);
+      AssembleElementGradExact(el, T, d_el, elmat);
    }
    else
    {
-      AssembleElementGradFD(el, T, elfun, elmat);
+      AssembleElementGradFD(el, T, d_el, elmat);
    }
 }
 
 void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  ElementTransformation &T,
-                                                 const Vector &elfun,
+                                                 const Vector &d_el,
                                                  Vector &elvect)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
+   const int el_id = T.ElementNo;
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(el_id, elfun);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, elfun);
+      }
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
 
    DenseMatrix Amat(dim), work1(dim), work2(dim);
    DSh.SetSize(dof, dim);
@@ -4187,7 +4312,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
    DenseTensor dJtr(dim, dim, dim*nqp);
-   targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
+   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0;
@@ -4200,11 +4325,16 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       pos0.SetSize(dof, dim);
       Vector pos0V(pos0.Data(), dof * dim);
       Array<int> pos_dofs;
-      lim_nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+      lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
       lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, pos0V);
+      }
       if (lim_dist)
       {
-         lim_dist->GetValues(T.ElementNo, ir, d_vals);
+         lim_dist->GetValues(el_id, ir, d_vals);
       }
       else
       {
@@ -4219,7 +4349,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
-      Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementNo = el_id;
       Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
       Tpr->mesh = T.mesh;
@@ -4320,10 +4450,26 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                                                ElementTransformation &T,
-                                               const Vector &elfun,
+                                               const Vector &d_el,
                                                DenseMatrix &elmat)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
+   const int el_id = T.ElementNo;
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(el_id, elfun);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, elfun);
+      }
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
@@ -4338,7 +4484,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    elmat = 0.0;
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
-   targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
+   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0, hess;
@@ -4351,11 +4497,16 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       pos0.SetSize(dof, dim);
       Vector pos0V(pos0.Data(), dof * dim);
       Array<int> pos_dofs;
-      lim_nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+      lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
       lim_nodes0->GetSubVector(pos_dofs, pos0V);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(&el);
+         n_el->ReorderLexToNative(dim, pos0V);
+      }
       if (lim_dist)
       {
-         lim_dist->GetValues(T.ElementNo, ir, d_vals);
+         lim_dist->GetValues(el_id, ir, d_vals);
       }
       else
       {
@@ -4721,16 +4872,16 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
 real_t TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
-                                        Vector &elfun, const int dofidx,
+                                        Vector &d_el, const int dofidx,
                                         const int dir, const real_t e_fx,
                                         bool update_stored)
 {
    int dof = el.GetDof();
    int idx = dir*dof+dofidx;
-   elfun[idx]    += dx;
-   real_t e_fxph  = GetElementEnergy(el, T, elfun);
-   elfun[idx]    -= dx;
-   real_t dfdx    = (e_fxph-e_fx)/dx;
+   d_el[idx]     += fd_h;
+   real_t e_fxph = GetElementEnergy(el, T, d_el);
+   d_el[idx]     -= fd_h;
+   real_t dfdx   = (e_fxph - e_fx) / fd_h;
 
    if (update_stored)
    {
@@ -4743,11 +4894,21 @@ real_t TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
                                               ElementTransformation &T,
-                                              const Vector &elfun,
+                                              const Vector &d_el,
                                               Vector &elvect)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim(), elnum = T.ElementNo;
-   if (elnum>=ElemDer.Size())
+   if (elnum >= ElemDer.Size())
    {
       ElemDer.Append(new Vector);
       ElemPertEnergy.Append(new Vector);
@@ -4756,14 +4917,14 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    }
 
    elvect.SetSize(dof*dim);
-   Vector elfunmod(elfun);
 
    // In GetElementEnergy(), skip terms that have exact derivative calculations.
    fd_call_flag = true;
 
    // Energy for unperturbed configuration.
-   const real_t e_fx = GetElementEnergy(el, T, elfun);
+   const real_t e_fx = GetElementEnergy(el, T, d_el);
 
+   Vector d_el_mod(d_el);
    for (int j = 0; j < dim; j++)
    {
       for (int i = 0; i < dof; i++)
@@ -4773,7 +4934,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
             discr_tc->UpdateTargetSpecificationAtNode(
                el, T, i, j, discr_tc->GetTspecPert1H());
          }
-         elvect(j*dof+i) = GetFDDerivative(el, T, elfunmod, i, j, e_fx, true);
+         elvect(j*dof+i) = GetFDDerivative(el, T, d_el_mod, i, j, e_fx, true);
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
       }
    }
@@ -4811,18 +4972,28 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                                             ElementTransformation &T,
-                                            const Vector &elfun,
+                                            const Vector &d_el,
                                             DenseMatrix &elmat)
 {
+   // Form the Vector of node positions, depending on what's the input.
+   Vector elfun;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
+
    const int dof = el.GetDof(), dim = el.GetDim();
 
    elmat.SetSize(dof*dim);
-   Vector elfunmod(elfun);
 
    const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
    const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
 
    // In GetElementEnergy(), skip terms that have exact derivative calculations.
+   Vector d_el_mod(d_el);
    fd_call_flag = true;
    for (int i = 0; i < dof; i++)
    {
@@ -4832,7 +5003,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          {
             for (int k2 = 0; k2 < dim; k2++)
             {
-               elfunmod(k2*dof+j) += dx;
+               d_el_mod(k2 * dof + j) += fd_h;
 
                if (discr_tc)
                {
@@ -4859,14 +5030,14 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                   }
                }
 
-               real_t e_fx   = ElemPertLoc(k2*dof+j);
-               real_t e_fpxph = GetFDDerivative(el, T, elfunmod, i, k1, e_fx,
+               real_t e_fx    = ElemPertLoc(k2 * dof + j);
+               real_t e_fpxph = GetFDDerivative(el, T, d_el_mod, i, k1, e_fx,
                                                 false);
-               elfunmod(k2*dof+j) -= dx;
+               d_el_mod(k2 * dof + j) -= fd_h;
                real_t e_fpx = ElemDerLoc(k1*dof+i);
 
-               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / dx;
-               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / dx;
+               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / fd_h;
+               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / fd_h;
 
                if (discr_tc)
                {
@@ -5041,7 +5212,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    Vector posV(pos.Data(), dof * dim);
    Jpr.SetSize(dim);
 
-   dx = std::numeric_limits<float>::max();
+   fd_h = std::numeric_limits<float>::max();
 
    real_t detv_sum;
    real_t detv_avg_min = std::numeric_limits<float>::max();
@@ -5059,12 +5230,14 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       real_t detv_avg = pow(detv_sum/nsp, 1./dim);
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
-   dx = detv_avg_min / dxscale;
+   fd_h = detv_avg_min / fd_h_scale;
 }
 
 void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
+   MFEM_VERIFY(periodic == false, "Periodic not implemented yet.");
+
    if (!surf_fit_gf) { return; }
 
    if (surf_fit_marker_dof_index.Size())
@@ -5189,56 +5362,72 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 }
 
 void TMOP_Integrator::
-UpdateAfterMeshPositionChange(const Vector &x_new,
-                              const FiniteElementSpace &x_fes)
+UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
+   if (PA.enabled) { UpdateCoefficientsPA(d); }
 
-   Ordering::Type ordering = x_fes.GetOrdering();
+   Ordering::Type ordering = d_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
-   if (fdflag) { ComputeFDh(x_new, x_fes); }
+   if (fdflag) { ComputeFDh(d, d_fes); }
+
+   Vector x_loc;
+   if (periodic)
+   {
+      GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
+   }
+   else
+   {
+      x_loc.SetSize(x_0->Size());
+      add(*x_0, d, x_loc);
+   }
 
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
    {
-      discr_tc->UpdateTargetSpecification(x_new, true, ordering);
+      discr_tc->UpdateTargetSpecification(x_loc, true, ordering);
       if (fdflag)
       {
-         discr_tc->UpdateGradientTargetSpecification(x_new, dx, true, ordering);
-         discr_tc->UpdateHessianTargetSpecification(x_new, dx, true, ordering);
+         if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+         discr_tc->UpdateGradientTargetSpecification(x_loc, fd_h, true, ordering);
+         discr_tc->UpdateHessianTargetSpecification(x_loc, fd_h, true, ordering);
       }
    }
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
+      adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
    }
 
    // Update surf_fit_gf (and optionally its gradients) if surface
    // fitting is enabled.
    if (surf_fit_gf)
    {
-      RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
+      RemapSurfaceFittingLevelSetAtNodes(x_loc, ordering);
    }
 }
 
-void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &d, const FiniteElementSpace &fes)
 {
+   if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+   Vector x_loc(*x_0);
+   x_loc += d;
+
    if (!fdflag) { return; }
-   ComputeMinJac(x, fes);
+   ComputeMinJac(x_loc, fes);
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
    if (pfes)
    {
       real_t min_jac_all;
-      MPI_Allreduce(&dx, &min_jac_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
-                    pfes->GetComm());
-      dx = min_jac_all;
+      MPI_Allreduce(&fd_h, &min_jac_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, pfes->GetComm());
+      fd_h = min_jac_all;
    }
 #endif
 }
@@ -5247,7 +5436,10 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 {
    fdflag = true;
    const FiniteElementSpace *fes = x.FESpace();
-   ComputeFDh(x,*fes);
+
+   const bool per = fes->IsDGSpace();
+   MFEM_VERIFY(per == false, "FD is not supported for periodic meshes.");
+
    if (discr_tc)
    {
 #ifdef MFEM_USE_GSLIB
@@ -5259,8 +5451,10 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
       }
 #endif
       discr_tc->UpdateTargetSpecification(x, false, fes->GetOrdering());
-      discr_tc->UpdateGradientTargetSpecification(x, dx, false, fes->GetOrdering());
-      discr_tc->UpdateHessianTargetSpecification(x, dx, false, fes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false,
+                                                  fes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false,
+                                                 fes->GetOrdering());
    }
 }
 
@@ -5269,7 +5463,10 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 {
    fdflag = true;
    const ParFiniteElementSpace *pfes = x.ParFESpace();
-   ComputeFDh(x,*pfes);
+
+   const bool per = pfes->IsDGSpace();
+   MFEM_VERIFY(per == false, "FD is not supported for periodic meshes.");
+
    if (discr_tc)
    {
 #ifdef MFEM_USE_GSLIB
@@ -5281,8 +5478,10 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
       }
 #endif
       discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
-      discr_tc->UpdateGradientTargetSpecification(x, dx, false, pfes->GetOrdering());
-      discr_tc->UpdateHessianTargetSpecification(x, dx, false, pfes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, fd_h, false,
+                                                  pfes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, fd_h, false,
+                                                 pfes->GetOrdering());
    }
 }
 #endif
@@ -5329,8 +5528,8 @@ real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
    return min_detT;
 }
 
-real_t TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
-                                                     const FiniteElementSpace &fes)
+real_t TMOP_Integrator::
+ComputeUntanglerMaxMuBarrier(const Vector &x, const FiniteElementSpace &fes)
 {
    real_t max_muT = -std::numeric_limits<real_t>::infinity();
    const int NE = fes.GetMesh()->GetNE();
@@ -5391,13 +5590,22 @@ real_t TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
    return max_muT;
 }
 
-void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
-                                                     const FiniteElementSpace &fes)
+void TMOP_Integrator::
+ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
 
    if (!wcuo) { return; }
+
+   if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+   Vector x_loc(d.Size());
+   if (x_0)
+   {
+      add(*x_0, d, x_loc);
+   }
+   else { x_loc = d; }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
@@ -5407,26 +5615,25 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    if (wcuo && wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = ComputeMinDetT(x, fes);
+      real_t min_detT = ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
-                       MPI_MIN,
-                       pfes->GetComm());
+         MPI_Allreduce(&min_detT, &min_detT_all, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
       }
 #endif
       if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
    }
 
-   real_t max_muT = ComputeUntanglerMaxMuBarrier(x, fes);
+   real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
    real_t max_muT_all = max_muT;
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    pfes->GetComm());
+      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, pfes->GetComm());
    }
 #endif
    wcuo->SetMaxMuT(max_muT_all);
