@@ -50,7 +50,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
 
-
+// make pfindpts -j4 && mpirun -np 1 pfindpts -m ../meshing/spiral-2d-p9.mesh  -mo 9 -o 9 -npt 1 -random 1 -d debug > spirallog.txt; grep -i k10xyz spirallog.txt | awk {'print $1 " " $2 " " $3}' > spiralxyztrajectory.txt;grep -i k10-edge-seed spirallog.txt | awk {'print $1 " " $2}' > spiraledgeseedxy.txt
 #include "mfem.hpp"
 #include "general/forall.hpp"
 #include "../common/mfem-common.hpp"
@@ -153,7 +153,7 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   func_order = std::min(order, 2);
+   func_order = std::min(order, 1);
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -184,7 +184,7 @@ int main (int argc, char *argv[])
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
-      cout << "--- Generating equidistant point for:\n"
+      cout << "--- Mesh bounding box is:\n"
            << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
            << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
       if (dim == 3)
@@ -208,7 +208,7 @@ int main (int argc, char *argv[])
    if (hrefinement) { pmesh.RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
-   H1_FECollection fecm(mesh_poly_deg, dim);
+   L2_FECollection fecm(mesh_poly_deg, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace pfespace(&pmesh, &fecm, dim);
    pmesh.SetNodalFESpace(&pfespace);
    ParGridFunction x(&pfespace);
@@ -353,6 +353,17 @@ int main (int argc, char *argv[])
          }
       }
    }
+   if (npt == 1)
+   {
+      vxyz(0) = 0.308125548889401;
+      vxyz(1) = -0.6313470920475789;
+      if (dim == 3)
+      {
+         vxyz(0) = 0.245170082559832;
+         vxyz(1) = -0.1372641738731784;
+         vxyz(2) = 0.5032413157168827;
+      }
+   }
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -368,6 +379,10 @@ int main (int argc, char *argv[])
    // Enable GPU to CPU fallback for GPUData only if you must use an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
+   // Use additional seeds to determine initial guess for the Newton problem.
+   // finder.SetAdditionalSeeds(1, 5*(mesh_poly_deg+1));
+   finder.SetAdditionalSeeds(1, 35);
+   // finder.SetAdditionalSeeds(2, 3);
    finder.FindPoints(vxyz, point_ordering);
 
    Array<unsigned int> code_out1    = finder.GetCode();
@@ -419,7 +434,29 @@ int main (int argc, char *argv[])
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else { if (j == 0) { not_found++; } }
+         else
+         {
+            if (j == 0)
+            {
+               not_found++;
+               for (int d = 0; d < dim; d++)
+               {
+                  pos(d) = point_ordering == Ordering::byNODES ?
+                           vxyz(d*pts_cnt + i) :
+                           vxyz(i*dim + d);
+               }
+            }
+         }
+         if (code_out[i] > 0 && dist_p_out[i] > 1e-10)
+         {
+            std::cout << setprecision(16)
+                      << "Point " << i << ": "
+                      << pos(0) << " "
+                      << pos(1) << " "
+                      << (dim == 2 ? 0.0 : pos(2)) << " not found and code,dist is "
+                      << code_out[i] << " " <<
+                      dist_p_out(i) << endl;
+         }
       }
    }
 
@@ -451,6 +488,29 @@ int main (int argc, char *argv[])
            << "\nMax dist (of found):  " << max_dist
            << endl;
    }
+
+   // Write out file for the spiral
+   int nnodes = x.Size()/dim;
+   ofstream myfile;
+   myfile.open ("spiralnodes.txt");
+   x.HostReadWrite();
+   for (int i = 0; i < nnodes; i++)
+   {
+      if (myid == 0)
+      {
+         myfile << x(i) << " " << x(i+nnodes) << std::endl;
+      }
+   }
+   myfile.close();
+
+   L2_SegmentElement l2seg(mesh_poly_deg, 1);
+   IntegrationRule ir = l2seg.GetNodes();
+   myfile.open ("spiralrefnodes.txt");
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      myfile << ir.IntPoint(i).x << std::endl;
+   }
+   myfile.close();
 
    // Free the internal gslib data.
    finder.FreeData();

@@ -236,6 +236,9 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                                DEV.local_hash_size,
                                mesh_points_cnt, npt_max, newt_tol);
    }
+
+   SetupSeeds();
+
    setupflag = true;
 }
 
@@ -259,6 +262,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
+
+   SetupSeeds();
 
    if (dev_mode && tensor_product_only)
    {
@@ -482,6 +487,13 @@ void FindPointsGSLIB::SetupDevice()
    DEV.lagcoeff.HostWrite();
    DEV.lagcoeff = dim == 2 ? findptsData2->local.fed.lag_data[0] :
                   findptsData3->local.fed.lag_data[0];
+
+   // seed matrix setup to use on device
+   Vector AuxSeedMC = AuxSeedM;
+   AuxSeedM.UseDevice(true);
+   AuxSeedM.SetSize(AuxSeedMC.Size());
+   AuxSeedM.HostWrite();
+   AuxSeedM = AuxSeedMC;
 
    DEV.setup_device = true;
 }
@@ -2192,6 +2204,58 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
 
       array_free(outpt);
       delete outpt;
+   }
+}
+
+void FindPointsGSLIB::SetAdditionalSeeds(int strategy, int nseeds)
+{
+   if (strategy != seeding_strategy && nseeds != n1Dseeds)
+   {
+      AuxSeedM.SetSize(0);
+   }
+   seeding_strategy = strategy;
+   n1Dseeds = nseeds;
+}
+
+void FindPointsGSLIB::SetupSeeds()
+{
+   const int meshOrder = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
+   const int nb = meshOrder+1;
+   auto GetUniformPoints = [](int n) -> Vector
+   {
+      Vector nodes(n);
+      nodes(0) = 0.0;
+      nodes(n-1) = 1.0;
+      for (int i = 1; i < n-1; ++i)
+      {
+         nodes(i) = (i)*1.0/(n - 1);
+      }
+      return nodes;
+   };
+   if (seeding_strategy == 0)
+   {
+      AuxSeedM.SetSize(0);
+      return;
+   }
+   else if (seeding_strategy == 2)
+   {
+      AuxSeedM = GetUniformPoints(n1Dseeds);
+      return;
+   }
+   else if (n1Dseeds != 0 && AuxSeedM.Size() != n1Dseeds*(nb+1))
+   {
+      AuxSeedM.SetSize((nb+1)*n1Dseeds);
+      L2_SegmentElement el(nb-1, 1);
+      Vector shape(nb);
+      IntegrationPoint ip;
+      Vector nodes = GetUniformPoints(n1Dseeds);
+      for (int i = 0; i < n1Dseeds; i++)
+      {
+         AuxSeedM(i) = 2.0*nodes(i)-1.0;
+         Vector shapeTemp(AuxSeedM.GetData() + i*nb + n1Dseeds, nb);
+         ip.x = nodes(i);
+         el.CalcShape(ip, shapeTemp);
+      }
    }
 }
 

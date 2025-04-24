@@ -73,6 +73,25 @@ struct findptsLocalHashData_t
    int max;
 };
 
+// Eval the ith Lagrange interpolant at x.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
+static MFEM_HOST_DEVICE inline void lag_eval(double *p0, double x,
+                                             int i, const double *z,
+                                             const double *lCoeff,
+                                             int pN)
+{
+   double u0 = 1;
+   for (int j = 0; j < pN; ++j)
+   {
+      if (i != j)
+      {
+         double d_j = 2 * (x - z[j]);
+         u0 = d_j * u0;
+      }
+   }
+   p0[i] = lCoeff[i] * u0;
+}
+
 // Eval the ith Lagrange interpolant and its first derivative at x.
 // Note: lCoeff stores pre-computed coefficients for fast evaluation.
 static MFEM_HOST_DEVICE inline void lag_eval_first_der(double *p0, double x,
@@ -638,7 +657,75 @@ newton_edge_fin:
    res->flags = flags | new_flags | (p->flags << 5);
 }
 
-// Find closest mesh node to the sought point.
+// Find closest point along the edge to the sought point in reference space.
+// Note that in this method we assume edge index = 0..3 for
+// bottom, right, top, left edges
+static MFEM_HOST_DEVICE void edge_seed_j(const double *elx[2],
+                                         const double x[2],
+                                         const double *z, // ref point locations
+                                         double *dist2,   //initialized
+                                         double *r[2],
+                                         const int j,
+                                         const int pN,
+                                         const int nbatch,
+                                         const int nseeds,
+                                         const int ei)
+{
+   for (int i = 0; i < nbatch; ++i)
+   {
+      const int idx = j + i*(pN*DIM); // pn*DIM number of threads are used
+      if (idx >= nseeds) { return; }
+      double zr = ei == 0 || ei == 2 ? z[idx] :
+                  ei == 1 ? 1.0 : -1.0;
+      double zs = ei == 1 || ei == 3 ? z[idx] :
+                  ei == 0 ? -1.0 : 1.0;
+      // Compute the xyz location for this point
+      // Index into the bases vector. The first nseeds are the ref point
+      // locations. Then sets of pN points give the pN bases evaluated at
+      // ref locations
+      const auto *bvals = z + nseeds + idx*pN;
+
+      double xyv[2];
+      xyv[0] = 0.0;
+      xyv[1] = 0.0;
+
+      if (ei == 0 || ei == 2)
+      {
+         // these two edges (ymin and ymax) have points contiguous in memory
+         for (int k = 0; k < pN; ++k)
+         {
+            xyv[0] += bvals[k] * elx[0][ei == 0 ? k : k+pN*(pN-1)];
+            xyv[1] += bvals[k] * elx[1][ei == 0 ? k : k+pN*(pN-1)];
+         }
+      }
+      else if (ei == 1 || ei == 3)
+      {
+         // ei = 1 (xmax) and ei = 3 (xmin) edges dont have contiguous access
+         for (int k = 0; k < pN; ++k)
+         {
+            xyv[0] += bvals[k] * elx[0][ei == 1 ? k*pN + pN-1 : k*pN ];
+            xyv[1] += bvals[k] * elx[1][ei == 1 ? k*pN + pN-1 : k*pN ];
+         }
+      }
+      double dx[2];
+      dx[0] = x[0] - xyv[0];
+      dx[1] = x[1] - xyv[1];
+      const double dist2_jkl = l2norm2(dx);
+      // std::cout << xyv[0] << " " << xyv[1] << " " <<
+      // zr << " " << zs << " " <<  dist2_jkl << " " << j <<
+      // " k10-edge-seed-xy" << std::endl;
+      // std::cout << j << " " << i << " " << idx << " " << ei << " " << dist2_jkl
+      //  << " " << zr << " " << zs << std::endl;
+      if (dist2[j] > dist2_jkl)
+      {
+         dist2[j] = dist2_jkl;
+         r[0][j] = zr;
+         r[1][j] = zs;
+      }
+   }
+}
+
+// Find closest mesh node to the sought point in reference space.
 static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
                                     const double x[2],
                                     const double *z, //GLL point locations [-1, 1]
@@ -648,6 +735,7 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
                                     const int pN)
 {
    dist2[j] = HUGE_VAL;
+   if (j >= pN) { return; }
 
    double zr = z[j];
    for (int k = 0; k < pN; ++k)
@@ -667,6 +755,21 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
          r[1][j] = zs;
       }
    }
+}
+
+/* Compute contribution towards function value in each reference direction. */
+static MFEM_HOST_DEVICE double tensor_i2_j( const double *Jr,
+                                            const double *Js,
+                                            const double *u,
+                                            const int j,
+                                            const int pN)
+{
+   double uJs = 0.0;
+   for (int k = 0; k < pN; ++k)
+   {
+      uJs += u[j + k * pN] * Js[k];
+   }
+   return uJs * Jr[j];
 }
 
 /* Compute contribution towards function value and its derivatives in each
@@ -694,25 +797,28 @@ static MFEM_HOST_DEVICE double tensor_ig2_j(double *g_partials,
 }
 
 template<int T_D1D = 0>
-static void FindPointsLocal2D_Kernel(const int npt,
-                                     const double tol,
-                                     const double *x,
-                                     const int point_pos_ordering,
-                                     const double *xElemCoord,
-                                     const int nel,
-                                     const double *wtend,
-                                     const double *boxinfo,
-                                     const int hash_n,
-                                     const double *hashMin,
-                                     const double *hashFac,
-                                     unsigned int *hashOffset,
-                                     unsigned int *const code_base,
-                                     unsigned int *const el_base,
-                                     double *const r_base,
-                                     double *const dist2_base,
-                                     const double *gll1D,
-                                     const double *lagcoeff,
-                                     const int pN = 0)
+static void FindPointsLocal2DKernel(const int npt,
+                                    const double tol,
+                                    const double *x,
+                                    const int point_pos_ordering,
+                                    const double *xElemCoord,
+                                    const int nel,
+                                    const double *wtend,
+                                    const double *boxinfo,
+                                    const int hash_n,
+                                    const double *hashMin,
+                                    const double *hashFac,
+                                    unsigned int *hashOffset,
+                                    unsigned int *const code_base,
+                                    unsigned int *const el_base,
+                                    double *const r_base,
+                                    double *const dist2_base,
+                                    const double *gll1D,
+                                    const double *lagcoeff,
+                                    const int seedstrategy,
+                                    const int nseeds1D,
+                                    const double *aux_seed_m,
+                                    const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
@@ -803,7 +909,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
             // read element coordinates into shared memory
             if (MD1 <= 6)
             {
-               MFEM_FOREACH_THREAD(j,x,nThreads)
+               MFEM_FOREACH_THREAD(j,x,2*D1D)
                {
                   const int qp = j % D1D;
                   const int d = j / D1D;
@@ -825,7 +931,11 @@ static void FindPointsLocal2D_Kernel(const int npt,
             }
 
             //// findpts_el ////
+            bool converged_internal = false;
+            for (int ist = 0; ist < nseeds1D*nseeds1D; ist++)
             {
+               if (seedstrategy < 2 && ist > 0) { break; }
+
                MFEM_FOREACH_THREAD(j,x,1)
                {
                   fpt->dist2 = HUGE_VAL;
@@ -840,24 +950,40 @@ static void FindPointsLocal2D_Kernel(const int npt,
                MFEM_SYNC_THREAD;
 
                //// seed ////
+               if (seedstrategy <= 1 || ist == 0)
                {
                   double *dist2_temp = r_workspace_ptr;
                   double *r_temp[DIM];
                   for (int d = 0; d < DIM; ++d)
                   {
-                     r_temp[d] = dist2_temp + (1 + d) * D1D;
+                     r_temp[d] = dist2_temp + (1 + d) * D1D * DIM;
                   }
 
-                  MFEM_FOREACH_THREAD(j,x,D1D)
+                  MFEM_FOREACH_THREAD(j,x,D1D*DIM)
                   {
                      seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
                   }
                   MFEM_SYNC_THREAD;
 
+                  // Check optional seeds along the 4 edges
+                  if (seedstrategy == 1 && nseeds1D > 0)
+                  {
+                     const int rem = nseeds1D % (D1D*DIM);
+                     const int nbatch = (nseeds1D - rem) / (D1D*DIM) + 1;
+                     for (int ei = 0; ei < 4; ei++)
+                     {
+                        MFEM_FOREACH_THREAD(j, x, D1D*DIM)
+                        {
+                           edge_seed_j(elx, x_i, aux_seed_m, dist2_temp,
+                                       r_temp, j, D1D, nbatch, nseeds1D, ei);
+                        }
+                     }
+                  }
+
                   MFEM_FOREACH_THREAD(j,x,1)
                   {
                      fpt->dist2 = HUGE_VAL;
-                     for (int jj = 0; jj < D1D; ++jj)
+                     for (int jj = 0; jj < D1D*DIM; ++jj)
                      {
                         if (dist2_temp[jj] < fpt->dist2)
                         {
@@ -871,7 +997,50 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
                } //seed done
+               else if (seedstrategy == 2)
+               {
+                  int r_idx = ist % nseeds1D;
+                  int s_idx = ist / nseeds1D;
+                  MFEM_FOREACH_THREAD(j,x,1)
+                  {
+                     fpt->r[0] = aux_seed_m[r_idx];
+                     fpt->r[1] = aux_seed_m[s_idx];
+                  }
 
+                  double *wtr = r_workspace_ptr;
+                  double *resid = wtr + 2 * D1D;
+                  double *resid_temp = resid + 2;
+                  MFEM_FOREACH_THREAD(j,x,2*D1D)
+                  {
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     lag_eval(wtr + d*D1D, fpt->r[d], qp, gll1D, lagcoeff,
+                              D1D);
+                  }
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(j,x,2*D1D)
+                  {
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     resid_temp[d+qp*2] = tensor_i2_j(wtr, wtr+D1D, elx[d],
+                                                      qp, D1D);
+                  }
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(l,x,2)
+                  {
+                     resid[l] = tmp->x[l];
+                     for (int j = 0; j < D1D; ++j)
+                     {
+                        resid[l] -= resid_temp[l + j * 2];
+                     }
+                  }
+                  MFEM_FOREACH_THREAD(j,x,1)
+                  {
+                     fpt->dist2 = resid[0] * resid[0] + resid[1] * resid[1];
+                  }
+               }
+
+               // Copy fpt -> tmp
                MFEM_FOREACH_THREAD(j,x,1)
                {
                   tmp->dist2 = HUGE_VAL;
@@ -886,8 +1055,61 @@ static void FindPointsLocal2D_Kernel(const int npt,
                }
                MFEM_SYNC_THREAD;
 
+               if (npt == 1)
+               {
+                  std::cout << -1 << " " << " " << std::setprecision(16) <<
+                            x_i[0] << " " << x_i[1] << " " << ist <<
+                            " k10xyz" << std::endl;
+               }
+
                for (int step = 0; step < 50; step++)
                {
+                  // std::cout << "Step: " << step << " " << ist << " " <<
+                  //           tmp->r[0] << " " << tmp->r[1] << " " <<
+                  //           tmp->dist2 << " k10dummy" <<  std::endl;
+
+                  {
+                     //temporary
+                     double *wtr = r_workspace_ptr;
+                     double *resid_temp = wtr + 2 * D1D;
+                     MFEM_FOREACH_THREAD(j,x,2*D1D)
+                     {
+                        const int qp = j % D1D;
+                        const int d = j / D1D;
+                        lag_eval(wtr + d*D1D, tmp->r[d], qp, gll1D, lagcoeff,
+                                 D1D);
+                     }
+                     MFEM_SYNC_THREAD;
+
+                     MFEM_FOREACH_THREAD(j,x,2*D1D)
+                     {
+                        const int qp = j % D1D;
+                        const int d = j / D1D;
+                        resid_temp[d+qp*2] = tensor_i2_j(wtr, wtr+D1D, elx[d],
+                                                         qp, D1D);
+                     }
+                     MFEM_SYNC_THREAD;
+
+                     double xyc[2];
+                     xyc[0] = 0.0;
+                     xyc[1] = 0.0;
+
+                     MFEM_FOREACH_THREAD(l,x,2)
+                     {
+                        for (int j = 0; j < D1D; ++j)
+                        {
+                           xyc[l] += resid_temp[l + j*2];
+                        }
+                     }
+                     if (npt == 1)
+                     {
+                        std::cout << step << " " << " " <<
+                                  std::setprecision(16) <<
+                                  xyc[0] << " " << xyc[1] << " " << ist <<
+                                  " k10xyz" << std::endl;
+                     }
+                  }
+
                   switch (num_constrained(tmp->flags & FLAG_MASK))
                   {
                      case 0:   // findpt_area
@@ -898,7 +1120,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         double *resid_temp = jac + 4;
                         double *jac_temp = resid_temp + 2 * D1D;
 
-                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        MFEM_FOREACH_THREAD(j,x,2*D1D)
                         {
                            const int qp = j % D1D;
                            const int d = j / D1D;
@@ -907,7 +1129,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         }
                         MFEM_SYNC_THREAD;
 
-                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        MFEM_FOREACH_THREAD(j,x,2*D1D)
                         {
                            const int qp = j % D1D;
                            const int d = j / D1D;
@@ -1111,7 +1333,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   } //switch
                   if (fpt->flags & CONVERGED_FLAG)
                   {
-                     break;
+                     break; // loop over newton iteration
                   }
                   MFEM_SYNC_THREAD;
                   MFEM_FOREACH_THREAD(j,x,1)
@@ -1120,28 +1342,31 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
                } //for int step < 50
-            } //findpts_el
-
-            bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
-            if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                fpt->dist2 < *dist2_i)
+               converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
+               if (*code_i == CODE_NOT_FOUND || converged_internal ||
+                   fpt->dist2 < *dist2_i)
+               {
+                  MFEM_FOREACH_THREAD(j,x,1)
+                  {
+                     *el_i = el;
+                     *code_i = converged_internal ? CODE_INTERNAL :
+                               CODE_BORDER;
+                     *dist2_i = fpt->dist2;
+                  }
+                  MFEM_FOREACH_THREAD(j,x,DIM)
+                  {
+                     r_i[j] = fpt->r[j];
+                  }
+                  MFEM_SYNC_THREAD;
+                  if (converged_internal)
+                  {
+                     break; // loop over seeds
+                  }
+               }
+            } //findpts_el - looping over seeds
+            if (converged_internal)
             {
-               MFEM_FOREACH_THREAD(j,x,1)
-               {
-                  *el_i = el;
-                  *code_i = converged_internal ? CODE_INTERNAL :
-                            CODE_BORDER;
-                  *dist2_i = fpt->dist2;
-               }
-               MFEM_FOREACH_THREAD(j,x,DIM)
-               {
-                  r_i[j] = fpt->r[j];
-               }
-               MFEM_SYNC_THREAD;
-               if (converged_internal)
-               {
-                  break;
-               }
+               break; // loop over elements
             }
          } //findpts_local
       } //elp
@@ -1171,34 +1396,40 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
    auto pdist = dist.Write();
    auto pgll1d = DEV.gll1d.ReadWrite();
    auto plc = DEV.lagcoeff.Read();
+   auto aux_seed_m = AuxSeedM.Read();
 
    switch (DEV.dof1d)
    {
       case 2:
-         return FindPointsLocal2D_Kernel<2>(
-                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
-                   pgll1d, plc);
+         return FindPointsLocal2DKernel<2>(
+                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+                   pelem, pref, pdist, pgll1d, plc,
+                   seeding_strategy, n1Dseeds, aux_seed_m);
       case 3:
-         return FindPointsLocal2D_Kernel<3>(
-                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
-                   pgll1d, plc);
+         return FindPointsLocal2DKernel<3>(
+                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+                   pelem, pref, pdist, pgll1d, plc,
+                   seeding_strategy, n1Dseeds, aux_seed_m);
       case 4:
-         return FindPointsLocal2D_Kernel<4>(
-                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
-                   pgll1d, plc);
+         return FindPointsLocal2DKernel<4>(
+                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+                   pelem, pref, pdist, pgll1d, plc,
+                   seeding_strategy, n1Dseeds, aux_seed_m);
       case 5:
-         return FindPointsLocal2D_Kernel<5>(
-                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
-                   pgll1d, plc);
+         return FindPointsLocal2DKernel<5>(
+                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+                   pelem, pref, pdist, pgll1d, plc,
+                   seeding_strategy, n1Dseeds, aux_seed_m);
       default:
-         return FindPointsLocal2D_Kernel(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                         pgslm, NE_split_total, pwt, pbb, DEV.h_nx,
-                                         plhm, plhf, plho, pcode, pelem,
-                                         pref, pdist, pgll1d, plc, DEV.dof1d);
+         return FindPointsLocal2DKernel(
+                   npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+                   pelem, pref, pdist, pgll1d, plc,
+                   seeding_strategy, n1Dseeds, aux_seed_m, DEV.dof1d);
    }
 }
 #undef CODE_INTERNAL

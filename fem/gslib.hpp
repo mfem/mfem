@@ -96,6 +96,11 @@ protected:
    double     bdr_tol;
    // Use CPU functions for Mesh/GridFunction on device for gslib1.0.7
    bool       gpu_to_cpu_fallback = false;
+   // Additional seeds.
+   int seeding_strategy = 0; // 0 - none, 1 - uniform seeds in ref space
+   int n1Dseeds = 0;         // number of seeds in each edge.
+   Vector AuxSeedM;          // NxM matrix to evaluate N bases at M points.
+   // The point distribution is decided by seeding strategy.
 
    // Device specific data used for FindPoints
    struct
@@ -284,6 +289,12 @@ public:
    /// Enable/Disable use of CPU functions for GPU data if the gslib version
    /// is older.
    virtual void SetGPUtoCPUFallback(bool mode) { gpu_to_cpu_fallback = mode; }
+
+   /// Set the seeding strategy to be used for determining the initial guess.
+   /// Useful for curvilinear elements with local minimas of the objective.
+   virtual void SetAdditionalSeeds(int strategy, int nseeds);
+   /// Setup the seeds in reference space and corresponding bases evaluation.
+   virtual void SetupSeeds();
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as it

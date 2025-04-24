@@ -36,7 +36,6 @@ namespace mfem
 #define CODE_NOT_FOUND 2
 #define DIM 3
 #define DIM2 DIM*DIM
-#define pMax 10
 
 struct findptsPt
 {
@@ -78,6 +77,25 @@ struct findptsLocalHashData_t
    unsigned int *offset;
    // int max;
 };
+
+// Eval the ith Lagrange interpolant at x.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
+static MFEM_HOST_DEVICE inline void lag_eval(double *p0, double x,
+                                             int i, const double *z,
+                                             const double *lCoeff,
+                                             int pN)
+{
+   double u0 = 1;
+   for (int j = 0; j < pN; ++j)
+   {
+      if (i != j)
+      {
+         double d_j = 2 * (x - z[j]);
+         u0 = d_j * u0;
+      }
+   }
+   p0[i] = lCoeff[i] * u0;
+}
 
 // Eval the ith Lagrange interpolant and its first derivative at x.
 // Note: lCoeff stores pre-computed coefficients for fast evaluation.
@@ -986,6 +1004,7 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[3],
                                     const int pN) // assumes j < pN
 {
    dist2[j] = HUGE_VAL;
+   if (j > pN) { return; }
 
    double zr = z[j];
    for (int l = 0; l < pN; ++l)
@@ -1009,6 +1028,101 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[3],
             r[1][j] = zs;
             r[2][j] = zt;
          }
+      }
+   }
+}
+
+// Find closest point along the face to the sought point in reference space.
+// Note that in this method we assume face index = 0..5 for
+// zmin, ymin, xmax, ymax, xmin, zmax
+static MFEM_HOST_DEVICE void face_seed_j(const double *elx[2],
+                                         const double x[2],
+                                         const double *z, // ref point locations
+                                         double *dist2,   //initialized
+                                         double *r[2],
+                                         const int j,
+                                         const int pN,
+                                         const int nbatch,
+                                         const int nseeds1D, // in 1D
+                                         const int fi)
+{
+   const int nseeds = nseeds1D*nseeds1D;
+   for (int i = 0; i < nbatch; ++i)
+   {
+      const int idx = j + i*(pN*DIM); // pn*DIM number of threads are used
+      if (idx >= nseeds) { return; }
+      double zrs[DIM];
+      int li1 = 0;
+      int li2 = 0;
+      if (fi == 0) { zrs[2] = -1.0; li1 = 0; li2 = 1; }
+      else if (fi == 1) { zrs[1] = -1.0; li1 = 0; li2 = 2; }
+      else if (fi == 2) { zrs[0] = 1.0; li1 = 1; li2 = 2; }
+      else if (fi == 3) { zrs[1] = 1.0; li1 = 0; li2 = 2; }
+      else if (fi == 4) { zrs[0] = -1.0; li1 = 1; li2 = 2; }
+      else if (fi == 5) { zrs[2] = 1.0; li1 = 0; li2 = 1; }
+
+      const int qX = idx % nseeds1D; // lexicographic index 1
+      const int qY = idx / nseeds1D; //  lexicographic index 2
+      zrs[li1] = z[qX];
+      zrs[li2] = z[qY];
+
+      // Compute the xyz location for this point
+      const auto *bvalsX = z + nseeds + qX*pN;
+      const auto *bvalsY = z + nseeds + qY*pN;
+
+      double xyv[3];
+      xyv[0] = 0.0;
+      xyv[1] = 0.0;
+      xyv[2] = 0.0;
+
+      for (int k1 = 0; k1 < pN; ++k1)
+      {
+         double by = bvalsY[k1];
+         for (int k2 = 0; k2 < pN; ++k2)
+         {
+            double bx = bvalsX[k2];
+            int eidx; //lexicographic index into element's coordinates
+            if (fi == 0)
+            {
+               eidx = k2 + k1*pN + 0*pN*pN*(pN-1);
+            }
+            else if (fi == 1)
+            {
+               eidx = k2 + 0*pN + k1*pN*pN;
+            }
+            else if (fi == 2)
+            {
+               eidx = pN-1 + k2*pN + k1*pN*pN;
+            }
+            else if (fi == 3)
+            {
+               eidx = k2 + (pN-1)*pN + k1*pN*pN;
+            }
+            else if (fi == 4)
+            {
+               eidx = 0 + k2*pN + k1*pN*pN;
+            }
+            else if (fi == 5)
+            {
+               eidx = k2 + k1*pN + pN*pN*(pN-1);
+            }
+            for (int d = 0; d < DIM; ++d)
+            {
+               xyv[d] += bx*by*elx[d][eidx];
+            }
+         }
+      }
+      double dx[3];
+      dx[0] = x[0] - xyv[0];
+      dx[1] = x[1] - xyv[1];
+      dx[2] = x[2] - xyv[2];
+      const double dist2_jkl = l2norm2(dx);
+      if (dist2[j] > dist2_jkl)
+      {
+         dist2[j] = dist2_jkl;
+         r[0][j] = zrs[0];
+         r[1][j] = zrs[1];
+         r[2][j] = zrs[2];
       }
    }
 }
@@ -1050,6 +1164,27 @@ static MFEM_HOST_DEVICE double tensor_ig3_j(double *g_partials,
    return uJtJs*Jr[j];
 }
 
+/* Compute contribution towards function value in each reference direction. */
+static MFEM_HOST_DEVICE double tensor_i3_j(const double *Jr,
+                                           const double *Js,
+                                           const double *Jt,
+                                           const double *u,
+                                           const int j,
+                                           const int pN)
+{
+   double uJtJs = 0.0;
+   for (int k = 0; k < pN; ++k)
+   {
+      double uJt = 0.0;
+      for (int l = 0; l < pN; ++l)
+      {
+         uJt += u[j+k*pN+l*pN*pN]*Jt[l];
+      }
+      uJtJs += uJt*Js[k];
+   }
+   return uJtJs*Jr[j];
+}
+
 template<int T_D1D = 0>
 static void FindPointsLocal3DKernel(const int npt,
                                     const double tol,
@@ -1069,6 +1204,9 @@ static void FindPointsLocal3DKernel(const int npt,
                                     double *const dist2_base,
                                     const double *gll1D,
                                     const double *lagcoeff,
+                                    const int seedstrategy,
+                                    const int nseeds1D,
+                                    const double *aux_seed_m,
                                     const int pN = 0)
 {
    const int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
@@ -1181,10 +1319,14 @@ static void FindPointsLocal3DKernel(const int npt,
                elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
                         xElemCoord+d*nel*p_NE+el*p_NE;
             }
+            MFEM_SYNC_THREAD;
 
             //// findpts_el ////
+            bool converged_internal = false;
+            for (int ist = 0; ist < nseeds1D*nseeds1D*nseeds1D; ist++)
             {
-               MFEM_SYNC_THREAD;
+               if (seedstrategy < 2 && ist > 0) { break; }
+
                MFEM_FOREACH_THREAD(j,x,1)
                {
                   fpt->dist2 = HUGE_VAL;
@@ -1199,24 +1341,41 @@ static void FindPointsLocal3DKernel(const int npt,
                MFEM_SYNC_THREAD;
 
                //// seed ////
+               if (seedstrategy <= 1 || ist == 0)
                {
                   double *dist2_temp = r_workspace_ptr;
                   double *r_temp[DIM];
                   for (int d = 0; d < DIM; ++d)
                   {
-                     r_temp[d] = dist2_temp+(1+d)*D1D;
+                     r_temp[d] = dist2_temp+(1+d)*D1D*DIM;
                   }
 
-                  MFEM_FOREACH_THREAD(j,x,D1D)
+                  MFEM_FOREACH_THREAD(j,x,D1D*DIM)
                   {
                      seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
                   }
                   MFEM_SYNC_THREAD;
 
+                  // Check optional seeds along the 6 faces
+                  if (seedstrategy == 1 && nseeds1D > 0)
+                  {
+                     const int ns2 = nseeds1D*nseeds1D;
+                     const int rem = ns2 % (D1D*DIM);
+                     const int nbatch = (ns2 - rem) / (D1D*DIM) + 1;
+                     for (int fi = 0; fi < 6; fi++)
+                     {
+                        MFEM_FOREACH_THREAD(j, x, D1D*DIM)
+                        {
+                           face_seed_j(elx, x_i, aux_seed_m, dist2_temp,
+                                       r_temp, j, D1D, nbatch, nseeds1D, fi);
+                        }
+                     }
+                  }
+
                   MFEM_FOREACH_THREAD(j,x,1)
                   {
                      fpt->dist2 = HUGE_VAL;
-                     for (int jj = 0; jj < D1D; ++jj)
+                     for (int jj = 0; jj < D1D*DIM; ++jj)
                      {
                         if (dist2_temp[jj] < fpt->dist2)
                         {
@@ -1230,6 +1389,52 @@ static void FindPointsLocal3DKernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
                } //seed done
+               else if (seedstrategy == 2)
+               {
+                  int t_idx = ist % (nseeds1D*nseeds1D);
+                  int rs_idx = ist / (nseeds1D*nseeds1D);
+                  int r_idx = rs_idx % nseeds1D;
+                  int s_idx = rs_idx / nseeds1D;
+                  MFEM_FOREACH_THREAD(j,x,1)
+                  {
+                     fpt->r[0] = aux_seed_m[r_idx];
+                     fpt->r[1] = aux_seed_m[s_idx];
+                     fpt->r[2] = aux_seed_m[t_idx];
+                  }
+
+                  double *wtr = r_workspace_ptr;
+                  double *resid = wtr + 3 * D1D;
+                  double *resid_temp = resid + 3;
+                  MFEM_FOREACH_THREAD(j,x,DIM*D1D)
+                  {
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     lag_eval(wtr + d*D1D, fpt->r[d], qp, gll1D, lagcoeff,
+                              D1D);
+                  }
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(j,x,DIM*D1D)
+                  {
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     resid_temp[d+qp*DIM] = tensor_i3_j(wtr, wtr+D1D, wtr+2*D1D,
+                                                        elx[d], qp, D1D);
+                  }
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(l,x,DIM)
+                  {
+                     resid[l] = tmp->x[l];
+                     for (int j = 0; j < D1D; ++j)
+                     {
+                        resid[l] -= resid_temp[l + j * DIM];
+                     }
+                  }
+                  MFEM_FOREACH_THREAD(j,x,1)
+                  {
+                     fpt->dist2 = resid[0] * resid[0] +
+                                  resid[1] * resid[1] + resid[2] * resid[2];
+                  }
+               }
 
                MFEM_FOREACH_THREAD(j,x,1)
                {
@@ -1754,28 +1959,31 @@ static void FindPointsLocal3DKernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
                } //for int step < 50
+               bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
+               if (*code_i == CODE_NOT_FOUND || converged_internal ||
+                  fpt->dist2 < *dist2_i)
+               {
+                  MFEM_FOREACH_THREAD(j,x,1)
+                  {
+                     *(el_base+i) = el;
+                     *code_i = converged_internal ?  CODE_INTERNAL :
+                              CODE_BORDER;
+                     *dist2_i = fpt->dist2;
+                  }
+                  MFEM_FOREACH_THREAD(j,x,DIM)
+                  {
+                     *(r_base+DIM*i+j) = fpt->r[j];
+                  }
+                  MFEM_SYNC_THREAD;
+                  if (converged_internal)
+                  {
+                     break; // loop over seeds
+                  }
+               }
             } //findpts_el
-
-            bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
-            if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                fpt->dist2 < *dist2_i)
+            if (converged_internal)
             {
-               MFEM_FOREACH_THREAD(j,x,1)
-               {
-                  *(el_base+i) = el;
-                  *code_i = converged_internal ?  CODE_INTERNAL :
-                            CODE_BORDER;
-                  *dist2_i = fpt->dist2;
-               }
-               MFEM_FOREACH_THREAD(j,x,DIM)
-               {
-                  *(r_base+DIM*i+j) = fpt->r[j];
-               }
-               MFEM_SYNC_THREAD;
-               if (converged_internal)
-               {
-                  break;
-               }
+               break; // loop over elements
             }
          } //findpts_local
       } //elp
@@ -1805,40 +2013,45 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
    auto pdist = dist.Write();
    auto pgll1d = DEV.gll1d.ReadWrite();
    auto plc = DEV.lagcoeff.Read();
+   auto aux_seed_m = AuxSeedM.Read();
    switch (DEV.dof1d)
    {
       case 2:
-         FindPointsLocal3DKernel<2>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+         FindPointsLocal3DKernel<2>(
+            npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+            pelem, pref, pdist, pgll1d, plc,
+            seeding_strategy, n1Dseeds, aux_seed_m);
          break;
       case 3:
-         FindPointsLocal3DKernel<3>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+         FindPointsLocal3DKernel<3>(
+            npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+            pelem, pref, pdist, pgll1d, plc,
+            seeding_strategy, n1Dseeds, aux_seed_m);
          break;
       case 4:
-         FindPointsLocal3DKernel<4>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+         FindPointsLocal3DKernel<4>(
+            npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+            pelem, pref, pdist, pgll1d, plc,
+            seeding_strategy, n1Dseeds, aux_seed_m);
          break;
       case 5:
-         FindPointsLocal3DKernel<5>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+         FindPointsLocal3DKernel<5>(
+            npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+            pelem, pref, pdist, pgll1d, plc,
+            seeding_strategy, n1Dseeds, aux_seed_m);
          break;
       default:
-         FindPointsLocal3DKernel(npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
-                                 NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf,
-                                 plho, pcode, pelem, pref, pdist, pgll1d, plc,
-                                 DEV.dof1d);
+         FindPointsLocal3DKernel(
+            npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf, plho, pcode,
+            pelem, pref, pdist, pgll1d, plc,
+            seeding_strategy, n1Dseeds, aux_seed_m, DEV.dof1d);
    }
 }
-#undef pMax
 #undef DIM2
 #undef DIM
 #undef CODE_INTERNAL
