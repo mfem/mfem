@@ -83,8 +83,6 @@ public:
    /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
-   virtual void AddAbsMultNURBSPA(const Vector&x, Vector&y) const;
-
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
@@ -119,8 +117,6 @@ public:
        called. */
    void AddMultMF(const Vector &x, Vector &y) const override;
 
-   virtual void AddAbsMultMF(const Vector &x, Vector &y) const;
-
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
        represent the element-wise discontinuous version of the FE space.
@@ -128,8 +124,6 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
-
-   virtual void AddAbsMultTransposeMF(const Vector &x, Vector &y) const;
 
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalMF(Vector &diag);
