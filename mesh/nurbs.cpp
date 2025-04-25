@@ -2376,64 +2376,190 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    MergeWeights(mesh_array, num_pieces);
 }
 
-NURBSExtension::NURBSExtension(const Mesh *patch_topology,
-                               const Array<const NURBSPatch*> p)
-{
-   patchTopo = new Mesh( *patch_topology );
-   patchTopo->GetEdgeVertexTable();
-   own_topo = 1;
-   patches.Reserve(p.Size());
-   Array<int> edges;
-   Array<int> oedges;
-   Array<int> kvs(3);
-   int kv_index;
-   Array<int> everts(2); // edge vertices
+// TODO
+// NURBSExtension::NURBSExtension(const Mesh *patch_topology,
+//                                const Array<const NURBSPatch*> p)
+// {
+//    patchTopo = new Mesh( *patch_topology );
+//    patchTopo->GetEdgeVertexTable();
+//    own_topo = 1;
+//    patches.Reserve(p.Size());
+//    // Array<int> edges;
+//    // Array<int> oedges;
+//    // Array<int> kvs(3);
+//    // int kv_index;
+//    // Array<int> everts(2); // edge vertices
 
-   edge_to_knot.SetSize(patch_topology->GetNEdges());
-   NumOfKnotVectors = 0;
-   NumOfElements = 0;
-   for (int ielem = 0; ielem < patch_topology->GetNE(); ++ielem)
+//    // edge_to_knot.SetSize(patch_topology->GetNEdges());
+//    // NumOfKnotVectors = 0;
+//    // NumOfElements = 0;
+//    for (int ielem = 0; ielem < patch_topology->GetNE(); ++ielem)
+//    {
+//       patches.Append(new NURBSPatch(*p[ielem]));
+//    }
+//    //    NURBSPatch& patch = *patches[ielem];
+//    //    int num_patch_elems = 1;
+//    //    for (int ikv = 0; ikv < patch.GetNKV(); ++ikv)
+//    //    {
+//    //       kvs[ikv] = knotVectors.Size();
+//    //       knotVectors.Append(new KnotVector(*patch.GetKV(ikv)));
+//    //       num_patch_elems *= patch.GetKV(ikv)->GetNE();
+//    //       ++NumOfKnotVectors;
+//    //    }
+//    //    NumOfElements += num_patch_elems;
+//    //    patch_topology->GetElementEdges(ielem, edges, oedges);
+//    //    for (int iedge = 0; iedge < edges.Size(); ++iedge)
+//    //    {
+//    //       patch_topology->GetEdgeVertices(edges[iedge], everts);
+//    //       if (iedge < 8)
+//    //       {
+//    //          kv_index = (iedge & 1) ? kvs[1] : kvs[0];
+//    //       }
+//    //       else
+//    //       {
+//    //          kv_index = kvs[2];
+//    //       }
+//    //       // Orientation convention from Mesh::LoadPatchTopo()
+//    //       edge_to_knot[edges[iedge]] = (everts[1] > everts[0]) ? kv_index : -1 - kv_index;
+//    //    }
+//    // }
+
+//    patch_topology->GetEdgeToKnotMapping(edge_to_knot);
+
+//    // Testing
+//    mfem::out << std::endl << "Reconstructed Mesh: edge to knot map:" << std::endl;
+//    edge_to_knot.Print(mfem::out);
+
+//    GenerateOffsets();
+//    CountBdrElements();
+//    NumOfActiveElems = NumOfElements;
+//    activeElem.SetSize(NumOfElements);
+//    activeElem = true;
+
+//    CreateComprehensiveKV();
+//    SetOrdersFromKnotVectors();
+
+//    GenerateActiveVertices();
+//    InitDofMap();
+//    GenerateElementDofTable();
+//    GenerateActiveBdrElems();
+//    GenerateBdrElementDofTable();
+
+//    weights.SetSize(GetNDof());
+
+//    CheckPatches();
+// }
+
+NURBSExtension::NURBSExtension(const Mesh *patch_topology,
+                               const Array<const NURBSPatch*> patches_)
+{
+   // Copy patch topology mesh
+   patchTopo = new Mesh( *patch_topology );
+   patchTopo->GetEdgeToKnotMapping(edge_to_knot);
+   own_topo = true;
+
+   CheckPatches(); // This is checking the edge_to_knot mapping
+   // CheckBdrPatches();
+
+   // Copy patches
+   patches.SetSize(patches_.Size());
+   for (int p = 0; p < patches.Size(); p++)
    {
-      patches.Append(new NURBSPatch(*p[ielem]));
-      NURBSPatch& patch = *patches[ielem];
-      int num_patch_elems = 1;
-      for (int ikv = 0; ikv < patch.GetNKV(); ++ikv)
+      patches[p] = new NURBSPatch(*patches_[p]);
+   }
+
+   // TODO: Can we just use this??
+   // SetKnotsFromPatches()
+
+   // Set number of **unique** knot vectors
+   NumOfKnotVectors = 0;
+   for (int i = 0; i < patchTopo->GetNEdges(); i++)
+      if (NumOfKnotVectors < KnotInd(i))
       {
-         kvs[ikv] = knotVectors.Size();
-         knotVectors.Append(new KnotVector(*patch.GetKV(ikv)));
-         num_patch_elems *= patch.GetKV(ikv)->GetNE();
-         ++NumOfKnotVectors;
+         NumOfKnotVectors = KnotInd(i);
       }
-      NumOfElements += num_patch_elems;
-      patch_topology->GetElementEdges(ielem, edges, oedges);
-      for (int iedge = 0; iedge < edges.Size(); ++iedge)
+   NumOfKnotVectors++;
+   knotVectors.SetSize(NumOfKnotVectors);
+   knotVectors = NULL;
+
+   // Assign the unique knot vectors from patches
+   Array<int> edges, oedge;
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      if (Dimension() == 1)
       {
-         patch_topology->GetEdgeVertices(edges[iedge], everts);
-         if (iedge < 8)
+         if (knotVectors[KnotInd(p)] == NULL)
          {
-            kv_index = (iedge & 1) ? kvs[1] : kvs[0];
+            knotVectors[KnotInd(p)] =
+               new KnotVector(*patches[p]->GetKV(0));
          }
-         else
+      }
+      else if (Dimension() == 2)
+      {
+         patchTopo->GetElementEdges(p, edges, oedge);
+         if (knotVectors[KnotInd(edges[0])] == NULL)
          {
-            kv_index = kvs[2];
+            knotVectors[KnotInd(edges[0])] =
+               new KnotVector(*patches[p]->GetKV(0));
          }
-         // Orientation convention from Mesh::LoadPatchTopo()
-         edge_to_knot[edges[iedge]] = (everts[1] > everts[0]) ? kv_index : -1 - kv_index;
+         if (knotVectors[KnotInd(edges[1])] == NULL)
+         {
+            knotVectors[KnotInd(edges[1])] =
+               new KnotVector(*patches[p]->GetKV(1));
+         }
+      }
+      else if (Dimension() == 3)
+      {
+         patchTopo->GetElementEdges(p, edges, oedge);
+         if (knotVectors[KnotInd(edges[0])] == NULL)
+         {
+            knotVectors[KnotInd(edges[0])] =
+               new KnotVector(*patches[p]->GetKV(0));
+         }
+         if (knotVectors[KnotInd(edges[3])] == NULL)
+         {
+            knotVectors[KnotInd(edges[3])] =
+               new KnotVector(*patches[p]->GetKV(1));
+         }
+         if (knotVectors[KnotInd(edges[8])] == NULL)
+         {
+            knotVectors[KnotInd(edges[8])] =
+               new KnotVector(*patches[p]->GetKV(2));
+         }
       }
    }
 
-   // Testing
-   mfem::out << std::endl << "Reconstructed Mesh: edge to knot map:" << std::endl;
-   edge_to_knot.Print(mfem::out);
+   CreateComprehensiveKV();
+
+   SetOrdersFromKnotVectors();
 
    GenerateOffsets();
+   CountElements();
    CountBdrElements();
+   // NumOfVertices, NumOfElements, NumOfBdrElements, NumOfDofs
+
+   // Check for a list of mesh elements
+   // if (patches.Size() == 0 && ident == "mesh_elements")
+   // {
+   //    input >> NumOfActiveElems;
+   //    activeElem.SetSize(GetGNE());
+   //    activeElem = false;
+   //    int glob_elem;
+   //    for (int i = 0; i < NumOfActiveElems; i++)
+   //    {
+   //       input >> glob_elem;
+   //       activeElem[glob_elem] = true;
+   //    }
+
+   //    skip_comment_lines(input, '#');
+   //    input >> ws >> ident;
+   // }
+   // else
+   // {
    NumOfActiveElems = NumOfElements;
    activeElem.SetSize(NumOfElements);
    activeElem = true;
-
-   CreateComprehensiveKV();
-   SetOrdersFromKnotVectors();
+   // }
 
    GenerateActiveVertices();
    InitDofMap();
@@ -2441,9 +2567,32 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
-   weights.SetSize(GetNDof());
+   // periodic
+   // if (ident == "periodic")
+   // {
+   //    master.Load(input);
+   //    slave.Load(input);
 
-   CheckPatches();
+   //    skip_comment_lines(input, '#');
+   //    input >> ws >> ident;
+   // }
+
+   // if (patches.Size() == 0)
+   // {
+   //    // weights
+   //    if (ident == "weights")
+   //    {
+   //       weights.Load(input, GetNDof());
+   //    }
+   //    else // e.g. ident = "unitweights" or "autoweights"
+   //    {
+   //    }
+   // }
+   weights.SetSize(GetNDof());
+   weights = 1.0;
+
+   // periodic
+   ConnectBoundaries();
 }
 
 NURBSExtension::~NURBSExtension()

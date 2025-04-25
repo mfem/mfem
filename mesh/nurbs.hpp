@@ -472,7 +472,7 @@ protected:
    /// Orders of all KnotVectors
    Array<int> mOrders;
 
-   /// Number of KnotVectors
+   /// Number of **unique** KnotVectors
    int NumOfKnotVectors;
 
    /// Global entity counts

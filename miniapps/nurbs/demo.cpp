@@ -108,6 +108,12 @@ int main(int argc, char *argv[])
    cout << endl << "Original Mesh: generated edge to knot map:" << endl;
    e2k.Print();
 
+   Array<int> edge_to_knot;
+   patch_topology.GetEdgeToKnotMapping(edge_to_knot);
+   cout << endl << "GetEdgeToKnotMapping():" << endl;
+   edge_to_knot.Print();
+
+
    // Reconstruct mesh using patch topology and patches
    NURBSExtension ext(&patch_topology, patches);
    Mesh mesh_copy(ext);

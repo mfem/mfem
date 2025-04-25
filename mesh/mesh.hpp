@@ -475,6 +475,8 @@ protected:
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
+   // void GetEdgeToKnotMapping(Array<int> &edge_to_knot) const;
+
    void UpdateNURBS();
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
@@ -763,6 +765,9 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+   /// temp
+   void GetEdgeToKnotMapping(Array<int> &edge_to_knot) const;
 
    /// @}
 
