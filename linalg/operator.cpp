@@ -63,21 +63,6 @@ void Operator::AddMultTranspose(const Vector &x, Vector &y,
    y.Add(a, z);
 }
 
-void Operator::AddAbsMult(const Vector &x, Vector &y, const real_t a) const
-{
-   mfem::Vector z(y.Size());
-   AbsMult(x, z);
-   y.Add(a, z);
-}
-
-void Operator::AddAbsMultTranspose(const Vector &x, Vector &y,
-                                   const real_t a) const
-{
-   mfem::Vector z(y.Size());
-   AbsMultTranspose(x, z);
-   y.Add(a, z);
-}
-
 void Operator::ArrayMult(const Array<const Vector *> &X,
                          Array<Vector *> &Y) const
 {
