@@ -419,7 +419,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    // Linear solver for the system's Jacobian
    Solver *S = nullptr, *S_prec = nullptr;
-   constexpr real_t linsol_rtol = 1e-13;
+   constexpr real_t linsol_rtol = 1e-14;
    if (lin_solver == 0) { S = new DSmoother(1, 1.0, max_lin_iter); }
    else if (lin_solver == 1)
    {
