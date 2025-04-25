@@ -4301,19 +4301,19 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
          double theta = atan2(x[1],x[0]);
 
          double E0 = (V0/log(b/a))*(1.0/r);
-         double Ex = E0*r*cos(theta);
-         double Ey = E0*r*sin(theta);
+         double Ex = E0*cos(theta);
+         double Ey = E0*sin(theta);
 
          if (realPart_)
          {
-            V[0] = Ex*cos(k*x[2]);
-            V[1] = Ey*cos(k*x[2]);
+            V[0] = Ex*cos(k*(x[2]-3.0));
+            V[1] = Ey*cos(k*(x[2]-3.0));
             V[2] = 0.0;
          }
          else
          {
-            V[0] = Ex*sin(k*x[2]);
-            V[1] = Ey*sin(k*x[2]);
+            V[0] = Ex*sin(k*(x[2]-3.0));
+            V[1] = Ey*sin(k*(x[2]-3.0));
             V[2] = 0.0;
          }
       }
