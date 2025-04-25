@@ -368,8 +368,6 @@ public:
    void AddMultTransposeUnsigned(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const override;
 
-   using Operator::AddAbsMultTranspose;
-
    void AddAbsMultTranspose(const Vector &x, Vector &y) const
    {
       AddMultTransposeUnsigned(x, y);

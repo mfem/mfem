@@ -108,18 +108,9 @@ public:
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
-   /// Operator application: `y+=|A|(x)` (default) or `y+=a*|A|(x)`.
-   virtual void AddAbsMult(const Vector &x, Vector &y,
-                           const real_t a = 1.0) const;
-
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const;
-
-   /** @brief Operator transpose application: `y+=|A|^t(x)` (default) or
-       `y+=a*|A|^t(x)`. */
-   virtual void AddAbsMultTranspose(const Vector &x, Vector &y,
-                                    const real_t a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
    virtual void ArrayMult(const Array<const Vector *> &X,
@@ -1081,7 +1072,7 @@ public:
    void AbsMult(const Vector &x, Vector &y) const override;
 
    void AddAbsMult(const Vector &x, Vector &y,
-                   const real_t a = 1.0) const override;
+                   const real_t a = 1.0) const;
 
    void MultTranspose(const Vector &x, Vector &y) const override;
 
