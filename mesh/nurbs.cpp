@@ -2384,9 +2384,11 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    own_topo = 1;
    patches.Reserve(p.Size());
    Array<int> edges;
-   Array<int> oedges; // orientation of edges
+   Array<int> oedges;
    Array<int> kvs(3);
    int kv_index;
+   Array<int> everts(2); // edge vertices
+
    edge_to_knot.SetSize(patch_topology->GetNEdges());
    NumOfKnotVectors = 0;
    NumOfElements = 0;
@@ -2406,16 +2408,17 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
       patch_topology->GetElementEdges(ielem, edges, oedges);
       for (int iedge = 0; iedge < edges.Size(); ++iedge)
       {
+         patch_topology->GetEdgeVertices(edges[iedge], everts);
          if (iedge < 8)
          {
-            kv_index = (iedge % 1) ? kvs[1] : kvs[0];
+            kv_index = (iedge & 1) ? kvs[1] : kvs[0];
          }
          else
          {
             kv_index = kvs[2];
          }
          // Orientation convention from Mesh::LoadPatchTopo()
-         edge_to_knot[edges[iedge]] = (oedges[iedge] == 1) ? kv_index : -1 - kv_index;
+         edge_to_knot[edges[iedge]] = (everts[1] > everts[0]) ? kv_index : -1 - kv_index;
       }
    }
 
@@ -2932,10 +2935,15 @@ void NURBSExtension::CheckPatches()
 
    for (int p = 0; p < GetNP(); p++)
    {
+      mfem::out << "Checking patch " << p << std::endl;
+      edge_to_knot.Print(mfem::out);
+      mfem::out << std::endl;
+
       patchTopo->GetElementEdges(p, edges, oedge);
 
       for (int i = 0; i < edges.Size(); i++)
       {
+         mfem::out << "edge " << i << " = " << edges[i] << std::endl;
          edges[i] = edge_to_knot[edges[i]];
          if (oedge[i] < 0)
          {
@@ -2954,7 +2962,9 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[11])))
       {
          mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ")\n  Inconsistent edge-to-knot mapping!\n";
+                   << ")\n  Inconsistent edge-to-knot mapping!"
+                   << "\n  edges =\n";
+         edges.Print(mfem::err);
          mfem_error();
       }
    }
