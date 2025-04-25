@@ -116,14 +116,41 @@ bool HiopOptimizationProblem::apply_M(const hiop::size_type& n,
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
 
    Vector x_vec(ntdofs_loc);
-   Vector y_vec(ntdofs_loc);
    x_vec = x;
 
-   mfem::HypreParMatrix * MMat = nullptr;
-   problem.CalcObjectiveHessian( MMat);
+   std::vector<mfem::HypreParMatrix *> MMat;
+   std::vector<Vector> diagM;
+   problem.CalcObjectiveM( diagM, MMat);
 
-   MMat->Mult(x_vec, y_vec);
-   std::memcpy(y, y_vec.GetData(), ntdofs_loc * sizeof(double));
+   int offset =0;
+
+   for(int i=0; i<diagM.size(); i++)
+   {
+      int systemSize =diagM[i].Size();
+      Vector y_vec(systemSize);
+
+      for(int k=0; k<systemSize; k++)
+      {
+         y_vec[k+offset] =  x_vec[k+offset] * diagM[i][k];
+      }
+
+      std::memcpy(y + offset*sizeof(double) , y_vec.GetData(), systemSize * sizeof(double));
+
+      offset += systemSize;
+   }
+
+   for(int i=0; i<MMat.size(); i++)
+   {
+      int systemSize =MMat[i]->GetNumCols();
+      Vector y_vec(systemSize);
+      Vector x_vec_loc(systemSize);
+      std::memcpy(x_vec_loc.GetData(), x_vec.GetData()+ offset*sizeof(double), systemSize * sizeof(double));
+
+      MMat[i]->Mult(x_vec, y_vec);
+      std::memcpy(y, y_vec.GetData(), systemSize * sizeof(double));
+
+      offset += systemSize;
+   }
 
    return true;
 }
