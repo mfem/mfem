@@ -2423,6 +2423,10 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
       }
    }
 
+   // Testing
+   mfem::out << std::endl << "Reconstructed Mesh: edge to knot map:" << std::endl;
+   edge_to_knot.Print(mfem::out);
+
    GenerateOffsets();
    CountBdrElements();
    NumOfActiveElems = NumOfElements;
