@@ -2384,8 +2384,9 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    own_topo = 1;
    patches.Reserve(p.Size());
    Array<int> edges;
-   Array<int> oedges;
+   Array<int> oedges; // orientation of edges
    Array<int> kvs(3);
+   int kv_index;
    edge_to_knot.SetSize(patch_topology->GetNEdges());
    NumOfKnotVectors = 0;
    NumOfElements = 0;
@@ -2407,19 +2408,14 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
       {
          if (iedge < 8)
          {
-            if (iedge & 1)
-            {
-               edge_to_knot[edges[iedge]] = kvs[1];
-            }
-            else
-            {
-               edge_to_knot[edges[iedge]] = kvs[0];
-            }
+            kv_index = (iedge % 1) ? kvs[1] : kvs[0];
          }
          else
          {
-            edge_to_knot[edges[iedge]] = kvs[2];
+            kv_index = kvs[2];
          }
+         // Orientation convention from Mesh::LoadPatchTopo()
+         edge_to_knot[edges[iedge]] = (oedges[iedge] == 1) ? kv_index : -1 - kv_index;
       }
    }
 
