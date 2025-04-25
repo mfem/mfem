@@ -150,7 +150,7 @@ public:
    /// Matrix vector multiplication.
    void Mult(const Vector &x, real_t *y, bool useAbs = false) const;
 
-   /// Matrix vector multiplication
+   /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
    // Absolute-value matrix vector multiplication.
