@@ -213,7 +213,6 @@ int main(int argc, char *argv[])
    //    collections for different systems.
    //    - H1-conforming Lagrange elements for the H1-mass matrix and the
    //      diffusion problem.
-   // TODO(Gabriel): Elasticity not implemented yet for partial assembly
    //    - Vector H1-conforming Lagrange elements for the elasticity problem.
    //    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
