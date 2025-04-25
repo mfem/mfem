@@ -180,6 +180,9 @@ public:
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
                                          const Array<int> & abcs);
+VectorCoefficient *
+SetupPortVectorCoefficient(const Mesh & mesh, const Array<int> & portbca,
+                           const Vector & portbcv);
 
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
@@ -336,6 +339,57 @@ public:
    }
 };
 */
+
+class PortBCEfield : public VectorCoefficient
+{
+private:
+   Vector params_;
+   Vector x_;
+   double Vo_;
+   double b_;
+   double a_;
+   double x0_;
+   double y0_;
+   double z0_;
+   int index_;
+   Vector unit_rad_;
+
+public:
+   PortBCEfield(const Vector &params, int index)
+      : VectorCoefficient(3), params_(params), index_(index), x_(3), unit_rad_(3)
+   {
+      MFEM_ASSERT(params.Size() == 6,
+                  "Incorrect number of parameters provided to "
+                  "PortBCEfield");
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      V.SetSize(3); V = 0.0;
+      T.Transform(ip, x_);
+
+      Vo_ = params_[0+index_];
+      b_ = params_[1+index_];
+      a_ = params_[2+index_];
+      x0_ = params_[3+index_];
+      y0_ = params_[4+index_];
+      z0_ = params_[5+index_];
+
+      double r = sqrt(pow(x_[0]-x0_,2.0)+pow(x_[1]-y0_,2.0)+pow(x_[2]-z0_,2.0));
+
+      unit_rad_[0] = (x_[0]-x0_)/r;
+      unit_rad_[1] = (x_[1]-y0_)/r;
+      unit_rad_[2] = (x_[2]-z0_)/r;
+
+      double Efield = (Vo_/log(b_/a_))*(1.0/r);
+
+      V[0] = Efield*unit_rad_[0];
+      V[1] = Efield*unit_rad_[1];
+      V[2] = Efield*unit_rad_[2];
+   }
+};
+
 class MultiStrapAntennaH : public VectorCoefficient
 {
 private:
@@ -619,10 +673,12 @@ int main(int argc, char *argv[])
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
    Array<int> nbcaw; // Neumann BC attributes for plane wave source
+   Array<int> portbca; // Port BC attributes
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
+   Vector portbcv; // Port BC values
 
    int num_elements = 10;
     
@@ -945,6 +1001,10 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&portbca, "-portbca", "--port-bc-surf",
+                  "Port Boundary Condition Surfaces");
+   args.AddOption(&portbcv, "-portbcv", "--port-bc-surf",
+                  "Port Boundary Condition Values");
    args.AddOption(&num_elements, "-nume", "--num-elements",
                 "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -1394,6 +1454,7 @@ if (dpp_def.Size() == 0)
 
    // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
    //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   /*
    Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
@@ -1401,6 +1462,9 @@ if (dpp_def.Size() == 0)
    }
    Mesh * mesh = Extrude2D(mesh2d, num_elements, hz);
    delete mesh2d;
+   */
+   Mesh * mesh = new Mesh(mesh_file, 1, 1);
+   /*
    if (cyl)
    {
       mesh->SetCurvature(mesh_order);
@@ -1408,6 +1472,7 @@ if (dpp_def.Size() == 0)
       MeshTransformCoefficient mtc(hphi);
       mesh->Transform(mtc);
    }
+   */
    /*
    {
       Array<int> v2v(mesh->GetNV());
@@ -1734,6 +1799,16 @@ if (dpp_def.Size() == 0)
    SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density, temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof, res_lim);
+   SusceptibilityTensor suscept_real(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true);
+   SusceptibilityTensor suscept_imag(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -1843,7 +1918,8 @@ if (dpp_def.Size() == 0)
    }
 
    // Setup coefficients for Dirichlet BC
-   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
+   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0)
+                                                         + (portbca.Size() > 0);
 
    Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
@@ -1892,6 +1968,10 @@ if (dpp_def.Size() == 0)
    VectorConstantCoefficient dbc2ReCoef(dbc2ReVec);
    VectorConstantCoefficient dbc2ImCoef(dbc2ImVec);
 
+   // this eventually needs to be PWVectorCoefficient:
+   PortBCEfield PortBC(portbcv,0);
+   VectorCoefficient * PortBCCoef = SetupPortVectorCoefficient(pmesh, portbca, portbcv);
+
    if (dbcsSize > 0)
    {
       int c = 0;
@@ -1920,6 +2000,15 @@ if (dpp_def.Size() == 0)
          dbcs[c]->real = &dbc2ReCoef;
          dbcs[c]->imag = &dbc2ImCoef;
          mfem::out << "Dirichlet(2) Surfaces: "; dbcs[c]->attr.Print(mfem::out);
+         c++;
+      }
+      if (portbca.Size() > 0)
+      {
+         dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = portbca;
+         dbcs[c]->real = &PortBC; //PortBCCoef;
+         dbcs[c]->imag = &zeroCoef;
+         mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out);
          c++;
       }
    }
@@ -2022,6 +2111,7 @@ if (dpp_def.Size() == 0)
                  (CPDSolver::PrecondType)prec,
                  conv, BUnitCoef,
                  epsilon_real, epsilon_imag, epsilon_abs,
+                 suscept_real, suscept_imag,
                  muInvCoef, etaInvCoef,
                  (phase_shift) ? &kReCoef : NULL,
                  (phase_shift) ? &kImCoef : NULL,
@@ -2342,6 +2432,34 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
          }
       }
       coef = new PWConstCoefficient(pw_bdr_eta_inv_);
+   }
+
+   return coef;
+}
+
+
+VectorCoefficient *
+SetupPortVectorCoefficient(const Mesh & mesh, const Array<int> & portbca,
+                           const Vector & portbcv)
+{
+   VectorCoefficient * coef = NULL;
+
+   if ( portbca.Size() > 0 )
+   {
+      MFEM_VERIFY(portbcv.Size() == portbca.Size()*6.0,
+                  "Each port value must be associated with exactly one "
+                  "port boundary surface.");
+
+      Array<VectorCoefficient*> PortEfields(portbca.Size());
+
+      PortBCEfield * PortBC = NULL;
+      for (int i=0; i<portbca.Size(); i++)
+      {
+         PortBC = new PortBCEfield(portbcv, i);
+         PortEfields[i] = PortBC;
+      }
+
+      coef = new PWVectorCoefficient(3, portbca, PortEfields);
    }
 
    return coef;
@@ -4056,7 +4174,9 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
       case 'J':
          // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
          //           "Current slab require a magnetic field in the z-direction.");
-         break;
+      break;
+      case 'C':
+      break;
    }
 }
 
@@ -4167,6 +4287,35 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
                }
                */
 
+      }
+      break;
+      case 'C':
+      {
+         double k = c0_ / (omega_ / (2.0 * M_PI) );
+
+         double b = 0.03;
+         double a = 0.011;
+         double V0 = 100.0;
+
+         double r = sqrt(pow(x[0],2.0)+pow(x[1],2.0));
+         double theta = atan2(x[1],x[0]);
+
+         double E0 = (V0/log(b/a))*(1.0/r);
+         double Ex = E0*r*cos(theta);
+         double Ey = E0*r*sin(theta);
+
+         if (realPart_)
+         {
+            V[0] = Ex*cos(k*x[2]);
+            V[1] = Ey*cos(k*x[2]);
+            V[2] = 0.0;
+         }
+         else
+         {
+            V[0] = Ex*sin(k*x[2]);
+            V[1] = Ey*sin(k*x[2]);
+            V[2] = 0.0;
+         }
       }
       break;
       case 'Z':

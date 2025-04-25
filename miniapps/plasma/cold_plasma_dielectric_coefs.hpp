@@ -15,6 +15,7 @@
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
 #include "g_eqdsk_data.hpp"
+#include "interp_data.hpp"
 #include <complex>
 
 #ifdef MFEM_USE_MPI
@@ -818,7 +819,8 @@ public:
               POLOIDAL_CORE          = 12,
               POLOIDAL_SOL           = 13,
               POLOIDAL_MIN_TEMP      = 14,
-              RHO_CORE               = 15
+              RHO_CORE               = 15,
+              INTERP_VALUE           = 16
              };
 
 private:
@@ -837,8 +839,9 @@ private:
    bool cyl_; // Assume cylindrical symmetyry
 
    G_EQDSK_Data *eqdsk_;
+   Interp_Data *interp_field_;
 
-   const int np_[16] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5};
+   const int np_[17] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
@@ -851,7 +854,8 @@ private:
 public:
    PlasmaProfile(Type type, const Vector & params,
                  CoordSystem coord_sys = CARTESIAN_3D,
-                 G_EQDSK_Data *eqdsk = NULL);
+                 G_EQDSK_Data *eqdsk = NULL,
+                 Interp_Data *interp_field = NULL);
 
    // Set default profile type and parameters
    // (replaces defaults passed to the constructor)

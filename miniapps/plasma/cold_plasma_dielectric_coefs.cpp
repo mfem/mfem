@@ -1877,8 +1877,9 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
                              CoordSystem sys,
-                             G_EQDSK_Data *eqdsk)
-   : cyl_(sys == POLOIDAL), eqdsk_(eqdsk),
+                             G_EQDSK_Data *eqdsk,
+                             Interp_Data *interp_field)
+   : cyl_(sys == POLOIDAL), eqdsk_(eqdsk), interp_field_(interp_field),
      xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
@@ -2610,6 +2611,25 @@ double PlasmaProfile::EvalByType(Type type,
             }
          }
          return pval;
+      }
+      break;
+      case INTERP_VALUE:
+      {
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double field = params[0];
+
+         double value = 0.0;
+         value = interp_field_->InterpDataRZ(xTokVec);
+         if (value < 1e12 && field == 1){value = 1e12;}
+         else if (value < 1.0 && field == 0){value = 1.0;}
+
+         return value;
       }
       break;
       default:
