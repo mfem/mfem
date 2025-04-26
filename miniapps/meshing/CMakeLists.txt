@@ -121,6 +121,11 @@ endif()
 
 # Parallel apps.
 if (MFEM_USE_MPI)
+  add_mfem_miniapp(mesh-bounding-boxes
+    MAIN mesh-bounding-boxes.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
@@ -150,6 +155,7 @@ if (MFEM_USE_MPI)
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
+      mesh-bounding-boxes
       pmesh-optimizer
       pmesh-fitting
       fit-node-position
