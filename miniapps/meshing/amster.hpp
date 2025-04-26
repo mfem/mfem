@@ -386,7 +386,8 @@ public:
    }
 
    // Must be called before optimization.
-   void Setup(ParFiniteElementSpace &pfes, int metric_id, int quad_order);
+   void Setup(ParFiniteElementSpace &pfes, int metric_id,
+              int quad_order, double *min_det_ptr=nullptr);
 
    void SetupSurfaceFit(ParFiniteElementSpace &pfes_nodes,
                         ConstantCoefficient &surf_fit_coeff,
@@ -408,7 +409,8 @@ public:
 };
 
 void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
-                          int metric_id, int quad_order)
+                          int metric_id, int quad_order,
+                          double *min_det_ptr)
 {
    const int dim = pfes.GetMesh()->Dimension();
 
@@ -421,6 +423,7 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
          case 2: metric = new TMOP_Metric_002; break;
          case 50: metric = new TMOP_Metric_050; break;
          case 58: metric = new TMOP_Metric_058; break;
+         case 66: metric = new TMOP_Metric_066(0.1); break;
          case 80: metric = new TMOP_Metric_080(0.1); break;
       }
    }
@@ -440,9 +443,9 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    nlf->AddDomainIntegrator(tmop_integ);
 
    // Boundary.
-   //   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-   //   ess_bdr = 1;
-   //   nlf->SetEssentialBC(ess_bdr);
+     Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+     ess_bdr = 1;
+     nlf->SetEssentialBC(ess_bdr);
 
    // Linear solver.
    lin_solver = new MINRESSolver(pfes.GetComm());
@@ -459,6 +462,10 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    solver->SetIntegrationRules(IntRulesLo, quad_order);
    solver->SetOperator(*nlf);
    solver->SetPreconditioner(*lin_solver);
+   if (min_det_ptr)
+   {
+      solver->SetMinDetPtr(min_det_ptr);
+   }
    solver->SetMaxIter(100);
    solver->SetRelTol(1e-8);
    solver->SetAbsTol(0.0);

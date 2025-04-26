@@ -31,6 +31,9 @@
 //    3D untangling:
 //      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-wc -no-fit
 
+// Some new sample runs:
+// make amster -j4 && mpirun -np 10 amster -m jagged.mesh -o 2 -qo 8 -no-wc -vis -rs 0 -mid 66
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -44,7 +47,12 @@ using namespace std;
 void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h);
 void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l);
 
-void Untangle(ParGridFunction &x, double min_detA, int quad_order);
+void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
+   TMOP_QualityMetric *metric,  TargetConstructor *target_c,
+   int quad_order,
+   double &min_det, double &min_muT, double &max_muT,
+   double &avg_muT, double &volume);
+void Untangle(ParGridFunction &x, double min_detA, int quad_order, int metric_id);
 void WorstCaseOptimize(ParGridFunction &x, int quad_order);
 
 int main (int argc, char *argv[])
@@ -63,7 +71,6 @@ int main (int argc, char *argv[])
    int rs_levels         = 0;
    int mesh_poly_deg     = 2;
    bool worst_case       = true;
-   bool fit_optimize     = true;
    int solver_iter       = 50;
    int quad_order        = 8;
    int bg_amr_steps      = 6;
@@ -86,9 +93,6 @@ int main (int argc, char *argv[])
    args.AddOption(&worst_case, "-wc", "--worst-case",
                   "-no-wc", "--no-worst-case",
                   "Enable worst case optimization step.");
-   args.AddOption(&fit_optimize, "-fit", "--fit_optimize",
-                  "-no-fit", "--no-fit-optimize",
-                  "Enable optimization with tangential relaxation.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&bg_amr_steps, "-amr", "--amr-bg-steps",
@@ -119,7 +123,6 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
-   const int NE = pmesh->GetNE();
 
    delete mesh;
 
@@ -143,23 +146,6 @@ int main (int argc, char *argv[])
    ParGridFunction x0(&pfes);
    x0 = x;
 
-   // Compute the minimum det(A) of the starting mesh.
-   double min_detA = infinity();
-   for (int e = 0; e < NE; e++)
-   {
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh->GetElementTransformation(e);
-      for (int q = 0; q < ir.GetNPoints(); q++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(q));
-         min_detA = fmin(min_detA, transf->Jacobian().Det());
-      }
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &min_detA, 1, MPI_DOUBLE,
-                 MPI_MIN, pfes.GetComm());
-   if (myid == 0)
-   { cout << "Minimum det(J) of the original mesh is " << min_detA << endl; }
 
    // Metric.
    TMOP_QualityMetric *metric = NULL;
@@ -171,6 +157,7 @@ int main (int argc, char *argv[])
          case 2: metric = new TMOP_Metric_002; break;
          case 50: metric = new TMOP_Metric_050; break;
          case 58: metric = new TMOP_Metric_058; break;
+         case 66: metric = new TMOP_Metric_066(0.5); break;
          case 80: metric = new TMOP_Metric_080(0.1); break;
       }
    }
@@ -186,6 +173,16 @@ int main (int argc, char *argv[])
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
 
+   // Compute Mesh Stats
+   double min_detA, min_muT, max_muT, avg_muT, volume;
+   GetMeshStats(pmesh, x0, metric, target_c, quad_order,
+      min_detA, min_muT, max_muT, avg_muT, volume);
+   double min_detA0 = min_detA;
+   double min_muT0 = min_muT;
+   double max_muT0 = max_muT;
+   double avg_muT0 = avg_muT;
+   double volume0 = volume;
+
    // Visualize the starting mesh.
    if (vis)
    {
@@ -195,253 +192,29 @@ int main (int argc, char *argv[])
    }
 
    // If needed, untangle with fixed boundary.
-   if (min_detA < 0.0) { Untangle(x, min_detA, quad_order); }
+   if (min_detA < 0.0) { Untangle(x, min_detA, quad_order, metric_id); }
 
    // If needed, perform worst-case optimization with fixed boundary.
-   if (worst_case) { WorstCaseOptimize(x, quad_order); }
+   // if (worst_case) { WorstCaseOptimize(x, quad_order); }
 
-   // Visualize the starting mesh and metric values.
-   if (vis)
-   {
-      char title[] = "After Untangl / WC";
-      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
-   }
-
-   if (fit_optimize == false) { return 0; }
+   // // Visualize the starting mesh and metric values.
+   // if (vis)
+   // {
+   //    char title[] = "After Untangl / WC";
+   //    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+   // }
 
    // Average quality and worst-quality for the mesh.
-   double integral_mu = 0.0, volume = 0.0, max_mu = -1.0;
-   for (int i = 0; i < NE; i++)
-   {
-      const FiniteElement &fe_pos = *x.FESpace()->GetFE(i);
-      const IntegrationRule &ir = IntRulesLo.Get(fe_pos.GetGeomType(), 10);
-      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
-
-      DenseMatrix dshape(dof, dim);
-      DenseMatrix pos(dof, dim);
-      pos.SetSize(dof, dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      Array<int> pos_dofs;
-      x.FESpace()->GetElementVDofs(i, pos_dofs);
-      x.GetSubVector(pos_dofs, posV);
-
-      DenseTensor W(dim, dim, nsp);
-      DenseMatrix Winv(dim), T(dim), A(dim);
-      target_c->ComputeElementTargets(i, fe_pos, ir, posV, W);
-
-      for (int j = 0; j < nsp; j++)
-      {
-         const DenseMatrix &Wj = W(j);
-         metric->SetTargetJacobian(Wj);
-         CalcInverse(Wj, Winv);
-
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         fe_pos.CalcDShape(ip, dshape);
-         MultAtB(pos, dshape, A);
-         Mult(A, Winv, T);
-
-         const double mu = metric->EvalW(T);
-         max_mu = fmax(mu, max_mu);
-         integral_mu += mu * ip.weight * A.Det();
-         volume += ip.weight * A.Det();
-      }
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &max_mu, 1, MPI_DOUBLE, MPI_MAX, pfes.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM,
-                 pfes.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+   GetMeshStats(pmesh, x, metric, target_c, quad_order,
+                min_detA, min_muT, max_muT, avg_muT, volume);
    if (myid == 0)
    {
-      cout << "Max mu: " << max_mu << endl
-           << "Avg mu: " << integral_mu / volume << endl;
-   }
-
-   // Compute size field.
-   ParFiniteElementSpace pfes_nodes_scalar(pmesh, &fec);
-   ParGridFunction size_gf(&pfes_nodes_scalar);
-   for (int e = 0; e < NE; e++)
-   {
-      const FiniteElement &fe = *pfes.GetFE(e);
-      const IntegrationRule &ir_nodes = fe.GetNodes();
-      const int nqp = ir_nodes.GetNPoints();
-      ElementTransformation &Tr = *pmesh->GetElementTransformation(e);
-      auto n_fe = dynamic_cast<const NodalFiniteElement *>(&fe);
-      const Array<int> &lex_order = n_fe->GetLexicographicOrdering();
-      Vector loc_size(nqp);
-      Array<int> dofs;
-      pfes.GetElementDofs(e, dofs);
-      for (int q = 0; q < nqp; q++)
-      {
-         Tr.SetIntPoint(&ir_nodes.IntPoint(q));
-         loc_size(lex_order[q]) = Tr.Weight();
-      }
-      size_gf.SetSubVector(dofs, loc_size);
-   }
-   if (vis)
-   {
-      socketstream vis;
-      common::VisualizeField(vis, "localhost", 19916, size_gf,
-                             "Size", 0, 0, 300, 300, "Rj");
-   }
-   DiffuseH1(size_gf, 2.0);
-   if (vis)
-   {
-      socketstream vis;
-      common::VisualizeField(vis, "localhost", 19916, size_gf,
-                             "Size", 300, 0, 300, 300, "Rj");
-   }
-
-   // Detect boundary nodes.
-   Array<int> vdofs;
-   ParGridFunction domain(&pfes_nodes_scalar);
-   domain = 1.0;
-   for (int i = 0; i < pfes_nodes_scalar.GetNBE(); i++)
-   {
-      pfes_nodes_scalar.GetBdrElementDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
-   }
-
-   // Distance to the boundary, on the original mesh.
-   GridFunctionCoefficient coeff(&domain);
-   ParGridFunction dist(&pfes_nodes_scalar);
-   ComputeScalarDistanceFromLevelSet(*pmesh, coeff, dist, 10);
-   dist *= -1.0;
-   if (vis)
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, dist,
-                             "Dist to Boundary", 0, 700, 300, 300, "Rj");
-
-      VisItDataCollection visit_dc("amster_in", pmesh);
-      visit_dc.RegisterField("distance", &dist);
-      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      visit_dc.Save();
-   }
-
-   // Setup distance field on the background mesh.
-   BackgroundData backgrnd(*pmesh, dist, bg_amr_steps);
-   if (vis)
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
-                             "Dist on Background", 300, 700, 300, 300, "Rj");
-   }
-   backgrnd.ComputeBackgroundDistance();
-   if (vis)
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
-                             "Final Background LS", 600, 700, 300, 300, "Rjmm");
-
-      VisItDataCollection visit_dc("amster_bg", backgrnd.pmesh_bg);
-      visit_dc.RegisterField("distance", backgrnd.dist_bg);
-      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      visit_dc.Save();
-   }
-   backgrnd.ComputeGradientAndHessian();
-
-   // Setup the quadrature rules for the TMOP integrator.
-   IntegrationRules *irules = &IntRulesLo;
-   if (myid == 0 && dim == 2)
-   {
-      cout << "Triangle quadrature points: "
-           << irules->Get(Geometry::TRIANGLE, quad_order).GetNPoints()
-           << "\nQuadrilateral quadrature points: "
-           << irules->Get(Geometry::SQUARE, quad_order).GetNPoints() << endl;
-   }
-   if (myid == 0 && dim == 3)
-   {
-      cout << "Tetrahedron quadrature points: "
-           << irules->Get(Geometry::TETRAHEDRON, quad_order).GetNPoints()
-           << "\nHexahedron quadrature points: "
-           << irules->Get(Geometry::CUBE, quad_order).GetNPoints()
-           << "\nPrism quadrature points: "
-           << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
-   }
-
-   MeshOptimizer mesh_opt;
-   mesh_opt.Setup(pfes, metric_id, quad_order);
-
-   ConstantCoefficient surf_fit_coeff(surface_fit_const);
-   if (surface_fit_const > 0.0)
-   {
-      mesh_opt.SetupSurfaceFit(pfes_nodes_scalar, surf_fit_coeff, backgrnd);
-      mesh_opt.GetSolver()->
-      SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
-      mesh_opt.GetSolver()->
-      SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-
-      if (vis)
-      {
-         ParGridFunction surf_fit_mat_gf(&pfes_nodes_scalar);
-         surf_fit_mat_gf = 0.0;
-         for (int i = 0; i < pmesh->GetNBE(); i++)
-         {
-            pfes_nodes_scalar.GetBdrElementVDofs(i, vdofs);
-            for (int j = 0; j < vdofs.Size(); j++)
-            {
-               surf_fit_mat_gf(vdofs[j]) = 1.0;
-            }
-         }
-         socketstream vis1;
-         common::VisualizeField(vis1, "localhost", 19916, surf_fit_mat_gf,
-                                "Boundary DOFs to Fit",
-                                900, 600, 300, 300);
-      }
-
-      double err_avg, err_max;
-      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(x, err_avg, err_max);
-      if (myid == 0)
-      {
-         cout << "Initial Avg fitting error: " << err_avg << endl
-              << "Initial Max fitting error: " << err_max << endl;
-      }
-   }
-
-   mesh_opt.OptimizeNodes(x, vis);
-   // MFEM_ABORT(" ");
-
-   MeshOptimizer mesh_opt_2;
-   H1_FECollection fec_2(2, dim);
-   ParFiniteElementSpace pfes_2(pmesh, &fec_2, dim);
-   ParFiniteElementSpace pfes_2_scalar(pmesh, &fec_2, dim);
-   ParGridFunction x_2(&pfes_2);
-   TransferLowToHigh(x, x_2);
-   mesh_opt_2.Setup(pfes_2, metric_id, quad_order);
-   if (surface_fit_const > 0.0)
-   {
-      surf_fit_coeff.constant = surface_fit_const;
-      mesh_opt_2.SetupSurfaceFit(pfes_2_scalar, surf_fit_coeff, backgrnd);
-      mesh_opt_2.GetSolver()->
-      SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
-      mesh_opt_2.GetSolver()->
-      SetTerminationWithMaxSurfaceFittingError(1e-7);
-   }
-   mesh_opt_2.OptimizeNodes(x_2, vis);
-
-   // Save the optimized mesh to files.
-   {
-      ostringstream mesh_name;
-      mesh_name << "amster-out.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-
-      VisItDataCollection visit_dc("amster_opt", pmesh);
-      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      visit_dc.Save();
-   }
-
-   if (surface_fit_const > 0.0)
-   {
-      double err_avg, err_max;
-      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(x, err_avg, err_max);
-      if (myid == 0)
-      {
-         std::cout << "Avg fitting error: " << err_avg << std::endl
-                   << "Max fitting error: " << err_max << std::endl;
-      }
+      cout << "\n*** Stats of original mesh and after Untangling / WC ***\n";
+      cout << "Minimum det(J) is " << min_detA0 << " " << min_detA << endl
+            << "Minimum muT is " << min_muT0 << " " << min_muT << endl
+            << "Maximum muT is " << max_muT0 << " " << max_muT << endl
+            << "Average muT is " << avg_muT0 << " " << avg_muT << endl
+            << "Volume is " << volume0 << " " << volume << endl;
    }
 
    // Visualize the mesh displacement.
@@ -450,7 +223,7 @@ int main (int argc, char *argv[])
       socketstream vis;
       x0 -= x;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Displacements", 1200, 0, 400, 400, "jRmclA");
+                              "Displacements", 1200, 0, 400, 400, "jRmclA");
    }
 
    delete target_c;
@@ -460,7 +233,7 @@ int main (int argc, char *argv[])
    return 0;
 }
 
-void Untangle(ParGridFunction &x, double min_detA, int quad_order)
+void Untangle(ParGridFunction &x, double min_detA, int quad_order, int metric_id)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
@@ -477,9 +250,19 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order)
    auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
    auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
    TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) { metric = new TMOP_Metric_004; }
+   if (dim == 2) {
+      switch (metric_id)
+      {
+         case 1: metric = new TMOP_Metric_001; break;
+         case 2: metric = new TMOP_Metric_002; break;
+         case 50: metric = new TMOP_Metric_050; break;
+         case 58: metric = new TMOP_Metric_058; break;
+         case 66: metric = new TMOP_Metric_066(0.5); break;
+         case 80: metric = new TMOP_Metric_080(0.1); break;
+      }
+   }
    else          { metric = new TMOP_Metric_360; }
-   TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.5,
+   TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.0,
                                                    0.001, 0.001,
                                                    btype, wctype);
    TargetConstructor::TargetType target =
@@ -593,6 +376,81 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
    delete metric;
 
    return;
+}
+
+void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
+   TMOP_QualityMetric *metric,  TargetConstructor *target_c,
+   int quad_order,
+   double &min_det, double &min_muT, double &max_muT,
+   double &avg_muT, double &volume)
+{
+   int NE = pmesh->GetNE();
+   int dim = pmesh->Dimension();
+   ParFiniteElementSpace &pfes = *(x.ParFESpace());
+   min_det = infinity();
+   min_muT = infinity();
+   max_muT = -infinity();
+   avg_muT = 0.0;
+   volume = 0.0;
+
+   for (int e = 0; e < NE; e++)
+   {
+      const IntegrationRule &ir =
+         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(e);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(q));
+         min_det = fmin(min_det, transf->Jacobian().Det());
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_det, 1, MPI_DOUBLE,
+                 MPI_MIN, pfes.GetComm());
+
+   double integral_mu = 0.0;
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement &fe_pos = *x.FESpace()->GetFE(i);
+      const IntegrationRule &ir = IntRulesLo.Get(fe_pos.GetGeomType(), 10);
+      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+      DenseMatrix dshape(dof, dim);
+      DenseMatrix pos(dof, dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      Array<int> pos_dofs;
+      x.FESpace()->GetElementVDofs(i, pos_dofs);
+      x.GetSubVector(pos_dofs, posV);
+
+      DenseTensor W(dim, dim, nsp);
+      DenseMatrix Winv(dim), T(dim), A(dim);
+      target_c->ComputeElementTargets(i, fe_pos, ir, posV, W);
+
+      for (int j = 0; j < nsp; j++)
+      {
+         const DenseMatrix &Wj = W(j);
+         metric->SetTargetJacobian(Wj);
+         CalcInverse(Wj, Winv);
+
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         fe_pos.CalcDShape(ip, dshape);
+         MultAtB(pos, dshape, A);
+         Mult(A, Winv, T);
+
+         const double mu = metric->EvalW(T);
+         max_muT = fmax(mu, max_muT);
+         min_muT = fmin(mu, min_muT);
+         integral_mu += mu * ip.weight * A.Det();
+         volume += ip.weight * A.Det();
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_muT, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_muT, 1, MPI_DOUBLE, MPI_MAX, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM,
+                 pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+   avg_muT = integral_mu / volume;
 }
 
 void Interpolate(const ParGridFunction &src, const Array<int> &y_fixed_marker,

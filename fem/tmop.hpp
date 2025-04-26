@@ -177,9 +177,9 @@ public:
    };
 
 protected:
-   TMOP_QualityMetric &tmop_metric; // non-barrier metric to use
    real_t min_detT;                 // minimum Jacobian in the mesh
    real_t max_muT;                  // max mu_k/phi(tau,ep) in the mesh
+   TMOP_QualityMetric &tmop_metric; // non-barrier metric to use
    int exponent;                    // used for p-mean metrics
    real_t alpha;                    // scaling factor for min(det(T))
    real_t detT_ep;                  // small constant subtracted from min(detT)
