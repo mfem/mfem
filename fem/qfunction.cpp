@@ -56,6 +56,20 @@ void QuadratureFunction::Save(std::ostream &os) const
    os.flush();
 }
 
+void QuadratureFunction::ProjectGridFunctionFallback(const GridFunction &gf)
+{
+   if (gf.VectorDim() == 1)
+   {
+      GridFunctionCoefficient coeff(&gf);
+      coeff.Coefficient::Project(*this);
+   }
+   else
+   {
+      VectorGridFunctionCoefficient coeff(&gf);
+      coeff.VectorCoefficient::Project(*this);
+   }
+}
+
 void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 {
    SetVDim(gf.VectorDim());
@@ -76,6 +90,13 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       // Use quadrature interpolator to go from E-vector to Q-vector
       const QuadratureInterpolator *qi =
          gf_fes.GetQuadratureInterpolator(*qs_elem);
+
+      if (!qi)
+      {
+         ProjectGridFunctionFallback(gf);
+         return;
+      }
+
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);
@@ -99,6 +120,13 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       // Use quadrature interpolator to go from E-vector to Q-vector
       const FaceQuadratureInterpolator *qi =
          gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
+
+      if (!qi)
+      {
+         ProjectGridFunctionFallback(gf);
+         return;
+      }
+
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);

@@ -1582,6 +1582,11 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1596,6 +1601,11 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const QuadratureSpace &qs) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1611,6 +1621,11 @@ const FaceQuadratureInterpolator
 *FiniteElementSpace::GetFaceQuadratureInterpolator(
    const IntegrationRule &ir, FaceType type) const
 {
+   if (!FaceQuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    if (type==FaceType::Interior)
    {
       for (int i = 0; i < E2IFQ_array.Size(); i++)

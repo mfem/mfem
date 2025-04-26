@@ -64,6 +64,10 @@ public:
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
                               const IntegrationRule &ir, FaceType type);
 
+   /// @brief Returns true if the given finite element space is supported by
+   /// FaceQuadratureInterpolator.
+   static bool SupportsFESpace(const FiniteElementSpace &fes);
+
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
    /** Currently, tensor product evaluations are not implemented and this method

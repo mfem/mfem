@@ -151,6 +151,9 @@ public:
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
 
+   /// @brief Returns true if the given finite element space is supported by
+   /// QuadratureInterpolator.
+   static bool SupportsFESpace(const FiniteElementSpace &fespace);
 
    using TensorEvalKernelType = void(*)(const int, const real_t *, const real_t *,
                                         real_t *, const int, const int, const int);
