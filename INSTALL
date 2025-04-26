@@ -127,9 +127,14 @@ Parallel build with fetching of hypre and METIS:
    make -j 4
 
 CUDA build:
-   (this build requires CMake 3.8 or newer)
+   (this build requires CMake 3.17 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
-   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES -DCUDA_ARCH=sm_70
+   make -j 4
+
+HIP build:
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_HIP=YES -DHIP_ARCH=gfx942 -DCMAKE_CXX_COMPILER=amdclang++ -DCMAKE_HIP_COMPILER=amdclang++
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -423,6 +428,10 @@ MFEM_USE_GNUTLS = YES/NO
    When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
    also used, see below.
 
+MFEM_USE_HDF5 = YES/NO
+   The HDF5 library is used for input and output of HDF5 files, for example
+   Cubit mesh files or VTKHDF files for ParaView.
+
 MFEM_USE_NETCDF = YES/NO
    NetCDF is the library that is used by the SNL Cubit mesh generator to create
    Genesis mesh files. This option enables a reader for these files, which
@@ -709,12 +718,12 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
-  C++ compiler that supports the C++-14 standard. For additional requirements
+  C++ compiler that supports the C++-17 standard. For additional requirements
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
            Debug).
-  Versions: Ginkgo >= 1.4.0.
+  Versions: Ginkgo >= 1.9.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -732,6 +741,9 @@ The specific libraries and their options are:
   URL: http://gnutls.org
   Options: GNUTLS_OPT, GNUTLS_LIB.
   Versions: GnuTLS >= 2.12.0, older versions may work too.
+
+- HDF5 (optional), used when MFEM_USE_HDF5 = YES, required for reading and
+  writing files in VTKHDF format.
 
 - NetCDF (optional), used when MFEM_USE_NETCDF = YES, required for reading Cubit
   mesh files. Also requires installation of HDF5 and ZLIB, as explained at the
@@ -1007,7 +1019,7 @@ Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
-Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+Note: the option MFEM_USE_CUDA requires CMake version 3.17 or newer!
 
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
@@ -1038,6 +1050,7 @@ MFEM_USE_STRUMPACK
 MFEM_USE_GINKGO
 MFEM_USE_AMGX
 MFEM_USE_GNUTLS
+MFEM_USE_HDF5
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_ZLIB
@@ -1175,6 +1188,19 @@ larger problems, there are two options:
 1. Building hypre with '--enable-bigint' defines the local and global indices to
    be 64-bit. This is convenient, but requires more memory than necessary.
 
-2. Building hypre with '--enable-mixedint' defines the local indiced to be
+2. Building hypre with '--enable-mixedint' defines the local indices to be
    32-bit, while using a 64-bit storage for global indices. This option is
    currently tested only in ex1p, and may not work in more general settings.
+
+Specific options for HIP
+========================
+MFEM expects the `ROCM_PATH` environment variable to be set to the path of the
+ROCM install, as well as having `$ROCM_PATH/bin` in `PATH`.
+
+Specific options for RAJA+HIP+MPI
+=================================
+RAJA uses CMake's built-in HIP support (added in CMake 3.21), while MFEM uses
+the older HIP C++ library build/linkage. To ensure proper build and linkage
+check that `CMAKE_CXX_COMPILER` and `CMAKE_HIP_COMPILER` are set to the same
+compiler. This is especially important when using an MPI compiler (for example
+crayCC) where some linker flags may get dropped if these two are not identical.

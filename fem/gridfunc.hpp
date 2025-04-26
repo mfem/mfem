@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -123,7 +123,10 @@ public:
 
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
    int VectorDim() const;
+
+   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
@@ -430,6 +433,10 @@ public:
    */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<GridFunction> ProlongateToMaxOrder() const;
+
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
@@ -459,6 +466,9 @@ protected:
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
+
+   /// P-refinement version of Update().
+   void UpdatePRef();
 
 public:
    /** @brief For each vdof, counts how many elements contain the vdof,
@@ -1533,6 +1543,19 @@ public:
        must be called first. The parameter ref > 0 must match the one used in
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
+
+#ifdef MFEM_USE_HDF5
+   /// @brief Save the GridFunction in %VTKHDF format.
+   ///
+   /// If @a high-order is true, then @a ref controls the order of output. If
+   /// @a ref is -1, then the order of the grid function will be used.
+   ///
+   /// If @a high-order is false, then low-order output will be used. @a ref
+   /// controls the number of mesh refinements; if @a ref is -1, no refinements
+   /// will be performed.
+   void SaveVTKHDF(const std::string &fname, const std::string &name="u",
+                   bool high_order=true, int ref=-1);
+#endif
 
    /** @brief Write the GridFunction in STL format. Note that the mesh dimension
        must be 2 and that quad elements will be broken into two triangles.*/

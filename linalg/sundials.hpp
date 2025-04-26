@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -313,7 +313,7 @@ public:
    /// Typecasting to SUNDIALS' N_Vector type
    operator N_Vector() const { return x; }
 
-   /// Changes the ownership of the the vector
+   /// Changes the ownership of the vector
    N_Vector StealNVector() { own_NVector = 0; return x; }
 
    /// Sets ownership of the internal N_Vector

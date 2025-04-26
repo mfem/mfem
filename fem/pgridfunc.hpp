@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -630,6 +630,10 @@ public:
 
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out) const;
+
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<ParGridFunction> ProlongateToMaxOrder() const;
 
    virtual ~ParGridFunction() = default;
 };
