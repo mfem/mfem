@@ -45,7 +45,7 @@
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -190,13 +190,18 @@ int main(int argc, char *argv[])
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
+   //    by marking all the external boundary attributes from the mesh as
+   //    essential (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
+      // Apply boundary conditions on all external boundaries:
+      pmesh.MarkExternalBoundaries(ess_bdr);
+      // Boundary conditions can also be applied based on named attributes:
+      // pmesh.MarkNamedBoundaries(set_name, ess_bdr)
+
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
