@@ -1692,6 +1692,11 @@ public:
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(PLBound &plb, Vector &lower, Vector &upper,
                          const int vdim=-1);
+
+   /// Compute piecewise linear bounds for the lexicographically-ordered
+   /// coefficients in @a coeff in 1D/2D/3D.
+   void GetnDBounds(int rdim, PLBound &plb, Vector &coeff,
+                    Vector &intmin, Vector &intmax);
    ///@}
 
    /// Destroys grid function.
@@ -1714,11 +1719,6 @@ private:
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 3D.
    void Get3DBounds(PLBound &plb, Vector &coeff,
-                    Vector &intmin, Vector &intmax);
-
-   /// Compute piecewise linear bounds for the lexicographically-ordered
-   /// coefficients in @a coeff in 1D/2D/3D.
-   void GetnDBounds(int rdim, PLBound &plb, Vector &coeff,
                     Vector &intmin, Vector &intmax);
 
    /// Setup PLBounds given nb, ncp, b_type, cp_type.

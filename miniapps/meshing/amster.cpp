@@ -48,12 +48,14 @@ void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h);
 void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l);
 
 void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
-   TMOP_QualityMetric *metric,  TargetConstructor *target_c,
-   int quad_order,
-   double &min_det, double &min_muT, double &max_muT,
-   double &avg_muT, double &volume);
-void Untangle(ParGridFunction &x, double min_detA, int quad_order, int metric_id);
+                  TMOP_QualityMetric *metric,  TargetConstructor *target_c,
+                  int quad_order,
+                  double &min_det, double &min_muT, double &max_muT,
+                  double &avg_muT, double &volume);
+void Untangle(ParGridFunction &x, double min_detA, int quad_order,
+              int metric_id);
 void WorstCaseOptimize(ParGridFunction &x, int quad_order);
+void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf);
 
 int main (int argc, char *argv[])
 {
@@ -173,15 +175,27 @@ int main (int argc, char *argv[])
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
 
+   int det_order = dim*mesh_poly_deg-1;
+   L2_FECollection fec_det(det_order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fespace_det(pmesh, &fec_det);
+   ParGridFunction detgf(&fespace_det);
+   GetDeterminantJacobianGF(pmesh, &detgf);
+
+   Vector detgf_lower, detgf_upper;
+   int ref_factor = 4;
+   GridFunction::PLBound plb = detgf.GetBounds(detgf_lower, detgf_upper,
+                                               ref_factor);
+
    // Compute Mesh Stats
    double min_detA, min_muT, max_muT, avg_muT, volume;
    GetMeshStats(pmesh, x0, metric, target_c, quad_order,
-      min_detA, min_muT, max_muT, avg_muT, volume);
+                min_detA, min_muT, max_muT, avg_muT, volume);
    double min_detA0 = min_detA;
    double min_muT0 = min_muT;
    double max_muT0 = max_muT;
    double avg_muT0 = avg_muT;
    double volume0 = volume;
+   double min_det_bound0 = detgf_lower.Min();
 
    // Visualize the starting mesh.
    if (vis)
@@ -207,14 +221,20 @@ int main (int argc, char *argv[])
    // Average quality and worst-quality for the mesh.
    GetMeshStats(pmesh, x, metric, target_c, quad_order,
                 min_detA, min_muT, max_muT, avg_muT, volume);
+
+   GetDeterminantJacobianGF(pmesh, &detgf);
+   plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+   double min_det_bound = detgf_lower.Min();
    if (myid == 0)
    {
       cout << "\n*** Stats of original mesh and after Untangling / WC ***\n";
       cout << "Minimum det(J) is " << min_detA0 << " " << min_detA << endl
-            << "Minimum muT is " << min_muT0 << " " << min_muT << endl
-            << "Maximum muT is " << max_muT0 << " " << max_muT << endl
-            << "Average muT is " << avg_muT0 << " " << avg_muT << endl
-            << "Volume is " << volume0 << " " << volume << endl;
+           << "Minimum det(J) bound is " << min_det_bound0 << " "
+           << min_det_bound << endl
+           << "Minimum muT is " << min_muT0 << " " << min_muT << endl
+           << "Maximum muT is " << max_muT0 << " " << max_muT << endl
+           << "Average muT is " << avg_muT0 << " " << avg_muT << endl
+           << "Volume is " << volume0 << " " << volume << endl;
    }
 
    // Visualize the mesh displacement.
@@ -223,7 +243,7 @@ int main (int argc, char *argv[])
       socketstream vis;
       x0 -= x;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                              "Displacements", 1200, 0, 400, 400, "jRmclA");
+                             "Displacements", 1200, 0, 400, 400, "jRmclA");
    }
 
    delete target_c;
@@ -233,7 +253,8 @@ int main (int argc, char *argv[])
    return 0;
 }
 
-void Untangle(ParGridFunction &x, double min_detA, int quad_order, int metric_id)
+void Untangle(ParGridFunction &x, double min_detA, int quad_order,
+              int metric_id)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
@@ -250,7 +271,8 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order, int metric_id
    auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
    auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
    TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) {
+   if (dim == 2)
+   {
       switch (metric_id)
       {
          case 1: metric = new TMOP_Metric_001; break;
@@ -379,10 +401,10 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
 }
 
 void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
-   TMOP_QualityMetric *metric,  TargetConstructor *target_c,
-   int quad_order,
-   double &min_det, double &min_muT, double &max_muT,
-   double &avg_muT, double &volume)
+                  TMOP_QualityMetric *metric,  TargetConstructor *target_c,
+                  int quad_order,
+                  double &min_det, double &min_muT, double &max_muT,
+                  double &avg_muT, double &volume)
 {
    int NE = pmesh->GetNE();
    int dim = pmesh->Dimension();
@@ -474,6 +496,69 @@ void Interpolate(const ParGridFunction &src, const Array<int> &y_fixed_marker,
                y(dofs[d*ndof + i]) = src.GetValue(e, ip, d+1);
             }
          }
+      }
+   }
+}
+
+IntegrationRule PermuteIR(const IntegrationRule &irule,
+                          const Array<int> ordering)
+{
+   const int np = irule.GetNPoints();
+   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(irule.GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = irule.IntPoint(ordering[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
+
+void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf)
+{
+   int dim = mesh->Dimension();
+   FiniteElementSpace *fespace = detgf->FESpace();
+   Array<int> dofs;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      const IntegrationRule ir = fe->GetNodes();
+      ElementTransformation *transf = mesh->GetElementTransformation(e);
+      DenseMatrix Jac(fe->GetDim());
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                      (fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir2 = irordering.Size() ?
+                            PermuteIR(ir, irordering) :
+                            ir;
+
+      Vector detvals(ir2.GetNPoints());
+      Vector loc(dim);
+      for (int q = 0; q < ir2.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir2.IntPoint(q);
+         transf->SetIntPoint(&ip);
+         transf->Transform(ip, loc);
+         Jac = transf->Jacobian();
+         detvals(q) = Jac.Weight();
+      }
+
+      fespace->GetElementDofs(e, dofs);
+      if (irordering.Size())
+      {
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            (*detgf)(dofs[i]) = detvals(irordering[i]);
+         }
+      }
+      else
+      {
+         detgf->SetSubVector(dofs, detvals);
       }
    }
 }

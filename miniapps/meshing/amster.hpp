@@ -443,9 +443,9 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    nlf->AddDomainIntegrator(tmop_integ);
 
    // Boundary.
-     Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-     ess_bdr = 1;
-     nlf->SetEssentialBC(ess_bdr);
+   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+   ess_bdr = 1;
+   nlf->SetEssentialBC(ess_bdr);
 
    // Linear solver.
    lin_solver = new MINRESSolver(pfes.GetComm());
