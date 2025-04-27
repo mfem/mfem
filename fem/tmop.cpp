@@ -140,6 +140,15 @@ void add_3D(const scalartype &scalar, const std::vector<type> &u,
 
 /* Metric definitions */
 
+// W = ||T||^2 - 2*det(T).
+template <typename type>
+type mu4_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto fnorm2 = fnorm2_2D(T);
+   auto det = det_2D(T);
+   return fnorm2 - 2*det;
+};
+
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
 template <typename type>
 type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -162,6 +171,81 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
 
    return fnorm2_2D(Mat)/det_2D(T);
 };
+
+using TWCUO = TMOP_WorstCaseUntangleOptimizer_Metric;
+template <typename type>
+type wcuo_ad1(type mu,
+              const std::vector<type> &T, const std::vector<type> &W,
+              real_t alpha, real_t min_detT, real_t detT_ep,
+              int exponent, real_t max_muT, real_t muT_ep,
+              TWCUO::BarrierType bt,
+              TWCUO::WorstCaseType wct)
+{
+   type denom = {1.0, 0.0};
+   if (bt == TWCUO::BarrierType::Shifted)
+   {
+      auto val1 = alpha*min_detT-detT_ep < 0.0 ?
+                  type{alpha*min_detT-detT_ep, 0.0} :
+                  type{0.0, 0.0};
+      denom = 2.0*(det_2D(T)-val1);
+   }
+   else if (bt == TWCUO::BarrierType::Pseudo)
+   {
+      auto detT = det_2D(T);
+      denom = detT + sqrt(detT*detT + detT_ep*detT_ep);
+   }
+   mu = mu/denom;
+
+   if (wct == TWCUO::WorstCaseType::PMean)
+   {
+      auto exp = type{exponent*1.0, 0.0};
+      mu = pow(mu, exp);
+   }
+   else if (wct == TWCUO::WorstCaseType::Beta)
+   {
+      auto beta = type{max_muT+muT_ep, 0.0};
+      mu = mu/(beta-mu);
+   }
+   return mu;
+}
+
+template <typename type>
+type wcuo_ad2(type mu,
+              const std::vector<type> &T, const std::vector<type> &W,
+              real_t alpha, real_t min_detT, real_t detT_ep,
+              int exponent, real_t max_muT, real_t muT_ep,
+              TWCUO::BarrierType bt,
+              TWCUO::WorstCaseType wct)
+{
+   type one = {{1.0, 0.0}, {0.0,0.0}};
+   type zero = {{0.0, 0.0}, {0.0,0.0}};
+   type denom = one;
+   if (bt == TWCUO::BarrierType::Shifted)
+   {
+      auto val1 = alpha*min_detT-detT_ep < 0.0 ?
+                  (alpha*min_detT-detT_ep)*one :
+                  zero;
+      denom = 2.0*(det_2D(T)-val1);
+   }
+   else if (bt == TWCUO::BarrierType::Pseudo)
+   {
+      auto detT = det_2D(T);
+      denom = detT + sqrt(detT*detT + detT_ep*detT_ep);
+   }
+   mu = mu/denom;
+
+   if (wct == TWCUO::WorstCaseType::PMean)
+   {
+      auto exp = exponent*1.0*one;
+      mu = pow(mu, exp);
+   }
+   else if (wct == TWCUO::WorstCaseType::Beta)
+   {
+      auto beta = (max_muT+muT_ep)*one;
+      mu = mu/(beta-mu);
+   }
+   return mu;
+}
 
 // W = 1/(tau^0.5) |T-I|^2.
 template <typename type>
@@ -421,7 +505,7 @@ void TMOP_QualityMetric::DefaultAssembleH(const DenseTensor &H,
          {
             for (int cc = 0; cc < dim; cc++)
             {
-               const double entry_rr_cc = Hrc(rr, cc);
+               const real_t entry_rr_cc = Hrc(rr, cc);
 
                for (int i = 0; i < dof; i++)
                {
@@ -496,12 +580,12 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
 }
 
 void TMOP_Combo_QualityMetric::
-ComputeBalancedWeights(const GridFunction &nodes,
-                       const TargetConstructor &tc, Vector &weights) const
+ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
+                       Vector &weights, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size();
    Vector averages;
-   ComputeAvgMetrics(nodes, tc, averages);
+   ComputeAvgMetrics(nodes, tc, averages, IntRule);
    weights.SetSize(m_cnt);
 
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
@@ -525,9 +609,9 @@ ComputeBalancedWeights(const GridFunction &nodes,
                "Error: sum should be 1 always: " << weights.Sum());
 }
 
-void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
-                                                 const TargetConstructor &tc,
-                                                 Vector &averages) const
+void TMOP_Combo_QualityMetric::
+ComputeAvgMetrics(const GridFunction &nodes, const TargetConstructor &tc,
+                  Vector &averages, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
@@ -542,8 +626,9 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
    for (int e = 0; e < NE; e++)
    {
       const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
-      const IntegrationRule &ir = IntRules.Get(fe_pos.GetGeomType(),
-                                               2 * fe_pos.GetOrder());
+      const IntegrationRule &ir = (IntRule) ? *IntRule
+                                  /* */     : IntRules.Get(fe_pos.GetGeomType(),
+                                                           2*fe_pos.GetOrder());
       const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
 
       DenseMatrix dshape(dof, dim);
@@ -624,6 +709,64 @@ real_t TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
       denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
    }
    return tmop_metric.EvalW(Jpt)/denominator;
+}
+
+AD1Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD1(
+   const std::vector<AD1Type> &T,
+   const std::vector<AD1Type> &W) const
+{
+   return wcuo_ad1(tmop_metric.EvalW_AD1(T,W), T, W, alpha, min_detT, detT_ep,
+                   exponent, max_muT, muT_ep, btype, wctype);
+}
+
+AD2Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD2(
+   const std::vector<AD2Type> &T,
+   const std::vector<AD2Type> &W) const
+{
+   return wcuo_ad2(tmop_metric.EvalW_AD2(T,W), T, W, alpha, min_detT, detT_ep,
+                   exponent, max_muT, muT_ep, btype, wctype);
+}
+
+void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
+                                                   DenseMatrix &P) const
+{
+   auto mu_ad_fn = [this](
+                      std::vector<AD1Type> &T, std::vector<AD1Type> &W)
+   {
+      return EvalW_AD1(T,W);
+   };
+   if (tmop_metric.Id() == 4)
+   {
+      ADGrad(mu_ad_fn, P, Jpt);
+      return;
+   }
+   MFEM_ABORT("EvalP not implemented with this metric for "
+              " TMOP_WorstCaseUntangleOptimizer_Metric. Please use"
+              "metric 4 instead.");
+}
+
+void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
+   const DenseMatrix &Jpt,
+   const DenseMatrix &DS,
+   const real_t weight,
+   DenseMatrix &A) const
+{
+   DenseTensor H(Jpt.Height(), Jpt.Height(), Jpt.TotalSize());
+   H = 0.0;
+   auto mu_ad_fn = [this](
+                      std::vector<AD2Type> &T, std::vector<AD2Type> &W)
+   {
+      return EvalW_AD2(T,W);
+   };
+   if (tmop_metric.Id() == 4)
+   {
+      ADHessian(mu_ad_fn, H, Jpt);
+      this->DefaultAssembleH(H,DS,weight,A);
+      return;
+   }
+   MFEM_ABORT("EvalP not implemented with this metric for "
+              " TMOP_WorstCaseUntangleOptimizer_Metric. Please use"
+              "metric 4 instead.");
 }
 
 real_t TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
@@ -829,6 +972,13 @@ void TMOP_Metric_004::AssembleH(const DenseMatrix &Jpt,
 
    ie.Assemble_ddI1(weight, A.GetData());
    ie.Assemble_ddI2b(-2.0*weight, A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_004::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu4_ad(T, W);
 }
 
 real_t TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
@@ -4077,7 +4227,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
-         double w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+         real_t w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
                     1.0 / surf_fit_dof_count[scalar_dof_id];
 
          if (surf_fit_gf)
