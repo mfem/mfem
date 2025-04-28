@@ -265,4 +265,4 @@ void apply_kernel_fwddiff_enzyme(
 }
 #endif // MFEM_USE_ENZYME
 
-} // namespace mfem
+} // namespace mfem::experimental

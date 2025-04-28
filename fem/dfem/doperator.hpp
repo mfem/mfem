@@ -15,7 +15,8 @@
 
 #include "util.hpp"
 #include "interpolate.hpp"
-#include "qfunction.hpp"
+#include "qf_derivative_dual.hpp"
+#include "qf_derivative_enzyme.hpp"
 #include "integrate.hpp"
 
 namespace mfem::experimental
