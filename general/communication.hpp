@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,15 @@
 #include "sets.hpp"
 #include "globals.hpp"
 #include <mpi.h>
+#include <cstdint>
+
+// can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
+// doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
+#ifdef MPI_CXX_BOOL
+#define MFEM_MPI_CXX_BOOL MPI_CXX_BOOL
+#else
+#define MFEM_MPI_CXX_BOOL MPI_C_BOOL
+#endif
 
 namespace mfem
 {
@@ -416,6 +425,17 @@ public:
    ~GroupCommunicator();
 };
 
+enum VarMessageTag
+{
+   NEIGHBOR_ELEMENT_RANK_VM,  ///< NeighborElementRankMessage
+   NEIGHBOR_ORDER_VM,         ///< NeighborOrderMessage
+   NEIGHBOR_DEREFINEMENT_VM,  ///< NeighborDerefinementMessage
+   NEIGHBOR_REFINEMENT_VM,    ///< NeighborRefinementMessage
+   NEIGHBOR_PREFINEMENT_VM,   ///< NeighborPRefinementMessage
+   NEIGHBOR_ROW_VM,           ///< NeighborRowMessage
+   REBALANCE_VM,              ///< RebalanceMessage
+   REBALANCE_DOF_VM           ///< RebalanceDofMessage
+};
 
 /// \brief Variable-length MPI message containing unspecific binary data.
 template<int Tag>
@@ -588,6 +608,14 @@ template<> struct MPITypeMap<double>
    static MFEM_EXPORT const MPI_Datatype mpi_type;
 };
 template<> struct MPITypeMap<float>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<int64_t>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<uint64_t>
 {
    static MFEM_EXPORT const MPI_Datatype mpi_type;
 };

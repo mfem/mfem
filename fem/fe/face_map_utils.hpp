@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,16 +69,16 @@ inline int ToLexOrdering2D(const int face_id, const int size1d, const int i)
 }
 
 /// @brief Given a face DOF index on a shared face, ordered lexicographically
-/// relative to element 1, return the corresponding face DOF index ordered
-/// lexicographically relative to element 2.
+/// relative to element the element (where the local face is face_id), and
+/// return the corresponding face DOF index ordered lexicographically relative
+/// to the face itself.
 MFEM_HOST_DEVICE
-inline int PermuteFace2D(const int face_id1, const int face_id2,
-                         const int orientation, const int size1d,
-                         const int index)
+inline int PermuteFace2D(const int face_id, const int orientation,
+                         const int size1d, const int index)
 {
    int new_index;
    // Convert from element 1 lex ordering to native ordering
-   if (face_id1 == 2 || face_id1 == 3)
+   if (face_id == 2 || face_id == 3)
    {
       new_index = size1d-1-index;
    }
@@ -91,7 +91,18 @@ inline int PermuteFace2D(const int face_id1, const int face_id2,
    {
       new_index = size1d-1-new_index;
    }
-   // Covert to element 2 lex ordering
+   return new_index;
+}
+
+/// @brief Given a face DOF index on a shared face, ordered lexicographically
+/// relative to element 1, return the corresponding face DOF index ordered
+/// lexicographically relative to element 2.
+MFEM_HOST_DEVICE
+inline int PermuteFace2D(const int face_id1, const int face_id2,
+                         const int orientation, const int size1d,
+                         const int index)
+{
+   const int new_index = PermuteFace2D(face_id1, orientation, size1d, index);
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
@@ -116,26 +127,22 @@ inline int ToLexOrdering3D(const int face_id, const int size1d, const int i,
    }
 }
 
-/// @brief Given the index of a face DOF in lexicographic ordering relative
-/// element 1, permute the index so that it is lexicographically ordered
-/// relative to element 2.
-///
-/// The given face corresponds to local face index @a face_id1 relative to
-/// element 1, and @a face_id2 (with @a orientation) relative to element 2.
+/// @brief Given the index of a face DOF in lexicographic ordering relative the
+/// element (where the local face id is @a face_id), permute the index so that
+/// it is lexicographically ordered relative to the face itself.
 MFEM_HOST_DEVICE
-inline int PermuteFace3D(const int face_id1, const int face_id2,
-                         const int orientation,
+inline int PermuteFace3D(const int face_id, const int orientation,
                          const int size1d, const int index)
 {
    int i=0, j=0, new_i=0, new_j=0;
    i = index%size1d;
    j = index/size1d;
    // Convert from lex ordering
-   if (face_id1==3 || face_id1==4)
+   if (face_id==3 || face_id==4)
    {
       i = size1d-1-i;
    }
-   else if (face_id1==0)
+   else if (face_id==0)
    {
       j = size1d-1-j;
    }
@@ -175,6 +182,23 @@ inline int PermuteFace3D(const int face_id1, const int face_id2,
          new_j = (size1d-1-j);
          break;
    }
+   return new_i + new_j*size1d;
+}
+
+/// @brief Given the index of a face DOF in lexicographic ordering relative
+/// element 1, permute the index so that it is lexicographically ordered
+/// relative to element 2.
+///
+/// The given face corresponds to local face index @a face_id1 relative to
+/// element 1, and @a face_id2 (with @a orientation) relative to element 2.
+MFEM_HOST_DEVICE
+inline int PermuteFace3D(const int face_id1, const int face_id2,
+                         const int orientation,
+                         const int size1d, const int index)
+{
+   const int new_index = PermuteFace3D(face_id1, orientation, size1d, index);
+   const int new_i = new_index%size1d;
+   const int new_j = new_index/size1d;
    return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,7 +130,7 @@ int main (int argc, char *argv[])
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
-                  "Ordering of fespace that will be used for gridfunction to be interpolated."
+                  "Ordering of fespace that will be used for grid function to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");

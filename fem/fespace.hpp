@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,8 +51,17 @@ public:
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
 enum class QVectorLayout
 {
-   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
-   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: NQPT x VDIM x NE,
+       - scalar H1/L2 spaces, gradients: NQPT x VDIM x DIM x NE,
+       - vector RT/ND spaces, values: NQPT x SDIM x NE (vdim = 1). */
+   byNODES,
+
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: VDIM x NQPT x NE,
+       - scalar H1/L2 spaces, gradients: VDIM x DIM x NQPT x NE,
+       - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
+   byVDIM
 };
 
 template <> inline int
@@ -69,7 +78,6 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
    return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
 }
 
-
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering
 {
@@ -78,9 +86,24 @@ enum class ElementDofOrdering
        interpolation from the DOFs to quadrature points does not use the
        tensor-product structure. */
    NATIVE,
-   /// Lexicographic ordering for tensor-product FiniteElements.
-   /** This ordering can be used only with tensor-product elements. */
+   /// Lexicographic: DOFs are listed in order of increasing x-coordinate,
+   /// followed by increasing y-coordinate, and z-coordinate.
+   /** This ordering is usually used with tensor-product elements, but it is
+       also supported by some non-tensor elements. */
    LEXICOGRAPHIC
+};
+
+/** Represents the index of an element to p-refine, plus a change to the order
+    of that element. */
+struct pRefinement
+{
+   int index; ///< Mesh element number
+   int delta; ///< Change to element order
+
+   pRefinement() = default;
+
+   pRefinement(int element, int change)
+      : index(element), delta(change) {}
 };
 
 // Forward declarations
@@ -89,6 +112,7 @@ class BilinearFormIntegrator;
 class QuadratureSpace;
 class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
+class PRefinementTransferOperator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
@@ -203,7 +227,7 @@ class FaceQuadratureInterpolator;
     @par
     %Vector dofs do not represent a specific index space the way the three
     previous types of dofs do. Rather they are related to modifications of
-    these other index spaces to accomodate multiple copies of the underlying
+    these other index spaces to accommodate multiple copies of the underlying
     function spaces.
     @par
     When using @b vdofs, i.e. when @b vdim != 1, the FiniteElementSpace only
@@ -241,22 +265,44 @@ protected:
    /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
+   bool variableOrder = false;
+
    /** Polynomial order for each element. If empty, all elements are assumed
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
 
-   int nvdofs, nedofs, nfdofs, nbdofs;
+   int nvdofs, nedofs, nfdofs, nbdofs, lnedofs, lnfdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
    int *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
 
-   /** Variable order spaces only: DOF assignments for edges and faces, see
+   /** Variable-order spaces only: DOF assignments for edges and faces, see
        docs in MakeDofTable. For constant order spaces the tables are empty. */
    Table var_edge_dofs;
    Table var_face_dofs; ///< NOTE: also used for spaces with mixed faces
 
+   // Temporary data for condensing all DOFs to local DOFs.
+   Table loc_var_edge_dofs, loc_var_face_dofs;
+
+   /** Map from all DOFs of all orders on each entity to local DOFs of orders
+       occurring on a local element containing the entity. */
+   Array<int> all2local;
+
+   /// Bit-mask representing a set of orders needed by an edge/face.
+   typedef std::uint64_t VarOrderBits;
+   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
+
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
+   Array<char> loc_var_edge_orders, loc_var_face_orders;
+   Array<char> ghost_edge_orders, ghost_face_orders;
+
+   /// Minimum order among neighboring elements.
+   mutable Array<int> edge_min_nghb_order, face_min_nghb_order;
+
+   /// Marker arrays for ghost master entities to be skipped in conforming
+   /// interpolation constraints.
+   Array<bool> skip_edge, skip_face;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -293,8 +339,17 @@ protected:
    /// Operator computing the action of the transpose of the restriction.
    mutable std::unique_ptr<Operator> R_transpose;
 
+   /** Stores the previous FiniteElementSpace, before p-refinement, in the case
+       that @a PTh is constructed by PRefineAndUpdate(). */
+   std::unique_ptr<FiniteElementSpace> fesPrev;
+
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
+
+   std::shared_ptr<PRefinementTransferOperator> PTh;
+
+   /// Flag to indicate whether the last update was for p-refinement.
+   bool lastUpdatePRef = false;
 
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
@@ -332,7 +387,10 @@ protected:
 
    void UpdateNURBS();
 
+   /** Helper function for constructing the data in this class, for initial
+       construction or updates (e.g. h- or p-refinement). */
    void Construct();
+
    void Destroy();
 
    void ConstructDoFTransArray();
@@ -341,6 +399,12 @@ protected:
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
+
+   /** Get all @a edges and @a faces (in 3D) on boundary elements with attribute
+       marked as essential in @a bdr_attr_is_ess. */
+   void GetEssentialBdrEdgesFaces(const Array<int> &bdr_attr_is_ess,
+                                  std::set<int> & edges,
+                                  std::set<int> & faces) const;
 
    /** @brief Initialize internal data that enables the use of the methods
     GetElementForDof() and GetLocalDofForDof(). */
@@ -356,9 +420,8 @@ protected:
        boundary. */
    void BuildNURBSFaceToDofTable() const;
 
-   /// Bit-mask representing a set of orders needed by an edge/face.
-   typedef std::uint64_t VarOrderBits;
-   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
+   /// Sets @a all2local. See documentation of @a all2local for details.
+   void SetVarOrderLocalDofs();
 
    /// Return the minimum order (least significant bit set) in the bit mask.
    static int MinOrder(VarOrderBits bits);
@@ -366,20 +429,52 @@ protected:
    /// Return element order: internal version of GetElementOrder without checks.
    int GetElementOrderImpl(int i) const;
 
-   /** In a variable order space, calculate a bitmask of polynomial orders that
-       need to be represented on each edge and face. */
-   void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
-                              Array<VarOrderBits> &face_orders) const;
+   /// Returns true if the space is H1 and has variable-order elements.
+   bool IsVariableOrderH1() const
+   {
+      return variableOrder &&
+             dynamic_cast<const H1_FECollection*>(fec);
+   }
 
-   /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
-       space; return total edge/face DOFs. */
-   int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
+   /** In a variable-order space, calculate a bitmask of polynomial orders that
+       need to be represented on each edge and face. */
+   void CalcEdgeFaceVarOrders(
+      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+      Array<VarOrderBits> &edge_elem_orders,
+      Array<VarOrderBits> &face_elem_orders,
+      Array<bool> &skip_edges, Array<bool> &skip_faces) const;
+
+   /// Helper function for ParFiniteElementSpace.
+   virtual void ApplyGhostElementOrdersToEdgesAndFaces(
+      Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders) const;
+
+   /// Helper function for ParFiniteElementSpace.
+   virtual void GhostFaceOrderToEdges(
+      const Array<VarOrderBits> &face_orders,
+      Array<VarOrderBits> &edge_orders) const { }
+
+   /// Returns true if order propagation is done, for variable-order spaces.
+   virtual bool OrderPropagation(const std::set<int> &edges,
+                                 const std::set<int> &faces,
+                                 Array<VarOrderBits> &edge_orders,
+                                 Array<VarOrderBits> &face_orders) const
+   { return edges.size() == 0 && faces.size() == 0; };
+
+   /// Returns the number of ghost edges (nonzero in ParFiniteElementSpace).
+   virtual int NumGhostEdges() const { return 0; }
+
+   /// Returns the number of ghost faces (nonzero in ParFiniteElementSpace).
+   virtual int NumGhostFaces() const { return 0; }
+
+   /** Build the table var_edge_dofs (or var_face_dofs) in a variable-order
+        space; return total edge/face DOFs. */
+   int MakeDofTable(int ent_dim, const Array<VarOrderBits> &entity_orders,
                     Table &entity_dofs, Array<char> *var_ent_order);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
    int FindDofs(const Table &var_dof_table, int row, int ndof) const;
 
-   /** In a variable order space, return edge DOFs associated with a polynomial
+   /** In a variable-order space, return edge DOFs associated with a polynomial
        order that has 'ndof' degrees of freedom. */
    int FindEdgeDof(int edge, int ndof) const
    { return FindDofs(var_edge_dofs, edge, ndof); }
@@ -411,6 +506,11 @@ protected:
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
+
+   /** In variable-order spaces, enforce the minimum order rule on edges and
+       faces, by adding constraints to @a deps for high-order DOFs to
+       interpolate the lowest-order DOFs per mesh entity. */
+   void VariableOrderMinimumRule(SparseMatrix & deps) const;
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I,
@@ -562,8 +662,7 @@ public:
 
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, NULL, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to
@@ -571,8 +670,7 @@ public:
        NURBSExtension, @a ext. */
    FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, ext, fec, vdim, ordering); }
+                      int vdim = 1, int ordering = Ordering::byNODES);
 
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
@@ -597,18 +695,18 @@ public:
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
-       SetElementOrder is called, the space becomes a variable order space. */
+       SetElementOrder is called, the space becomes a variable-order space. */
    void SetElementOrder(int i, int p);
 
    /// Returns the order of the i'th finite element.
    int GetElementOrder(int i) const;
 
-   /// Return the maximum polynomial order.
-   int GetMaxElementOrder() const
+   /// Return the maximum polynomial order over all elements.
+   virtual int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
    /// Returns true if the space contains elements of varying polynomial orders.
-   bool IsVariableOrder() const { return elem_order.Size(); }
+   bool IsVariableOrder() const { return variableOrder; }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace. The method
    /// returns nullptr if the matrix is identity.
@@ -730,14 +828,16 @@ public:
    /** NOTE: it is recommended to use GetElementOrder in new code. */
    int GetOrder(int i) const { return GetElementOrder(i); }
 
-   /** Return the order of an edge. In a variable order space, return the order
+   /** Return the order of an edge. In a variable-order space, return the order
        of a specific variant, or -1 if there are no more variants. */
    int GetEdgeOrder(int edge, int variant = 0) const;
 
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
 
-   /// Returns vector dimension.
+   /// Returns the vector dimension of the finite element space.
+   /** Since the finite elements could be vector-valued, this may not be the
+       dimension of an actual vector in the space; see GetVectorDim(). */
    inline int GetVDim() const { return vdim; }
 
    /// @brief Returns number of degrees of freedom.
@@ -755,6 +855,22 @@ public:
    int GetNConformingDofs() const;
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+
+   /// Return the total dimension of a vector in the space
+   /** This accounts for the vectorization of elements and cases where the
+       elements themselves are vector-valued; see FiniteElement:GetRangeDim().
+       If the finite elements are FiniteElement::SCALAR, this equals GetVDim().
+
+       Note: For vector-valued elements, the results pads up the range dimension
+       to the spatial dimension. E.g., consider a stack of 5 vector-valued
+       elements each representing 2D vectors, living in a 3 dimensional space.
+       Then this fucntion would give 15, not 10.
+       */
+   int GetVectorDim() const;
+
+   /// Return the dimension of the curl of a GridFunction defined on this space.
+   /** Note: This assumes a space dimension of 2 or 3 only. */
+   int GetCurlDim() const;
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
@@ -879,7 +995,7 @@ public:
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
    ///
-   /// In variable order spaces, multiple variants of DOFs can be returned.
+   /// In variable-order spaces, multiple variants of DOFs can be returned.
    /// See GetEdgeDofs() for more details.
    /// @return Order of the selected variant, or -1 if there are no more
    /// variants.
@@ -891,7 +1007,7 @@ public:
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// edge, including the DOFs for the vertices of the edge.
    ///
-   /// In variable order spaces, multiple sets of DOFs may exist on an edge,
+   /// In variable-order spaces, multiple sets of DOFs may exist on an edge,
    /// corresponding to the different polynomial orders of incident elements.
    /// The 'variant' parameter is the zero-based index of the desired DOF set.
    /// The variants are ordered from lowest polynomial degree to the highest.
@@ -1259,6 +1375,18 @@ public:
        marked as essential. */
    void GetBoundaryTrueDofs(Array<int> &boundary_dofs, int component = -1);
 
+   /** @brief Mark degrees of freedom associated with exterior faces of the
+       mesh. For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component. */
+   virtual void GetExteriorVDofs(Array<int> &exterior_vdofs,
+                                 int component = -1) const;
+
+   /** @brief Get a list of all true dofs on the exterior of the mesh,
+       @a exterior_dofs. For spaces with 'vdim' > 1, the 'component' parameter
+       can be used to restricts the marked tDOFs to the specified component. */
+   virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
+                                    int component = -1) const;
+
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
 
@@ -1327,16 +1455,31 @@ public:
    virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
                                         OperatorHandle &T) const;
 
-   /** @brief Reflect changes in the mesh: update number of DOFs, etc. Also, calculate
-       GridFunction transformation operator (unless want_transform is false).
-       Safe to call multiple times, does nothing if space already up to date. */
+   /** @brief Reflect changes in the mesh: update number of DOFs, etc. Also,
+       calculate GridFunction transformation operator (unless want_transform is
+       false). Safe to call multiple times, does nothing if space already up to
+       date. */
    virtual void Update(bool want_transform = true);
+
+   /** P-refine and update the space. If @a want_transfer, also maintain the old
+       space and a transfer operator accessible by GetPrefUpdateOperator(). */
+   virtual void PRefineAndUpdate(const Array<pRefinement> & refs,
+                                 bool want_transfer = true);
+
+   /** Return true iff p-refinement is supported in this space. Current support
+       is only for L2 or H1 spaces on purely quadrilateral or hexahedral
+       meshes. */
+   bool PRefinementSupported();
 
    /// Get the GridFunction update operator.
    const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }
 
    /// Return the update operator in the given OperatorHandle, @a T.
    void GetUpdateOperator(OperatorHandle &T) { T = Th; }
+
+   /** Returns @a PTh, the transfer operator from the previous space to the
+       current space, after p-refinement. */
+   std::shared_ptr<const PRefinementTransferOperator> GetPrefUpdateOperator();
 
    /** @brief Set the ownership of the update operator: if set to false, the
        Operator returned by GetUpdateOperator() must be deleted outside the
@@ -1360,13 +1503,16 @@ public:
        GridFunction to check if it is up to date with the space. */
    long GetSequence() const { return sequence; }
 
+   /// Return a flag indicating whether the last update was for p-refinement.
+   bool LastUpdatePRef() const { return lastUpdatePRef; }
+
    /// Return whether or not the space is discontinuous (L2)
    bool IsDGSpace() const
    {
       return dynamic_cast<const L2_FECollection*>(fec) != NULL;
    }
 
-   /** In variable order spaces on nonconforming (NC) meshes, this function
+   /** In variable-order spaces on nonconforming (NC) meshes, this function
        controls whether strict conformity is enforced in cases where coarse
        edges/faces have higher polynomial order than their fine NC neighbors.
        In the default (strict) case, the coarse side polynomial order is
