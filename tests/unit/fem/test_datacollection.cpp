@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#ifndef MFEM_USE_ENZYME
 #include "unit_tests.hpp"
 #include "general/tinyxml2.h"
 #include <stdio.h>
@@ -381,4 +382,5 @@ TEST_CASE("ParaView VTKHDF restart mode", "[ParaView]")
    REQUIRE(remove("ParaView.vtkhdf") == 0);
 }
 
-#endif
+#endif // MFEM_USE_HDF5
+#endif // MFEM_USE_ENZYME

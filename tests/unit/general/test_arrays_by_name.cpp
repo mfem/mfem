@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#ifndef MFEM_USE_ENZYME
 #include "unit_tests.hpp"
 
 using namespace mfem;
@@ -200,3 +201,5 @@ TEST_CASE("ArraysByName Sort/Unique Methods", "[ArraysByName]")
       }
    }
 }
+
+#endif
