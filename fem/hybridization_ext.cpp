@@ -318,7 +318,7 @@ void HybridizationExtension::ConstructH()
       // RT(k) in 3D (hexes): (interior,boundary) dofs:
       // - arbitrary k: 3*(k+1)^2*(k+2)-6*(k+1)^2, 6*(k+1)^2
       // - k=0: (0,6)
-      // - k=1: (12,12)
+      // - k=1: (12,24)
       // - k=2: (54,54)
       const int NI = idofs.Size();
       const int NB = bdofs.Size();
