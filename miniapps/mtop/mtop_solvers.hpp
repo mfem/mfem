@@ -378,4 +378,93 @@ protected:
     RandomizedSubspaceIteration* ss_solver; //subspace iteration solver
 
 };
+
+/// Applies the PRESB precondition on a block vector [p',q']'
+/// where u=x+i*y is the solution and p+i*q is the input.
+/// The complex system has the form
+/// (W+i*T)(x+i*y)=(p+i*q)
+/// The preconditioner is assumed to be applied to the following
+/// linear system of equations
+/// |W  -T| |x| =|p|
+/// |T   W| |y|  |q|
+/// and has the form
+/// |W+2T  -T||x|=|e|
+/// |T      W||y| |g|
+///
+/// For exchanged first and second block rows use prec_type=2. In this
+/// case the preconditioner is assumed to be
+/// | W     T||x| = |e|
+/// |-T  W+2T||y|   |g|
+/// and the linear system is assumed to be
+/// | W   T||x|=|p|
+/// |-T   W||y| |q|
+///
+class PRESBPrec:public IterativeSolver
+{
+public:
+    PRESBPrec(MPI_Comm comm_,int prec_type_=1):
+        IterativeSolver(comm_),prec_type(prec_type_)
+    {}
+
+    virtual
+        ~PRESBPrec(){}
+
+    void SetWT(Operator* W_, Operator* T_){
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = W_->Width();
+        block_true_offsets[2] = W_->Width();
+        block_true_offsets.PartialSum();
+
+        bx.Update(block_true_offsets);
+        diag.SetSize(W_->Width());
+
+        W=W_;
+        T=T_;
+
+        W->AssembleDiagonal(diag);
+        T->AssembleDiagonal(bx.GetBlock(0));
+        diag.Add(1.0,bx.GetBlock(0));
+
+        jOp.reset(new OperatorJacobiSmoother());
+        jOp->Setup(diag);
+        sOp.reset(new SumOperator(W,1.0,T,1.0,false,false));
+
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
+        BlockVector bvy(y,block_true_offsets);
+        Vector& xx=bvy.GetBlock(0);
+        Vector& yy=bvy.GetBlock(1);
+
+        //split the input
+        bx.SetVector(x,0);
+
+        bx.GetBlock(0).Add(-1.0,bx.GetBlock(1));
+        //solve (W+T)(x-y)=(e-g)
+
+        //solve (W+T)y=g-T(x-y)
+
+        //sum (x-y)+y=x
+        xx.Add(1.0,yy);
+
+
+    }
+
+private:
+    Operator* W;
+    Operator* T;
+    std::unique_ptr<SumOperator> sOp;
+    std::unique_ptr<OperatorJacobiSmoother> jOp;
+    int prec_type;
+
+    mfem::Array<int> block_true_offsets;
+
+    Vector diag;
+    mutable BlockVector bx;
+};
+
+
 #endif // MTOP_SOLVERS_HPP
