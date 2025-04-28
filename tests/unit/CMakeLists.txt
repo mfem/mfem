@@ -50,6 +50,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
+  mesh/test_mesh_mesh_reader.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
