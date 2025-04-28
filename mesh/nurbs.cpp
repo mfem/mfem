@@ -2455,7 +2455,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
 {
    // Copy patch topology mesh
    patchTopo = new Mesh( *patch_topology );
-   patchTopo->GetEdgeToKnotMapping2(edge_to_knot);
+   patchTopo->GetEdgeToKnotMapping(edge_to_knot);
    mfem::out << "Reconstructed Mesh: edge to knot map:" << std::endl;
    edge_to_knot.Print(mfem::out);
    own_topo = true;
@@ -2463,15 +2463,12 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    CheckPatches(); // This is checking the edge_to_knot mapping
    // CheckBdrPatches();
 
-   // Copy patches
+   // Copy NURBSPatch(es)
    patches.SetSize(patches_.Size());
    for (int p = 0; p < patches.Size(); p++)
    {
       patches[p] = new NURBSPatch(*patches_[p]);
    }
-
-   // TODO: Can we just use this??
-   // SetKnotsFromPatches()
 
    // Set number of **unique** knot vectors
    NumOfKnotVectors = 0;

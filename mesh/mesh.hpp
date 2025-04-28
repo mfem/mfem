@@ -766,9 +766,8 @@ public:
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
 
-   /// temp
-   void GetEdgeToKnotMapping2(Array<int> &edge_to_knot) const;
-   void GetEdgeToKnotMapping(Array<int> &edge_to_knot) const;
+   /// Get the edge to knotvector mapping (used by NURBS patch topology meshes)
+   void GetEdgeToKnotMapping(Array<int> &edge_to_knot, bool verbose = false) const;
 
    /// @}
 
