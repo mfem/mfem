@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "../fespace.hpp"
+#ifdef MFEM_USE_MPI
 #include "../pfespace.hpp"
 
 #include "util.hpp"
@@ -683,3 +684,4 @@ void DifferentiableOperator::AddDomainIntegrator(
 }
 
 } // namespace mfem::experimental
+#endif

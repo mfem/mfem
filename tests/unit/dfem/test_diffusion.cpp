@@ -12,6 +12,8 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
+#ifdef MFEM_USE_MPI
+
 using namespace mfem;
 using namespace mfem::experimental;
 using mfem::internal::tensor;
@@ -242,3 +244,5 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 }
 
 } // namespace dfem_pa_kernels
+
+#endif

@@ -11,6 +11,8 @@
 
 #include "doperator.hpp"
 
+#ifdef MFEM_USE_MPI
+
 using namespace mfem;
 using namespace mfem::experimental;
 
@@ -48,3 +50,5 @@ DifferentiableOperator::DifferentiableOperator(
       fields[i + solutions.size()] = parameters[i];
    }
 }
+
+#endif // MFEM_USE_MPI

@@ -21,6 +21,7 @@
 #include <numeric>
 
 #include "../../general/communication.hpp"
+#ifdef MFEM_USE_MPI
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
@@ -2164,3 +2165,4 @@ void call_qfunction_derivative_action(
 }
 
 } // namespace mfem
+#endif
