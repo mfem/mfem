@@ -422,10 +422,10 @@ int main(int argc, char *argv[])
    E_theta = 0.0;
 
    ParaViewDataCollection * paraview_dc = nullptr;
-   // ParaViewDataCollection * paraview_tdc = nullptr;
+   ParaViewDataCollection * paraview_tdc = nullptr;
 
    // Create ParaView directory and file
-   std::string output_dir = "ParaView/UWDPG/" + GetTimestamp();
+   std::string output_dir = "ParaView/UW/2D" + GetTimestamp();
    if (Mpi::Root())
    {
       WriteParametersToFile(args, output_dir);
@@ -452,14 +452,19 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("E_theta_r",&E_theta_r);
       paraview_dc->RegisterField("E_theta_i",&E_theta_i);
 
-      // paraview_tdc = new ParaViewDataCollection(mesh_file, &pmesh);
-      // paraview_tdc->SetPrefixPath("ParaViewUWDPG2D/TimeHarmonic");
-      // paraview_tdc->SetLevelsOfDetail(order);
-      // paraview_tdc->SetCycle(0);
-      // paraview_tdc->SetDataFormat(VTKFormat::BINARY);
-      // paraview_tdc->SetHighOrderOutput(true);
-      // paraview_tdc->SetTime(0.0); // set the time
-      // paraview_tdc->RegisterField("E_theta_t",&E_theta);
+      std::ostringstream paraview_file_name_th;
+      paraview_file_name_th << filename
+                            << "_par_ref_" << par_ref_levels
+                            << "_order_" << order
+                            << "th";
+      paraview_tdc = new ParaViewDataCollection(paraview_file_name_th.str(), &pmesh);
+      paraview_tdc->SetPrefixPath(output_dir);
+      paraview_tdc->SetLevelsOfDetail(order);
+      paraview_tdc->SetCycle(0);
+      paraview_tdc->SetDataFormat(VTKFormat::BINARY);
+      paraview_tdc->SetHighOrderOutput(true);
+      paraview_tdc->SetTime(0.0); // set the time
+      paraview_tdc->RegisterField("E_theta_t",&E_theta);
    }
 
    real_t res0 = 0.;
@@ -623,20 +628,20 @@ int main(int argc, char *argv[])
       int num_iter = -1;
       if (!mumps_solver)
       {
-         // BlockDiagonalPreconditioner M(tdof_offsets);
-         BlockTriangularSymmetricPreconditioner M(tdof_offsets);
-         M.SetOperator(blockA);
-         int nblocks = blockA.NumRowBlocks();
-         for (int i = 0; i<nblocks; i++)
-         {
-            for (int j = 0; j<nblocks; j++)
-            {
-               if (i != j)
-               {
-                  M.SetBlock(i,j,&blockA.GetBlock(i,j));
-               }
-            }
-         }
+         BlockDiagonalPreconditioner M(tdof_offsets);
+         // BlockTriangularSymmetricPreconditioner M(tdof_offsets);
+         // M.SetOperator(blockA);
+         // int nblocks = blockA.NumRowBlocks();
+         // for (int i = 0; i<nblocks; i++)
+         // {
+         //    for (int j = 0; j<nblocks; j++)
+         //    {
+         //       if (i != j)
+         //       {
+         //          M.SetBlock(i,j,&blockA.GetBlock(i,j));
+         //       }
+         //    }
+         // }
 
 
          if (!static_cond)
@@ -674,8 +679,8 @@ int main(int argc, char *argv[])
          }
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-7);
-         cg.SetMaxIter(1000);
-         cg.SetPrintLevel(1);
+         cg.SetMaxIter(1500);
+         cg.SetPrintLevel(3);
          cg.SetPreconditioner(M);
          cg.SetOperator(blockA);
          cg.Mult(B, X);
@@ -763,6 +768,17 @@ int main(int argc, char *argv[])
       }
       if (it == amr_ref_levels)
       {
+         int num_frames = 32;
+         for (int i = 0; i<num_frames; i++)
+         {
+            real_t t = (real_t)(i % num_frames) / num_frames;
+            add(cos(real_t(2.0*M_PI)*t), E_theta_r,
+                sin(real_t(2.0*M_PI)*t), E_theta_i, E_theta);
+            paraview_tdc->SetCycle(i);
+            paraview_tdc->SetTime(t);
+            paraview_tdc->Save();
+         }
+         delete paraview_tdc;
          break;
       }
 
@@ -796,17 +812,7 @@ int main(int argc, char *argv[])
       E_theta.Update();
 
       a->Update();
-      // int num_frames = 32;
-      // for (int i = 0; i<num_frames; i++)
-      // {
-      //    real_t t = (real_t)(i % num_frames) / num_frames;
-      //    add(cos(real_t(2.0*M_PI)*t), E_theta_r,
-      //        sin(real_t(2.0*M_PI)*t), E_theta_i, E_theta);
-      //       paraview_tdc->SetCycle(i);
-      //       paraview_tdc->SetTime(t);
-      //       paraview_tdc->Save();
-      // }
-      // delete paraview_tdc;
+
 
    }
 
