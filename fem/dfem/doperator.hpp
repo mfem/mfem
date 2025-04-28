@@ -482,13 +482,13 @@ void DifferentiableOperator::AddDomainIntegrator(
    // the specific instance of this class (this pointer).
    restriction_callback =
       [=, solutions = this->solutions, parameters = this->parameters]
-      (std::vector<Vector> &solutions_l,
-       const std::vector<Vector> &parameters_l,
-       std::vector<Vector> &fields_e)
+      (std::vector<Vector> &sol,
+       const std::vector<Vector> &par,
+       std::vector<Vector> &f)
    {
-      restriction<entity_t>(solutions, solutions_l, fields_e,
+      restriction<entity_t>(solutions, sol, f,
                             element_dof_ordering);
-      restriction<entity_t>(parameters, parameters_l, fields_e,
+      restriction<entity_t>(parameters, par, f,
                             element_dof_ordering,
                             solutions.size());
    };
@@ -640,12 +640,12 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       derivative_action_callbacks[derivative_id].push_back(
          [=, output_restriction_transpose = this->output_restriction_transpose](
-            std::vector<Vector> &fields_e, const Vector &direction_l,
-            Vector &derivative_action_l) mutable
+            std::vector<Vector> &f_e, const Vector &dir_l,
+            Vector &der_action_l) mutable
       {
-         restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
+         restriction<entity_t>(direction, dir_l, direction_e, element_dof_ordering);
          auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
-         auto wrapped_fields_e = wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
+         auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, num_entities);
          auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
 
          derivative_action_e = 0.0;
@@ -678,7 +678,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                y, fhat, output_fop, output_dtq_shmem[0],
                scratch_shmem, dimension, use_sum_factorization);
          }, num_entities, thread_blocks, shmem_info.total_size, shmem_cache.ReadWrite());
-         output_restriction_transpose(derivative_action_e, derivative_action_l);
+         output_restriction_transpose(derivative_action_e, der_action_l);
       });
    }, derivative_ids);
 }
