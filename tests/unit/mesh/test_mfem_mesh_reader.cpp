@@ -34,7 +34,6 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
    REQUIRE(mesh.attribute_sets.attr_sets.Size() == 16);
    REQUIRE(mesh.bdr_attribute_sets.attr_sets.Size() == 13);
 
-   auto const &attr_sets = mesh.attribute_sets.attr_sets;
 
 
    std::vector<std::pair<std::string, std::vector<int> > > expected_attr_sets =
