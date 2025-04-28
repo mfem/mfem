@@ -67,7 +67,7 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
 
 
 
-      REQUIRE( attr_set.Size() == expected_attr_set.size());
+      REQUIRE(static_cast<std::size_t>(attr_set.Size()) == expected_attr_set.size());
 
       bool const elements_equal = std::equal(attr_set.begin(), attr_set.end(),
                                              expected_attr_set.begin());
@@ -107,7 +107,8 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
                                     attr_bdr_name_index_pair.first);
       auto const &expected_bdr_attr_set = attr_bdr_name_index_pair.second;
 
-      REQUIRE( bdr_attr_set.Size() == expected_bdr_attr_set.size());
+      REQUIRE(static_cast<std::size_t>(bdr_attr_set.Size()) ==
+              expected_bdr_attr_set.size());
 
       bool const elements_equal = std::equal(bdr_attr_set.begin(), bdr_attr_set.end(),
                                              expected_bdr_attr_set.begin());
