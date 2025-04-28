@@ -64,6 +64,7 @@ set(SRCS
   datacollection.cpp
   dgmassinv.cpp
   doftrans.cpp
+  dfem/doperator.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp

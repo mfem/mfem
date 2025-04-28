@@ -18,9 +18,12 @@
 #include <variant>
 #include <vector>
 #include <type_traits>
+#include <numeric>
 
+#include "../../general/communication.hpp"
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
+#include "../pfespace.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../linalg/dtensor.hpp"
 
@@ -181,6 +184,7 @@ void print_tuple(const std::tuple<Args...>& t)
 /// which is compatible with numpy syntax.
 ///
 /// @param m mfem::DenseMatrix to print
+inline
 void pretty_print(const mfem::DenseMatrix& m)
 {
    out << "[";
@@ -208,6 +212,7 @@ void pretty_print(const mfem::DenseMatrix& m)
 /// is compatible with numpy syntax.
 ///
 /// @param v Vector of vectors to print
+inline
 void pretty_print(const mfem::Vector& v)
 {
    out << "[";
@@ -275,6 +280,7 @@ void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
    out << "}\n";
 }
 
+inline
 void print_mpi_root(const std::string& msg)
 {
    auto myrank = Mpi::WorldRank();
@@ -288,6 +294,7 @@ void print_mpi_root(const std::string& msg)
 /// @brief print with MPI rank synchronization
 ///
 /// @param msg Message to print
+inline
 void print_mpi_sync(const std::string& msg)
 {
    auto myrank = Mpi::WorldRank();
@@ -345,6 +352,7 @@ void print_mpi_sync(const std::string& msg)
 /// @param v Vector to print
 /// @param myrank MPI rank
 /// @param comm MPI communicator
+inline
 void pretty_print_mpi(const mfem::Vector& v)
 {
    std::stringstream ss;
@@ -655,6 +663,7 @@ GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
    return GeometricFactorMaps{DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)};
 }
 
+inline
 int GetVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
@@ -681,6 +690,7 @@ int GetVSize(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
 void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
 {
    return std::visit([&](auto arg)
@@ -710,6 +720,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
    }, f.data);
 }
 
+inline
 int GetTrueVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
@@ -739,6 +750,7 @@ int GetTrueVSize(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
 int GetVDim(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
@@ -792,6 +804,7 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
 const Operator *get_prolongation(const FieldDescriptor &f)
 {
    return std::visit([](auto&& arg) -> const Operator*
@@ -813,6 +826,7 @@ const Operator *get_prolongation(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
 const Operator *get_element_restriction(const FieldDescriptor &f,
                                         ElementDofOrdering o)
 {
@@ -835,10 +849,12 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
    }, f.data);
 }
 
-const Operator *get_face_restriction(const FieldDescriptor &f,
-                                     ElementDofOrdering o,
-                                     FaceType ft,
-                                     L2FaceValues m)
+inline
+const Operator *get_face_restriction(
+   const FieldDescriptor &f,
+   ElementDofOrdering o,
+   FaceType ft,
+   L2FaceValues m)
 {
    return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
    {
@@ -903,6 +919,7 @@ auto get_restriction_transpose(
    }
 }
 
+inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
    const auto P = get_prolongation(field);
@@ -929,6 +946,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    }
 }
 
+inline
 void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)

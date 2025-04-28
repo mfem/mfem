@@ -12,9 +12,6 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
-#include "fem/dfem/doperator.hpp"
-#include "linalg/tensor.hpp"
-
 using namespace mfem;
 using namespace mfem::experimental;
 using mfem::internal::tensor;

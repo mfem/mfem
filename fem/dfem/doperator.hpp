@@ -13,6 +13,9 @@
 #include <type_traits>
 #include <utility>
 
+#include "../fespace.hpp"
+#include "../pfespace.hpp"
+
 #include "util.hpp"
 #include "interpolate.hpp"
 #include "qf_derivative_dual.hpp"
@@ -360,41 +363,6 @@ private:
 
    size_t test_space_field_idx = SIZE_MAX;
 };
-
-void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
-{
-   MFEM_ASSERT(parameters.size() == p.size(),
-               "number of parameters doesn't match descriptors");
-   for (size_t i = 0; i < parameters.size(); i++)
-   {
-      p[i]->Read();
-      parameters_l[i] = *p[i];
-   }
-}
-
-DifferentiableOperator::DifferentiableOperator(
-   const std::vector<FieldDescriptor> &solutions,
-   const std::vector<FieldDescriptor> &parameters,
-   const ParMesh &mesh) :
-   mesh(mesh),
-   solutions(solutions),
-   parameters(parameters)
-{
-   fields.resize(solutions.size() + parameters.size());
-   fields_e.resize(fields.size());
-   solutions_l.resize(solutions.size());
-   parameters_l.resize(parameters.size());
-
-   for (size_t i = 0; i < solutions.size(); i++)
-   {
-      fields[i] = solutions[i];
-   }
-
-   for (size_t i = 0; i < parameters.size(); i++)
-   {
-      fields[i + solutions.size()] = parameters[i];
-   }
-}
 
 template <
    typename qfunc_t,
