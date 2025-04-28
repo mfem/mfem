@@ -767,6 +767,7 @@ public:
    virtual ~Mesh() { DestroyPointers(); }
 
    /// temp
+   void GetEdgeToKnotMapping2(Array<int> &edge_to_knot) const;
    void GetEdgeToKnotMapping(Array<int> &edge_to_knot) const;
 
    /// @}

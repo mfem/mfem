@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <algorithm>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
@@ -6384,6 +6385,50 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
       // Terminate here upon failure after printing to have an idea of edge_to_knot.
       if (corrections > 0 ) {mfem_error("Mesh::LoadPatchTopo");}
+   }
+}
+
+void Mesh::GetEdgeToKnotMapping2(Array<int> &edge_to_knot) const
+{
+   int kvidx;
+   Array<int> kvs(3);
+   Array<int> edges, oedges;
+   Array<int> v(2); // Array to store the two vertex indices of the edge
+   edge_to_knot.SetSize(NumOfEdges);
+   constexpr int notset = -9999999;
+   edge_to_knot = notset;
+   int dim = Dimension();
+   int d;
+   auto unsign = [](int i) { return (i < 0) ? -i - 1 : i; };
+   for (int p = 0; p < NumOfElements; p++)
+   {
+      GetElementEdges(p, edges, oedges);
+
+      // First loop checks for if edge has already been set
+      kvs = notset;
+      for (int i = 0; i < edges.Size(); i++)
+      {
+         d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
+         GetEdgeVertices(edges[i], v); // Get the vertices of edge i
+         // We've set this edge-to-knot previously
+         if (edge_to_knot[edges[i]] != notset)
+         {
+            // Old knot vector index (unsigned)
+            kvidx = unsign(edge_to_knot[edges[i]]);
+            // Keep the lowest index
+            kvs[d] = std::min({kvidx, p*dim+d, unsign(kvs[d])});
+         }
+      }
+
+      // Second loop sets the edge-to-knot mapping
+      for (int i = 0; i < edges.Size(); i++)
+      {
+         d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
+         GetEdgeVertices(edges[i], v); // Get the vertices of edge i
+         // Not set yet -> use global index (p*dim+d)
+         kvidx = (kvs[d] == notset) ? p*dim+d : kvs[d];
+         edge_to_knot[edges[i]] = (v[1] > v[0]) ? kvidx : -1 - kvidx;
+      }
    }
 }
 

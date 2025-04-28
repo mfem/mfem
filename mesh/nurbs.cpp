@@ -2455,7 +2455,9 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
 {
    // Copy patch topology mesh
    patchTopo = new Mesh( *patch_topology );
-   patchTopo->GetEdgeToKnotMapping(edge_to_knot);
+   patchTopo->GetEdgeToKnotMapping2(edge_to_knot);
+   mfem::out << "Reconstructed Mesh: edge to knot map:" << std::endl;
+   edge_to_knot.Print(mfem::out);
    own_topo = true;
 
    CheckPatches(); // This is checking the edge_to_knot mapping
@@ -3084,15 +3086,10 @@ void NURBSExtension::CheckPatches()
 
    for (int p = 0; p < GetNP(); p++)
    {
-      mfem::out << "Checking patch " << p << std::endl;
-      edge_to_knot.Print(mfem::out);
-      mfem::out << std::endl;
-
       patchTopo->GetElementEdges(p, edges, oedge);
 
       for (int i = 0; i < edges.Size(); i++)
       {
-         mfem::out << "edge " << i << " = " << edges[i] << std::endl;
          edges[i] = edge_to_knot[edges[i]];
          if (oedge[i] < 0)
          {
@@ -3111,9 +3108,7 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[11])))
       {
          mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ")\n  Inconsistent edge-to-knot mapping!"
-                   << "\n  edges =\n";
-         edges.Print(mfem::err);
+                   << ")\n  Inconsistent edge-to-knot mapping!";
          mfem_error();
       }
    }
