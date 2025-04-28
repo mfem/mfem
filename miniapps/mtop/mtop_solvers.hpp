@@ -3,6 +3,7 @@
 
 #include "mfem.hpp"
 #include "rand_eigensolver.hpp"
+#include "general/forall.hpp"
 
 using namespace mfem;
 
@@ -409,7 +410,9 @@ public:
     virtual
         ~PRESBPrec(){}
 
-    void SetWT(Operator* W_, Operator* T_){
+    void SetWT(Operator* W_, Operator* T_, int prec_type_=1){
+
+        prec_type=prec_type_;
 
         block_true_offsets.SetSize(3);
         block_true_offsets[0] = 0;
@@ -417,15 +420,17 @@ public:
         block_true_offsets[2] = W_->Width();
         block_true_offsets.PartialSum();
 
-        bx.Update(block_true_offsets);
+        bv.Update(block_true_offsets);
+
+        tv.SetSize(W_->Width());
         diag.SetSize(W_->Width());
 
         W=W_;
         T=T_;
 
         W->AssembleDiagonal(diag);
-        T->AssembleDiagonal(bx.GetBlock(0));
-        diag.Add(1.0,bx.GetBlock(0));
+        T->AssembleDiagonal(tv);
+        diag.Add(1.0,tv);
 
         jOp.reset(new OperatorJacobiSmoother());
         jOp->Setup(diag);
@@ -439,10 +444,23 @@ public:
         Vector& xx=bvy.GetBlock(0);
         Vector& yy=bvy.GetBlock(1);
 
-        //split the input
-        bx.SetVector(x,0);
+        Memory<real_t>& bm=bv.GetMemory();
+        bm.CopyFrom(x.GetMemory(),x.Size());
 
-        bx.GetBlock(0).Add(-1.0,bx.GetBlock(1));
+        //set the RHS (e-g) in tv
+        /*
+        {
+            int N=W->Width();
+            const real_t* xp= x.Read();
+            auto tp=tv.ReadWrite();
+            mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=xp[i]-xp[N+i];
+            });
+        }
+        */
+
+
         //solve (W+T)(x-y)=(e-g)
 
         //solve (W+T)y=g-T(x-y)
@@ -463,7 +481,8 @@ private:
     mfem::Array<int> block_true_offsets;
 
     Vector diag;
-    mutable BlockVector bx;
+    Vector tv;
+    BlockVector bv;
 };
 
 
