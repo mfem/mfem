@@ -191,7 +191,11 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          converged = true;
          int numActiveConstraintsLoc = 0;
-	 double zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
+	      double zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
+         // for (int i =0; i<zlk.Size(); i++)
+         // {
+         //    mfem::out << "zlk("<<i<<") = " << zlk(i) << endl;
+         // }
 
 	      int dimG = dimM;
 	      if (dimM > dimU)
