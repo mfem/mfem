@@ -475,8 +475,6 @@ protected:
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv);
 
-   // void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv) const;
-
    void UpdateNURBS();
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS

@@ -920,9 +920,6 @@ public:
    /// Return patch topology
    const Mesh* GetPatchTopology() const { return patchTopo; }
 
-   /// For testing
-   const void PrintEdgeToKnot() const { edge_to_ukv.Print(); }
-
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
