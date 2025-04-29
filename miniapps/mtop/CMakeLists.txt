@@ -67,6 +67,11 @@ add_mfem_miniapp(test_stokes
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(test_presb
+     MAIN test_presb.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 
 
 endif ()

@@ -405,12 +405,24 @@ class PRESBPrec:public IterativeSolver
 public:
     PRESBPrec(MPI_Comm comm_,int prec_type_=1):
         IterativeSolver(comm_),prec_type(prec_type_)
-    {}
+    {
+        comm=comm_;
+        MPI_Comm_rank(comm,&myrank);
+        a=1.0;
+        b=1.0;
+    }
 
     virtual
         ~PRESBPrec(){}
 
-    void SetWT(Operator* W_, Operator* T_, int prec_type_=1){
+    void SetOperators(Operator* W_, Operator* T_,
+                      real_t a_=1.0, real_t b_=1.0,int prec_type_=1){
+
+        this->width=2*(W_->Width());
+        this->height=2*(W_->Width());
+
+        a=a_;
+        b=b_;
 
         prec_type=prec_type_;
 
@@ -420,69 +432,124 @@ public:
         block_true_offsets[2] = W_->Width();
         block_true_offsets.PartialSum();
 
-        bv.Update(block_true_offsets);
-
         tv.SetSize(W_->Width());
         diag.SetSize(W_->Width());
 
         W=W_;
         T=T_;
 
-        W->AssembleDiagonal(diag);
-        T->AssembleDiagonal(tv);
-        diag.Add(1.0,tv);
+        HypreParMatrix* wm=dynamic_cast<HypreParMatrix*>(W_);
+        HypreParMatrix* tm=dynamic_cast<HypreParMatrix*>(T_);
 
-        jOp.reset(new OperatorJacobiSmoother());
-        jOp->Setup(diag);
-        sOp.reset(new SumOperator(W,1.0,T,1.0,false,false));
+        sumop.reset(new HypreParMatrix(*wm));
+        (*sumop)*=a;
+        sumop->Add(b,*tm);
+        amgp.reset(new HypreBoomerAMG(*sumop));
 
+
+        sOp.reset(new SumOperator(W,a,T,b,false,false));
+
+        ls.reset(new mfem::CGSolver(comm));
+        ls->SetOperator(*sOp);
+        ls->SetPreconditioner(*amgp);
+        ls->iterative_mode=true;
+        ls->SetPrintLevel(1);
     }
 
     virtual void Mult(const Vector &x, Vector &y) const
     {
+        if(false==this->iterative_mode){
+           y=0.0;
+        }
+
+        ls->SetAbsTol(this->abs_tol);
+        ls->SetRelTol(this->rel_tol);
+        ls->SetMaxIter(this->max_iter);
+
         BlockVector bvy(y,block_true_offsets);
         Vector& xx=bvy.GetBlock(0);
         Vector& yy=bvy.GetBlock(1);
-
-        Memory<real_t>& bm=bv.GetMemory();
-        bm.CopyFrom(x.GetMemory(),x.Size());
+        if(prec_type==2){
+            xx=bvy.GetBlock(1);
+            yy=bvy.GetBlock(0);
+        }
 
         //set the RHS (e-g) in tv
-        /*
+
+        if(prec_type==1)
         {
             int N=W->Width();
-            const real_t* xp= x.Read();
-            auto tp=tv.ReadWrite();
-            mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+            const bool use_dev = tv.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=tv.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
             {
                 tp[i]=xp[i]-xp[N+i];
             });
+        }else{
+            //reverse e and g
+            int N=W->Width();
+            const bool use_dev = tv.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=tv.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=-xp[i]+xp[N+i];
+            });
         }
-        */
-
-
         //solve (W+T)(x-y)=(e-g)
+        ls->Mult(tv,xx);
 
         //solve (W+T)y=g-T(x-y)
+        T->Mult(xx,tv);
+        if(prec_type==1)
+        {
+            int N=W->Width();
+            const bool use_dev = tv.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=tv.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=xp[N+i]-b*tp[i];
+            });
+        }else{
+            int N=W->Width();
+            const bool use_dev = tv.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=tv.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=xp[i]-b*tp[i];
+            });
+        }
+        ls->Mult(tv,yy);
 
         //sum (x-y)+y=x
         xx.Add(1.0,yy);
-
-
     }
 
 private:
+    MPI_Comm comm;
+    int myrank;
+
     Operator* W;
     Operator* T;
     std::unique_ptr<SumOperator> sOp;
     std::unique_ptr<OperatorJacobiSmoother> jOp;
+    std::unique_ptr<HypreBoomerAMG> amgp;
+    std::unique_ptr<HypreParMatrix> sumop;
     int prec_type;
+
+    real_t a,b;
+
+    std::unique_ptr<IterativeSolver> ls;
 
     mfem::Array<int> block_true_offsets;
 
+
+
     Vector diag;
-    Vector tv;
-    BlockVector bv;
+    mutable Vector tv;
 };
 
 
