@@ -34,16 +34,10 @@ int main(int argc, char *argv[])
 
    // Print out edge_to_ukv map
    cout << endl << "Original Mesh: edge to knot map:" << endl;
-   mesh.NURBSext->PrintEdgeToKnot();
-
 
    // Reconstruct mesh using patch topology and patches
    NURBSExtension ext(&patch_topology, patches);
    Mesh mesh_copy(ext);
-
-   // // Print out edge_to_ukv map for the reconstructed mesh
-   // cout << endl << "Reconstructed Mesh: edge to knot map:" << endl;
-   // mesh_copy.NURBSext->PrintEdgeToKnot();
 
 
 

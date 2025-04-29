@@ -2376,80 +2376,6 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    MergeWeights(mesh_array, num_pieces);
 }
 
-// TODO
-// NURBSExtension::NURBSExtension(const Mesh *patch_topology,
-//                                const Array<const NURBSPatch*> p)
-// {
-//    patchTopo = new Mesh( *patch_topology );
-//    patchTopo->GetEdgeVertexTable();
-//    own_topo = 1;
-//    patches.Reserve(p.Size());
-//    // Array<int> edges;
-//    // Array<int> oedges;
-//    // Array<int> kvs(3);
-//    // int kv_index;
-//    // Array<int> everts(2); // edge vertices
-
-//    // edge_to_ukv.SetSize(patch_topology->GetNEdges());
-//    // NumOfKnotVectors = 0;
-//    // NumOfElements = 0;
-//    for (int ielem = 0; ielem < patch_topology->GetNE(); ++ielem)
-//    {
-//       patches.Append(new NURBSPatch(*p[ielem]));
-//    }
-//    //    NURBSPatch& patch = *patches[ielem];
-//    //    int num_patch_elems = 1;
-//    //    for (int ikv = 0; ikv < patch.GetNKV(); ++ikv)
-//    //    {
-//    //       kvs[ikv] = knotVectors.Size();
-//    //       knotVectors.Append(new KnotVector(*patch.GetKV(ikv)));
-//    //       num_patch_elems *= patch.GetKV(ikv)->GetNE();
-//    //       ++NumOfKnotVectors;
-//    //    }
-//    //    NumOfElements += num_patch_elems;
-//    //    patch_topology->GetElementEdges(ielem, edges, oedges);
-//    //    for (int iedge = 0; iedge < edges.Size(); ++iedge)
-//    //    {
-//    //       patch_topology->GetEdgeVertices(edges[iedge], everts);
-//    //       if (iedge < 8)
-//    //       {
-//    //          kv_index = (iedge & 1) ? kvs[1] : kvs[0];
-//    //       }
-//    //       else
-//    //       {
-//    //          kv_index = kvs[2];
-//    //       }
-//    //       // Orientation convention from Mesh::LoadPatchTopo()
-//    //       edge_to_ukv[edges[iedge]] = (everts[1] > everts[0]) ? kv_index : -1 - kv_index;
-//    //    }
-//    // }
-
-//    patch_topology->GetEdgeToUniqueKnotvector(edge_to_ukv);
-
-//    // Testing
-//    mfem::out << std::endl << "Reconstructed Mesh: edge to knot map:" << std::endl;
-//    edge_to_ukv.Print(mfem::out);
-
-//    GenerateOffsets();
-//    CountBdrElements();
-//    NumOfActiveElems = NumOfElements;
-//    activeElem.SetSize(NumOfElements);
-//    activeElem = true;
-
-//    CreateComprehensiveKV();
-//    SetOrdersFromKnotVectors();
-
-//    GenerateActiveVertices();
-//    InitDofMap();
-//    GenerateElementDofTable();
-//    GenerateActiveBdrElems();
-//    GenerateBdrElementDofTable();
-
-//    weights.SetSize(GetNDof());
-
-//    CheckPatches();
-// }
-
 NURBSExtension::NURBSExtension(const Mesh *patch_topology,
                                const Array<const NURBSPatch*> patches_)
 {
@@ -2469,8 +2395,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    // GetEdgeToUniqueKnotvector
    Array<int> ukv_to_pkv;
    patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_pkv);
-   mfem::out << "Reconstructed Mesh: edge to knot map:" << std::endl;
-   edge_to_ukv.Print(mfem::out);
    own_topo = true;
 
    CheckPatches(); // This is checking the edge_to_ukv mapping
@@ -3026,7 +2950,7 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[11])))
       {
          mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ")\n  Inconsistent edge-to-knot mapping!";
+                   << ")\n  Inconsistent edge-to-knotvector mapping!";
          mfem_error();
       }
    }
