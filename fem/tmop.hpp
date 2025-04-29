@@ -1992,7 +1992,6 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
-   //     It's always 1 during the TMOP iteration.
    // X0: E-vector for initial nodal coordinates.
    //     Does not change during the TMOP iteration.
    // XL: E-vector for nodal coordinates used for limiting.
