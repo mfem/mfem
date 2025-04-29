@@ -81,6 +81,7 @@ real_t natural_bc(const Vector &x);
        u_h, v_h \in R_h (Raviart-Thomas finite element space),
        q_h \in W_h (piecewise discontinuous polynomials),
        D: subset of the boundary where natural boundary condition is imposed. */
+
 class DarcyProblem
 {
    OperatorPtr M_;
@@ -174,7 +175,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
 
    rhs_.SetSize(M_->NumRows() + B_->NumRows());
    Vector rhs_block0(rhs_.GetData(), M_->NumRows());
-   Vector rhs_block1(rhs_.GetData()+M_->NumRows(), B_->NumRows());
+   Vector rhs_block1(rhs_.GetData() + M_->NumRows(), B_->NumRows());
    fform.ParallelAssemble(rhs_block0);
    gform.ParallelAssemble(rhs_block1);
 
@@ -183,17 +184,15 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    Vector ess_data_block0(ess_data_.GetData(), M_->NumRows());
    u_.ParallelProject(ess_data_block0);
 
-   int order_quad = max(2, 2*order+1);
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
+   int order_quad = max(2, 2 * order + 1);
+   for (int i = 0; i < Geometry::NumGeom; ++i)
       irs_[i] = &(IntRules.Get(i, order_quad));
-   }
 }
 
 void DarcyProblem::ShowError(const Vector &sol, bool verbose)
 {
    u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
-   p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
+   p_.Distribute(Vector(sol.GetData() + M_->NumRows(), B_->NumRows()));
 
    real_t err_u  = u_.ComputeL2Error(ucoeff_, irs_);
    real_t norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
@@ -213,7 +212,7 @@ void DarcyProblem::VisualizeSolution(const Vector &sol, string tag,
    MPI_Comm_rank(mesh_.GetComm(), &myid);
 
    u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
-   p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
+   p_.Distribute(Vector(sol.GetData() + M_->NumRows(), B_->NumRows()));
 
    const char vishost[] = "localhost";
    socketstream u_sock(vishost, visport);
@@ -304,9 +303,7 @@ int main(int argc, char *argv[])
    }
 
    for (int i = 0; i < ser_ref_levels; ++i)
-   {
       mesh->UniformRefinement();
-   }
 
    if (Mpi::Root() && Mpi::WorldSize() > mesh->GetNE())
    {
@@ -360,6 +357,7 @@ int main(int argc, char *argv[])
 
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, real_t> setup_time;
+
    chrono.Restart();
    BDPMinresSolver bdp(M, B, param);
    setup_time[&bdp] = chrono.RealTime();
@@ -409,43 +407,39 @@ int main(int argc, char *argv[])
                    << setup_time[solver] + chrono.RealTime() << "s.\n"
                    << "   Iteration count: " << solver->GetNumIterations() <<"\n\n";
       }
+
       if (show_error && std::strcmp(coef_file, "") == 0)
-      {
          darcy.ShowError(sol, Mpi::Root());
-      }
       else if (show_error && Mpi::Root())
       {
          mfem::out << "Exact solution is unknown for coefficient '" << coef_file
                    << "'.\nApproximation error is computed in this case!\n\n";
       }
 
-      if (visualization) { darcy.VisualizeSolution(sol, name, visport); }
-
+      if (visualization)
+         darcy.VisualizeSolution(sol, name, visport);
    }
-
    return 0;
 }
 
 void u_exact(const Vector &x, Vector &u)
 {
    real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(x.Size() == 3 ? x(2) : 0.0);
+   real_t xj(x(1));
+   real_t xk(x.Size() == 3 ? x(2) : 0.0);
 
-   u(0) = - exp(xi)*sin(yi)*cos(zi);
-   u(1) = - exp(xi)*cos(yi)*cos(zi);
+   u(0) = -exp(xi) * sin(xj) * cos(xk);
+   u(1) = -exp(xi) * cos(xj) * cos(xk);
    if (x.Size() == 3)
-   {
-      u(2) = exp(xi)*sin(yi)*sin(zi);
-   }
+      u(2) = exp(xi) * sin(xj) * sin(xk);
 }
 
 real_t p_exact(const Vector &x)
 {
    real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(x.Size() == 3 ? x(2) : 0.0);
-   return exp(xi)*sin(yi)*cos(zi);
+   real_t xj(x(1));
+   real_t xk(x.Size() == 3 ? x(2) : 0.0);
+   return exp(xi) * sin(xj) * cos(xk);
 }
 
 void f_exact(const Vector &x, Vector &f)
@@ -455,11 +449,12 @@ void f_exact(const Vector &x, Vector &f)
 
 real_t g_exact(const Vector &x)
 {
-   if (x.Size() == 3) { return -p_exact(x); }
+   if (x.Size() == 3)
+      return -p_exact(x);
    return 0;
 }
 
 real_t natural_bc(const Vector &x)
 {
-   return (-p_exact(x));
+   return -p_exact(x);
 }
