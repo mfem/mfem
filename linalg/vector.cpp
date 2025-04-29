@@ -350,26 +350,23 @@ void Vector::SetVector(const Vector &v, int offset)
 {
    MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
+   const bool use_dev = UseDevice() || v.UseDevice();
    const int vs = v.Size();
-   const real_t *vp = v.data;
-   real_t *p = data + offset;
-   for (int i = 0; i < vs; i++)
-   {
-      p[i] = vp[i];
-   }
+   const real_t *vp = v.Read();
+   // Use read+write access for *this - we only modify some of its entries
+   real_t *p = ReadWrite(use_dev) + offset;
+   mfem::forall_switch(use_dev, vs, [=] MFEM_HOST_DEVICE (int i) { p[i] = vp[i]; });
 }
 
 void Vector::AddSubVector(const Vector &v, int offset)
 {
    MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
+   const bool use_dev = UseDevice() || v.UseDevice();
    const int vs = v.Size();
-   const real_t *vp = v.data;
-   real_t *p = data + offset;
-   for (int i = 0; i < vs; i++)
-   {
-      p[i] += vp[i];
-   }
+   const real_t *vp = v.Read();
+   real_t *p = ReadWrite(use_dev) + offset;
+   mfem::forall_switch(use_dev, vs, [=] MFEM_HOST_DEVICE (int i) { p[i] += vp[i]; });
 }
 
 void Vector::Neg()
