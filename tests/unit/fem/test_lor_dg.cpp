@@ -22,7 +22,7 @@ class DG_LOR_DiffusionPreconditioner : public BilinearFormIntegrator
    double kappa;
    int p;
    IntegrationRule gl_p, gl_pp1;
-   Vector shape1, shape2, nor, ni;
+   Vector shape1, shape2, nor;
 
 public:
    DG_LOR_DiffusionPreconditioner(Mesh &mesh_, int p_, double kappa_)
@@ -125,7 +125,6 @@ public:
       ndof1 = el1.GetDof();
 
       nor.SetSize(dim);
-      ni.SetSize(dim);
 
       shape1.SetSize(ndof1);
       if (Trans.Elem2No >= 0)
@@ -174,9 +173,9 @@ public:
       const IntegrationRule *ir = IntRule;
       if (ir == NULL) { ir = &IntRules.Get(Trans.GetGeometryType(), 1); }
 
-      for (int p = 0; p < ir->GetNPoints(); p++)
+      for (int q = 0; q < ir->GetNPoints(); q++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(p);
+         const IntegrationPoint &ip = ir->IntPoint(q);
          Trans.SetAllIntPoints(&ip);
          const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
          const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
@@ -186,7 +185,6 @@ public:
 
          el1.CalcShape(eip1, shape1);
          w = ip.weight;
-         ni.Set(w, nor);
 
          double h_face = nor.Norml2();
          double h_el = Trans.Elem1->Weight();
