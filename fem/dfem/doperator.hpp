@@ -649,7 +649,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
 
          derivative_action_e = 0.0;
-         forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
+         forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                    input_shmem, shadow_shmem_, residual_shmem, scratch_shmem] =

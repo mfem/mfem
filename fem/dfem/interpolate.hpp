@@ -22,7 +22,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
    const DofToQuadMap &dtq,
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,
-   const DeviceTensor<1, const double> &integration_weights,
+   const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
@@ -45,7 +45,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
             {
                MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int dx = 0; dx < d1d; dx++)
                   {
                      acc += B(qx, 0, dx) * field(dx, dy, dz, vd);
@@ -62,7 +62,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
             {
                MFEM_FOREACH_THREAD(qy, y, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int dy = 0; dy < d1d; dy++)
                   {
                      acc += s0(dz, dy, qx) * B(qy, 0, dy);
@@ -79,7 +79,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
             {
                MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int dz = 0; dz < d1d; dz++)
                   {
                      acc += s1(dz, qy, qx) * B(qz, 0, dz);
@@ -213,7 +213,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
    const DofToQuadMap &dtq,
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,
-   const DeviceTensor<1, const double> &integration_weights,
+   const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
@@ -233,7 +233,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
          {
             MFEM_FOREACH_THREAD(qx, x, q1d)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int dx = 0; dx < d1d; dx++)
                {
                   acc += B(qx, 0, dx) * field(dx, dy, vd);
@@ -247,7 +247,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int dy = 0; dy < d1d; dy++)
                {
                   acc += s0(dy, qx) * B(qy, 0, dy);
@@ -345,7 +345,7 @@ void map_field_to_quadrature_data(
    const DofToQuadMap &dtq,
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,
-   const DeviceTensor<1, const double> &integration_weights)
+   const DeviceTensor<1, const real_t> &integration_weights)
 {
    auto B = dtq.B;
    auto G = dtq.G;
@@ -359,7 +359,7 @@ void map_field_to_quadrature_data(
       {
          for (int qp = 0; qp < num_qp; qp++)
          {
-            double acc = 0.0;
+            real_t acc = 0.0;
             for (int dof = 0; dof < num_dof; dof++)
             {
                acc += B(qp, 0, dof) * field(dof, vd);
@@ -381,7 +381,7 @@ void map_field_to_quadrature_data(
          {
             for (int d = 0; d < dim; d++)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int dof = 0; dof < num_dof; dof++)
                {
                   acc += G(qp, d, dof) * field(dof, vd);
@@ -427,7 +427,7 @@ void map_fields_to_quadrature_data(
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    const std::array<int, num_inputs> &input_to_field,
    const field_operator_ts &fops,
-   const DeviceTensor<1, const double> &integration_weights,
+   const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const int &dimension,
    const bool &use_sum_factorization = false)
@@ -471,7 +471,7 @@ void map_field_to_quadrature_data_conditional(
    const DeviceTensor<1> &field_e,
    const DofToQuadMap &dtqmap,
    field_operator_t &fop,
-   const DeviceTensor<1, const double> &integration_weights,
+   const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const bool &condition,
    const int &dimension,
@@ -504,10 +504,10 @@ template <size_t num_fields, size_t num_inputs, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_inputs> &fields_qp,
-   const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
+   const std::array<DeviceTensor<1, const real_t>, num_fields> &fields_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    field_operator_ts fops,
-   const DeviceTensor<1, const double> &integration_weights,
+   const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const std::array<bool, num_inputs> &conditions,
    const bool &use_sum_factorization = false)
@@ -527,7 +527,7 @@ void map_direction_to_quadrature_data_conditional(
    const DeviceTensor<1> &direction_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    field_operator_ts fops,
-   const DeviceTensor<1, const double> &integration_weights,
+   const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const std::array<bool, num_inputs> &conditions,
    const int &dimension,

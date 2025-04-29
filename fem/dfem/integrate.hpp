@@ -18,8 +18,8 @@ namespace mfem::experimental
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_impl(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq)
 {
@@ -35,7 +35,7 @@ void map_quadrature_data_to_fields_impl(
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            double acc = 0.0;
+            real_t acc = 0.0;
             for (int qp = 0; qp < num_qp; qp++)
             {
                acc += B(qp, 0, dof) * f(vd, 0, qp);
@@ -53,7 +53,7 @@ void map_quadrature_data_to_fields_impl(
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            double acc = 0.0;
+            real_t acc = 0.0;
             for (int d = 0; d < dim; d++)
             {
                for (int qp = 0; qp < num_qp; qp++)
@@ -97,8 +97,8 @@ void map_quadrature_data_to_fields_impl(
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_tensor_impl_2d(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
@@ -123,7 +123,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int qx = 0; qx < q1d; qx++)
                {
                   acc += fqp(vd, 0, qx, qy) * B(qx, 0, dx);
@@ -137,7 +137,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int qy = 0; qy < q1d; qy++)
                {
                   acc += s0(qy, dx) * B(qy, 0, dy);
@@ -234,8 +234,8 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_tensor_impl_3d(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
@@ -263,7 +263,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
             {
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int qx = 0; qx < q1d; qx++)
                   {
                      acc += fqp(vd, 0, qx, qy, qz) * B(qx, 0, dx);
@@ -280,7 +280,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
             {
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int qy = 0; qy < q1d; qy++)
                   {
                      acc += s0(qz, qy, dx) * B(qy, 0, dy);
@@ -298,7 +298,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
             {
                MFEM_FOREACH_THREAD(dz, z, d1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int qz = 0; qz < q1d; qz++)
                   {
                      acc += s1(qz, dy, dx) * B(qz, 0, dz);
@@ -420,8 +420,8 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem,

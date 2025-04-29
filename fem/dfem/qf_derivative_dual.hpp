@@ -182,7 +182,7 @@ void process_derivative_from_native_dual(
 template <typename kf_t, typename kernel_arg_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel_native_dual(
-   DeviceTensor<1, double> &f_qp,
+   DeviceTensor<1, real_t> &f_qp,
    const kf_t &kf,
    kernel_arg_ts &args,
    const std::array<DeviceTensor<2>, num_args> &u,

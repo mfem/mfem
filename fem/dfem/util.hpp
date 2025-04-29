@@ -492,7 +492,7 @@ template <class... T> constexpr bool always_false = false;
 
 struct GeometricFactorMaps
 {
-   DeviceTensor<3, const double> normal;
+   DeviceTensor<3, const real_t> normal;
 };
 
 namespace Entity
@@ -515,7 +515,7 @@ template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
    int i = blockIdx.x;
-   extern __shared__ double shmem[];
+   extern __shared__ real_t shmem[];
    if (i < n)
    {
       f(i, shmem);
@@ -528,7 +528,7 @@ void forall(func_t f,
             const int &N,
             const ThreadBlocks &blocks,
             int num_shmem = 0,
-            double *shmem = nullptr)
+            real_t *shmem = nullptr)
 {
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
@@ -654,14 +654,14 @@ GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
 
       return GeometricFactorMaps
       {
-         DeviceTensor<3, const double>(
+         DeviceTensor<3, const real_t>(
             fg->normal.Read(), ir.GetNPoints(), mesh.SpaceDimension(), mesh.GetNBE()
          )
       };
    }
 
    Vector zero;
-   return GeometricFactorMaps{DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)};
+   return GeometricFactorMaps{DeviceTensor<3, const real_t>(zero.Read(), 0, 0, 0)};
 }
 
 inline
@@ -973,7 +973,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
-         double local_sum = r_local.Sum();
+         real_t local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
       };
@@ -1251,8 +1251,8 @@ struct DofToQuadMap
       DIM,
       DOF
    };
-   DeviceTensor<3, const double> B;
-   DeviceTensor<3, const double> G;
+   DeviceTensor<3, const real_t> B;
+   DeviceTensor<3, const real_t> G;
    int which_input = -1;
 };
 
@@ -1430,7 +1430,7 @@ void print_shared_memory_info(shmem_info_t &shmem_info)
 {
    out << "Shared Memory Info\n"
        << "total size: " << shmem_info.total_size
-       << " " << "(" << shmem_info.total_size * double(sizeof(double))/1024.0 << "kb)";
+       << " " << "(" << shmem_info.total_size * real_t(sizeof(real_t))/1024.0 << "kb)";
    out << "\ninput dtq sizes (B G): ";
    for (auto &i : shmem_info.input_dtq_sizes)
    {
@@ -1539,8 +1539,8 @@ std::array<DofToQuadMap, N> load_dtq_mem(
       }
       offset += sizes[i][1];
 
-      f[i] = DofToQuadMap{DeviceTensor<3, const double>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
-                          DeviceTensor<3, const double>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
+      f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
+                          DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
                           dtq[i].which_input};
    }
    return f;
@@ -1969,8 +1969,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
-            DeviceTensor<3, const double>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const double>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
             static_cast<int>(idx)
          };
       }
@@ -1978,8 +1978,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       {
          return DofToQuadMap
          {
-            DeviceTensor<3, const double>(nullptr, 1, 1, 1),
-            DeviceTensor<3, const double>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
             -1
          };
       }
@@ -1989,8 +1989,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
-            DeviceTensor<3, const double>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const double>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
             -1
          };
       }

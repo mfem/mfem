@@ -563,7 +563,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const tuple<S...>& x,
  * @return the returned tuple ratio
  */
 template <typename... T, int... i>
-MFEM_HOST_DEVICE constexpr auto div_helper(const double a,
+MFEM_HOST_DEVICE constexpr auto div_helper(const real_t a,
                                            const tuple<T...>& x, std::integer_sequence<int, i...>)
 {
    return tuple{a / get<i>(x)...};
@@ -580,7 +580,7 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const double a,
  */
 template <typename... T, int... i>
 MFEM_HOST_DEVICE constexpr auto div_helper(const tuple<T...>& x,
-                                           const double a, std::integer_sequence<int, i...>)
+                                           const real_t a, std::integer_sequence<int, i...>)
 {
    return tuple{get<i>(x) / a...};
 }
@@ -592,7 +592,7 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const tuple<T...>& x,
  * @brief return a tuple of values defined by division of a by the elements of x
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator/(const double a, const tuple<T...>& x)
+MFEM_HOST_DEVICE constexpr auto operator/(const real_t a, const tuple<T...>& x)
 {
    return div_helper(a, x,
                      std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -605,7 +605,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const double a, const tuple<T...>& x)
  * @brief return a tuple of values defined by elementwise division of x by a
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator/(const tuple<T...>& x, const double a)
+MFEM_HOST_DEVICE constexpr auto operator/(const tuple<T...>& x, const real_t a)
 {
    return div_helper(x, a,
                      std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -655,7 +655,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<S...>& x,
  * @return the returned tuple product
  */
 template <typename... T, int... i>
-MFEM_HOST_DEVICE constexpr auto mult_helper(const double a,
+MFEM_HOST_DEVICE constexpr auto mult_helper(const real_t a,
                                             const tuple<T...>& x, std::integer_sequence<int, i...>)
 {
    return tuple{a * get<i>(x)...};
@@ -672,7 +672,7 @@ MFEM_HOST_DEVICE constexpr auto mult_helper(const double a,
  */
 template <typename... T, int... i>
 MFEM_HOST_DEVICE constexpr auto mult_helper(const tuple<T...>& x,
-                                            const double a, std::integer_sequence<int, i...>)
+                                            const real_t a, std::integer_sequence<int, i...>)
 {
    return tuple{get<i>(x) * a...};
 }
@@ -684,7 +684,7 @@ MFEM_HOST_DEVICE constexpr auto mult_helper(const tuple<T...>& x,
  * @brief multiply each component of x by the value a on the left
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator*(const double a, const tuple<T...>& x)
+MFEM_HOST_DEVICE constexpr auto operator*(const real_t a, const tuple<T...>& x)
 {
    return mult_helper(a, x,
                       std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -697,7 +697,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const double a, const tuple<T...>& x)
  * @brief multiply each component of x by the value a on the right
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
+MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const real_t a)
 {
    return mult_helper(x, a,
                       std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());

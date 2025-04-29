@@ -110,7 +110,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
    DeviceTensor<1, T> &r,
-   const double &x)
+   const real_t &x)
 {
    r(0) = x;
 }
@@ -156,7 +156,7 @@ MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
-   double &arg)
+   real_t &arg)
 {
    arg = u(0);
 }
@@ -166,7 +166,7 @@ MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
-   internal::tensor<double, n, m> &arg)
+   internal::tensor<real_t, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -180,7 +180,7 @@ void process_kf_arg(
 template <typename qfunc_t, typename args_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel(
-   DeviceTensor<1, double> &f_qp,
+   DeviceTensor<1, real_t> &f_qp,
    const qfunc_t &qfunc,
    args_ts &args,
    const std::array<DeviceTensor<2>, num_args> &u,
@@ -250,7 +250,7 @@ auto fwddiff_apply_enzyme(qfunc_t &qfunc, arg_ts &&args,
 template <typename qfunc_t, typename arg_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel_fwddiff_enzyme(
-   DeviceTensor<1, double> &f_qp,
+   DeviceTensor<1, real_t> &f_qp,
    qfunc_t &qfunc,
    arg_ts &args,
    arg_ts &shadow_args,
