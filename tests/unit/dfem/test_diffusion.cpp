@@ -41,7 +41,8 @@ template <typename dscalar_t, int DIM> struct Diffusion
 
    struct PASetup
    {
-      MFEM_HOST_DEVICE inline auto operator()(const real_t &rho,
+      MFEM_HOST_DEVICE inline auto operator()(const real_t u,
+                                              const real_t &rho,
                                               const matd_t &J,
                                               const real_t &w) const
       {
@@ -182,7 +183,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       typename Diffusion<real_t, DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
-         tuple{ None<Rho>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ Value<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
          tuple{ None<QData>{} }, *ir, all_domain_attr);
       dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
       pfes.GetRestrictionMatrix()->Mult(x, X);
