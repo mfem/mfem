@@ -746,20 +746,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          if (iAmRoot)
          {
             std::cout << "\n" << std::string(50,'-') << endl;
-            mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
+            mfem::out << std::string(20,' ') << "AMGF-PCG SOLVER" << endl;
             std::cout << std::string(50,'-') << endl;
          } 
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
          TwoLevelAMGSolver prec(*Areduced, *Pb);
          prec.SetAMGRelaxType(relax_type);
          CGSolver AreducedSolver(MPI_COMM_WORLD);
-         // SLISolver AreducedSolver(MPI_COMM_WORLD);
-         ///GeneralSolutionMonitor * sol_monitor = nullptr;
-         ///if (monitor)
-         ///{
-         ///   sol_monitor = new GeneralSolutionMonitor(problem->GetElasticityOperator()->GetFESpace(),  Areduced, breduced,1);
-         ///   AreducedSolver.SetMonitor(*sol_monitor);
-         ///}    
          AreducedSolver.SetRelTol(linSolveRelTol);
          AreducedSolver.SetMaxIter(500);
          AreducedSolver.SetPrintLevel(3);
@@ -767,7 +760,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver.SetPreconditioner(prec);
          chrono.Clear();
          chrono.Start();
-         //Xhat.GetBlock(0).Randomize();
          Xhat.GetBlock(0) = 0.;
 	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
@@ -807,12 +799,43 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             MFEM_VERIFY(gmres.GetConverged(), "GMRES solver did not converge");
          }
 
-         // CGsolver for no-contact   
+         if (amg_contact_solve)
+         {
+            if (iAmRoot)
+            {
+               std::cout << "\n" << std::string(50,'-') << endl;
+               mfem::out << std::string(20,' ') << "AMG-PCG SOLVER" << endl;
+               std::cout << std::string(50,'-') << endl;
+            } 
+            HypreBoomerAMG prec(*Areduced);
+            prec.SetSystemsOptions(3,false);
+            prec.SetRelaxType(relax_type);
+            prec.SetPrintLevel(0);
+            CGSolver cgsolver(MPI_COMM_WORLD);
+            cgsolver.SetRelTol(linSolveRelTol);
+            cgsolver.SetMaxIter(10000);
+            cgsolver.SetPrintLevel(3);
+            cgsolver.SetOperator(*Areduced);
+            cgsolver.SetPreconditioner(prec);
+            Vector X(breduced.Size()); X=0.0;
+	         cgsolver.Mult(breduced,X);
+            int m = cgsolver.GetNumIterations();
+            amg_num_iterations.Append(m);
+         }
+
+         // AMGCGsolver for no-contact   
          if (no_contact_solve)
          {
+            if (iAmRoot)
+            {
+               std::cout << "\n" << std::string(50,'-') << endl;
+               mfem::out << std::string(20,' ') << "AMG-PCG NO CONTACT SOLVER" << endl;
+               std::cout << std::string(50,'-') << endl;
+            } 
             HypreBoomerAMG prec(*Huu);
             prec.SetSystemsOptions(3,false);
             prec.SetRelaxType(relax_type);
+            prec.SetPrintLevel(0);
             CGSolver cgsolver(MPI_COMM_WORLD);
             cgsolver.SetRelTol(linSolveRelTol);
             cgsolver.SetMaxIter(500);

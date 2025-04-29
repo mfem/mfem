@@ -95,32 +95,6 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
    gf_file << state_file << ".gf";
 
    int myid = Mpi::WorldRank();
-   // Mesh *mesh = nullptr;
-   // // Step 1: Root process reads the serial mesh
-   // ifstream mesh_input(mesh_file.str().c_str());
-   // MFEM_VERIFY(mesh_input, "Error: Could not open mesh file " << mesh_file.str() << endl);
-   // mesh = new Mesh(mesh_input, 1, 1); // Load mesh with all attributes
-   // ExtractTestAndStep(state_file,testNo,step);
-   // if (myid == 0)
-   // {
-   //    mfem::out << "Loaded serial mesh: " << mesh_file.str() << std::endl;
-   //    mfem::out << "Test No = " << testNo << endl;
-   //    mfem::out << "Step No = " << step << endl;
-   // }
-
-   // int num_procs = Mpi::WorldSize();
-   // int * partitioning = mesh->GeneratePartitioning(num_procs);
-   // pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,partitioning);
-
-   // std::filebuf fb;
-   // fb.open(gf_file.str().c_str(),std::ios::in);
-   // std::istream is(&fb);
-   // GridFunction * gf = new GridFunction(mesh,is);
-   // x_gf = new ParGridFunction(pmesh,gf,partitioning);
-   // delete gf;
-   // delete mesh;
-   // delete partitioning;
-
    step = ExtractStepNumber(state_file);
    string meshname(MakeParFilename(mesh_file.str().c_str(), myid));
    ifstream meshifs(meshname);
@@ -149,7 +123,8 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
    }
 }
 
-void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int numactiveconstraints, int optit, const Array<int> & iters)
+void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int numactiveconstraints, int optit, 
+   const Array<int> & iters, const Array<int> & amgiters)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -163,12 +138,13 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "Total constraints               = " << constr << endl;
    outputfile << "Active constraints              = " << numactiveconstraints << endl;
    outputfile << "Optimizer number of iterations  = " << optit << endl;
-   outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
-   outputfile << "OptimizerIteration,CGIterations" << endl;
-   for (int i = 0; i< iters.Size(); i++)
-   {
-      outputfile << i+1 <<","<< iters[i] << endl;
-   }
+   outputfile << "CG iteration numbers            = " iters.Print(outputfile, iters.Size());
+   outputfile << "AMG CG iteration numbers        = " amgiters.Print(outputfile, amgiters.Size());
+   // outputfile << "OptimizerIteration,CGIterations" << endl;
+   // for (int i = 0; i< iters.Size(); i++)
+   // {
+   //    outputfile << i+1 <<","<< iters[i] << endl;
+   // }
    outputfile.close();   
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
@@ -176,7 +152,7 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
 void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
    const Array<int> & total_constraints, 
    const Array<int> & active_constraints,
-   const std::vector<Array<int>> & iters, const Array<int> & no_contact_iter)
+   const std::vector<Array<int>> & iters, const std::vector<Array<int>> & amgiters, const Array<int> & no_contact_iter)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -199,6 +175,20 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs,
       {
          outputfile << iters[i][j] ;
          if (j < iters[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "AMGCGIterations" << endl;
+   for (int i = 0; i< amgiters.size(); i++)
+   {
+      for (int j = 0; j < amgiters[i].Size(); j++)
+      {
+         outputfile << amgiters[i][j] ;
+         if (j < amgiters[i].Size()-1)
          {
             outputfile << ", ";
          }
@@ -276,6 +266,7 @@ int main(int argc, char *argv[])
    int tribol_nranks = num_procs;
    double tribol_ratio = 8.0;
    int nsolves = 1;
+   bool amgsolve=false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -328,7 +319,9 @@ int main(int argc, char *argv[])
                   "4: with static cond of contact dofs");
    args.AddOption(&dynamicsolver, "-dynamic-solver", "--dynamic-solver", "-no-dynamic-solver",
                   "--no-dynamic-solver",
-                  "Enable or disable dynamic choice between AMG and two-level solver.");                  
+                  "Enable or disable dynamic choice between AMG and two-level solver.");  
+   args.AddOption(&amgsolve, "-amg", "--amg", "-no-amg",
+                     "--no-amg", "Enable or disable additional amg solve.");                                    
    args.AddOption(&bound_constraints, "-bound-constraints", "--bound-constraints", "-no-bound-constraints",
 		   "--no-bound-constraints",
 		   "Enable or disable displacement bound constraints -eps <= d - dl <= eps");
@@ -675,6 +668,7 @@ int main(int argc, char *argv[])
    // double p = 40.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
+   std::vector<Array<int>> AMGCGiter;
    int total_steps = nsteps + msteps;
 
    if (testNo == 6)
@@ -833,6 +827,7 @@ int main(int argc, char *argv[])
 
       int amgcg_iter = -1;
       optimizer.EnableNoContactSolve();
+      optimizer.EnableAMGContactSolve();
       optimizer.Mult(x0, xf);
 
 
@@ -843,8 +838,10 @@ int main(int argc, char *argv[])
       double Einitial = contact.E(x0, eval_err);
       double Efinal = contact.E(xf, eval_err);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
+      Array<int> & AMGCGiterations = optimizer.GetAMGIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
+      AMGCGiter.push_back(AMGCGiterations);
       int gndofs = prob.GetGlobalNumDofs();
 
       int activenumconstr = optimizer.GetNumActiveConstraints();
@@ -880,7 +877,13 @@ int main(int argc, char *argv[])
                std::cout << " " << std::setw(7) << CGiterations[i] << " |";
             }
             std::cout << std::endl;
-     
+            mfem::out << " AMG CG iteration numbers        = " ;
+            for (int i = 0; i < AMGCGiterations.Size(); ++i) 
+            {
+               std::cout << " " << std::setw(7) << AMGCGiterations[i] << " |";
+            }
+            std::cout << std::endl;
+
             mfem::out << " D Max / Min Ratios              = " ;
             std::ios oldState(nullptr);
             oldState.copyfmt(std::cout);
@@ -905,13 +908,14 @@ int main(int argc, char *argv[])
             }                        
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
-            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, activenumconstr, optimizer.GetNumIterations(), CGiterations);
+            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, activenumconstr, optimizer.GetNumIterations(), 
+            CGiterations, AMGCGiterations);
             if (i == total_steps-1)
             {
                ostringstream final_file_name;
                final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-final";
                OutputFinalData(final_file_name, Einitial, Efinal, 
-                  gndofs, TotalConstraints, ActiveConstraints, CGiter, NoContactCGiterations);
+                  gndofs, TotalConstraints, ActiveConstraints, CGiter, AMGCGiter, NoContactCGiterations);
             }
          }
       }

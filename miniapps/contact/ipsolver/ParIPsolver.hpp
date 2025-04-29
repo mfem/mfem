@@ -64,10 +64,12 @@ protected:
 
 
     Array<int> cgnum_iterations;
+    Array<int> amg_num_iterations;
     Array<double> dmaxmin_ratio;
     Array<double> jtdj_ratio;
     Array<double> Adiag_ratio;
     bool no_contact_solve = false;
+    bool amg_contact_solve = false;
     Array<int> cgnum_iterations_nocontact;
     ParFiniteElementSpace *pfes = nullptr;
     
@@ -104,6 +106,7 @@ public:
     double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
+    Array<int> & GetAMGIterNumbers() {return amg_num_iterations;};
     Array<double> & GetDMaxMinRatios() {return dmaxmin_ratio;};
     Array<double> & GetJtDJMaxMinRatios() {return jtdj_ratio;};
     Array<double> & GetAdiagMaxMinRatios() {return Adiag_ratio;};
@@ -135,6 +138,7 @@ public:
     void EnableSaveMatrix() { save_matrix_data = true;};
     void DisableSaveMatrix() { save_matrix_data = false;};
     void EnableNoContactSolve() {no_contact_solve = true;};
+    void EnableAMGContactSolve() {amg_contact_solve = true;};
     void SetProblemLabel(int label_) { label = label_;};
     double GetNumActiveConstraints() { return numActiveConstraints;};
     void Clear() 
