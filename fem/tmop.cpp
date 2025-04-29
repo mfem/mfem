@@ -218,7 +218,7 @@ type wcuo_ad(type mu,
 
    if (wct == TWCUO::WorstCaseType::PMean)
    {
-      auto exp = exponent*1.0*one;
+      auto exp = exponent*one;
       mu = pow(mu, exp);
    }
    else if (wct == TWCUO::WorstCaseType::Beta)
