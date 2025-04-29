@@ -31,10 +31,17 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all lib-common clean clean-build clean-exec
 .PRECIOUS: %.o
 
 COMMON_O = g_eqdsk_data.o
+
+COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
@@ -43,13 +50,18 @@ COMMON_O = g_eqdsk_data.o
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_O) $(COMMON_LIB) \
+	  $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
 %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+
+# Rule for building lib-common
+lib-common:
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
