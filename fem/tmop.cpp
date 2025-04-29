@@ -149,6 +149,19 @@ type mu4_ad(const std::vector<type> &T, const std::vector<type> &W)
    return fnorm2 - 2*det;
 };
 
+// W = ||T-I||^2.
+template <typename type>
+type mu14_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   DenseMatrix Id(2,2); Id = 0.0;
+   Id(0,0) = 1; Id(1,1) = 1;
+
+   std::vector<type> Mat;
+   add_2D(real_t{-1.0}, T, &Id, Mat);
+
+   return fnorm2_2D(Mat);
+};
+
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
 template <typename type>
 type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -547,6 +560,30 @@ void TMOP_Combo_QualityMetric::EvalPW(const DenseMatrix &Jpt,
    }
 }
 
+AD1Type TMOP_Combo_QualityMetric::EvalW_AD1(const std::vector<AD1Type> &T,
+                                            const std::vector<AD1Type> &W)
+const
+{
+   AD1Type metric = {0., 0.};
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW_AD1(T, W);
+   }
+   return metric;
+}
+
+AD2Type TMOP_Combo_QualityMetric::EvalW_AD2(const std::vector<AD2Type> &T,
+                                            const std::vector<AD2Type> &W)
+const
+{
+   AD2Type metric = {{0., 0.},{0., 0.}};
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW_AD2(T, W);
+   }
+   return metric;
+}
+
 void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
                                          const DenseMatrix &DS,
                                          const real_t weight,
@@ -717,14 +754,13 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
    {
       return EvalW_AD1(T,W);
    };
-   if (tmop_metric.Id() == 4)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||tmop_metric.Id() == 66)
    {
       ADGrad(mu_ad_fn, P, Jpt);
       return;
    }
-   MFEM_ABORT("EvalP not implemented with this metric for "
-              " TMOP_WorstCaseUntangleOptimizer_Metric. Please use"
-              "metric 4 instead.");
+   MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
+              "TMOP_WorstCaseUntangleOptimizer_Metric. Please use metric4.");
 }
 
 void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
@@ -740,15 +776,14 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
    {
       return EvalW_AD2(T,W);
    };
-   if (tmop_metric.Id() == 4)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||tmop_metric.Id() == 66)
    {
       ADHessian(mu_ad_fn, H, Jpt);
       this->DefaultAssembleH(H,DS,weight,A);
       return;
    }
-   MFEM_ABORT("EvalP not implemented with this metric for "
-              " TMOP_WorstCaseUntangleOptimizer_Metric. Please use"
-              "metric 4 instead.");
+   MFEM_ABORT("EvalW_AD2 not implemented with this metric for "
+              "TMOP_WorstCaseUntangleOptimizer_Metric. Please use metric4.");
 }
 
 real_t TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
@@ -1082,6 +1117,13 @@ void TMOP_Metric_014::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(JptMinusId.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1(weight, A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_014::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu14_ad(T, W);
 }
 
 real_t TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const

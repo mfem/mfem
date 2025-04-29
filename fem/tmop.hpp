@@ -142,6 +142,12 @@ public:
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
 
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
    void ComputeAvgMetrics(const GridFunction &nodes,
@@ -447,6 +453,10 @@ class TMOP_Metric_014 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template <typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J - I|^2.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
@@ -458,6 +468,20 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override
+   {
+      return EvalW_AD_impl<AD1Type>(T, W);
+   }
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override
+   {
+      return EvalW_AD_impl<AD2Type>(T, W);
+   }
+
+   int Id() const override { return 14; }
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
