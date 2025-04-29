@@ -119,7 +119,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
      pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
      mass_coeff_()
 {
-   for (int l = 0; l < num_refs; l++)
+   for (int l = 0; l < num_refs; ++l)
    {
       mesh_.UniformRefinement();
       dfs_spaces_.CollectDFSData();
