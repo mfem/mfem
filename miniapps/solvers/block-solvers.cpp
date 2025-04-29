@@ -14,11 +14,11 @@
 //          ----------------------------------------------------------
 //
 // This miniapp compares various linear solvers for the saddle point system
-// obtained from mixed finite element discretization of the simple mixed Darcy
-// problem in ex5p
+// obtained from the mixed finite element discretization of the simple mixed
+// Darcy problem in ex5p
 //
 //                            k*u + grad p = f
-//                           - div u      = g
+//                            - div u      = g
 //
 // with natural boundary condition -p = <given pressure>. We use a given exact
 // solution (u,p) and compute the corresponding r.h.s. (f,g). We discretize
@@ -29,28 +29,28 @@
 //    1. MINRES preconditioned by a block diagonal preconditioner
 //    2. The divergence free solver (couple and decoupled modes)
 //    3. The Bramble-Pasciak solver (using BPCG or regular PCG)
+//    4. A block hybridization solver
 //
 // We recommend viewing example 5 before viewing this miniapp.
 //
 // Sample runs:
-//
-//    mpirun -np 8 block-solvers -r 2 -o 0
+//    mpirun -np 8 block-solvers -rp 2 -se
 //    mpirun -np 8 block-solvers -m anisotropic.mesh -c anisotropic.coeff -eb anisotropic.bdr
 //
 //
 // NOTE:  The coefficient file (provided through -c) defines a piecewise constant
-//        scalar coefficient k. The number of entries in this file should equal
-//        to the number of "element attributes" in the mesh file. The value of
-//        the coefficient in elements with the i-th attribute is given by the
-//        i-th entry of the coefficient file.
+//        scalar coefficient k. The number of entries in this file must equal
+//        the number of "element attributes" in the mesh file. Each attribute may
+//        correspond to many elements. The value of the coefficient in elements
+//        with the i-th attribute is given by the i-th entry of the coefficient file.
 //
 //
 // NOTE:  The essential boundary attribute file (provided through -eb) defines
-//        which attributes to impose essential boundary condition (on u). The
-//        number of entries in this file should equal to the number of "boundary
-//        attributes" in the mesh file. If the i-th entry of the file is nonzero
-//        (respectively 0), essential (respectively natural) boundary condition
-//        will be imposed on boundary with the i-th attribute.
+//        an essential boundary condition (on velocity u). The number of entries
+//        in this file must equal the number of "boundary attributes" in the mesh
+//        file. If the i-th entry of the file is nonzero (respectively zero),
+//        then an essential (respectively a natural) boundary condition will be
+//        imposed on the part of the boundary with the i-th attribute.
 
 #include "mfem.hpp"
 #include "bramble_pasciak.hpp"
