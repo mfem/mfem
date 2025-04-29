@@ -172,53 +172,35 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    return fnorm2_2D(Mat)/det_2D(T);
 };
 
-using TWCUO = TMOP_WorstCaseUntangleOptimizer_Metric;
 template <typename type>
-type wcuo_ad1(type mu,
-              const std::vector<type> &T, const std::vector<type> &W,
-              real_t alpha, real_t min_detT, real_t detT_ep,
-              int exponent, real_t max_muT, real_t muT_ep,
-              TWCUO::BarrierType bt,
-              TWCUO::WorstCaseType wct)
+type make_one_type()
 {
-   type denom = {1.0, 0.0};
-   if (bt == TWCUO::BarrierType::Shifted)
-   {
-      auto val1 = alpha*min_detT-detT_ep < 0.0 ?
-                  type{alpha*min_detT-detT_ep, 0.0} :
-                  type{0.0, 0.0};
-      denom = 2.0*(det_2D(T)-val1);
-   }
-   else if (bt == TWCUO::BarrierType::Pseudo)
-   {
-      auto detT = det_2D(T);
-      denom = detT + sqrt(detT*detT + detT_ep*detT_ep);
-   }
-   mu = mu/denom;
-
-   if (wct == TWCUO::WorstCaseType::PMean)
-   {
-      auto exp = type{exponent*1.0, 0.0};
-      mu = pow(mu, exp);
-   }
-   else if (wct == TWCUO::WorstCaseType::Beta)
-   {
-      auto beta = type{max_muT+muT_ep, 0.0};
-      mu = mu/(beta-mu);
-   }
-   return mu;
+   return 1.0;
+}
+// add specialization for AD1Type
+template <>
+AD1Type make_one_type<AD1Type>()
+{
+   return AD1Type{1.0, 0.0};
+}
+// add specialization for AD2Type
+template <>
+AD2Type make_one_type<AD2Type>()
+{
+   return AD2Type{AD1Type{1.0, 0.0}, AD1Type{0.0, 0.0}};
 }
 
+using TWCUO = TMOP_WorstCaseUntangleOptimizer_Metric;
 template <typename type>
-type wcuo_ad2(type mu,
-              const std::vector<type> &T, const std::vector<type> &W,
-              real_t alpha, real_t min_detT, real_t detT_ep,
-              int exponent, real_t max_muT, real_t muT_ep,
-              TWCUO::BarrierType bt,
-              TWCUO::WorstCaseType wct)
+type wcuo_ad(type mu,
+             const std::vector<type> &T, const std::vector<type> &W,
+             real_t alpha, real_t min_detT, real_t detT_ep,
+             int exponent, real_t max_muT, real_t muT_ep,
+             TWCUO::BarrierType bt,
+             TWCUO::WorstCaseType wct)
 {
-   type one = {{1.0, 0.0}, {0.0,0.0}};
-   type zero = {{0.0, 0.0}, {0.0,0.0}};
+   type one = make_one_type<type>();
+   type zero = 0.0*one;
    type denom = one;
    if (bt == TWCUO::BarrierType::Shifted)
    {
@@ -715,16 +697,16 @@ AD1Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD1(
    const std::vector<AD1Type> &T,
    const std::vector<AD1Type> &W) const
 {
-   return wcuo_ad1(tmop_metric.EvalW_AD1(T,W), T, W, alpha, min_detT, detT_ep,
-                   exponent, max_muT, muT_ep, btype, wctype);
+   return wcuo_ad(tmop_metric.EvalW_AD1(T,W), T, W, alpha, min_detT, detT_ep,
+                  exponent, max_muT, muT_ep, btype, wctype);
 }
 
 AD2Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD2(
    const std::vector<AD2Type> &T,
    const std::vector<AD2Type> &W) const
 {
-   return wcuo_ad2(tmop_metric.EvalW_AD2(T,W), T, W, alpha, min_detT, detT_ep,
-                   exponent, max_muT, muT_ep, btype, wctype);
+   return wcuo_ad(tmop_metric.EvalW_AD2(T,W), T, W, alpha, min_detT, detT_ep,
+                  exponent, max_muT, muT_ep, btype, wctype);
 }
 
 void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
