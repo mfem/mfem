@@ -5160,8 +5160,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       Vector xe(R->Height());
       R->Mult(x, xe);
 
-      // Force update of the target Jacobian as the non-PA case,
-      // needed for non-linear iterations where x might change.
+      // Force update of the target Jacobian.
       ComputeAllElementTargets(xe);
 
       if (PA.dim == 2)
