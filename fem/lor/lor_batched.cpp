@@ -376,7 +376,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
    const int pp1 = p + 1;
    const int nnz = nrows*nnz_per_row;
 
-   const int face_nbr_vsize = [this]()
+   const int face_nbr_vsize = [&]()
    {
 #ifdef MFEM_USE_MPI
       if (auto *par_fes = dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
