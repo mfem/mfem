@@ -508,6 +508,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 56; }
 };
 
 /// 2D barrier shape (S) metric (not polyconvex).
