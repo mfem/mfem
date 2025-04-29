@@ -9,10 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-add_mfem_miniapp(demo
-  MAIN demo.cpp
-  LIBRARIES mfem)
-
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
