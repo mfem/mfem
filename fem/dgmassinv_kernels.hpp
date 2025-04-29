@@ -200,7 +200,7 @@ void DGMassBasis1D(const int e,
    MFEM_FOREACH_THREAD(i,x,D1D)
    {
       real_t val = 0.0;
-      MFEM_FOREACH_THREAD(j,y,D1D)
+      for (int j = 0; j < D1D; ++j)
       {
          val += b(i,j)*x(j,e);
       }
