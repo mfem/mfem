@@ -138,8 +138,8 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "Total constraints               = " << constr << endl;
    outputfile << "Active constraints              = " << numactiveconstraints << endl;
    outputfile << "Optimizer number of iterations  = " << optit << endl;
-   outputfile << "CG iteration numbers            = " iters.Print(outputfile, iters.Size());
-   outputfile << "AMG CG iteration numbers        = " amgiters.Print(outputfile, amgiters.Size());
+   outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
+   outputfile << "AMG CG iteration numbers        = "; amgiters.Print(outputfile, amgiters.Size());
    // outputfile << "OptimizerIteration,CGIterations" << endl;
    // for (int i = 0; i< iters.Size(); i++)
    // {
