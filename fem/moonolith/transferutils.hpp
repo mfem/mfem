@@ -12,6 +12,10 @@
 #ifndef MFEM_L2P_MESH_UTILS_HPP
 #define MFEM_L2P_MESH_UTILS_HPP
 
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
+
 #include "../../mesh/hexahedron.hpp"
 #include "../../mesh/quadrilateral.hpp"
 #include "../fem.hpp"
@@ -76,4 +80,5 @@ double Sum(const DenseMatrix &mat);
 
 } // namespace mfem
 
+#endif // MFEM_USE_MOONOLITH
 #endif // MFEM_L2P_MESH_UTILS_HPP
