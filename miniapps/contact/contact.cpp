@@ -8,7 +8,6 @@
 // mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -nonlin
 // mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -lin
 
-
 // Checkpoints
 // To output checkpoints
 // mpirun -np 4 ./contact -ls 6 -sr 0 -testno 4 -nsteps 4 -omaxit 20 -out -checkpoint
@@ -161,8 +160,8 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "Initial Energy objective        = " << E0 << endl;
    outputfile << "Final Energy objective          = " << Ef << endl;
    outputfile << "Global number of dofs           = " << dofs << endl;
-   outputfile << "Global number of constraints    = " << constr << endl;
-   outputfile << "Global number of active constraints = " << numactiveconstraints << endl;
+   outputfile << "Total constraints               = " << constr << endl;
+   outputfile << "Active constraints              = " << numactiveconstraints << endl;
    outputfile << "Optimizer number of iterations  = " << optit << endl;
    outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
    outputfile << "OptimizerIteration,CGIterations" << endl;
@@ -174,8 +173,9 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
 
-void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, 
-		int numactiveconstraints,
+void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
+   const Array<int> & total_constraints, 
+   const Array<int> & active_constraints,
    const std::vector<Array<int>> & iters, const Array<int> & no_contact_iter)
 {
    file_name << ".csv";
@@ -187,8 +187,6 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
    outputfile << "Initial Energy objective        = " << E0 << endl;
    outputfile << "Final Energy objective          = " << Ef << endl;
    outputfile << "Global number of dofs           = " << dofs << endl;
-   outputfile << "Global number of constraints    = " << constr << endl;
-   outputfile << "Global number of active constraints = " << numactiveconstraints << endl;
    outputfile << "TimeStep, OptimizerIterations" << endl;
    for (int i = 0; i < iters.size(); i++)
    {
@@ -217,6 +215,27 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
          outputfile << ", ";
       }
    }
+
+   outputfile << "\nTotal constraints: " << endl;
+   for (int j = 0; j < total_constraints.Size(); j++)
+   {
+      outputfile << total_constraints[j] ;
+      if (j < total_constraints.Size()-1)
+      {
+         outputfile << ", ";
+      }
+   }
+
+   outputfile << "\nActive constraints: " << endl;
+   for (int j = 0; j < active_constraints.Size(); j++)
+   {
+      outputfile << active_constraints[j] ;
+      if (j < active_constraints.Size()-1)
+      {
+         outputfile << ", ";
+      }
+   }
+
    outputfile << endl;
    outputfile.close();   
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
@@ -667,6 +686,8 @@ int main(int argc, char *argv[])
    Vector DCvals;
    int ibegin = (restart) ? istep+1 : 0;
    Array<int> NoContactCGiterations;
+   Array<int> ActiveConstraints;
+   Array<int> TotalConstraints;
    for (int i = ibegin; i<total_steps; i++)
    {
       if (testNo == 6)
@@ -783,6 +804,7 @@ int main(int argc, char *argv[])
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
       
       int numconstr = contact.GetGlobalNumConstraints();
+      TotalConstraints.Append(numconstr);
       ParInteriorPointSolver optimizer(&contact);
       if (monitor)
       {
@@ -825,6 +847,8 @@ int main(int argc, char *argv[])
       CGiter.push_back(CGiterations);
       int gndofs = prob.GetGlobalNumDofs();
 
+      int activenumconstr = optimizer.GetNumActiveConstraints();
+      ActiveConstraints.Append(activenumconstr);
 
       // Hypotherical AMG solver in the absense of contact for each time step
       // This is only for the linear case
@@ -838,14 +862,16 @@ int main(int argc, char *argv[])
          mfem::out << " Initial Energy objective        = " << Einitial << endl;
          mfem::out << " Final Energy objective          = " << Efinal << endl;
          mfem::out << " Global number of dofs           = " << gndofs << endl;
-         mfem::out << " Global number of constraints    = " << numconstr << endl;
+         mfem::out << " Total number of constraints     = " << numconstr << endl;
+         mfem::out << " Active number of constraints    = " << activenumconstr << endl;
          mfem::out << " Global number of contact dofs   = " << gncols << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
          if (optimizer.GetCGNoContactIterNumbers().Size() > 0)
-	 {
-	    mfem::out << " No Contact CG Solver iterations = " << optimizer.GetCGNoContactIterNumbers()[0] << endl;
-	 }
+	      {
+	         mfem::out << " No Contact CG Solver iterations = " << optimizer.GetCGNoContactIterNumbers()[0] << endl;
+	      }
+         
          if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6 || linsolver == 7)
          {
             mfem::out << " CG iteration numbers            = " ;
@@ -879,13 +905,13 @@ int main(int argc, char *argv[])
             }                        
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
-            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumActiveConstraints(), optimizer.GetNumIterations(), CGiterations);
+            OutputData(file_name, Einitial, Efinal, gndofs,numconstr, activenumconstr, optimizer.GetNumIterations(), CGiterations);
             if (i == total_steps-1)
             {
                ostringstream final_file_name;
                final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-final";
                OutputFinalData(final_file_name, Einitial, Efinal, 
-                  gndofs, numconstr, optimizer.GetNumActiveConstraints(), CGiter, NoContactCGiterations);
+                  gndofs, TotalConstraints, ActiveConstraints, CGiter, NoContactCGiterations);
             }
          }
       }

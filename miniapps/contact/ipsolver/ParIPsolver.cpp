@@ -192,28 +192,26 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          converged = true;
          int numActiveConstraintsLoc = 0;
 
-	 int dimG = dimM;
-	 if (dimM > dimU)
-	 {
-	    dimG = dimM - 2 * dimU;
-	 }
-	 MFEM_VERIFY(dimG >= 0, "error in determining num of constraints when bound constraints are active");
-	 for (int i = 0; i < dimG; i++)
-	 {
-	    // slack < Lagrange multiplier
-	    // min(s_i, z_i) \approx 0 for i = 1,2,...,dimM
+	      int dimG = dimM;
+	      if (dimM > dimU)
+	      {
+	         dimG = dimM - 2 * dimU;
+	      }
+	      MFEM_VERIFY(dimG >= 0, "error in determining num of constraints when bound constraints are active");
+         for (int i = 0; i < dimG; i++)
+         {
+            // slack < Lagrange multiplier
+            // min(s_i, z_i) \approx 0 for i = 1,2,...,dimM
             // at convergence point
-	    // s_i z_i \approx OptTol for each i
+            // s_i z_i \approx OptTol for each i
             if (xk(dimU + i) < zlk(i))
-	    {
-	       numActiveConstraintsLoc += 1;
-	    }
-	 }
+            {
+               numActiveConstraintsLoc += 1;
+            }
+         }
          MPI_Allreduce(&numActiveConstraintsLoc, &numActiveConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-	  
 	 
-	 
-	 if(iAmRoot)
+	      if(iAmRoot)
          {
             cout << "solved optimization problem :)\n";
          }
