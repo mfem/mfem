@@ -160,7 +160,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       real_t norm_global = 0.0;
       real_t norm_local = Y.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_local, 1, MPI_DOUBLE, MPI_MAX,
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
@@ -206,7 +206,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       real_t norm_global = 0.0;
       real_t norm_local = Y.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_local, 1, MPI_DOUBLE, MPI_MAX,
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
