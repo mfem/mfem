@@ -403,8 +403,8 @@ miniapps/tribol/contact-patch-test
 tests/unit/output_meshes
 tests/unit/unit_tests
 tests/unit/punit_tests
-tests/unit/cunit_tests
-tests/unit/pcunit_tests
+tests/unit/gpu_unit_tests
+tests/unit/pgpu_unit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*
