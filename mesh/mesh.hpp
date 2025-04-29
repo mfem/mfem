@@ -473,9 +473,9 @@ protected:
                          const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
-   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
+   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv);
 
-   // void GetEdgeToKnotMapping(Array<int> &edge_to_knot) const;
+   // void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv) const;
 
    void UpdateNURBS();
 
@@ -766,8 +766,19 @@ public:
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
 
-   /// Get the edge to knotvector mapping (used by NURBS patch topology meshes)
-   void GetEdgeToKnotMapping(Array<int> &edge_to_knot, bool verbose = false) const;
+   /// Get the edge to unique knotvector mapping (used by NURBS patch topology meshes)
+   /// @param edge_to_ukv The mapping from edges to unique knotvector indices.
+
+   /// Get the edge to unique knotvector mapping (used by NURBS patch topology meshes)
+   /** @param[in,out] edge_to_ukv Array<int> with map from edge index to (signed) unique
+                                  knotvector index. Will be resized the number of edges.
+       @param[in,out] ukv_to_pkv  Array<int> holding the map from (unsigned) unique
+                                  knotvector index to the (unsigned) "patch knotvector
+                                  index", i.e. p*dim+d. Will be resized to the number of
+                                  unique knotvectors.
+       */
+   void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
+                                  Array<int> &ukv_to_pkv) const;
 
    /// @}
 

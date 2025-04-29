@@ -6130,7 +6130,7 @@ void Mesh::UpdateNURBS()
    GenerateFaces();
 }
 
-void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
+void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
 {
    SetEmpty();
 
@@ -6170,20 +6170,20 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    if (NumOfEdges > 0)
    {
       edge_vertex = new Table(NumOfEdges, 2);
-      edge_to_knot.SetSize(NumOfEdges);
+      edge_to_ukv.SetSize(NumOfEdges);
       for (int j = 0; j < NumOfEdges; j++)
       {
          int *v = edge_vertex->GetRow(j);
-         input >> edge_to_knot[j] >> v[0] >> v[1];
+         input >> edge_to_ukv[j] >> v[0] >> v[1];
          if (v[0] > v[1])
          {
-            edge_to_knot[j] = -1 - edge_to_knot[j];
+            edge_to_ukv[j] = -1 - edge_to_ukv[j];
          }
       }
    }
    else
    {
-      edge_to_knot.SetSize(0);
+      edge_to_ukv.SetSize(0);
    }
 
    skip_comment_lines(input, '#');
@@ -6197,24 +6197,33 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
    /* Generate edge to knotvector mapping if edges are not specified in the mesh file
       See data/two-squares-nurbs-autoedge.mesh for an example */
-   if (edge_to_knot.Size() == 0)
+   Array<int> ukv_to_pkv;
+   if (edge_to_ukv.Size() == 0)
    {
-      GetEdgeToKnotMapping(edge_to_knot, true);
+      GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_pkv);
+      mfem::out << "Generated edge to knot mapping:" << endl;
+      edge_to_ukv.Print(mfem::out);
    }
 }
 
-void Mesh::GetEdgeToKnotMapping(Array<int> &edge_to_knot, bool verbose) const
+void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_pkv) const
 {
-   int kvidx;
-   Array<int> kvs(3);
-   Array<int> edges, oedges;
-   Array<int> v(2); // Array to store the two vertex indices of the edge
-   edge_to_knot.SetSize(NumOfEdges);
-   constexpr int notset = -9999999;
-   edge_to_knot = notset;
    int dim = Dimension();
-   int d;
+   // Local (per-patch) variables
+   int kvidx;
+   Array<int> kvs(dim); // knotvector indices for a patch
+   Array<int> edges, oedges;
+   Array<int> v(2);
+   int d; // local dimension
+   // Edge index -> signed patch knotvector index (p*dim + d)
+   Array<int> edge_to_pkv(NumOfEdges);
+   edge_to_pkv.SetSize(NumOfEdges);
+   constexpr int notset = -9999999;
+   edge_to_pkv = notset;
+
    auto unsign = [](int i) { return (i < 0) ? -i - 1 : i; };
+
+   // Get the edge_to_pkv map
    for (int p = 0; p < NumOfElements; p++)
    {
       GetElementEdges(p, edges, oedges);
@@ -6226,10 +6235,10 @@ void Mesh::GetEdgeToKnotMapping(Array<int> &edge_to_knot, bool verbose) const
          d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
          GetEdgeVertices(edges[i], v); // Get the vertices of edge i
          // We've set this edge-to-knot previously
-         if (edge_to_knot[edges[i]] != notset)
+         if (edge_to_pkv[edges[i]] != notset)
          {
             // Old knot vector index (unsigned)
-            kvidx = unsign(edge_to_knot[edges[i]]);
+            kvidx = unsign(edge_to_pkv[edges[i]]);
             // Keep the lowest index
             kvs[d] = std::min({kvidx, p*dim+d, unsign(kvs[d])});
          }
@@ -6242,13 +6251,31 @@ void Mesh::GetEdgeToKnotMapping(Array<int> &edge_to_knot, bool verbose) const
          GetEdgeVertices(edges[i], v); // Get the vertices of edge i
          // Not set yet -> use global index (p*dim+d)
          kvidx = (kvs[d] == notset) ? p*dim+d : kvs[d];
-         edge_to_knot[edges[i]] = (v[1] > v[0]) ? kvidx : -1 - kvidx;
+         // Sign is based on the edge's vertex indices
+         edge_to_pkv[edges[i]] = (v[1] > v[0]) ? kvidx : -1 - kvidx;
       }
    }
-   if (verbose)
+
+   // ukv_to_pkv (unsigned) - unique knotvector index -> p*dim+d
+   ukv_to_pkv.SetSize(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++)
    {
-      mfem::out << "Generated edge to knot mapping:" << endl;
-      edge_to_knot.Print(mfem::out);
+      ukv_to_pkv[i] = unsign(edge_to_pkv[i]);
+   }
+   ukv_to_pkv.Sort();
+   ukv_to_pkv.Unique();
+
+   // Get edge_to_ukv = edge_to_pkv o ukv_to_pkv^{-1}
+   edge_to_ukv.SetSize(NumOfEdges);
+   bool sign;
+   int ukv, pkv;
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      sign = edge_to_pkv[i] < 0;
+      pkv = unsign(edge_to_pkv[i]);
+      ukv = ukv_to_pkv.Find(pkv);
+      MFEM_VERIFY(ukv >= 0, "Mapping error")
+      edge_to_ukv[i] = sign ? -1 - ukv : ukv;
    }
 }
 
