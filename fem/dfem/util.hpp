@@ -106,7 +106,7 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 }
 
 template <typename... input_ts, std::size_t... Is>
-constexpr auto make_dependency_map_impl(
+auto make_dependency_map_impl(
    tuple<input_ts...> inputs,
    std::index_sequence<Is...>)
 {
