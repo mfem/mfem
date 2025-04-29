@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = demo nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
