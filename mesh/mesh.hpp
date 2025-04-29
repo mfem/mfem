@@ -765,9 +765,6 @@ public:
    virtual ~Mesh() { DestroyPointers(); }
 
    /// Get the edge to unique knotvector mapping (used by NURBS patch topology meshes)
-   /// @param edge_to_ukv The mapping from edges to unique knotvector indices.
-
-   /// Get the edge to unique knotvector mapping (used by NURBS patch topology meshes)
    /** @param[in,out] edge_to_ukv Array<int> with map from edge index to (signed) unique
                                   knotvector index. Will be resized the number of edges.
        @param[in,out] ukv_to_pkv  Array<int> holding the map from (unsigned) unique
