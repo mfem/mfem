@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
       // DG boundary conditions are enforced weakly with this integrator.
       b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
    }
-   b.UseFastAssembly(true);
+   if (H1) { b.UseFastAssembly(true); }
    b.Assemble();
 
    ParGridFunction x(&fes);
