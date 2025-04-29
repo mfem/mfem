@@ -252,7 +252,7 @@ public:
       typename func_t,
       typename... input_ts,
       typename... output_ts,
-      typename derivative_ids_t>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
    void AddDomainIntegrator(
       func_t &qfunc,
       tuple<input_ts...> inputs,
@@ -369,7 +369,7 @@ template <
    typename qfunc_t,
    typename... input_ts,
    typename... output_ts,
-   typename derivative_ids_t = std::make_index_sequence<0>>
+   typename derivative_ids_t>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
    tuple<input_ts...> inputs,
