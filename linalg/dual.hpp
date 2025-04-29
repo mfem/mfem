@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -288,7 +288,7 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sqrt(dual<value_type, gradient_type> x)
 {
    using std::sqrt;
-   return {sqrt(x.value), x.gradient / (2.0 * sqrt(x.value))};
+   return {sqrt(x.value), x.gradient / (2 * sqrt(x.value))};
 }
 
 /** @brief implementation of cosine for dual numbers */

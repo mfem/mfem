@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -255,6 +255,9 @@ public:
 
    /// Reset the associated estimator.
    void Reset() override;
+
+   /// Set the array @a refinements of elements to refine, without refining.
+   int MarkWithoutRefining(Mesh & mesh, Array<Refinement> & refinements);
 };
 
 // TODO: BulkRefiner to refine a portion of the global error

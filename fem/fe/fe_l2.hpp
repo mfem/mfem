@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_FE_L2
 
 #include "fe_base.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -181,6 +182,56 @@ public:
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
+};
+
+/** Arbitrary order L2 basis functions defined on pyramid-shaped elements
+
+  This implementation is closely based on the finite elements
+  described in section 9.4 of the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes"
+  by Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+ */
+class L2_FuentesPyramidElement
+   : public NodalFiniteElement, public FuentesPyramid
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector u;
+   mutable DenseMatrix du;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
+   L2_FuentesPyramidElement(const int p,
+                            const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+/// Arbitrary order L2 elements in 3D on a pyramid
+class L2_BergotPyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_z_dt;
+   mutable Vector u;
+   mutable DenseMatrix du;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
+   L2_BergotPyramidElement(const int p,
+                           const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
 };
 
 } // namespace mfem

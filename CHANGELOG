@@ -8,132 +8,217 @@
                                https://mfem.org
 
 
-Version 4.7.1 (development)
+Version 4.8.1 (development)
 ===========================
-- Refactored ALGOIM cut integration rules. The interface is unified with
-  the interface for moment based cut integration rules.
-- Altered (Par)GridFunction::Compute*Error functions to ensure they return
-  non-negative values and therefore behave as "norms".
+
+
+Version 4.8, released on Apr 9, 2025
+====================================
 
 Discretization improvements
 ---------------------------
-- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
-  patch meshes. Only implemented for serial computations.
+- Added high-order basis functions on pyramid-shaped elements for all spaces in
+  the de Rham complex based on the paper "Orientation embedded high order shape
+  functions for the exact sequence elements of all shapes" by Fuentes, Keith,
+  Demkowicz and Nagaraj (doi.org/10.1016/j.camwa.2015.04.027). Positive basis
+  functions (Bernstein basis) for H1 and L2 on pyramids were also added.
 
-- Added support for boundary constraints to the hybridization class.
+- Added support for parallel p- and hp-refinement on quad/hex meshes. For hp, we
+  currently support only isotropic refinement with L2 or H1 spaces. See the new
+  miniapps hpref and phpref in the miniapps/meshing/ directory.
 
-- Added support for external boundary submeshes with nonconformal mesh adaptation.
+- Added several improvements for hyperbolic problems:
+  * Assembly of Jacobians in HyperbolicFormIntegrator
+  * Component-wise upwinded flux (ComponentwiseUpwindFlux)
+  * Average fluxes in NumericalFlux (formerly RiemannSolver) and FluxFunction
 
-- Added assembly of Jacobians to `HyperbolicFormIntegrator`.
+- Added convenience methods to class FiniteElementSpace to directly identify all
+  degrees of freedom on the exterior faces of the domain, without referencing
+  boundary element attributes (GetExteriorVDofs and GetExteriorTrueDofs).
 
-- Added average fluxes to `NumericalFlux` (formerly `RiemannSolver`)
-  and `FluxFunction`.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
 
-- Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
+- SubMesh and ParSubMesh have been extended to work on nonconforming meshes.
+  Extracting volume and exterior surface submeshes are both supported.
+
+- LinearFormIntegrator, BilinearFormIntegrator and NonlinearFormIntegrator now
+  inherit from a base class Integrator that centralizes the logic for selecting
+  quadrature rules. This includes a virtual method GetDefaultIntegrationRule,
+  which should be favored over directly defining a default integration rule in
+  the element-level assembly routines. The latter is still possible, by leaving
+  the new virtual method as its default base implementation of returning NULL.
+
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Currently only for
+  single patch meshes in serial.
+
+- Refactored ALGOIM cut integration rules. The interface is unified with the
+  interface for moment based cut integration rules.
+
+- FiniteElementSpace has new methods to directly set the prolongation and
+  restriction operators to user-specified sparse matrices.
+
+- Added support for H(div) spaces in class QuadratureInterpolator. Currently only
+  (vector) VALUES, (vector) PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES evaluations
+  are implemented.
+
+- Added support for boundary constraints to class Hybridization.
+
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
+- Added GSLIB-based gather-scatter operator.
 
 Meshing improvements
 --------------------
-- Added native AD support for numerous TMOP metrics that didn't have first or
-  second derivative implementations.
+- Added support for nonuniform anisotropic mesh refinement on serial quad/hex
+  meshes with arbitrary spacing in each direction. This enables in particular
+  3:1 refinement, as demonstrated in the new meshing miniapp ref321.
 
-- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
-  are also supported.
+- Added capabilities for optimization and adaptation of periodic meshes with
+  TMOP. The internals of TMOP were modified so that the optimization problem is
+  always solved with respect to mesh displacements.
 
-- Added support for nonuniform anisotropic (nonconforming) mesh refinement with
-  arbitrary spacing in each direction, for quadrilateral (2D) and hexahedral
-  (3D) meshes. This enables in particular 3:1 refinement, as demonstrated in the
-  new meshing miniapp ref321.
+- New convenience methods for manipulating boundary attribute markers in class
+  Mesh: MarkExternalBoundaries, MarkNamedBoundaries, UnmarkInternalBoundaries
+  and UnmarkNamedBoundaries. See Examples 1/1p and 11p for basic usage.
 
-New and updated examples and miniapps
--------------------------------------
-- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+- Added a new method, GetExteriorFaceMarker, to the serial and parallel mesh
+  classes for identifying faces on the exterior of the mesh irrespective of
+  their presence in the list of "boundary elements".
 
-- Added an MFEM example for the eikonal equation. This new solver is based on
-  the proximal Galerkin method introduced by Keith and Surowiec.
+- Added native AD support for computing the derivatives of numerous TMOP metrics
+  that didn't have first or second derivative implementations.
 
-- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
-  See miniapps/toys/spiral.cpp.
+- Added ExodusII output capability which can handle in particular pyramid and
+  wedge element types. Mixed meshes are also supported.
 
-- Added a command line option to all miniapps (`-p` or `--send-port`) for
-  specifying the GLVis server socket port (19916 by default).
+- Added InverseElementTransformation::InitGuessType::EdgeScan as an alternative
+  initial guess type. This guess type tries solving with multiple initial guesses
+  along the r/s/t=0 edges of the element until a valid solution is found or all
+  initial guess points are exhausted.
+
+- Added new convenience constructors for NURBS patches and knot vectors.
 
 GPU computing
 -------------
+- Extended FindPointsGSLIB to support general field interpolation on GPUs. Note
+  that this requires that switch from gslib v1.0.7 to v1.0.9.
+
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
   hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
 
 - A new GPU kernel dispatch mechanism was introduced. Users can instantiate
   specialized kernels for specific combinations of (for example) polynomial
-  degree and number of quadrature points using
-  `DiffusionIntegrator::AddSpecialization` and
-  `MassIntegrator::AddSpecialization` (this functionality may be added to more
-  integrators in the future).
+  degree and number of quadrature points using method AddSpecialization in
+  classes DiffusionIntegrator and MassIntegrator (this functionality may be
+  added to more integrators in the future).
 
-- Calls to slower fallback kernels can be reported to `mfem::err` by setting
-  the environment variable `MFEM_REPORT_KERNELS` to any value other than `NO`
-  or by explicitly calling `KernelReporter::Enable`. Users can then add
-  specializations for these kernels to achieve higher performance.
+- Added BatchInverseElementTransformation to batch InverseElementTransformation
+  searches. Batch searches are currently limited to meshes with a single element
+  geometry type of SEGMENT, SQUARE, or CUBE. Additional element geometry types
+  may be added in the future. Mixed element order meshes are supported. Batch
+  searches can be performed on the CPU (serial per MPI rank) or GPU. Embedded
+  elements (SEGMENT in 2D/3D space or SQUARE in 3D space) are supported, however
+  the existing solvers may struggle to find a valid solution.
 
-- Element assembly kernels have been added for low-order refined to
-  high-order transfer operators. New kernels can be offloaded as device
-  kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
+- Calls to slower fallback kernels can be reported to mfem::err by setting the
+  environment variable MFEM_REPORT_KERNELS to any value other than NO or by
+  explicitly calling KernelReporter::Enable. For higher performance, users can
+  then add specializations for these kernels.
 
-- Added support for GPU accelerated FindPointsGSLIB. Note that this will require
-  the users to switch from gslib v1.0.7 to v1.0.9.
+- Element assembly kernels have been added for low-order refined -> high-order
+  transfer operators. New kernels can be offloaded as device kernels. Example
+  usage may be found in lor-transfer.cpp in the miniapps/tools/ directory.
 
-Miscellaneous
--------------
+- Added GPU acceleration and element assembly for DivDivIntegrator and
+  NormalTraceJumpIntegrator.
+
+- Allow BlockLowerTriangularPreconditioner to run on GPU.
+
+- Use device vectors in GMRES, FGMRES and other iterative methods.
+
+Linear and nonlinear solvers
+----------------------------
+- Added GPU acceleration of the algebraic hybridization solver for grad-div
+  problems in H(div). See Example 4.
+
+- Added a self-contained implementation of the Method of Moving Asymptotes (MMA)
+  for solving optimization problems.
+
 - Added support for SUNDIALS v7. See the section "API changes" for some small
   changes related to this new version.
 
-- Refactored the `ARKStepSolver` class (ARKODE interface) to use
-  `TimeDependentOperator::Mult` only when the associated ODE operator is
-  expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
-  otherwise `TimeDependentOperator::ExplicitMult` is used. A check has been
-  added to `ARKStepSolver` to verify that the associated ODE operator is not in
-  explicit form when a mass matrix solver is enabled via a call to either the
-  `UseMFEMMassLinearSolver` or `UseSundialsMassLinearSolver` methods. This is
-  because enabling a mass matrix solver assumes that F(u,k,t) = M k in the
-  associated ODE operator.
+- Changed the name of class IterativeSolverMonitor to IterativeSolverController,
+  which now allows for specifying convergence by a user defined criterion. For
+  backward compatibility, the old name is still available.
 
-- Added support for custom interpolation procedure in FindPointsGSLIB.
+- Refactored the ARKStepSolver class (ARKODE interface) to use the Mult() method
+  of TimeDependentOperator only when the associated ODE operator is expressed in
+  explicit form (i.e., TimeDependentOperator::isExplicit()), otherwise the
+  method ExplicitMult() is used. A check has been added to ARKStepSolver to
+  verify that the associated ODE operator is not in explicit form when a mass
+  matrix solver is enabled via a call to either the UseMFEMMassLinearSolver or
+  UseSundialsMassLinearSolver methods. This is because enabling a mass matrix
+  solver assumes that F(u,k,t) = M k in the associated ODE operator.
 
-- `FiniteElementSpace` has new methods to directly set prolongation and
-  restriction operators to arbitrary sparse matrices.
+- Added ODE solvers selection routines. This creates a uniformity across
+  examples, miniapps and other executables in regard to ODE (time-integrator)
+  selection.
 
-- There are new convenience constructors for NURBS patches and knot vectors.
+- Added new mechanism for retrieving and setting state vectors in ODE solvers.
+  This is relevant for AB/AM and gen-alpha solvers.
 
-- Added convenience methods for manipulating boundary attribute marker arrays;
-  `(Par)Mesh::MarkExternalBoundaries`, `(Par)Mesh::UnmarkInternalBoundaries`,
-  `(Par)Mesh::MarkNamedBoundaries`, and `(Par)Mesh::UnmarkNamedBoundaries`.
-  See examples `ex1.cpp`, `ex1p.cpp`, and `ex11p.cpp` for basic usage.
+- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
+  read/write functionality.
 
-- Added `(Par)Mesh::GetExteriorFaceMarker` for identifying faces on the
-  exterior of the mesh irrespective of their presence in the list of "boundary
-  elements".
+New and updated examples and miniapps
+-------------------------------------
+- Added an MFEM example for the eikonal equation (examples/ex40) based on the
+  proximal Galerkin method introduced by Keith and Surowiec.
 
-- Added methods to `(Par)FiniteElementSpace` to identify all degrees of freedom
-  located on the exterior of the domain without reference to the list of
-  "boundary elements"; `GetExteriorVDofs` and `GetExteriorTrueDofs`.
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+
+- Fixed element visualization in the Mesh explorer miniapp.
+
+- Added a command line option to all miniapps (-p or --send-port) for
+  specifying the GLVis server socket port (19916 by default).
+
+- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
+  See miniapps/toys/spiral.cpp.
+
+Miscellaneous
+-------------
+- Updated the benchmarks (in tests/benchmarks) to work with the latest Google
+  Benchmarks classes (version 1.9.1). Renamed the MFEM_ENABLE_GOOGLE_BENCHMARKS
+  CMake option to just MFEM_ENABLE_BENCHMARKS.
+
+- Updated the minimum CMake version requirements:
+  * CMake >= 3.12 for CPU builds,
+  * CMake >= 3.17 for CUDA builds, and
+  * CMake >= 3.14 for HIP builds (CMake >= 3.12 may work as well, not tested).
+
+- Various other simplifications, extensions, and bugfixes in the code.
 
 API changes
 -----------
-- API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+- In class GridFunction, fec was renamed to fec_owned.
 
-- API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
-  been been depracated through typedef)
+- RiemannSolver was renamed to NumericalFlux (the old name has been deprecated
+  through typedef).
 
-- API change: support for SUNDIALS v7:
-  * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7
-    and therefore MFEM now uses the new type names `sunrealtype` and
-    `sunbooleantype`, respectively, which MFEM defines when using SUNDIALS < v6
+- API changes due to SUNDIALS v7:
+  * the SUNDIALS types realtype and booleantype are no longer defined by v7
+    and therefore MFEM now uses the new type names sunrealtype and
+    sunbooleantype, respectively, which MFEM defines when using SUNDIALS < v6
     where these types were not defined.
-  * The SUNDIALS macro `SUNLS_SUCCESS` and some other `*_SUCCESS` macros were
-    removed and replaced by `SUN_SUCCESS` in v7, so to avoid tedious checks for
-    SUNDIALS versions, MFEM now defines and uses the constant `SUN_SUCCESS` when
+  * The SUNDIALS macro SUNLS_SUCCESS and some other *_SUCCESS macros were
+    removed and replaced by SUN_SUCCESS in v7, so to avoid tedious checks for
+    SUNDIALS versions, MFEM now defines and uses the constant SUN_SUCCESS when
     using SUNDIALS < v7.
-  * The constants `SUN_PREC_*`, introduced by SUNDIALS v6 are now introduced by
+  * The constants SUN_PREC_*, introduced by SUNDIALS v6 are now introduced by
     MFEM when using SUNDIALS < v6 to avoid tedious version checks.
+
+- TMOP_Metric_skew2D has been marked as deprecated.
 
 
 Version 4.7, released on May 7, 2024
@@ -158,9 +243,6 @@ Meshing improvements
   NURBS coarsening and knot removal are also introduced.
 
 - Added support for internal boundary elements in nonconforming meshes.
-
-- Added ExodusII output capability. The writer can handle first-order (Pyramid5,
-  Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
@@ -221,15 +303,6 @@ New and updated examples and miniapps
 - Added two new example codes: 38 and 39/39p described above. Substantially
   updated Example 18/18p.
 
-- Added ODE solvers selection routines. This creates a uniformity across examples,
-  miniapps and other executables in regard to ODE(time-integrator) selection.
-
-- Added new mechanism for retrieving and setting state vectors in ODE solvers.
-  This is relevant for AB/AM and gen-alpha solvers.
-
-- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
-  read/write functionality.
-
 Miscellaneous
 -------------
 - Updated the Doxygen documentation style, which now requires Doxygen version
@@ -242,8 +315,6 @@ Miscellaneous
   depending on the functionality older versions may still work.
 
 - Various other simplifications, extensions, and bugfixes in the code.
-
-- Added GSLIB-based gather-scatter operator.
 
 
 Version 4.6, released on September 27, 2023

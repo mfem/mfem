@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1233,7 +1233,7 @@ public:
        present.
 
        @return A bitmask:
-       - bit 0 - simplices are present in the mesh (triangles, tets),
+       - bit 0 - simplices are present in the mesh (segments, triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
        - bit 3 - the mesh has pyramid elements.
@@ -2473,6 +2473,11 @@ public:
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
                     int compression_level=0);
+
+#ifdef MFEM_USE_HDF5
+   /// @brief Save the Mesh in %VTKHDF format.
+   void SaveVTKHDF(const std::string &fname, bool high_order=true);
+#endif
 
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.

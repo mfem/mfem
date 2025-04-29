@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -123,16 +123,9 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
 
   # If CUDA is enabled, tag source files to be compiled with nvcc.
   if (MFEM_USE_CUDA)
-    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES LANGUAGE CUDA)
-    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
-      list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
-    else()
-      set(LIST_)
-      foreach(item IN LISTS EXTRA_OPTIONS_LIST)
-        list(APPEND LIST_ "-Xcompiler=${item}")
-      endforeach()
-      set(EXTRA_OPTIONS_LIST ${LIST_})
-    endif()
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST}
+      PROPERTIES LANGUAGE CUDA)
+    list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
   endif()
 
   # Actually add the executable
@@ -154,6 +147,21 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
   if (EXTRA_DEFINES_LIST)
     target_compile_definitions(${MFEM_EXE_NAME} PRIVATE ${EXTRA_DEFINES_LIST})
+  endif()
+endmacro()
+
+# Macro for setting variables like '<culib>_LIBRARIES' where <culib> is a CUDA
+# library like cublas. This macro assumes that the CUDAToolkit module was loaded
+# successfully. Example usage:
+#   mfem_culib_set_libraries(CUBLAS cublas)
+macro(mfem_culib_set_libraries _CULIB _culib)
+  # The following command does not work with older CMake versions, e.g. 3.20:
+  #   get_target_property(${_CULIB}_LIBRARIES CUDA::${_culib} LOCATION)
+  # Therefore, we use the respective internal variable:
+  set(${_CULIB}_LIBRARIES ${CUDA_${_culib}_LIBRARY})
+  if (NOT ${_CULIB}_LIBRARIES)
+    message(FATAL_ERROR
+      "Error setting ${_CULIB}_LIBRARIES: ${${_CULIB}_LIBRARIES}")
   endif()
 endmacro()
 
@@ -869,7 +877,8 @@ function(mfem_export_mk_files)
       MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER MFEM_USE_UMPIRE MFEM_USE_SIMD
       MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO
       MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
-      MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
+      MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME
+      MFEM_USE_HDF5)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
