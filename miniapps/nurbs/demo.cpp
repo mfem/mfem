@@ -1,4 +1,4 @@
-// Script to demonstrate differences in edge_to_knot map
+// Script to demonstrate differences in edge_to_ukv map
 
 #include "mfem.hpp"
 
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
    Array<NURBSPatch*> patches = mesh.GetNURBSPatches();
 
 
-   // Print out edge_to_knot map
+   // Print out edge_to_ukv map
    cout << endl << "Original Mesh: edge to knot map:" << endl;
    mesh.NURBSext->PrintEdgeToKnot();
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    NURBSExtension ext(&patch_topology, patches);
    Mesh mesh_copy(ext);
 
-   // // Print out edge_to_knot map for the reconstructed mesh
+   // // Print out edge_to_ukv map for the reconstructed mesh
    // cout << endl << "Reconstructed Mesh: edge to knot map:" << endl;
    // mesh_copy.NURBSext->PrintEdgeToKnot();
 
