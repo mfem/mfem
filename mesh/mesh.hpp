@@ -1421,8 +1421,9 @@ public:
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
 
-   /// Returns a copy of patches
-   Array<NURBSPatch*> GetNURBSPatches();
+   /// Returns a copy of patches; not const as this first sets the patches
+   /// in NURBSext using control points
+   void GetNURBSPatches(Array<NURBSPatch*> patches);
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
