@@ -399,16 +399,10 @@ public:
                   const real_t weight, DenseMatrix &A) const override;
 
    AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
-                     const std::vector<AD1Type> &W) const override
-   {
-      return EvalW_AD_impl<AD1Type>(T, W);
-   }
+                     const std::vector<AD1Type> &W) const override;
 
    AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
-                     const std::vector<AD2Type> &W) const override
-   {
-      return EvalW_AD_impl<AD2Type>(T, W);
-   }
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 4; }
 };
@@ -470,16 +464,10 @@ public:
                   const real_t weight, DenseMatrix &A) const override;
 
    AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
-                     const std::vector<AD1Type> &W) const override
-   {
-      return EvalW_AD_impl<AD1Type>(T, W);
-   }
+                     const std::vector<AD1Type> &W) const override;
 
    AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
-                     const std::vector<AD2Type> &W) const override
-   {
-      return EvalW_AD_impl<AD2Type>(T, W);
-   }
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 14; }
 };

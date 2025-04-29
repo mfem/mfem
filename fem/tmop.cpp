@@ -998,6 +998,18 @@ type TMOP_Metric_004::EvalW_AD_impl(const std::vector<type> &T,
    return mu4_ad(T, W);
 }
 
+AD1Type TMOP_Metric_004::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_004::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
+}
+
 real_t TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_7 = |J-J^{-t}|^2 = |J|^2 + |J^{-1}|^2 - 4
@@ -1124,6 +1136,18 @@ type TMOP_Metric_014::EvalW_AD_impl(const std::vector<type> &T,
                                     const std::vector<type> &W) const
 {
    return mu14_ad(T, W);
+}
+
+AD1Type TMOP_Metric_014::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_014::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
 }
 
 real_t TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
