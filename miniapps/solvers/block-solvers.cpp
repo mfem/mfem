@@ -95,7 +95,7 @@ class DarcyProblem
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    DFSSpaces dfs_spaces_;
-   PWConstCoefficient mass_coeff;
+   PWConstCoefficient mass_coeff_;
    const IntegrationRule *irs_[Geometry::NumGeom];
 public:
    DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
@@ -117,7 +117,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                            DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
      pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
-     mass_coeff()
+     mass_coeff_()
 {
    for (int l = 0; l < num_refs; l++)
    {
@@ -133,7 +133,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
       coef_vector.Load(coef_str, mesh.GetNE());
    }
 
-   mass_coeff.UpdateConstants(coef_vector);
+   mass_coeff_.UpdateConstants(coef_vector);
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
@@ -157,7 +157,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    bVarf_ = new ParMixedBilinearForm(dfs_spaces_.GetHdivFES(),
                                      dfs_spaces_.GetL2FES());
 
-   mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff_));
    mVarf_->ComputeElementMatrices();
    mVarf_->Assemble();
    mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
