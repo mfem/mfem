@@ -4797,14 +4797,15 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &os, const std::string &comments) const
+void ParMesh::Print(std::ostream &os, const std::string &comments,
+                    GridFunction *nodes) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
    if (NURBSext)
    {
-      Printer(os, "", comments); // does not print shared boundary
+      Printer(os, "", comments, nodes); // does not print shared boundary
       return;
    }
 
