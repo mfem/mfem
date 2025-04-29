@@ -64,11 +64,11 @@ using namespace mfem;
 using namespace blocksolvers;
 
 // Exact solution, u and p, and r.h.s., f and g.
-void u_exact(const Vector & x, Vector & u);
-real_t p_exact(const Vector & x);
-void f_exact(const Vector & x, Vector & f);
-real_t g_exact(const Vector & x);
-real_t natural_bc(const Vector & x);
+void u_exact(const Vector &x, Vector &u);
+real_t p_exact(const Vector &x);
+void f_exact(const Vector &x, Vector &f);
+real_t g_exact(const Vector &x);
+real_t natural_bc(const Vector &x);
 
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
                      [ M  B^T ] [u] = [f]
@@ -190,7 +190,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    }
 }
 
-void DarcyProblem::ShowError(const Vector& sol, bool verbose)
+void DarcyProblem::ShowError(const Vector &sol, bool verbose)
 {
    u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
    p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
@@ -205,7 +205,7 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    mfem::out << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
-void DarcyProblem::VisualizeSolution(const Vector& sol, string tag,
+void DarcyProblem::VisualizeSolution(const Vector &sol, string tag,
                                      int visport)
 {
    int num_procs, myid;
@@ -229,7 +229,7 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag,
           << tag << " solver)'" << endl;
 }
 
-bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
+bool IsAllNeumannBoundary(const Array<int> &ess_bdr_attr)
 {
    for (int attr : ess_bdr_attr) { if (attr == 0) { return false; } }
    return true;
@@ -341,9 +341,9 @@ int main(int argc, char *argv[])
 
    // Generate components of the saddle point problem
    DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
-   HypreParMatrix& M = darcy.GetM();
-   HypreParMatrix& B = darcy.GetB();
-   const DFSData& DFS_data = darcy.GetDFSData();
+   HypreParMatrix &M = darcy.GetM();
+   HypreParMatrix &B = darcy.GetB();
+   const DFSData &DFS_data = darcy.GetDFSData();
    delete mesh;
 
    if (Mpi::Root())
@@ -390,10 +390,10 @@ int main(int argc, char *argv[])
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 
    // Solve the problem using all solvers
-   for (const auto& solver_pair : solver_to_name)
+   for (const auto &solver_pair : solver_to_name)
    {
-      auto& solver = solver_pair.first;
-      auto& name = solver_pair.second;
+      auto &solver = solver_pair.first;
+      auto &name = solver_pair.second;
 
       Vector sol = darcy.GetEssentialBC();
 
@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void u_exact(const Vector & x, Vector & u)
+void u_exact(const Vector &x, Vector &u)
 {
    real_t xi(x(0));
    real_t yi(x(1));
@@ -440,7 +440,7 @@ void u_exact(const Vector & x, Vector & u)
    }
 }
 
-real_t p_exact(const Vector & x)
+real_t p_exact(const Vector &x)
 {
    real_t xi(x(0));
    real_t yi(x(1));
@@ -448,18 +448,18 @@ real_t p_exact(const Vector & x)
    return exp(xi)*sin(yi)*cos(zi);
 }
 
-void f_exact(const Vector & x, Vector & f)
+void f_exact(const Vector &x, Vector &f)
 {
    f = 0.0;
 }
 
-real_t g_exact(const Vector & x)
+real_t g_exact(const Vector &x)
 {
    if (x.Size() == 3) { return -p_exact(x); }
    return 0;
 }
 
-real_t natural_bc(const Vector & x)
+real_t natural_bc(const Vector &x)
 {
    return (-p_exact(x));
 }
