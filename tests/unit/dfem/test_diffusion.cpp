@@ -94,8 +94,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
 
-   x.Randomize(1);
-   x.SetFromTrueVector();
+   X.Randomize(1);
+   x.SetFromTrueDofs(X);
 
    auto rho = [](const Vector &xyz)
    {
