@@ -95,6 +95,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
 
    x.Randomize(1);
+   x.SetFromTrueVector();
 
    auto rho = [](const Vector &xyz)
    {
