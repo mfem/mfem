@@ -13,6 +13,10 @@ Version 4.8.1 (development)
 
 Unlike previous MFEM releases, this version requires a C++17 compiler.
 
+- Added support for variational resampling of H1 vector fields to ParMoonolith 
+  integration.
+
+
 Version 4.8, released on Apr 9, 2025
 ====================================
 
