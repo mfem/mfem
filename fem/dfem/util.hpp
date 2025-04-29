@@ -110,17 +110,16 @@ auto make_dependency_map_impl(
    tuple<input_ts...> inputs,
    std::index_sequence<Is...>)
 {
-   constexpr std::size_t N = sizeof...(input_ts);
    auto make_dependency_array = [&](auto i)
    {
-      return std::array<bool, N>
+      return std::array<bool, sizeof...(input_ts)>
       {
          (get<i>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())...
       };
    };
 
-   std::unordered_map<int, std::array<bool, N>> map;
-   for_constexpr<N>([&](auto i)
+   std::unordered_map<int, std::array<bool, sizeof...(input_ts)>> map;
+   for_constexpr<sizeof...(input_ts)>([&](auto i)
    {
       map[get<i>(inputs).GetFieldId()] =
          make_dependency_array(std::integral_constant<std::size_t, i> {});
