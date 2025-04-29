@@ -191,6 +191,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          converged = true;
          int numActiveConstraintsLoc = 0;
+	 double zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
 
 	      int dimG = dimM;
 	      if (dimM > dimU)
@@ -204,7 +205,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
             // min(s_i, z_i) \approx 0 for i = 1,2,...,dimM
             // at convergence point
             // s_i z_i \approx OptTol for each i
-            if (xk(dimU + i) < zlk(i))
+            if (zlk(i) > sqrt(mu_k) * zinfnorm)
             {
                numActiveConstraintsLoc += 1;
             }
