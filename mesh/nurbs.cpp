@@ -46,7 +46,7 @@ KnotVector::KnotVector(int order, int NCP)
 }
 
 KnotVector::KnotVector(int order, const Vector& intervals,
-                       const Array<int>& continuity )
+                       const Array<int>& continuity)
 {
    // NOTE: This may need to be generalized to support periodicity
    // in the future.
@@ -143,7 +143,7 @@ void KnotVector::UniformRefinement(Vector &newknots, int rf) const
       {
          for (int m = 1; m < rf; ++m)
          {
-            newknots(j) = m * h * (knot(i) + knot(i+1));
+            newknots(j) = ((1.0 - (m * h)) * knot(i)) + (m * h * knot(i+1));
             j++;
          }
       }
@@ -332,7 +332,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.2 p. 70
 void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 {
@@ -359,7 +359,7 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.3 p. 72
 void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
 {
@@ -417,7 +417,7 @@ void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.3 p. 72
 void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 {
@@ -541,7 +541,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
             CalcShape(shape, i, arg1);
             max1 = shape[d];
 
-            arg2 = 1-(1e-16);
+            arg2 = 1 - (1e-16);
             CalcShape(shape, i, arg2);
             max2 = shape[d];
 
@@ -579,7 +579,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
 // Algorithm A9.1 p. 369
 void KnotVector::FindInterpolant(Array<Vector*> &x)
 {
@@ -589,7 +589,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    // Find interpolation points
    Vector xi_args, u_args;
    Array<int> i_args;
-   FindMaxima(i_args,xi_args, u_args);
+   FindMaxima(i_args, xi_args, u_args);
 
    // Assemble collocation matrix
    Vector shape(order+1);
@@ -600,14 +600,14 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
       CalcShape(shape, i_args[i], xi_args[i]);
       for (int p = 0; p < order+1; p++)
       {
-         A(i,i_args[i] + p) =  shape[p];
+         A(i,i_args[i] + p) = shape[p];
       }
    }
 
    // Solve problems
    A.Invert();
    Vector tmp;
-   for (int i= 0; i < x.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
       tmp = *x[i];
       A.Mult(tmp,*x[i]);
@@ -1413,7 +1413,7 @@ void NURBSPatch::DegreeElevate(int t)
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
 void NURBSPatch::DegreeElevate(int dir, int t)
 {
    if (dir >= kv.Size() || dir < 0)
@@ -2377,7 +2377,7 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 }
 
 NURBSExtension::NURBSExtension(const Mesh *patch_topology,
-                               const Array<const NURBSPatch*> p)
+                               const Array<const NURBSPatch*> &p)
 {
    patchTopo = new Mesh( *patch_topology );
    patchTopo->GetEdgeVertexTable();

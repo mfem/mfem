@@ -735,7 +735,8 @@ public:
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
    void Print(std::ostream &out = mfem::out,
-              const std::string &comments = "") const override;
+              const std::string &comments = "",
+              GridFunction *nodes = nullptr) const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the

@@ -74,7 +74,7 @@ public:
        polynomial degree). Periodicity is not supported.
    */
    KnotVector(int order, const Vector& intervals,
-              const Array<int>& continuity );
+              const Array<int>& continuity);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -286,7 +286,7 @@ public:
        includes the weight. The array of control point coordinates stores each
        point's coordinates contiguously, and points are ordered in a standard
        ijk grid ordering. */
-   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+   NURBSPatch(Array<const KnotVector *> &kv_, int dim_,
               const real_t* control_points);
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
@@ -698,7 +698,7 @@ public:
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
-   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
+   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> &p);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
