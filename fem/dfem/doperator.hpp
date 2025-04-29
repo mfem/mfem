@@ -157,7 +157,7 @@ public:
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a matrix");
 
-      for (int i = 0; i < assemble_derivative_hypreparmatrix_callbacks.size(); i++)
+      for (size_t i = 0; i < assemble_derivative_hypreparmatrix_callbacks.size(); i++)
       {
          assemble_derivative_hypreparmatrix_callbacks[i](fields_e, A);
       }
