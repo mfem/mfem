@@ -10774,21 +10774,22 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
    }
 }
 
-Array<NURBSPatch*> Mesh::GetNURBSPatches()
+void Mesh::GetNURBSPatches(Array<NURBSPatch*> patches)
 {
-   MFEM_VERIFY(NURBSext, "Must be NURBS mesh");
+   MFEM_VERIFY(NURBSext, "Must be a NURBS mesh");
+   // This sets the NURBSPatch(es) from the control points (Nodes)
    NURBSext->ConvertToPatches(*Nodes);
-
    const int NP = NURBSext->GetNP();
-   // Copy
-   Array<NURBSPatch*> newPatches(NP);
+
+   // Copy patches
+   patches.SetSize(NP);
    for (int p = 0; p < NP; p++)
    {
-      newPatches[p] = new NURBSPatch(*NURBSext->GetPatch(p));
+      patches[p] = new NURBSPatch(*NURBSext->GetPatch(p));
    }
 
-   UpdateNURBS(); // deletes patches
-   return newPatches;
+   // Among other things, this deletes patches in NURBSext
+   UpdateNURBS();
 }
 
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
