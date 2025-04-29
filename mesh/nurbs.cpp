@@ -2474,7 +2474,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    own_topo = true;
 
    CheckPatches(); // This is checking the edge_to_ukv mapping
-   // CheckBdrPatches();
 
    // Set number of **unique** knot vectors
    NumOfKnotVectors = ukv_to_pkv.Size();
@@ -2493,7 +2492,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    }
 
    CreateComprehensiveKV();
-
    SetOrdersFromKnotVectors();
 
    GenerateOffsets();
@@ -2503,7 +2501,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    NumOfActiveElems = NumOfElements;
    activeElem.SetSize(NumOfElements);
    activeElem = true;
-   // }
 
    GenerateActiveVertices();
    InitDofMap();
@@ -2511,10 +2508,10 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
+   // Set from NURBSPatch data?
    weights.SetSize(GetNDof());
    weights = 1.0;
 
-   // periodic
    ConnectBoundaries();
 }
 
