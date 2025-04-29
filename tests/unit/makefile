@@ -201,7 +201,7 @@ copy-miniapps-meshing-data:
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 define tmop_pa_tests
 tmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
-tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
+tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_PA_DEVICE='"$(3)"'
 tmop_pa_tests_$(1): $$(SEQ_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
@@ -219,7 +219,7 @@ $(eval $(call tmop_pa_tests,gpu,GPU,gpu))
 define ptmop_pa_tests
 ptmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
 ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
-ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
+ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_PA_DEVICE='"$(3)"'
 ptmop_pa_tests_$(1): $$(PAR_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(PAR_TMOP_$(2)_OBJ_FILES) \
