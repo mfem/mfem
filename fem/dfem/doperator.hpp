@@ -252,14 +252,14 @@ public:
       typename func_t,
       typename... input_ts,
       typename... output_ts,
-      typename derivative_indices_t>
+      typename derivative_ids_t>
    void AddDomainIntegrator(
       func_t &qfunc,
       tuple<input_ts...> inputs,
       tuple<output_ts...> outputs,
       const IntegrationRule &integration_rule,
       const Array<int> domain_attributes,
-      const derivative_indices_t derivative_indices = {});
+      const derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
 
    /// @brief Set the parameters for the operator.
    ///
