@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../config/config.hpp"
+
 #ifdef MFEM_USE_MOONOLITH
 
 #include "mortarassembler.hpp"
@@ -42,31 +44,10 @@ public:
    bool assemble_mass_and_coupling_together{true};
    int max_solver_iterations{400};
 
-   bool is_vector_fe() const
+   BilinearFormIntegrator * newBFormIntegrator() const
    {
-      bool is_vector_fe = false;
-      for (auto i_ptr : integrators)
-      {
-         if (i_ptr->is_vector_fe())
-         {
-            is_vector_fe = true;
-            break;
-         }
-      }
-
-      return is_vector_fe;
-   }
-
-   BilinearFormIntegrator * new_mass_integrator() const
-   {
-      if (is_vector_fe())
-      {
-         return new VectorFEMassIntegrator();
-      }
-      else
-      {
-         return new MassIntegrator();
-      }
+      assert(!integrators.empty());
+      return integrators[0]->newBFormIntegrator();
    }
 };
 
@@ -201,17 +182,14 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    B = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
                                  impl_->source->GetNDofs());
 
-
    std::unique_ptr<BilinearFormIntegrator> mass_integr(
-      impl_->new_mass_integrator());
+      impl_->newBFormIntegrator());
 
    if (impl_->assemble_mass_and_coupling_together)
    {
       impl_->mass_matrix = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
                                                      impl_->destination->GetNDofs());
    }
-
-
 
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
@@ -401,7 +379,7 @@ bool MortarAssembler::Update()
    {
       BilinearForm b_form(impl_->destination.get());
 
-      b_form.AddDomainIntegrator(impl_->new_mass_integrator());
+      b_form.AddDomainIntegrator(impl_->newBFormIntegrator());
 
       b_form.Assemble();
       b_form.Finalize();
