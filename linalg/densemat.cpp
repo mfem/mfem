@@ -4408,4 +4408,16 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
    BatchedLinAlg::LUSolve(Mlu, P, X);
 }
 
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   Array<int> IPIV(N);
+   int NRHS = B.NumCols();
+   int info;
+   MFEM_LAPACK_PREFIX(gbsv_)(&N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                             IPIV.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
+}
+
 } // namespace mfem
