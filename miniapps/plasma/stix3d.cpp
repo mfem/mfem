@@ -180,9 +180,6 @@ public:
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
                                          const Array<int> & abcs);
-VectorCoefficient *
-SetupPortVectorCoefficient(const Mesh & mesh, const Array<int> & portbca,
-                           const Vector & portbcv);
 
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
@@ -357,10 +354,13 @@ private:
 public:
    PortBCEfield(const Vector &params, int index)
       : VectorCoefficient(3), params_(params), index_(index), x_(3), unit_rad_(3)
-   {
-      MFEM_ASSERT(params.Size() == 6,
+   {  
+      /*
+      MFEM_ASSERT(params.Size() == index
+      ,
                   "Incorrect number of parameters provided to "
                   "PortBCEfield");
+      */
    }
 
    void Eval(Vector &V, ElementTransformation &T,
@@ -376,6 +376,7 @@ public:
       y0_ = params_[4+index_];
       z0_ = params_[5+index_];
 
+      //cout << "READING PORT" << endl;
       double r = sqrt(pow(x_[0]-x0_,2.0)+pow(x_[1]-y0_,2.0)+pow(x_[2]-z0_,2.0));
 
       unit_rad_[0] = (x_[0]-x0_)/r;
@@ -1918,8 +1919,8 @@ if (dpp_def.Size() == 0)
    }
 
    // Setup coefficients for Dirichlet BC
-   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0)
-                                                         + (portbca.Size() > 0);
+   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
+   if (portbca.Size() > 0){dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) + portbca.Size();}
 
    Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
@@ -1968,9 +1969,7 @@ if (dpp_def.Size() == 0)
    VectorConstantCoefficient dbc2ReCoef(dbc2ReVec);
    VectorConstantCoefficient dbc2ImCoef(dbc2ImVec);
 
-   // this eventually needs to be PWVectorCoefficient:
-   PortBCEfield PortBC(portbcv,0);
-   VectorCoefficient * PortBCCoef = SetupPortVectorCoefficient(pmesh, portbca, portbcv);
+   PortBCEfield * PortBC = NULL;
 
    if (dbcsSize > 0)
    {
@@ -2002,14 +2001,22 @@ if (dpp_def.Size() == 0)
          mfem::out << "Dirichlet(2) Surfaces: "; dbcs[c]->attr.Print(mfem::out);
          c++;
       }
+      
+      Array<int> temp_attribute(1);
       if (portbca.Size() > 0)
       {
-         dbcs[c] = new ComplexVectorCoefficientByAttr;
-         dbcs[c]->attr = portbca;
-         dbcs[c]->real = &PortBC; //PortBCCoef;
-         dbcs[c]->imag = &zeroCoef;
-         mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out);
-         c++;
+         for (int i=0; i<portbca.Size(); i++)
+         {
+            int index = i*6;
+            temp_attribute = portbca[i];
+            PortBC = new PortBCEfield(portbcv,index);
+            dbcs[c] = new ComplexVectorCoefficientByAttr;
+            dbcs[c]->attr = temp_attribute;
+            dbcs[c]->real = PortBC;
+            dbcs[c]->imag = &zeroCoef;
+            mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out);
+            c++;
+         }
       }
    }
 
@@ -2435,35 +2442,7 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    }
 
    return coef;
-}
-
-
-VectorCoefficient *
-SetupPortVectorCoefficient(const Mesh & mesh, const Array<int> & portbca,
-                           const Vector & portbcv)
-{
-   VectorCoefficient * coef = NULL;
-
-   if ( portbca.Size() > 0 )
-   {
-      MFEM_VERIFY(portbcv.Size() == portbca.Size()*6.0,
-                  "Each port value must be associated with exactly one "
-                  "port boundary surface.");
-
-      Array<VectorCoefficient*> PortEfields(portbca.Size());
-
-      PortBCEfield * PortBC = NULL;
-      for (int i=0; i<portbca.Size(); i++)
-      {
-         PortBC = new PortBCEfield(portbcv, i);
-         PortEfields[i] = PortBC;
-      }
-
-      coef = new PWVectorCoefficient(3, portbca, PortEfields);
-   }
-
-   return coef;
-}
+}ƒ
 
 
 void rod_current_source_r(const Vector &x, Vector &j)
@@ -4296,8 +4275,12 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
          double b = 0.03;
          double a = 0.011;
          double V0 = 100.0;
+         // center of coaxial cable port
+         double x0 = 0.0;
+         double y0 = 0.0;
+         double z0 = 3.0;
 
-         double r = sqrt(pow(x[0],2.0)+pow(x[1],2.0));
+         double r = sqrt(pow((x[0]-x0),2.0)+pow((x[1]-y0),2.0));
          double theta = atan2(x[1],x[0]);
 
          double E0 = (V0/log(b/a))*(1.0/r);
@@ -4306,14 +4289,14 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
 
          if (realPart_)
          {
-            V[0] = Ex*cos(k*(x[2]-3.0));
-            V[1] = Ey*cos(k*(x[2]-3.0));
+            V[0] = Ex*cos(k*(x[2]-z0));
+            V[1] = Ey*cos(k*(x[2]-z0));
             V[2] = 0.0;
          }
          else
          {
-            V[0] = Ex*sin(k*(x[2]-3.0));
-            V[1] = Ey*sin(k*(x[2]-3.0));
+            V[0] = Ex*sin(k*(x[2]-z0));
+            V[1] = Ey*sin(k*(x[2]-z0));
             V[2] = 0.0;
          }
       }
