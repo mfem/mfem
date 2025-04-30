@@ -617,16 +617,16 @@ void DifferentiableOperator::AddDomainIntegrator(
    });
 
    // Create the action of the derivatives
-   for_constexpr([&](const auto derivative_id)
+   for_constexpr([&, fields_cap = this->fields](const auto derivative_id)
    {
-      const size_t d_field_idx = FindIdx(derivative_id, fields);
-      const auto direction = fields[d_field_idx];
+      const size_t d_field_idx = FindIdx(derivative_id, fields_cap);
+      const auto direction = fields_cap[d_field_idx];
       const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
-                                                      fields[test_space_field_idx]);
+                                                      fields_cap[test_space_field_idx]);
 
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-         (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
+         (input_dtq_maps, output_dtq_maps, fields_cap, num_entities, inputs, num_qp,
           input_size_on_qp, residual_size_on_qp, element_dof_ordering, d_field_idx);
 
       Vector shmem_cache(shmem_info.total_size);
