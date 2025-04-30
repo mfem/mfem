@@ -955,6 +955,7 @@ int main (int argc, char *argv[])
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient metric_coeff2(weight_fun);
+   TMOPComboIntegrator *combo = nullptr;
    if (combomet > 0)
    {
       // First metric.
@@ -980,10 +981,9 @@ int main (int argc, char *argv[])
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
 
-      TMOPComboIntegrator *combo = new TMOPComboIntegrator;
+      combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(tmop_integ);
       combo->AddTMOPIntegrator(tmop_integ2);
-      if (normalization) { combo->ParEnableNormalization(x0); }
       if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
 
       a.AddDomainIntegrator(combo);
@@ -994,7 +994,11 @@ int main (int argc, char *argv[])
 
    // Has to be after the enabling of the limiting / alignment, as it computes
    // normalization factors for these terms as well.
-   if (normalization) { tmop_integ->ParEnableNormalization(x0); }
+   if (normalization)
+   {
+      tmop_integ->ParEnableNormalization(x0);
+      if (combomet) { combo->ParEnableNormalization(x0); }
+   }
 
    // Compute the minimum det(J) of the starting mesh.
    min_detJ = infinity();
