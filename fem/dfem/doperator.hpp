@@ -10,11 +10,18 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include "../fespace.hpp"
+
+#ifdef MFEM_USE_MPI
+#include <array>
+#include <functional>
+#include <memory>
+#include <string>
+#include <tuple>
+#include <vector>
 #include <type_traits>
 #include <utility>
 
-#include "../fespace.hpp"
-#ifdef MFEM_USE_MPI
 #include "../pfespace.hpp"
 
 #include "util.hpp"
@@ -582,9 +589,8 @@ void DifferentiableOperator::AddDomainIntegrator(
       residual_e = 0.0;
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
 
-      auto wrapped_fields_e = wrap_fields(fields_e,
-                                          action_shmem_info.field_sizes,
-                                          num_entities);
+      auto wrapped_fields_e = wrap_fields<num_fields>(
+         fields_e, action_shmem_info.field_sizes, num_entities);
 
       const bool has_attr = domain_attributes.Size() > 0;
       const auto d_domain_attr = domain_attributes.Read();
@@ -612,7 +618,8 @@ void DifferentiableOperator::AddDomainIntegrator(
          map_quadrature_data_to_fields(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
-      }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
+      }, num_entities, thread_blocks, action_shmem_info.total_size,
+      reinterpret_cast<real_t*>(shmem_cache.ReadWrite()));
       output_restriction_transpose(residual_e, res);
    });
 
@@ -646,7 +653,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       {
          restriction<entity_t>(direction, dir_l, direction_e, element_dof_ordering);
          auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
-         auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, num_entities);
+         auto wrapped_fields_e = wrap_fields<num_fields>(f_e, shmem_info.field_sizes, num_entities);
          auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
 
          derivative_action_e = 0.0;
@@ -678,7 +685,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             map_quadrature_data_to_fields(
                y, fhat, output_fop, output_dtq_shmem[0],
                scratch_shmem, dimension, use_sum_factorization);
-         }, num_entities, thread_blocks, shmem_info.total_size, shmem_cache.ReadWrite());
+         }, num_entities, thread_blocks, shmem_info.total_size, reinterpret_cast<real_t*>(shmem_cache.ReadWrite()));
          output_restriction_transpose(derivative_action_e, der_action_l);
       });
    }, derivative_ids);
