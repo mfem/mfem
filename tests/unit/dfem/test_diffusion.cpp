@@ -11,12 +11,15 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include <utility>
 
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
-using namespace mfem::experimental;
-using mfem::internal::tensor;
+using namespace mfem::future;
+using mfem::future::tensor;
+using mfem::future::dual;
+
 using DOperator = DifferentiableOperator;
 
 namespace dfem_pa_kernels
@@ -200,6 +203,35 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
       dop_pa.Mult(X, Z);
+
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+      Y -= Z;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = Y.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
+   SECTION("DFEM Linearization", "[Parallel][DFEM]")
+   {
+      DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
+      typename Diffusion<dual<real_t, real_t>, DIM>::MFApply mf_apply_qf;
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                 tuple{ Gradient<U>{}, None<Rho>{},
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Gradient<U>{} }, *ir,
+                                 all_domain_attr, derivatives);
+      dop_mf.SetParameters({ &rho_coeff_cv, nodes });
+      auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
+
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      dop_mf.Mult(X, Z);
 
       blf_fa.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
