@@ -494,7 +494,19 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const real_t min_detT_in = ComputeMinDet(d_loc, *fes);
-   const bool untangling = (min_detT_in <= 0.0) ? true : false;
+   real_t min_det_bound_in = std::numeric_limits<real_t>::infinity();
+   if (det_bound)
+   {
+      ComputeMinDetBound(d_loc, *fes, min_det_bound_in);
+      if (print_options.iterations)
+      {
+         mfem::out << "Determinant bound input = " << min_det_bound_in << "\n";
+      }
+   }
+
+   const real_t min_detJ_untangle_limit = min_detJ_limit;
+   const bool untangling = (
+               (!det_bound && min_detT_in <= min_detJ_untangle_limit) || (det_bound && min_det_bound_in <= min_detJ_untangle_limit)) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
    {
@@ -502,10 +514,11 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // reference to detect deteriorations.
       MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
                   " intermediate mesh is invalid. Contact TMOP Developers.");
-      MFEM_VERIFY(min_detJ_limit == 0.0,
-                  "This setup is not supported. Contact TMOP Developers.");
+      // MFEM_VERIFY(min_detJ_limit == 0.0,
+                  // "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
+
 
    // Initial worst-quality. Note that x hasn't been modified by the Newton
    // update yet.
@@ -530,6 +543,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    real_t energy_out = 0.0, min_detT_out, max_muT_out;
    const real_t norm_in = Norm(r);
    real_t avg_fit_err, max_fit_err = 0.0;
+   real_t min_det_bound_out = std::numeric_limits<real_t>::infinity();
 
    const real_t detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
@@ -558,21 +572,38 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(d_loc, *fes);
-      if (untangling == false && min_detT_out <= min_detJ_limit)
+      if (det_bound)
+      {
+         ComputeMinDetBound(d_loc, *fes, min_det_bound_out);
+      }
+      if (untangling == false &&
+          ((!det_bound && min_detT_out <= min_detJ_limit) ||
+           (det_bound && min_det_bound_out <= min_detJ_limit)))
       {
          // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
          }
+         if (print_options.iterations && det_bound)
+         {
+            mfem::out << "Minimum determinant bound is= " << min_det_bound_out << "\n";
+         }
          scale *= detJ_factor; continue;
       }
-      if (untangling == true && min_detT_out < *min_det_ptr)
+      if (untangling == true &&
+          ((!det_bound && min_detT_out < *min_det_ptr) ||
+           (det_bound && min_det_bound_out < 1.1*min_det_bound_in)))
       {
          // Untangling, and detJ got even more negative -- no good.
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
+         }
+         if (print_options.iterations && det_bound)
+         {
+            mfem::out << "Determinant bound in and out= " <<
+                      min_det_bound_in << " " << min_det_bound_out << "\n";
          }
          scale *= detJ_factor; continue;
       }
@@ -661,14 +692,18 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    if (untangling)
    {
       // Update the global min detJ. Untangling metrics see this min_det_ptr.
-      if (min_detT_out > 0.0)
+      if ((!det_bound && min_detT_out > min_detJ_untangle_limit) ||
+          (det_bound && min_det_bound_out > min_detJ_untangle_limit))
       {
          *min_det_ptr = 0.0;
          if (print_options.summary || print_options.iterations ||
              print_options.first_and_last)
          { mfem::out << "The mesh has been untangled at the used points!\n"; }
       }
-      else { *min_det_ptr = untangle_factor * min_detT_out; }
+      else
+      {
+         *min_det_ptr = untangle_factor * min_detT_out;
+      }
    }
 
    if (print_options.summary || print_options.iterations ||
@@ -1017,7 +1052,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
    if (dim == 1 || mixed_mesh ||
-       UsesTensorBasis(fes) == false || fes.IsVariableOrder())
+       UsesTensorBasis(fes) == false || fes.IsVariableOrder() || true)
    {
       for (int i = 0; i < NE; i++)
       {
@@ -1134,6 +1169,19 @@ real_t TMOPNewtonSolver::ComputeMetricMax(const Vector &d_loc,
    return max_mu_T;
 }
 
+void TMOPNewtonSolver::ComputeMinDetBound(const Vector &d_loc,
+                                          const FiniteElementSpace &fes,
+                                          real_t &min_det_bound) const
+{
+   TMOP_Integrator *tmop_integ = nullptr;
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   MFEM_VERIFY(nlf->GetDNFI()->Size() == 1, "Works with exactly 1 metric.");
+   tmop_integ = dynamic_cast<TMOP_Integrator *>(*nlf->GetDNFI()[0]);
+   MFEM_VERIFY(tmop_integ, "Works only for TMOP_Integrator.");
+   real_t max_det_bound = 0.0;
+   tmop_integ->ComputeDeterminantBounds(d_loc, fes, min_det_bound, max_det_bound);
+}
+
 #ifdef MFEM_USE_MPI
 // Metric values are visualized by creating an L2 finite element functions and
 // computing the metric values at the nodes.
@@ -1157,7 +1205,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
    {
       sock << "window_title '"<< title << "'\n"
            << "window_geometry "
-           << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+           << position << " " << 0 << " " << 400 << " " << 400 << "\n"
            << "keys jRmclA\n";
    }
 }

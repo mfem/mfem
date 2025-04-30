@@ -1656,6 +1656,9 @@ public:
    virtual PLBound GetBounds(Vector &lower, Vector &upper,
                              const int ref_factor=1, const int vdim=-1);
 
+   virtual void GetBounds(Vector &lower, Vector &upper,
+                          PLBound &plb, const int vdim=-1);
+
    /// Computes the \ref PLBound for the gridfunction with number of control
    /// points based on @a ref_factor, and returns the bounds for each element
    /// ordered byVDim:

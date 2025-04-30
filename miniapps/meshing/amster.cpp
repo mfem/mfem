@@ -32,7 +32,7 @@
 //      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-wc -no-fit
 
 // Some new sample runs:
-// make amster -j4 && mpirun -np 10 amster -m jagged.mesh -o 2 -qo 8 -no-wc -vis -rs 0 -mid 66
+// make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -mid 66 -ni 1000 -no-wc -wcmid 66 -tid 1 -wctid 2
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -53,9 +53,53 @@ void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
                   double &min_det, double &min_muT, double &max_muT,
                   double &avg_muT, double &volume);
 void Untangle(ParGridFunction &x, double min_detA, int quad_order,
-              int metric_id);
-void WorstCaseOptimize(ParGridFunction &x, int quad_order);
+              int metric_id, int target_id, GridFunction::PLBound *plb,
+              ParGridFunction *detgf, int solver_iter);
+void WorstCaseOptimize(ParGridFunction &x, int quad_order,
+                       int metric_id, int target_id, GridFunction::PLBound *plb,
+                       ParGridFunction *detgf, int solver_iter,
+                       double &min_det);
 void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf);
+TargetConstructor *GetTargetConstructor(int target_id, ParGridFunction &x0)
+{
+   TargetConstructor *target_c = NULL;
+   TargetConstructor::TargetType target_t;
+   switch (target_id)
+   {
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      default:
+         MFEM_ABORT("Unknown target_id"); break;
+   }
+   if (target_c == NULL)
+   {
+      target_c = new TargetConstructor(target_t, x0.ParFESpace()->GetComm());
+   }
+   target_c->SetNodes(x0);
+   return target_c;
+}
+
+TMOP_QualityMetric *GetMetric(int metric_id)
+{
+   TMOP_QualityMetric *metric = NULL;
+   switch (metric_id)
+   {
+      case 1: metric = new TMOP_Metric_001; break;
+      case 2: metric = new TMOP_Metric_002; break;
+      case 4: metric = new TMOP_Metric_004; break;
+      case 14: metric = new TMOP_Metric_014; break;
+      case 50: metric = new TMOP_Metric_050; break;
+      case 55: metric = new TMOP_Metric_055; break;
+      case 58: metric = new TMOP_Metric_058; break;
+      case 66: metric = new TMOP_Metric_066(0.1); break;
+      case 80: metric = new TMOP_Metric_080(0.1); break;
+      case 360: metric = new TMOP_Metric_360; break;
+      default:
+         MFEM_ABORT("Unknown metric_id"); break;
+   }
+   return metric;
+}
 
 int main (int argc, char *argv[])
 {
@@ -82,6 +126,8 @@ int main (int argc, char *argv[])
    int metric_id         = 2;
    int target_id         = 1;
    bool vis              = false;
+   int wc_metric_id      = 4;
+   int wc_target_id         = 1;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -112,6 +158,10 @@ int main (int argc, char *argv[])
                   "Mesh optimization metric 1/2/3 in 2D:\n\t");
    args.AddOption(&vis, "-vis", "--vis", "-no-vis", "--no-vis",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&wc_metric_id, "-wcmid", "--wc-metric-id",
+                  "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
+   args.AddOption(&wc_target_id, "-wctid", "--target-id",
+                  "Mesh optimization metric 1/2/3 in 2D:\n\t");
    args.Parse();
    if (!args.Good())
    {
@@ -138,32 +188,20 @@ int main (int argc, char *argv[])
    pmesh->SetNodalGridFunction(&x);
 
    // Save the starting (prior to the optimization) mesh to a file.
-   ostringstream mesh_name;
-   mesh_name << "amster_in.mesh";
-   ofstream mesh_ofs(mesh_name.str().c_str());
-   mesh_ofs.precision(8);
-   pmesh->PrintAsOne(mesh_ofs);
+   {
+      ostringstream mesh_name;
+      mesh_name << "amster_in.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->PrintAsOne(mesh_ofs);
+   }
 
    // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(&pfes);
    x0 = x;
 
-
    // Metric.
-   TMOP_QualityMetric *metric = NULL;
-   if (dim == 2)
-   {
-      switch (metric_id)
-      {
-         case 1: metric = new TMOP_Metric_001; break;
-         case 2: metric = new TMOP_Metric_002; break;
-         case 50: metric = new TMOP_Metric_050; break;
-         case 58: metric = new TMOP_Metric_058; break;
-         case 66: metric = new TMOP_Metric_066(0.5); break;
-         case 80: metric = new TMOP_Metric_080(0.1); break;
-      }
-   }
-   else { metric = new TMOP_Metric_302; }
+   TMOP_QualityMetric *metric = GetMetric(metric_id);
 
    TargetConstructor::TargetType target_t;
    switch (target_id)
@@ -183,8 +221,10 @@ int main (int argc, char *argv[])
 
    Vector detgf_lower, detgf_upper;
    int ref_factor = 4;
-   GridFunction::PLBound plb = detgf.GetBounds(detgf_lower, detgf_upper,
-                                               ref_factor);
+   GridFunction::PLBound *plb = nullptr;
+   GridFunction::PLBound plbt = detgf.GetBounds(detgf_lower, detgf_upper,
+                                                ref_factor);
+   plb = &plbt;
 
    // Compute Mesh Stats
    double min_detA, min_muT, max_muT, avg_muT, volume;
@@ -194,47 +234,51 @@ int main (int argc, char *argv[])
    double min_muT0 = min_muT;
    double max_muT0 = max_muT;
    double avg_muT0 = avg_muT;
-   double volume0 = volume;
    double min_det_bound0 = detgf_lower.Min();
 
    // Visualize the starting mesh.
    if (vis)
    {
-      socketstream vis;
-      common::VisualizeMesh(vis, "localhost", 19916, *pmesh,
-                            "Initial mesh", 0, 0, 400, 400, "me");
+      char title[] = "Initial mesh";
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
    // If needed, untangle with fixed boundary.
-   if (min_detA < 0.0) { Untangle(x, min_detA, quad_order, metric_id); }
+   if (min_detA < 0.0)
+   {
+      Untangle(x, min_detA, quad_order, metric_id, target_id, plb, &detgf, solver_iter);
+   }
 
-   // If needed, perform worst-case optimization with fixed boundary.
-   // if (worst_case) { WorstCaseOptimize(x, quad_order); }
+   {
+      ostringstream mesh_name;
+      mesh_name << "amster_untangled_out.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->PrintAsOne(mesh_ofs);
+   }
 
-   // // Visualize the starting mesh and metric values.
-   // if (vis)
-   // {
-   //    char title[] = "After Untangl / WC";
-   //    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
-   // }
+   if (vis)
+   {
+      char title[] = "After Untangling";
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 400);
+   }
 
    // Average quality and worst-quality for the mesh.
    GetMeshStats(pmesh, x, metric, target_c, quad_order,
                 min_detA, min_muT, max_muT, avg_muT, volume);
 
    GetDeterminantJacobianGF(pmesh, &detgf);
-   plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+   *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
    double min_det_bound = detgf_lower.Min();
    if (myid == 0)
    {
-      cout << "\n*** Stats of original mesh and after Untangling / WC ***\n";
-      cout << "Minimum det(J) is " << min_detA0 << " " << min_detA << endl
-           << "Minimum det(J) bound is " << min_det_bound0 << " "
+      cout << "\n*** Stats of original mesh and untangled mesh\n";
+      cout << "Minimum det(J):       " << min_detA0 << " " << min_detA << endl
+           << "Minimum det(J) bound: " << min_det_bound0 << " "
            << min_det_bound << endl
-           << "Minimum muT is " << min_muT0 << " " << min_muT << endl
-           << "Maximum muT is " << max_muT0 << " " << max_muT << endl
-           << "Average muT is " << avg_muT0 << " " << avg_muT << endl
-           << "Volume is " << volume0 << " " << volume << endl;
+           << "Minimum muT:          " << min_muT0 << " " << min_muT << endl
+           << "Maximum muT:          " << max_muT0 << " " << max_muT << endl
+           << "Average muT:          " << avg_muT0 << " " << avg_muT << endl;
    }
 
    // Visualize the mesh displacement.
@@ -243,7 +287,50 @@ int main (int argc, char *argv[])
       socketstream vis;
       x0 -= x;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Displacements", 1200, 0, 400, 400, "jRmclA");
+                             "Displacements", 800, 0, 400, 400, "jRmclA");
+   }
+
+   // If needed, untangle with fixed boundary.
+   if (worst_case)
+   {
+      WorstCaseOptimize(x, quad_order, metric_id, wc_target_id, plb, &detgf, solver_iter, min_detA);
+   }
+
+   {
+      ostringstream mesh_name;
+      mesh_name << "amster_worst_case.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->PrintAsOne(mesh_ofs);
+   }
+
+   // Average quality and worst-quality for the mesh.
+   double min_detA2, min_muT2, max_muT2, avg_muT2, volume2;
+   GetMeshStats(pmesh, x, metric, target_c, quad_order,
+                min_detA2, min_muT2, max_muT2, avg_muT2, volume2);
+
+   GetDeterminantJacobianGF(pmesh, &detgf);
+   *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+   double min_det_bound2 = detgf_lower.Min();
+   if (myid == 0)
+   {
+      cout << "\n*** Stats of original mesh, untangled mesh, worstcase optimized\n";
+      cout << "Minimum det(J):       " << min_detA0 << " " << min_detA << " " << min_detA2 << endl
+           << "Minimum det(J) bound: " << min_det_bound0 << " "
+           << min_det_bound << " "
+           << min_det_bound2 << endl
+           << "Minimum muT:          " << min_muT0 << " " << min_muT <<  " " << min_muT2 << endl
+           << "Maximum muT:          " << max_muT0 << " " << max_muT << " " << max_muT2 <<  endl
+           << "Average muT:          " << avg_muT0 << " " << avg_muT << " " << avg_muT2 <<  endl;
+   }
+
+   // Visualize the mesh displacement.
+   if (vis)
+   {
+      socketstream vis;
+      x0 -= x;
+      common::VisualizeField(vis, "localhost", 19916, x0,
+                             "Displacements", 800, 500, 400, 400, "jRmclA");
    }
 
    delete target_c;
@@ -254,7 +341,8 @@ int main (int argc, char *argv[])
 }
 
 void Untangle(ParGridFunction &x, double min_detA, int quad_order,
-              int metric_id)
+              int metric_id, int target_id, GridFunction::PLBound *plb,
+              ParGridFunction *detgf, int solver_iter)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
@@ -270,30 +358,18 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
    // Metric / target / integrator.
    auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
    auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
-   TMOP_QualityMetric *metric = NULL;
-   if (dim == 2)
-   {
-      switch (metric_id)
-      {
-         case 1: metric = new TMOP_Metric_001; break;
-         case 2: metric = new TMOP_Metric_002; break;
-         case 50: metric = new TMOP_Metric_050; break;
-         case 58: metric = new TMOP_Metric_058; break;
-         case 66: metric = new TMOP_Metric_066(0.5); break;
-         case 80: metric = new TMOP_Metric_080(0.1); break;
-      }
-   }
-   else          { metric = new TMOP_Metric_360; }
+   TMOP_QualityMetric *metric = GetMetric(metric_id);
    TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.0,
-                                                   0.001, 0.001,
-                                                   btype, wctype);
-   TargetConstructor::TargetType target =
-      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   TargetConstructor target_c(target, pfes.GetComm());
-   auto tmop_integ = new TMOP_Integrator(&u_metric, &target_c, nullptr);
-   tmop_integ->EnableFiniteDifferences(x);
+                                                   1e-3, 0.001,
+                                                   btype, wctype, true);
+   TargetConstructor *target_c = GetTargetConstructor(target_id, x);
+   auto tmop_integ = new TMOP_Integrator(&u_metric, target_c, nullptr);
    tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
-
+   if (plb)
+   {
+      tmop_integ->SetPLBoundsForDeterminant(plb, detgf);
+   }
+   tmop_integ->ComputeUntangleMetricQuantiles(x, pfes);
 
    // Nonlinear form.
    ParNonlinearForm nlf(&pfes);
@@ -319,11 +395,15 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
    solver.SetOperator(nlf);
    solver.SetPreconditioner(minres);
    solver.SetMinDetPtr(&min_detT);
-   solver.SetMaxIter(200);
-   solver.SetRelTol(1e-8);
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(1e-12);
    solver.SetAbsTol(0.0);
+   solver.SetMinimumDeterminantThreshold(0.01);
+   if (plb) { solver.SetDeterminantBound(true); }
    IterativeSolver::PrintLevel newton_pl;
    solver.SetPrintLevel(newton_pl.Iterations().Summary());
+
+   const real_t init_energy = nlf.GetParGridFunctionEnergy(x);
 
    // Optimize.
    x.SetTrueVector();
@@ -331,12 +411,24 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
+   const real_t final_energy = nlf.GetParGridFunctionEnergy(x);
+   if (pfes.GetMyRank() == 0)
+   {
+      cout << "Initial energy: " << init_energy << endl
+           << "Final energy:   " << final_energy << endl;
+   }
+
+   delete target_c;
    delete metric;
 
    return;
 }
 
-void WorstCaseOptimize(ParGridFunction &x, int quad_order)
+void WorstCaseOptimize(ParGridFunction &x, int quad_order,
+                        int metric_id, int target_id,
+                        GridFunction::PLBound *plb,
+                        ParGridFunction *detgf, int solver_iter,
+                        double &min_det)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
@@ -346,18 +438,15 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
    // Metric / target / integrator.
    auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::None;
    auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
-   TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) { metric = new TMOP_Metric_002; }
-   else          { metric = new TMOP_Metric_304; }
+   TMOP_QualityMetric *metric = GetMetric(metric_id);
    TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.5,
                                                    0.001, 0.001,
                                                    btype, wctype);
-   TargetConstructor::TargetType target =
-      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   TargetConstructor target_c(target, pfes.GetComm());
-   auto tmop_integ = new TMOP_Integrator(&u_metric, &target_c, nullptr);
-   tmop_integ->EnableFiniteDifferences(x);
+   TargetConstructor *target_c = GetTargetConstructor(target_id, x);
+   auto tmop_integ = new TMOP_Integrator(&u_metric, target_c, nullptr);
    tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
+   if (plb) { tmop_integ->SetPLBoundsForDeterminant(plb, detgf); }
+   tmop_integ->ComputeUntangleMetricQuantiles(x, pfes);
 
    // Nonlinear form.
    ParNonlinearForm nlf(&pfes);
@@ -383,11 +472,15 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
    solver.SetOperator(nlf);
    solver.EnableWorstCaseOptimization();
    solver.SetPreconditioner(minres);
+   solver.SetMinDetPtr(&min_det);
    solver.SetMaxIter(1000);
    solver.SetRelTol(1e-8);
    solver.SetAbsTol(0.0);
+   if (plb) { solver.SetDeterminantBound(true); }
    IterativeSolver::PrintLevel newton_pl;
    solver.SetPrintLevel(newton_pl.Iterations().Summary());
+
+   const real_t init_energy = nlf.GetParGridFunctionEnergy(x);
 
    // Optimize.
    x.SetTrueVector();
@@ -395,6 +488,14 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
+   const real_t final_energy = nlf.GetParGridFunctionEnergy(x);
+   if (pfes.GetMyRank() == 0)
+   {
+      cout << "Initial energy: " << init_energy << endl
+           << "Final energy:   " << final_energy << endl;
+   }
+
+   delete target_c;
    delete metric;
 
    return;

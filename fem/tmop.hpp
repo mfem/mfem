@@ -15,6 +15,11 @@
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
 #include "../linalg/dual.hpp"
+#ifdef MFEM_USE_MPI
+#include "pgridfunc.hpp"
+#else
+#include "gridfunc.hpp"
+#endif
 
 namespace mfem
 {
@@ -135,6 +140,12 @@ public:
 
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
    void EvalPW(const DenseMatrix &Jpt, DenseMatrix &P) const override;
@@ -204,6 +215,7 @@ protected:
    real_t muT_ep;                   // small constant added to muT term
    BarrierType btype;
    WorstCaseType wctype;
+   bool bound = false;
 
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
@@ -213,10 +225,12 @@ public:
                                           real_t detT_ep_ = 0.0001,
                                           real_t muT_ep_ = 0.0001,
                                           BarrierType btype_ = BarrierType::None,
-                                          WorstCaseType wctype_ = WorstCaseType::None) :
+                                          WorstCaseType wctype_ = WorstCaseType::None,
+                                          bool bound_ = false) :
       min_detT(min_det), max_muT(max_mu),
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
-      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
+      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_),
+      bound(bound_)
    {
       if (btype != BarrierType::None)
       {
@@ -447,6 +461,10 @@ class TMOP_Metric_014 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J - I|^2.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
@@ -458,6 +476,20 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override
+   {
+      return EvalW_AD_impl<AD1Type>(T, W);
+   }
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override
+   {
+      return EvalW_AD_impl<AD2Type>(T, W);
+   }
+
+   int Id() const override { return 14; }
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -506,6 +538,10 @@ class TMOP_Metric_055 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = (det(J) - 1)^2.
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -515,6 +551,19 @@ public:
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
 
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override
+   {
+      return EvalW_AD_impl<AD1Type>(T, W);
+   }
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override
+   {
+      return EvalW_AD_impl<AD2Type>(T, W);
+   }
+
+   int Id() const override { return 66; }
 };
 
 /// 2D barrier size (V) metric (polyconvex).
@@ -1692,10 +1741,6 @@ public:
                                       DenseTensor &dJtr) const override;
 };
 
-#ifdef MFEM_USE_MPI
-class ParGridFunction;
-#endif
-
 class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
@@ -1984,6 +2029,8 @@ protected:
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
+   GridFunction::PLBound *plb = nullptr;
+   GridFunction *detgf = nullptr;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
@@ -2463,6 +2510,19 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
+
+   void SetPLBoundsForDeterminant(GridFunction::PLBound *plb_,
+                                  GridFunction *detgf_)
+   { plb = plb_; detgf = detgf_; };
+#ifdef MFEM_USE_MPI
+   void SetPLBoundsForDeterminant(GridFunction::PLBound *plb_,
+                                  ParGridFunction *detgf_)
+   { plb = plb_; detgf = detgf_; };
+#endif
+   void UpdateDeterminantGF(const Vector &x_loc, const FiniteElementSpace &fes);
+   void ComputeDeterminantBounds(const Vector &d,
+                                 const FiniteElementSpace &fes,
+                                 real_t &lower, real_t &upper);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

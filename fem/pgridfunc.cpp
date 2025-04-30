@@ -1446,6 +1446,18 @@ ParGridFunction::PLBound ParGridFunction::GetBounds(Vector &lower,
    return plb;
 }
 
+void ParGridFunction::GetBounds(Vector &lower,
+                                Vector &upper,
+                                PLBound &plb, const int vdim)
+{
+   GridFunction::GetBounds(lower, upper, plb, vdim);
+   int siz = vdim > 0 ? 1 : fes->GetVDim();
+   MPI_Allreduce(MPI_IN_PLACE, lower.GetData(), siz,
+                 MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, upper.GetData(), siz,
+                 MPITypeMap<real_t>::mpi_type, MPI_MAX, pfes->GetComm());
+}
+
 } // namespace mfem
 
 #endif // MFEM_USE_MPI

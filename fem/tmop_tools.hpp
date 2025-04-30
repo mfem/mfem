@@ -192,6 +192,7 @@ protected:
    mutable int surf_fit_adapt_count_limit = 10;
    mutable real_t surf_fit_weight_limit = 1e10;
    bool surf_fit_converge_error = false;
+   bool det_bound = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    real_t *min_det_ptr = nullptr;
@@ -215,6 +216,10 @@ protected:
    double ComputeMetricMax(const Vector &d_loc, const FiniteElementSpace &fes,
                            TMOP_QualityMetric &mu, const TargetConstructor &target,
                            IntegrationRules &irules, int irule_order) const;
+
+   void ComputeMinDetBound(const Vector &d_loc,
+                           const FiniteElementSpace &fes,
+                           real_t &min_det_bound) const;
 
    real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
    real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
@@ -389,6 +394,8 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
+
+   void SetDeterminantBound(bool bound) { det_bound = bound; }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

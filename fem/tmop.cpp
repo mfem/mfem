@@ -149,6 +149,27 @@ type mu4_ad(const std::vector<type> &T, const std::vector<type> &W)
    return fnorm2 - 2*det;
 };
 
+// W = ||T-I||^2.
+template <typename type>
+type mu14_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   DenseMatrix Id(2,2); Id = 0.0;
+   Id(0,0) = 1; Id(1,1) = 1;
+
+   std::vector<type> Mat;
+   add_2D(real_t{-1.0}, T, &Id, Mat);
+
+   return fnorm2_2D(Mat);
+};
+
+// W = (det(T)-1)^2.
+template <typename type>
+type mu55_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto det = det_2D(T);
+   return pow(det-1.0, 2.0);
+};
+
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
 template <typename type>
 type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -541,6 +562,30 @@ real_t TMOP_Combo_QualityMetric::EvalW(const DenseMatrix &Jpt) const
    return metric;
 }
 
+AD1Type TMOP_Combo_QualityMetric::EvalW_AD1(const std::vector<AD1Type> &T,
+                                            const std::vector<AD1Type> &W)
+const
+{
+   AD1Type metric = {0., 0.};
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW_AD1(T, W);
+   }
+   return metric;
+}
+
+AD2Type TMOP_Combo_QualityMetric::EvalW_AD2(const std::vector<AD2Type> &T,
+                                            const std::vector<AD2Type> &W)
+const
+{
+   AD2Type metric = {{0., 0.},{0., 0.}};
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW_AD2(T, W);
+   }
+   return metric;
+}
+
 void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
                                      DenseMatrix &P) const
 {
@@ -701,7 +746,14 @@ real_t TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
    real_t denominator = 1.0;
    if (btype == BarrierType::Shifted)
    {
-      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (real_t) 0.0));
+      if (bound)
+      {
+         denominator = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, (real_t) 0.0));
+      }
+      else
+      {
+         denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (real_t) 0.0));
+      }
    }
    else if (btype == BarrierType::Pseudo)
    {
@@ -735,12 +787,13 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
    {
       return EvalW_AD1(T,W);
    };
-   if (tmop_metric.Id() == 4)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
+      tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
    {
       ADGrad(mu_ad_fn, P, Jpt);
       return;
    }
-   MFEM_ABORT("EvalP not implemented with this metric for "
+   MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
               " TMOP_WorstCaseUntangleOptimizer_Metric. Please use"
               "metric 4 instead.");
 }
@@ -758,13 +811,14 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
    {
       return EvalW_AD2(T,W);
    };
-   if (tmop_metric.Id() == 4)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
+      tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
    {
       ADHessian(mu_ad_fn, H, Jpt);
       this->DefaultAssembleH(H,DS,weight,A);
       return;
    }
-   MFEM_ABORT("EvalP not implemented with this metric for "
+   MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
               " TMOP_WorstCaseUntangleOptimizer_Metric. Please use"
               "metric 4 instead.");
 }
@@ -1054,6 +1108,13 @@ void TMOP_Metric_009::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight, A.GetData());
 }
 
+template <typename type>
+type TMOP_Metric_014::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu14_ad(T, W);
+}
+
 real_t TMOP_Metric_014::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    // mu_14 = |J - I|^2.
@@ -1229,6 +1290,13 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(2*weight, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_055::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu55_ad(T, W);
 }
 
 real_t TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -5769,6 +5837,12 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
       }
 #endif
       wcu_metric->SetMinDetT(min_detT);
+      if (plb)
+      {
+         real_t lower, upper;
+         ComputeDeterminantBounds(d, fes, lower, upper);
+         wcu_metric->SetMinDetT(lower);
+      }
    }
 
    real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
@@ -5780,6 +5854,103 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    }
 #endif
    wcu_metric->SetMaxMuT(max_muT);
+}
+
+void TMOP_Integrator::ComputeDeterminantBounds(const Vector &d,
+                                               const FiniteElementSpace &fes,
+                                               real_t &lower, real_t &upper)
+{
+   if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+   Vector x_loc(d.Size());
+   if (x_0)
+   {
+      add(*x_0, d, x_loc);
+   }
+   else { x_loc = d; }
+
+   UpdateDeterminantGF(x_loc, fes);
+
+   Vector lowerV, upperV;
+   detgf->GetBounds(lowerV, upperV, *plb, -1);
+   lower = lowerV.Min();
+   upper = upperV.Max();
+}
+
+IntegrationRule PermuteIR(const IntegrationRule &irule,
+                          const Array<int> ordering)
+{
+   const int np = irule.GetNPoints();
+   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(irule.GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = irule.IntPoint(ordering[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
+
+void TMOP_Integrator::UpdateDeterminantGF(const Vector &x_loc,
+                                          const FiniteElementSpace &fes)
+{
+   MFEM_VERIFY(detgf, "No TMOP_DetGF was added.");
+   Mesh *mesh = fes.GetMesh();
+   int dim = mesh->Dimension();
+   FiniteElementSpace *fespace = detgf->FESpace();
+   Array<int> dofs;
+   DenseMatrix DSh, PMatI;
+   Array<int> xdofs;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      const int dof = fe->GetDof(), dim = fe->GetDim();
+      DenseMatrix Jac(dim);
+      DSh.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMatI.UseExternalData(posV.GetData(), dof, dim);
+
+      const FiniteElement *fe2 = fespace->GetFE(e);
+      const IntegrationRule ir = fe2->GetNodes();
+
+      fes.GetElementVDofs(e, xdofs);
+      x_loc.GetSubVector(xdofs, posV);
+
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                      (fe2);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir2 = irordering.Size() ?
+                            PermuteIR(ir,irordering) :
+                            ir;
+
+      Vector detvals(ir2.GetNPoints());
+      Vector loc(dim);
+      for (int q = 0; q < ir2.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir2.IntPoint(q);
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jac);
+         detvals(q) = Jac.Det();
+      }
+
+      fespace->GetElementDofs(e, dofs);
+      if (irordering.Size())
+      {
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            (*detgf)(dofs[i]) = detvals(irordering[i]);
+         }
+      }
+      else
+      {
+         detgf->SetSubVector(dofs, detvals);
+      }
+   }
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,

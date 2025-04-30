@@ -585,6 +585,10 @@ public:
    PLBound GetBounds(Vector &lower, Vector &upper,
                      const int ref_factor=1, const int vdim=-1) override;
 
+   virtual void GetBounds(Vector &lower, Vector &upper,
+                          PLBound &plb, const int vdim=-1) override;
+
+
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
