@@ -51,7 +51,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress(const tensor<T, dim, dim> &dudx) const
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
@@ -89,7 +89,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<mfem::real_t, dim, dim, dim, dim>
    gradient(tensor<mfem::real_t, dim, dim> dudx) const
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
 
       tensor<mfem::real_t, dim, dim> F = I + dudx;
       tensor<mfem::real_t, dim, dim> invF = inv(F);
@@ -210,7 +210,7 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<mfem::real_t, dim, dim> &du_dx,
                                const tensor<mfem::real_t, dim, dim> &ddu_dx) const
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
 
       tensor<mfem::real_t, dim, dim> F = I + du_dx;
       tensor<mfem::real_t, dim, dim> invFT = inv(transpose(F));
