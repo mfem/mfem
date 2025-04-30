@@ -45,3 +45,15 @@ if (MFEM_USE_MPI)
    add_mfem_miniapp(nodal-transfer
      MAIN nodal-transfer.cpp LIBRARIES mfem)
 endif()
+
+if(MFEM_ENABLE_LIBBACKTRACE AND CMAKE_CXX_STANDARD GREATER_EQUAL 17)
+   find_package(LIBBACKTRACE REQUIRED)
+   
+   add_library(mprotect_trace SHARED mprotect_trace.cpp)
+   # remove the preceding "lib"
+   set_target_properties(mprotect_trace PROPERTIES PREFIX "")
+   target_link_libraries(mprotect_trace PRIVATE
+      LIBBACKTRACE::LIBBACKTRACE
+   )
+
+endif()
