@@ -12,7 +12,7 @@
 
 #include "../fe/fe_base.hpp"
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 class ParametricSpace
@@ -42,7 +42,7 @@ public:
       total_size(local_size),
       identity(local_size)
    {
-      dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
+      dtq.ndof = (int)floor(std::pow(element_size, 1.0/spatial_dim) + 0.5);
       dtq.nqpt = dtq.ndof;
    }
 
@@ -123,4 +123,4 @@ public:
 
 };
 
-} // namespace mfem::experimental
+} // namespace mfem::future

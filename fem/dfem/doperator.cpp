@@ -14,7 +14,7 @@
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
-using namespace mfem::experimental;
+using namespace mfem::future;
 
 void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
 {

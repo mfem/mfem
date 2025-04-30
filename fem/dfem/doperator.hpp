@@ -19,11 +19,11 @@
 
 #include "util.hpp"
 #include "interpolate.hpp"
-#include "qf_derivative_dual.hpp"
 #include "qf_derivative_enzyme.hpp"
+#include "qf_derivative_dual.hpp"
 #include "integrate.hpp"
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 using action_t =
@@ -394,13 +394,14 @@ void DifferentiableOperator::AddDomainIntegrator(
    // Consistency checks
    if constexpr (num_outputs > 1)
    {
-      static_assert(always_false<qfunc_t>,
+      static_assert(dfem::always_false<qfunc_t>,
                     "more than one output per quadrature functions is not supported right now");
    }
 
    if constexpr (std::is_same_v<qf_output_t, void>)
    {
-      static_assert(always_false<qfunc_t>, "quadrature function has no return value");
+      static_assert(dfem::always_false<qfunc_t>,
+                    "quadrature function has no return value");
    }
 
    constexpr size_t num_qfinputs = tuple_size<qf_param_ts>::value;
@@ -524,7 +525,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                           integration_rule,
                           doftoquad_mode));
    }
-   const int q1d = (int)floor(pow(num_qp, 1.0/dimension) + 0.5);
+   const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
@@ -683,5 +684,5 @@ void DifferentiableOperator::AddDomainIntegrator(
    }, derivative_ids);
 }
 
-} // namespace mfem::experimental
+} // namespace mfem::future
 #endif

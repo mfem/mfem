@@ -12,7 +12,7 @@
 
 #include "util.hpp"
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 template <typename field_operator_t>
@@ -178,7 +178,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
    {
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
-      const int q1d = (int)floor(pow(num_qp, 1.0/input.dim) + 0.5);
+      const int q1d = (int)floor(std::pow(num_qp, 1.0/input.dim) + 0.5);
       auto w = Reshape(&integration_weights[0], q1d, q1d, q1d);
       auto f = Reshape(&field_qp[0], q1d, q1d, q1d);
       MFEM_FOREACH_THREAD(qx, x, q1d)
@@ -201,7 +201,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
    }
    else
    {
-      static_assert(always_false<std::decay_t<field_operator_t>>,
+      static_assert(dfem::always_false<std::decay_t<field_operator_t>>,
                     "can't map field to quadrature data");
    }
 }
@@ -313,7 +313,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
    {
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
-      const int q1d = (int)floor(pow(num_qp, 1.0/input.dim) + 0.5);
+      const int q1d = (int)floor(std::pow(num_qp, 1.0/input.dim) + 0.5);
       auto w = Reshape(&integration_weights[0], q1d, q1d);
       auto f = Reshape(&field_qp[0], q1d, q1d);
       MFEM_FOREACH_THREAD(qx, x, q1d)
@@ -333,7 +333,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
    }
    else
    {
-      static_assert(always_false<std::decay_t<field_operator_t>>,
+      static_assert(dfem::always_false<std::decay_t<field_operator_t>>,
                     "can't map field to quadrature data");
    }
 }
@@ -413,7 +413,7 @@ void map_field_to_quadrature_data(
    }
    else
    {
-      static_assert(always_false<field_operator_t>,
+      static_assert(dfem::always_false<field_operator_t>,
                     "can't map field to quadrature data");
 
    }

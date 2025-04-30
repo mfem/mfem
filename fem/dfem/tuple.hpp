@@ -15,7 +15,7 @@
 #include "../../general/backends.hpp"
 #include <utility>
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 /**
@@ -850,4 +850,4 @@ struct is_tuple_of_tuples<tuple<T...>>
                                   ...);  ///< true/false result of type check
 };
 
-}  // namespace mfem::experimental
+}  // namespace mfem::future

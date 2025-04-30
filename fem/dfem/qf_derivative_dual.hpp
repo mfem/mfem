@@ -13,14 +13,14 @@
 #include "util.hpp"
 #include "../../linalg/tensor.hpp"
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 MFEM_HOST_DEVICE
 template <typename T0, typename T1, typename T2>
 void process_kf_arg(const T0 &, const T1 &, T2 &)
 {
-   static_assert(always_false<T0, T1, T2>,
+   static_assert(dfem::always_false<T0, T1, T2>,
                  "process_kf_arg not implemented for arg type");
 }
 
@@ -38,7 +38,7 @@ template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::tensor<internal::dual<T, T>, n, m> &arg)
+   tensor<dual<T, T>, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -53,7 +53,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::dual<T, T> &arg)
+   dual<T, T> &arg)
 {
    arg.value = u(0);
 }
@@ -63,7 +63,7 @@ MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
-   internal::dual<T, T> &arg)
+   dual<T, T> &arg)
 {
    arg.value = u(0);
    arg.gradient = v(0);
@@ -74,7 +74,7 @@ MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
-   internal::tensor<internal::dual<T, T>, n> &arg)
+   tensor<dual<T, T>, n> &arg)
 {
    for (int i = 0; i < n; i++)
    {
@@ -88,7 +88,7 @@ MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
-   internal::tensor<internal::dual<T, T>, n, m> &arg)
+   tensor<dual<T, T>, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -104,7 +104,7 @@ template <typename T, int n>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
    DeviceTensor<1, T> &r,
-   const internal::tensor<internal::dual<T, T>, n> &x)
+   const tensor<dual<T, T>, n> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -116,7 +116,7 @@ template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
    DeviceTensor<1, T> &r,
-   const internal::tensor<internal::dual<T, T>, n, m> &x)
+   const tensor<dual<T, T>, n, m> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -140,23 +140,25 @@ void process_kf_arg(
    process_kf_arg(u_qp, v_qp, arg);
 }
 
-template <size_t num_args, typename kf_args, std::size_t... Is>
+template <size_t num_fields, typename kf_args>
 MFEM_HOST_DEVICE inline
 void process_kf_args(
-   const std::array<DeviceTensor<2>, num_args> &u,
-   const std::array<DeviceTensor<2>, num_args> &v,
+   const std::array<DeviceTensor<2>, num_fields> &u,
+   const std::array<DeviceTensor<2>, num_fields> &v,
    kf_args &args,
-   const int &qp,
-   std::index_sequence<Is...>)
+   const int &qp)
 {
-   (process_kf_arg(u[Is], v[Is], get<Is>(args), qp), ...);
+   for_constexpr<tuple_size<kf_args>::value>([&](auto i)
+   {
+      process_kf_arg(u[i], v[i], get<i>(args), qp);
+   });
 }
 
 template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_derivative_from_native_dual(
    DeviceTensor<1, T> &r,
-   const internal::tensor<internal::dual<T, T>, n, m> &x)
+   const tensor<dual<T, T>, n, m> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -171,7 +173,7 @@ template <typename T, int n>
 MFEM_HOST_DEVICE inline
 void process_derivative_from_native_dual(
    DeviceTensor<1, T> &r,
-   const internal::tensor<internal::dual<T, T>, n> &x)
+   const tensor<dual<T, T>, n> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -179,20 +181,19 @@ void process_derivative_from_native_dual(
    }
 }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+template <typename qfunc_t, typename arg_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel_native_dual(
    DeviceTensor<1, real_t> &f_qp,
-   const kf_t &kf,
-   kernel_arg_ts &args,
+   const qfunc_t &qfunc,
+   arg_ts &args,
    const std::array<DeviceTensor<2>, num_args> &u,
    const std::array<DeviceTensor<2>, num_args> &v,
    const int &qp_idx)
 {
-   process_kf_args(u, v, args, qp_idx,
-                   std::make_index_sequence<tuple_size<kernel_arg_ts>::value> {});
-   auto r = get<0>(apply(kf, args));
+   process_kf_args(u, v, args, qp_idx);
+   auto r = get<0>(apply(qfunc, args));
    process_derivative_from_native_dual(f_qp, r);
 }
 
-} // namespace mfem::experimental
+} // namespace mfem::future

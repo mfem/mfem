@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 template <int FIELD_ID = -1>
@@ -136,4 +136,4 @@ struct is_one_fop<One<FIELD_ID>>
    static const bool value = true;
 };
 
-} // namespace mfem::experimental
+} // namespace mfem::future

@@ -15,8 +15,7 @@
  * @brief Implementation of the tensor class
  */
 
-#ifndef MFEM_INTERNAL_TENSOR_HPP
-#define MFEM_INTERNAL_TENSOR_HPP
+#pragma once
 
 #include "../general/backends.hpp"
 #include "dual.hpp"
@@ -25,7 +24,7 @@
 
 namespace mfem
 {
-namespace internal
+namespace future
 {
 
 #if defined(__CUDACC__)
@@ -2249,8 +2248,5 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
    return I.c1 * tr(A) * Identity<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
 }
 
-} // namespace internal
-
+} // namespace future
 } // namespace mfem
-
-#endif

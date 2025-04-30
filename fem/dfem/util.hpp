@@ -32,7 +32,7 @@
 #include "parametricspace.hpp"
 #include "tuple.hpp"
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 template<typename... Ts>
@@ -487,7 +487,10 @@ struct FieldDescriptor
        const ParametricSpace *> data;
 };
 
+namespace dfem
+{
 template <class... T> constexpr bool always_false = false;
+}
 
 struct GeometricFactorMaps
 {
@@ -685,7 +688,7 @@ int GetVSize(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetVSize on type");
+         static_assert(dfem::always_false<T>, "can't use GetVSize on type");
       }
    }, f.data);
 }
@@ -715,7 +718,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetElementVdofs on type");
+         static_assert(dfem::always_false<T>, "can't use GetElementVdofs on type");
       }
    }, f.data);
 }
@@ -745,7 +748,7 @@ int GetTrueVSize(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetTrueVSize on type");
+         static_assert(dfem::always_false<T>, "can't use GetTrueVSize on type");
       }
    }, f.data);
 }
@@ -770,7 +773,7 @@ int GetVDim(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetVDim on type");
+         static_assert(dfem::always_false<T>, "can't use GetVDim on type");
       }
    }, f.data);
 }
@@ -799,7 +802,7 @@ int GetDimension(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetDimension on type");
+         static_assert(dfem::always_false<T>, "can't use GetDimension on type");
       }
    }, f.data);
 }
@@ -821,7 +824,7 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetProlongation on type");
+         static_assert(dfem::always_false<T>, "can't use GetProlongation on type");
       }
    }, f.data);
 }
@@ -844,7 +847,7 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetElementRestriction on type");
+         static_assert(dfem::always_false<T>, "can't use GetElementRestriction on type");
       }
    }, f.data);
 }
@@ -870,7 +873,7 @@ const Operator *get_face_restriction(
       }
       else
       {
-         static_assert(always_false<T>, "can't use get_face_restriction on type");
+         static_assert(dfem::always_false<T>, "can't use get_face_restriction on type");
       }
    }, f.data);
 }
@@ -1061,7 +1064,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
    }
    else
    {
-      static_assert(always_false<entity_t>, "can't use GetNumEntites on type");
+      static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
    }
 }
 
@@ -1092,7 +1095,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetDofToQuad on type");
+         static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
       }
    }, f.data);
 }
@@ -1117,7 +1120,7 @@ void CheckCompatibility(const FieldDescriptor &f)
          }
          else
          {
-            static_assert(always_false<T, field_operator_t>,
+            static_assert(dfem::always_false<T, field_operator_t>,
                           "FieldOperator not compatible with FiniteElementSpace");
          }
       }
@@ -1129,13 +1132,13 @@ void CheckCompatibility(const FieldDescriptor &f)
          }
          else
          {
-            static_assert(always_false<T, field_operator_t>,
+            static_assert(dfem::always_false<T, field_operator_t>,
                           "FieldOperator not compatible with ParametricSpace");
          }
       }
       else
       {
-         static_assert(always_false<T, field_operator_t>,
+         static_assert(dfem::always_false<T, field_operator_t>,
                        "Operator not compatible with FE");
       }
    }, f.data);
@@ -1995,7 +1998,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       else
       {
-         static_assert(always_false<decltype(fop)>,
+         static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
       }
    };
@@ -2023,7 +2026,8 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
 template <
    typename qf_param_ts,
    typename qfunc_t,
-   std::size_t num_fields> MFEM_HOST_DEVICE inline
+   std::size_t num_fields>
+MFEM_HOST_DEVICE inline
 void call_qfunction(
    qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,

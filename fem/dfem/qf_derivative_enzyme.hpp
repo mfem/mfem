@@ -13,7 +13,7 @@
 #include "util.hpp"
 #include "../../linalg/tensor.hpp"
 
-namespace mfem::experimental
+namespace mfem::future
 {
 
 template <typename func_t, typename... arg_ts>
@@ -27,7 +27,7 @@ template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(const T0 &, T1 &)
 {
-   static_assert(always_false<T0, T1>,
+   static_assert(dfem::always_false<T0, T1>,
                  "process_kf_arg not implemented for arg type");
 }
 
@@ -44,7 +44,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1, T> &u,
-   internal::tensor<T> &arg)
+   tensor<T> &arg)
 {
    arg(0) = u(0);
 }
@@ -53,7 +53,7 @@ template <typename T, int n>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::tensor<T, n> &arg)
+   tensor<T, n> &arg)
 {
    for (int i = 0; i < n; i++)
    {
@@ -65,7 +65,7 @@ template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::tensor<T, n, m> &arg)
+   tensor<T, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -101,7 +101,7 @@ template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
 Vector process_kf_result(T0, T1)
 {
-   static_assert(always_false<T0, T1>,
+   static_assert(dfem::always_false<T0, T1>,
                  "process_kf_result not implemented for result type");
    return Vector{};
 }
@@ -119,7 +119,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
    DeviceTensor<1, T> &r,
-   const internal::tensor<T> &x)
+   const tensor<T> &x)
 {
    r(0) = x(0);
 }
@@ -128,7 +128,7 @@ template <typename T, int n>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
    DeviceTensor<1, T> &r,
-   const internal::tensor<T, n> &x)
+   const tensor<T, n> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -140,7 +140,7 @@ template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_result(
    DeviceTensor<1, T> &r,
-   const internal::tensor<T, n, m> &x)
+   const tensor<T, n, m> &x)
 {
    for (size_t i = 0; i < n; i++)
    {
@@ -166,7 +166,7 @@ MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
-   internal::tensor<real_t, n, m> &arg)
+   tensor<real_t, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -265,4 +265,4 @@ void apply_kernel_fwddiff_enzyme(
 }
 #endif // MFEM_USE_ENZYME
 
-} // namespace mfem::experimental
+} // namespace mfem::future
