@@ -591,20 +591,74 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    Array<int> i_args;
    FindMaxima(i_args, xi_args, u_args);
 
-   // Assemble collocation matrix
-   Vector shape(order+1);
+   // Assemble collocation matrix (banded with order + 1 nonzeros per row).
+#ifdef MFEM_USE_LAPACK
+   // If using LAPACK, we use banded matrix storage.
+   // Find banded structure of matrix
+   int KL = 0; // Number of subdiagonals
+   int KU = 0; // Number of superdiagonals
+   for (int i = 0; i < ncp; i++)
+   {
+      for (int p = 0; p < order+1; p++)
+      {
+         const int col = i_args[i] + p;
+         if (col < i)
+         {
+            KL = std::max(KL, i - col);
+         }
+         else if (i < col)
+         {
+            KU = std::max(KU, col - i);
+         }
+      }
+   }
+
+   const int LDAB = (2*KL) + KU + 1;
+   const int N = ncp;
+   DenseMatrix AB(LDAB, N);
+#else
+   // Without LAPACK, we store and invert a DenseMatrix (inefficient).
    DenseMatrix A(ncp,ncp);
    A = 0.0;
+#endif
+
+   Vector shape(order+1);
+   Array<int> rowMin(ncp);
+   Array<int> rowMax(ncp);
+   Array<int> bw(ncp);
+   rowMin = ncp;
+   rowMax = 0;
+
+
    for (int i = 0; i < ncp; i++)
    {
       CalcShape(shape, i_args[i], xi_args[i]);
       for (int p = 0; p < order+1; p++)
       {
-         A(i,i_args[i] + p) = shape[p];
+         const int j = i_args[i] + p;
+#ifdef MFEM_USE_LAPACK
+         AB(KL+KU+i-j,j) = shape[p];
+#else
+         A(i,j) = shape[p];
+#endif
       }
    }
 
-   // Solve problems
+#ifdef MFEM_USE_LAPACK
+   int NRHS = x.Size();
+   DenseMatrix B(N, NRHS);
+   for (int j=0; j<NRHS; ++j)
+   {
+      for (int i=0; i<N; ++i) { B(i, j) = (*x[j])[i]; }
+   }
+
+   BandedSolve(KL, KU, AB, B);
+
+   for (int j=0; j<NRHS; ++j)
+   {
+      for (int i=0; i<N; ++i) { (*x[j])[i] = B(i, j); }
+   }
+#else
    A.Invert();
    Vector tmp;
    for (int i = 0; i < x.Size(); i++)
@@ -612,6 +666,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
       tmp = *x[i];
       A.Mult(tmp,*x[i]);
    }
+#endif
 }
 
 int KnotVector::findKnotSpan(real_t u) const
