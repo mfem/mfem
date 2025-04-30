@@ -145,7 +145,7 @@ public:
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
        curve are returned in @a x in the same form. */
-   void FindInterpolant(Array<Vector*> &x);
+   void FindInterpolant(Array<Vector*> &x, bool reuse_inverse = false);
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -203,6 +203,14 @@ public:
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
    bool coarse;
+
+#ifdef MFEM_USE_LAPACK
+   // Data for reusing banded matrix factorization in FindInterpolant().
+   DenseMatrix fact_AB; /// Banded matrix factorization
+   Array<int> fact_ipiv; /// Row pivot indices
+#else
+   DenseMatrix A_coll_inv; /// Collocation matrix inverse
+#endif
 };
 
 

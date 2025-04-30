@@ -423,7 +423,8 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*x[2])[i] = -1.0 + z + s_ij;
          }
 
-         kv[0].FindInterpolant(x);
+         const bool reuse_factorization = j > 0;
+         kv[0].FindInterpolant(x, reuse_factorization);
 
          for (int i = 0; i < ncp[0]; i++)
          {
@@ -447,7 +448,8 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*x[2])[j] = (*patch)(i,j,k,2);
          }
 
-         kv[1].FindInterpolant(x);
+         const bool reuse_factorization = i > 0;
+         kv[1].FindInterpolant(x, reuse_factorization);
 
          for (int j = 0; j < ncp[1]; ++j)
          {
