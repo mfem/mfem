@@ -6,7 +6,8 @@ trace of that call. When a SIGSEGV with code
 
 This should be built as a shared library with position independent code.
 
-To use, build this as a shared library "mprotect_trace.so" and set LD_PRELOAD=mprotect_trace.so
+To use, build this as a shared library "mprotect_trace.so" and set LD_PRELOAD=/path/to/mprotect_trace.so
+If it is in the same directory as your present directory, you may need to use LD_PRELOAD=./mprotect_trace.so
 
 Requires libbacktrace which can be obtained from
 https://github.com/ianlancetaylor/libbacktrace

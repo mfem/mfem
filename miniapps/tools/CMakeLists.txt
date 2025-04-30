@@ -55,5 +55,6 @@ if(MFEM_ENABLE_LIBBACKTRACE AND CMAKE_CXX_STANDARD GREATER_EQUAL 17)
    target_link_libraries(mprotect_trace PRIVATE
       LIBBACKTRACE::LIBBACKTRACE
    )
-
+   install(TARGETS mprotect_trace
+   DESTINATION miniapps)
 endif()
