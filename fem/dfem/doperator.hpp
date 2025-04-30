@@ -617,7 +617,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    });
 
    // Create the action of the derivatives
-   for_constexpr([&](auto derivative_id)
+   for_constexpr([&](const auto derivative_id)
    {
       const size_t d_field_idx = FindIdx(derivative_id, fields);
       const auto direction = fields[d_field_idx];
@@ -637,7 +637,13 @@ void DifferentiableOperator::AddDomainIntegrator(
       Vector derivative_action_e(output_e_size);
       derivative_action_e = 0.0;
 
-      const auto input_is_dependent = dependency_map[derivative_id];
+      // Lookup the derivative_id key in the dependency map
+      auto it = dependency_map.find(derivative_id);
+      if (it == dependency_map.end())
+      {
+         MFEM_ABORT("Derivative ID not found in dependency map");
+      }
+      const auto input_is_dependent = it->second;
 
       derivative_action_callbacks[derivative_id].push_back(
          [=, output_restriction_transpose = this->output_restriction_transpose](

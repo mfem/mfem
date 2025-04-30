@@ -1299,8 +1299,8 @@ struct SharedMemoryInfo
 template <typename entity_t, std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs, typename input_t>
 SharedMemoryInfo<num_fields, num_inputs, num_outputs>
 get_shmem_info(
-   std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-   std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::vector<FieldDescriptor> &fields,
    const int &num_entities,
    const input_t &inputs,
