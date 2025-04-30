@@ -153,7 +153,7 @@ struct NeoHookeanMaterial
    {
       auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
       {
-         return mfem::internal::dual<mfem::real_t, mfem::real_t> {dudx[i][j], ddudx[i][j]};
+         return mfem::future::dual<mfem::real_t, mfem::real_t> {dudx[i][j], ddudx[i][j]};
       }));
       return make_tensor<dim, dim>(
       [&](int i, int j) { return sigma[i][j].gradient; });
