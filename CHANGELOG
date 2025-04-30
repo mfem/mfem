@@ -13,7 +13,16 @@ Version 4.8.1 (development)
 
 Unlike previous MFEM releases, this version requires a C++17 compiler.
 
-- Added support for variational resampling of H1 vector fields to ParMoonolith 
+- Introduced a new concept called dFEM that allows user defined Finite Element
+  pipelines with support for Automatic Differentation (AD) through Enzyme or
+  MFEM's dual type.
+  * All new features were introduced in the mfem::future namespace.
+  * mfem::internal::tensor and mfem::internal::dual have been moved to
+    mfem::future::tensor and mfem::future::dual.
+  * Using Enzyme for AD in MFEM is tested with clang v19 and requires
+    clang/LLVM built with plugin support.
+
+- Added support for variational resampling of H1 vector fields to ParMoonolith
   integration.
 
 
