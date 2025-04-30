@@ -617,7 +617,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    });
 
    // Create the action of the derivatives
-   for_constexpr([&](const auto derivative_id)
+   for_constexpr([=](const auto derivative_id)
    {
       const size_t d_field_idx = FindIdx(derivative_id, fields);
       const auto direction = fields[d_field_idx];
