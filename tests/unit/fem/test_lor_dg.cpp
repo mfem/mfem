@@ -317,7 +317,7 @@ static void TestBatchedLOR_DG(Mesh &mesh, int order)
    GridFunctionCoefficient diff_coeff(&gf2);
 
    ConstantCoefficient one(1.0);
-   constexpr int sigma = -1.0;
+   constexpr real_t sigma = -1.0;
    const int eta = 2;
    const int kappa = eta * (order + 1) * (order + 1);
    BilinearForm a(&fespace);
