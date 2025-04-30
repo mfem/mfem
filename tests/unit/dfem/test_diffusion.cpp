@@ -220,7 +220,11 @@ void DFemDiffusion(const char *filename, int p, const int r)
    SECTION("DFEM Linearization", "[Parallel][DFEM]")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
+#ifdef MFEM_USE_ENZYME
+      typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
+#else
       typename Diffusion<dual<real_t, real_t>, DIM>::MFApply mf_apply_qf;
+#endif
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  tuple{ Gradient<U>{}, None<Rho>{},
