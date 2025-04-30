@@ -17,8 +17,8 @@
 #include "linalg/tensor.hpp"
 #include "mfem.hpp"
 
-using mfem::internal::tensor;
-using mfem::internal::make_tensor;
+using mfem::future::tensor;
+using mfem::future::make_tensor;
 
 /**
  * @brief Neo-Hookean material
