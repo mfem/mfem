@@ -432,20 +432,28 @@ void map_fields_to_quadrature_data(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
+   // When the input_to_field map returns -1, this means the requested input
+   // is the integration weight. Weights don't have a user defined field
+   // attached to them and we create a dummy field which is not accessed
+   // inside the functions it is passed to.
+   const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
    for_constexpr<num_inputs>([&](auto i)
    {
+      const DeviceTensor<1> &field_e =
+         (input_to_field[i] == -1) ? dummy_field_weight : fields_e[input_to_field[i]];
+
       if (use_sum_factorization)
       {
          if (dimension == 2)
          {
             map_field_to_quadrature_data_tensor_product_2d(
-               fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], get<i>(fops),
+               fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
                integration_weights, scratch_mem);
          }
          else if (dimension == 3)
          {
             map_field_to_quadrature_data_tensor_product_3d(
-               fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], get<i>(fops),
+               fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
                integration_weights, scratch_mem);
          }
          else
@@ -458,7 +466,7 @@ void map_fields_to_quadrature_data(
       else
       {
          map_field_to_quadrature_data(
-            fields_qp[i], dtqmaps[i], fields_e[input_to_field[i]], get<i>(fops),
+            fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
             integration_weights);
       }
    });
