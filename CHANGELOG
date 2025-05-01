@@ -11,6 +11,9 @@
 Version 4.8.1 (development)
 ===========================
 
+- Added support for variational resampling of H1 vector fields to ParMoonolith 
+  integration.
+
 - API addition: in class `Operator`, added virtual functions: `AbsMult`,
   `AbsMultTranspose`, `AddAbsMult`, and `AddAbsMultTranspose`.
 
@@ -19,7 +22,6 @@ Version 4.8.1 (development)
   Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
   operators as smoothers.
   These miniapps can be found in `miniapps/diag-smoothers`
-
 
 Version 4.8, released on Apr 9, 2025
 ====================================
