@@ -12,16 +12,26 @@
 #include <linalg/tensor.hpp>
 #include <fem/kernel_dispatch.hpp>
 
-#include "kernels_pa.hpp"
+#include "fem/kernels_pa.hpp"
 
 using namespace mfem;
-using mfem::internal::tensor;
+
+using mfem::future::tuple;
+using mfem::future::tensor;
+
+using future::DifferentiableOperator;
+using future::ParametricSpace;
+using future::ParametricFunction;
+using future::FieldDescriptor;
+using future::Gradient;
+using future::Weight;
+using future::None;
 
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kAquamarine
 #include "general/nvtx.hpp"
 
-static int D1D = 0, Q1D = 0;
+static int gD1D = 0, gQ1D = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -55,8 +65,8 @@ public:
       const int NQPT = ir.GetNPoints();
       d1d = p + 1;
       q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-      MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
-      MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
+      MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
+      MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
       MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
       const DofToQuad *maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
       const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
@@ -82,11 +92,11 @@ public:
       auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
       mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
-         mfem::foreach_z_thread(q1d, [&](int qz)
+         MFEM_FOREACH_THREAD1(qz, z, q1d)
          {
-            mfem::foreach_y_thread(q1d, [&](int qy)
+            MFEM_FOREACH_THREAD1(qy, y, q1d)
             {
-               mfem::foreach_x_thread(q1d, [&](int qx)
+               MFEM_FOREACH_THREAD1(qx, q, q1d)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
@@ -101,9 +111,9 @@ public:
                   kernels::CalcInverse<3>(Jtr, Jrt);
                   kernels::MultABt(3, 3, 3, D, Jrt, A);
                   kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
-               });
-            });
-         });
+               }
+            }
+         }
          MFEM_SYNC_THREAD;
       });
    }
@@ -133,13 +143,13 @@ public:
          LoadMatrix(D1D, Q1D, g, sG);
 
          LoadDofs3d(e, D1D, XE, r0);
-         regs_Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; qz++)
          {
-            mfem::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD1(qy, y, Q1D)
             {
-               mfem::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD1(qx, x, Q1D)
                {
                   real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
                                         r1[0][1][qz][qy][qx],
@@ -150,10 +160,10 @@ public:
                   r0[0][0][qz][qy][qx] = v[0];
                   r0[0][1][qz][qy][qx] = v[1];
                   r0[0][2][qz][qy][qx] = v[2];
-               });
-            });
+               }
+            }
          }
-         regs_GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
          WriteDofs3d(e, D1D, r1, YE);
       });
    }
@@ -254,9 +264,9 @@ int main(int argc, char* argv[])
    const auto q = 2 * p + pmesh.GetElementTransformation(0)->OrderW();
    const auto type = pmesh.GetElementBaseGeometry(0);
    const IntegrationRule &ir = IntRules.Get(type, q);
-   D1D = p + 1;
-   Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-   dbg("D1D: {}, Q1D: {}", D1D, Q1D);
+   gD1D = p + 1;
+   gQ1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+   dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
 
    const int NE = pmesh.GetNE();
    const int NQPT = ir.GetNPoints();
@@ -282,7 +292,7 @@ int main(int argc, char* argv[])
    const int total_size = elem_size * NE;
    dbg("DIM: {}, local_size: {}, elem_size: {}, total_size: {}",
        DIM, DIM * DIM, elem_size, total_size);
-   ParametricSpace qdata_space(DIM, DIM * DIM, elem_size, total_size, D1D, Q1D);
+   ParametricSpace qdata_space(DIM, DIM * DIM, elem_size, total_size, gD1D, gQ1D);
    ParametricFunction qd(qdata_space);
 
    if (version < 2)
@@ -299,8 +309,8 @@ int main(int argc, char* argv[])
          assert(di);
          const int d1d = di->dofs1D, q1d = di->quad1D;
          dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
-         MFEM_VERIFY(d1d == D1D, "D1D mismatch: " << d1d << " != " << D1D);
-         MFEM_VERIFY(q1d == Q1D, "Q1D mismatch: " << q1d << " != " << Q1D);
+         MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
+         MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
       }
    }
    else if (version == 2) // MF ∂fem
@@ -314,14 +324,14 @@ int main(int argc, char* argv[])
                               const real_t& w)
       {
          auto invJ = inv(J);
-         return mfem::tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
+         return tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
       };
       ∂op = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
       ∂op->SetParameters({nodes});
       ∂op->AddDomainIntegrator(diffusion_mf_kernel,
-                                 mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                 mfem::tuple{Gradient<U>{}},
-                                 ir);
+                                 tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                 tuple{Gradient<U>{}},
+                                 ir, ess_bdr);
    }
    else if (version == 3) // PA ∂fem
    {
@@ -335,30 +345,30 @@ int main(int argc, char* argv[])
       auto u_sol = std::vector{u_fd},
            q_param = std::vector{q_fd},
            Ξ_q_params = std::vector{Ξ_fd, q_fd};
-      mfem::tuple u_J_w = {u, ∇Ξ, w};
-      mfem::tuple ∇u_q = {∇u, q};
+      tuple u_J_w = {u, ∇Ξ, w};
+      tuple ∇u_q = {∇u, q};
 
       auto setup =
          [] MFEM_HOST_DEVICE(const real_t &u,
                              const tensor<real_t, DIM, DIM> &J,
                              const real_t &w)
       {
-         return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+         return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
       };
       DifferentiableOperator ∂Setup(u_sol, Ξ_q_params, pmesh);
       ∂Setup.SetParameters({nodes, &qd});
-      ∂Setup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, ir);
+      ∂Setup.AddDomainIntegrator(setup, u_J_w, tuple{q}, ir, ess_bdr);
       ∂Setup.Mult(Vector{fes.GetTrueVSize()}, qd);
 
       auto apply =
          [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
                              const tensor<real_t, DIM, DIM> &q)
       {
-         return mfem::tuple{q * ∇u};
+         return tuple{q * ∇u};
       };
       ∂op = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
       ∂op->SetParameters({ &qd });
-      ∂op->AddDomainIntegrator(apply, ∇u_q, mfem::tuple{∇u}, ir);
+      ∂op->AddDomainIntegrator(apply, ∇u_q, tuple{∇u}, ir, ess_bdr);
    }
    else { MFEM_ABORT("Invalid version"); }
 

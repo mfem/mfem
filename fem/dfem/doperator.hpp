@@ -27,12 +27,6 @@
 #define NVTX_COLOR nvtx::kPurple
 #include "general/nvtx.hpp"
 
-
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kPurple
-#include "general/nvtx.hpp"
-
-
 namespace mfem::future
 {
 

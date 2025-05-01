@@ -17,7 +17,17 @@
 #include <fstream>
 
 using namespace mfem;
-using mfem::internal::tensor;
+
+using mfem::future::tuple;
+using mfem::future::tensor;
+
+using future::DifferentiableOperator;
+using future::ParametricSpace;
+using future::ParametricFunction;
+using future::FieldDescriptor;
+using future::Gradient;
+using future::Weight;
+using future::None;
 
 constexpr int DIMENSION = 2;
 
@@ -55,7 +65,7 @@ struct InternalStateQFunction
       auto [stress, internal_state_new] = material(dudX3D, internal_state);
       // real_t vm = sqrt(1.5)*norm(dev(stress));
       // out << vm << " " << internal_state_new[9] << std::endl;
-      return mfem::tuple{internal_state_new};
+      return tuple{internal_state_new};
    }
 
    Material material;
@@ -77,9 +87,9 @@ struct MomentumRefStateQFunction
       auto dudX = dudxi * invJ;
       auto dudX3D = tensor_to_3D(dudX);
       auto [P3D, Qnew] = material(dudX3D, internal_state);
-      auto P = mfem::internal::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
+      auto P = future::make_tensor<dim, dim>([&P3D](int i, int j) { return P3D[i][j]; });
       auto JxW = det(J) * w * transpose(invJ);
-      return mfem::tuple{P * JxW};
+      return tuple{P * JxW};
    }
 
    Material material;
@@ -111,7 +121,7 @@ struct J2SmallStrain
                                        packed_state) const
    {
       // we could use type punning here to avoid copies
-      auto plastic_strain = mfem::internal::make_tensor<dim, dim>(
+      auto plastic_strain = future::make_tensor<dim, dim>(
       [&packed_state](int i, int j) { return packed_state[dim*i + j]; });
       real_t accumulated_plastic_strain = packed_state[n_internal_states - 1];
       return {plastic_strain, accumulated_plastic_strain};
@@ -139,7 +149,7 @@ struct J2SmallStrain
                                                                    operator()(const tensor<real_t, dim, dim> & dudX,
                                                                               const tensor<real_t, n_internal_states> & internal_state) const
    {
-      auto I = mfem::internal::Identity<dim>();
+      auto I = future::Identity<dim>();
       const real_t K = E / (3.0 * (1.0 - 2.0 * nu));
       const real_t G = 0.5 * E / (1.0 + nu);
 
@@ -210,7 +220,7 @@ public:
       }
 
       const ElasticityOperator *elasticity;
-      std::shared_ptr<DerivativeOperator> momentum_du;
+      std::shared_ptr<future::DerivativeOperator> momentum_du;
       mutable Vector z;
    };
 
@@ -248,8 +258,8 @@ public:
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
          momentum->DisableTensorProductStructure();
 
-         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
-         mfem::tuple outputs{Gradient<Displacement>{}};
+         tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
+         tuple outputs{Gradient<Displacement>{}};
 
          auto momentum_qf = MomentumRefStateQFunction<Material, DIMENSION> {.material = material};
          auto derivatives = std::integer_sequence<size_t, Displacement> {};
@@ -314,7 +324,7 @@ public:
    ParametricFunction& internal_state;
 
    mutable std::shared_ptr<ElasticityJacobianOperator> jacobian_operator;
-   mutable std::shared_ptr<FDJacobian> fd_jacobian;
+   mutable std::shared_ptr<future::FDJacobian> fd_jacobian;
 };
 
 
@@ -354,8 +364,8 @@ public:
       op = std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
       op->DisableTensorProductStructure();
 
-      mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
-      mfem::tuple outputs{None<InternalState>{}};
+      tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, None<InternalState>{}, Weight{}};
+      tuple outputs{None<InternalState>{}};
 
       auto qfunction = InternalStateQFunction<Material, DIMENSION> {.material = material};
       // just a placeholder for now. We want vjps wrt both displacement and old internal state eventually
@@ -580,7 +590,7 @@ int main(int argc, char* argv[])
    internal_state_update.VjpDisplacement(u, internal_state_old, internal_state_bar,
                                          u_bar);
 
-   pretty_print(u_bar);
+   future::pretty_print(u_bar);
 
    history_file.close();
    return 0;

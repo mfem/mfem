@@ -21,14 +21,24 @@
 #include <fem/dfem/doperator.hpp>
 #include <linalg/tensor.hpp>
 
-#include "examples/dfem/kernels_pa.hpp"
+#include "fem/kernels_pa.hpp"
 
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kAquamarine
 #include "general/nvtx.hpp"
 
 using namespace mfem;
-using mfem::internal::tensor;
+
+using mfem::future::tuple;
+using mfem::future::tensor;
+
+using future::DifferentiableOperator;
+using future::ParametricSpace;
+using future::ParametricFunction;
+using future::FieldDescriptor;
+using future::Gradient;
+using future::Weight;
+using future::None;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -395,13 +405,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                  const real_t& w)
          {
             auto invJ = inv(J);
-            return mfem::tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
+            return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
          };
          dop->AddDomainIntegrator(diffusion_mf_kernel,
-                                  mfem::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                  mfem::tuple{Gradient<U>{}},
+                                  tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                  tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
-         Operator *A_ptr;
+         // Operator *A_ptr;
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
@@ -413,30 +423,30 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          auto u = None<U> {};
          auto Gu = Gradient<U> {};
          auto GΞ = Gradient<Ξ> {};
-         mfem::tuple Gu_q = {Gu, q};
-         mfem::tuple u_J_w = {u, GΞ, w};
+         tuple Gu_q = {Gu, q};
+         tuple u_J_w = {u, GΞ, w};
 
          auto setup =
             [] MFEM_HOST_DEVICE(const real_t &u,
                                 const tensor<real_t, DIM, DIM> &J,
                                 const real_t &w)
          {
-            return mfem::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+            return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
          };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
          dSetup.SetParameters({nodes, &qdata});
-         dSetup.AddDomainIntegrator(setup, u_J_w, mfem::tuple{q}, *ir, ess_bdr);
+         dSetup.AddDomainIntegrator(setup, u_J_w, tuple{q}, *ir, ess_bdr);
          dSetup.Mult(x, qdata);
 
          auto apply =
             [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
                                 const tensor<real_t, DIM, DIM> &q)
          {
-            return mfem::tuple{q * Gu};
+            return tuple{q * Gu};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          dop->SetParameters({ &qdata });
-         dop->AddDomainIntegrator(apply, Gu_q, mfem::tuple{Gu}, *ir, ess_bdr);
+         dop->AddDomainIntegrator(apply, Gu_q, tuple{Gu}, *ir, ess_bdr);
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
