@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 1;
+      int par_ref_levels = 3;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    cf->AddDomainIntegrator(new VectorMassIntegrator(damp));
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
-   real_t freq=0.5;
+   real_t freq=3.5;
    //ProductCoefficient pc(-freq*freq,rho);
    ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));

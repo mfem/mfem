@@ -421,6 +421,7 @@ public:
         this->width=2*(W_->Width());
         this->height=2*(W_->Width());
 
+
         a=a_;
         b=b_;
 
@@ -454,10 +455,40 @@ public:
         ls->SetPreconditioner(*amgp);
         ls->iterative_mode=true;
         ls->SetPrintLevel(1);
+
+        {
+            HypreParMatrix nm(*wm);
+            nm.Add(2*b,*tm);
+
+            Array2D<const HypreParMatrix*> am(2,2);
+            am(0,0)=&nm;
+            am(0,1)=tm;
+            am(1,0)=tm;
+            am(1,1)=wm;
+
+            Array2D<real_t> cm(2,2);
+            cm(0,0)=1.0; cm(0,1)=-1;
+            cm(1,0)=1.0; cm(1,1)=1;
+
+            std::unique_ptr<HypreParMatrix> bm;
+            bm.reset(HypreParMatrixFromBlocks(am,&cm));
+
+
+            mumps.reset(new MUMPSSolver(comm));
+            //mumps->SetPrintLevel(2);
+            mumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            mumps->SetOperator(*bm);
+        }
+
+
     }
 
     virtual void Mult(const Vector &x, Vector &y) const
     {
+
+        mumps->Mult(x,y);
+        return;
+
         if(false==this->iterative_mode){
            y=0.0;
         }
@@ -546,10 +577,14 @@ private:
 
     mfem::Array<int> block_true_offsets;
 
-
-
     Vector diag;
     mutable Vector tv;
+
+
+    std::unique_ptr<MUMPSSolver> mumps;
+    std::unique_ptr<HypreParMatrix> bm;
+
+
 };
 
 
