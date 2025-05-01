@@ -708,8 +708,6 @@ int KnotVector::findKnotSpan(real_t u) const
          }
          mid = (low + high)/2;
       }
-
-      if (u < knot(mid) && mid > Order) { mid--; }
    }
    return mid;
 }

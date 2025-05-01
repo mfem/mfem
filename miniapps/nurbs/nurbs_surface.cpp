@@ -44,9 +44,7 @@ void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
 // Sample a high-order NURBS mesh to generate a fine first-order mesh.
 void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
                   const Array<int> &nks, const std::vector<Vector> &u_args,
-                  const std::string &basename, int c,
-                  const Array3D<real_t> &input3D,
-                  Array3D<real_t> &vpos);
+                  const Array3D<real_t> &input3D, Array3D<real_t> &vpos);
 
 // Write a linear surface mesh with given vertex positions in v.
 void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
@@ -85,7 +83,7 @@ private:
 
    std::unique_ptr<NURBSPatch> patch; // Pointer to the only patch in the mesh
 
-   Mesh mesh;
+   Mesh mesh; // NURBS mesh representing the surface
 };
 
 int main(int argc, char *argv[])
@@ -108,9 +106,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ny, "-ny", "--ny",
                   "Number of elements in y");
    args.AddOption(&fnx, "-fnx", "--fnx",
-                  "Number of fine grid points in x minus 1");
+                  "Number of resampled elements in x");
    args.AddOption(&fny, "-fny", "--fny",
-                  "Number of fine grid points in y minus 1");
+                  "Number of resampled elements in y");
    args.AddOption(&order, "-o", "--order",
                   "NURBS finite element order (polynomial degree)");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -142,7 +140,7 @@ int main(int argc, char *argv[])
 
    SurfaceExample(example, ugrid, input3D);
 
-   WriteLinearMesh(nx, ny, input3D, "initial");
+   WriteLinearMesh(nx, ny, input3D, "initial-surf");
 
    std::vector<Mesh> mesh;
    Array3D<real_t> vpos(fnx + 1, fny + 1, dim);
@@ -153,13 +151,11 @@ int main(int argc, char *argv[])
       mesh.emplace_back(surf.GetMesh());
       const Array<int> &nks = surf.GetNKS();
 
-      FineSampling(true, fnx, fny, mesh[c], nks, ugrid, "lorUniform",
-                   c, input3D, vpos);
+      FineSampling(true, fnx, fny, mesh[c], nks, ugrid, input3D, vpos);
 
       if (compareOriginal)
       {
-         FineSampling(false, fnx, fny, mesh[c], nks, ugrid, "lorOriginal",
-                      c, input3D, vpos);
+         FineSampling(false, fnx, fny, mesh[c], nks, ugrid, input3D, vpos);
          CheckError(input3D, vpos, c, nx, ny);
       }
 
@@ -173,16 +169,14 @@ int main(int argc, char *argv[])
    }
 
    surf.WriteNURBSMesh(mesh);
-   WriteLinearMesh(fnx, fny, v3D, "surf", visualization);
+   WriteLinearMesh(fnx, fny, v3D, "final-surf", visualization);
 
    return 0;
 }
 
 void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
                   const Array<int> &nks, const std::vector<Vector> &ugrid,
-                  const std::string &basename, int c,
-                  const Array3D<real_t> &input3D,
-                  Array3D<real_t> &vpos)
+                  const Array3D<real_t> &input3D, Array3D<real_t> &vpos)
 {
    const GridFunction *nodes = mesh.GetNodes();
 
@@ -219,8 +213,6 @@ void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
          }
       }
    }
-
-   WriteLinearMesh(nx, ny, vpos, basename);
 }
 
 void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
@@ -464,10 +456,6 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
    NURBSExtension nurbsExt(&patch_topology, patches);
 
    mesh = Mesh(nurbsExt);
-
-   ofstream mesh_ofs("nurbs.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
 }
 
 void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
@@ -526,7 +514,7 @@ void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
          }
    }
 
-   ofstream mesh_ofs("nurbssurf.mesh");
+   ofstream mesh_ofs("nurbs-surf.mesh");
    mesh_ofs.precision(8);
    mesh2D.Print(mesh_ofs, "", &x);
 }
