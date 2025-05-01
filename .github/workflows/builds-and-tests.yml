@@ -85,10 +85,11 @@ jobs:
             codecov: NO
           - os: windows-latest
             codecov: NO
+            config-opts: "-G Ninja"
           - os: windows-latest
             target: opt
             mpi: par
-            config-opts: "-DBUILD_SHARED_LIBS=ON"
+            config-opts: "-DBUILD_SHARED_LIBS=ON -G Ninja"
           - os: ubuntu-latest
             target: opt
             codecov: NO

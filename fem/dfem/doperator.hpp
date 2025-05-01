@@ -415,7 +415,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    constexpr auto inout_tuple = std::tuple_cat(std::tuple<input_ts...> {},
                                                std::tuple<output_ts...> {});
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-   constexpr size_t num_fields = count_unique_field_ids(filtered_inout_tuple);
+   static constexpr size_t num_fields =
+      count_unique_field_ids(filtered_inout_tuple);
 
    MFEM_ASSERT(num_fields == solutions.size() + parameters.size(),
                "Total number of fields doesn't match sum of solutions and parameters."
