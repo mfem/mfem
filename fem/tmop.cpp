@@ -218,16 +218,17 @@ type wcuo_ad(type mu,
              real_t alpha, real_t min_detT, real_t detT_ep,
              int exponent, real_t max_muT, real_t muT_ep,
              TWCUO::BarrierType bt,
-             TWCUO::WorstCaseType wct)
+             TWCUO::WorstCaseType wct,
+            real_t min_det_b)
 {
    type one = make_one_type<type>();
    type zero = 0.0*one;
    type denom = one;
    if (bt == TWCUO::BarrierType::Shifted)
    {
-      auto val1 = alpha*min_detT-detT_ep < 0.0 ?
+      auto val1 = alpha*min_detT-detT_ep < min_det_b ?
                   (alpha*min_detT-detT_ep)*one :
-                  zero;
+                  min_det_b*one;
       denom = 2.0*(det_2D(T)-val1);
    }
    else if (bt == TWCUO::BarrierType::Pseudo)
@@ -730,11 +731,11 @@ real_t TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
    {
       if (bound)
       {
-         denominator = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, (real_t) 0.0));
+         denominator = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, (real_t) min_det_b));
       }
       else
       {
-         denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (real_t) 0.0));
+         denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (real_t) min_det_b));
       }
    }
    else if (btype == BarrierType::Pseudo)
@@ -750,7 +751,7 @@ AD1Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD1(
    const std::vector<AD1Type> &W) const
 {
    return wcuo_ad(tmop_metric.EvalW_AD1(T,W), T, W, alpha, min_detT, detT_ep,
-                  exponent, max_muT, muT_ep, btype, wctype);
+                  exponent, max_muT, muT_ep, btype, wctype, min_det_b);
 }
 
 AD2Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD2(
@@ -758,7 +759,7 @@ AD2Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD2(
    const std::vector<AD2Type> &W) const
 {
    return wcuo_ad(tmop_metric.EvalW_AD2(T,W), T, W, alpha, min_detT, detT_ep,
-                  exponent, max_muT, muT_ep, btype, wctype);
+                  exponent, max_muT, muT_ep, btype, wctype, min_det_b);
 }
 
 void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
@@ -770,7 +771,7 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
       return EvalW_AD1(T,W);
    };
    if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
-      tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
+       tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
    {
       ADGrad(mu_ad_fn, P, Jpt);
       return;
@@ -793,7 +794,7 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
       return EvalW_AD2(T,W);
    };
    if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
-      tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
+       tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
    {
       ADHessian(mu_ad_fn, H, Jpt);
       this->DefaultAssembleH(H,DS,weight,A);

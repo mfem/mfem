@@ -506,7 +506,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    const real_t min_detJ_untangle_limit = min_detJ_limit;
    const bool untangling = (
-               (!det_bound && min_detT_in <= min_detJ_untangle_limit) || (det_bound && min_det_bound_in <= min_detJ_untangle_limit)) ? true : false;
+                              (!det_bound && min_detT_in <= min_detJ_untangle_limit) || (det_bound &&
+                                    min_det_bound_in <= min_detJ_untangle_limit)) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
    {
@@ -515,7 +516,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
                   " intermediate mesh is invalid. Contact TMOP Developers.");
       // MFEM_VERIFY(min_detJ_limit == 0.0,
-                  // "This setup is not supported. Contact TMOP Developers.");
+      // "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 

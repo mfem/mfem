@@ -216,6 +216,7 @@ protected:
    BarrierType btype;
    WorstCaseType wctype;
    bool bound = false;
+   real_t min_det_b = 0.0;
 
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
@@ -226,11 +227,12 @@ public:
                                           real_t muT_ep_ = 0.0001,
                                           BarrierType btype_ = BarrierType::None,
                                           WorstCaseType wctype_ = WorstCaseType::None,
-                                          bool bound_ = false) :
+                                          bool bound_ = false,
+                                          real_t min_det_b_ = 0.0) :
       min_detT(min_det), max_muT(max_mu),
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
       detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_),
-      bound(bound_)
+      bound(bound_), min_det_b(min_det_b_)
    {
       if (btype != BarrierType::None)
       {

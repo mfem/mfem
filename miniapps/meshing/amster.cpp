@@ -246,7 +246,8 @@ int main (int argc, char *argv[])
    // If needed, untangle with fixed boundary.
    if (min_detA < 0.0)
    {
-      Untangle(x, min_detA, quad_order, metric_id, target_id, plb, &detgf, solver_iter);
+      Untangle(x, min_detA, quad_order, metric_id, target_id, plb, &detgf,
+               solver_iter);
    }
 
    {
@@ -293,7 +294,8 @@ int main (int argc, char *argv[])
    // If needed, untangle with fixed boundary.
    if (worst_case)
    {
-      WorstCaseOptimize(x, quad_order, metric_id, wc_target_id, plb, &detgf, solver_iter, min_detA);
+      WorstCaseOptimize(x, quad_order, metric_id, wc_target_id, plb, &detgf,
+                        solver_iter, min_detA);
    }
 
    {
@@ -315,13 +317,17 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "\n*** Stats of original mesh, untangled mesh, worstcase optimized\n";
-      cout << "Minimum det(J):       " << min_detA0 << " " << min_detA << " " << min_detA2 << endl
+      cout << "Minimum det(J):       " << min_detA0 << " " << min_detA << " " <<
+           min_detA2 << endl
            << "Minimum det(J) bound: " << min_det_bound0 << " "
            << min_det_bound << " "
            << min_det_bound2 << endl
-           << "Minimum muT:          " << min_muT0 << " " << min_muT <<  " " << min_muT2 << endl
-           << "Maximum muT:          " << max_muT0 << " " << max_muT << " " << max_muT2 <<  endl
-           << "Average muT:          " << avg_muT0 << " " << avg_muT << " " << avg_muT2 <<  endl;
+           << "Minimum muT:          " << min_muT0 << " " << min_muT <<  " " << min_muT2 <<
+           endl
+           << "Maximum muT:          " << max_muT0 << " " << max_muT << " " << max_muT2 <<
+           endl
+           << "Average muT:          " << avg_muT0 << " " << avg_muT << " " << avg_muT2 <<
+           endl;
    }
 
    // Visualize the mesh displacement.
@@ -359,9 +365,11 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
    auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
    auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
    TMOP_QualityMetric *metric = GetMetric(metric_id);
-   TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.0,
+   real_t min_det_threshold = 0.01;
+   TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 1, 1.0,
                                                    1e-3, 0.001,
-                                                   btype, wctype, true);
+                                                   btype, wctype, true,
+                                                   min_det_threshold);
    TargetConstructor *target_c = GetTargetConstructor(target_id, x);
    auto tmop_integ = new TMOP_Integrator(&u_metric, target_c, nullptr);
    tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
@@ -398,7 +406,7 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(1e-12);
    solver.SetAbsTol(0.0);
-   solver.SetMinimumDeterminantThreshold(0.01);
+   solver.SetMinimumDeterminantThreshold(min_det_threshold);
    if (plb) { solver.SetDeterminantBound(true); }
    IterativeSolver::PrintLevel newton_pl;
    solver.SetPrintLevel(newton_pl.Iterations().Summary());
@@ -425,10 +433,10 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
 }
 
 void WorstCaseOptimize(ParGridFunction &x, int quad_order,
-                        int metric_id, int target_id,
-                        GridFunction::PLBound *plb,
-                        ParGridFunction *detgf, int solver_iter,
-                        double &min_det)
+                       int metric_id, int target_id,
+                       GridFunction::PLBound *plb,
+                       ParGridFunction *detgf, int solver_iter,
+                       double &min_det)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
