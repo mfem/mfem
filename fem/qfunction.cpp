@@ -120,7 +120,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
                                  int compression_level,
                                  const std::string &field_name) const
 {
-   os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
+   os << R"(<VTKFile type="UnstructuredGrid" version="2.2")";
    if (compression_level != 0)
    {
       os << R"( compressor="vtkZLibDataCompressor")";

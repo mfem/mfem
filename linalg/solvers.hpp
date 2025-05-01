@@ -72,8 +72,13 @@ public:
    {
    }
 
-   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
-       the monitor which IterativeSolver is using it. */
+   /// Indicates if the controller requires an updated solution every iteration
+   /** The default behavior is to not require the updated solution to allow
+       solvers to skip it if not needed otherwise. */
+   virtual bool RequiresUpdatedSolution() const { return false; }
+
+   /** @brief This method is invoked by IterativeSolver::SetController(),
+       informing the controller which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
 };
@@ -139,7 +144,7 @@ private:
 protected:
    const Operator *oper;
    Solver *prec;
-   IterativeSolverMonitor *monitor = nullptr;
+   IterativeSolverController *controller = nullptr;
 
    /// @name Reporting (protected attributes and member functions)
    ///@{
@@ -198,6 +203,9 @@ protected:
 
    /// Return the inner product norm of @a x, using the inner product defined by Dot()
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+
+   /// Indicated if the controller requires an update of the solution
+   bool ControllerRequiresUpdate() const { return controller && controller->RequiresUpdatedSolution(); }
 
    /// Monitor both the residual @a r and the solution @a x
    bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
@@ -312,9 +320,12 @@ public:
    /// Also calls SetOperator for the preconditioner if there is one
    void SetOperator(const Operator &op) override;
 
-   /// Set the iterative solver monitor
-   void SetMonitor(IterativeSolverMonitor &m)
-   { monitor = &m; m.SetIterativeSolver(*this); }
+   /// Set the iterative solver controller
+   void SetController(IterativeSolverController &c)
+   { controller = &c; c.SetIterativeSolver(*this); }
+
+   /// An alias of SetController() for backward compatibility
+   void SetMonitor(IterativeSolverMonitor &m) { SetController(m); }
 
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
@@ -441,7 +452,8 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -454,7 +466,8 @@ public:
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -514,6 +527,9 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /// Iterative solution of the linear system using Stationary Linear Iteration
+   /** When using iterative mode (see Solver::iterative_mode), the case of zero
+       r.h.s., @a b = 0, can be optimized by calling this method with empty
+       @a b, i.e. b.Size() == 0. */
    void Mult(const Vector &b, Vector &x) const override;
 };
 
@@ -917,7 +933,7 @@ public:
 #ifdef MFEM_USE_MPI
    OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
-   virtual ~OptimizationSolver() { }
+   ~OptimizationSolver() override { }
 
    /** This function is virtual as solvers might need to perform some initial
     *  actions (e.g. validation) with the OptimizationProblem. */

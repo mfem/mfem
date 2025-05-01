@@ -466,7 +466,7 @@ private:
     * \note This function is expected to be called by RegisterField()
     * \note Handles cases where hierarchy is already set up,
     *      where the data was allocated by this data collection
-    *      and where the gridfunction data is external to Sidre
+    *      and where the grid function data is external to Sidre
     */
    void addScalarBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
@@ -480,7 +480,7 @@ private:
     * \note This function is expected to be called by RegisterField()
     * \note Handles cases where hierarchy is already set up,
     *      where the data was allocated by this data collection
-    *      and where the gridfunction data is external to Sidre
+    *      and where the grid function data is external to Sidre
     */
    void addVectorBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,

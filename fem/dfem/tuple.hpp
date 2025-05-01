@@ -12,10 +12,10 @@
 
 // This is serac's tuple implementation
 
+#include "../../general/backends.hpp"
 #include <utility>
-#include <mfem.hpp>
 
-namespace mfem
+namespace mfem::future
 {
 
 /**
@@ -213,8 +213,8 @@ struct tuple_size
 };
 
 template <class... Types>
-struct tuple_size<mfem::tuple<Types...>> :
-                                      std::integral_constant<std::size_t, sizeof...(Types)>
+struct tuple_size<tuple<Types...>> :
+                                std::integral_constant<std::size_t, sizeof...(Types)>
 {
 };
 
@@ -563,7 +563,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const tuple<S...>& x,
  * @return the returned tuple ratio
  */
 template <typename... T, int... i>
-MFEM_HOST_DEVICE constexpr auto div_helper(const double a,
+MFEM_HOST_DEVICE constexpr auto div_helper(const real_t a,
                                            const tuple<T...>& x, std::integer_sequence<int, i...>)
 {
    return tuple{a / get<i>(x)...};
@@ -580,7 +580,7 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const double a,
  */
 template <typename... T, int... i>
 MFEM_HOST_DEVICE constexpr auto div_helper(const tuple<T...>& x,
-                                           const double a, std::integer_sequence<int, i...>)
+                                           const real_t a, std::integer_sequence<int, i...>)
 {
    return tuple{get<i>(x) / a...};
 }
@@ -592,7 +592,7 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const tuple<T...>& x,
  * @brief return a tuple of values defined by division of a by the elements of x
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator/(const double a, const tuple<T...>& x)
+MFEM_HOST_DEVICE constexpr auto operator/(const real_t a, const tuple<T...>& x)
 {
    return div_helper(a, x,
                      std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -605,7 +605,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const double a, const tuple<T...>& x)
  * @brief return a tuple of values defined by elementwise division of x by a
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator/(const tuple<T...>& x, const double a)
+MFEM_HOST_DEVICE constexpr auto operator/(const tuple<T...>& x, const real_t a)
 {
    return div_helper(x, a,
                      std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -655,7 +655,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<S...>& x,
  * @return the returned tuple product
  */
 template <typename... T, int... i>
-MFEM_HOST_DEVICE constexpr auto mult_helper(const double a,
+MFEM_HOST_DEVICE constexpr auto mult_helper(const real_t a,
                                             const tuple<T...>& x, std::integer_sequence<int, i...>)
 {
    return tuple{a * get<i>(x)...};
@@ -672,7 +672,7 @@ MFEM_HOST_DEVICE constexpr auto mult_helper(const double a,
  */
 template <typename... T, int... i>
 MFEM_HOST_DEVICE constexpr auto mult_helper(const tuple<T...>& x,
-                                            const double a, std::integer_sequence<int, i...>)
+                                            const real_t a, std::integer_sequence<int, i...>)
 {
    return tuple{get<i>(x) * a...};
 }
@@ -684,7 +684,7 @@ MFEM_HOST_DEVICE constexpr auto mult_helper(const tuple<T...>& x,
  * @brief multiply each component of x by the value a on the left
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator*(const double a, const tuple<T...>& x)
+MFEM_HOST_DEVICE constexpr auto operator*(const real_t a, const tuple<T...>& x)
 {
    return mult_helper(a, x,
                       std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -697,7 +697,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const double a, const tuple<T...>& x)
  * @brief multiply each component of x by the value a on the right
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
+MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const real_t a)
 {
    return mult_helper(x, a,
                       std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -711,11 +711,11 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
  * @brief helper used to implement printing a tuple of values
  */
 template <typename... T, std::size_t... i>
-auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
+auto& print_helper(std::ostream& out, const tuple<T...>& A,
                    std::integer_sequence<size_t, i...>)
 {
    out << "tuple{";
-   (..., (out << (i == 0 ? "" : ", ") << mfem::get<i>(A)));
+   (..., (out << (i == 0 ? "" : ", ") << get<i>(A)));
    out << "}";
    return out;
 }
@@ -727,7 +727,7 @@ auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
  * @brief print a tuple of values
  */
 template <typename... T>
-auto& operator<<(std::ostream& out, const mfem::tuple<T...>& A)
+auto& operator<<(std::ostream& out, const tuple<T...>& A)
 {
    return print_helper(out, A, std::make_integer_sequence<size_t, sizeof...(T)>());
 }
@@ -828,7 +828,7 @@ struct is_tuple : std::false_type
 
 /// @overload
 template <typename... T>
-struct is_tuple<mfem::tuple<T...>> : std::true_type
+struct is_tuple<tuple<T...>> : std::true_type
 {
 };
 
@@ -844,10 +844,10 @@ struct is_tuple_of_tuples : std::false_type
  * @brief Trait for checking if a type if a @p mfem::tuple containing only @p mfem::tuple
  */
 template <typename... T>
-struct is_tuple_of_tuples<mfem::tuple<T...>>
+struct is_tuple_of_tuples<tuple<T...>>
 {
    static constexpr bool value = (is_tuple<T>::value &&
                                   ...);  ///< true/false result of type check
 };
 
-}  // namespace mfem
+}  // namespace mfem::future
