@@ -12,7 +12,7 @@
 #include <linalg/tensor.hpp>
 #include <fem/kernel_dispatch.hpp>
 
-#include "fem/kernels_pa.hpp"
+#include "fem/dfem/kernels_regs.hpp"
 
 using namespace mfem;
 

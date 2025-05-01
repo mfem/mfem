@@ -21,7 +21,7 @@
 #include <fem/dfem/doperator.hpp>
 #include <linalg/tensor.hpp>
 
-#include "fem/kernels_pa.hpp"
+#include "fem/dfem/kernels_regs.hpp"
 
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kAquamarine
