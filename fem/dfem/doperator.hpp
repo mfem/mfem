@@ -26,15 +26,21 @@
 namespace mfem::future
 {
 
+/// @brief Type alias for a function that computes the action of an operator
 using action_t =
    std::function<void(std::vector<Vector> &, const std::vector<Vector> &, Vector &)>;
 
+/// @brief Type alias for a function that computes the action of a derivative
 using derivative_action_t =
    std::function<void(std::vector<Vector> &, const Vector &, Vector &)>;
 
+/// @brief Type alias for a function that assembles the sparse matrix of a
+/// derivative operator
 using assemble_derivative_hypreparmatrix_callback_t =
    std::function<void(std::vector<Vector> &, HypreParMatrix &)>;
 
+/// @brief Type alias for a function that applies the appropriate restriction to
+/// the solution and parameters
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &,
                       const std::vector<Vector> &,
@@ -84,7 +90,6 @@ public:
       daction_l_size(daction_l_size),
       derivative_actions_transpose(derivative_actions_transpose),
       transpose_direction(transpose_direction),
-      daction_transpose_l(daction_transpose_l_size),
       prolongation_transpose(prolongation_transpose),
       assemble_derivative_hypreparmatrix_callbacks(
          assemble_derivative_hypreparmatrix_callbacks)
@@ -184,8 +189,6 @@ private:
    std::vector<derivative_action_t> derivative_actions_transpose;
 
    FieldDescriptor transpose_direction;
-
-   mutable Vector daction_transpose_l;
 
    mutable std::vector<Vector> fields_e;
 
