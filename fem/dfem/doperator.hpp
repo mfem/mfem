@@ -117,9 +117,9 @@ public:
       daction_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
-      for (size_t i = 0; i < derivative_actions.size(); i++)
+      for (const auto &f : derivative_actions)
       {
-         derivative_actions[i](fields_e, direction_l, daction_l);
+         f(fields_e, direction_l, daction_l);
       }
       prolongation_transpose(daction_l, result_t);
    };
@@ -137,13 +137,16 @@ public:
    /// direction_t on T-dofs.
    void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
+      MFEM_ASSERT(!derivative_actions_transpose.empty(),
+                  "derivative can't be used multiplied in transpose mode");
+
       daction_l.SetSize(width);
       daction_l = 0.0;
 
       prolongation(transpose_direction, direction_t, direction_l);
-      for (size_t i = 0; i < derivative_actions_transpose.size(); i++)
+      for (const auto &f : derivative_actions_transpose)
       {
-         derivative_actions_transpose[i](fields_e, direction_l, daction_l);
+         f(fields_e, direction_l, daction_l);
       }
       prolongation_transpose(daction_l, result_t);
    };
@@ -157,9 +160,9 @@ public:
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a matrix");
 
-      for (size_t i = 0; i < assemble_derivative_hypreparmatrix_callbacks.size(); i++)
+      for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
       {
-         assemble_derivative_hypreparmatrix_callbacks[i](fields_e, A);
+         f(fields_e, A);
       }
    }
 
