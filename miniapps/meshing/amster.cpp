@@ -47,11 +47,6 @@ using namespace std;
 void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h);
 void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l);
 
-void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
-                  TMOP_QualityMetric *metric,  TargetConstructor *target_c,
-                  int quad_order,
-                  double &min_det, double &min_muT, double &max_muT,
-                  double &avg_muT, double &volume);
 void Untangle(ParGridFunction &x, double min_detA, int quad_order,
               int metric_id, int target_id, GridFunction::PLBound *plb,
               ParGridFunction *detgf, int solver_iter);
@@ -60,46 +55,6 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order,
                        ParGridFunction *detgf, int solver_iter,
                        double &min_det);
 void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf);
-TargetConstructor *GetTargetConstructor(int target_id, ParGridFunction &x0)
-{
-   TargetConstructor *target_c = NULL;
-   TargetConstructor::TargetType target_t;
-   switch (target_id)
-   {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      default:
-         MFEM_ABORT("Unknown target_id"); break;
-   }
-   if (target_c == NULL)
-   {
-      target_c = new TargetConstructor(target_t, x0.ParFESpace()->GetComm());
-   }
-   target_c->SetNodes(x0);
-   return target_c;
-}
-
-TMOP_QualityMetric *GetMetric(int metric_id)
-{
-   TMOP_QualityMetric *metric = NULL;
-   switch (metric_id)
-   {
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 4: metric = new TMOP_Metric_004; break;
-      case 14: metric = new TMOP_Metric_014; break;
-      case 50: metric = new TMOP_Metric_050; break;
-      case 55: metric = new TMOP_Metric_055; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 66: metric = new TMOP_Metric_066(0.1); break;
-      case 80: metric = new TMOP_Metric_080(0.1); break;
-      case 360: metric = new TMOP_Metric_360; break;
-      default:
-         MFEM_ABORT("Unknown metric_id"); break;
-   }
-   return metric;
-}
 
 int main (int argc, char *argv[])
 {
@@ -125,9 +80,13 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = 1e-5;
    int metric_id         = 2;
    int target_id         = 1;
+   int u_metric_id         = 2;
+   int u_target_id         = 1;
    bool vis              = false;
    int wc_metric_id      = 4;
    int wc_target_id         = 1;
+   int bdr_opt            = -1;
+   bool visit            = false;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -156,12 +115,20 @@ int main (int argc, char *argv[])
                   "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Mesh optimization metric 1/2/3 in 2D:\n\t");
+   args.AddOption(&u_metric_id, "-umid", "--u-metric-id",
+                  "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
+   args.AddOption(&u_target_id, "-utid", "--u-target-id",
+                  "Mesh optimization metric 1/2/3 in 2D:\n\t");
    args.AddOption(&vis, "-vis", "--vis", "-no-vis", "--no-vis",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&wc_metric_id, "-wcmid", "--wc-metric-id",
                   "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
-   args.AddOption(&wc_target_id, "-wctid", "--target-id",
+   args.AddOption(&wc_target_id, "-wctid", "--wc-target-id",
                   "Mesh optimization metric 1/2/3 in 2D:\n\t");
+   args.AddOption(&bdr_opt, "-bdropt", "--bdr-opt",
+                  "Boundary attribute for tangential relaxation:\n\t");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
+                  "Enable or disable VisIt visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -175,6 +142,52 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
+
+   // Setup edge-mesh for tangential relaxation
+   Array<ParMesh *> surf_mesh_arr;
+   Array<int> surf_mesh_attr(1);
+   surf_mesh_arr.SetSize(1);
+   surf_mesh_arr[0] = nullptr;
+   if (bdr_opt > 0)
+   {
+      surf_mesh_attr[0] = bdr_opt;
+      if (!mesh->GetNodes())
+      {
+         mesh->SetCurvature(mesh_poly_deg, -1, -1, 0);
+      }
+      Mesh *meshsurf = SetupEdgeMesh(mesh, bdr_opt);
+      surf_mesh_arr[0] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
+      delete meshsurf;
+
+      {
+         ostringstream mesh_name;
+         mesh_name << "edge_extracted.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         surf_mesh_arr[0]->PrintAsOne(mesh_ofs);
+      }
+      if (visit)
+      {
+         VisItDataCollection dc("amster-input-bdr", surf_mesh_arr[0]);
+         dc.SetFormat(DataCollection::SERIAL_FORMAT);
+         dc.Save();
+      }
+      FindPointsGSLIB finder;
+      finder.SetupSurf(*surf_mesh_arr[0]);
+      finder.FreeData();
+
+      Mesh *mesh_abb  = finder.GetBoundingBoxMeshSurf(0);
+      Mesh *mesh_obb  = finder.GetBoundingBoxMeshSurf(1);
+      if (myid==0 && visit)
+      {
+         VisItDataCollection dc0("amster-input-bdr-aabb", mesh_abb);
+         dc0.SetFormat(DataCollection::SERIAL_FORMAT);
+         dc0.Save();
+         VisItDataCollection dc1("amster-input-bdr-obb", mesh_obb);
+         dc1.SetFormat(DataCollection::SERIAL_FORMAT);
+         dc1.Save();
+      }
+   }
 
    delete mesh;
 
@@ -201,17 +214,14 @@ int main (int argc, char *argv[])
    x0 = x;
 
    // Metric.
-   TMOP_QualityMetric *metric = GetMetric(metric_id);
+   TMOP_QualityMetric *umetric = GetMetric(u_metric_id);
+   TargetConstructor *utarget_c = GetTargetConstructor(u_target_id, x0);
 
-   TargetConstructor::TargetType target_t;
-   switch (target_id)
-   {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-   }
-   auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
-   target_c->SetNodes(x0);
+   TMOP_QualityMetric *wcmetric = GetMetric(wc_metric_id);
+   TargetConstructor *wctarget_c = GetTargetConstructor(wc_target_id, x0);
+
+   TMOP_QualityMetric *metric = GetMetric(metric_id);
+   TargetConstructor *target_c = GetTargetConstructor(target_id, x0);
 
    int det_order = dim*mesh_poly_deg-1;
    L2_FECollection fec_det(det_order, dim, BasisType::GaussLobatto);
@@ -220,123 +230,243 @@ int main (int argc, char *argv[])
    GetDeterminantJacobianGF(pmesh, &detgf);
 
    Vector detgf_lower, detgf_upper;
-   int ref_factor = 4;
+   int ref_factor = 5;
    GridFunction::PLBound *plb = nullptr;
    GridFunction::PLBound plbt = detgf.GetBounds(detgf_lower, detgf_upper,
                                                 ref_factor);
    plb = &plbt;
 
-   // Compute Mesh Stats
-   double min_detA, min_muT, max_muT, avg_muT, volume;
-   GetMeshStats(pmesh, x0, metric, target_c, quad_order,
-                min_detA, min_muT, max_muT, avg_muT, volume);
-   double min_detA0 = min_detA;
-   double min_muT0 = min_muT;
-   double max_muT0 = max_muT;
-   double avg_muT0 = avg_muT;
-   double min_det_bound0 = detgf_lower.Min();
+   double min_detA0, volume0;
+   GetMinDet(pmesh, x0, quad_order, min_detA0, volume0);
 
    // Visualize the starting mesh.
    if (vis)
    {
-      char title[] = "Initial mesh";
-      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+      std::string title = "Initial mesh, mu_" + std::to_string(metric_id);
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh,
+                        title.c_str(), 0, 0, 300);
    }
 
-   // If needed, untangle with fixed boundary.
-   if (min_detA < 0.0)
+   // Untangle the mesh
+   if (min_detA0 > 0.0)
    {
-      Untangle(x, min_detA, quad_order, metric_id, target_id, plb, &detgf,
-               solver_iter);
+      if (myid == 0)
+      {
+         std::cout << "********************************\n";
+         std::cout << "***Mesh is already untangled, no need to untangle.***\n";
+      }
+   }
+   else
+   {
+      real_t min_detA_u0, min_muT_u0, max_muT_u0, avg_muT_u0, volume_u0;
+      real_t min_detA_u, min_muT_u, max_muT_u, avg_muT_u, volume_u;
+      GetMeshStats(pmesh, x0, umetric, utarget_c, quad_order,
+                   min_detA_u0, min_muT_u0, max_muT_u0, avg_muT_u0, volume_u0);
+      double min_det_bound0 = detgf_lower.Min();
+
+      // Visualize the starting mesh.
+      if (vis && u_metric_id != metric_id)
+      {
+         std::string title = "Initial mesh, untangling mu_" +
+                             std::to_string(u_metric_id);
+         vis_tmop_metric_p(mesh_poly_deg, *umetric, *utarget_c, *pmesh,
+                           title.c_str(), 300, 0, 300);
+      }
+
+      // Untangle the mesh
+      Untangle(x, min_detA_u0, quad_order, u_metric_id, u_target_id,
+               plb, &detgf, solver_iter);
+
+      {
+         ostringstream mesh_name;
+         mesh_name << "amster_untangled_out.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsOne(mesh_ofs);
+      }
+
+      if (vis)
+      {
+         std::string title = "After Untangling, mu_" +
+                             std::to_string(u_metric_id);
+         vis_tmop_metric_p(mesh_poly_deg, *umetric, *utarget_c, *pmesh,
+                           title.c_str(), 600, 0, 300);
+      }
+
+      // Average quality and worst-quality for the mesh.
+      GetMeshStats(pmesh, x, metric, target_c, quad_order,
+                   min_detA_u, min_muT_u, max_muT_u, avg_muT_u, volume_u);
+
+      GetDeterminantJacobianGF(pmesh, &detgf);
+      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      double min_det_bound = detgf_lower.Min();
+      if (myid == 0)
+      {
+         cout << "\n*** Stats of original mesh and untangled mesh\n";
+         cout << "Minimum det(J):       " << min_detA_u0 << " " <<
+              min_detA_u << endl
+              << "Minimum det(J) bound: " << min_det_bound0 << " " <<
+              min_det_bound << endl
+              << "Minimum muT:          " << min_muT_u0 << " " <<
+              min_muT_u << endl
+              << "Maximum muT:          " << max_muT_u0 << " " <<
+              max_muT_u << endl
+              << "Average muT:          " << avg_muT_u0 << " " <<
+              avg_muT_u << endl;
+      }
+
+      // Visualize the mesh displacement.
+      if (vis)
+      {
+         socketstream vis;
+         x0 -= x;
+         common::VisualizeField(vis, "localhost", 19916, x0,
+                                "Displacements", 900, 0, 300, 300, "jRmclA");
+      }
    }
 
+   // Worst case optimization
+   if (!worst_case)
    {
-      ostringstream mesh_name;
-      mesh_name << "amster_untangled_out.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      if (myid == 0)
+      {
+         std::cout << "********************************\n";
+         std::cout << "*** Worst case optimization not requested.***\n";
+      }
    }
-
-   if (vis)
+   else
    {
-      char title[] = "After Untangling";
-      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 400);
-   }
+      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      real_t min_detA_wc0, min_muT_wc0, max_muT_wc0, avg_muT_wc0, volume_wc0;
+      real_t min_detA_wc, min_muT_wc, max_muT_wc, avg_muT_wc, volume_wc;
+      GetMeshStats(pmesh, x0, wcmetric, wctarget_c, quad_order,
+                   min_detA_wc0, min_muT_wc0, max_muT_wc0, avg_muT_wc0, volume_wc0);
+      double min_det_bound0 = detgf_lower.Min();
 
-   // Average quality and worst-quality for the mesh.
-   GetMeshStats(pmesh, x, metric, target_c, quad_order,
-                min_detA, min_muT, max_muT, avg_muT, volume);
 
-   GetDeterminantJacobianGF(pmesh, &detgf);
-   *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
-   double min_det_bound = detgf_lower.Min();
-   if (myid == 0)
-   {
-      cout << "\n*** Stats of original mesh and untangled mesh\n";
-      cout << "Minimum det(J):       " << min_detA0 << " " << min_detA << endl
-           << "Minimum det(J) bound: " << min_det_bound0 << " "
-           << min_det_bound << endl
-           << "Minimum muT:          " << min_muT0 << " " << min_muT << endl
-           << "Maximum muT:          " << max_muT0 << " " << max_muT << endl
-           << "Average muT:          " << avg_muT0 << " " << avg_muT << endl;
-   }
+      // Visualize the starting mesh.
+      if (vis &&
+          ((wc_metric_id != u_metric_id && min_detA0 <= 0.0) ||
+           (wc_metric_id != metric_id && min_detA0 > 0.0)))
+      {
+         std::string title = "Initial mesh, worst case mu_" +
+                             std::to_string(wc_metric_id);
+         vis_tmop_metric_p(mesh_poly_deg, *wcmetric, *wctarget_c, *pmesh,
+                           title.c_str(), 300, 300, 300);
+      }
 
-   // Visualize the mesh displacement.
-   if (vis)
-   {
-      socketstream vis;
-      x0 -= x;
-      common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Displacements", 800, 0, 400, 400, "jRmclA");
-   }
-
-   // If needed, untangle with fixed boundary.
-   if (worst_case)
-   {
       WorstCaseOptimize(x, quad_order, metric_id, wc_target_id, plb, &detgf,
-                        solver_iter, min_detA);
+                        solver_iter, min_detA_wc0);
+
+      {
+         ostringstream mesh_name;
+         mesh_name << "amster_worst_case.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsOne(mesh_ofs);
+      }
+
+      if (vis)
+      {
+         std::string title = "After worst-case, mu_" +
+                             std::to_string(wc_metric_id);
+         vis_tmop_metric_p(mesh_poly_deg, *wcmetric, *wctarget_c, *pmesh,
+                           title.c_str(), 600, 300, 300);
+      }
+
+      // Average quality and worst-quality for the mesh.
+      GetMeshStats(pmesh, x, wcmetric, wctarget_c, quad_order,
+                   min_detA_wc, min_muT_wc, max_muT_wc, avg_muT_wc, volume_wc);
+
+      GetDeterminantJacobianGF(pmesh, &detgf);
+      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      double min_det_bound = detgf_lower.Min();
+      if (myid == 0)
+      {
+         cout << "\n*** Stats of input mesh and worst-case optimized mesh\n";
+         cout << "Minimum det(J):       " << min_detA_wc0 << " " <<
+              min_detA_wc << endl
+              << "Minimum det(J) bound: " << min_det_bound0 << " " <<
+              min_det_bound << endl
+              << "Minimum muT:          " << min_muT_wc0 << " " <<
+              min_muT_wc << endl
+              << "Maximum muT:          " << max_muT_wc0 << " " <<
+              max_muT_wc << endl
+              << "Average muT:          " << avg_muT_wc0 << " " <<
+              avg_muT_wc << endl;
+      }
+
+      // Visualize the mesh displacement.
+      if (vis)
+      {
+         socketstream vis;
+         x0 -= x;
+         common::VisualizeField(vis, "localhost", 19916, x0,
+                                "Displacements", 900, 300, 300, 300, "jRmclA");
+      }
    }
 
-   {
-      ostringstream mesh_name;
-      mesh_name << "amster_worst_case.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-   }
 
-   // Average quality and worst-quality for the mesh.
-   double min_detA2, min_muT2, max_muT2, avg_muT2, volume2;
-   GetMeshStats(pmesh, x, metric, target_c, quad_order,
-                min_detA2, min_muT2, max_muT2, avg_muT2, volume2);
-
-   GetDeterminantJacobianGF(pmesh, &detgf);
-   *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
-   double min_det_bound2 = detgf_lower.Min();
-   if (myid == 0)
+   // Do regular mesh optimization
+   if (min_detA0 > 0.0)
    {
-      cout << "\n*** Stats of original mesh, untangled mesh, worstcase optimized\n";
-      cout << "Minimum det(J):       " << min_detA0 << " " << min_detA << " " <<
-           min_detA2 << endl
-           << "Minimum det(J) bound: " << min_det_bound0 << " "
-           << min_det_bound << " "
-           << min_det_bound2 << endl
-           << "Minimum muT:          " << min_muT0 << " " << min_muT <<  " " << min_muT2 <<
-           endl
-           << "Maximum muT:          " << max_muT0 << " " << max_muT << " " << max_muT2 <<
-           endl
-           << "Average muT:          " << avg_muT0 << " " << avg_muT << " " << avg_muT2 <<
-           endl;
-   }
+      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      real_t min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0;
+      real_t min_detA_m, min_muT_m, max_muT_m, avg_muT_m, volume_m;
+      GetMeshStats(pmesh, x0, metric, target_c, quad_order,
+                   min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0);
+      double min_det_bound0 = detgf_lower.Min();
+      if (vis && min_detA0 > 0.0 && worst_case)
+      {
+         std::string title = "Initial mesh, mu_" +
+                             std::to_string(metric_id);
+         vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh,
+                           title.c_str(), 300, 600, 300);
+      }
 
-   // Visualize the mesh displacement.
-   if (vis)
-   {
-      socketstream vis;
-      x0 -= x;
-      common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Displacements", 800, 500, 400, 400, "jRmclA");
+      MeshOptimizer meshopt(pmesh);
+      meshopt.Setup(x, &min_detA0, quad_order, metric_id, target_id,
+                    plb, &detgf, solver_iter);
+      meshopt.OptimizeNodes(x);
+
+      if (vis)
+      {
+         std::string title = "After mesh-optimization, mu_" +
+                             std::to_string(metric_id);
+         vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh,
+                           title.c_str(), 600, 600, 300);
+      }
+
+      // Visualize the mesh displacement.
+      if (vis)
+      {
+         socketstream vis;
+         x0 -= x;
+         common::VisualizeField(vis, "localhost", 19916, x0,
+                                "Displacements", 900, 600, 300, 300, "jRmclA");
+      }
+
+      // Average quality and worst-quality for the mesh.
+      GetMeshStats(pmesh, x, metric, target_c, quad_order,
+                   min_detA_m, min_muT_m, max_muT_m, avg_muT_m, volume_m);
+
+      GetDeterminantJacobianGF(pmesh, &detgf);
+      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      double min_det_bound = detgf_lower.Min();
+      if (myid == 0)
+      {
+         cout << "\n*** Stats of final mesh optimization pass\n";
+         cout << "Minimum det(J):       " << min_detA_m0 << " " <<
+              min_detA_m << endl
+              << "Minimum det(J) bound: " << min_det_bound0 << " " <<
+              min_det_bound << endl
+              << "Minimum muT:          " << min_muT_m0 << " " <<
+              min_muT_m << endl
+              << "Maximum muT:          " << max_muT_m0 << " " <<
+              max_muT_m << endl
+              << "Average muT:          " << avg_muT_m0 << " " <<
+              avg_muT_m << endl;
+      }
    }
 
    delete target_c;
@@ -351,7 +481,7 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
               ParGridFunction *detgf, int solver_iter)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
-   const int dim = pfes.GetParMesh()->Dimension();
+   // const int dim = pfes.GetParMesh()->Dimension();
 
    if (pfes.GetMyRank() == 0) { cout << "*** \nUntangle Phase\n***\n"; }
 
@@ -439,7 +569,7 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order,
                        double &min_det)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
-   const int dim = pfes.GetParMesh()->Dimension();
+   // const int dim = pfes.GetParMesh()->Dimension();
 
    if (pfes.GetMyRank() == 0) { cout << "*** \nWorst Quality Phase\n***\n"; }
 
@@ -507,81 +637,6 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order,
    delete metric;
 
    return;
-}
-
-void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
-                  TMOP_QualityMetric *metric,  TargetConstructor *target_c,
-                  int quad_order,
-                  double &min_det, double &min_muT, double &max_muT,
-                  double &avg_muT, double &volume)
-{
-   int NE = pmesh->GetNE();
-   int dim = pmesh->Dimension();
-   ParFiniteElementSpace &pfes = *(x.ParFESpace());
-   min_det = infinity();
-   min_muT = infinity();
-   max_muT = -infinity();
-   avg_muT = 0.0;
-   volume = 0.0;
-
-   for (int e = 0; e < NE; e++)
-   {
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh->GetElementTransformation(e);
-      for (int q = 0; q < ir.GetNPoints(); q++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(q));
-         min_det = fmin(min_det, transf->Jacobian().Det());
-      }
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &min_det, 1, MPI_DOUBLE,
-                 MPI_MIN, pfes.GetComm());
-
-   double integral_mu = 0.0;
-   for (int i = 0; i < NE; i++)
-   {
-      const FiniteElement &fe_pos = *x.FESpace()->GetFE(i);
-      const IntegrationRule &ir = IntRulesLo.Get(fe_pos.GetGeomType(), 10);
-      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
-
-      DenseMatrix dshape(dof, dim);
-      DenseMatrix pos(dof, dim);
-      pos.SetSize(dof, dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      Array<int> pos_dofs;
-      x.FESpace()->GetElementVDofs(i, pos_dofs);
-      x.GetSubVector(pos_dofs, posV);
-
-      DenseTensor W(dim, dim, nsp);
-      DenseMatrix Winv(dim), T(dim), A(dim);
-      target_c->ComputeElementTargets(i, fe_pos, ir, posV, W);
-
-      for (int j = 0; j < nsp; j++)
-      {
-         const DenseMatrix &Wj = W(j);
-         metric->SetTargetJacobian(Wj);
-         CalcInverse(Wj, Winv);
-
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         fe_pos.CalcDShape(ip, dshape);
-         MultAtB(pos, dshape, A);
-         Mult(A, Winv, T);
-
-         const double mu = metric->EvalW(T);
-         max_muT = fmax(mu, max_muT);
-         min_muT = fmin(mu, min_muT);
-         integral_mu += mu * ip.weight * A.Det();
-         volume += ip.weight * A.Det();
-      }
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &min_muT, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &max_muT, 1, MPI_DOUBLE, MPI_MAX, pfes.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM,
-                 pfes.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
-   avg_muT = integral_mu / volume;
 }
 
 void Interpolate(const ParGridFunction &src, const Array<int> &y_fixed_marker,

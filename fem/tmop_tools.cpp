@@ -1188,7 +1188,7 @@ void TMOPNewtonSolver::ComputeMinDetBound(const Vector &d_loc,
 // computing the metric values at the nodes.
 void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, ParMesh &pmesh,
-                       char *title, int position)
+                       const char *title, int posx, int posy, int size)
 {
    L2_FECollection fec(order, pmesh.Dimension(), BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&pmesh, &fec, 1);
@@ -1206,7 +1206,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
    {
       sock << "window_title '"<< title << "'\n"
            << "window_geometry "
-           << position << " " << 0 << " " << 400 << " " << 400 << "\n"
+           << posx << " " << posy << " " << size << " " << size << "\n"
            << "keys jRmclA\n";
    }
 }
@@ -1216,7 +1216,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
 // computing the metric values at the nodes.
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &mesh,
-                       char *title, int position)
+                       const char *title, int posx, int posy, int size)
 {
    L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec, 1);
@@ -1229,7 +1229,7 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
    sock.send();
    sock << "window_title '"<< title << "'\n"
         << "window_geometry "
-        << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+        << posx << " " << posy << " " << size << " " << size << "\n"
         << "keys jRmclA\n";
 }
 

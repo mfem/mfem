@@ -82,7 +82,8 @@ protected:
    void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, points_cnt;                   // mesh dimension and number of points
+   int dim, spacedim,
+       points_cnt;                   // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
@@ -133,6 +134,8 @@ protected:
 
    /// Get GridFunction value at the points expected by GSLIB.
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
+
+   virtual void GetNodalValuesSurf(const GridFunction *gf_in, Vector &node_vals);
 
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
    /// find the original element number (that was split into micro quads/hexes)
@@ -215,6 +218,14 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1,
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
+
+
+
+   void SetupSurf(Mesh &m,
+                  const double bb_t = 0.1,
+                  const double newt_tol = 1.0e-12,
+                  const int npt_max = 256);
+
    /** Searches positions given in physical space by \p point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by \p point_pos_ordering.
@@ -362,6 +373,8 @@ public:
    /// a vector of size (nel x dim). The vertices of the OBBs are returned in
    /// \p obbV, a vector of size (nel x nverts x dim) .
    void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC, Vector &obbV);
+
+   virtual Mesh* GetBoundingBoxMeshSurf(int type = 0);
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of

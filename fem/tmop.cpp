@@ -219,7 +219,7 @@ type wcuo_ad(type mu,
              int exponent, real_t max_muT, real_t muT_ep,
              TWCUO::BarrierType bt,
              TWCUO::WorstCaseType wct,
-            real_t min_det_b)
+             real_t min_det_b)
 {
    type one = make_one_type<type>();
    type zero = 0.0*one;
@@ -735,7 +735,8 @@ real_t TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
       }
       else
       {
-         denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (real_t) min_det_b));
+         denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep,
+                                               (real_t) min_det_b));
       }
    }
    else if (btype == BarrierType::Pseudo)

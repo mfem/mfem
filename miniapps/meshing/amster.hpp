@@ -16,6 +16,47 @@
 using namespace std;
 using namespace mfem;
 
+TargetConstructor *GetTargetConstructor(int target_id, ParGridFunction &x0)
+{
+   TargetConstructor *target_c = NULL;
+   TargetConstructor::TargetType target_t;
+   switch (target_id)
+   {
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      default:
+         MFEM_ABORT("Unknown target_id"); break;
+   }
+   if (target_c == NULL)
+   {
+      target_c = new TargetConstructor(target_t, x0.ParFESpace()->GetComm());
+   }
+   target_c->SetNodes(x0);
+   return target_c;
+}
+
+TMOP_QualityMetric *GetMetric(int metric_id)
+{
+   TMOP_QualityMetric *metric = NULL;
+   switch (metric_id)
+   {
+      case 1: metric = new TMOP_Metric_001; break;
+      case 2: metric = new TMOP_Metric_002; break;
+      case 4: metric = new TMOP_Metric_004; break;
+      case 14: metric = new TMOP_Metric_014; break;
+      case 50: metric = new TMOP_Metric_050; break;
+      case 55: metric = new TMOP_Metric_055; break;
+      case 58: metric = new TMOP_Metric_058; break;
+      case 66: metric = new TMOP_Metric_066(0.1); break;
+      case 80: metric = new TMOP_Metric_080(0.1); break;
+      case 360: metric = new TMOP_Metric_360; break;
+      default:
+         MFEM_ABORT("Unknown metric_id"); break;
+   }
+   return metric;
+}
+
 #if(defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB))
 void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
                                        ParGridFunction &source,
@@ -353,31 +394,14 @@ private:
    TMOPNewtonSolver *solver = nullptr;
 
    ParFiniteElementSpace *pfes_nodes_scalar = nullptr;
-   ParFiniteElementSpace *pfes_fit_grad = nullptr;
-   ParFiniteElementSpace *pfes_fit_hess = nullptr;
-   ParGridFunction *surf_fit = nullptr;
-   ParGridFunction *surf_fit_grad = nullptr;
-   ParGridFunction *surf_fit_hess = nullptr;
-   Array<bool> surf_fit_marker;
-   AdaptivityEvaluator *adapt_surf = nullptr;
-   AdaptivityEvaluator *adapt_surf_grad = nullptr;
-   AdaptivityEvaluator *adapt_surf_hess = nullptr;
+   ParMesh *pmesh;
 
 public:
-   MeshOptimizer() { }
+   MeshOptimizer(ParMesh *pmesh_): pmesh(pmesh_) { }
 
    ~MeshOptimizer()
    {
-      delete adapt_surf_hess;
-      delete adapt_surf_grad;
-      delete adapt_surf;
-      delete surf_fit_hess;
-      delete surf_fit_grad;
-      delete surf_fit;
-      delete pfes_fit_hess;
-      delete pfes_fit_grad;
       delete pfes_nodes_scalar;
-
       delete solver;
       delete lin_solver;
       delete nlf;
@@ -386,57 +410,49 @@ public:
    }
 
    // Must be called before optimization.
-   void Setup(ParFiniteElementSpace &pfes, int metric_id,
-              int quad_order, double *min_det_ptr=nullptr);
-
-   void SetupSurfaceFit(ParFiniteElementSpace &pfes_nodes,
-                        ConstantCoefficient &surf_fit_coeff,
-                        BackgroundData &backgrnd);
-
-   void SetAbsTol(double atol) { solver->SetAbsTol(atol); }
+   void Setup(ParGridFunction &x,
+              double *min_det_ptr,
+              int quad_order,
+              int metric_id, int target_id,
+              GridFunction::PLBound *plb,
+              ParGridFunction *detgf, int solver_iter);
 
    // Optimizes the node positions given in x.
    // When we enter, x contains the initial node positions.
    // When we exit, x contains the optimized node positions.
    // The underlying mesh of x remains unchanged (its positions don't change).
-   void OptimizeNodes(ParGridFunction &x, bool vis);
+   void OptimizeNodes(ParGridFunction &x);
 
-   TMOP_Integrator *GetIntegrator();
-
-   TMOPNewtonSolver *GetSolver() { return solver; }
-
-   double Residual(ParGridFunction &x);
+   void EnableTangentialRelaxationFor2DEdge(int bdr_attr);
 };
 
-void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
-                          int metric_id, int quad_order,
-                          double *min_det_ptr)
+void MeshOptimizer::EnableTangentialRelaxationFor2DEdge(int bdr_attr)
 {
-   const int dim = pfes.GetMesh()->Dimension();
+
+}
+
+void MeshOptimizer::Setup(ParGridFunction &x,
+                          double *min_det_ptr,
+                          int quad_order,
+                          int metric_id, int target_id,
+                          GridFunction::PLBound *plb,
+                          ParGridFunction *detgf, int solver_iter)
+{
+   ParFiniteElementSpace &pfes = *x.ParFESpace();
 
    // Metric.
-   if (dim == 2)
-   {
-      switch (metric_id)
-      {
-         case 1: metric = new TMOP_Metric_001; break;
-         case 2: metric = new TMOP_Metric_002; break;
-         case 50: metric = new TMOP_Metric_050; break;
-         case 58: metric = new TMOP_Metric_058; break;
-         case 66: metric = new TMOP_Metric_066(0.1); break;
-         case 80: metric = new TMOP_Metric_080(0.1); break;
-      }
-   }
-   else { metric = new TMOP_Metric_302; }
+   metric = GetMetric(metric_id);
 
    // Target.
-   TargetConstructor::TargetType target =
-      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   target_c = new TargetConstructor(target, pfes.GetComm());
+   target_c = GetTargetConstructor(target_id, x);
 
    // Integrator.
    auto tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
    tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
+   if (plb)
+   {
+      tmop_integ->SetPLBoundsForDeterminant(plb, detgf);
+   }
 
    // Nonlinear form.
    nlf = new ParNonlinearForm(&pfes);
@@ -466,135 +482,216 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    {
       solver->SetMinDetPtr(min_det_ptr);
    }
-   solver->SetMaxIter(100);
+   if (plb) { solver->SetDeterminantBound(true); }
+   solver->SetMaxIter(solver_iter);
    solver->SetRelTol(1e-8);
    solver->SetAbsTol(0.0);
    IterativeSolver::PrintLevel newton_pl;
    solver->SetPrintLevel(newton_pl.Iterations().Summary());
 }
 
-void MeshOptimizer::SetupSurfaceFit(ParFiniteElementSpace &pfes_nodes,
-                                    ConstantCoefficient &surf_fit_coeff,
-                                    BackgroundData &backgrnd)
-{
-   const int dim = pfes_nodes.GetMesh()->Dimension();
-   pfes_nodes_scalar = new ParFiniteElementSpace(pfes_nodes.GetParMesh(),
-                                                 pfes_nodes.FEColl(), 1);
-   pfes_fit_grad     = new ParFiniteElementSpace(pfes_nodes.GetParMesh(),
-                                                 pfes_nodes.FEColl(), dim);
-   pfes_fit_hess     = new ParFiniteElementSpace(pfes_nodes.GetParMesh(),
-                                                 pfes_nodes.FEColl(), dim*dim);
-
-   surf_fit      = new ParGridFunction(pfes_nodes_scalar);
-   surf_fit_grad = new ParGridFunction(pfes_fit_grad);
-   surf_fit_hess = new ParGridFunction(pfes_fit_hess);
-   surf_fit_marker.SetSize(pfes_nodes_scalar->GetVSize());
-
-   surf_fit_marker = false;
-   *surf_fit = 1.0;
-   Array<int> vdofs;
-   for (int i = 0; i < pfes_nodes_scalar->GetParMesh()->GetNBE(); i++)
-   {
-      pfes_nodes_scalar->GetBdrElementVDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++)
-      {
-         surf_fit_marker[vdofs[j]] = true;
-         (*surf_fit)(vdofs[j]) = 0.0;
-      }
-   }
-
-   adapt_surf      = new InterpolatorFP;
-   adapt_surf_grad = new InterpolatorFP;
-   adapt_surf_hess = new InterpolatorFP;
-
-   GetIntegrator()->EnableSurfaceFittingFromSource
-   (*backgrnd.dist_bg, *surf_fit, surf_fit_marker, surf_fit_coeff,
-    *adapt_surf, *backgrnd.grad_bg, *surf_fit_grad, *adapt_surf_grad,
-    *backgrnd.hess_bg, *surf_fit_hess, *adapt_surf_hess);
-}
-
-double MinDetJ(ParMesh &pmesh, int quad_order)
-{
-   GridFunction &nodes = *pmesh.GetNodes();
-   FiniteElementSpace &pfes = *nodes.FESpace();
-
-   double min_detJ = infinity();
-   for (int e = 0; e < pmesh.GetNE(); e++)
-   {
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh.GetElementTransformation(e);
-      for (int q = 0; q < ir.GetNPoints(); q++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(q));
-         min_detJ = fmin(min_detJ, transf->Jacobian().Det());
-      }
-   }
-
-   MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPI_DOUBLE, MPI_MIN,
-                 pmesh.GetComm());
-
-   return min_detJ;
-}
-
-void MeshOptimizer::OptimizeNodes(ParGridFunction &x, bool vis = false)
+void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
 {
    MFEM_VERIFY(solver, "Setup() has not been called.");
 
-   ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
-   int myid = pmesh.GetMyRank();
+   // ParFiniteElementSpace &pfes = *x.ParFESpace();
+   // ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
+   // int myid = pmesh.GetMyRank();
 
-   GridFunction *ptr_nodes = pmesh.GetNodes();
-   GridFunction *ptr_x = &x;
-   int dont_own_nodes = 0;
-   pmesh.SwapNodes(ptr_x, dont_own_nodes);
-
-   ParFiniteElementSpace &pfes = *x.ParFESpace();
-
-   const int quad_order =
-      solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
-   const int order = pfes.GetFE(0)->GetOrder();
-   double min_detJ = MinDetJ(pmesh, quad_order);
-   double init_energy = nlf->GetParGridFunctionEnergy(x);
-   if (myid == 0)
-   {
-      cout << "\n*** Optimizing Order " << order << " ***\n\n";
-      cout << "Min detJ before opt: " << min_detJ << endl;
-      cout << "Energy before opt: " << init_energy << endl;
-   }
+   // const int quad_order =
+   //    solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
+   // const int order = pfes.GetFE(0)->GetOrder();
+   // double init_energy = nlf->GetParGridFunctionEnergy(x);
 
    // Optimize.
    x.SetTrueVector();
    Vector b;
    solver->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-
-   min_detJ = MinDetJ(pmesh, quad_order);
-   if (myid == 0)
-   {
-      cout << "Min detJ after opt: " << min_detJ << endl;
-   }
-
-   if (vis)
-   {
-      socketstream vis;
-      common::VisualizeMesh(vis, "localhost", 19916, pmesh,
-                            "Final mesh", 800, 0, 400, 400, "me");
-   }
-
-   pmesh.SwapNodes(ptr_nodes, dont_own_nodes);
 }
 
-TMOP_Integrator *MeshOptimizer::GetIntegrator()
+void GetMinDet(ParMesh *pmesh, ParGridFunction &x,
+               int quad_order,
+               real_t &min_det, real_t &volume)
 {
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   return dynamic_cast<TMOP_Integrator *>(integs[0]);
+   int NE = pmesh->GetNE();
+   // int dim = pmesh->Dimension();
+   ParFiniteElementSpace &pfes = *(x.ParFESpace());
+   min_det = infinity();
+   volume = 0.0;
+   for (int e = 0; e < NE; e++)
+   {
+      const IntegrationRule &ir =
+         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(e);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(q));
+         real_t det = transf->Jacobian().Det();
+         min_det = fmin(min_det, det);
+         volume += ir.IntPoint(q).weight * det;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_det, 1, MPI_DOUBLE,
+                 MPI_MIN, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
 }
 
-double MeshOptimizer::Residual(ParGridFunction &x)
+void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
+                  TMOP_QualityMetric *metric,  TargetConstructor *target_c,
+                  int quad_order,
+                  double &min_det, double &min_muT, double &max_muT,
+                  double &avg_muT, double &volume)
 {
-   MFEM_VERIFY(solver, "Setup() has not been called.");
-   Vector b;
-   x.SetTrueVector();
-   return solver->GetResidual(b, x.GetTrueVector());
+   int NE = pmesh->GetNE();
+   int dim = pmesh->Dimension();
+   ParFiniteElementSpace &pfes = *(x.ParFESpace());
+   min_det = infinity();
+   min_muT = infinity();
+   max_muT = -infinity();
+   avg_muT = 0.0;
+   volume = 0.0;
+
+   for (int e = 0; e < NE; e++)
+   {
+      const IntegrationRule &ir =
+         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(e);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(q));
+         min_det = fmin(min_det, transf->Jacobian().Det());
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_det, 1, MPI_DOUBLE,
+                 MPI_MIN, pfes.GetComm());
+
+   double integral_mu = 0.0;
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement &fe_pos = *x.FESpace()->GetFE(i);
+      const IntegrationRule &ir = IntRulesLo.Get(fe_pos.GetGeomType(), 10);
+      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+      DenseMatrix dshape(dof, dim);
+      DenseMatrix pos(dof, dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      Array<int> pos_dofs;
+      x.FESpace()->GetElementVDofs(i, pos_dofs);
+      x.GetSubVector(pos_dofs, posV);
+
+      DenseTensor W(dim, dim, nsp);
+      DenseMatrix Winv(dim), T(dim), A(dim);
+      target_c->ComputeElementTargets(i, fe_pos, ir, posV, W);
+
+      for (int j = 0; j < nsp; j++)
+      {
+         const DenseMatrix &Wj = W(j);
+         metric->SetTargetJacobian(Wj);
+         CalcInverse(Wj, Winv);
+
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         fe_pos.CalcDShape(ip, dshape);
+         MultAtB(pos, dshape, A);
+         Mult(A, Winv, T);
+
+         const double mu = metric->EvalW(T);
+         max_muT = fmax(mu, max_muT);
+         min_muT = fmin(mu, min_muT);
+         integral_mu += mu * ip.weight * A.Det();
+         volume += ip.weight * A.Det();
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_muT, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_muT, 1, MPI_DOUBLE, MPI_MAX, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM,
+                 pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+   avg_muT = integral_mu / volume;
+}
+
+Mesh *SetupEdgeMesh(Mesh *mesh, int attr)
+{
+   Array<int> facedofs(0);
+   int spaceDim = mesh->SpaceDimension();
+   MFEM_VERIFY(spaceDim == 2, "Only 2D meshes supported right now.");
+   Array<int> fdofs;
+   GridFunction *x = mesh->GetNodes();
+   MFEM_VERIFY(x, "Mesh nodal space not set\n");
+   const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+   int mesh_poly_deg = fes->GetMaxElementOrder();
+   int nfaces = 0;
+   for (int f = 0; f < mesh->GetNBE(); f++)
+   {
+      int attrib = mesh->GetBdrAttribute(f);
+      if (attrib == attr)
+      {
+         nfaces += 1;
+         fes->GetBdrElementDofs(f, fdofs);
+         facedofs.Append(fdofs);
+      }
+   }
+   facedofs.Sort();
+   facedofs.Unique();
+
+   Mesh *intmesh = new Mesh(1, nfaces*2, nfaces, 0, spaceDim);
+   {
+      for (int i = 0; i < nfaces; i++)
+      {
+         for (int j = 0; j < 2; j++) // 2 vertices per element
+         {
+            Vector vert(spaceDim);
+            vert = 0.5;
+            intmesh->AddVertex(vert.GetData());
+         }
+         Array<int> verts(spaceDim);
+         for (int d = 0; d < spaceDim; d++)
+         {
+            verts[d] = i*spaceDim+d;
+         }
+         intmesh->AddSegment(verts, 1);
+      }
+      intmesh->Finalize(true, true);
+      intmesh->FinalizeTopology();
+      intmesh->SetCurvature(mesh_poly_deg, false);
+   }
+
+   const FiniteElementSpace *intnodespace = intmesh->GetNodalFESpace();
+   GridFunction *intnodes = intmesh->GetNodes();
+
+   FaceElementTransformations *face_elem_transf;
+   int count = 0;
+   Vector vect;
+   Vector nodeval(spaceDim);
+   for (int f = 0; f < mesh->GetNBE(); f++)
+   {
+      int attrib = mesh->GetBdrAttribute(f);
+      int fnum = mesh->GetBdrElementFaceIndex(f);
+      if (attrib == attr)
+      {
+         intnodespace->GetElementVDofs(count, fdofs);
+         const FiniteElement *fe = intnodespace->GetFE(count);
+         face_elem_transf = mesh->GetFaceElementTransformations(fnum);
+         IntegrationRule irule = fe->GetNodes();
+         int npts = irule.GetNPoints();
+         vect.SetSize(npts*spaceDim);
+         for (int q = 0; q < npts; q++)
+         {
+            IntegrationPoint &ip = irule.IntPoint(q);
+            IntegrationPoint eip;
+            face_elem_transf->Loc1.Transform(ip, eip);
+            x->GetVectorValue(face_elem_transf->Elem1No, eip, nodeval);
+            for (int d = 0; d < spaceDim; d++)
+            {
+               vect(q + npts*d) = nodeval(d);
+            }
+         }
+         intnodes->SetSubVector(fdofs, vect);
+         count++;
+      }
+   }
+
+   return intmesh;
 }

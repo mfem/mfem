@@ -400,11 +400,11 @@ public:
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &pmesh,
-                       char *title, int position);
+                       const char *title, int posx, int posy=0, int size=600);
 #ifdef MFEM_USE_MPI
 void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, ParMesh &pmesh,
-                       char *title, int position);
+                       const char *title, int posx, int posy=0, int size=400);
 #endif
 
 // Compute x = x_0 + d, where x and x_0 are L2, d is H1p, all ldof vectors.
