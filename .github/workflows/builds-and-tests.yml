@@ -130,6 +130,13 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp64
+          - os: macos-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp64
             config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) ENZYME_LLVM_VERSION=$(mpicxx -dumpversion | cut -d'.' -f1)
             enzyme: true
 
