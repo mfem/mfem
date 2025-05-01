@@ -587,11 +587,15 @@ protected:
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
-   /** If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
-       If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
-       mfem v1.2 format with the given section_delimiter at the end.
+   /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
+       format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,
+       write mfem v1.2 format with the given section_delimiter at the end.
+
        If @a comments is non-empty, it will be printed after the first line of
-       the file, and each line should begin with '#'. */
+       the file, and each line should begin with '#'.
+
+       If the optional pointer @a nodes to a GridFunction is given, it will be
+       written instead of the @a Nodes member of this object. */
    void Printer(std::ostream &os = mfem::out,
                 std::string section_delimiter = "",
                 const std::string &comments = "",
@@ -2427,10 +2431,14 @@ public:
    /// Print the mesh to the given stream using Netgen/Truegrid format.
    virtual void PrintXG(std::ostream &os = mfem::out) const;
 
-   /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
-   /// @a comments is non-empty, it will be printed after the first line of the
-   /// file, and each line should begin with '#'.
+   /** @brief Print the mesh to the given stream using the default MFEM mesh
+       format.
+
+       \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
+       @a comments is non-empty, it will be printed after the first line of the
+       file, and each line should begin with '#'. If the optional pointer
+       @a nodes to a GridFunction is given, it will be written instead of the
+       @a Nodes member of this object. */
    virtual void Print(std::ostream &os = mfem::out,
                       const std::string &comments = "",
                       GridFunction *nodes = nullptr) const

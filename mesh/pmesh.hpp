@@ -733,7 +733,9 @@ public:
        format. Depending on SetPrintShared(), the parallel interface can be
        added as boundary for visualization (true by default). If @a comments is
        non-empty, it will be printed after the first line of the file, and each
-       line should begin with '#'. */
+       line should begin with '#'. If the optional pointer @a nodes to a
+       GridFunction is given, it will be written instead of the @a Nodes member
+       of this object.*/
    void Print(std::ostream &out = mfem::out,
               const std::string &comments = "",
               GridFunction *nodes = nullptr) const override;

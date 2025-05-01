@@ -59,13 +59,25 @@ void SurfaceExample(int example, const std::vector<Vector> &ugrid,
 class SurfaceInterpolator
 {
 public:
+   /// Constructor for a given 2D point grid size and NURBS order.
    SurfaceInterpolator(int num_elem_x, int num_elem_y, int order);
+
+   /** @brief Compute the NURBS mesh interpolating the given coordinate of the
+       grid of 3D points in @a input3D. */
    void ComputeNURBS(int coordinate, const Array3D<real_t> &input3D);
 
+   /// Return the NURBS mesh representing the surface.
    const Mesh& GetMesh() const { return mesh; }
+
+   /// Return an array of the number of knot-spans (elements) in each direction.
    const Array<int>& GetNKS() const { return nks; }
+
+   /// Return the coordinates of grid points in the parameter space [0,1]^2.
    const std::vector<Vector>& GetUGrid() const { return ugrid; }
-   void WriteNURBSMesh(std::vector<Mesh> &cmesh) const; // TODO: const arg?
+
+   /** @brief Write the NURBS surface mesh to file, defined coordinate-wise by
+       the entries of @a cmesh. */
+   void WriteNURBSMesh(std::vector<Mesh> &cmesh) const;
 
 private:
    int nx, ny; // Number of elements in two directions of the surface grid
@@ -74,10 +86,9 @@ private:
 
    static constexpr int dim = 3;
    Array<int> ncp; // Number of control points in each direction
-
-   std::vector<Vector> ugrid;
-
    Array<int> nks; // Number of knot-spans in each direction
+
+   std::vector<Vector> ugrid; // Parameter space [0,1]^2 grid point coordinates
 
    std::vector<KnotVector> kv; // Knotvectors in each direction
 
@@ -349,7 +360,7 @@ void SurfaceExample(int example, const std::vector<Vector> &ugrid,
 SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
                                          int order) :
    nx(num_elem_x), ny(num_elem_y), orderNURBS(order),
-   nks(dim), ncp(dim), ugrid(dim - 1)
+   ncp(dim), nks(dim), ugrid(dim - 1)
 {
    ncp[0] = nx + 1;
    ncp[1] = ny + 1;
@@ -461,13 +472,10 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
 void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
 {
    GridFunction *nodes = cmesh[0].GetNodes();
-
    NURBSPatch patch2D(&kv[0], &kv[1], dim);
-
    Array<const NURBSPatch*> patches(1);
    patches[0] = &patch2D;
    Mesh patch_topology = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
-
    Array<int> dofs;
    cmesh[0].NURBSext->GetPatchDofs(0, dofs);
 
@@ -478,30 +486,29 @@ void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
       for (int i = 0; i < ncp[0]; i++)
       {
          const int dof = dofs[i + (ncp[0] * (j + (ncp[1] * orderNURBS)))];
-         for (int k=0; k<2; ++k) { patch2D(i,j,k) = (*nodes)[3*dof + k]; }
+         for (int k=0; k<2; ++k) { patch2D(i,j,k) = (*nodes)[dim*dof + k]; }
 
          patch2D(i,j,2) = 1.0; // weight
       }
    }
 
    NURBSExtension nurbsExt(&patch_topology, patches);
-
    Mesh mesh2D(nurbsExt);
 
    FiniteElementCollection *fec = nodes->OwnFEC();
-   FiniteElementSpace fespace(&mesh2D, fec, 3, Ordering::byVDIM);
+   FiniteElementSpace fespace(&mesh2D, fec, dim, Ordering::byVDIM);
    GridFunction x(&fespace);
 
    GridFunction *nodes2D = mesh2D.GetNodes();
 
-   const int n = mesh2D.GetNodes()->Size() / 2;
-   MFEM_VERIFY(2 * n == mesh2D.GetNodes()->Size(), "");
-   MFEM_VERIFY(3 * n == x.Size(), "");
+   const int n = mesh2D.GetNodes()->Size() / (dim - 1);
+   MFEM_VERIFY((dim - 1) * n == mesh2D.GetNodes()->Size(), "");
+   MFEM_VERIFY(dim * n == x.Size(), "");
 
    Array<int> dofs2D;
    mesh2D.NURBSext->GetPatchDofs(0, dofs2D);
 
-   for (int k=0; k<3; ++k)
+   for (int k=0; k<dim; ++k)
    {
       const GridFunction &nodes_k = *cmesh[k].GetNodes();
 
@@ -510,7 +517,7 @@ void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
          {
             const int dof = dofs[i + (ncp[0] * (j + (ncp[1] * orderNURBS)))];
             const int dof2D = dofs2D[i + (ncp[0] * j)];
-            x[(3*dof2D) + k] = nodes_k[3*dof + 2];
+            x[(dim*dof2D) + k] = nodes_k[dim*dof + 2];
          }
    }
 
