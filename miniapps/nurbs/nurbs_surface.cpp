@@ -278,7 +278,7 @@ void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << fmesh << flush;
+      sol_sock << "mesh\n" << fmesh << flush;
    }
 }
 
