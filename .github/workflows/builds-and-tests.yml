@@ -85,11 +85,12 @@ jobs:
             codecov: NO
           - os: windows-latest
             codecov: NO
-            config-opts: "-G Ninja"
+            # config-opts: '-G "Ninja Multi-Config"'
           - os: windows-latest
             target: opt
             mpi: par
-            config-opts: "-DBUILD_SHARED_LIBS=ON -G Ninja"
+            config-opts: "-DBUILD_SHARED_LIBS=ON"
+            # config-opts: '-DBUILD_SHARED_LIBS=ON -G "Ninja Multi-Config"'
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -154,6 +155,11 @@ jobs:
           path: ${{ env.MFEM_TOP_DIR }}
           # Fetch the complete history for codecov to access commits ID
           fetch-depth: 0
+
+      - name: Windows environment [debug]
+        if: matrix.os == 'windows-latest'
+        run: |
+          set
 
       - name: Xcode version setup (MacOS)
         if: matrix.os == 'macos-latest'
