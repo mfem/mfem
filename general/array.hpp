@@ -298,7 +298,7 @@ public:
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
-   /// @brief Compute the absolute value of the entries
+   /// Replace each entry of the array with its absolute value.
    void Abs();
 
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
