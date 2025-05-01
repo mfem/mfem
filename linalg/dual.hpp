@@ -15,8 +15,7 @@
  * @brief This file contains the declaration of a dual number class
  */
 
-#ifndef MFEM_INTERNAL_DUAL_HPP
-#define MFEM_INTERNAL_DUAL_HPP
+#pragma once
 
 #include <type_traits> // for is_arithmetic
 #include <cmath>
@@ -24,7 +23,7 @@
 
 namespace mfem
 {
-namespace internal
+namespace future
 {
 
 /**
@@ -288,7 +287,7 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sqrt(dual<value_type, gradient_type> x)
 {
    using std::sqrt;
-   return {sqrt(x.value), x.gradient / (value_type{2} * sqrt(x.value))};
+   return {sqrt(x.value), x.gradient / (2 * sqrt(x.value))};
 }
 
 /** @brief implementation of cosine for dual numbers */
@@ -435,7 +434,5 @@ MFEM_HOST_DEVICE gradient_type get_gradient(dual<value_type, gradient_type> arg)
    return arg.gradient;
 }
 
-} // namespace internal
+} // namespace future
 } // namespace mfem
-
-#endif

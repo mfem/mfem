@@ -13,6 +13,7 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include <array>
 
 namespace mfem
 {
@@ -42,7 +43,8 @@ public:
    static inline int result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+      MFEM_ASSERT(first<static_cast<T>(sizes[Dim-1]),
+                  "Trying to access out of boundary.");
 #endif
       return static_cast<int>(first);
    }

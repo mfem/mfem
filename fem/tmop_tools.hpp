@@ -170,6 +170,14 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Starting mesh positions. Updated by the call to Mult().
+   // This solver solves for d, where the final mesh is x = x_0 + d.
+   // The displacement d is always the tdof vector of an H1 function.
+   // For periodic meshes, x_0 is an L2 function, and the relation
+   // x = x_0 + d is used only per element with appropriate transitions.
+   mutable GridFunction x_0;
+   mutable bool periodic = false;
+
    // Line search step is rejected if min(detJ) <= min_detJ_limit.
    real_t min_detJ_limit = 0.0;
 
@@ -208,18 +216,18 @@ protected:
       return ir;
    }
 
-   real_t ComputeMinDet(const Vector &x_loc,
+   real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
-   real_t MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   real_t MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
+   real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
 
    /** @name Methods for adaptive surface fitting weight. */
    ///@{
    /// Get the average and maximum surface fitting error at the marked nodes.
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
-   virtual void GetSurfaceFittingError(const Vector &x_loc,
+   virtual void GetSurfaceFittingError(const Vector &d_loc,
                                        real_t &err_avg, real_t &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
@@ -235,11 +243,11 @@ protected:
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(comm), solver_type(type), parallel(true),
+      : LBFGSSolver(comm), solver_type(type), parallel(true), x_0(),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(), solver_type(type), parallel(false),
+      : LBFGSSolver(), solver_type(type), parallel(false), x_0(),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
@@ -259,11 +267,12 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override;
+   real_t ComputeScalingFactor(const Vector &d, const Vector &b) const override;
 
-   /// Update (i) discrete functions at new nodal positions, and
+   /// Given the new displacements @a d (tdof Vector), update
+   /// (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   void ProcessNewState(const Vector &x) const override;
+   void ProcessNewState(const Vector &dx) const override;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -355,18 +364,8 @@ public:
       min_detJ_limit = threshold;
    }
 
-   void Mult(const Vector &b, Vector &x) const override
-   {
-      if (solver_type == 0)
-      {
-         NewtonSolver::Mult(b, x);
-      }
-      else if (solver_type == 1)
-      {
-         LBFGSSolver::Mult(b, x);
-      }
-      else { MFEM_ABORT("Invalid type"); }
-   }
+   /// Optimizes the mesh positions given by @a x.
+   void Mult(const Vector &b, Vector &x) const override;
 
    void SetSolver(Solver &solver) override
    {
@@ -392,6 +391,10 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        char *title, int position);
 #endif
 
+// Compute x = x_0 + d, where x and x_0 are L2, d is H1p, all ldof vectors.
+void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
+                          const FiniteElementSpace &fesL2,
+                          const FiniteElementSpace &fesH1, Vector &x);
 }
 
 #endif

@@ -24,7 +24,7 @@ EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 CXX = g++
 MPICXX = mpicxx
 
-BASE_FLAGS  = -std=c++11
+BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
 
@@ -145,6 +145,7 @@ MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
 MFEM_USE_GNUTLS        = NO
+MFEM_USE_HDF5          = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
@@ -401,9 +402,14 @@ MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
 GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
+# HDF5 library configuration
+HDF5_DIR   = $(HOME)/local
+HDF5_OPT = -I$(HDF5_DIR)/include
+HDF5_LIB = $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5 \
+           $(ZLIB_LIB)
+
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
-HDF5_DIR   = $(HOME)/local
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
@@ -484,8 +490,8 @@ SIDRE_LIB = \
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
 PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
-PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
-   -llion -lmth -lapf_zoltan -lspr
+PUMI_LIB = -L$(PUMI_DIR)/lib64 -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf\
+   -lpcu -lgmi -lparma -llion -lmth -lapf_zoltan -lspr
 
 # HIOP
 HIOP_DIR = @MFEM_DIR@/../hiop/install
@@ -568,7 +574,11 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+ifdef FMT_DIR
+   UMPIRE_OPT += -I$(FMT_DIR)/include
+   UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
+endif
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
@@ -600,29 +610,10 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
-
-# If you want to enable automatic differentiation at compile time, use the
-# options below, adapted to your configuration. To be more flexible, we
-# recommend using the Enzyme plugin during link time optimization. One option is
-# to add your options to the global compiler/linker flags like
-#
-# BASE_FLAGS += -flto
-# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
-#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
-#
-ENZYME_DIR ?= @MFEM_DIR@/../enzyme
-ENZYME_VERSION ?= 14
-ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
+ENZYME_DIR = @MFEM_DIR@/../enzyme
+ENZYME_LLVM_VERSION = 19
+ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
 ENZYME_LIB = ""
-
-# Google Benchmark, SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
-ifneq ($(filter YES,$(MFEM_USE_BENCHMARK) $(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
-    BASE_FLAGS = -std=c++14
-endif
-# Ginkgo requires C++17:
-ifeq ($(MFEM_USE_GINKGO),YES)
-   BASE_FLAGS = -std=c++17
-endif
 
 # If YES, enable some informational messages
 VERBOSE = NO
