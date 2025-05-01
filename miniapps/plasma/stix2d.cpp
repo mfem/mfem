@@ -576,8 +576,8 @@ int main(int argc, char *argv[])
    double nui = 0;
    double Ti = 0;
 
-   const char *mdpt_data = "ne.gf";
-   const char *mtpt_data = "Te.gf";
+   const char *mdpt_data = "";
+   const char *mtpt_data = "";
 
    PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;

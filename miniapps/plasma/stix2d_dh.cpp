@@ -114,6 +114,7 @@
 #include "cold_plasma_dielectric_dh_solver.hpp"
 #include "../common/mesh_extras.hpp"
 #include "plasma.hpp"
+#include "interp_data.hpp"
 #include "g_eqdsk_data.hpp"
 #include <fstream>
 #include <iostream>
@@ -628,10 +629,8 @@ int main(int argc, char *argv[])
    double nui = 0;
    double Ti = 0;
 
-   int mdpt = 0;
-   int mtpt = 0;
-   const char *mdpt_data = "ne.gf";
-   const char *mtpt_data = "Te.gf";
+   const char *mdpt_data = "";
+   const char *mtpt_data = "";
 
    PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
@@ -741,8 +740,6 @@ int main(int argc, char *argv[])
                   "Thickness of extruded mesh in meters.");
    args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
                   "Thickness of cylindrically extruded mesh in degrees.");
-   args.AddOption(&mdpt, "-mdpt", "--mesh-density-data",
-                  "Indicates the use of input density data.");
    args.AddOption(&mdpt_data, "-mdpt-data", "--mesh-density-data-values",
                   "Input density data.");
    args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
@@ -819,8 +816,6 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
-   args.AddOption(&mtpt, "-mtpt", "--mesh-temp-data",
-                  "Indicates the use of input temperature data.");
    args.AddOption(&mtpt_data, "-mtpt-data", "--mesh-temperature-data-values",
                   "Input temperature data.");
    args.AddOption(&tpa_vac, "-tpa-vac", "-vac-temp-profile-attr",
@@ -1550,6 +1545,25 @@ int main(int argc, char *argv[])
       }
    }
 
+   Interp_Data *interp_DENdata = NULL;
+   Interp_Data *interp_TEMPdata = NULL;
+   {
+      named_ifgzstream idendata(mdpt_data);
+      named_ifgzstream itempdata(mtpt_data);
+      if (idendata)
+      {
+         interp_DENdata = new Interp_Data(idendata);
+         if (Mpi::Root())
+         {
+            interp_DENdata->PrintInfo();
+         }
+      }
+      if (itempdata)
+      {
+         interp_TEMPdata = new Interp_Data(itempdata);
+      }
+   }
+
    /*
    if (eqdsk)
      {
@@ -1615,7 +1629,7 @@ int main(int argc, char *argv[])
       tpp_def.Print(cout);
    }
    */
-   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk);
+   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk, interp_TEMPdata);
    if (tpa_vac.Size() > 0)
    {
       /*
@@ -1655,15 +1669,8 @@ int main(int argc, char *argv[])
          cout << "\" on attributes \"" << tpa_cor << "\".";
       }
       */
-      if (mtpt == 1)
-      {
-         ifstream inputFile(mtpt_data);
-         GridFunction outside_temp(&pmesh, inputFile);
-         GridFunctionCoefficient TeCoef(&outside_temp);
-         inputFile.close();
-      }
-      else {TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);}
-      
+
+      TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
    }
    /*
    if (Mpi::Root())
@@ -1673,7 +1680,7 @@ int main(int argc, char *argv[])
       dpp_def.Print(cout);
    }
    */
-   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk);
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk, interp_DENdata);
    if (dpa_vac.Size() > 0)
    {
       /*
@@ -1711,14 +1718,7 @@ int main(int argc, char *argv[])
          cout << "\" on attributes \"" << dpa_cor << "\".";
       }
       */
-      if (mdpt == 1)
-      {
-         ifstream inputFile(mdpt_data);
-         GridFunction outside_den(&pmesh, inputFile);
-         GridFunctionCoefficient rhoCoef(&outside_den);
-         inputFile.close();
-      }
-      else {rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);}
+      rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
 
    for (int i=0; i<=numbers.Size(); i++)
