@@ -374,7 +374,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
-      if (version < 2)
+      if (version < 2) // standard, new PA regs
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
@@ -392,7 +392,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 2) // MF ∂fem
+      else if (version == 2) // 2: MF ∂fem
       {
          dbg("MF ∂fem");
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
@@ -498,10 +498,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    }                                                                 \
    BENCHMARK(BP##i)                                                  \
       ->Apply(OrderSideVersionArgs)                                  \
-      ->Unit(bm::kMillisecond)                                       \
-      ->Iterations(10);
+      ->Unit(bm::kMillisecond)
 
-BakeOff_Problem(3, Diffusion)
+BakeOff_Problem(3, Diffusion);
 
 /// Specializations ///////////////////////////////////////////////////////////
 void AddKernelSpecializations()
@@ -524,6 +523,15 @@ void AddKernelSpecializations()
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 }
 
+/// info //////////////////////////////////////////////////////////////////////
+void info()
+{
+   mfem::out << "version 0: PA std" << std::endl;
+   mfem::out << "version 1: PA new" << std::endl;
+   mfem::out << "version 2: MF ∂fem" << std::endl;
+   mfem::out << "version 3: PA ∂fem" << std::endl;
+}
+
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
@@ -533,6 +541,7 @@ int main(int argc, char *argv[])
    bm::Initialize(&argc, argv);
 
    AddKernelSpecializations();
+   info();
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
