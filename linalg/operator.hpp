@@ -93,17 +93,17 @@ public:
      composition of several operators, the composition unfold into a product
      of absolute-value operators too. */
    virtual void AbsMult(const Vector &x, Vector &y) const
-   { mfem_error("Operator::AbsMult() is not overridden!"); }
+   { MFEM_ABORT("Operator::AbsMult() is not overridden!"); }
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+   { MFEM_ABORT("Operator::MultTranspose() is not overridden!"); }
 
    /** @brief Action of the transpose absolute-value operator: `y=|A|^t(x)`.
       The default behavior in class Operator is to generate an error. */
    virtual void AbsMultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::AbsMultTranspose() is not overridden!"); }
+   { MFEM_ABORT("Operator::AbsMultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
@@ -133,7 +133,7 @@ public:
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overridden!");
+      MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
 
@@ -703,7 +703,7 @@ public:
                                  const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, real_t gammaB)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
@@ -721,7 +721,7 @@ public:
        see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
       return (-1);
    }
