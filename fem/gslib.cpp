@@ -1139,6 +1139,14 @@ void FindPointsGSLIB::FreeData()
    gsl_mesh.Destroy();
    gsl_ref.Destroy();
    gsl_dist.Destroy();
+   for (int i = 0; i < 6; i++)
+   {
+      if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = NULL; }
+      if (ir_split[i]) { delete ir_split[i]; ir_split[i] = NULL; }
+      if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = NULL; }
+      if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = NULL; }
+   }
+   if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
    setupflag = false;
    DEV.setup_device = false;
    DEV.find_device  = false;
@@ -1335,41 +1343,6 @@ void FindPointsGSLIB::SetupSplitMeshes()
          }
       }
    }
-
-   NE_split_total = 0;
-   split_element_map.SetSize(0);
-   split_element_index.SetSize(0);
-   int NEsplit = 0;
-   for (int e = 0; e < mesh->GetNE(); e++)
-   {
-      const Geometry::Type gt   = mesh->GetElement(e)->GetGeometryType();
-      if (gt == Geometry::TRIANGLE || gt == Geometry::PRISM)
-      {
-         NEsplit = 3;
-      }
-      else if (gt == Geometry::TETRAHEDRON)
-      {
-         NEsplit = 4;
-      }
-      else if (gt == Geometry::PYRAMID)
-      {
-         NEsplit = 8;
-      }
-      else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-      {
-         NEsplit = 1;
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported geometry type.");
-      }
-      NE_split_total += NEsplit;
-      for (int i = 0; i < NEsplit; i++)
-      {
-         split_element_map.Append(e);
-         split_element_index.Append(i);
-      }
-   }
 }
 
 void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
@@ -1423,38 +1396,72 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
 void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
 {
    MFEM_VERIFY(mesh, "Setup FindPointsGSLIB with mesh first.");
-   if (mesh_split[dim-1] == nullptr)
+   const int dof1D = order+1;
+   const int dim = mesh->Dimension();
+
+   SetupSplitMeshes();
+   if (dim == 2)
    {
-      const int dof1D = order+1;
-      const int dim = mesh->Dimension();
-      SetupSplitMeshes();
-      if (dim == 2)
-      {
-         if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-         ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-         SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], order);
+      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
+      ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], order);
 
-         if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-         ir_split[1] = new IntegrationRule(pow(dof1D, dim));
-         SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], order);
+      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
+      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], order);
+   }
+   else if (dim == 3)
+   {
+      if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
+      ir_split[2] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], order);
+
+      if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
+      ir_split[3] = new IntegrationRule(4*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], order);
+
+      if (ir_split[4]) { delete ir_split[4]; ir_split[4] = NULL; }
+      ir_split[4] = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[4], ir_split[4], order);
+
+      if (ir_split[5]) { delete ir_split[5]; ir_split[5] = NULL; }
+      ir_split[5] = new IntegrationRule(8*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[5], ir_split[5], order);
+   }
+
+   // Setup map for non tensor-product elements
+   NE_split_total = 0;
+   split_element_map.SetSize(0);
+   split_element_index.SetSize(0);
+   int NEsplit = 0;
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const Geometry::Type gt   = mesh->GetElement(e)->GetGeometryType();
+      if (gt == Geometry::TRIANGLE || gt == Geometry::PRISM)
+      {
+         NEsplit = 3;
       }
-      else if (dim == 3)
+      else if (gt == Geometry::TETRAHEDRON)
       {
-         if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
-         ir_split[2] = new IntegrationRule(pow(dof1D, dim));
-         SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], order);
-
-         if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
-         ir_split[3] = new IntegrationRule(4*pow(dof1D, dim));
-         SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], order);
-
-         if (ir_split[4]) { delete ir_split[4]; ir_split[4] = NULL; }
-         ir_split[4] = new IntegrationRule(3*pow(dof1D, dim));
-         SetupIntegrationRuleForSplitMesh(mesh_split[4], ir_split[4], order);
-
-         if (ir_split[5]) { delete ir_split[5]; ir_split[5] = NULL; }
-         ir_split[5] = new IntegrationRule(8*pow(dof1D, dim));
-         SetupIntegrationRuleForSplitMesh(mesh_split[5], ir_split[5], order);
+         NEsplit = 4;
+      }
+      else if (gt == Geometry::PYRAMID)
+      {
+         NEsplit = 8;
+      }
+      else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+      {
+         NEsplit = 1;
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported geometry type.");
+      }
+      NE_split_total += NEsplit;
+      for (int i = 0; i < NEsplit; i++)
+      {
+         split_element_map.Append(e);
+         split_element_index.Append(i);
       }
    }
 }
