@@ -156,10 +156,16 @@ jobs:
           # Fetch the complete history for codecov to access commits ID
           fetch-depth: 0
 
-      - name: Windows environment [debug]
+      - name: Windows environment - PowerShell [debug]
         if: matrix.os == 'windows-latest'
         run: |
-          set
+          ls env: | fl
+
+      - name: Windows environment - Bash [debug]
+        if: matrix.os == 'windows-latest'
+        run: |
+          env
+        shell: bash
 
       - name: Xcode version setup (MacOS)
         if: matrix.os == 'macos-latest'
