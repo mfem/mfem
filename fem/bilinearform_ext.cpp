@@ -1074,7 +1074,7 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    }
    // Apply the Element Matrices
    {
-      Vector abs_ea_data(ea_data.Size());
+      Vector abs_ea_data;
       if (useAbs)
       {
          abs_ea_data = ea_data;
