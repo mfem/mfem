@@ -837,6 +837,7 @@ private:
    // Type temp_type_;
    // Vector temp_p_;
    bool cyl_; // Assume cylindrical symmetyry
+   bool dim_; // 2D or 3D
 
    G_EQDSK_Data *eqdsk_;
    Interp_Data *interp_field_;
@@ -852,7 +853,7 @@ private:
                      const IntegrationPoint &ip);
 
 public:
-   PlasmaProfile(Type type, const Vector & params,
+   PlasmaProfile(Type type, const Vector & params, bool dim,
                  CoordSystem coord_sys = CARTESIAN_3D,
                  G_EQDSK_Data *eqdsk = NULL,
                  Interp_Data *interp_field = NULL);

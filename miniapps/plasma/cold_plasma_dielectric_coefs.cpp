@@ -1876,11 +1876,11 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 }
 
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
-                             CoordSystem sys,
+                             bool dim, CoordSystem sys,
                              G_EQDSK_Data *eqdsk,
                              Interp_Data *interp_field)
    : cyl_(sys == POLOIDAL), eqdsk_(eqdsk), interp_field_(interp_field),
-     xyz_(3), rz_(2)
+     dim_(dim), xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -2142,11 +2142,16 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case POLOIDAL_H_MODE_DEN:
       {
+         // For stix2d:
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
 
-         //double r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-         //double z = xyz_[1];
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2];         
+         }
 
          double x_tok_data[2];
          Vector xTokVec(x_tok_data, 2);
@@ -2271,8 +2276,16 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case POLOIDAL_H_MODE_TEMP:
       {
+         // For stix2d:
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
+
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2];         
+         }
 
          double x_tok_data[2];
          Vector xTokVec(x_tok_data, 2);

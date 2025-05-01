@@ -697,6 +697,7 @@ int main(int argc, char *argv[])
 
    bool logo = false;
    bool cyl = false;
+   bool dim3 = true;
    bool per_y = false;
    bool check_eps_inv = false;
    bool pa = false;
@@ -1557,11 +1558,11 @@ if (dpp_def.Size() == 0)
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, coord_sys, eqdsk);
+   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp, coord_sys, eqdsk);
+   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk);
    nui_gf.ProjectCoefficient(nuiCoef);
-   PlasmaProfile TiCoef(tipt, tipp, coord_sys, eqdsk);
+   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1595,7 +1596,7 @@ if (dpp_def.Size() == 0)
       tpp_def.Print(cout);
    }
    */
-   PlasmaProfile TeCoef(tpt_def, tpp_def, coord_sys, eqdsk);
+   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk);
    if (tpa_vac.Size() > 0)
    {
       /*
@@ -1645,7 +1646,7 @@ if (dpp_def.Size() == 0)
       dpp_def.Print(cout);
    }
    */
-   PlasmaProfile rhoCoef(dpt_def, dpp_def, coord_sys, eqdsk);
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk);
    if (dpa_vac.Size() > 0)
    {
       /*
@@ -2442,7 +2443,7 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    }
 
    return coef;
-}ƒ
+}
 
 
 void rod_current_source_r(const Vector &x, Vector &j)
