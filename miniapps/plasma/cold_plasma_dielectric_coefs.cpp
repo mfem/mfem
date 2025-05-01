@@ -312,7 +312,7 @@ complex<double> S_cold_plasma(double omega,
    double m = mass[0];
    double Te = temp[0] * q_;
    double Ti = iontemp * q_;
-   //if (Te < 0) {Te = -1.0*temp[0] * q_;}
+   if (Te < 0.0) {Te = -1.0*temp[0] * q_;}
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
@@ -444,7 +444,7 @@ complex<double> D_cold_plasma(double omega,
    double m = mass[0];
    double Te = temp[0] * q_;
    double Ti = iontemp * q_;
-   //if (Te < 0) {Te = -1.0*temp[0] * q_;}
+   if (Te < 0.0) {Te = -1.0*temp[0] * q_;}
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
@@ -545,6 +545,7 @@ complex<double> P_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   if (Te < 0.0) {Te = -1.0*temp[0] * q_;}
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
