@@ -249,3 +249,5 @@ endif()
 if(MFEM_USE_MOONOLITH)
   add_subdirectory(moonolith)
 endif()
+
+add_subdirectory(dfem)
