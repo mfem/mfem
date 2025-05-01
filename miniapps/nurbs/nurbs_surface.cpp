@@ -1,13 +1,29 @@
-//                          NURBS surface interpolation example
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//          --------------------------------------------------------
+//          NURBS Surface: Interpolate a 3D Surface in a NURBS Patch
+//          --------------------------------------------------------
 //
 // Compile with: make nurbs_surface
 //
 // Sample runs:  nurbs_surface -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 1 -orig
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 1
+//               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 1
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 2 -orig
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 2
+//               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 2
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 3 -orig
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 3
+//               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 3
 //
 // Description:  This example demonstrates the use of MFEM to interpolate a grid
 //               of 3D points with a NURBS surface. The NURBS mesh of the
@@ -74,42 +90,29 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // Parse command-line options.
    int nx = 4;
    int ny = 4;
    int fnx = 40;
    int fny = 40;
    int order = 3;
    int example = 1;
-   bool static_cond = false;
-   bool pa = false;
-   bool fa = false;
-   const char *device_config = "cpu";
    bool visualization = true;
-   bool algebraic_ceed = false;
    bool compareOriginal = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&example, "-ex", "--example",
                   "Example data");
    args.AddOption(&nx, "-nx", "--nx",
-                  "Number of grid points in x minus 1");
+                  "Number of elements in x");
    args.AddOption(&ny, "-ny", "--ny",
-                  "Number of grid points in y minus 1");
+                  "Number of elements in y");
    args.AddOption(&fnx, "-fnx", "--fnx",
                   "Number of fine grid points in x minus 1");
    args.AddOption(&fny, "-fny", "--fny",
                   "Number of fine grid points in y minus 1");
    args.AddOption(&order, "-o", "--order",
                   "NURBS finite element order (polynomial degree)");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
-                  "--no-full-assembly", "Enable Full Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -124,9 +127,6 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Device device(device_config);
-   device.Print();
-
    if (compareOriginal && (fnx != nx || fny != ny))
    {
       cout << "Comparing to the original mesh requires the same number of "
@@ -134,12 +134,10 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   SurfaceInterpolator surf(nx, ny, order);
-
    constexpr int dim = 3;
-
    Array3D<real_t> input3D(nx + 1, ny + 1, dim);
 
+   SurfaceInterpolator surf(nx, ny, order);
    const std::vector<Vector> &ugrid = surf.GetUGrid();
 
    SurfaceExample(example, ugrid, input3D);
@@ -149,7 +147,7 @@ int main(int argc, char *argv[])
    std::vector<Mesh> mesh;
    Array3D<real_t> vpos(fnx + 1, fny + 1, dim);
    Array3D<real_t> v3D(fnx + 1, fny + 1, dim);
-   for (int c=0; c<dim; ++c) // Loop over coordinates
+   for (int c = 0; c < dim; ++c) // Loop over coordinates
    {
       surf.ComputeNURBS(c, input3D);
       mesh.emplace_back(surf.GetMesh());
@@ -166,10 +164,12 @@ int main(int argc, char *argv[])
       }
 
       for (int i=0; i<=fnx; ++i)
+      {
          for (int j=0; j<=fny; ++j)
          {
             v3D(i,j,c) = vpos(i,j,2);
          }
+      }
    }
 
    surf.WriteNURBSMesh(mesh);
@@ -242,16 +242,15 @@ void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
 {
    const int nv = (nx + 1) * (ny + 1);
    const int nelem = nx * ny;
-   //const int nbdryElem = 2 * (nx + ny);
-   const int nbdryElem = 0;
+   constexpr int dim = 3; // Spatial dimension
 
-   Mesh fmesh(2, nv, nelem, nbdryElem, 3);
-   Vector vertex(3);
+   Mesh fmesh(2, nv, nelem, 0, dim);
+   Vector vertex(dim);
 
    for (int i=0; i<=nx; ++i)
       for (int j=0; j<=ny; ++j)
       {
-         for (int k=0; k<3; ++k) { vertex[k] = v(i, j, k); }
+         for (int k=0; k<dim; ++k) { vertex[k] = v(i, j, k); }
          fmesh.AddVertex(vertex);
       }
 
@@ -359,7 +358,6 @@ SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
                                          int order) :
    nx(num_elem_x), ny(num_elem_y), orderNURBS(order),
    nks(dim), ncp(dim), ugrid(dim - 1)
-   //i_args(dim - 1), xi_args(dim - 1),
 {
    ncp[0] = nx + 1;
    ncp[1] = ny + 1;
