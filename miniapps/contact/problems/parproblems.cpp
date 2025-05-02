@@ -718,7 +718,7 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    {
       if (!merged.RowIsEmpty(i))
       {
-         if (merged.GetRowNorml1(i) > rel_row_norm_threshold * max_l1_row_norm)
+         // if (merged.GetRowNorml1(i) > rel_row_norm_threshold * max_l1_row_norm)
          {
             nonzero_rows.Append(i);
          }
