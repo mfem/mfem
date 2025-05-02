@@ -180,8 +180,8 @@ void ElasticityAddMultPA_(const int nDofs,
                                                  ir);
    E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
    // interpolate physical derivatives to quadrature points.
-   if (!useAbs) { E_To_Q_Map->PhysDerivatives(x, QVec); }
-   else { E_To_Q_Map->AbsPhysDerivatives(x, QVec); }
+   if (useAbs) { E_To_Q_Map->AbsPhysDerivatives(x, QVec); }
+   else { E_To_Q_Map->PhysDerivatives(x, QVec); }
    const int numPoints = ir.GetNPoints();
    const int numEls = fespace.GetNE();
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
@@ -238,17 +238,17 @@ void ElasticityAddMultPA_(const int nDofs,
                {
                   for (int a = 0; a < d; a++)
                   {
-                     if (!useAbs)
-                     {
-                        contraction +=
-                           2*((a == q)*invJ(m,j_block)
-                              + (j_block==q)*invJ(m,a))*(gradx(0, a));
-                     }
-                     else
+                     if (useAbs)
                      {
                         contraction +=
                            2*((a == q)*std::abs(invJ(m,j_block))
                               + (j_block==q)*std::abs(invJ(m,a)))*(gradx(0, a));
+                     }
+                     else
+                     {
+                        contraction +=
+                           2*((a == q)*invJ(m,j_block)
+                              + (j_block==q)*invJ(m,a))*(gradx(0, a));
                      }
                   }
                }
@@ -258,17 +258,17 @@ void ElasticityAddMultPA_(const int nDofs,
                   {
                      for (int b = 0; b < d; b++)
                      {
-                        if (!useAbs)
+                        if (useAbs)
                         {
                            contraction +=
-                              ((a == q)*invJ(m,b) + (b==q)*invJ(m,a))
+                              ((a == q)*std::abs(invJ(m,b)) +
+                               (b == q)*std::abs(invJ(m,a)))
                               *(gradx(a,b) + gradx(b, a));
                         }
                         else
                         {
                            contraction +=
-                              ((a == q)*std::abs(invJ(m,b)) +
-                               (b==q)*std::abs(invJ(m,a)))
+                              ((a == q)*invJ(m,b) + (b == q)*invJ(m,a))
                               *(gradx(a,b) + gradx(b, a));
                         }
                      }
@@ -277,15 +277,15 @@ void ElasticityAddMultPA_(const int nDofs,
                // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
                // contraction = 4*sym(grad(u))sym(grad(v))
                const int qIndex = isComponent ? 0 : q;
-               if (!useAbs)
-               {
-                  Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div
-                                       + 0.5*muDev(p, e)*contraction);
-               }
-               else
+               if (useAbs)
                {
                   Q(p,m,qIndex,e) = w*(std::abs(lamDev(p, e)*invJ(m,q))*div
                                        + 0.5*std::abs(muDev(p, e))*contraction);
+               }
+               else
+               {
+                  Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div
+                                       + 0.5*muDev(p, e)*contraction);
                }
             }
          }
