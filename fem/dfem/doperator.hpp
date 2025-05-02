@@ -26,15 +26,21 @@
 namespace mfem::future
 {
 
+/// @brief Type alias for a function that computes the action of an operator
 using action_t =
    std::function<void(std::vector<Vector> &, const std::vector<Vector> &, Vector &)>;
 
+/// @brief Type alias for a function that computes the action of a derivative
 using derivative_action_t =
    std::function<void(std::vector<Vector> &, const Vector &, Vector &)>;
 
+/// @brief Type alias for a function that assembles the sparse matrix of a
+/// derivative operator
 using assemble_derivative_hypreparmatrix_callback_t =
    std::function<void(std::vector<Vector> &, HypreParMatrix &)>;
 
+/// @brief Type alias for a function that applies the appropriate restriction to
+/// the solution and parameters
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &,
                       const std::vector<Vector> &,
@@ -84,7 +90,6 @@ public:
       daction_l_size(daction_l_size),
       derivative_actions_transpose(derivative_actions_transpose),
       transpose_direction(transpose_direction),
-      daction_transpose_l(daction_transpose_l_size),
       prolongation_transpose(prolongation_transpose),
       assemble_derivative_hypreparmatrix_callbacks(
          assemble_derivative_hypreparmatrix_callbacks)
@@ -117,9 +122,9 @@ public:
       daction_l = 0.0;
 
       prolongation(direction, direction_t, direction_l);
-      for (size_t i = 0; i < derivative_actions.size(); i++)
+      for (const auto &f : derivative_actions)
       {
-         derivative_actions[i](fields_e, direction_l, daction_l);
+         f(fields_e, direction_l, daction_l);
       }
       prolongation_transpose(daction_l, result_t);
    };
@@ -137,13 +142,16 @@ public:
    /// direction_t on T-dofs.
    void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
+      MFEM_ASSERT(!derivative_actions_transpose.empty(),
+                  "derivative can't be used to be multiplied in transpose mode");
+
       daction_l.SetSize(width);
       daction_l = 0.0;
 
       prolongation(transpose_direction, direction_t, direction_l);
-      for (size_t i = 0; i < derivative_actions_transpose.size(); i++)
+      for (const auto &f : derivative_actions_transpose)
       {
-         derivative_actions_transpose[i](fields_e, direction_l, daction_l);
+         f(fields_e, direction_l, daction_l);
       }
       prolongation_transpose(daction_l, result_t);
    };
@@ -157,9 +165,9 @@ public:
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a matrix");
 
-      for (size_t i = 0; i < assemble_derivative_hypreparmatrix_callbacks.size(); i++)
+      for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
       {
-         assemble_derivative_hypreparmatrix_callbacks[i](fields_e, A);
+         f(fields_e, A);
       }
    }
 
@@ -181,8 +189,6 @@ private:
    std::vector<derivative_action_t> derivative_actions_transpose;
 
    FieldDescriptor transpose_direction;
-
-   mutable Vector daction_transpose_l;
 
    mutable std::vector<Vector> fields_e;
 
