@@ -60,6 +60,54 @@ private:
 };
 
 
+/// operator A is considered to be symmetric
+class LocProductOperator : public Operator
+{
+private:
+    const Operator *A, *B;
+    mutable Vector z;
+
+public:
+    LocProductOperator(const Operator *A, const Operator *B):
+        Operator(A->Height(), B->Width()), A(A), B(B), z(A->Width())
+    {
+        MFEM_VERIFY(A->Width() == B->Height(),
+                    "incompatible Operators: A->Width() = " << A->Width()
+                                                            << ", B->Height() = " << B->Height());
+    }
+
+    void Mult(const Vector &x, Vector &y) const override
+    {
+
+        B->Mult(x, z);
+        A->Mult(z, y);
+    }
+
+    void MultTranspose(const Vector &x, Vector &y) const override
+    {
+
+        A->Mult(x, z);
+        B->MultTranspose(z, y);
+    }
+
+    void MultB(const Vector &x, Vector &y)
+    {
+        B->Mult(x, y);
+    }
+
+    void MultA(const Vector &x, Vector &y)
+    {
+        A->Mult(x,y);
+    }
+
+    virtual ~LocProductOperator(){
+
+    }
+};
+
+
+
+
 class LElasticOperator:public mfem::Operator
 {
 public:
@@ -288,71 +336,7 @@ public:
     }
 
 
-    /// operator A is considered to be symmetric
-    class LocProductOperator : public Operator
-    {
-        const Operator *A, *B;
-        mutable Vector z;
 
-
-    public:
-        LocProductOperator(const Operator *A, const Operator *B):
-            Operator(A->Height(), B->Width()), A(A), B(B), z(A->Width())
-        {
-            MFEM_VERIFY(A->Width() == B->Height(),
-                        "incompatible Operators: A->Width() = " << A->Width()
-                        << ", B->Height() = " << B->Height());
-        }
-
-        void Mult(const Vector &x, Vector &y) const override
-        {
-
-            B->Mult(x, z);
-            y=0.0;
-            A->Mult(z, y);
-
-
-            /*
-            y=0.0;
-            A->Mult(x, y);
-            */
-
-            /*
-            B->Mult(x,y);
-            */
-        }
-
-        void MultTranspose(const Vector &x, Vector &y) const override
-        {
-
-            z=0.0;
-            A->Mult(x, z);
-            B->MultTranspose(z, y);
-
-            /*
-            y=0.0;
-            A->Mult(x, y);
-            */
-            /*
-            B->Mult(x,y);
-            */
-        }
-
-        void MultB(const Vector &x, Vector &y)
-        {
-            B->Mult(x, y);
-        }
-
-        void MultA(const Vector &x, Vector &y)
-        {
-            y=0.0;
-            A->Mult(x,y);
-        }
-
-        virtual ~LocProductOperator(){
-
-        }
-    };
 
 
 protected:
@@ -415,8 +399,11 @@ public:
     virtual
         ~PRESBPrec(){}
 
+
+    /// (a*W+i*b*T)(x+i*y)=(e+i*g)
     void SetOperators(Operator* W_, Operator* T_,
-                      real_t a_=1.0, real_t b_=1.0,int prec_type_=1){
+                      real_t a_=1.0, real_t b_=1.0,int prec_type_=1,
+                      Operator* K_=nullptr){
 
         this->width=2*(W_->Width());
         this->height=2*(W_->Width());
@@ -441,23 +428,29 @@ public:
 
         HypreParMatrix* wm=dynamic_cast<HypreParMatrix*>(W_);
         HypreParMatrix* tm=dynamic_cast<HypreParMatrix*>(T_);
-
+        HypreParMatrix* km=dynamic_cast<HypreParMatrix*>(K_);
+        /*
         sumop.reset(new HypreParMatrix(*wm));
         (*sumop)*=a;
         sumop->Add(b,*tm);
+        */
+        sumop.reset(new HypreParMatrix(*km));
         amgp.reset(new HypreBoomerAMG(*sumop));
 
 
-        sOp.reset(new SumOperator(W,a,T,b,false,false));
+        //sOp.reset(new SumOperator(W,a,T,b,false,false));
 
-        ls.reset(new mfem::CGSolver(comm));
-        ls->SetOperator(*sOp);
+        //ls.reset(new mfem::CGSolver(comm));
+        ls.reset(new mfem::GMRESSolver(comm));
+        //ls->SetOperator(*sOp);
+        ls->SetOperator(*sumop);
         ls->SetPreconditioner(*amgp);
-        ls->iterative_mode=true;
-        ls->SetPrintLevel(1);
+        ls->iterative_mode=false;
+        ls->SetPrintLevel(0);
 
         {
             HypreParMatrix nm(*wm);
+            nm*=a;
             nm.Add(2*b,*tm);
 
             Array2D<const HypreParMatrix*> am(2,2);
@@ -467,8 +460,8 @@ public:
             am(1,1)=wm;
 
             Array2D<real_t> cm(2,2);
-            cm(0,0)=1.0; cm(0,1)=-1;
-            cm(1,0)=1.0; cm(1,1)=1;
+            cm(0,0)=1.0; cm(0,1)=-b;
+            cm(1,0)=b; cm(1,1)=a;
 
             std::unique_ptr<HypreParMatrix> bm;
             bm.reset(HypreParMatrixFromBlocks(am,&cm));
@@ -486,9 +479,10 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const
     {
 
-        mumps->Mult(x,y);
-        return;
+        //mumps->Mult(x,y);
+        //return;
 
+        y=0.0;
         if(false==this->iterative_mode){
            y=0.0;
         }
@@ -509,7 +503,7 @@ public:
 
         if(prec_type==1)
         {
-            int N=W->Width();
+            const int N=W->Width();
             const bool use_dev = tv.UseDevice()||x.UseDevice();
             const real_t* xp= x.Read(use_dev);
             real_t* tp=tv.ReadWrite(use_dev);
@@ -535,7 +529,7 @@ public:
         T->Mult(xx,tv);
         if(prec_type==1)
         {
-            int N=W->Width();
+            const int N=W->Width();
             const bool use_dev = tv.UseDevice()||x.UseDevice();
             const real_t* xp= x.Read(use_dev);
             real_t* tp=tv.ReadWrite(use_dev);
@@ -557,6 +551,16 @@ public:
 
         //sum (x-y)+y=x
         xx.Add(1.0,yy);
+
+
+        Vector tmv(y);
+        mumps->Mult(x,tmv);
+        tmv.Add(-1,y);
+        real_t rr=mfem::InnerProduct(comm, tmv,tmv);
+        std::cout<<"Residual="<<sqrt(rr)<<std::endl;
+
+
+
     }
 
 private:

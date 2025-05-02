@@ -20,6 +20,7 @@ public:
         modes.resize(num_modes);
         symmetric=false;
         ess_tdofs=nullptr;
+        iter=1;
     }
 
 #ifdef MFEM_USE_MPI
@@ -31,6 +32,7 @@ public:
         modes.resize(num_modes);
         symmetric=symm;
         ess_tdofs=nullptr;
+        iter=1;
     }
 #endif
 

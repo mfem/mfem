@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 3;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    cf->AddDomainIntegrator(new VectorMassIntegrator(damp));
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
-   real_t freq=3.5;
+   real_t freq=2.5;
    //ProductCoefficient pc(-freq*freq,rho);
    ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));
@@ -216,6 +216,8 @@ int main(int argc, char *argv[])
    std::cout<<"W ready"<<std::endl;
 
    std::cout<<"Cons"<<std::endl;
+
+   //(-M*\omega^2+i*\omega*C+K)u=f
 
    unique_ptr<HypreParMatrix> kmat; kmat.reset(kf->ParallelAssemble());
    unique_ptr<HypreParMatrix> cmat; cmat.reset(cf->ParallelAssemble());
@@ -305,12 +307,49 @@ int main(int argc, char *argv[])
 
    std::cout<<"Allocate PRESB"<<std::endl;
    PRESBPrec* prec=new PRESBPrec(pmesh.GetComm(),1);
-   prec->SetOperators(wmat.get(),mmat.get(),1.0,freq*freq,1);
+   prec->SetOperators(wmat.get(),mmat.get(),1.0,freq*freq,1, kmat.get());
    prec->SetAbsTol(1e-12);
-   prec->SetRelTol(1e-10);
-   prec->SetMaxIter(10);
+   prec->SetRelTol(1e-4);
+   prec->SetMaxIter(50);
 
-   //prec->Mult(f,x);
+   prec->Mult(f,x);
+   {
+       real_t rr=mfem::InnerProduct(pmesh.GetComm(), x,x);
+       if(pmesh.GetMyRank()==0){
+           std::cout<<"Residual="<<sqrt(rr)<<std::endl;
+       }
+   }
+
+
+   ///eigenvalues check
+   /*
+   {
+       CGSolver ls(pmesh.GetComm());
+       HypreBoomerAMG amg(*kmat);
+       amg.SetElasticityOptions(vfes);
+       ls.SetOperator(*kmat);
+       ls.SetPreconditioner(amg);
+       ls.iterative_mode=false;
+
+       //ProductOperator pOp(&ls,mmat.get(),false,false);
+       LocProductOperator pOp(&ls,mmat.get());
+
+       RandomizedSubspaceIteration ss(pmesh.GetComm());
+       ss.SetConstrDOFs(ess_dofs);
+       ss.SetNumModes(5);
+       ss.SetNumIter(5);
+       ss.SetOperator(pOp);
+       ss.Solve();
+
+   }
+
+
+   delete prec;
+   delete vfes;
+   delete vfec;
+   Mpi::Finalize();
+   return 0;
+   */
 
    //set the linear solver
    GMRESSolver* ls=new GMRESSolver(pmesh.GetComm());
@@ -320,6 +359,7 @@ int main(int argc, char *argv[])
    ls->SetRelTol(1e-12);
    ls->SetMaxIter(1000);
    ls->SetPrintLevel(1);
+   ls->SetKDim(100);
 
    ls->SetOperator(bop);
    ls->SetPreconditioner(*prec);
