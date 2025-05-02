@@ -49,7 +49,16 @@ env:
 # (https://github.com/actions/cache/pull/489)
 
 jobs:
+  print-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Matrix
+        run: |
+          echo "Matrix context:"
+          echo "${{ toJSON(matrix) }}"
+
   builds-and-tests:
+    needs: print-matrix
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
