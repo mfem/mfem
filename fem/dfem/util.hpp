@@ -32,6 +32,10 @@
 #include "parametricspace.hpp"
 #include "tuple.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kPaleGreen
+#include "general/nvtx.hpp"
+
 namespace mfem::future
 {
 
@@ -945,6 +949,7 @@ get_restriction_transpose(
    const ElementDofOrdering &o,
    const fop_t &fop)
 {
+   dbg();
    if constexpr (is_one_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
@@ -1047,6 +1052,7 @@ inline
 auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
                                 MPI_Comm mpi_comm)
 {
+   dbg();
    if constexpr (is_one_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
@@ -1457,6 +1463,7 @@ get_shmem_info(
    const ElementDofOrdering &dof_ordering,
    const int &derivative_action_field_idx = -1)
 {
+   dbg();
    std::array<int, 8> offsets = {0};
    int total_size = 0;
 
@@ -1466,6 +1473,7 @@ get_shmem_info(
    int max_dtq_dofs = 0;
    for (std::size_t i = 0; i < num_inputs; i++)
    {
+      // num_qp, dim, num_dofs
       auto a = input_dtq_maps[i].B.GetShape();
       input_dtq_sizes[i][0] = a[0] * a[1] * a[2];
       auto b = input_dtq_maps[i].G.GetShape();
@@ -1477,6 +1485,11 @@ get_shmem_info(
       total_size += std::accumulate(std::begin(input_dtq_sizes[i]),
                                     std::end(input_dtq_sizes[i]),
                                     0);
+      dbg("[iDTQ:{}/{}] B shape: {}x{}x{}={}, G shape: {}x{}x{}={}, total_size:{}",
+          i+1, num_inputs,
+          a[0], a[1], a[2], input_dtq_sizes[i][0],
+          b[0], b[1], b[2], input_dtq_sizes[i][1],
+          total_size);
    }
 
    offsets[SharedMemory::Index::OUTPUT_DTQ] = total_size;
@@ -1494,6 +1507,11 @@ get_shmem_info(
       total_size += std::accumulate(std::begin(output_dtq_sizes[i]),
                                     std::end(output_dtq_sizes[i]),
                                     0);
+      dbg("[oDTQ:{}/{}] B shape: {}x{}x{}={}, G shape: {}x{}x{}={}, total_size:{}",
+          i+1, num_outputs,
+          a[0], a[1], a[2], output_dtq_sizes[i][0],
+          b[0], b[1], b[2], output_dtq_sizes[i][1],
+          total_size);
    }
 
    offsets[SharedMemory::Index::FIELD] = total_size;
@@ -1503,9 +1521,11 @@ get_shmem_info(
       field_sizes[i] = get_restriction<entity_t>(
                           fields[i],
                           dof_ordering)->Height() / num_entities;
+      dbg("[fields:{}/{}] field size: {}", i+1, num_fields, field_sizes[i]);
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
+   dbg("[fields] total_size: {}", total_size);
 
    offsets[SharedMemory::Index::DIRECTION] = total_size;
    int direction_size = 0;
@@ -1514,6 +1534,7 @@ get_shmem_info(
       direction_size = get_restriction<entity_t>(
                           fields[derivative_action_field_idx],
                           dof_ordering)->Height() / num_entities;
+      dbg("[derivative] direction_size: {}", total_size);
       total_size += direction_size;
    }
 
@@ -1522,9 +1543,11 @@ get_shmem_info(
    for (std::size_t i = 0; i < num_inputs; i++)
    {
       input_sizes[i] = input_size_on_qp[i] * num_qp;
+      dbg("[inputs:{}/{}] input_sizes: {}", i+1, num_inputs, input_sizes[i]);
    }
    total_size += std::accumulate(
                     std::begin(input_sizes), std::end(input_sizes), 0);
+   dbg("[inputs] total_size: {}", total_size);
 
    offsets[SharedMemory::Index::SHADOW] = total_size;
    std::array<int, num_inputs> shadow_sizes{0};
@@ -1533,13 +1556,16 @@ get_shmem_info(
       for (std::size_t i = 0; i < num_inputs; i++)
       {
          shadow_sizes[i] = input_size_on_qp[i] * num_qp;
+         dbg("[shadow:{}/{}] shadow_sizes: {}", i+1, num_inputs, shadow_sizes[i]);
       }
       total_size += std::accumulate(
                        std::begin(shadow_sizes), std::end(shadow_sizes), 0);
+      dbg("[shadow] total_size: {}", total_size);
    }
 
    offsets[SharedMemory::Index::OUTPUT] = total_size;
    const int residual_size = residual_size_on_qp;
+   dbg("[residual] num_qp:{} residual_size: {}", num_qp, residual_size * num_qp);
    total_size += residual_size * num_qp;
 
    offsets[SharedMemory::Index::TEMP] = total_size;
@@ -1555,10 +1581,12 @@ get_shmem_info(
    {
       // TODO-bug: over-allocates if q1d <= d1d
       temp_sizes[i] = q1d * q1d * q1d;
+      dbg("[temp:{}/{}] temp_sizes: {}", i+1, hardcoded_temp_num, temp_sizes[i]);
    }
    total_size += std::accumulate(
                     std::begin(temp_sizes), std::end(temp_sizes), 0);
 
+   dbg("total_size:{}", total_size);
    return SharedMemoryInfo<num_fields, num_inputs, num_outputs>
    {
       total_size,
@@ -1646,6 +1674,7 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    const std::array<std::array<int, 2>, N> &sizes,
    const std::array<DofToQuadMap, N> &dtq)
 {
+   dbg();
    std::array<DofToQuadMap, N> f;
    for (std::size_t i = 0; i < N; i++)
    {
@@ -1705,6 +1734,7 @@ load_field_mem(
    const std::array<DeviceTensor<2>, num_fields> &fields_e,
    const int &entity_idx)
 {
+   dbg();
    std::array<DeviceTensor<1>, num_fields> f;
 
    for_constexpr<num_fields>([&](auto field_idx)
@@ -1762,6 +1792,7 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    const std::array<int, N> &sizes,
    const int &num_qp)
 {
+   dbg();
    std::array<DeviceTensor<2>, N> f;
    for (std::size_t i = 0; i < N; i++)
    {
@@ -1780,6 +1811,7 @@ DeviceTensor<2> load_residual_mem(
    const int &residual_size,
    const int &num_qp)
 {
+   dbg();
    return DeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset, residual_size,
                           num_qp);
 }
@@ -1791,6 +1823,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    int offset,
    const std::array<int, N> &sizes)
 {
+   dbg();
    std::array<DeviceTensor<1>, N> f;
    for (std::size_t i = 0; i < N; i++)
    {
@@ -1811,6 +1844,7 @@ auto unpack_shmem(
    const int &num_qp,
    const int &e)
 {
+   dbg("input_dtq_shmem");
    auto input_dtq_shmem =
       load_dtq_mem(
          shmem,
@@ -1818,6 +1852,7 @@ auto unpack_shmem(
          shmem_info.input_dtq_sizes,
          input_dtq_maps);
 
+   dbg("output_dtq_shmem");
    auto output_dtq_shmem =
       load_dtq_mem(
          shmem,
@@ -1825,6 +1860,7 @@ auto unpack_shmem(
          shmem_info.output_dtq_sizes,
          output_dtq_maps);
 
+   dbg("fields_shmem");
    auto fields_shmem =
       load_field_mem(
          shmem,
@@ -1835,6 +1871,7 @@ auto unpack_shmem(
 
    // These functions don't copy, they simply create a `DeviceTensor` object
    // that points to correct chunks of the shared memory pool.
+   dbg("input_shmem");
    auto input_shmem =
       load_input_mem(
          shmem,
@@ -1842,6 +1879,7 @@ auto unpack_shmem(
          shmem_info.input_sizes,
          num_qp);
 
+   dbg("residual_shmem");
    auto residual_shmem =
       load_residual_mem(
          shmem,
@@ -1849,6 +1887,7 @@ auto unpack_shmem(
          shmem_info.residual_size,
          num_qp);
 
+   dbg("scratch_mem");
    auto scratch_mem =
       load_scratch_mem(
          shmem,

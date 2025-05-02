@@ -12,6 +12,10 @@
 
 #include "util.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kPeru
+#include "general/nvtx.hpp"
+
 namespace mfem::future
 {
 
@@ -25,6 +29,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
+   dbg();
    auto B = dtq.B;
    auto G = dtq.G;
 
@@ -216,6 +221,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
+   dbg(), assert(false && "❌ 2D not implemented");
    auto B = dtq.B;
    auto G = dtq.G;
 
@@ -347,6 +353,7 @@ void map_field_to_quadrature_data(
    const field_operator_t &input,
    const DeviceTensor<1, const real_t> &integration_weights)
 {
+   dbg();
    auto B = dtq.B;
    auto G = dtq.G;
    if constexpr (is_value_fop<field_operator_t>::value)
@@ -432,6 +439,9 @@ void map_fields_to_quadrature_data(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
+   dbg();
+   assert(use_sum_factorization && "❌ use_sum_factorization required");
+
    // When the input_to_field map returns -1, this means the requested input
    // is the integration weight. Weights don't have a user defined field
    // attached to them and we create a dummy field which is not accessed
@@ -485,6 +495,7 @@ void map_field_to_quadrature_data_conditional(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
+   assert(false && "❌ condition not implemented");
    if (condition)
    {
       if (use_sum_factorization)
@@ -520,6 +531,7 @@ void map_fields_to_quadrature_data_conditional(
    const std::array<bool, num_inputs> &conditions,
    const bool &use_sum_factorization = false)
 {
+   assert(false && "❌ condition not implemented");
    for_constexpr<num_inputs>([&](auto i)
    {
       map_field_to_quadrature_data_conditional(
@@ -541,6 +553,7 @@ void map_direction_to_quadrature_data_conditional(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
+   assert(false && "❌ condition not implemented");
    for_constexpr<num_inputs>([&](auto i)
    {
       if (conditions[i])

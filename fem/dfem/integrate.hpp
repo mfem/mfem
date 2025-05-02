@@ -12,6 +12,10 @@
 
 #include "util.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kLightPink
+#include "general/nvtx.hpp"
+
 namespace mfem::future
 {
 
@@ -23,6 +27,7 @@ void map_quadrature_data_to_fields_impl(
    const output_t &output,
    const DofToQuadMap &dtq)
 {
+   dbg();
    auto B = dtq.B;
    auto G = dtq.G;
    // assuming the quadrature point residual has to "play nice with
@@ -103,6 +108,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
+   dbg(), assert(false && "❌ 2D not implemented");
    auto B = dtq.B;
    auto G = dtq.G;
 
@@ -240,6 +246,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
+   dbg();
    auto B = dtq.B;
    auto G = dtq.G;
 
@@ -428,6 +435,8 @@ void map_quadrature_data_to_fields(
    const int &dimension,
    const bool &use_sum_factorization)
 {
+   dbg();
+   assert(use_sum_factorization && "❌ use_sum_factorization required");
    if (use_sum_factorization)
    {
       if (dimension == 2)

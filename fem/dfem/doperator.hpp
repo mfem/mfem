@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <cassert>
 #include <type_traits>
 #include <utility>
 
@@ -22,6 +23,10 @@
 #include "qf_derivative_enzyme.hpp"
 #include "qf_derivative_dual.hpp"
 #include "integrate.hpp"
+
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kAqua
+#include "general/nvtx.hpp"
 
 namespace mfem::future
 {
@@ -388,9 +393,11 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    static constexpr size_t num_inputs =
       tuple_size<decltype(inputs)>::value;
+   dbg("num_inputs:{}", num_inputs);
 
    static constexpr size_t num_outputs =
       tuple_size<decltype(outputs)>::value;
+   dbg("num_outputs:{}", num_outputs);
 
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
@@ -423,6 +430,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
+   dbg("num_fields:{}", num_fields);
 
    MFEM_ASSERT(num_fields == solutions.size() + parameters.size(),
                "Total number of fields doesn't match sum of solutions and parameters."
@@ -431,7 +439,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    auto dependency_map = make_dependency_map(tuple<input_ts...> {});
 
-   // pretty_print(dependency_map);
+   dbg("dependency_map:");
+   pretty_print(dependency_map);
 
    auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, inputs);
@@ -443,12 +452,14 @@ void DifferentiableOperator::AddDomainIntegrator(
    for_constexpr<num_inputs>([&](auto i)
    {
       inputs_vdim[i] = get<i>(inputs).vdim;
+      dbg("[inputs:{}/{}] inputs_vdim: {}", i+1, num_inputs, inputs_vdim[i]);
    });
 
    if ( mesh.GetNE() == 0)
    {
       MFEM_ABORT("Mesh with no elements is not yet supported!");
    }
+   dbg("NE:{}", mesh.GetNE());
 
    Array<int> elem_attributes;
    elem_attributes.SetSize(mesh.GetNE());
@@ -468,6 +479,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       use_sum_factorization = true;
    }
+   assert(use_sum_factorization && "sum factorization required");
 
    ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
    DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
@@ -494,6 +506,7 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &par,
        std::vector<Vector> &f)
    {
+      dbg("restriction");
       restriction<entity_t>(solutions, sol, f,
                             element_dof_ordering);
       restriction<entity_t>(parameters, par, f,
@@ -520,9 +533,11 @@ void DifferentiableOperator::AddDomainIntegrator(
       residual_l.SetSize(residual_lsize);
       height = GetTrueVSize(fields[test_space_field_idx]);
    }
+   dbg("height:{}", height);
 
    // TODO: Is this a hack?
    width = GetTrueVSize(fields[0]);
+   dbg("width:{}", width);
 
    std::vector<const DofToQuad*> dtq;
    for (const auto &field : fields)
@@ -533,10 +548,12 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
+   dbg("q1d:{}", q1d);
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
                             fields[test_space_field_idx]);
+   dbg("residual_size_on_qp:{}", residual_size_on_qp);
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
    auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
@@ -545,20 +562,24 @@ void DifferentiableOperator::AddDomainIntegrator(
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
    const int num_test_dof = output_e_size / output_fop.vdim /
                             num_entities;
+   dbg("[test] vdim:{} dim:{} dofs:{}", test_vdim, test_op_dim, num_test_dof);
 
    auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
 
    auto input_size_on_qp =
       get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
 
+   dbg("Gathering action_shmem_info");
    auto action_shmem_info =
       get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
       (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
        input_size_on_qp, residual_size_on_qp, element_dof_ordering);
 
+   dbg("shmem_cache:{}", action_shmem_info.total_size);
    Vector shmem_cache(action_shmem_info.total_size);
 
-   // print_shared_memory_info(action_shmem_info);
+   dbg("print_shared_memory_info:");
+   print_shared_memory_info(action_shmem_info);
 
    ThreadBlocks thread_blocks;
    if (dimension == 3)
@@ -567,7 +588,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       {
          thread_blocks.x = q1d;
          thread_blocks.y = q1d;
-         thread_blocks.z = q1d;
+         thread_blocks.z = q1d; // 🔥🔥🔥 will be set to 1
       }
    }
    else if (dimension == 2)
@@ -584,6 +605,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       [=, restriction_cb = this->restriction_callback]
       (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res) mutable
    {
+      dbg("action");
       restriction_cb(sol, par, fields_e);
 
       residual_e = 0.0;
@@ -599,6 +621,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
+         dbg("e: {}/{}", e+1, num_entities);
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
@@ -606,16 +629,19 @@ void DifferentiableOperator::AddDomainIntegrator(
                   unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
                                wrapped_fields_e, num_qp, e);
 
+         dbg("Interpolate");
          map_fields_to_quadrature_data(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
             scratch_shmem, dimension, use_sum_factorization);
 
+         dbg("Qfunction");
          call_qfunction<qf_param_ts>(
             qfunc, input_shmem, residual_shmem,
             residual_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+         dbg("Integrate");
          map_quadrature_data_to_fields(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);

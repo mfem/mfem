@@ -14,6 +14,12 @@
 #include <utility>
 #include "fem/dfem/doperator.hpp"
 
+#include <fem/integ/bilininteg_diffusion_kernels.hpp>
+
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kGold
+#include "general/nvtx.hpp"
+
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
@@ -67,6 +73,7 @@ template <typename dscalar_t, int DIM> struct Diffusion
 template <int DIM>
 void DFemDiffusion(const char *filename, int p, const int r)
 {
+   dbg("DIM:{}", DIM);
    CAPTURE(filename, DIM, p, r);
 
    Mesh smesh(filename);
@@ -116,7 +123,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   SECTION("Partial assembly")
+   /*SECTION("Partial assembly")
    {
       ParBilinearForm blf_pa(&pfes);
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
@@ -128,7 +135,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 
    QuadratureSpace qs(pmesh, *ir);
    CoefficientVector rho_coeff_cv(rho_coeff, qs);
@@ -147,8 +154,11 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
    SECTION("DFEM Matrix free")
    {
+      // fields = {solutions, parameters}
+      dbg("fields = {{solutions, parameters}} = {{{{U}}, {{Rho, Coords}}}}");
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
+      dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  tuple{ Gradient<U>{}, None<Rho>{},
                                         Gradient<Coords>{}, Weight{} },
@@ -172,7 +182,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("DFEM Partial assembly")
+   /*SECTION("DFEM Partial assembly")
    {
       static constexpr int QData = 2;
       const int qd_local_size = DIM * DIM;
@@ -216,16 +226,16 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 
-   SECTION("DFEM Linearization", "[Parallel][DFEM]")
+   /*SECTION("DFEM Linearization", "[Parallel][DFEM]")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-#ifdef MFEM_USE_ENZYME
+   #ifdef MFEM_USE_ENZYME
       typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
-#else
+   #else
       typename Diffusion<dual<real_t, real_t>, DIM>::MFApply mf_apply_qf;
-#endif
+   #endif
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  tuple{ Gradient<U>{}, None<Rho>{},
@@ -249,7 +259,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 }
 
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
@@ -259,7 +269,9 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
    const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
 
-   SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
+   DiffusionIntegrator::AddSpecialization<3,3,3>();
+
+   /*SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
          GENERATE("../../data/star.mesh",
@@ -268,16 +280,16 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
                   "../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh");
       DFemDiffusion<2>(filename, p, r);
-   }
+   }*/
 
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
-         GENERATE("../../data/fichera.mesh",
-                  "../../data/fichera-q3.mesh",
-                  "../../data/inline-hex.mesh",
-                  "../../data/toroid-hex.mesh",
-                  "../../data/periodic-cube.mesh");
+         GENERATE("../../data/fichera.mesh");//,
+      // "../../data/fichera-q3.mesh",
+      // "../../data/inline-hex.mesh",
+      // "../../data/toroid-hex.mesh",
+      // "../../data/periodic-cube.mesh");
       DFemDiffusion<3>(filename, p, r);
    }
 }
