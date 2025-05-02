@@ -13,6 +13,11 @@ Version 4.8.1 (development)
 - Added support for variational resampling of H1 vector fields to ParMoonolith 
   integration.
 
+Miscellaneous
+-------------
+- Added the "gpu", "raja-gpu", and "ceed-gpu" backend shortcuts which automatically
+  select between CUDA or HIP.
+
 Version 4.8, released on Apr 9, 2025
 ====================================
 
