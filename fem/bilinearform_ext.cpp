@@ -564,8 +564,8 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          }
          else
          {
-            if (!useAbs) { integrators[i]->AddMultPA(x, y); }
-            else { integrators[i]->AddAbsMultPA(x, y); }
+            if (useAbs) { integrators[i]->AddAbsMultPA(x, y); }
+            else { integrators[i]->AddMultPA(x, y); }
          }
       }
    }
@@ -856,15 +856,15 @@ void PABilinearFormExtension::AddMultWithMarkers(
    {
       tmp_evec.SetSize(y.Size());
       tmp_evec = 0.0;
-      if (!useAbs)
-      {
-         if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
-         else { integ.AddMultPA(x, tmp_evec); }
-      }
-      else
+      if (useAbs)
       {
          if (transpose) { integ.AddAbsMultTransposePA(x, tmp_evec); }
          else { integ.AddAbsMultPA(x, tmp_evec); }
+      }
+      else
+      {
+         if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
+         else { integ.AddMultPA(x, tmp_evec); }
       }
       const int ne = attributes.Size();
       const int nd = x.Size() / ne;
@@ -872,15 +872,15 @@ void PABilinearFormExtension::AddMultWithMarkers(
    }
    else
    {
-      if (!useAbs)
-      {
-         if (transpose) { integ.AddMultTransposePA(x, y); }
-         else { integ.AddMultPA(x, y); }
-      }
-      else
+      if (useAbs)
       {
          if (transpose) { integ.AddAbsMultTransposePA(x, y); }
          else { integ.AddAbsMultPA(x, y); }
+      }
+      else
+      {
+         if (transpose) { integ.AddMultTransposePA(x, y); }
+         else { integ.AddMultPA(x, y); }
       }
    }
 }
