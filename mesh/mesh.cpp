@@ -2837,6 +2837,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 
 void Mesh::GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths) const
 {
+   Nodes.HostRead();
    auto GetLength2 = [this](int i, int j)
    {
       real_t l = 0.;
@@ -2856,8 +2857,8 @@ void Mesh::GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths) const
          Nodes->FESpace()->GetVertexVDofs(j, jvdofs);
          for (int k = 0; k < ivdofs.Size(); k++)
          {
-            l += ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]))*
-                 ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]));
+            l += (AsConst(*Nodes)(ivdofs[k])-AsConst(*Nodes)(jvdofs[k]))*
+                 (AsConst(*Nodes)(ivdofs[k])-AsConst(*Nodes)(jvdofs[k]));
          }
       }
       return l;
