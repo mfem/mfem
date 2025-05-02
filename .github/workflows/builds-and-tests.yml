@@ -49,16 +49,7 @@ env:
 # (https://github.com/actions/cache/pull/489)
 
 jobs:
-  print-matrix:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Print Matrix
-        run: |
-          echo "Matrix context:"
-          echo "${{ toJSON(matrix) }}"
-
   builds-and-tests:
-    needs: print-matrix
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -67,6 +58,7 @@ jobs:
         build-system: [make, cmake]
         hypre-target: [int32]
         precision: [fp64]
+        enzyme: [false]
         exclude:
           - os: ubuntu-latest
             build-system: cmake
@@ -132,22 +124,14 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp32
-          - enzyme: false
-            os: macos-latest
+          - os: macos-latest
             target: opt
             codecov: NO
             mpi: par
             build-system: make
             hypre-target: int32
             precision: fp64
-          - enzyme: true
-            os: macos-latest
-            target: opt
-            codecov: NO
-            mpi: par
-            build-system: make
-            hypre-target: int32
-            precision: fp64
+            enzyme: true
             config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) ENZYME_LLVM_VERSION=$(mpicxx -dumpversion | cut -d'.' -f1)
 
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
