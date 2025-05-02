@@ -347,10 +347,8 @@ void SurfaceExample(int example, const std::vector<Vector> &ugrid,
 {
    for (int i = 0; i < ugrid[0].Size(); i++)
    {
-      const real_t a = ugrid[0][i];
       for (int j = 0; j < ugrid[1].Size(); j++)
       {
-         const real_t b = 2.0 * M_PI * ugrid[1][j];
          SurfaceFunction(example, ugrid[0][i], ugrid[1][j],
                          v3D(i, j, 0), v3D(i, j, 1), v3D(i, j, 2));
       }
@@ -498,8 +496,6 @@ void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
    FiniteElementCollection *fec = nodes->OwnFEC();
    FiniteElementSpace fespace(&mesh2D, fec, dim, Ordering::byVDIM);
    GridFunction x(&fespace);
-
-   GridFunction *nodes2D = mesh2D.GetNodes();
 
    const int n = mesh2D.GetNodes()->Size() / (dim - 1);
    MFEM_VERIFY((dim - 1) * n == mesh2D.GetNodes()->Size(), "");
