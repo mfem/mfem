@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -154,6 +154,17 @@ public:
    void Assemble() override;
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /// @brief Populates @a element_matrices with the element matrices.
+   ///
+   /// The element matrices are converted from row-major (how they are stored in
+   /// @a ea_data) to column-major format.
+   ///
+   /// If @a ordering is ElementDofOrdering::NATIVE, then the matrices are
+   /// reordered from the lexicographic ordering used internally.
+   void GetElementMatrices(DenseTensor &element_matrices,
+                           ElementDofOrdering ordering,
+                           bool add_bdr);
 };
 
 /// Data and methods for fully-assembled bilinear forms

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -112,7 +112,7 @@ void Array<T>::PartialSum()
 
 // Sum
 template <class T>
-T Array<T>::Sum()
+T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,6 +48,9 @@ public:
 
    /// Returns element's type
    virtual Type GetType() const = 0;
+
+   /// Return the Element::Type associated with the given Geometry::Type.
+   static Type TypeFromGeometry(const Geometry::Type geom);
 
    Geometry::Type GetGeometryType() const { return base_geom; }
 

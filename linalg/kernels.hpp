@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -448,6 +448,30 @@ void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
              const TA *Adata, const TB *Bdata, TC *AtBdata)
 {
    AddMultAtB(Aheight, Awidth, Bwidth, Adata, Bdata, AtBdata, TB(1.0), TA(0.0));
+}
+
+/** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
+    and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
+    Bdata: At * B. Add the result to the matrix with data @a AtBdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMultAtB(const int Aheight, const int Awidth, const int Bwidth,
+                const TA *Adata, const TB *Bdata, TC *AtBdata)
+{
+   TC *c = AtBdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c += val;
+         c++;
+      }
+   }
 }
 
 /// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.
@@ -1665,24 +1689,21 @@ have_aa:
    return sqrt(fabs(aa))*mult; // take abs before we sort?
 }
 
-
-/// Assuming L.U = P.A for a factored matrix (m x m),
-//  compute x <- A x
+/// @brief Assuming L.U = P.A factored matrix of size (m x m), compute
+/// X <- L^{-1} P X, for a vector X of length m.
 //
 // @param [in] data LU factorization of A
 // @param [in] m square matrix height
-// @param [in] ipiv array storing pivot information
+// @param [in] ipiv array storing pivots
 // @param [in, out] x vector storing right-hand side and then solution
 MFEM_HOST_DEVICE
-inline void LUSolve(const real_t *data, const int m, const int *ipiv,
-                    real_t *x)
+inline void LSolve(const real_t *data, const int m, const int *ipiv, real_t *x)
 {
    // X <- P X
    for (int i = 0; i < m; i++)
    {
       internal::Swap<real_t>(x[i], x[ipiv[i]]);
    }
-
    // X <- L^{-1} X
    for (int j = 0; j < m; j++)
    {
@@ -1692,8 +1713,17 @@ inline void LUSolve(const real_t *data, const int m, const int *ipiv,
          x[i] -= data[i + j * m] * x_j;
       }
    }
+}
 
-   // X <- U^{-1} X
+/// @brief Assuming L.U = P.A factored matrix of size (m x m), compute
+/// X <- U^{-1} X, for a vector X of length m.
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in, out] x vector storing right-hand side and then solution
+MFEM_HOST_DEVICE
+inline void USolve(const real_t *data, const int m, real_t *x)
+{
    for (int j = m - 1; j >= 0; j--)
    {
       const real_t x_j = (x[j] /= data[j + j * m]);
@@ -1702,6 +1732,148 @@ inline void LUSolve(const real_t *data, const int m, const int *ipiv,
          x[i] -= data[i + j * m] * x_j;
       }
    }
+}
+
+/// @brief Assuming L.U = P.A for a factored matrix (m x m),
+//  compute x <- A x
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in] ipiv array storing pivot information
+// @param [in, out] x vector storing right-hand side and then solution
+MFEM_HOST_DEVICE
+inline void LUSolve(const real_t *data, const int m, const int *ipiv, real_t *x)
+{
+   LSolve(data, m, ipiv, x);
+   USolve(data, m, x);
+}
+
+
+/// @brief Given an (n x m) matrix A21, compute X2 <- X2 - A21 X1, for matrices
+/// X1, and X2 of size (m x r) and (n x r), respectively.
+MFEM_HOST_DEVICE
+inline void SubMult(const int m, const int n, const int r, const real_t *A21,
+                    const real_t *X1, real_t *X2)
+{
+   // X2 <- X2 - A21 X1
+   for (int k = 0; k < r; k++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         const real_t x1_jk = X1[j+k*m];
+         for (int i = 0; i < n; i++)
+         {
+            X2[i+k*n] -= A21[i+j*n] * x1_jk;
+         }
+      }
+   }
+}
+
+/// Assuming P.A = L.U factored data of size (m x m), compute the 2x2 block
+/// decomposition:
+///      | P 0 | |  A  A12 | = |  L  0 | | U U12 |
+///      | 0 I | | A21 A22 |   | L21 I | | 0 S22 |
+///   where A12, A21, and A22 are matrices of size (m x n), (n x m), and
+///   (n x n), respectively. The blocks are overwritten as follows:
+///      A12 <- U12 = L^{-1} P A12
+///      A21 <- L21 = A21 U^{-1}
+///      A22 <- S22 = A22 - L21 U12.
+///   The block S22 is the Schur complement.
+MFEM_HOST_DEVICE
+inline void BlockFactor(const real_t *data, int m, const int *ipiv,
+                        int n, real_t *A12, real_t *A21, real_t *A22)
+{
+   // A12 <- L^{-1} P A12
+   for (int i = 0; i < n; ++i)
+   {
+      LSolve(data, m, ipiv, A12 + i*m);
+   }
+   // A21 <- A21 U^{-1}
+   for (int j = 0; j < m; j++)
+   {
+      const real_t u_jj_inv = 1.0/data[j+j*m];
+      for (int i = 0; i < n; i++)
+      {
+         A21[i+j*n] *= u_jj_inv;
+      }
+      for (int k = j+1; k < m; k++)
+      {
+         const real_t u_jk = data[j+k*m];
+         for (int i = 0; i < n; i++)
+         {
+            A21[i+k*n] -= A21[i+j*n] * u_jk;
+         }
+      }
+   }
+   // A22 <- A22 - A21 A12
+   SubMult(m, n, n, A21, A12, A22);
+}
+
+/// @brief Compute the LU factorization of the m x m matrix @a A.
+///
+/// Factorize the matrix of size (m x m) overwriting it with the LU factors. The
+/// factorization is such that L.U = P.A, where A is the original matrix and P
+/// is a permutation matrix represented by ipiv.
+///
+/// @param [in, out] A matrix
+/// @param [in] m size of the square matrix
+/// @param [out] ipiv array of pivots (length m)
+/// @param [in] tol optional fuzzy comparison tolerance. Defaults to 0.0.
+///
+/// @return true if the factorization succeeds, false otherwise (zero pivot).
+MFEM_HOST_DEVICE
+inline bool LUFactor(real_t *A, const int m, int *ipiv, const real_t tol=0.0)
+{
+   bool pivot_flag = true;
+
+   for (int i = 0; i < m; i++)
+   {
+      // pivoting
+      {
+         int piv = i;
+         real_t a = fabs(A[piv + m*i]);
+         for (int j = i+1; j < m; j++)
+         {
+            const real_t b = fabs(A[j + m*i]);
+            if (b > a)
+            {
+               a = b;
+               piv = j;
+            }
+         }
+         ipiv[i] = piv;
+         if (piv != i)
+         {
+            // swap rows i and piv in both L and U parts
+            for (int j = 0; j < m; j++)
+            {
+               internal::Swap<real_t>(A[i + m*j], A[piv + m*j]);
+            }
+         }
+      } // pivot end
+
+      if (fabs(A[i + m*i]) <= tol)
+      {
+         pivot_flag = false;
+      }
+
+      const real_t a_ii_inv = 1.0 / A[i + m*i];
+      for (int j = i+1; j < m; j++)
+      {
+         A[j + m*i] *= a_ii_inv;
+      }
+
+      for (int k = i+1; k < m; k++)
+      {
+         const real_t a_ik = A[i + m*k];
+         for (int j = i+1; j < m; j++)
+         {
+            A[j + m*k] -= a_ik * A[j + m*i];
+         }
+      }
+   }
+
+   return pivot_flag;
 }
 
 } // namespace kernels

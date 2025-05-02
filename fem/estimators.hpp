@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -623,7 +623,7 @@ private:
 
 public:
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
-       @param di_         The bilinearform to compute the interface flux.
+       @param di_         The bilinear form to compute the interface flux.
        @param sol_        The solution field whose error is to be estimated.
        @param flux_fes_   The finite element space for the interface flux.
        @param attributes_ The attributes of the subdomain(s) for which the
@@ -635,7 +635,7 @@ public:
                        const Array<int> &attributes_ = Array<int>());
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
-       @param di_         The bilinearform to compute the interface flux.
+       @param di_         The bilinear form to compute the interface flux.
        @param sol_        The solution field whose error is to be estimated.
        @param flux_fes_   The finite element space for the interface flux.
        @param attributes_ The attributes of the subdomain(s) for which the

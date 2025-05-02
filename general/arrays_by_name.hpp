@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,7 +64,7 @@ public:
    ArraysByName(ArraysByName &&src) noexcept = default;
 
    /// Return the number of named arrays in the container
-   int Size() const { return data.size(); }
+   int Size() const { return static_cast<int>(data.size()); }
 
    /// Return an STL set of strings giving the names of the arrays
    inline std::set<std::string> GetNames() const;
