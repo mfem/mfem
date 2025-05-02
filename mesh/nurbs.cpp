@@ -627,11 +627,6 @@ void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
 #endif
 
    Vector shape(order+1);
-   Array<int> rowMin(ncp);
-   Array<int> rowMax(ncp);
-   Array<int> bw(ncp);
-   rowMin = ncp;
-   rowMax = 0;
 
    if (!reuse_inverse) // Set collocation matrix entries
    {
