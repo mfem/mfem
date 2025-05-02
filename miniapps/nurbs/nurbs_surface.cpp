@@ -81,7 +81,7 @@ protected:
 
    /** @brief Write the NURBS surface mesh to file, defined coordinate-wise by
        the entries of @a cmesh. */
-   void WriteNURBSMesh(std::vector<Mesh> &cmesh) const;
+   void WriteNURBSMesh();
 
 private:
    int nx, ny; // Number of elements in two directions of the surface grid
@@ -388,7 +388,7 @@ void SurfaceInterpolator::CreateSurface(const Array3D<real_t> &input3D)
    }
 
    initial3D = input3D;
-   WriteNURBSMesh(cmesh);
+   WriteNURBSMesh();
 }
 
 void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
@@ -493,7 +493,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
    mesh = Mesh(nurbsExt);
 }
 
-void SurfaceInterpolator::WriteNURBSMesh(std::vector<Mesh> &cmesh) const
+void SurfaceInterpolator::WriteNURBSMesh()
 {
    GridFunction *nodes = cmesh[0].GetNodes();
    NURBSPatch patch2D(&kv[0], &kv[1], dim);
