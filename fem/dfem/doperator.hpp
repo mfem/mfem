@@ -143,7 +143,7 @@ public:
    void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
       MFEM_ASSERT(!derivative_actions_transpose.empty(),
-                  "derivative can't be used multiplied in transpose mode");
+                  "derivative can't be used to be multiplied in transpose mode");
 
       daction_l.SetSize(width);
       daction_l = 0.0;
