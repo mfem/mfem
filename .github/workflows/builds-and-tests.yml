@@ -130,7 +130,8 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp64
-          - os: macos-latest
+          - enzyme: true
+            os: macos-latest
             target: opt
             codecov: NO
             mpi: par
