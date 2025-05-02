@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 1;
+   int order = 2;
    bool static_cond = false;
    bool pa = false;
    bool fa = false;
@@ -229,6 +229,12 @@ int main(int argc, char *argv[])
    cmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ZERO);
    wmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ONE);
 
+   //kmat->EliminateRowsCols(ess_dofs); kmat->EliminateZeroRows();
+   //mmat->EliminateRowsCols(ess_dofs);
+   //cmat->EliminateRowsCols(ess_dofs);
+   //wmat->EliminateRowsCols(ess_dofs); wmat->EliminateZeroRows();
+
+
    const Operator *P = kf->GetProlongation();
    ConstrainedOperator ckf(new RAPOperator(*P,*kf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
    ConstrainedOperator cmf(new RAPOperator(*P,*mf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ZERO);
@@ -248,14 +254,14 @@ int main(int argc, char *argv[])
    unique_ptr<HypreParMatrix> bm;
    {
        Array2D<const HypreParMatrix*> am(2,2);
-       am(0,0)=wmat.get();
+       am(0,0)=kmat.get();
        am(0,1)=cmat.get();
        am(1,0)=cmat.get();
-       am(1,1)=wmat.get();
+       am(1,1)=kmat.get();
 
        Array2D<real_t> cm(2,2);
-       cm(0,0)=1.0; cm(0,1)=-1;
-       cm(1,0)=1.0; cm(1,1)=1;
+       cm(0,0)=1.0; cm(0,1)=1;
+       cm(1,0)=1.0; cm(1,1)=-1;
 
        bm.reset(HypreParMatrixFromBlocks(am,&cm));
     }
@@ -289,7 +295,7 @@ int main(int argc, char *argv[])
    std::cout<<pmesh.GetMyRank()<<" cwf.size="<<cwf.Width()<<std::endl;
    std::cout<<pmesh.GetMyRank()<<" vfes.size="<<vfes->GetTrueVSize()<<std::endl;
    lf.ParallelAssemble(f.GetBlock(0));
-   lf.ParallelAssemble(f.GetBlock(1));
+   lf.ParallelAssemble(f.GetBlock(1)); (f.GetBlock(1))*=-1.0;
 
    std::cout<<"RHS is ready!"<<std::endl;
 
@@ -298,19 +304,20 @@ int main(int argc, char *argv[])
 
    BlockOperator bop(block_true_offsets);
    bop.SetBlock(0,0,wmat.get(),1.0);
-   bop.SetBlock(0,1,cmat.get(),-1.0);
+   bop.SetBlock(0,1,cmat.get(),1.0);
    bop.SetBlock(1,0,cmat.get(),1.0);
-   bop.SetBlock(1,1,wmat.get(),1.0);
+   bop.SetBlock(1,1,wmat.get(),-1.0);
 
 
-   SumOperator W(kmat.get(),1.0,mmat.get(),-freq*freq,false,false);
+   SumOperator W(mmat.get(),1.0,mmat.get(),0.0,false,false);
 
    std::cout<<"Allocate PRESB"<<std::endl;
    PRESBPrec* prec=new PRESBPrec(pmesh.GetComm(),1);
-   prec->SetOperators(wmat.get(),mmat.get(),1.0,freq*freq,1, kmat.get());
+   //prec->SetOperators(wmat.get(),mmat.get(),1.0,freq*freq,1, kmat.get());
+   prec->SetOperators(kmat.get(),cmat.get(),1.0,1.0);
    prec->SetAbsTol(1e-12);
-   prec->SetRelTol(1e-4);
-   prec->SetMaxIter(50);
+   prec->SetRelTol(1e-10);
+   prec->SetMaxIter(5);
 
    prec->Mult(f,x);
    {
@@ -319,6 +326,37 @@ int main(int argc, char *argv[])
            std::cout<<"Residual="<<sqrt(rr)<<std::endl;
        }
    }
+
+   LORDiscretization lork(*kf,ess_dofs);
+
+
+   DPrec* dprec=new DPrec(pmesh.GetComm());
+   dprec->SetOperators(kmat.get(),cmat.get(),1.0,1.0);
+   dprec->SetAbsTol(1e-12);
+   dprec->SetRelTol(1e-10);
+   dprec->SetMaxIter(100);
+
+
+
+   Vector xstat(f.GetBlock(0));
+   {
+       //do the static solution
+       CGSolver ls(pmesh.GetComm());
+       HypreBoomerAMG amg(*kmat);
+       amg.SetElasticityOptions(vfes);
+       ls.SetOperator(*kmat);
+       ls.SetPreconditioner(amg);
+       ls.iterative_mode=false;
+       ls.SetAbsTol(1e-12);
+       ls.SetRelTol(1e-12);
+       ls.SetMaxIter(1000);
+       ls.SetPrintLevel(1);
+
+       ls.Mult(f.GetBlock(0),xstat);
+   }
+
+
+
 
 
    ///eigenvalues check
@@ -352,7 +390,7 @@ int main(int argc, char *argv[])
    */
 
    //set the linear solver
-   GMRESSolver* ls=new GMRESSolver(pmesh.GetComm());
+   FGMRESSolver* ls=new FGMRESSolver(pmesh.GetComm());
    //ls->SetOperator(bop);
    ls->SetOperator(*bm);
    ls->SetAbsTol(1e-12);
@@ -362,11 +400,13 @@ int main(int argc, char *argv[])
    ls->SetKDim(100);
 
    ls->SetOperator(bop);
-   ls->SetPreconditioner(*prec);
+   //ls->SetPreconditioner(*prec);
+   ls->SetPreconditioner(*dprec);
    ls->Mult(f,x);
    delete ls;
 
    delete prec;
+   delete dprec;
 
    //chekc the solution
    {
@@ -387,7 +427,8 @@ int main(int argc, char *argv[])
 
    //check the solutions
    ParGridFunction rx(vfes); rx.SetFromTrueDofs(x.GetBlock(0));
-   ParGridFunction ix(vfes); ix.SetFromTrueDofs(x.GetBlock(1));
+   ParGridFunction ix(vfes); ix.SetFromTrueDofs(x.GetBlock(1)); ix*=-1.0;
+   ParGridFunction xs(vfes); xs.SetFromTrueDofs(xstat);
    {
         ParaViewDataCollection paraview_dc("stokes", &pmesh);
         paraview_dc.SetPrefixPath("ParaView");
@@ -398,6 +439,7 @@ int main(int argc, char *argv[])
         paraview_dc.SetTime(0.0);
         paraview_dc.RegisterField("re",&rx);
         paraview_dc.RegisterField("im",&ix);
+        paraview_dc.RegisterField("xs",&xs);
         paraview_dc.Save();
    }
 

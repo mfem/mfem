@@ -402,8 +402,7 @@ public:
 
     /// (a*W+i*b*T)(x+i*y)=(e+i*g)
     void SetOperators(Operator* W_, Operator* T_,
-                      real_t a_=1.0, real_t b_=1.0,int prec_type_=1,
-                      Operator* K_=nullptr){
+                      real_t a_=1.0, real_t b_=1.0){
 
         this->width=2*(W_->Width());
         this->height=2*(W_->Width());
@@ -411,8 +410,6 @@ public:
 
         a=a_;
         b=b_;
-
-        prec_type=prec_type_;
 
         block_true_offsets.SetSize(3);
         block_true_offsets[0] = 0;
@@ -428,20 +425,19 @@ public:
 
         HypreParMatrix* wm=dynamic_cast<HypreParMatrix*>(W_);
         HypreParMatrix* tm=dynamic_cast<HypreParMatrix*>(T_);
-        HypreParMatrix* km=dynamic_cast<HypreParMatrix*>(K_);
-        /*
+
         sumop.reset(new HypreParMatrix(*wm));
         (*sumop)*=a;
         sumop->Add(b,*tm);
-        */
-        sumop.reset(new HypreParMatrix(*km));
         amgp.reset(new HypreBoomerAMG(*sumop));
 
 
         //sOp.reset(new SumOperator(W,a,T,b,false,false));
 
         //ls.reset(new mfem::CGSolver(comm));
-        ls.reset(new mfem::GMRESSolver(comm));
+        GMRESSolver* pgmres=new mfem::GMRESSolver(comm);
+        pgmres->SetKDim(200);
+        ls.reset(pgmres);
         //ls->SetOperator(*sOp);
         ls->SetOperator(*sumop);
         ls->SetPreconditioner(*amgp);
@@ -460,8 +456,8 @@ public:
             am(1,1)=wm;
 
             Array2D<real_t> cm(2,2);
-            cm(0,0)=1.0; cm(0,1)=-b;
-            cm(1,0)=b; cm(1,1)=a;
+            cm(0,0)=1.0; cm(0,1)=b;
+            cm(1,0)=b; cm(1,1)=-a;
 
             std::unique_ptr<HypreParMatrix> bm;
             bm.reset(HypreParMatrixFromBlocks(am,&cm));
@@ -469,7 +465,8 @@ public:
 
             mumps.reset(new MUMPSSolver(comm));
             //mumps->SetPrintLevel(2);
-            mumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            //mumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            mumps->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
             mumps->SetOperator(*bm);
         }
 
@@ -479,8 +476,8 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const
     {
 
-        //mumps->Mult(x,y);
-        //return;
+        mumps->Mult(x,y);
+        return;
 
         y=0.0;
         if(false==this->iterative_mode){
@@ -589,6 +586,94 @@ private:
     std::unique_ptr<HypreParMatrix> bm;
 
 
+};
+
+class DPrec:public IterativeSolver
+{
+public:
+    DPrec(MPI_Comm comm_):
+        IterativeSolver(comm_)
+    {
+        comm=comm_;
+        MPI_Comm_rank(comm,&myrank);
+        a=1.0;
+        b=1.0;
+    }
+
+    virtual
+        ~DPrec(){}
+
+
+    /// (a*W+i*b*T)(x+i*y)=(e+i*g)
+    void SetOperators(Operator* W_, Operator* T_,
+                      real_t a_=1.0, real_t b_=1.0){
+
+        this->width=2*(W_->Width());
+        this->height=2*(W_->Width());
+
+
+        a=a_;
+        b=b_;
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = W_->Width();
+        block_true_offsets[2] = W_->Width();
+        block_true_offsets.PartialSum();
+
+        tv.SetSize(W_->Width());
+        diag.SetSize(W_->Width());
+
+        W=W_;
+        T=T_;
+
+        bp.reset(new BlockDiagonalPreconditioner(block_true_offsets));
+
+        HypreParMatrix* wm=dynamic_cast<HypreParMatrix*>(W_);
+        HypreParMatrix* tm=dynamic_cast<HypreParMatrix*>(T_);
+
+        if((wm!=nullptr)&&(tm!=nullptr)){
+            sumop.reset(new HypreParMatrix(*wm));
+            (*sumop)*=a;
+            sumop->Add(b,*tm);
+            amgp.reset(new HypreBoomerAMG(*sumop));
+            ls.reset(new mfem::CGSolver(comm));
+
+            ls->SetOperator(*sumop);
+            ls->SetPreconditioner(*amgp);
+            ls->iterative_mode=true;
+            ls->SetPrintLevel(0);
+
+            bp->SetDiagonalBlock(0,ls.get());
+            bp->SetDiagonalBlock(1,ls.get());
+        }
+
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
+        ls->SetAbsTol(this->abs_tol);
+        ls->SetRelTol(this->rel_tol);
+        ls->SetMaxIter(this->max_iter);
+        bp->Mult(x,y);
+    }
+
+private:
+    MPI_Comm comm;
+    int myrank;
+
+    Operator* W;
+    Operator* T;
+    real_t a,b;
+    mfem::Array<int> block_true_offsets;
+
+    std::unique_ptr<IterativeSolver> ls;
+    std::unique_ptr<HypreBoomerAMG> amgp;
+    std::unique_ptr<HypreParMatrix> sumop;
+    std::unique_ptr<BlockDiagonalPreconditioner> bp;
+
+    Vector diag;
+    mutable Vector tv;
 };
 
 
