@@ -41,10 +41,10 @@ using namespace mfem;
 void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
                 int nx, int ny);
 
-// Sample a high-order NURBS mesh to generate a fine first-order mesh.
-void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
-                  const Array<int> &nks, const std::vector<Vector> &u_args,
-                  Array3D<real_t> &vpos);
+// Sample a NURBS mesh to generate a first-order mesh.
+void ResampleNURBS(bool uniform, int nx, int ny, const Mesh &mesh,
+                   const Array<int> &nks, const std::vector<Vector> &u_args,
+                   Array3D<real_t> &vpos);
 
 // Write a linear surface mesh with given vertex positions in v.
 void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
@@ -167,9 +167,9 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
-                  const Array<int> &nks, const std::vector<Vector> &ugrid,
-                  Array3D<real_t> &vpos)
+void ResampleNURBS(bool uniform, int nx, int ny, const Mesh &mesh,
+                   const Array<int> &nks, const std::vector<Vector> &ugrid,
+                   Array3D<real_t> &vpos)
 {
    const GridFunction *nodes = mesh.GetNodes();
 
@@ -398,12 +398,12 @@ void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
    Array3D<real_t> vpos(num_elem_x + 1, num_elem_y + 1, dim);
    for (int c = 0; c < dim; ++c) // Loop over coordinates
    {
-      FineSampling(true, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
+      ResampleNURBS(true, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
 
       if (compareOriginal)
       {
-         FineSampling(false, num_elem_x, num_elem_y, cmesh[c], nks, ugrid,
-                      vpos);
+         ResampleNURBS(false, num_elem_x, num_elem_y, cmesh[c], nks, ugrid,
+                       vpos);
          CheckError(initial3D, vpos, c, nx, ny);
       }
 
