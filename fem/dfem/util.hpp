@@ -144,7 +144,7 @@ auto make_dependency_map(tuple<input_ts...> inputs)
 // Convenient helper function for debugging.
 // Usage example
 // ```c++
-// std::cout << get_type_name<int>() << std::endl;
+// mfem::out << get_type_name<int>() << std::endl;
 // ```
 // prints "int".
 template <typename T>
