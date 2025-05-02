@@ -25,15 +25,15 @@ auto qfunction_wrapper(const func_t &f, arg_ts &&...args)
 
 template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(const T0 &, T1 &)
+void process_qf_arg(const T0 &, T1 &)
 {
    static_assert(dfem::always_false<T0, T1>,
-                 "process_kf_arg not implemented for arg type");
+                 "process_qf_arg not implemented for arg type");
 }
 
 template <typename T>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(
+void process_qf_arg(
    const DeviceTensor<1, T> &u,
    T &arg)
 {
@@ -42,7 +42,7 @@ void process_kf_arg(
 
 template <typename T>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(
+void process_qf_arg(
    const DeviceTensor<1, T> &u,
    tensor<T> &arg)
 {
@@ -51,7 +51,7 @@ void process_kf_arg(
 
 template <typename T, int n>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(
+void process_qf_arg(
    const DeviceTensor<1> &u,
    tensor<T, n> &arg)
 {
@@ -63,7 +63,7 @@ void process_kf_arg(
 
 template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(
+void process_qf_arg(
    const DeviceTensor<1> &u,
    tensor<T, n, m> &arg)
 {
@@ -78,37 +78,37 @@ void process_kf_arg(
 
 template <typename arg_type>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
+void process_qf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 {
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
-   process_kf_arg(u_qp, arg);
+   process_qf_arg(u_qp, arg);
 }
 
-template <size_t num_fields, typename kf_args>
+template <size_t num_fields, typename qf_args>
 MFEM_HOST_DEVICE inline
-void process_kf_args(
+void process_qf_args(
    const std::array<DeviceTensor<2>, num_fields> &u,
-   kf_args &args,
+   qf_args &args,
    const int &qp)
 {
-   for_constexpr<tuple_size<kf_args>::value>([&](auto i)
+   for_constexpr<tuple_size<qf_args>::value>([&](auto i)
    {
-      process_kf_arg(u[i], get<i>(args), qp);
+      process_qf_arg(u[i], get<i>(args), qp);
    });
 }
 
 template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
-Vector process_kf_result(T0, T1)
+Vector process_qf_result(T0, T1)
 {
    static_assert(dfem::always_false<T0, T1>,
-                 "process_kf_result not implemented for result type");
+                 "process_qf_result not implemented for result type");
    return Vector{};
 }
 
 template <typename T>
 MFEM_HOST_DEVICE inline
-void process_kf_result(
+void process_qf_result(
    DeviceTensor<1, T> &r,
    const real_t &x)
 {
@@ -117,7 +117,7 @@ void process_kf_result(
 
 template <typename T>
 MFEM_HOST_DEVICE inline
-void process_kf_result(
+void process_qf_result(
    DeviceTensor<1, T> &r,
    const tensor<T> &x)
 {
@@ -126,7 +126,7 @@ void process_kf_result(
 
 template <typename T, int n>
 MFEM_HOST_DEVICE inline
-void process_kf_result(
+void process_qf_result(
    DeviceTensor<1, T> &r,
    const tensor<T, n> &x)
 {
@@ -138,7 +138,7 @@ void process_kf_result(
 
 template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
-void process_kf_result(
+void process_qf_result(
    DeviceTensor<1, T> &r,
    const tensor<T, n, m> &x)
 {
@@ -153,7 +153,7 @@ void process_kf_result(
 
 template <typename T>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(
+void process_qf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
    real_t &arg)
@@ -163,7 +163,7 @@ void process_kf_arg(
 
 template <int n, int m>
 MFEM_HOST_DEVICE inline
-void process_kf_arg(
+void process_qf_arg(
    const DeviceTensor<1> &u,
    const DeviceTensor<1> &v,
    tensor<real_t, n, m> &arg)
@@ -186,8 +186,8 @@ void apply_kernel(
    const std::array<DeviceTensor<2>, num_args> &u,
    int qp)
 {
-   process_kf_args(u, args, qp);
-   process_kf_result(f_qp, get<0>(apply(qfunc, args)));
+   process_qf_args(u, args, qp);
+   process_qf_result(f_qp, get<0>(apply(qfunc, args)));
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -258,9 +258,9 @@ void apply_kernel_fwddiff_enzyme(
    const std::array<DeviceTensor<2>, num_args> &v,
    int qp_idx)
 {
-   process_kf_args(u, args, qp_idx);
-   process_kf_args(v, shadow_args, qp_idx);
-   process_kf_result(f_qp,
+   process_qf_args(u, args, qp_idx);
+   process_qf_args(v, shadow_args, qp_idx);
+   process_qf_result(f_qp,
                      get<0>(fwddiff_apply_enzyme(qfunc, args, shadow_args, tuple<> {})));
 }
 #endif // MFEM_USE_ENZYME

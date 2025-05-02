@@ -10,9 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-// FIXME: This is a temporary workaround until the Enzyme issue is resolved.
-// Disable these tests when Enzyme is enabled and running on macOS
-#if !(defined(MFEM_USE_ENZYME) && defined(__APPLE__))
 #include "unit_tests.hpp"
 
 using namespace mfem;
@@ -203,5 +200,3 @@ TEST_CASE("ArraysByName Sort/Unique Methods", "[ArraysByName]")
       }
    }
 }
-
-#endif

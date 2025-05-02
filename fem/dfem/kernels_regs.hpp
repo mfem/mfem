@@ -24,13 +24,7 @@ namespace mfem
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
    (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 template <int N>
-using regs2d_t = mfem::future::tensor<real_t, 0, 0>;
-
-template <int N>
 using regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
-
-template <int VDIM, int DIM, int N>
-using regs4d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
 
 template <int VDIM, int DIM, int N>
 using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
@@ -38,13 +32,7 @@ using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
 constexpr int SetMaxOf(int n) { return n; }
 #else
 template <int N>
-using regs2d_t = mfem::future::tensor<real_t, N, N>;
-
-template <int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N>;
-
-template <int VDIM, int DIM, int N>
-using regs4d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 
 template <int VDIM, int DIM, int N>
 using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
@@ -75,42 +63,6 @@ void LoadMatrix(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int DIM, int MQ1 = 0> inline MFEM_HOST_DEVICE
-void LoadDofs2d(const int e,
-                const int d1d,
-                const DeviceTensor<3, const real_t> &X,
-                regs4d_t<VDIM, DIM, MQ1> &Y)
-{
-   MFEM_FOREACH_THREAD1(dy, y, d1d)
-   {
-      MFEM_FOREACH_THREAD1(dx, x, d1d)
-      {
-         Y[0][0][dy][dx] = X(dx,dy,e);
-      }
-   }
-}
-
-template <int VDIM, int DIM, int MQ1 = 0> inline MFEM_HOST_DEVICE
-void LoadDofs2d(const int e,
-                const int d1d,
-                const DeviceTensor<4, const real_t> &X,
-                regs4d_t<VDIM, DIM, MQ1> &Y)
-{
-   for (int c = 0; c < VDIM; ++c)
-   {
-      MFEM_FOREACH_THREAD1(dy, y, d1d)
-      {
-         MFEM_FOREACH_THREAD1(dx, x, d1d)
-         {
-            for (int d = 0; d < DIM; d++)
-            {
-               Y[c][d][dy][dx] = X(dx,dy,c,e);
-            }
-         }
-      }
-   }
-}
-
 template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
 void LoadDofs3d(const int e,
                 const int d1d,
@@ -301,28 +253,6 @@ void GradTranspose3d(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int DIM, int MQ1 = 0> inline MFEM_HOST_DEVICE
-void WriteDofs2d(const int e, const int d1d,
-                 regs4d_t<VDIM, DIM, MQ1> &X,
-                 const DeviceTensor<4, real_t> &Y)
-{
-   MFEM_FOREACH_THREAD1(dy, y, d1d)
-   {
-      MFEM_FOREACH_THREAD1(dx, x, d1d)
-      {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            real_t value = 0.0;
-            for (int d = 0; d < DIM; d++)
-            {
-               value += X(c, d, dy, dx);
-            }
-            Y(dx, dy, c, e) += value;
-         }
-      }
-   }
-}
-
 template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
 void WriteDofs3d(const int e, const int d1d,
                  regs5d_t<VDIM, DIM, MQ1> &X,

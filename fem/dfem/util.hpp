@@ -132,12 +132,25 @@ auto make_dependency_map_impl(
    return map;
 }
 
+// @brief Create a dependency map from a tuple of inputs.
+//
+// @param inputs a tuple of objects derived from FieldOperator.
+// @returns an unordered_map where the keys are the field IDs and the values
+// are arrays of booleans indicating which inputs depend on each field ID.
 template <typename... input_ts>
 auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
 
+// @brief Get the type name of a template parameter T.
+//
+// Convenient helper function for debugging.
+// Usage example
+// ```c++
+// std::cout << get_type_name<int>() << std::endl;
+// ```
+// prints "int".
 template <typename T>
 constexpr auto get_type_name() -> std::string_view
 {
@@ -164,13 +177,15 @@ constexpr auto get_type_name() -> std::string_view
    return function.substr(start, size);
 }
 
-// Helper function to print a single tuple
 template <typename Tuple, std::size_t... Is>
 void print_tuple_impl(const Tuple& t, std::index_sequence<Is...>)
 {
    ((out << (Is == 0 ? "" : ", ") << std::get<Is>(t)), ...);
 }
 
+// @brief Helper function to print a single tuple.
+//
+// @param t The tuple to print.
 template <typename... Args>
 void print_tuple(const std::tuple<Args...>& t)
 {
@@ -215,7 +230,7 @@ void pretty_print(const mfem::DenseMatrix& m)
 /// Formatted s.t. the output is [v0, v1, ..., vn] which
 /// is compatible with numpy syntax.
 ///
-/// @param v Vector of vectors to print
+/// @param v vector of vectors to print
 inline
 void pretty_print(const mfem::Vector& v)
 {
@@ -238,7 +253,7 @@ void pretty_print(const mfem::Vector& v)
 /// Formatted s.t. the output is [v0, v1, ..., vn] which
 /// is compatible with numpy syntax.
 ///
-/// @param v Vector of vectors to print
+/// @param v vector of vectors to print
 template <typename T>
 void pretty_print(const mfem::Array<T>& v)
 {
@@ -258,9 +273,9 @@ void pretty_print(const mfem::Array<T>& v)
 ///
 /// Useful for printing the output of make_dependency_map
 ///
-/// @tparam T Type of array elements
-/// @tparam N Size of array
 /// @param map unordered map to print
+/// @tparam T type of array elements
+/// @tparam N size of array
 template<typename K, typename T, std::size_t N>
 void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 {
@@ -353,7 +368,7 @@ void print_mpi_sync(const std::string& msg)
 
 /// @brief Pretty print an mfem::Vector with MPI rank
 ///
-/// @param v Vector to print
+/// @param v vector to print
 /// @param myrank MPI rank
 /// @param comm MPI communicator
 inline
@@ -419,13 +434,22 @@ constexpr auto extract_field_ids_impl(Tuple&& t, std::index_sequence<Is...>)
    };
 }
 
+/// @brief Extracts field IDs from a tuple of objects derived from FieldOperator.
+///
+/// @param t the tuple to extract field IDs from.
+/// @returns an array of field IDs.
 template <typename... Ts>
 constexpr auto extract_field_ids(const std::tuple<Ts...>& t)
 {
    return extract_field_ids_impl(t, std::index_sequence_for<Ts...> {});
 }
 
-// Helper function to check if an element is in the array
+/// @brief Helper function to check if an element is in the array.
+///
+/// @param arr the array to search in.
+/// @param size the size of the array.
+/// @param value the value to search for.
+/// @returns true if the value is found, false otherwise.
 constexpr bool contains(const int* arr, std::size_t size, int value)
 {
    for (std::size_t i = 0; i < size; ++i)
@@ -438,7 +462,10 @@ constexpr bool contains(const int* arr, std::size_t size, int value)
    return false;
 }
 
-// Function to count unique Field IDs in a tuple
+/// @brief Function to count unique field IDs in a tuple.
+///
+/// @param t the tuple to count unique field IDs from.
+/// @returns the number of unique field IDs.
 template <typename... Ts>
 constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
 {
@@ -460,6 +487,11 @@ constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
    return unique_count;
 }
 
+/// @brief Get marked entries from an std::array based on a marker array.
+///
+/// @param a the std::array to get entries from.
+/// @param marker the marker std::array indicating which entries to get.
+/// @returns a std::vector containing the marked entries.
 template <typename T, std::size_t N>
 auto get_marked_entries(
    const std::array<T, N> &a,
@@ -476,6 +508,10 @@ auto get_marked_entries(
    return r;
 }
 
+/// @brief Filter fields from a tuple based on their field IDs.
+///
+/// @param t the tuple to filter fields from.
+/// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
 constexpr auto filter_fields(const std::tuple<Ts...>& t)
 {
@@ -483,9 +519,15 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
 
+/// @brief FieldDescriptor struct
+///
+/// This struct is used to store information about a field.
 struct FieldDescriptor
 {
+   /// Field ID
    std::size_t id;
+
+   /// Field variant
    std::variant<const FiniteElementSpace *,
        const ParFiniteElementSpace *,
        const ParametricSpace *> data;
@@ -496,11 +538,9 @@ namespace dfem
 template <class... T> constexpr bool always_false = false;
 }
 
-struct GeometricFactorMaps
-{
-   DeviceTensor<3, const real_t> normal;
-};
-
+/// @brief Entity struct
+///
+/// This struct is used to store information about an entity type.
 namespace Entity
 {
 struct Element;
@@ -509,6 +549,10 @@ struct Face;
 struct BoundaryFace;
 };
 
+/// @brief ThreadBlocks struct
+///
+/// This struct is used to store information about thread blocks
+/// for GPU dispatch.
 struct ThreadBlocks
 {
    int x = 1;
@@ -582,6 +626,7 @@ void forall(func_t f,
    }
 }
 
+/// @TODO: To be removed.
 class FDJacobian : public Operator
 {
 public:
@@ -646,7 +691,12 @@ private:
    real_t xnorm;
 };
 
-
+/// @brief Find the index of a field descriptor in a vector of field descriptors.
+///
+/// @param id the field ID to search for.
+/// @param fields the vector of field descriptors.
+/// @returns the index of the field descriptor with the given ID,
+/// or SIZE_MAX if not found.
 inline
 std::size_t FindIdx(const std::size_t& id,
                     const std::vector<FieldDescriptor>& fields)
@@ -661,30 +711,10 @@ std::size_t FindIdx(const std::size_t& id,
    return SIZE_MAX;
 }
 
-template <typename entity_t>
-GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
-                                           const IntegrationRule &ir)
-{
-   if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      const FaceGeometricFactors *fg =
-         mesh.GetFaceGeometricFactors(
-            ir,
-            FaceGeometricFactors::FactorFlags::NORMALS,
-            FaceType::Boundary);
-
-      return GeometricFactorMaps
-      {
-         DeviceTensor<3, const real_t>(
-            fg->normal.Read(), ir.GetNPoints(), mesh.SpaceDimension(), mesh.GetNBE()
-         )
-      };
-   }
-
-   Vector zero;
-   return GeometricFactorMaps{DeviceTensor<3, const real_t>(zero.Read(), 0, 0, 0)};
-}
-
+/// @brief Get the vdof size of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the vdof size of the field descriptor.
 inline
 int GetVSize(const FieldDescriptor &f)
 {
@@ -712,6 +742,13 @@ int GetVSize(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Get the element vdofs of a field descriptor.
+///
+/// @note Can't be used with ParametricSpace.
+///
+/// @param f the field descriptor.
+/// @param el the element index.
+/// @param vdofs the array to store the element vdofs.
 inline
 void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
 {
@@ -742,6 +779,10 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
    }, f.data);
 }
 
+/// @brief Get the true dof size of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the true dof size of the field descriptor.
 inline
 int GetTrueVSize(const FieldDescriptor &f)
 {
@@ -772,6 +813,10 @@ int GetTrueVSize(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Get the vdim of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the vdim of the field descriptor.
 inline
 int GetVDim(const FieldDescriptor &f)
 {
@@ -797,6 +842,11 @@ int GetVDim(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Get the spatial dimension of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns the spatial dimension of the field descriptor.
 template <typename entity_t>
 int GetDimension(const FieldDescriptor &f)
 {
@@ -826,6 +876,11 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
+
+/// @brief Get the prolongation operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the prolongation operator for the field descriptor.
 inline
 const Operator *get_prolongation(const FieldDescriptor &f)
 {
@@ -848,6 +903,12 @@ const Operator *get_prolongation(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Get the element restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the element dof ordering.
+/// @returns the element restriction operator for the field descriptor in
+/// specified ordering.
 inline
 const Operator *get_element_restriction(const FieldDescriptor &f,
                                         ElementDofOrdering o)
@@ -871,32 +932,12 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
    }, f.data);
 }
 
-inline
-const Operator *get_face_restriction(
-   const FieldDescriptor &f,
-   ElementDofOrdering o,
-   FaceType ft,
-   L2FaceValues m)
-{
-   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return arg->GetFaceRestriction(o, ft, m);
-      }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
-      {
-         return arg->GetRestriction();
-      }
-      else
-      {
-         static_assert(dfem::always_false<T>, "can't use get_face_restriction on type");
-      }
-   }, f.data);
-}
-
+/// @brief Get the restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the element dof ordering.
+/// @returns the restriction operator for the field descriptor in
+/// specified ordering.
 template <typename entity_t>
 inline
 const Operator *get_restriction(const FieldDescriptor &f,
@@ -906,18 +947,19 @@ const Operator *get_restriction(const FieldDescriptor &f,
    {
       return get_element_restriction(f, o);
    }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      return get_face_restriction(f, o, FaceType::Boundary,
-                                  L2FaceValues::SingleValued);
-   }
    MFEM_ABORT("restriction not implemented for Entity");
    return nullptr;
 }
 
+/// @brief Get a transpose restriction callback for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the element dof ordering.
+/// @param fop the field operator.
+/// @returns a std::function containing the transpose restriction callback and the
 template <typename entity_t, typename fop_t>
-inline
-auto get_restriction_transpose(
+inline std::function<void(const Vector&, Vector&)>
+get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
    const fop_t &fop)
@@ -941,6 +983,11 @@ auto get_restriction_transpose(
    }
 }
 
+/// @brief Apply the prolongation operator to a field.
+///
+/// @param field the field descriptor.
+/// @param x the input vector in tdofs.
+/// @param field_l the output vector in vdofs.
 inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
@@ -949,6 +996,17 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
    P->Mult(x, field_l);
 }
 
+/// @brief Apply the prolongation operator to a vector of fields.
+///
+/// x is a long vector containing the data for all fields on tdofs and
+/// fields contains the information about each individual field to retrieve
+/// it's corresponding prolongation.
+///
+/// @param fields the array of field descriptors.
+/// @param x the input vector in tdofs.
+/// @param fields_l the array of output vectors in vdofs.
+/// @tparam N the number of fields.
+/// @tparam M the number of output fields.
 template <std::size_t N, std::size_t M>
 void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
@@ -968,6 +1026,15 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    }
 }
 
+/// @brief Apply the prolongation operator to a vector of fields.
+///
+/// x is a long vector containing the data for all fields on tdofs and
+/// fields contains the information about each individual field to retrieve
+/// it's corresponding prolongation.
+///
+/// @param fields the array of field descriptors.
+/// @param x the input vector in tdofs.
+/// @param fields_l the array of output vectors in vdofs.
 inline
 void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
@@ -985,6 +1052,15 @@ void prolongation(const std::vector<FieldDescriptor> fields,
    }
 }
 
+/// @brief Get a transpose prolongation callback for a field descriptor.
+///
+/// In the special case of a one field operator, the transpose prolongation
+/// is a simple sum of the local vector that is reduced to the global vector.
+///
+/// @param f the field descriptor.
+/// @param fop the field operator.
+/// @param mpi_comm the MPI communicator.
+/// @tparam fop_t the field operator type.
 template <typename fop_t>
 inline
 auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
@@ -1019,6 +1095,13 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    }
 }
 
+/// @brief Apply the restriction operator to a field.
+///
+/// @param u the field descriptor.
+/// @param u_l the input vector in vdofs.
+/// @param field_e the output vector in edofs.
+/// @param ordering the element dof ordering.
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 void restriction(const FieldDescriptor u,
                  const Vector &u_l,
@@ -1033,6 +1116,14 @@ void restriction(const FieldDescriptor u,
    R->Mult(u_l, field_e);
 }
 
+/// @brief Apply the restriction operator to a vector of fields.
+///
+/// @param u the vector of field descriptors.
+/// @param u_l the vector of input vectors in vdofs.
+/// @param fields_e the vector of output vectors in edofs.
+/// @param ordering the element dof ordering.
+/// @param offset the array index offset to start writing in fields_e.
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 void restriction(const std::vector<FieldDescriptor> u,
                  const std::vector<Vector> &u_l,
@@ -1070,6 +1161,11 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
    }
 }
 
+/// @brief Get the number of entities of a given type.
+///
+/// @param mesh the mesh.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns the number of entities of the given type.
 template <typename entity_t>
 int GetNumEntities(const mfem::Mesh &mesh)
 {
@@ -1087,6 +1183,15 @@ int GetNumEntities(const mfem::Mesh &mesh)
    }
 }
 
+/// @brief Get the GetDofToQuad object for a given entity type.
+///
+/// This function retrieves the DofToQuad object for a given field descriptor
+/// and integration rule.
+///
+/// @param f the field descriptor.
+/// @param ir the integration rule.
+/// @param mode the mode of the DofToQuad object.
+/// @param entity_t the entity type (see Entity).
 template <typename entity_t>
 inline
 const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
@@ -1119,6 +1224,14 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
    }, f.data);
 }
 
+/// @brief Check the compatibility of a field operator type with a FieldDescriptor.
+///
+/// This function checks if the field operator type is compatible with the
+/// FieldDescriptor type.
+///
+/// @param f the field descriptor.
+/// @param field_operator_t the field operator type.
+/// @tparam field_operator_t the field operator type.
 template <typename field_operator_t>
 void CheckCompatibility(const FieldDescriptor &f)
 {
@@ -1163,6 +1276,13 @@ void CheckCompatibility(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Get the size on quadrature point for a field operator type
+/// and FieldDescriptor combination.
+///
+/// @tparam entity_t the entity type (see Entity).
+/// @tparam field_operator_t the field operator type.
+/// @param f the field descriptor.
+/// @returns the size on quadrature point.
 template <typename entity_t, typename field_operator_t>
 int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 {
@@ -1190,6 +1310,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    }
 }
 
+/// @brief Create a map from field operator types to FieldDescriptor indices.
+///
+/// @param fields the vector of field descriptors.
+/// @param fops the field operator types.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
 std::array<int, tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
@@ -1246,6 +1372,7 @@ create_descriptors_to_fields_map(
    return map;
 }
 
+/// @brief Wrap input memory for a given set of inputs.
 template <typename input_t, std::size_t... i>
 std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
    std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp, int num_entities,
@@ -1254,6 +1381,7 @@ std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
    return {DeviceTensor<3>(input_qp_mem[i].Write(), get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
 }
 
+/// @brief Create input memory for a given set of inputs.
 template <typename input_t, std::size_t... i>
 std::array<Vector, sizeof...(i)> create_input_qp_memory(
    int num_qp,
@@ -1264,19 +1392,38 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    return {Vector(get<i>(inputs).size_on_qp * num_qp * num_entities)...};
 }
 
+/// @brief DofToQuadMap struct
+///
+/// This struct is used to store the mapping from degrees of freedom to
+/// quadrature points for a given field operator type.
 struct DofToQuadMap
 {
+   /// Enumeration for the indices of the mappings B and G.
    enum Index
    {
       QP,
       DIM,
       DOF
    };
+
+   /// @brief Basis functions evaluated at quadrature points.
+   ///
+   /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
    DeviceTensor<3, const real_t> B;
+
+   /// @brief Gradient of the basis functions evaluated at quadrature points.
+   ///
+   /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
    DeviceTensor<3, const real_t> G;
+
+   /// Reverse mapping indicating which input this map belongs to.
    int which_input = -1;
 };
 
+/// @brief Get the size on quadrature point for a given set of inputs.
+///
+/// @param inputs the inputs tuple.
+/// @returns a vector containing the size on quadrature point for each input.
 template <typename input_t, std::size_t... i>
 std::vector<int> get_input_size_on_qp(
    const input_t &inputs,
@@ -1857,7 +2004,11 @@ void set_zero(DeviceTensor<n> &u)
    }
 }
 
-
+/// @brief Copy data from DeviceTensor u to DeviceTensor v
+///
+/// @param u source DeviceTensor
+/// @param v destination DeviceTensor
+/// @tparam n DeviceTensor rank
 template <int n>
 MFEM_HOST_DEVICE inline
 void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
@@ -1875,12 +2026,12 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
    }
 }
 
-/// @brief Copy data from array of tensors x to array of tensors y
+/// @brief Copy data from array of DeviceTensor x to array of DeviceTensor y
 ///
-/// @tparam n tensor dimension
-/// @tparam m number of tensors
-/// @param x source tensor array
-/// @param y destination tensor array
+/// @param x source DeviceTensor array
+/// @param y destination DeviceTensor array
+/// @tparam n DeviceTensor rank
+/// @tparam m number of DeviceTensors
 template <int n, std::size_t m>
 MFEM_HOST_DEVICE inline
 void copy(std::array<DeviceTensor<n>, m> &u,
@@ -1894,9 +2045,9 @@ void copy(std::array<DeviceTensor<n>, m> &u,
 
 /// @brief Wraps plain data in DeviceTensors for fields
 ///
-/// @tparam num_fields number of fields
 /// @param fields array of field data
 /// @param num_entities number of entities (elements, faces, etc) in mesh
+/// @tparam num_fields number of fields
 /// @return array of field data wrapped in DeviceTensors
 template <std::size_t num_fields>
 std::array<DeviceTensor<2>, num_fields> wrap_fields(
@@ -2027,6 +2178,13 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    };
 }
 
+/// @brief Create DofToQuad maps for a given set of field operators.
+///
+/// @param fops field operators
+/// @param dtqmaps DofToQuad maps
+/// @param to_field_map mapping from input indices to field indices
+/// @tparam entity_t type of the entity
+/// @return array of DofToQuad maps
 template <
    typename entity_t,
    typename field_operator_ts,
@@ -2042,6 +2200,17 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
              std::make_index_sequence<num_fields> {});
 }
 
+/// @brief Call a qfunction with the given parameters.
+///
+/// @param qfunc the qfunction to call.
+/// @param input_shmem the input shared memory.
+/// @param residual_shmem the residual shared memory.
+/// @param rs_qp the size of the residual.
+/// @param num_qp the number of quadrature points.
+/// @param q1d the number of quadrature points in 1D.
+/// @param dimension the spatial dimension.
+/// @param use_sum_factorization whether to use sum factorization.
+/// @tparam qf_param_ts the tuple type of the qfunction parameters.
 template <
    typename qf_param_ts,
    typename qfunc_t,
@@ -2107,6 +2276,19 @@ void call_qfunction(
    }
 }
 
+/// @brief Call a qfunction with the given parameters and
+/// compute it's derivative action.
+///
+/// @param qfunc the qfunction to call.
+/// @param input_shmem the input shared memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param residual_shmem the residual shared memory.
+/// @param das_qp the size of the derivative action.
+/// @param num_qp the number of quadrature points.
+/// @param q1d the number of quadrature points in 1D.
+/// @param dimension the spatial dimension.
+/// @param use_sum_factorization whether to use sum factorization.
+/// @tparam qf_param_ts the tuple type of the qfunction parameters.
 template <
    typename qf_param_ts,
    typename qfunc_t,

@@ -58,6 +58,7 @@ jobs:
         build-system: [make, cmake]
         hypre-target: [int32]
         precision: [fp64]
+        enzyme: [false]
         exclude:
           - os: ubuntu-latest
             build-system: cmake
@@ -130,8 +131,8 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp64
-            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) ENZYME_LLVM_VERSION=$(mpicxx -dumpversion | cut -d'.' -f1)
             enzyme: true
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) ENZYME_LLVM_VERSION=$(mpicxx -dumpversion | cut -d'.' -f1)
 
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
@@ -287,6 +288,7 @@ jobs:
         if: matrix.enzyme && matrix.os == 'macos-latest'
         run: |
           export HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew update
           brew install llvm@19 enzyme
           echo "LLVM_PREFIX=$(brew --prefix llvm@19)" >> $GITHUB_ENV
           echo "OMPI_CC=$(brew --prefix llvm@19)/bin/clang" >> $GITHUB_ENV

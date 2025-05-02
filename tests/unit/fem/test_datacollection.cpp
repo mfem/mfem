@@ -10,9 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-// FIXME: This is a temporary workaround until the Enzyme issue is resolved.
-// Disable these tests when Enzyme is enabled and running on macOS
-#if !(defined(MFEM_USE_ENZYME) && defined(__APPLE__))
 #include "unit_tests.hpp"
 #include "general/tinyxml2.h"
 #include <stdio.h>
@@ -385,4 +382,3 @@ TEST_CASE("ParaView VTKHDF restart mode", "[ParaView]")
 }
 
 #endif // MFEM_USE_HDF5
-#endif // MFEM_USE_ENZYME
