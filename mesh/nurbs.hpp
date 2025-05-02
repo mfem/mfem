@@ -144,7 +144,12 @@ public:
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
-       curve are returned in @a x in the same form. */
+       curve are returned in @a x in the same form.
+
+       The inverse of the collocation matrix, used in the interpolation, is
+       stored for repeated calls and used if @a reuse_inverse is true. Reuse is
+       valid only if this KnotVector has not changed since the initial call with
+       @a reuse_inverse false. */
    void FindInterpolant(Array<Vector*> &x, bool reuse_inverse = false);
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.

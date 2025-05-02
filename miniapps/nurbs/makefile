@@ -146,8 +146,8 @@ nurbs_naca_cmesh-test-seq: nurbs_naca_cmesh
 nurbs_printfunc-test-seq: nurbs_printfunc
 	@$(call mfem-test,$<,, NURBS miniapp)
 
-SURF_ARGS_1 := -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 1 -orig -no-vis
-SURF_ARGS_2 := -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 1 -no-vis
+SURF_ARGS_1 := -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 1 -orig
+SURF_ARGS_2 := -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 1
 
 nurbs_surface-test-seq: nurbs_surface
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_1))

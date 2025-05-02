@@ -591,10 +591,10 @@ void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
    Array<int> i_args;
    FindMaxima(i_args, xi_args, u_args);
 
-   // Assemble collocation matrix (banded with order + 1 nonzeros per row).
+   // Assemble collocation matrix
 #ifdef MFEM_USE_LAPACK
-   // If using LAPACK, we use banded matrix storage.
-   // Find banded structure of matrix
+   // If using LAPACK, we use banded matrix storage (order + 1 nonzeros per row).
+   // Find banded structure of matrix.
    int KL = 0; // Number of subdiagonals
    int KU = 0; // Number of superdiagonals
    for (int i = 0; i < ncp; i++)
