@@ -124,14 +124,15 @@ jobs:
             hypre-target: int32
             precision: fp32
           - os: macos-latest
+            enzyme: false
             target: opt
             codecov: NO
             mpi: par
             build-system: make
             hypre-target: int32
             precision: fp64
-          - enzyme: true
-            os: macos-latest
+          - os: macos-latest
+            enzyme: true
             target: opt
             codecov: NO
             mpi: par
