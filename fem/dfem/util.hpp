@@ -937,9 +937,10 @@ const Operator *get_restriction(const FieldDescriptor &f,
 /// @param f the field descriptor.
 /// @param o the element dof ordering.
 /// @param fop the field operator.
-/// @returns a std::function containing the transpose restriction callback and the
+/// @returns a tuple containting a std::function with the transpose
+/// restriction callback and it's height.
 template <typename entity_t, typename fop_t>
-inline std::function<void(const Vector&, Vector&)>
+inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
 get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
