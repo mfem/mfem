@@ -44,7 +44,7 @@ void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
 // Sample a high-order NURBS mesh to generate a fine first-order mesh.
 void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
                   const Array<int> &nks, const std::vector<Vector> &u_args,
-                  const Array3D<real_t> &input3D, Array3D<real_t> &vpos);
+                  Array3D<real_t> &vpos);
 
 // Write a linear surface mesh with given vertex positions in v.
 void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
@@ -60,20 +60,24 @@ class SurfaceInterpolator
 {
 public:
    /// Constructor for a given 2D point grid size and NURBS order.
-   SurfaceInterpolator(int num_elem_x, int num_elem_y, int order);
+   SurfaceInterpolator(int num_elem_x, int num_elem_y, int order,
+                       bool vis = false);
 
+   /// Create a surface interpolating the 2D grid of 3D points in @a input3D.
+   void CreateSurface(const Array3D<real_t> &input3D);
+
+   /// Sample the surface with the given grid size, storing points in
+   /// @a output3D.
+   void SampleSurface(int num_elem_x, int num_elem_y, bool compareOriginal,
+                      Array3D<real_t> &output3D);
+
+   /// Return the coordinates of grid points in the parameter space [0,1]^2.
+   const std::vector<Vector>& GetParameterGrid() const { return ugrid; }
+
+protected:
    /** @brief Compute the NURBS mesh interpolating the given coordinate of the
        grid of 3D points in @a input3D. */
    void ComputeNURBS(int coordinate, const Array3D<real_t> &input3D);
-
-   /// Return the NURBS mesh representing the surface.
-   const Mesh& GetMesh() const { return mesh; }
-
-   /// Return an array of the number of knot-spans (elements) in each direction.
-   const Array<int>& GetNKS() const { return nks; }
-
-   /// Return the coordinates of grid points in the parameter space [0,1]^2.
-   const std::vector<Vector>& GetUGrid() const { return ugrid; }
 
    /** @brief Write the NURBS surface mesh to file, defined coordinate-wise by
        the entries of @a cmesh. */
@@ -83,6 +87,10 @@ private:
    int nx, ny; // Number of elements in two directions of the surface grid
    int orderNURBS; // NURBS degree
    real_t hx, hy, hz; // Grid size in reference space
+
+   bool visualization; // Whether to output glvis visualization
+
+   Array3D<real_t> initial3D; // Initial grid of points
 
    static constexpr int dim = 3;
    Array<int> ncp; // Number of control points in each direction
@@ -95,6 +103,7 @@ private:
    std::unique_ptr<NURBSPatch> patch; // Pointer to the only patch in the mesh
 
    Mesh mesh; // NURBS mesh representing the surface
+   std::vector<Mesh> cmesh; // NURBS meshes representing point components
 };
 
 int main(int argc, char *argv[])
@@ -145,49 +154,22 @@ int main(int argc, char *argv[])
 
    constexpr int dim = 3;
    Array3D<real_t> input3D(nx + 1, ny + 1, dim);
+   Array3D<real_t> output3D(fnx + 1, fny + 1, dim);
 
-   SurfaceInterpolator surf(nx, ny, order);
-   const std::vector<Vector> &ugrid = surf.GetUGrid();
+   SurfaceInterpolator surf(nx, ny, order, visualization);
+   SurfaceExample(example, surf.GetParameterGrid(), input3D);
 
-   SurfaceExample(example, ugrid, input3D);
+   surf.CreateSurface(input3D);
+   surf.SampleSurface(fnx, fny, compareOriginal, output3D);
 
-   WriteLinearMesh(nx, ny, input3D, "initial-surf", visualization);
-
-   std::vector<Mesh> mesh;
-   Array3D<real_t> vpos(fnx + 1, fny + 1, dim);
-   Array3D<real_t> v3D(fnx + 1, fny + 1, dim);
-   for (int c = 0; c < dim; ++c) // Loop over coordinates
-   {
-      surf.ComputeNURBS(c, input3D);
-      mesh.emplace_back(surf.GetMesh());
-      const Array<int> &nks = surf.GetNKS();
-
-      FineSampling(true, fnx, fny, mesh[c], nks, ugrid, input3D, vpos);
-
-      if (compareOriginal)
-      {
-         FineSampling(false, fnx, fny, mesh[c], nks, ugrid, input3D, vpos);
-         CheckError(input3D, vpos, c, nx, ny);
-      }
-
-      for (int i=0; i<=fnx; ++i)
-      {
-         for (int j=0; j<=fny; ++j)
-         {
-            v3D(i,j,c) = vpos(i,j,2);
-         }
-      }
-   }
-
-   surf.WriteNURBSMesh(mesh);
-   WriteLinearMesh(fnx, fny, v3D, "final-surf", visualization);
+   WriteLinearMesh(fnx, fny, output3D, "final-surf", visualization);
 
    return 0;
 }
 
 void FineSampling(bool uniform, int nx, int ny, const Mesh &mesh,
                   const Array<int> &nks, const std::vector<Vector> &ugrid,
-                  const Array3D<real_t> &input3D, Array3D<real_t> &vpos)
+                  Array3D<real_t> &vpos)
 {
    const GridFunction *nodes = mesh.GetNodes();
 
@@ -357,7 +339,7 @@ void SurfaceExample(int example, const std::vector<Vector> &ugrid,
 }
 
 SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
-                                         int order) :
+                                         int order, bool vis) :
    nx(num_elem_x), ny(num_elem_y), orderNURBS(order),
    ncp(dim), nks(dim), ugrid(dim - 1)
 {
@@ -391,6 +373,47 @@ SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
    for (int i=0; i<2; ++i)
    {
       kv[i].FindMaxima(i_args, xi_args, ugrid[i]);
+   }
+}
+
+void SurfaceInterpolator::CreateSurface(const Array3D<real_t> &input3D)
+{
+   WriteLinearMesh(nx, ny, input3D, "initial-surf", visualization);
+
+   cmesh.clear();
+   for (int c = 0; c < dim; ++c) // Loop over coordinates
+   {
+      ComputeNURBS(c, input3D);
+      cmesh.emplace_back(mesh);
+   }
+
+   initial3D = input3D;
+   WriteNURBSMesh(cmesh);
+}
+
+void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
+                                        bool compareOriginal,
+                                        Array3D<real_t> &output3D)
+{
+   Array3D<real_t> vpos(num_elem_x + 1, num_elem_y + 1, dim);
+   for (int c = 0; c < dim; ++c) // Loop over coordinates
+   {
+      FineSampling(true, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
+
+      if (compareOriginal)
+      {
+         FineSampling(false, num_elem_x, num_elem_y, cmesh[c], nks, ugrid,
+                      vpos);
+         CheckError(initial3D, vpos, c, nx, ny);
+      }
+
+      for (int i=0; i<=num_elem_x; ++i)
+      {
+         for (int j=0; j<=num_elem_y; ++j)
+         {
+            output3D(i,j,c) = vpos(i,j,2);
+         }
+      }
    }
 }
 
