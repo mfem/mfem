@@ -178,7 +178,7 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y,
    {
       for (int row = 0; row < height; row++)
       {
-         y[row] = x_col*std::abs(d_col[row]);
+         y[row] = x_col*std::fabs(d_col[row]);
       }
    }
    else
@@ -196,7 +196,7 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y,
          x_col = x[col];
          for (int row = 0; row < height; row++)
          {
-            y[row] += x_col*abs(d_col[row]);
+            y[row] += x_col*std::fabs(d_col[row]);
          }
          d_col += height;
       }
@@ -241,7 +241,7 @@ void MultTranspose(const int height, const int width, const TA *data,
          TY val = 0.0;
          for (int j = 0; j < height; ++j)
          {
-            val += x[j] * std::abs(data[i * height + j]);
+            val += x[j] * std::fabs(data[i * height + j]);
          }
          *y_off = val;
          y_off++;
