@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 
    SurfaceExample(example, ugrid, input3D);
 
-   WriteLinearMesh(nx, ny, input3D, "initial-surf");
+   WriteLinearMesh(nx, ny, input3D, "initial-surf", visualization);
 
    std::vector<Mesh> mesh;
    Array3D<real_t> vpos(fnx + 1, fny + 1, dim);
@@ -286,10 +286,11 @@ void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      constexpr int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "mesh\n" << fmesh << flush;
+      sol_sock << "mesh\n" << fmesh << "window_title '"
+               << basename << "'" << flush;
    }
 }
 
@@ -458,6 +459,8 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
          }
       }
    }
+
+   for (auto p : x) { delete p; }
 
    Array<const NURBSPatch*> patches(1);
    patches[0] = patch.get();
