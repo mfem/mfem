@@ -152,6 +152,8 @@ public:
        @a e_vec at quadrature points. */
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
+   /** @brief Interpolate the absolute values of the derivatives in physical
+       space of the E-vector @a e_vec at quadrature points. */
    void AbsPhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Compute the determinants of the derivatives (with respect to
