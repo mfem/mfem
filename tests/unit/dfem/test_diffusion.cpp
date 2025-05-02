@@ -12,6 +12,7 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 #include <utility>
+#include "fem/dfem/doperator.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -20,7 +21,7 @@ using namespace mfem::future;
 using mfem::future::tensor;
 using mfem::future::dual;
 
-using DOperator = DifferentiableOperator;
+using DOperator = future::DifferentiableOperator;
 
 namespace dfem_pa_kernels
 {

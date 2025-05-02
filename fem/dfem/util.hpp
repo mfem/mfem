@@ -939,7 +939,7 @@ const Operator *get_restriction(const FieldDescriptor &f,
 /// @param fop the field operator.
 /// @returns a std::function containing the transpose restriction callback and the
 template <typename entity_t, typename fop_t>
-inline std::function<void(const Vector&, Vector&)>
+inline auto // std::function<void(const Vector&, Vector&)>
 get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
