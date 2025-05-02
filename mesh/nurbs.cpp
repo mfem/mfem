@@ -537,11 +537,11 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
          int i = j - d;
          if (isElement(i))
          {
-            arg1 = 1e-16;
+            arg1 = std::numeric_limits<real_t>::epsilon() / 2_r;
             CalcShape(shape, i, arg1);
             max1 = shape[d];
 
-            arg2 = 1 - (1e-16);
+            arg2 = 1_r - arg1;
             CalcShape(shape, i, arg2);
             max2 = shape[d];
 
