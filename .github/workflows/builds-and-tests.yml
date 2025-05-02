@@ -288,6 +288,7 @@ jobs:
         if: matrix.enzyme && matrix.os == 'macos-latest'
         run: |
           export HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew update
           brew install llvm@19 enzyme
           echo "LLVM_PREFIX=$(brew --prefix llvm@19)" >> $GITHUB_ENV
           echo "OMPI_CC=$(brew --prefix llvm@19)/bin/clang" >> $GITHUB_ENV
