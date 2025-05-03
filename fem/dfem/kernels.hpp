@@ -17,8 +17,21 @@
 #include "../linalg/tensor.hpp"
 #include "linalg/dtensor.hpp"
 
-namespace mfem
+namespace mfem::future::pa
 {
+
+///////////////////////////////////////////////////////////////////////////////
+template <class T>
+inline std::enable_if_t<!std::numeric_limits<T>::is_integer, bool>
+AlmostEq(T x, T y, T tolerance = 10.0 * std::numeric_limits<T>::epsilon())
+{
+   const T neg = std::abs(x - y);
+   constexpr T min = std::numeric_limits<T>::min();
+   constexpr T eps = std::numeric_limits<T>::epsilon();
+   const T min_abs = std::min(std::abs(x), std::abs(y));
+   if (std::abs(min_abs) == 0.0) { return neg < eps; }
+   return (neg / (1.0 + std::max(min, min_abs))) < tolerance;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
@@ -33,6 +46,9 @@ constexpr int SetMaxOf(int n) { return n; }
 #else
 template <int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N>;
+
+template <int DIM, int N>
+using regs4d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
 
 template <int VDIM, int DIM, int N>
 using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
@@ -64,27 +80,31 @@ void LoadMatrix(const int d1d, const int q1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
-void LoadDofs3d(const int e,
-                const int d1d,
-                const DeviceTensor<4, const real_t> &X,
+void LoadDofs3d(const int d1d,
+                const DeviceTensor<4, real_t> &X,
                 regs5d_t<VDIM, DIM, MQ1> &Y)
 {
-   for (int dz = 0; dz < d1d; ++dz)
+   for (int vd = 0; vd < VDIM; vd++)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      for (int dz = 0; dz < d1d; ++dz)
       {
-         MFEM_FOREACH_THREAD(dx, x, d1d)
+         MFEM_FOREACH_THREAD(dy, y, d1d)
          {
-            Y[0][0][dz][dy][dx] = X(dx,dy,dz,e);
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               for (int d = 0; d < DIM; d++)
+               {
+                  Y[vd][d][dz][dy][dx] = X(dx, dy, dz, vd);
+               }
+            }
          }
       }
    }
 }
 
-template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
-void LoadDofs3d(const int e,
-                const int d1d,
-                const DeviceTensor<5, const real_t> &X,
+/*template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
+void LoadDofs3d(const int d1d,
+                const DeviceTensor<4, real_t> &X,
                 regs5d_t<VDIM, DIM, MQ1> &Y)
 {
    for (int c = 0; c < VDIM; ++c)
@@ -97,13 +117,13 @@ void LoadDofs3d(const int e,
             {
                for (int d = 0; d < DIM; d++)
                {
-                  Y[c][d][dz][dy][dx] = X(dx,dy,dz,c,e);
+                  Y[c][d][dz][dy][dx] = X(dx,dy,dz,c);
                }
             }
          }
       }
    }
-}
+}*/
 
 ///////////////////////////////////////////////////////////////////////////////
 template <bool Transpose, int MQ1> inline MFEM_HOST_DEVICE
@@ -208,7 +228,7 @@ void Contract3d(const int d1d, const int q1d,
 {
    if (!Transpose)
    {
-      ContractX3d<false>(d1d, q1d, smem, Bx, X, Y );
+      ContractX3d<false>(d1d, q1d, smem, Bx, X, Y);
       ContractY3d<false>(d1d, q1d, smem, By, Y, X);
       ContractZ3d<false>(d1d, q1d,       Bz, X, Y);
    }
@@ -278,4 +298,4 @@ void WriteDofs3d(const int e, const int d1d,
    }
 }
 
-} // namespace mfem
+} // namespace mfem::future::pa

@@ -12,7 +12,7 @@
 #include "doperator.hpp"
 
 #undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kDodgerBlue
+#define NVTX_COLOR nvtx::kMagenta
 #include "general/nvtx.hpp"
 
 #ifdef MFEM_USE_MPI

@@ -624,10 +624,16 @@ void DifferentiableOperator::AddDomainIntegrator(
          dbg("e: {}/{}", e+1, num_entities);
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-         auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
-                                residual_shmem, scratch_shmem] =
-                  unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                               wrapped_fields_e, num_qp, e);
+         dbg("Unpack shmem");
+         auto [ //
+            input_dtq_shmem,  // std::array<DofToQuadMap, num_inputs> dtqmaps
+            output_dtq_shmem, // std::array<DofToQuadMap, num_outputs>
+            fields_shmem,     // std::array<DeviceTensor<1>, num_fields> fields_e
+            input_shmem,      // std::array<DeviceTensor<2>, num_inputs> fields_qp
+            residual_shmem,   // DeviceTensor<2>
+            scratch_shmem     // std::array<DeviceTensor<1>, 6>
+         ] = unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+                          wrapped_fields_e, num_qp, e);
 
          dbg("Interpolate");
          map_fields_to_quadrature_data(

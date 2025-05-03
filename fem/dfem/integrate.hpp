@@ -27,7 +27,7 @@ void map_quadrature_data_to_fields_impl(
    const output_t &output,
    const DofToQuadMap &dtq)
 {
-   dbg();
+   dbg("❌❌❌ not used ❌❌❌");
    auto B = dtq.B;
    auto G = dtq.G;
    // assuming the quadrature point residual has to "play nice with
@@ -246,12 +246,12 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   dbg();
    auto B = dtq.B;
    auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
    {
+      dbg("Value");
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
@@ -319,6 +319,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    }
    else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value)
    {
+      dbg("Gradient");
       const auto [q1d, unused, d1d] = G.GetShape();
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
@@ -398,6 +399,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    }
    else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
    {
+      dbg("None");
       const auto [q1d, unused, d1d] = B.GetShape();
       auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);
       auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d, q1d);

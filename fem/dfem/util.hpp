@@ -1310,6 +1310,7 @@ create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
    field_operator_ts &fops)
 {
+   dbg();
    std::array<int, tuple_size<field_operator_ts>::value> map;
 
    auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
@@ -1337,6 +1338,7 @@ create_descriptors_to_fields_map(
          fop.dim = GetDimension<Entity::Element>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
+         dbg("[Weight] dim:{} vdim:{} size_on_qp:{}", fop.dim, fop.vdim, fop.size_on_qp);
          map = -1;
       }
       else if ((i = find_id(fields, fop.GetFieldId())) != -1)
@@ -1344,6 +1346,7 @@ create_descriptors_to_fields_map(
          fop.dim = GetDimension<entity_t>(fields[i]);
          fop.vdim = GetVDim(fields[i]);
          fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
+         dbg("[ Field] dim:{} vdim:{} size_on_qp:{}", fop.dim, fop.vdim, fop.size_on_qp);
          map = i;
       }
       else
@@ -1464,7 +1467,7 @@ get_shmem_info(
    const ElementDofOrdering &dof_ordering,
    const int &derivative_action_field_idx = -1)
 {
-   dbg();
+   dbg("num_qp, dim, num_dofs:");
    std::array<int, 8> offsets = {0};
    int total_size = 0;
 
@@ -1541,6 +1544,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::INPUT] = total_size;
    std::array<int, num_inputs> input_sizes;
+   dbg("[inputs] num_qp: {}", num_qp);
    for (std::size_t i = 0; i < num_inputs; i++)
    {
       input_sizes[i] = input_size_on_qp[i] * num_qp;
@@ -1735,7 +1739,7 @@ load_field_mem(
    const std::array<DeviceTensor<2>, num_fields> &fields_e,
    const int &entity_idx)
 {
-   dbg();
+   dbg("num_fields:{}", num_fields);
    std::array<DeviceTensor<1>, num_fields> f;
 
    for_constexpr<num_fields>([&](auto field_idx)
@@ -1746,6 +1750,8 @@ load_field_mem(
       int tid = MFEM_THREAD_ID(x) +
                 MFEM_THREAD_SIZE(x) *
                 (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
+      dbg("field_idx:{} size:{} block_size:{}",
+          field_idx.value, sizes[field_idx], block_size);
       for (int k = tid; k < sizes[field_idx]; k += block_size)
       {
          reinterpret_cast<real_t *>(mem)[offset + k] =
