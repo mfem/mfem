@@ -288,7 +288,7 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
          GENERATE("../../data/fichera.mesh",
                   "../../data/fichera-q3.mesh",
                   "../../data/inline-hex.mesh",
-                  // "../../data/toroid-hex.mesh"); // ❌❌❌
+                  "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
       DFemDiffusion<3>(filename, p, r);
    }

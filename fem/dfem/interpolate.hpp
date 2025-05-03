@@ -217,12 +217,23 @@ void map_field_to_quadrature_data_tensor_product_3d(
             {
                for (int qx = 0; qx < q1d; qx++)
                {
-                  // dbg("[{}:0] {} {}", vd, fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]);
-                  assert(pa::AlmostEq(fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]));
-                  // dbg("[{}:1] {} {}", vd, fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]);
-                  assert(pa::AlmostEq(fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]));
-                  // dbg("[{}:2] {} {}", vd, fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]);
-                  assert(pa::AlmostEq(fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]));
+                  if (!pa::AlmostEq(fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]))
+                  {
+                     dbg("\x1b[31m[{}:0] {} {}", vd, fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]);
+                     dbg("❌❌❌"), std::exit(EXIT_FAILURE);
+                  }
+
+                  if (!pa::AlmostEq(fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]))
+                  {
+                     dbg("\x1b[31m[{}:1] {} {}", vd, fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]);
+                     dbg("❌❌❌"), std::exit(EXIT_FAILURE);
+                  }
+
+                  if (!pa::AlmostEq(fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]))
+                  {
+                     dbg("\x1b[31m[{}:2] {} {}", vd, fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]);
+                     dbg("❌❌❌"), std::exit(EXIT_FAILURE);
+                  }
                }
             }
          }

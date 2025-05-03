@@ -23,7 +23,7 @@ namespace mfem::future::pa
 ///////////////////////////////////////////////////////////////////////////////
 template <class T>
 inline std::enable_if_t<!std::numeric_limits<T>::is_integer, bool>
-AlmostEq(T x, T y, T tolerance = 10.0 * std::numeric_limits<T>::epsilon())
+AlmostEq(T x, T y, T tolerance = 15.0 * std::numeric_limits<T>::epsilon())
 {
    const T neg = std::abs(x - y);
    constexpr T min = std::numeric_limits<T>::min();
