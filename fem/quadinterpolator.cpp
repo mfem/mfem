@@ -141,7 +141,7 @@ static void Eval1D(const int NE,
    {
       for (int q = 0; q < nq; ++q)
       {
-         if (eval_flags & QI::VALUES)
+         if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
          {
             for (int c = 0; c < vdim; c++)
             {
@@ -245,7 +245,7 @@ static void Eval2D(const int NE,
 
       MFEM_FOREACH_THREAD(q, x, NQ)
       {
-         if (eval_flags & QI::VALUES)
+         if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
          {
             real_t ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
@@ -399,7 +399,7 @@ static void Eval3D(const int NE,
 
       MFEM_FOREACH_THREAD(q, x, NQ)
       {
-         if (eval_flags & QI::VALUES)
+         if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
          {
             real_t ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
@@ -546,7 +546,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    if (use_tensor_eval)
    {
-      if (eval_flags & VALUES)
+      if (eval_flags & (VALUES | PHYSICAL_VALUES))
       {
          TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
                                 e_vec.Read(), q_val.Write(), vdim, nd, nq);
@@ -659,6 +659,13 @@ void QuadratureInterpolator::Values(const Vector &e_vec,
 {
    Vector empty;
    Mult(e_vec, VALUES, q_val, empty, empty);
+}
+
+void QuadratureInterpolator::PhysValues(const Vector &e_vec,
+                                        Vector &q_val) const
+{
+   Vector empty;
+   Mult(e_vec, PHYSICAL_VALUES, q_val, empty, empty);
 }
 
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,

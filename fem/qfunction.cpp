@@ -99,7 +99,7 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(e_vec, *this);
+      qi->PhysValues(e_vec, *this);
    }
    else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
    {
