@@ -399,6 +399,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       tuple_size<decltype(outputs)>::value;
    dbg("num_outputs:{}", num_outputs);
 
+   constexpr int MQ1 = qfunc_t::MQ1;
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
@@ -548,7 +549,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-   dbg("q1d:{}", q1d);
+   dbg("q1d:{} \x1b[33mMQ1:{}", q1d, MQ1);
+   MFEM_VERIFY(MQ1 == 0 || q1d == MQ1, "q1d and MQ1 have to match");
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
@@ -636,7 +638,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                           wrapped_fields_e, num_qp, e);
 
          dbg("Interpolate");
-         map_fields_to_quadrature_data(
+         map_fields_to_quadrature_data<MQ1>(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
             scratch_shmem, dimension, use_sum_factorization);
 
@@ -703,7 +705,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                          output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
             auto &shadow_shmem = shadow_shmem_;
 
-            map_fields_to_quadrature_data(
+            map_fields_to_quadrature_data<MQ1>(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
                scratch_shmem, dimension, use_sum_factorization);
 

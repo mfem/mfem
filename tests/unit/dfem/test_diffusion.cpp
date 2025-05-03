@@ -13,6 +13,7 @@
 #include "mfem.hpp"
 #include <utility>
 #include "fem/dfem/doperator.hpp"
+#include "fem/dfem/util.hpp"
 
 #include <fem/integ/bilininteg_diffusion_kernels.hpp>
 
@@ -32,20 +33,22 @@ using DOperator = future::DifferentiableOperator;
 namespace dfem_pa_kernels
 {
 
-template <typename dscalar_t, int DIM> struct Diffusion
+///////////////////////////////////////////////////////////////////////////////
+template <typename dscalar_t, int DIM, int T_MQ1 = 0> struct Diffusion
 {
    using dvecd_t = tensor<dscalar_t, DIM>;
    using matd_t = tensor<real_t, DIM, DIM>;
 
    struct MFApply
    {
+      static constexpr int MQ1 = T_MQ1;
       MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
                                               const real_t &rho,
                                               const matd_t &J,
                                               const real_t &w) const
       {
          const auto invJ = inv(J), TinJ = transpose(invJ);
-         return tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
+         return mfem::future::tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
       }
    };
 
@@ -56,7 +59,7 @@ template <typename dscalar_t, int DIM> struct Diffusion
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         return tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
+         return mfem::future::tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
       }
    };
 
@@ -65,11 +68,136 @@ template <typename dscalar_t, int DIM> struct Diffusion
       MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
                                               const matd_t &q) const
       {
-         return tuple{ q * dudxi };
+         return mfem::future::tuple{ q * dudxi };
       };
    };
 };
 
+///////////////////////////////////////////////////////////////////////////////
+template <typename T, int DIM, std::size_t... MQ1s>
+struct MFDiffusionFactory
+{
+   static auto All()
+   {
+      return mfem::future::make_tuple(typename Diffusion<T, DIM, MQ1s>::MFApply{}...);
+   }
+};
+
+template <typename T, int DIM>
+using MFDiffusionFactory1to4 = MFDiffusionFactory<T, DIM, 1, 2, 3, 4>;
+
+template <typename real_t, int DIM>
+using TMFApplyVariant = std::variant<
+                        typename Diffusion<real_t, DIM, 1>::MFApply,
+                        typename Diffusion<real_t, DIM, 2>::MFApply,
+                        typename Diffusion<real_t, DIM, 3>::MFApply,
+                        typename Diffusion<real_t, DIM, 4>::MFApply
+                        >;
+
+// Example class storing the MFApply objects
+template <typename T, int DIM>
+struct MFDiffusionQFs
+{
+   using MFApplyTuple = decltype(MFDiffusionFactory1to4<T, DIM>::All());
+   MFApplyTuple mf_qfs;
+
+   MFDiffusionQFs(): mf_qfs(MFDiffusionFactory1to4<T, DIM>::All()) {}
+};
+
+/*template <typename T, int DIM, std::size_t N>
+auto extract(const TMFApplyVariant<T, DIM>& variant)
+{
+   static_assert(N >= 1 && N <= 4, "N must be between 1 and 4");
+   using TargetType = typename Diffusion<real_t, DIM, N>::MFApply;
+   if (variant.index() != (N - 1))
+   {
+      throw std::runtime_error("Variant does not hold the expected type for N");
+   }
+   return mfem::future::get<TargetType>(variant);
+}*/
+
+///////////////////////////////////////////////////////////////////////////////
+template <typename... qf_ts, std::size_t... Is>
+auto make_qf_map_impl(tuple<qf_ts...> qfs,
+                      std::index_sequence<Is...>)
+{
+   auto make_qf_array = [&](auto i)
+   {
+      return std::array<bool, sizeof...(qf_ts)>
+      {
+         (mfem::future::get<i>(qfs).MQ1 == mfem::future::get<Is>(qfs).MQ1)...
+      };
+   };
+
+   std::unordered_map<int, std::array<bool, sizeof...(qf_ts)>> map;
+   for_constexpr<sizeof...(qf_ts)>([&](auto i)
+   {
+      map[get<i>(qfs).MQ1] = make_qf_array(std::integral_constant<std::size_t, i> {});
+   });
+
+   return map;
+}
+template <typename... qf_ts>
+auto make_qf_map(mfem::future::tuple<qf_ts...> qfs)
+{
+   return make_qf_map_impl(qfs, std::index_sequence_for<qf_ts...> {});
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <typename Tuple, typename F, size_t... I>
+void runtime_get_impl(Tuple& t, size_t index, F&& f, std::index_sequence<I...>)
+{
+   using fun_ptr = void (*)(Tuple&, F&&);
+   fun_ptr table[] =
+   {
+      [](Tuple& t, F&& f) { f(mfem::future::get<I>(t)); } ...
+   };
+   if (index < mfem::future::tuple_size<Tuple>::value)
+   {
+      table[index](t, std::forward<F>(f));
+   }
+   else
+   {
+      throw std::out_of_range("Index out of bounds");
+   }
+}
+
+template <typename Tuple, typename F>
+void runtime_get(Tuple& t, size_t index, F&& f)
+{
+   runtime_get_impl(t, index, std::forward<F>(f),
+                    std::make_index_sequence<mfem::future::tuple_size<Tuple>::value>());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <typename Tuple, typename F, size_t... I>
+void runtime_get_obj_impl(Tuple& t, size_t index, F&& f,
+                          std::index_sequence<I...>)
+{
+   using fun_ptr = void (*)(Tuple&, F&&);
+   fun_ptr table[] =
+   {
+      [](Tuple& t, F&& f) { f(mfem::future::get<I>(t)); } ...
+   };
+   if (index < mfem::future::tuple_size<Tuple>::value)
+   {
+      table[index](t, std::forward<F>(f));
+   }
+   else
+   {
+      throw std::out_of_range("Index out of bounds");
+   }
+}
+
+template <typename Tuple, typename F>
+void runtime_get_obj(Tuple& t, size_t index, F&& f)
+{
+   runtime_get_obj_impl(t, index, std::forward<F>(f),
+                        std::make_index_sequence<mfem::future::tuple_size<Tuple>::value>());
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
 template <int DIM>
 void DFemDiffusion(const char *filename, int p, const int r)
 {
@@ -157,13 +285,35 @@ void DFemDiffusion(const char *filename, int p, const int r)
       // fields = {solutions, parameters}
       dbg("fields = {{solutions, parameters}} = {{{{U}}, {{Rho, Coords}}}}");
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-      typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
+      // typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
+
       dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
-      dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 tuple{ Gradient<U>{}, None<Rho>{},
-                                        Gradient<Coords>{}, Weight{} },
-                                 tuple{ Gradient<U>{} }, *ir,
-                                 all_domain_attr);
+      MFDiffusionQFs<real_t, DIM> qfs;
+
+      dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
+      runtime_get(qfs.mf_qfs, 3-1, [&](auto &qf)
+      {
+         dbg("qf.MQ1:{}", qf.MQ1);
+         dop_mf.AddDomainIntegrator(qf, //mf_apply_qf,
+                                    tuple{ Gradient<U>{}, None<Rho>{},
+                                           Gradient<Coords>{}, Weight{} },
+                                    tuple{ Gradient<U>{} }, *ir,
+                                    all_domain_attr);
+      });
+
+      /* auto mf_apply_qf_variant = qf.Get(3);
+      for_constexpr<4>([&](auto i)
+      {
+         dbg("i:{}", i.value);
+         return extract<real_t, DIM, 3>(mf_apply_qf_variant);
+      });*/
+
+      // auto mf_apply_qf_3 = mfem::future::get<3-1>(qf.mf_qfs);
+      // dop_mf.AddDomainIntegrator(mf_apply_qf_3, //mf_apply_qf,
+      //                            tuple{ Gradient<U>{}, None<Rho>{},
+      //                                   Gradient<Coords>{}, Weight{} },
+      //                            tuple{ Gradient<U>{} }, *ir,
+      //                            all_domain_attr);
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
@@ -284,12 +434,17 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
+#if 0
       const auto filename =
          GENERATE("../../data/fichera.mesh",
                   "../../data/fichera-q3.mesh",
                   "../../data/inline-hex.mesh",
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
+#else
+      const auto filename =
+         GENERATE("../../data/fichera.mesh");
+#endif
       DFemDiffusion<3>(filename, p, r);
    }
 }

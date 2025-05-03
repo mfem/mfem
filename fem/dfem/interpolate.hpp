@@ -19,7 +19,7 @@
 namespace mfem::future
 {
 
-template <typename field_operator_t>
+template <int T_Q1D, typename field_operator_t>
 MFEM_HOST_DEVICE inline
 void map_field_to_quadrature_data_tensor_product_3d(
    DeviceTensor<2> &field_qp,
@@ -112,7 +112,8 @@ void map_field_to_quadrature_data_tensor_product_3d(
       auto s3 = Reshape(&scratch_mem[3](0), d1d, q1d, q1d);
       auto s4 = Reshape(&scratch_mem[4](0), d1d, q1d, q1d);
 
-      static constexpr int DIM = 3, MQ1 = 8, MD1 = 4;
+      constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+      static constexpr int DIM = 3, MD1 = 4;
       MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
@@ -490,7 +491,7 @@ void map_field_to_quadrature_data(
    }
 }
 
-template <typename field_operator_ts, size_t num_inputs, size_t num_fields>
+template <int T_Q1D, typename field_operator_ts, size_t num_inputs, size_t num_fields>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
    std::array<DeviceTensor<2>, num_inputs> &fields_qp,
@@ -526,7 +527,7 @@ void map_fields_to_quadrature_data(
          }
          else if (dimension == 3)
          {
-            map_field_to_quadrature_data_tensor_product_3d(
+            map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(
                fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
                integration_weights, scratch_mem);
          }
