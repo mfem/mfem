@@ -45,6 +45,7 @@
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE
+#define MFEM_HOST
 #define MFEM_LAMBDA
 // #define MFEM_HOST_DEVICE // defined in config/config.hpp
 // MFEM_DEVICE_SYNC is made available for debugging purposes

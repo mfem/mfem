@@ -72,11 +72,29 @@ void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleEABoundary(const FiniteElementSpace &fes,
+                                                Vector &emat,
+                                                const bool add)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleEABoundary(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
                                                      &fes,
                                                      Vector &ea_data_int,
                                                      Vector &ea_data_ext,
                                                      const bool add)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEAInteriorFaces(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes,
+   Vector &emat,
+   const bool add)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
               "   is not implemented for this class.");
@@ -2903,6 +2921,11 @@ void DivDivIntegrator::AssembleElementMatrix(
    if (ir == NULL)
    {
       int order = 2 * el.GetOrder() - 2; // <--- OK for RTk
+      if (el.Space() == FunctionSpace::Uk)
+      {
+         order += 2;
+      }
+
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
