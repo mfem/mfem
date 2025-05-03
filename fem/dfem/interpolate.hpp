@@ -100,7 +100,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       is_gradient_fop<std::decay_t<field_operator_t>>::value)
    {
       dbg("Gradient");
-      const auto [q1d, unused, d1d] = B.GetShape();
+      const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
@@ -112,14 +112,14 @@ void map_field_to_quadrature_data_tensor_product_3d(
       auto s3 = Reshape(&scratch_mem[3](0), d1d, q1d, q1d);
       auto s4 = Reshape(&scratch_mem[4](0), d1d, q1d, q1d);
 
-      static constexpr int VDIM = 1, DIM = 3, MQ1 = 8, MD1 = 4;
-      MFEM_VERIFY(vdim == VDIM, "vdim != VDIM");
+      static constexpr int DIM = 3, MQ1 = 8, MD1 = 4;
       MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      pa::regs5d_t<VDIM, DIM, MQ1> r0, r1;
+      pa::regs4d_t<DIM, MQ1> r0, r1;
       real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
+      assert(B_dim == 1 && "1D B required!");
       pa::LoadMatrix(d1d, q1d, B, sB);
       pa::LoadMatrix(d1d, q1d, G, sG);
       for (int qx = 0; qx < q1d; qx++)
@@ -131,9 +131,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
          }
       }
 
-      pa::LoadDofs3d(d1d, field, r0);
       for (int vd = 0; vd < vdim; vd++)
       {
+         dbg("vdim:{}/{}", vd+1, vdim);
+
+         pa::LoadDofs3d(d1d, vd, field, r0);
          for (int dz = 0; dz < d1d; dz++)
          {
             for (int dy = 0; dy < d1d; dy++)
@@ -141,17 +143,12 @@ void map_field_to_quadrature_data_tensor_product_3d(
                for (int dx = 0; dx < d1d; dx++)
                {
                   const real_t f = field(dx, dy, dz, vd);
-                  assert(pa::AlmostEq(f, r0[vd][0][dz][dy][dx]));
+                  assert(pa::AlmostEq(f, r0[0][dz][dy][dx]));
                }
             }
          }
-      }
+         pa::Grad3d(d1d, q1d, smem, sB, sG, r0, r1);
 
-      pa::Grad3d(d1d, q1d, smem, sB, sG, r0, r1);
-
-      for (int vd = 0; vd < vdim; vd++)
-      {
-         dbg("vdim:{}/{}", vd+1, vdim);
          MFEM_FOREACH_THREAD(dz, z, d1d)
          {
             MFEM_FOREACH_THREAD(dy, y, d1d)
@@ -220,19 +217,17 @@ void map_field_to_quadrature_data_tensor_product_3d(
             {
                for (int qx = 0; qx < q1d; qx++)
                {
-                  dbg("[{}:0] {} {}", vd, fqp(vd, 0, qx, qy, qz), r1[vd][0][qz][qy][qx]);
-                  assert(pa::AlmostEq(fqp(vd, 0, qx, qy, qz), r1[vd][0][qz][qy][qx]));
-
-                  dbg("[{}:1] {} {}", vd, fqp(vd, 1, qx, qy, qz), r1[vd][1][qz][qy][qx]);
-                  assert(pa::AlmostEq(fqp(vd, 1, qx, qy, qz), r1[vd][1][qz][qy][qx]));
-
-                  dbg("[{}:2] {} {}", vd, fqp(vd, 2, qx, qy, qz), r1[vd][2][qz][qy][qx]);
-                  assert(pa::AlmostEq(fqp(vd, 2, qx, qy, qz), r1[vd][2][qz][qy][qx]));
+                  // dbg("[{}:0] {} {}", vd, fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]);
+                  assert(pa::AlmostEq(fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]));
+                  // dbg("[{}:1] {} {}", vd, fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]);
+                  assert(pa::AlmostEq(fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]));
+                  // dbg("[{}:2] {} {}", vd, fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]);
+                  assert(pa::AlmostEq(fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]));
                }
             }
          }
       }
-      dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"), std::exit(EXIT_SUCCESS);
+      // dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"), std::exit(EXIT_SUCCESS);
    }
    // TODO: Create separate function for clarity
    else if constexpr (

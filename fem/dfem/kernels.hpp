@@ -79,23 +79,21 @@ void LoadMatrix(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int DIM, int MQ1> inline MFEM_HOST_DEVICE
+template <int DIM, int MQ1> inline MFEM_HOST_DEVICE
 void LoadDofs3d(const int d1d,
+                const int vd,
                 const DeviceTensor<4, real_t> &X,
-                regs5d_t<VDIM, DIM, MQ1> &Y)
+                regs4d_t<DIM, MQ1> &Y)
 {
-   for (int vd = 0; vd < VDIM; vd++)
+   for (int dz = 0; dz < d1d; ++dz)
    {
-      for (int dz = 0; dz < d1d; ++dz)
+      MFEM_FOREACH_THREAD(dy, y, d1d)
       {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD(dx, x, d1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            for (int d = 0; d < DIM; d++)
             {
-               for (int d = 0; d < DIM; d++)
-               {
-                  Y[vd][d][dz][dy][dx] = X(dx, dy, dz, vd);
-               }
+               Y[d][dz][dy][dx] = X(dx, dy, dz, vd);
             }
          }
       }
@@ -240,23 +238,20 @@ void Contract3d(const int d1d, const int q1d,
    }
 }
 
-template <int VDIM, int DIM, int MD1, int MQ1, bool Transpose = false>
+template <int DIM, int MD1, int MQ1, bool Transpose = false>
 inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
                                     real_t (&smem)[MQ1][MQ1],
                                     const real_t (&B)[MD1][MQ1],
                                     const real_t (&G)[MD1][MQ1],
-                                    regs5d_t<VDIM, DIM, MQ1> &X,
-                                    regs5d_t<VDIM, DIM, MQ1> &Y)
+                                    regs4d_t<DIM, MQ1> &X,
+                                    regs4d_t<DIM, MQ1> &Y)
 {
-   for (int c = 0; c < VDIM; c++)
+   for (int d = 0; d < DIM; d++)
    {
-      for (int d = 0; d < DIM; d++)
-      {
-         const real_t (*Bx)[MQ1] = (d == 0) ? G : B;
-         const real_t (*By)[MQ1] = (d == 1) ? G : B;
-         const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
-         Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[c][d], Y[c][d]);
-      }
+      const real_t (*Bx)[MQ1] = (d == 0) ? G : B;
+      const real_t (*By)[MQ1] = (d == 1) ? G : B;
+      const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
+      Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[d], Y[d]);
    }
 }
 

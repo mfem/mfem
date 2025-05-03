@@ -285,11 +285,11 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
-         GENERATE("../../data/fichera.mesh");//,
-      // "../../data/fichera-q3.mesh",
-      // "../../data/inline-hex.mesh",
-      // "../../data/toroid-hex.mesh",
-      // "../../data/periodic-cube.mesh");
+         GENERATE("../../data/fichera.mesh",
+                  "../../data/fichera-q3.mesh",
+                  "../../data/inline-hex.mesh",
+                  // "../../data/toroid-hex.mesh"); // ❌❌❌
+                  "../../data/periodic-cube.mesh");
       DFemDiffusion<3>(filename, p, r);
    }
 }
