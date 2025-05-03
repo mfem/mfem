@@ -85,57 +85,40 @@ struct MFDiffusionFactory
 };
 
 template <typename T, int DIM>
-using MFDiffusionFactory1to4 = MFDiffusionFactory<T, DIM, 1, 2, 3, 4>;
-
-template <typename T, int DIM>
-using TMFApplyVariant = std::variant<
-                        typename Diffusion<T, DIM, 1>::MFApply,
-                        typename Diffusion<T, DIM, 2>::MFApply,
-                        typename Diffusion<T, DIM, 3>::MFApply,
-                        typename Diffusion<T, DIM, 4>::MFApply>;
-
-// Declare the map variable with the correct type
-std::map<int, TMFApplyVariant<real_t, 3>> map;
+using MFDiffusionFactory_1_4 = MFDiffusionFactory<T, DIM, 1, 2, 3, 4>;
 
 // Example class storing the MFApply objects
 template <typename T, int DIM>
 struct MFDiffusionQFs
 {
-   using MFApplyTuple = decltype(MFDiffusionFactory1to4<T, DIM>::All());
+   using MFApplyTuple = decltype(MFDiffusionFactory_1_4<T, DIM>::All());
    MFApplyTuple mf_qfs;
 
-   MFDiffusionQFs(): mf_qfs(MFDiffusionFactory1to4<T, DIM>::All()) {}
+   MFDiffusionQFs(): mf_qfs(MFDiffusionFactory_1_4<T, DIM>::All()) {}
 };
 
-/*template <typename T, int DIM, std::size_t N>
-auto extract(const TMFApplyVariant<T, DIM>& variant)
-{
-   static_assert(N >= 1 && N <= 4, "N must be between 1 and 4");
-   using TargetType = typename Diffusion<real_t, DIM, N>::MFApply;
-   if (variant.index() != (N - 1))
-   {
-      throw std::runtime_error("Variant does not hold the expected type for N");
-   }
-   return mfem::future::get<TargetType>(variant);
-}*/
 
 ///////////////////////////////////////////////////////////////////////////////
+// ✅✅✅ works with:
+/*{
+   auto qf_map = make_qf_map(qfs.mf_qfs);
+   const int i = 3;
+   dbg("qf_map[{}].MQ1:{}", i,
+       reinterpret_cast<typename Diffusion<real_t, DIM, 1>::MFApply*>(qf_map[i])->MQ1);
+}*/
 template <typename... qf_ts, std::size_t... Is>
 auto make_qf_map_impl(tuple<qf_ts...> qfs,
                       std::index_sequence<Is...>)
 {
-   auto make_qf_array = [&](auto i)
+   auto get_qf_adrs = [&](auto i)
    {
-      return std::array<bool, sizeof...(qf_ts)>
-      {
-         (mfem::future::get<i>(qfs).MQ1 == mfem::future::get<Is>(qfs).MQ1)...
-      };
+      return static_cast<void*>(&mfem::future::get<i>(qfs));
    };
 
-   std::unordered_map<int, std::array<bool, sizeof...(qf_ts)>> map;
+   std::map<int, void*> map;
    for_constexpr<sizeof...(qf_ts)>([&](auto i)
    {
-      map[get<i>(qfs).MQ1] = make_qf_array(std::integral_constant<std::size_t, i> {});
+      map[get<i>(qfs).MQ1] = get_qf_adrs(std::integral_constant<std::size_t, i> {});
    });
 
    return map;
@@ -147,6 +130,18 @@ auto make_qf_map(mfem::future::tuple<qf_ts...> qfs)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// ✅✅✅ works with:
+/*
+      runtime_get(qfs.mf_qfs, 3-1, [&](auto &qf)
+      {
+         dbg("qf.MQ1:{}", qf.MQ1);
+         dop_mf.AddDomainIntegrator(qf, //mf_apply_qf,
+                                    tuple{ Gradient<U>{}, None<Rho>{},
+                                           Gradient<Coords>{}, Weight{} },
+                                    tuple{ Gradient<U>{} }, *ir,
+                                    all_domain_attr);
+      });
+*/
 template <typename Tuple, typename F, size_t... I>
 void runtime_get_impl(Tuple& t, size_t index, F&& f, std::index_sequence<I...>)
 {
@@ -170,157 +165,6 @@ void runtime_get(Tuple& t, size_t index, F&& f)
 {
    runtime_get_impl(t, index, std::forward<F>(f),
                     std::make_index_sequence<mfem::future::tuple_size<Tuple>::value>());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// 1️⃣ https://www.foonathan.net/2017/03/tuple-iterator/
-template <typename Tup, typename R, typename F, std::size_t... Idxs>
-struct tuple_runtime_access_table
-{
-   using tuple_type = Tup;
-   using return_type = R;
-   using converter_fun = F;
-
-   template <std::size_t N>
-   static return_type access_tuple(tuple_type& t, converter_fun& f)
-   {
-      return f(mfem::future::get<N>(t));
-   }
-
-   using accessor_fun_ptr = return_type(*)(tuple_type&, converter_fun&);
-   const static auto table_size = sizeof...(Idxs);
-
-   constexpr static std::array<accessor_fun_ptr, table_size> lookup_table =
-   {
-      {&access_tuple<Idxs>...}
-   };
-};
-
-template <typename R, typename Tup, typename F, std::size_t... Idxs>
-auto call_access_function(Tup& t, std::size_t i, F f,
-                          std::index_sequence<Idxs...>)
-{
-   auto& table = tuple_runtime_access_table<Tup, R, F, Idxs...>::lookup_table;
-   auto* access_function = table[i];
-   return access_function(t, f);
-}
-
-template <typename Tup> struct common_tuple_access;
-
-template <typename... Ts>
-struct common_tuple_access<mfem::future::tuple<Ts...>>
-{
-   using type = std::variant<std::reference_wrapper<Ts>...>;
-};
-
-// template <typename T1, typename T2>
-// struct common_tuple_access<std::pair<T1, T2>>
-// {
-//    using type =
-//       std::variant<std::reference_wrapper<T1>, std::reference_wrapper<T2>>;
-// };
-
-// template <typename T, auto N>
-// struct common_tuple_access<std::array<T, N>>
-// {
-//    using type = std::variant<std::reference_wrapper<T>>;
-// };
-
-template <typename Tup>
-using common_tuple_access_t = typename common_tuple_access<Tup>::type;
-
-template <typename Tup>
-auto runtime_i(Tup& t, std::size_t i)
-{
-   return call_access_function<common_tuple_access_t<Tup>>(t, i,
-   [](auto & element) { return std::ref(element); },
-   std::make_index_sequence<mfem::future::tuple_size<Tup>::value> {}
-                                                          );
-}
-
-template <class ... Fs>
-struct overload : Fs...
-{
-   overload(Fs&&... fs) : Fs{fs}... {}
-      using Fs::operator()...;
-};
-
-template <typename Tup> class tuple_iterator
-{
-   Tup& t;
-   size_t i;
-public:
-   tuple_iterator(Tup& tup, size_t idx): t{tup}, i{idx}
-   {}
-
-   tuple_iterator& operator++() { ++i; return *this; }
-   bool operator==(tuple_iterator const& other) const
-   {
-      return std::addressof(other.t) == std::addressof(t)
-             && other.i == i;
-   }
-
-   bool operator!=(tuple_iterator const& other) const
-   {
-      return !(*this == other);
-   }
-
-   auto operator*() const { return runtime_get(t, i); }
-};
-
-template <typename Tup>
-class to_range
-{
-   Tup& t;
-public:
-   to_range(Tup& tup) : t{tup} {}
-
-   auto begin()
-   {
-      return tuple_iterator{t, 0};
-   }
-   auto end()
-   {
-      return tuple_iterator{t, mfem::future::tuple_size<Tup>::value};
-   }
-
-   auto operator[](std::size_t i)
-   {
-      return runtime_get(t, i);
-   }
-};
-
-///////////////////////////////////////////////////////////////////////////////
-// 2️⃣ https://arne-mertz.de/2017/03/tuple-compile-time-access/
-template <std::size_t I>
-struct index {};
-
-template <typename T, std::size_t I>
-decltype(auto) at(T tuple, index<I>)
-{
-   return mfem::future::get<I>(tuple);
-}
-
-template <char... Digits>
-constexpr std::size_t parse()
-{
-   // convert to array so we can use a loop instead of recursion
-   char digits[] = {Digits...};
-
-   // straightforward number parsing code
-   auto result = 0u;
-   for (auto c : digits)
-   {
-      result *= 10;
-      result += c - '0';
-   }
-   return result;
-}
-
-template <char... Digits>
-auto operator ""_i()
-{
-   return index<parse<Digits...>()> {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -413,26 +257,15 @@ void DFemDiffusion(const char *filename, int p, const int r)
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       // typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
 
-      /*{
-         map[1] = Diffusion<real_t, 3, 1>::MFApply{};
-         map[2] = Diffusion<real_t, 3, 2>::MFApply{};
-         map[3] = Diffusion<real_t, 3, 3>::MFApply{};
-         map[4] = Diffusion<real_t, 3, 4>::MFApply{};
-
-         {
-            const int i = 2;
-            auto qfi = map[2];
-            dbg("qfi.MQ1:{}", qfi.MQ1);
-            dop_mf.AddDomainIntegrator(qfi,
-                                       tuple{ Gradient<U>{}, None<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                       tuple{ Gradient<U>{} }, *ir,
-                                       all_domain_attr);
-         }
-      }*/
-
       dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
       MFDiffusionQFs<real_t, DIM> qfs;
+
+      {
+         auto qf_map = make_qf_map(qfs.mf_qfs);
+         const int i = 3;
+         dbg("qf_map[{}].MQ1:{}", i,
+             reinterpret_cast<typename Diffusion<real_t, DIM, 1>::MFApply*>(qf_map[i])->MQ1);
+      }
 
       dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
       runtime_get(qfs.mf_qfs, 3-1, [&](auto &qf)
@@ -445,36 +278,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
                                     all_domain_attr);
       });
 
-      // 1️⃣
-      // auto qf2 = runtime_i(qfs.mf_qfs, 2);
-      // dbg("🔥🔥🔥 qf2.MQ1:{}",qf2.MQ1);
-
-      /*for (auto const& elem : to_range(qfs.mf_qfs))
-      {
-         std::visit(
-            overload(
-         [](int i) { std::cout << "int: " << i << '\n'; },
-         [](std::string const& s) { std::cout << "string: " << s << '\n'; },
-         [](double d) { std::cout << "double: " << d << '\n'; }
-            ),
-         elem
-         );
-      }*/
-      // dbg("🔥🔥🔥 qf2.MQ1:{}", qf2.MQ1);
-
-      // 2️⃣ but need to write the 'n'...
-      auto qfi = at(qfs.mf_qfs, 3_i);
-      dbg("🔥🔥🔥 qfi.MQ1:{}",qfi.MQ1);
-
-      /* auto mf_apply_qf_variant = qf.Get(3);
-      for_constexpr<4>([&](auto i)
-      {
-         dbg("i:{}", i.value);
-         return extract<real_t, DIM, 3>(mf_apply_qf_variant);
-      });*/
-
-      // auto mf_apply_qf_3 = mfem::future::get<3-1>(qf.mf_qfs);
-      // dop_mf.AddDomainIntegrator(mf_apply_qf_3, //mf_apply_qf,
+      // dop_mf.AddDomainIntegrator(mf_apply_qf,
       //                            tuple{ Gradient<U>{}, None<Rho>{},
       //                                   Gradient<Coords>{}, Weight{} },
       //                            tuple{ Gradient<U>{} }, *ir,
