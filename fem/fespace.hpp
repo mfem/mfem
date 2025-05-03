@@ -1545,7 +1545,7 @@ public:
 
    /** @brief Read a FiniteElementSpace from a stream. The returned
        FiniteElementCollection is owned by the caller. */
-   FiniteElementCollection *Load(Mesh *m, std::istream &input);
+   const FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
    virtual ~FiniteElementSpace();
 };

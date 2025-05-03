@@ -147,28 +147,30 @@ int main(int argc, char *argv[])
       v_space   = 1
    };
    // L2 space for u
-   FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
 
    // Vector L2 space for σ
-   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *sigma_fes = new FiniteElementSpace(&mesh,sigma_fec, dim);
 
    // H^1/2 space for û
-   FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
+   const FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
    FiniteElementSpace *hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
 
    // H^-1/2 space for σ̂
-   FiniteElementCollection * hatsigma_fec = new RT_Trace_FECollection(order-1,dim);
+   const FiniteElementCollection * hatsigma_fec = new RT_Trace_FECollection(
+      order-1,dim);
    FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
 
    // test space fe collections
    int test_order = order+delta_order;
-   FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
-   FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
+   const FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1,
+                                                                 dim);
+   const FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
 
    Array<FiniteElementSpace * > trial_fes;
-   Array<FiniteElementCollection * > test_fec;
+   Array<const FiniteElementCollection * > test_fec;
 
    trial_fes.Append(u_fes);
    trial_fes.Append(sigma_fes);
