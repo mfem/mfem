@@ -31,6 +31,8 @@ using mfem::future::dual;
 
 using DOperator = future::DifferentiableOperator;
 
+enum class MQ1Settings : int { kRuntime = 0, kCompileTime, kDefault};
+
 namespace dfem_pa_kernels
 {
 
@@ -80,6 +82,7 @@ struct MFDiffusionFactory
 {
    static auto All()
    {
+      // could also use a map instead of a tuple
       return mfem::future::make_tuple(typename Diffusion<T, DIM, MQ1s>::MFApply{}...);
    }
 };
@@ -87,89 +90,45 @@ struct MFDiffusionFactory
 template <typename T, int DIM>
 using MFDiffusionFactory_1_4 = MFDiffusionFactory<T, DIM, 1, 2, 3, 4>;
 
-// Example class storing the MFApply objects
 template <typename T, int DIM>
-struct MFDiffusionQFs
+class MFDiffusionQFs
 {
    using MFApplyTuple = decltype(MFDiffusionFactory_1_4<T, DIM>::All());
    MFApplyTuple mf_qfs;
 
+public:
    MFDiffusionQFs(): mf_qfs(MFDiffusionFactory_1_4<T, DIM>::All()) {}
-};
 
-
-///////////////////////////////////////////////////////////////////////////////
-// ✅✅✅ works with:
-/*{
-   auto qf_map = make_qf_map(qfs.mf_qfs);
-   const int i = 3;
-   dbg("qf_map[{}].MQ1:{}", i,
-       reinterpret_cast<typename Diffusion<real_t, DIM, 1>::MFApply*>(qf_map[i])->MQ1);
-}*/
-template <typename... qf_ts, std::size_t... Is>
-auto make_qf_map_impl(tuple<qf_ts...> qfs,
-                      std::index_sequence<Is...>)
-{
-   auto get_qf_adrs = [&](auto i)
+   template <typename F>
+   void run(int i, F&& f)
    {
-      return static_cast<void*>(&mfem::future::get<i>(qfs));
-   };
+      MFEM_VERIFY(i >= 1, "Index must be >= 1");
+      const auto I = static_cast<size_t>(i - 1);
+      runtime_get_impl(I, std::forward<F>(f),
+                       std::make_index_sequence<mfem::future::tuple_size<MFApplyTuple>::value>());
+   }
 
-   std::map<int, void*> map;
-   for_constexpr<sizeof...(qf_ts)>([&](auto i)
+private:
+   template <typename F, size_t... I>
+   void runtime_get_impl(size_t index, F&& f, std::index_sequence<I...>)
    {
-      map[get<i>(qfs).MQ1] = get_qf_adrs(std::integral_constant<std::size_t, i> {});
-   });
-
-   return map;
-}
-template <typename... qf_ts>
-auto make_qf_map(mfem::future::tuple<qf_ts...> qfs)
-{
-   return make_qf_map_impl(qfs, std::index_sequence_for<qf_ts...> {});
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// ✅✅✅ works with:
-/*
-      runtime_get(qfs.mf_qfs, 3-1, [&](auto &qf)
+      using fun_ptr = std::function<void(F&&)>;
+      fun_ptr table[] = { [&](F&& f) { f(mfem::future::get<I>(mf_qfs)); } ... };
+      if (index < mfem::future::tuple_size<MFApplyTuple>::value)
       {
-         dbg("qf.MQ1:{}", qf.MQ1);
-         dop_mf.AddDomainIntegrator(qf, //mf_apply_qf,
-                                    tuple{ Gradient<U>{}, None<Rho>{},
-                                           Gradient<Coords>{}, Weight{} },
-                                    tuple{ Gradient<U>{} }, *ir,
-                                    all_domain_attr);
-      });
-*/
-template <typename Tuple, typename F, size_t... I>
-void runtime_get_impl(Tuple& t, size_t index, F&& f, std::index_sequence<I...>)
-{
-   using fun_ptr = void (*)(Tuple&, F&&);
-   fun_ptr table[] =
-   {
-      [](Tuple& t, F&& f) { f(mfem::future::get<I>(t)); } ...
-   };
-   if (index < mfem::future::tuple_size<Tuple>::value)
-   {
-      table[index](t, std::forward<F>(f));
+         table[index](std::forward<F>(f));
+      }
+      else
+      {
+         throw std::out_of_range("Index out of bounds");
+      }
    }
-   else
-   {
-      throw std::out_of_range("Index out of bounds");
-   }
-}
-
-template <typename Tuple, typename F>
-void runtime_get(Tuple& t, size_t index, F&& f)
-{
-   runtime_get_impl(t, index, std::forward<F>(f),
-                    std::make_index_sequence<mfem::future::tuple_size<Tuple>::value>());
-}
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int DIM>
-void DFemDiffusion(const char *filename, int p, const int r)
+void DFemDiffusion(const char *filename, int p, const int r,
+                   const MQ1Settings mq1_setting)
 {
    dbg("DIM:{}", DIM);
    CAPTURE(filename, DIM, p, r);
@@ -255,34 +214,43 @@ void DFemDiffusion(const char *filename, int p, const int r)
       // fields = {solutions, parameters}
       dbg("fields = {{solutions, parameters}} = {{{{U}}, {{Rho, Coords}}}}");
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-      // typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
 
       dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
-      MFDiffusionQFs<real_t, DIM> qfs;
-
+      if (mq1_setting == MQ1Settings::kRuntime)
       {
-         auto qf_map = make_qf_map(qfs.mf_qfs);
-         const int i = 3;
-         dbg("qf_map[{}].MQ1:{}", i,
-             reinterpret_cast<typename Diffusion<real_t, DIM, 1>::MFApply*>(qf_map[i])->MQ1);
+         MFEM_VERIFY(q1d == (int)floor(std::pow(ir->GetNPoints(), 1.0/DIM) + 0.5),
+                     "q1d and ir->GetNPoints() have to match");
+         auto add_domain_integrator = [&](auto &qf)
+         {
+            dbg("q1d:{} MQ1:{}", q1d, qf.MQ1);
+            MFEM_VERIFY(q1d == qf.MQ1, "q1d and qf.MQ1 have to match");
+            dop_mf.AddDomainIntegrator(qf,
+                                       tuple{ Gradient<U>{}, None<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         };
+         MFDiffusionQFs<real_t, DIM> {}.run(q1d, add_domain_integrator);
       }
-
-      dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
-      runtime_get(qfs.mf_qfs, 3-1, [&](auto &qf)
+      else if (mq1_setting == MQ1Settings::kCompileTime) // hardcoded, MQ1 = 3
       {
-         dbg("qf.MQ1:{}", qf.MQ1);
-         dop_mf.AddDomainIntegrator(qf, //mf_apply_qf,
+         typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
+         MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
+         dop_mf.AddDomainIntegrator(mf_apply_qf,
                                     tuple{ Gradient<U>{}, None<Rho>{},
                                            Gradient<Coords>{}, Weight{} },
                                     tuple{ Gradient<U>{} }, *ir,
                                     all_domain_attr);
-      });
-
-      // dop_mf.AddDomainIntegrator(mf_apply_qf,
-      //                            tuple{ Gradient<U>{}, None<Rho>{},
-      //                                   Gradient<Coords>{}, Weight{} },
-      //                            tuple{ Gradient<U>{} }, *ir,
-      //                            all_domain_attr);
+      }
+      else // MQ1Settings::kDefault, MQ1 = 0
+      {
+         typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
+         dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                    tuple{ Gradient<U>{}, None<Rho>{},
+                                           Gradient<Coords>{}, Weight{} },
+                                    tuple{ Gradient<U>{} }, *ir,
+                                    all_domain_attr);
+      }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
@@ -387,6 +355,9 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
    const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
+   const auto mq1_setting = GENERATE(MQ1Settings::kRuntime,
+                                     MQ1Settings::kCompileTime,
+                                     MQ1Settings::kDefault);
 
    DiffusionIntegrator::AddSpecialization<3,3,3>();
 
@@ -414,7 +385,7 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
       const auto filename =
          GENERATE("../../data/fichera.mesh");
 #endif
-      DFemDiffusion<3>(filename, p, r);
+      DFemDiffusion<3>(filename, p, r, mq1_setting);
    }
 }
 
