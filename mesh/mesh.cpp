@@ -2837,7 +2837,10 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 
 void Mesh::GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths) const
 {
-   Nodes->HostRead();
+   if (Nodes)
+   {
+      Nodes->HostRead();
+   }
    auto GetLength2 = [this](int i, int j)
    {
       real_t l = 0.;
