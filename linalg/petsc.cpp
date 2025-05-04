@@ -5560,7 +5560,8 @@ static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
    ierr = MPI_Comm_size(comm,&size); CHKERRQ(ierr);
    if (size > 1)
    {
-      PetscInt *offdj,*coffd;
+      HYPRE_Int    *offdj;
+      HYPRE_BigInt *coffd;
 
       ierr  = PetscMalloc1(m+1,&oii); CHKERRQ(ierr);
       ierr  = PetscMalloc1(onnz,&ojj); CHKERRQ(ierr);
@@ -5632,8 +5633,10 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
    const char             *names[2] = {"_mfem_csr_aux",
                                        "_mfem_csr_data"
                                       };
-   PetscScalar            *hdd,*hod,*aa,*data;
-   PetscInt               *col_map_offd,*hdi,*hdj,*hoi,*hoj;
+   PetscScalar            *aa,*data;
+   HYPRE_Int              *hdi,*hoi,*hdj,*hoj;
+   HYPRE_BigInt           *col_map_offd;
+   HYPRE_Complex          *hdd,*hod;
    PetscInt               *aux,*ii,*jj;
    PetscInt               cum,dr,dc,oc,str,stc,nnz,i,jd,jo;
    PetscErrorCode         ierr;
