@@ -58,8 +58,7 @@ class SurfaceInterpolator
 {
 public:
    /// Constructor for a given 2D point grid size and NURBS order.
-   SurfaceInterpolator(int num_elem_x, int num_elem_y, int order,
-                       bool vis = false);
+   SurfaceInterpolator(int num_elem_x, int num_elem_y, int order);
 
    /// Create a surface interpolating the 2D grid of 3D points in @a input3D.
    void CreateSurface(const Array3D<real_t> &input3D);
@@ -86,8 +85,6 @@ private:
    int nx, ny; // Number of elements in two directions of the surface grid
    int orderNURBS; // NURBS degree
    real_t hx, hy, hz; // Grid size in reference space
-
-   bool visualization; // Whether to output glvis visualization
 
    Array3D<real_t> initial3D; // Initial grid of points
 
@@ -160,7 +157,7 @@ int main(int argc, char *argv[])
 
    // Prepare a NURBS surface for the given nx, ny and order parameters
    constexpr int dim = 3;
-   SurfaceInterpolator surf(nx, ny, order, visualization);
+   SurfaceInterpolator surf(nx, ny, order);
 
    // Set the vertex coordinates of the initial linear mesh
    Array3D<real_t> input3D(nx + 1, ny + 1, dim);
@@ -174,7 +171,7 @@ int main(int argc, char *argv[])
    Array3D<real_t> output3D(fnx + 1, fny + 1, dim);
    surf.SampleSurface(fnx, fny, compareOriginal, output3D);
 
-   // Save and visualize the 3 surfaces (Input, NURBS, Output)
+   // Save and optionally visualize the 3 surfaces (Input, NURBS, Output)
    WriteLinearMesh(nx, ny, input3D, "Input-Surface", visualization, 0, 0);
    surf.WriteNURBSMesh("NURBS-Surface", visualization, 502, 0);
    WriteLinearMesh(fnx, fny, output3D, "Output-Surface", visualization, 1004, 0);
@@ -404,8 +401,8 @@ void SampleNURBS(bool uniform, int nx, int ny, const Mesh &mesh,
 
 
 SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
-                                         int order, bool vis) :
-   nx(num_elem_x), ny(num_elem_y), orderNURBS(order), visualization(vis),
+                                         int order) :
+   nx(num_elem_x), ny(num_elem_y), orderNURBS(order),
    ncp(dim), nks(dim), ugrid(dim - 1)
 {
    ncp[0] = nx + 1;
