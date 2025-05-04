@@ -186,7 +186,9 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
 
    int order_quad = max(2, 2 * order + 1);
    for (int i = 0; i < Geometry::NumGeom; ++i)
+   {
       irs_[i] = &(IntRules.Get(i, order_quad));
+   }
 }
 
 void DarcyProblem::ShowError(const Vector &sol, bool verbose)
@@ -303,7 +305,9 @@ int main(int argc, char *argv[])
    }
 
    for (int i = 0; i < ser_ref_levels; ++i)
+   {
       mesh->UniformRefinement();
+   }
 
    if (Mpi::Root() && Mpi::WorldSize() > mesh->GetNE())
    {
@@ -409,7 +413,9 @@ int main(int argc, char *argv[])
       }
 
       if (show_error && std::strcmp(coef_file, "") == 0)
+      {
          darcy.ShowError(sol, Mpi::Root());
+      }
       else if (show_error && Mpi::Root())
       {
          mfem::out << "Exact solution is unknown for coefficient '" << coef_file
@@ -417,7 +423,9 @@ int main(int argc, char *argv[])
       }
 
       if (visualization)
+      {
          darcy.VisualizeSolution(sol, name, visport);
+      }
    }
    return 0;
 }
@@ -431,7 +439,9 @@ void u_exact(const Vector &x, Vector &u)
    u(0) = -exp(xi) * sin(xj) * cos(xk);
    u(1) = -exp(xi) * cos(xj) * cos(xk);
    if (x.Size() == 3)
+   {
       u(2) = exp(xi) * sin(xj) * sin(xk);
+   }
 }
 
 real_t p_exact(const Vector &x)
@@ -450,7 +460,9 @@ void f_exact(const Vector &x, Vector &f)
 real_t g_exact(const Vector &x)
 {
    if (x.Size() == 3)
+   {
       return -p_exact(x);
+   }
    return 0;
 }
 
