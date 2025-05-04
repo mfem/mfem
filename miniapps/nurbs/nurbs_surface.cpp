@@ -18,6 +18,7 @@
 // Sample runs:  nurbs_surface -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 1 -orig
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 1
 //               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 1
+//               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 40 -fny 40 -ex 1 -j 0.5
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 2 -orig
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 2
 //               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 2
@@ -44,7 +45,8 @@ using namespace std;
 using namespace mfem;
 
 // Example data for 3D point grid on surface, given by an analytic function.
-void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices);
+void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices,
+                        real_t jitter);
 
 // Write a linear surface mesh with given vertex positions in v.
 void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
@@ -110,6 +112,7 @@ int main(int argc, char *argv[])
    int example = 1;
    bool visualization = true;
    bool compareOriginal = false;
+   real_t jitter = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&example, "-ex", "--example",
@@ -130,6 +133,9 @@ int main(int argc, char *argv[])
    args.AddOption(&compareOriginal, "-orig", "--compare-original", "-no-orig",
                   "--no-compare-original",
                   "Compare to the original mesh?");
+   args.AddOption(&jitter, "-j", "--jitter",
+                  "Relative jittering in (0,1) to add to the input point "
+                  "coordinates on a uniform nx x ny grid (0 by default)");
    args.Parse();
    if (!args.Good())
    {
@@ -151,20 +157,18 @@ int main(int argc, char *argv[])
         << " knot elements of order " << order << "\n";
    cout << "Output Surface: " << fnx << " x " << fny << " linear elements\n";
 
-
    // Set the vertex coordinates of the initial linear mesh
    constexpr int dim = 3;
    Array3D<real_t> input3D(nx + 1, ny + 1, dim);
-   SurfaceGridExample(example, nx, ny, input3D);
+   SurfaceGridExample(example, nx, ny, input3D, jitter);
 
-   // Prepare a NURBS surface for the given nx, ny and order parameters
+   // Create a NURBS surface for the given nx, ny and order parameters that
+   // interpolates the input vertex coordinates
    SurfaceInterpolator surf(nx, ny, order);
-
-   // Create a NURBS surface that interpolates the input vertex coordinates
    surf.CreateSurface(input3D);
 
    // Compute the vertex coordinates of the output linear mesh by sampling the
-   // values from the NURBS mesh
+   // values from the NURBS surface
    Array3D<real_t> output3D(fnx + 1, fny + 1, dim);
    surf.SampleSurface(fnx, fny, compareOriginal, output3D);
 
@@ -226,12 +230,11 @@ void Function5(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
    const real_t n = 37.4 * ((2.0 * v) - 1.0);
    constexpr real_t b = 0.4;
    constexpr real_t r = 1.0 - (b*b);
-   const real_t W = sqrt(r);
-   const real_t denom = b*((W*cosh(b*m))*(W*cosh(b*m)) + (b*sin(W*n))*(b*sin(
-                                                                          W*n)));
+   const real_t w = sqrt(r);
+   const real_t denom = b * (pow(w*cosh(b*m),2) + pow(b*sin(w*n),2));
    x = -m + (2*r*cosh(b*m)*sinh(b*m)) / denom;
-   y = (2*W*cosh(b*m)*(-(W*cos(n)*cos(W*n)) - sin(n)*sin(W*n))) / denom;
-   z = (2*W*cosh(b*m)*(-(W*sin(n)*cos(W*n)) + cos(n)*sin(W*n))) / denom;
+   y = (2*w*cosh(b*m)*(-(w*cos(n)*cos(w*n)) - sin(n)*sin(w*n))) / denom;
+   z = (2*w*cosh(b*m)*(-(w*sin(n)*cos(w*n)) + cos(n)*sin(w*n))) / denom;
 }
 
 void SurfaceFunction(int example, real_t u, real_t v,
@@ -257,35 +260,49 @@ void SurfaceFunction(int example, real_t u, real_t v,
 }
 
 // Example data for 3D point grid on surface, given by an analytic function.
-void SurfaceExample(int example, const std::vector<Vector> &ugrid,
-                    Array3D<real_t> &v3D)
+void SurfaceExample(int example, const std::vector<Vector> &grid,
+                    Array3D<real_t> &v3D, real_t jitter)
 {
-   for (int i = 0; i < ugrid[0].Size(); i++)
+   int seed = (int)time(0);
+   srand((unsigned)seed);
+
+   real_t h0 = grid[0][1]-grid[0][0], h1 = grid[1][1]-grid[1][0];
+   for (int i = 0; i < grid[0].Size(); i++)
    {
-      for (int j = 0; j < ugrid[1].Size(); j++)
+      for (int j = 0; j < grid[1].Size(); j++)
       {
-         SurfaceFunction(example, ugrid[0][i], ugrid[1][j],
-                         v3D(i, j, 0), v3D(i, j, 1), v3D(i, j, 2));
+         if (i != 0 && i != grid[0].Size()-1 && j != 0 && j != grid[1].Size()-1)
+         {
+            SurfaceFunction(example, grid[0][i] + rand_real()*h0*jitter,
+                            grid[1][j] + rand_real()*h1*jitter,
+                            v3D(i, j, 0), v3D(i, j, 1), v3D(i, j, 2));
+         }
+         else
+         {
+            SurfaceFunction(example, grid[0][i], grid[1][j],
+                            v3D(i, j, 0), v3D(i, j, 1), v3D(i, j, 2));
+         }
       }
    }
 }
 
-void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices)
+void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices,
+                        real_t jitter = 0)
 {
    // Define a uniform grid of the reference parameter space [0,1]^2
    std::vector<Vector> uniformGrid(2);
-   for (int i=0; i<2; ++i)
+   for (int i = 0; i < 2; ++i)
    {
       const int n = (i == 0) ? nx : ny;
       const real_t h = 1.0 / n;
       uniformGrid[i].SetSize(n + 1);
-      for (int j=0; j<=n; ++j)
+      for (int j = 0; j <= n; ++j)
       {
          uniformGrid[i][j] = j * h;
       }
    }
 
-   SurfaceExample(example, uniformGrid, vertices);
+   SurfaceExample(example, uniformGrid, vertices, jitter);
 }
 
 // Write a linear surface mesh with given vertex positions in v.
