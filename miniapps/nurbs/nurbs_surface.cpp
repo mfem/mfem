@@ -24,11 +24,17 @@
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 3 -orig
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 3
 //               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 3
+//               nurbs_surface -o 3 -nx 20 -ny 10 -fnx 20 -fny 10 -ex 4 -orig
+//               nurbs_surface -o 3 -nx 20 -ny 10 -fnx 80 -fny 40 -ex 4
+//               nurbs_surface -o 3 -nx 40 -ny 20 -fnx 20 -fny 10 -ex 4
+//               nurbs_surface -o 3 -nx 100 -ny 100 -fnx 100 -fny 100 -ex 5 -orig
+//               nurbs_surface -o 3 -nx 100 -ny 100 -fnx 400 -fny 400 -ex 5
+//               nurbs_surface -o 3 -nx 200 -ny 200 -fnx 100 -fny 100 -ex 5
 //
-// Description:  This example demonstrates the use of MFEM to interpolate a grid
-//               of 3D points with a NURBS surface. The NURBS mesh of the
-//               surface can be sampled to generate a linear mesh of arbitrary
-//               resolution.
+// Description:  This example demonstrates the use of MFEM to interpolate an
+//               input surface point grid in 3D using a NURBS surface. The NURBS
+//               surface can then be sampled to generate an output mesh of
+//               arbitrary resolution while staying close to the input geometry.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,25 +43,17 @@
 using namespace std;
 using namespace mfem;
 
-// Compute error of interpolation with respect to an input grid of point data.
-void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
-                int nx, int ny);
-
-// Sample a NURBS mesh to generate a first-order mesh.
-void ResampleNURBS(bool uniform, int nx, int ny, const Mesh &mesh,
-                   const Array<int> &nks, const std::vector<Vector> &u_args,
-                   Array3D<real_t> &vpos);
-
-// Write a linear surface mesh with given vertex positions in v.
-void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
-                     const std::string &basename, bool visualization = false);
-
 // Example data for 3D point grid on surface, given by an analytic function.
 void SurfaceExample(int example, const std::vector<Vector> &ugrid,
                     Array3D<real_t> &v3D);
 
-// Given an input grid of 3D points on a surface, this data structure computes
-// a NURBS interpolation of the point grid, of given order.
+// Write a linear surface mesh with given vertex positions in v.
+void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
+                     const std::string &basename, bool visualization = false,
+                     int x = 0, int y = 0, int w = 500, int h = 500);
+
+// Given an input grid of 3D points on a surface, this class computes a NURBS
+// surface of given order that interpolates the vertices of the input grid.
 class SurfaceInterpolator
 {
 public:
@@ -74,14 +72,15 @@ public:
    /// Return the coordinates of grid points in the parameter space [0,1]^2.
    const std::vector<Vector>& GetParameterGrid() const { return ugrid; }
 
+   /** @brief Write the NURBS surface mesh to file, defined coordinate-wise by
+       the entries of @a cmesh. */
+   void WriteNURBSMesh(const std::string &basename, bool visualization = false,
+                       int x = 0, int y = 0, int w = 500, int h = 500);
+
 protected:
    /** @brief Compute the NURBS mesh interpolating the given coordinate of the
        grid of 3D points in @a input3D. */
    void ComputeNURBS(int coordinate, const Array3D<real_t> &input3D);
-
-   /** @brief Write the NURBS surface mesh to file, defined coordinate-wise by
-       the entries of @a cmesh. */
-   void WriteNURBSMesh();
 
 private:
    int nx, ny; // Number of elements in two directions of the surface grid
@@ -98,7 +97,7 @@ private:
 
    std::vector<Vector> ugrid; // Parameter space [0,1]^2 grid point coordinates
 
-   std::vector<KnotVector> kv; // Knotvectors in each direction
+   std::vector<KnotVector> kv; // KnotVectors in each direction
 
    std::unique_ptr<NURBSPatch> patch; // Pointer to the only patch in the mesh
 
@@ -106,9 +105,10 @@ private:
    std::vector<Mesh> cmesh; // NURBS meshes representing point components
 };
 
+
 int main(int argc, char *argv[])
 {
-   // Parse command-line options.
+   // Parse command-line options
    int nx = 4;
    int ny = 4;
    int fnx = 40;
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&compareOriginal, "-orig", "--compare-original", "-no-orig",
                   "--no-compare-original",
-                  "Whether to compare to original mesh.");
+                  "Compare to the original mesh?");
    args.Parse();
    if (!args.Good())
    {
@@ -152,129 +152,36 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   constexpr int dim = 3;
-   Array3D<real_t> input3D(nx + 1, ny + 1, dim);
-   Array3D<real_t> output3D(fnx + 1, fny + 1, dim);
+   // Dimensions of the 3 surfaces (Input, NURBS, Output)
+   cout << "Input Surface:  " << nx << " x " << ny << " linear elements\n";
+   cout << "NURBS Surface:  " << nx + 1 - order << " x " << ny + 1 - order
+        << " knot elements of order " << order << "\n";
+   cout << "Output Surface: " << fnx << " x " << fny << " linear elements\n";
 
+   // Prepare a NURBS surface for the given nx, ny and order parameters
+   constexpr int dim = 3;
    SurfaceInterpolator surf(nx, ny, order, visualization);
+
+   // Set the vertex coordinates of the initial linear mesh
+   Array3D<real_t> input3D(nx + 1, ny + 1, dim);
    SurfaceExample(example, surf.GetParameterGrid(), input3D);
 
+   // Create a NURBS surface that interpolates the input vertex coordinates
    surf.CreateSurface(input3D);
+
+   // Compute the vertex coordinates of the output linear mesh by sampling the
+   // values from the NURBS mesh
+   Array3D<real_t> output3D(fnx + 1, fny + 1, dim);
    surf.SampleSurface(fnx, fny, compareOriginal, output3D);
 
-   WriteLinearMesh(fnx, fny, output3D, "final-surf", visualization);
+   // Save and visualize the 3 surfaces (Input, NURBS, Output)
+   WriteLinearMesh(nx, ny, input3D, "Input-Surface", visualization, 0, 0);
+   surf.WriteNURBSMesh("NURBS-Surface", visualization, 502, 0);
+   WriteLinearMesh(fnx, fny, output3D, "Output-Surface", visualization, 1004, 0);
 
    return 0;
 }
 
-void ResampleNURBS(bool uniform, int nx, int ny, const Mesh &mesh,
-                   const Array<int> &nks, const std::vector<Vector> &ugrid,
-                   Array3D<real_t> &vpos)
-{
-   const GridFunction *nodes = mesh.GetNodes();
-
-   const real_t hx = 1.0 / (real_t) nx;
-   const real_t hy = 1.0 / (real_t) ny;
-
-   const real_t hxks = 1.0 / (real_t) nks[0];
-   const real_t hyks = 1.0 / (real_t) nks[1];
-
-   Vector vertex;
-   IntegrationPoint ip;
-
-   ip.z = 1.0;
-   for (int i=0; i<=nx; ++i)
-   {
-      const real_t xref = uniform ? i * hx : ugrid[0][i];
-      const int nurbsElem0 = std::min((int) (xref / hxks), nks[0] - 1);
-      const real_t ipx = (xref - (nurbsElem0 * hxks)) / hxks;
-      ip.x = ipx;
-
-      for (int j=0; j<=ny; ++j)
-      {
-         const real_t yref = uniform ? j * hy : ugrid[1][j];
-         const int nurbsElem1 = std::min((int) (yref / hyks), nks[1] - 1);
-         const real_t ipy = (yref - (nurbsElem1 * hyks)) / hyks;
-         ip.y = ipy;
-
-         const int nurbsElem = nurbsElem0 + (nurbsElem1 * nks[0]);
-         nodes->GetVectorValue(nurbsElem, ip, vertex);
-
-         for (int k=0; k<3; ++k)
-         {
-            vpos(i, j, k) = vertex[k];
-         }
-      }
-   }
-}
-
-void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
-                int nx, int ny)
-{
-   real_t maxErr = 0.0;
-   for (int i=0; i<=nx; ++i)
-      for (int j=0; j<=ny; ++j)
-      {
-         const real_t err_ij = std::abs(a(i, j, c) - b(i, j, 2));
-         maxErr = std::max(maxErr, err_ij);
-      }
-
-   cout << "Max error " << maxErr << " for coordinate " << c << endl;
-}
-
-void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
-                     const std::string &basename, bool visualization)
-{
-   const int nv = (nx + 1) * (ny + 1);
-   const int nelem = nx * ny;
-   constexpr int dim = 3; // Spatial dimension
-
-   Mesh fmesh(2, nv, nelem, 0, dim);
-   Vector vertex(dim);
-
-   for (int i=0; i<=nx; ++i)
-      for (int j=0; j<=ny; ++j)
-      {
-         for (int k=0; k<dim; ++k) { vertex[k] = v(i, j, k); }
-         fmesh.AddVertex(vertex);
-      }
-
-   Array<int> verts(4);
-
-   auto vID = [&](int i, int j)
-   {
-      return j + (i * (ny + 1));
-   };
-
-   for (int i=0; i<nx; ++i)
-      for (int j=0; j<ny; ++j)
-      {
-         verts[0] = vID(i, j);
-         verts[1] = vID(i+1, j);
-         verts[2] = vID(i+1, j+1);
-         verts[3] = vID(i, j+1);
-
-         Element* el = fmesh.NewElement(Element::QUADRILATERAL);
-         el->SetVertices(verts);
-         fmesh.AddElement(el);
-      }
-
-   fmesh.FinalizeTopology();
-
-   ofstream mesh_ofs(basename + ".mesh");
-   mesh_ofs.precision(8);
-   fmesh.Print(mesh_ofs);
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      constexpr int visport = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "mesh\n" << fmesh << "window_title '"
-               << basename << "'" << flush;
-   }
-}
 
 // f(x,y) = sin(2 * pi * x) * sin(2 * pi * y)
 void Function1(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
@@ -309,6 +216,30 @@ void Function3(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
    z = v;
 }
 
+// Mobius strip
+void Function4(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
+{
+   int twists = 1;
+   real_t a = 1.0 + 0.5 * (2.0 * v - 1.0) * cos(2.0 * M_PI * twists * u);
+   x = a * cos(2.0 * M_PI * u);
+   y = a * sin(2.0 * M_PI * u);
+   z = 0.5 * (2.0 * v - 1.0) * sin(2.0 * M_PI * twists * u);
+}
+
+// Breather surface
+void Function5(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
+{
+   real_t m = 13.2*(2*u-1);
+   real_t n = 37.4*(2*v-1);
+   real_t b = 0.4;
+   real_t r = 1 - b*b;
+   real_t W = sqrt(r);
+   real_t denom = b*((W*cosh(b*m))*(W*cosh(b*m)) + (b*sin(W*n))*(b*sin(W*n)));
+   x = -m + (2*r*cosh(b*m)*sinh(b*m)) / denom;
+   y = (2*W*cosh(b*m)*(-(W*cos(n)*cos(W*n)) - sin(n)*sin(W*n))) / denom;
+   z = (2*W*cosh(b*m)*(-(W*sin(n)*cos(W*n)) + cos(n)*sin(W*n))) / denom;
+}
+
 void SurfaceFunction(int example, real_t u, real_t v,
                      real_t &x, real_t &y, real_t &z)
 {
@@ -320,11 +251,18 @@ void SurfaceFunction(int example, real_t u, real_t v,
       case 2:
          Function2(u, v, x, y, z);
          break;
-      default:
+      case 3:
          Function3(u, v, x, y, z);
+         break;
+      case 4:
+         Function4(u, v, x, y, z);
+         break;
+      default:
+         Function5(u, v, x, y, z);
    };
 }
 
+// Example data for 3D point grid on surface, given by an analytic function.
 void SurfaceExample(int example, const std::vector<Vector> &ugrid,
                     Array3D<real_t> &v3D)
 {
@@ -338,16 +276,143 @@ void SurfaceExample(int example, const std::vector<Vector> &ugrid,
    }
 }
 
+
+// Write a linear surface mesh with given vertex positions in v.
+void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
+                     const std::string &basename, bool visualization,
+                     int x, int y, int w, int h)
+{
+   const int nv = (nx + 1) * (ny + 1);
+   const int nelem = nx * ny;
+   constexpr int dim = 3; // Spatial dimension
+
+   Mesh lmesh(2, nv, nelem, 0, dim);
+   Vector vertex(dim);
+
+   for (int i = 0; i <= nx; ++i)
+   {
+      for (int j = 0; j <= ny; ++j)
+      {
+         for (int k = 0; k < dim; ++k) { vertex[k] = v(i, j, k); }
+         lmesh.AddVertex(vertex);
+      }
+   }
+
+   Array<int> verts(4);
+
+   auto vID = [&](int i, int j)
+   {
+      return j + (i * (ny + 1));
+   };
+
+   for (int i = 0; i < nx; ++i)
+   {
+      for (int j = 0; j < ny; ++j)
+      {
+         verts[0] = vID(i, j);
+         verts[1] = vID(i+1, j);
+         verts[2] = vID(i+1, j+1);
+         verts[3] = vID(i, j+1);
+
+         Element* el = lmesh.NewElement(Element::QUADRILATERAL);
+         el->SetVertices(verts);
+         lmesh.AddElement(el);
+      }
+   }
+
+   lmesh.FinalizeTopology();
+
+   ofstream mesh_ofs(basename + ".mesh");
+   mesh_ofs.precision(8);
+   lmesh.Print(mesh_ofs);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      constexpr int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "mesh\n" << lmesh
+               << "window_title '" << basename << "'"
+               << "window_geometry "
+               << x << " " << y << " " << w << " " << h << "\n"
+               << "keys PPPPPPPPAattttt******\n"
+               << flush;
+   }
+}
+
+
+// Compute error of interpolation with respect to an input grid of point data.
+void CheckError(const Array3D<real_t> &a, const Array3D<real_t> &b, int c,
+                int nx, int ny)
+{
+   real_t maxErr = 0.0;
+   for (int i = 0; i <= nx; ++i)
+   {
+      for (int j = 0; j <= ny; ++j)
+      {
+         const real_t err_ij = std::abs(a(i, j, c) - b(i, j, 2));
+         maxErr = std::max(maxErr, err_ij);
+      }
+   }
+
+   cout << "Max error: " << maxErr << " for coordinate " << c << endl;
+}
+
+
+// Sample a NURBS mesh to generate a first-order mesh.
+void SampleNURBS(bool uniform, int nx, int ny, const Mesh &mesh,
+                 const Array<int> &nks, const std::vector<Vector> &ugrid,
+                 Array3D<real_t> &vpos)
+{
+   const GridFunction *nodes = mesh.GetNodes();
+
+   const real_t hx = 1.0 / (real_t) nx;
+   const real_t hy = 1.0 / (real_t) ny;
+
+   const real_t hxks = 1.0 / (real_t) nks[0];
+   const real_t hyks = 1.0 / (real_t) nks[1];
+
+   Vector vertex;
+   IntegrationPoint ip;
+
+   ip.z = 1.0;
+   for (int i = 0; i <= nx; ++i)
+   {
+      const real_t xref = uniform ? i * hx : ugrid[0][i];
+      const int nurbsElem0 = std::min((int) (xref / hxks), nks[0] - 1);
+      const real_t ipx = (xref - (nurbsElem0 * hxks)) / hxks;
+      ip.x = ipx;
+
+      for (int j = 0; j <= ny; ++j)
+      {
+         const real_t yref = uniform ? j * hy : ugrid[1][j];
+         const int nurbsElem1 = std::min((int) (yref / hyks), nks[1] - 1);
+         const real_t ipy = (yref - (nurbsElem1 * hyks)) / hyks;
+         ip.y = ipy;
+
+         const int nurbsElem = nurbsElem0 + (nurbsElem1 * nks[0]);
+         nodes->GetVectorValue(nurbsElem, ip, vertex);
+
+         for (int k = 0; k < 3; ++k)
+         {
+            vpos(i, j, k) = vertex[k];
+         }
+      }
+   }
+}
+
+
 SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
                                          int order, bool vis) :
-   nx(num_elem_x), ny(num_elem_y), orderNURBS(order),
+   nx(num_elem_x), ny(num_elem_y), orderNURBS(order), visualization(vis),
    ncp(dim), nks(dim), ugrid(dim - 1)
 {
    ncp[0] = nx + 1;
    ncp[1] = ny + 1;
    ncp[2] = order + 1;
 
-   for (int i=0; i<dim; ++i)
+   for (int i = 0; i < dim; ++i)
    {
       nks[i] = ncp[i] - order;
 
@@ -370,7 +435,7 @@ SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
 
    Vector xi_args;
    Array<int> i_args;
-   for (int i=0; i<2; ++i)
+   for (int i = 0; i < 2; ++i)
    {
       kv[i].FindMaxima(i_args, xi_args, ugrid[i]);
    }
@@ -378,8 +443,6 @@ SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
 
 void SurfaceInterpolator::CreateSurface(const Array3D<real_t> &input3D)
 {
-   WriteLinearMesh(nx, ny, input3D, "initial-surf", visualization);
-
    cmesh.clear();
    for (int c = 0; c < dim; ++c) // Loop over coordinates
    {
@@ -388,7 +451,6 @@ void SurfaceInterpolator::CreateSurface(const Array3D<real_t> &input3D)
    }
 
    initial3D = input3D;
-   WriteNURBSMesh();
 }
 
 void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
@@ -398,18 +460,17 @@ void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
    Array3D<real_t> vpos(num_elem_x + 1, num_elem_y + 1, dim);
    for (int c = 0; c < dim; ++c) // Loop over coordinates
    {
-      ResampleNURBS(true, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
+      SampleNURBS(true, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
 
       if (compareOriginal)
       {
-         ResampleNURBS(false, num_elem_x, num_elem_y, cmesh[c], nks, ugrid,
-                       vpos);
+         SampleNURBS(false, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
          CheckError(initial3D, vpos, c, nx, ny);
       }
 
-      for (int i=0; i<=num_elem_x; ++i)
+      for (int i = 0; i <= num_elem_x; ++i)
       {
-         for (int j=0; j<=num_elem_y; ++j)
+         for (int j = 0; j <= num_elem_y; ++j)
          {
             output3D(i,j,c) = vpos(i,j,2);
          }
@@ -421,7 +482,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
                                        const Array3D<real_t> &input3D)
 {
    Array<Vector*> x;
-   for (int i=0; i<dim; ++i) { x.Append(new Vector(ncp[0])); }
+   for (int i = 0; i < dim; ++i) { x.Append(new Vector(ncp[0])); }
 
    for (int k = 0; k < ncp[2]; ++k)
    {
@@ -432,7 +493,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
       // "The NURBS Book" - 2nd ed - Piegl and Tiller.
 
       // Resize for sweep in first direction
-      for (int i=0; i<dim; ++i) { x[i]->SetSize(ncp[0]); }
+      for (int i = 0; i < dim; ++i) { x[i]->SetSize(ncp[0]); }
 
       // Sweep in the first direction
       for (int j = 0; j < ncp[1]; ++j)
@@ -459,7 +520,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
       }
 
       // Resize for sweep in second direction
-      for (int i=0; i<dim; ++i) { x[i]->SetSize(ncp[1]); }
+      for (int i = 0; i < dim; ++i) { x[i]->SetSize(ncp[1]); }
 
       // Do another sweep in the second direction
       for (int i = 0; i < ncp[0]; i++)
@@ -493,7 +554,9 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
    mesh = Mesh(nurbsExt);
 }
 
-void SurfaceInterpolator::WriteNURBSMesh()
+void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
+                                         bool visualization,
+                                         int x, int y, int w, int h)
 {
    GridFunction *nodes = cmesh[0].GetNodes();
    NURBSPatch patch2D(&kv[0], &kv[1], dim);
@@ -510,8 +573,7 @@ void SurfaceInterpolator::WriteNURBSMesh()
       for (int i = 0; i < ncp[0]; i++)
       {
          const int dof = dofs[i + (ncp[0] * (j + (ncp[1] * orderNURBS)))];
-         for (int k=0; k<2; ++k) { patch2D(i,j,k) = (*nodes)[dim*dof + k]; }
-
+         for (int k = 0; k < 2; ++k) { patch2D(i,j,k) = (*nodes)[dim*dof + k]; }
          patch2D(i,j,2) = 1.0; // weight
       }
    }
@@ -521,29 +583,48 @@ void SurfaceInterpolator::WriteNURBSMesh()
 
    FiniteElementCollection *fec = nodes->OwnFEC();
    FiniteElementSpace fespace(&mesh2D, fec, dim, Ordering::byVDIM);
-   GridFunction x(&fespace);
+   GridFunction nodes2D(&fespace);
 
    const int n = mesh2D.GetNodes()->Size() / (dim - 1);
    MFEM_VERIFY((dim - 1) * n == mesh2D.GetNodes()->Size(), "");
-   MFEM_VERIFY(dim * n == x.Size(), "");
+   MFEM_VERIFY(dim * n == nodes2D.Size(), "");
 
    Array<int> dofs2D;
    mesh2D.NURBSext->GetPatchDofs(0, dofs2D);
 
-   for (int k=0; k<dim; ++k)
+   for (int k = 0; k < dim; ++k)
    {
       const GridFunction &nodes_k = *cmesh[k].GetNodes();
 
       for (int j = 0; j < ncp[1]; ++j)
+      {
          for (int i = 0; i < ncp[0]; i++)
          {
             const int dof = dofs[i + (ncp[0] * (j + (ncp[1] * orderNURBS)))];
             const int dof2D = dofs2D[i + (ncp[0] * j)];
-            x[(dim*dof2D) + k] = nodes_k[dim*dof + 2];
+            nodes2D[(dim*dof2D) + k] = nodes_k[dim*dof + 2];
          }
+      }
    }
 
-   ofstream mesh_ofs("nurbs-surf.mesh");
+   // make mesh2D into a surface mesh with nodes given by nodes2D
+   mesh2D.NewNodes(nodes2D);
+
+   ofstream mesh_ofs(basename + ".mesh");
    mesh_ofs.precision(8);
-   mesh2D.Print(mesh_ofs, "", &x);
+   mesh2D.Print(mesh_ofs, "", &nodes2D);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      constexpr int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "mesh\n" << mesh2D
+               << "window_title '" << basename << "'"
+               << "window_geometry "
+               << x << " " << y << " " << w << " " << h << "\n"
+               << "keys PPPPPPPPAattttt******\n"
+               << flush;
+   }
 }

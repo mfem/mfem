@@ -13,8 +13,10 @@ Version 4.8.1 (development)
 - Added support for variational resampling of H1 vector fields to ParMoonolith
   integration.
 
-- Added a new miniapp for interpolating a structured grid of points on a surface
-  in 3D with a smooth NURBS surface. See miniapps/nurbs/nurbs_surface.
+- Added a new miniapp for interpolating a surface grid of points in 3D using a
+  smooth NURBS surface, that can then be sampled at arbitrary resolution while
+  staying close to the original geometry. See miniapps/nurbs/nurbs_surface.
+
 
 Version 4.8, released on Apr 9, 2025
 ====================================
