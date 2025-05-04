@@ -25,11 +25,11 @@
 //               nurbs_surface -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 3
 //               nurbs_surface -o 3 -nx 20 -ny 20 -fnx 10 -fny 10 -ex 3
 //               nurbs_surface -o 3 -nx 20 -ny 10 -fnx 20 -fny 10 -ex 4 -orig
-//               nurbs_surface -o 3 -nx 20 -ny 10 -fnx 80 -fny 40 -ex 4
-//               nurbs_surface -o 3 -nx 40 -ny 20 -fnx 20 -fny 10 -ex 4
-//               nurbs_surface -o 3 -nx 100 -ny 100 -fnx 100 -fny 100 -ex 5 -orig
-//               nurbs_surface -o 3 -nx 100 -ny 100 -fnx 400 -fny 400 -ex 5
-//               nurbs_surface -o 3 -nx 200 -ny 200 -fnx 100 -fny 100 -ex 5
+//             * nurbs_surface -o 3 -nx 20 -ny 10 -fnx 80 -fny 40 -ex 4
+//             * nurbs_surface -o 3 -nx 40 -ny 20 -fnx 20 -fny 10 -ex 4
+//             * nurbs_surface -o 3 -nx 100 -ny 100 -fnx 100 -fny 100 -ex 5 -orig
+//             * nurbs_surface -o 3 -nx 100 -ny 100 -fnx 400 -fny 400 -ex 5
+//             * nurbs_surface -o 3 -nx 200 -ny 200 -fnx 100 -fny 100 -ex 5
 //
 // Description:  This example demonstrates the use of MFEM to interpolate an
 //               input surface point grid in 3D using a NURBS surface. The NURBS
@@ -44,8 +44,7 @@ using namespace std;
 using namespace mfem;
 
 // Example data for 3D point grid on surface, given by an analytic function.
-void SurfaceExample(int example, const std::vector<Vector> &ugrid,
-                    Array3D<real_t> &v3D);
+void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices);
 
 // Write a linear surface mesh with given vertex positions in v.
 void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
@@ -67,9 +66,6 @@ public:
    /// @a output3D.
    void SampleSurface(int num_elem_x, int num_elem_y, bool compareOriginal,
                       Array3D<real_t> &output3D);
-
-   /// Return the coordinates of grid points in the parameter space [0,1]^2.
-   const std::vector<Vector>& GetParameterGrid() const { return ugrid; }
 
    /** @brief Write the NURBS surface mesh to file, defined coordinate-wise by
        the entries of @a cmesh. */
@@ -155,13 +151,14 @@ int main(int argc, char *argv[])
         << " knot elements of order " << order << "\n";
    cout << "Output Surface: " << fnx << " x " << fny << " linear elements\n";
 
-   // Prepare a NURBS surface for the given nx, ny and order parameters
-   constexpr int dim = 3;
-   SurfaceInterpolator surf(nx, ny, order);
 
    // Set the vertex coordinates of the initial linear mesh
+   constexpr int dim = 3;
    Array3D<real_t> input3D(nx + 1, ny + 1, dim);
-   SurfaceExample(example, surf.GetParameterGrid(), input3D);
+   SurfaceGridExample(example, nx, ny, input3D);
+
+   // Prepare a NURBS surface for the given nx, ny and order parameters
+   SurfaceInterpolator surf(nx, ny, order);
 
    // Create a NURBS surface that interpolates the input vertex coordinates
    surf.CreateSurface(input3D);
@@ -178,7 +175,6 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
 
 // f(x,y) = sin(2 * pi * x) * sin(2 * pi * y)
 void Function1(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
@@ -216,8 +212,8 @@ void Function3(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
 // Mobius strip
 void Function4(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
 {
-   int twists = 1;
-   real_t a = 1.0 + 0.5 * (2.0 * v - 1.0) * cos(2.0 * M_PI * twists * u);
+   constexpr int twists = 1;
+   const real_t a = 1.0 + 0.5 * ((2.0 * v) - 1.0) * cos(2.0 * M_PI * twists * u);
    x = a * cos(2.0 * M_PI * u);
    y = a * sin(2.0 * M_PI * u);
    z = 0.5 * (2.0 * v - 1.0) * sin(2.0 * M_PI * twists * u);
@@ -226,12 +222,13 @@ void Function4(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
 // Breather surface
 void Function5(real_t u, real_t v, real_t &x, real_t &y, real_t &z)
 {
-   real_t m = 13.2*(2*u-1);
-   real_t n = 37.4*(2*v-1);
-   real_t b = 0.4;
-   real_t r = 1 - b*b;
-   real_t W = sqrt(r);
-   real_t denom = b*((W*cosh(b*m))*(W*cosh(b*m)) + (b*sin(W*n))*(b*sin(W*n)));
+   const real_t m = 13.2 * ((2.0 * u) - 1.0);
+   const real_t n = 37.4 * ((2.0 * v) - 1.0);
+   constexpr real_t b = 0.4;
+   constexpr real_t r = 1.0 - (b*b);
+   const real_t W = sqrt(r);
+   const real_t denom = b*((W*cosh(b*m))*(W*cosh(b*m)) + (b*sin(W*n))*(b*sin(
+                                                                          W*n)));
    x = -m + (2*r*cosh(b*m)*sinh(b*m)) / denom;
    y = (2*W*cosh(b*m)*(-(W*cos(n)*cos(W*n)) - sin(n)*sin(W*n))) / denom;
    z = (2*W*cosh(b*m)*(-(W*sin(n)*cos(W*n)) + cos(n)*sin(W*n))) / denom;
@@ -273,6 +270,23 @@ void SurfaceExample(int example, const std::vector<Vector> &ugrid,
    }
 }
 
+void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices)
+{
+   // Define a uniform grid of the reference parameter space [0,1]^2
+   std::vector<Vector> uniformGrid(2);
+   for (int i=0; i<2; ++i)
+   {
+      const int n = (i == 0) ? nx : ny;
+      const real_t h = 1.0 / n;
+      uniformGrid[i].SetSize(n + 1);
+      for (int j=0; j<=n; ++j)
+      {
+         uniformGrid[i][j] = j * h;
+      }
+   }
+
+   SurfaceExample(example, uniformGrid, vertices);
+}
 
 // Write a linear surface mesh with given vertex positions in v.
 void WriteLinearMesh(int nx, int ny, const Array3D<real_t> &v,
@@ -609,7 +623,7 @@ void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
 
    ofstream mesh_ofs(basename + ".mesh");
    mesh_ofs.precision(8);
-   mesh2D.Print(mesh_ofs, "", &nodes2D);
+   mesh2D.Print(mesh_ofs);
 
    if (visualization)
    {

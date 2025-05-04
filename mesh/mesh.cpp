@@ -11633,8 +11633,7 @@ void Mesh::PrintXG(std::ostream &os) const
 }
 
 void Mesh::Printer(std::ostream &os, std::string section_delimiter,
-                   const std::string &comments,
-		   GridFunction *nodes) const
+                   const std::string &comments) const
 {
    int i, j;
 
@@ -11643,10 +11642,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       // general format
       NURBSext->Print(os, comments);
       os << '\n';
-      if (nodes)
-	nodes->Save(os);
-      else
-	Nodes->Save(os);
+      Nodes->Save(os);
 
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);

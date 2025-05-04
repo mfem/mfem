@@ -592,14 +592,10 @@ protected:
        write mfem v1.2 format with the given section_delimiter at the end.
 
        If @a comments is non-empty, it will be printed after the first line of
-       the file, and each line should begin with '#'.
-
-       If the optional pointer @a nodes to a GridFunction is given, it will be
-       written instead of the @a Nodes member of this object. */
+       the file, and each line should begin with '#'. */
    void Printer(std::ostream &os = mfem::out,
                 std::string section_delimiter = "",
-                const std::string &comments = "",
-                GridFunction *nodes = nullptr) const;
+                const std::string &comments = "") const;
 
    /// @brief Creates a mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz],
    /// divided into nx*ny*nz hexahedra if @a type = HEXAHEDRON or into
@@ -2436,13 +2432,10 @@ public:
 
        \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
        @a comments is non-empty, it will be printed after the first line of the
-       file, and each line should begin with '#'. If the optional pointer
-       @a nodes to a GridFunction is given, it will be written instead of the
-       @a Nodes member of this object. */
+       file, and each line should begin with '#'. */
    virtual void Print(std::ostream &os = mfem::out,
-                      const std::string &comments = "",
-                      GridFunction *nodes = nullptr) const
-   { Printer(os, "", comments, nodes); }
+                      const std::string &comments = "") const
+   { Printer(os, "", comments); }
 
    /// Save the mesh to a file using Mesh::Print. The given @a precision will be
    /// used for ASCII output.
