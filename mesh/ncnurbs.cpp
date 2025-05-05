@@ -31,7 +31,7 @@ bool Reorder2D(int ori, std::array<int, 2> &s0);
 
 std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q);
 
-void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
+void NURBSExtension::FindAdditionalFacesSA(
    std::map<std::pair<int, int>, int> &v2f,
    std::set<int> &addParentFaces,
    std::vector<FacePairInfo> &facePairs)
@@ -833,6 +833,7 @@ void NURBSExtension::GetFaceOrdering(int sf, int n1, int n2, int v0,
       }
 }
 
+// Set an integer, with a check that it is uninitialized (-1) or unchanged.
 bool ConsistentlySetEntry(int v, int &e)
 {
    const bool consistent = e == -1 || e == v;
@@ -840,6 +841,7 @@ bool ConsistentlySetEntry(int v, int &e)
    return consistent;
 }
 
+// Reorder a 2D array to start at a corner given by (i0,j0) in {0,1}^2.
 void ReorderArray2D(int i0, int j0, const Array2D<int> &a,
                     Array2D<int> &b)
 {
@@ -861,6 +863,7 @@ void ReorderArray2D(int i0, int j0, const Array2D<int> &a,
    }
 }
 
+// Set a quadrilateral vertex index permutation for a given orientation.
 void GetVertexOrdering(int ori, std::array<int, 4> &perm)
 {
    const int oriAbs = ori < 0 ? -1 - ori : ori;
@@ -1985,8 +1988,7 @@ void NURBSExtension::ProcessVertexToKnot3D(
       // parent face. Note that auxiliary edges cannot simply be found as edges
       // of auxiliary faces, because the faces above are defined only on parent
       // faces listed in V2K data. Other auxiliary faces will be defined in
-      // FindAdditionalSlaveAndAuxiliaryFaces by using auxiliary edges found
-      // below.
+      // FindAdditionalFacesSA by using auxiliary edges found below.
 
       // Auxiliary edges in first and second directions
       for (int d=0; d<2; ++d)

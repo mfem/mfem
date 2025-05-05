@@ -904,7 +904,7 @@ private:
                         Array<int> &perm) const;
 
    /// Find additional slave and auxiliary faces after ProcessVertexToKnot3D.
-   void FindAdditionalSlaveAndAuxiliaryFaces(
+   void FindAdditionalFacesSA(
       std::map<std::pair<int, int>, int> &v2f,
       std::set<int> &addParentFaces,
       std::vector<FacePairInfo> &facePairs);

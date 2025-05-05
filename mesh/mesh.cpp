@@ -6446,8 +6446,8 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
    for (int j = 0; j < NumOfEdges; j++)
    {
       int v[2];
-      int knotID;
-      input >> knotID >> v[0] >> v[1];
+      int knot_ID;
+      input >> knot_ID >> v[0] >> v[1];
 
       for (int i=0; i<2; ++i)
       {
@@ -6456,9 +6456,9 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
 
       if (v[0] > v[1])
       {
-         knotID = -1 - knotID;
+         knot_ID = -1 - knot_ID;
       }
-      edge_to_knot[j] = knotID;
+      edge_to_knot[j] = knot_ID;
    }
 
    FinalizeTopology();

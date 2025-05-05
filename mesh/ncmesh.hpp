@@ -118,8 +118,9 @@ struct MatrixMap; // for internal use
     provides a map from hanging vertices in the patch topology to the knotvector
     of a neighboring patch. This facilitates ensuring mesh conformity.
  */
-struct VertexToKnotSpan
+class VertexToKnotSpan
 {
+public:
    /// Set the spatial dimension and number of vertices.
    void SetSize(int dimension, int numVertices);
 
@@ -1353,6 +1354,8 @@ protected:
    /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
 
+   /// Load VertexToKnotSpan data for the NC patch topology mesh of a 2D or 3D
+   /// MFEM NURBS NC-patch mesh.
    void LoadVertexToKnot(std::istream &input);
    void LoadVertexToKnot2D(std::istream &input);
    void LoadVertexToKnot3D(std::istream &input);
