@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool paraview = false;
    double linsolverrtol = 1e-10;
-   double linsolveratol = 1e-12;
+   double linsolveratol = 0.0;
    int relax_type = 88;
    double optimizer_tol = 1e-6;
    int optimizer_maxit = 20;
@@ -919,7 +919,8 @@ int main(int argc, char *argv[])
          }
          if (outputfiles)
          {
-            std::string output_dir = "output/test" + std::to_string(testNo) + "/tol" + tolStr + "/ref"
+            std::string nl = (nonlinear) ? "/nonlinear" : "/linear";
+            std::string output_dir = "output/test" + std::to_string(testNo) + nl + "/tol" + tolStr + "/ref"
                                    + std::to_string(sref+pref);
             std::string mkdir_command = "mkdir -p " + output_dir;
             int ret = system(mkdir_command.c_str());
@@ -955,7 +956,8 @@ int main(int argc, char *argv[])
 
       if (checkpoint)
       {
-         std::string checkpoint_dir = "checkpoints/test" + std::to_string(testNo) + "/ref"
+         std::string nl = (nonlinear) ? "/nonlinear" : "/linear";
+         std::string checkpoint_dir = "checkpoints/test" + std::to_string(testNo) + nl + "/ref"
          + std::to_string(sref+pref);
          std::string mkdir_command = "mkdir -p " + checkpoint_dir;
          int ret = system(mkdir_command.c_str());
