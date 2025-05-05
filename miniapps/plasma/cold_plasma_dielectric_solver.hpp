@@ -264,9 +264,9 @@ public:
 
    double GetGlobalDissipation() const;
 
-   double GetCoreDissipation() const;
+   //double GetCoreDissipation() const;
 
-   double GetSOLDissipation() const;
+   //double GetSOLDissipation() const;
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -444,10 +444,12 @@ private:
    ParMixedBilinearForm * n20ZIm_;
    ParBilinearForm * m4r_;
    ParBilinearForm * m4i_;
+   /*
    ParBilinearForm * m4cr_;
    ParBilinearForm * m4ci_;
    ParBilinearForm * m4solr_;
    ParBilinearForm * m4soli_;
+   */
 
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
@@ -488,10 +490,12 @@ private:
 
    HypreParMatrix * M4r_;
    HypreParMatrix * M4i_;
+   /*
    HypreParMatrix * M4cr_;
    HypreParMatrix * M4ci_;
    HypreParMatrix * M4solr_;
    HypreParMatrix * M4soli_;
+   */
    mutable HypreParVector * RHSr1_;
    mutable HypreParVector * RHSi1_;
    mutable HypreParVector * RHSr2_;

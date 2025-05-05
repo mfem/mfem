@@ -288,16 +288,20 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      n20ZIm_(NULL),
      m4r_(NULL),
      m4i_(NULL),
+     /*
      m4cr_(NULL),
      m4ci_(NULL),
      m4solr_(NULL),
      m4soli_(NULL),
+     */
      M4r_(NULL),
      M4i_(NULL),
+     /*
      M4cr_(NULL),
      M4ci_(NULL),
      M4solr_(NULL),
      M4soli_(NULL),
+     */
      RHSr1_(NULL),
      RHSi1_(NULL),
      RHSr2_(NULL),
@@ -575,7 +579,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_,
                                                      *epsAbsCoef_);
 
-   // Impedance of free space
+   // Impedance of free space: used for outgoing coax cable ports
    if ( abcs.Size() > 0 )
    {
       if ( myid_ == 0 && logging_ > 0 )
@@ -598,6 +602,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
             abc_bdr_marker_[abcs[i]-1] = 1;
          }
       }
+      // inverse of impedance of free space
+      // set etainvcoef to the inverse impedance to coax cable
       if ( etaInvCoef_ == NULL )
       {
          etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
@@ -748,6 +754,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_));
 
    // For Core power dissipation
+   /*
    core_attr_marker_.SetSize(pmesh.attributes.Max());
    core_attr_marker_ = 0;
    core_attr_marker_[3] = 1;
@@ -767,6 +774,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    m4solr_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_),sol_attr_marker_);
    m4soli_ = new ParBilinearForm(HCurlFESpace_);
    m4soli_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_),sol_attr_marker_);
+   */
 
    RHSr2_ = new HypreParVector(HCurlFESpace_);
    RHSi2_ = new HypreParVector(HCurlFESpace_);
@@ -1025,13 +1033,15 @@ CPDSolver::~CPDSolver()
    delete m2_;
    delete m12EpsRe_;
    delete m12EpsIm_;
-
+   
    delete m4r_;
    delete m4i_;
+   /*
    delete m4cr_;
    delete m4ci_;
    delete m4solr_;
    delete m4soli_;
+   */
 
    delete RHSr1_;
    delete RHSi1_;
@@ -1163,6 +1173,7 @@ CPDSolver::Assemble()
    m4i_->Assemble();
    m4i_->Finalize();
 
+   /*
    m4cr_->Assemble();
    m4cr_->Finalize();
    m4ci_->Assemble();
@@ -1172,6 +1183,7 @@ CPDSolver::Assemble()
    m4solr_->Finalize();
    m4soli_->Assemble();
    m4soli_->Finalize();
+   */
 
    if (m0_)
    {
@@ -1349,10 +1361,12 @@ CPDSolver::Update()
    m12EpsIm_->Update();
    m4r_->Update();
    m4i_->Update();
+   /*
    m4cr_->Update();
    m4ci_->Update();
    m4solr_->Update();
    m4soli_->Update();
+   */
    if (m0_)
    {
       m0_->Update();
@@ -1408,9 +1422,10 @@ CPDSolver::Solve()
          {
             attr_marker[(*dbcs_)[i]->attr[j] - 1] = 1;
          }
+   
          /*
-              e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
-                                               *(*dbcs_)[i].imag,
+         e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i]->real,
+                                               *(*dbcs_)[i]->imag,
                                                attr_marker);
          */
          e_->ProjectCoefficient(*(*dbcs_)[i]->real,
@@ -2042,10 +2057,12 @@ CPDSolver::Solve()
 
    M4r_ = m4r_->ParallelAssemble();
    M4i_ = m4i_->ParallelAssemble();
+   /*
    M4cr_ = m4cr_->ParallelAssemble();
    M4ci_ = m4ci_->ParallelAssemble();
    M4solr_ = m4solr_->ParallelAssemble();
    M4soli_ = m4soli_->ParallelAssemble();
+   */
 
    if (myid_ == 0)
    {
@@ -2054,14 +2071,14 @@ CPDSolver::Solve()
    }
 
    double global_diss = GetGlobalDissipation();
-   double core_diss = GetCoreDissipation();
-   double sol_diss = GetSOLDissipation();
+   //double core_diss = GetCoreDissipation();
+   //double sol_diss = GetSOLDissipation();
 
    if (myid_ == 0)
    {
       cout << "Global Dissipation: " << global_diss << " W" << endl; 
-      cout << "Core Dissipation: " << core_diss << " W" << endl; 
-      cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
+      //cout << "Core Dissipation: " << core_diss << " W" << endl; 
+      //cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
       cout << " Solve done." << endl;
    }
 }
@@ -2125,6 +2142,7 @@ CPDSolver::GetGlobalDissipation() const
    return 0.5*global_diss;
 }
 
+/*
 double
 CPDSolver::GetCoreDissipation() const
 {
@@ -2164,7 +2182,7 @@ CPDSolver::GetSOLDissipation() const
 
    return 0.5*sol_diss;
 }
-
+*/
 void
 CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
