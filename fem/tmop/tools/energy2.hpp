@@ -21,48 +21,120 @@ class TMOPEnergyPA2D
 {
    const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
-   real_t energy;
+   Vector &E, &L;
+   const Vector &O;
+   const bool use_detA;
+
+   real_t metric_energy, limiting_energy;
+
+   int ndof, nqpt;
+   real_t metric_normal;
+   int ne;
+   TMOP_QualityMetric *metric;
+   const Array<real_t> &B, &G;
+   const DenseTensor &Jtr;
+   const IntegrationRule &ir;
+   const Vector &mc;
 
 public:
-   TMOPEnergyPA2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x) {}
+   TMOPEnergyPA2D(const TMOP_Integrator *ti,
+                  const Vector &X,
+                  Vector &L,
+                  const bool use_detA):
+      ti(ti),
+      x(X),
+      E(ti->PA.E),
+      L(L),
+      O(ti->PA.O),
+      use_detA(use_detA),
+      metric_energy{},
+      limiting_energy{},
+      ndof(ti->PA.maps->ndof),
+      nqpt(ti->PA.maps->nqpt),
+      metric_normal(ti->metric_normal),
+      ne(ti->PA.ne),
+      metric(ti->metric),
+      B(ti->PA.maps->B),
+      G(ti->PA.maps->G),
+      Jtr(ti->PA.Jtr),
+      ir(*ti->PA.ir),
+      mc(ti->PA.MC)
+   {}
 
-   int Ndof() const { return ti->PA.maps->ndof; }
-   int Nqpt() const { return ti->PA.maps->nqpt; }
+   TMOPEnergyPA2D(const Vector &X,
+                  Vector &E,
+                  Vector &L,
+                  const Vector &O,
+                  const bool use_detA,
+                  const int ndof,
+                  const int nqpt,
+                  const real_t metric_normal,
+                  const int ne,
+                  TMOP_QualityMetric *metric,
+                  const Array<real_t> &B,
+                  const Array<real_t> &G,
+                  const DenseTensor &Jtr,
+                  const IntegrationRule &ir,
+                  const Vector &mc):
+      ti(nullptr),
+      x(X),
+      E(E),
+      L(L),
+      O(O),
+      use_detA(use_detA),
+      metric_energy{},
+      limiting_energy{},
+      ndof(ndof),
+      nqpt(nqpt),
+      metric_normal(metric_normal),
+      ne(ne),
+      metric(metric),
+      B(B),
+      G(G),
+      Jtr(Jtr),
+      ir(ir),
+      mc(mc)
+   {}
 
-   real_t Energy() const { return energy; }
+   void GetEnergy(real_t &met_energy, real_t &lim_energy) const
+   {
+      met_energy = this->metric_energy;
+      lim_energy = this->limiting_energy;
+   }
 
    template <int MD1, int MQ1, typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPEnergyPA2D &ker)
    {
-      const mfem::TMOP_Integrator *ti = ker.ti;
-      const real_t metric_normal = ti->metric_normal;
-      const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
+      const real_t metric_normal = ker.metric_normal;
+      const int NE = ker.ne, d1d = ker.ndof, q1d = ker.nqpt;
       const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+      MFEM_VERIFY(T_D1D > 0 || D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+      MFEM_VERIFY(T_Q1D > 0 || Q1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
 
       Array<real_t> mp;
-      if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
+      if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ker.metric))
       {
          m->GetWeights(mp);
       }
 
       const auto *w = mp.Read();
-      const auto *b = ti->PA.maps->B.Read();
-      const auto *g = ti->PA.maps->G.Read();
+      const auto *b = ker.B.Read();
+      const auto *g = ker.G.Read();
 
       const auto X = Reshape(ker.x.Read(), D1D, D1D, 2, NE);
-      const auto J = Reshape(ti->PA.Jtr.Read(), 2, 2, Q1D, Q1D, NE);
-      const auto W = Reshape(ti->PA.ir->GetWeights().Read(), Q1D, Q1D);
+      const auto J = Reshape(ker.Jtr.Read(), 2, 2, Q1D, Q1D, NE);
+      const auto W = Reshape(ker.ir.GetWeights().Read(), Q1D, Q1D);
 
-      const Vector &mc = ti->PA.MC;
+      const Vector &mc = ker.mc;
       const bool const_m0 = mc.Size() == 1;
       const auto MC = const_m0
                       ? Reshape(mc.Read(), 1, 1, 1)
                       : Reshape(mc.Read(), Q1D, Q1D, NE);
 
-      auto E = Reshape(ti->PA.E.Write(), Q1D, Q1D, NE);
+      const bool use_detA = ker.use_detA;
+      auto E = Reshape(ker.E.Write(), Q1D, Q1D, NE);
+      auto L = Reshape(ker.L.Write(), Q1D, Q1D, NE);
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -81,9 +153,7 @@ public:
             mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
-               const real_t detJtr = kernels::Det<2>(Jtr);
                const real_t m_coef = const_m0 ? MC(0, 0, 0) : MC(qx, qy, e);
-               const real_t weight = metric_normal * m_coef * W(qx, qy) * detJtr;
 
                // Jrt = Jtr^{-1}
                real_t Jrt[4];
@@ -100,13 +170,18 @@ public:
                real_t Jpt[4];
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
+               const real_t det = kernels::Det<2>(use_detA ? Jpr : Jtr);
+               const real_t weight = metric_normal * m_coef * W(qx,qy) * det;
+
                const real_t EvalW = METRIC{}.EvalW(Jpt, w);
 
                E(qx, qy, e) = weight * EvalW;
+               L(qx, qy, e) = weight;
             });
          });
       });
-      ker.energy = ti->PA.E * ti->PA.O;
+      ker.metric_energy = ker.E * ker.O;
+      ker.limiting_energy = ker.L * ker.O;
    }
 };
 

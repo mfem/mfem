@@ -10,27 +10,104 @@
 // CONTRIBUTING.md for details.
 
 #include "../pa.hpp"
+#include "../../gridfunc.hpp"
 #include "energy2.hpp"
 
 namespace mfem
 {
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
+void TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X,
+                                               real_t &energy) const
 {
+   const bool use_detA = false;
    const int mid = metric->Id();
 
-   TMOPEnergyPA2D ker(this, x);
+   Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
 
-   if (mid == 1) { tmop::Kernel<1>(ker); return ker.Energy(); }
-   if (mid == 2) { tmop::Kernel<2>(ker); return ker.Energy(); }
-   if (mid == 7) { tmop::Kernel<7>(ker); return ker.Energy(); }
-   if (mid == 56) { tmop::Kernel<56>(ker); return ker.Energy(); }
-   if (mid == 77) { tmop::Kernel<77>(ker); return ker.Energy(); }
-   if (mid == 80) { tmop::Kernel<80>(ker); return ker.Energy(); }
-   if (mid == 94) { tmop::Kernel<94>(ker); return ker.Energy(); }
+   TMOPEnergyPA2D ker(this, X, L, use_detA);
 
-   MFEM_ABORT("Unsupported TMOP metric " << mid);
-   return 0.0;
+   if (mid == 1) { tmop::Kernel<1>(ker); }
+   else if (mid == 2) { tmop::Kernel<2>(ker); }
+   else if (mid == 7) { tmop::Kernel<7>(ker); }
+   else if (mid == 56) { tmop::Kernel<56>(ker); }
+   else if (mid == 77) { tmop::Kernel<77>(ker); }
+   else if (mid == 80) { tmop::Kernel<80>(ker); }
+   else if (mid == 94) { tmop::Kernel<94>(ker); }
+   else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
+
+   real_t lim_energy;
+   ker.GetEnergy(energy, lim_energy);
+}
+
+void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
+                                                         real_t &met_energy,
+                                                         real_t &lim_energy) const
+{
+   const bool use_detA = false;
+   const int mid = metric->Id();
+
+   Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
+
+   TMOPEnergyPA2D ker(this, X, L, use_detA);
+
+   if (mid == 1) { tmop::Kernel<1>(ker); }
+   else if (mid == 2) { tmop::Kernel<2>(ker); }
+   else if (mid == 7) { tmop::Kernel<7>(ker); }
+   else if (mid == 56) { tmop::Kernel<56>(ker); }
+   else if (mid == 77) { tmop::Kernel<77>(ker); }
+   else if (mid == 80) { tmop::Kernel<80>(ker); }
+   else if (mid == 94) { tmop::Kernel<94>(ker); }
+   else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
+
+   ker.GetEnergy(met_energy, lim_energy);
+}
+
+void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
+                                                   const TargetConstructor &tc,
+                                                   int m_index,
+                                                   real_t &energy, real_t &vol,
+                                                   const IntegrationRule &ir) const
+{
+   auto fes = nodes.FESpace();
+
+   const int N = fes->GetNE();
+   const auto metric = tmop_q_arr[m_index];
+   const int mid = metric->Id();
+
+   auto fe = fes->GetTypicalFE();
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   auto maps = fe->GetDofToQuad(ir, mode);
+   const int d = maps.ndof;
+   const int q = maps.nqpt;
+
+   const real_t mn = 1.0;
+   Vector MC(1); MC = 1.0;
+
+   const Array<real_t> &B = maps.B, &G = maps.G;
+
+   Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O = 1.0;
+   Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+
+   auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   Vector X(R->Height());
+   R->Mult(nodes, X);
+
+   DenseTensor Jtr(2, 2, N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   tc.ComputeAllElementTargets(*fes, ir, X, Jtr);
+
+   TMOPEnergyPA2D ker(X, E, L, O, true, d, q, mn, N, metric, B, G, Jtr, ir, MC);
+
+   if (mid == 1) { tmop::Kernel<1>(ker); }
+   else if (mid == 2) { tmop::Kernel<2>(ker); }
+   else if (mid == 7) { tmop::Kernel<7>(ker); }
+   else if (mid == 56) { tmop::Kernel<56>(ker); }
+   else if (mid == 77) { tmop::Kernel<77>(ker); }
+   else if (mid == 80) { tmop::Kernel<80>(ker); }
+   else if (mid == 94) { tmop::Kernel<94>(ker); }
+   else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
+
+   ker.GetEnergy(energy, vol);
 }
 
 } // namespace mfem

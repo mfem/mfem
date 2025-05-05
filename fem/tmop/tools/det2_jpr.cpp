@@ -20,10 +20,12 @@ namespace mfem
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_MinDetJpr_2D(const int NE,
-                       const real_t *b, const real_t *g,
+                       const real_t *b,
+                       const real_t *g,
                        const DeviceTensor<4, const real_t> &X,
-                       const DeviceTensor<3, real_t> &E,
-                       const int d1d, const int q1d)
+                       const DeviceTensor<3, real_t> &DetJ,
+                       const int d1d,
+                       const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -49,7 +51,7 @@ void TMOP_MinDetJpr_2D(const int NE,
                r1[0][0][qy][qx], r1[1][0][qy][qx],
                r1[0][1][qy][qx], r1[1][1][qy][qx]
             };
-            E(qx, qy, e) = kernels::Det<2>(J);
+            DetJ(qx, qy, e) = kernels::Det<2>(J);
          });
       });
    });
@@ -59,30 +61,39 @@ MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr2D, TMOP_MinDetJpr_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPMinDetJpr2D);
 
 real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
-                                      const Vector &x) const
+                                      const Vector &D) const
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *R = fes->GetElementRestriction(ordering);
-   Vector xe(R->Height(), Device::GetDeviceMemoryType());
-   xe.UseDevice(true);
-   R->Mult(x, xe);
 
-   const DofToQuad &maps = fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-   const int NE = fes->GetMesh()->GetNE(), NQ = ir.GetNPoints();
+   const Operator *RD = fes->GetElementRestriction(ordering);
+   Vector DE(RD->Height(), Device::GetDeviceMemoryType());
+   DE.UseDevice(true);
+   RD->Mult(D, DE);
+
+   const Operator *RX = x_0.FESpace()->GetElementRestriction(ordering);
+   Vector XE(RX->Height(), Device::GetDeviceMemoryType());
+   XE.UseDevice(true);
+   RX->Mult(x_0, XE);
+   XE += DE;
+
+   auto maps = fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+   const int NE = fes->GetMesh()->GetNE();
+   const int NQ = ir.GetNPoints();
+
    const int d = maps.ndof, q = maps.nqpt;
-
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
+   Vector E(NE*NQ);
+   E.UseDevice(true);
+
    const auto *b = maps.B.Read(), *g = maps.G.Read();
-   const auto XE = Reshape(xe.Read(), d, d, 2, NE);
+   const auto xe = Reshape(XE.Read(), d, d, 2, NE);
+   auto e = Reshape(E.Write(), q, q, NE);
 
-   Vector e(NE * NQ);
-   e.UseDevice(true);
-   auto E = Reshape(e.Write(), q, q, NE);
+   TMOPMinDetJpr2D::Run(d, q, NE, b, g, xe, e, d, q);
 
-   TMOPMinDetJpr2D::Run(d, q, NE, b, g, XE, E, d, q);
-   return e.Min();
+   return E.Min();
 }
 
 } // namespace mfem
