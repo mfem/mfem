@@ -474,11 +474,21 @@ protected:
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
+   /// Read NURBS patch/macro-element mesh (MFEM NURBS NC-patch mesh format)
    void LoadNonconformingPatchTopo(std::istream &input,
                                    Array<int> &edge_to_knot);
 
+   /// Update this NURBS Mesh and its NURBS data structures after a change, such
+   /// as refinement, derefinement, or degree change.
    void UpdateNURBS();
 
+   /** @brief Refine the NURBS mesh with default refinement factors in @a rf for
+       each dimension.
+
+       Optionally, if @a usingKVF is true, use refinement factors specified for
+       particular KnotVectors, from the file with name in @a kvf. When
+       coarsening by knot removal is necessary for non-nested spacing formulas,
+       tolerance @a tol is used (see NURBSPatch::KnotRemove()). */
    void RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
                     const std::string &kvf);
 
@@ -494,8 +504,9 @@ protected:
                   const int version,
                   const std::string &comment = "") const;
 
+   /// Write the patch topology edges of a NURBS mesh (see PrintTopo()).
    void PrintTopoEdges(std::ostream &out, const Array<int> &e_to_k,
-                       bool vmap=false) const;
+                       bool vmap = false) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,

@@ -3864,7 +3864,7 @@ void NURBSExtension::GenerateOffsets()
          // Find slave and auxiliary faces not yet defined.
          const int nfp0 = facePairs.size();
          std::set<int> addParentFaces;
-         FindAdditionalSlaveAndAuxiliaryFaces(v2f, addParentFaces, facePairs);
+         FindAdditionalFacesSA(v2f, addParentFaces, facePairs);
 
          cnt = parentFaces.size();
          const int npf0 = cnt;
