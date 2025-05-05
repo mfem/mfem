@@ -1072,9 +1072,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
 void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double mu)
 {
-   // double tau  = max(tauMin, 1.0 - mu);
+   double tau  = max(tauMin, 1.0 - mu);
    int eval_err = 0;
-   double tau  = tauMin;
    Vector u0   = X0.GetBlock(0);
    Vector m0   = X0.GetBlock(1);
    Vector l0   = X0.GetBlock(2);
