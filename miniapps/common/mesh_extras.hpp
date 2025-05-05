@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -96,6 +96,36 @@ public:
       if (smooth == 1) { return a + (b-a) * (x); }
       else if (smooth == 2) { return a + (b-a) * (x*x*(3-2*x)); }
       else { return a + (b-a) * (x*x*x*(x*(6*x-15)+10)); }
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   using VectorCoefficient::Eval;
+};
+
+/// Transform a [0,1]^D mesh into a spiral. The parameters are:
+/// @a turns - number of turns around the origin,
+/// @a width - for D >= 2, the width of the spiral arm,
+/// @ gap    - gap between adjacent spiral arms at the end of each turn,
+/// @ height - for D = 3, the maximum height of the spiral.
+// Usage:
+// common::SpiralTransformation spiralT(spaceDim, 2.4, 0.1, 0.05, 1.0);
+// pmesh->Transform(spiralT);
+class SpiralTransformation : public VectorCoefficient
+{
+private:
+   real_t dim, turns, width, gap, height;
+
+public:
+   SpiralTransformation(int dim_, real_t turns_ = 1.0, real_t width_ = 0.1,
+                        real_t gap_ = 0.05, real_t height_ = 1.0)
+      : VectorCoefficient(dim_), dim(dim_),
+        turns(turns_), width(width_), gap(gap_), height(height_)
+   {
+      MFEM_VERIFY(turns > 0 && width > 0 && gap > 0 && height > 0,
+                  "Spiral transformation requires positive parameters: turns, "
+                  " width, gap, and height.");
    }
 
    void Eval(Vector &V, ElementTransformation &T,

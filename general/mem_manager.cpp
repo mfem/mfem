@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -267,6 +267,9 @@ public:
 static uintptr_t pagesize = 0;
 static uintptr_t pagemask = 0;
 
+static struct sigaction old_segv_action;
+static struct sigaction old_bus_action;
+
 /// Returns the restricted base address of the DEBUG segment
 inline const void *MmuAddrR(const void *ptr)
 {
@@ -313,7 +316,7 @@ inline uintptr_t MmuLengthP(const void *ptr, const size_t bytes)
 }
 
 /// The protected access error, used for the host
-static void MmuError(int, siginfo_t *si, void*)
+static void MmuError(int sig, siginfo_t *si, void* context)
 {
    constexpr size_t buf_size = 64;
    fflush(0);
@@ -321,6 +324,22 @@ static void MmuError(int, siginfo_t *si, void*)
    const void *ptr = si->si_addr;
    snprintf(str, buf_size, "Error while accessing address %p!", ptr);
    mfem::out << std::endl << "An illegal memory access was made!";
+   mfem::out << std::endl << "Caught signal " << sig << ", code " << si->si_code <<
+             " at " << ptr << std::endl;
+   // chain to previous handler
+   struct sigaction *old_action = (sig == SIGSEGV) ? &old_segv_action :
+                                  &old_bus_action;
+   if (old_action->sa_flags & SA_SIGINFO && old_action->sa_sigaction)
+   {
+      // old action uses three argument handler.
+      old_action->sa_sigaction(sig, si, context);
+   }
+   else if (old_action->sa_handler == SIG_DFL)
+   {
+      // reinstall and raise the default handler.
+      sigaction(sig, old_action, NULL);
+      raise(sig);
+   }
    MFEM_ABORT(str);
 }
 
@@ -332,8 +351,8 @@ static void MmuInit()
    sa.sa_flags = SA_SIGINFO;
    sigemptyset(&sa.sa_mask);
    sa.sa_sigaction = MmuError;
-   if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
-   if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+   if (sigaction(SIGBUS, &sa, &old_bus_action) == -1) { mfem_error("SIGBUS"); }
+   if (sigaction(SIGSEGV, &sa, &old_segv_action) == -1) { mfem_error("SIGSEGV"); }
    pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
    MFEM_ASSERT(pagesize > 0, "pagesize must not be less than 1");
    pagemask = pagesize - 1;
@@ -359,7 +378,7 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 /// MMU protection, through ::mprotect with no read/write accesses
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
-   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
+   static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (NONE) error"); }
 }
@@ -368,7 +387,7 @@ inline void MmuProtect(const void *ptr, const size_t bytes)
 inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
-   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
+   static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }
@@ -408,8 +427,26 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    UvmHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) override { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
-   void Dealloc(void *ptr) override { CuMemFree(ptr); }
+
+   void Alloc(void **ptr, size_t bytes) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMallocManaged(ptr, bytes == 0 ? 8 : bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      HipMallocManaged(ptr, bytes == 0 ? 8 : bytes);
+#endif
+   }
+
+   void Dealloc(void *ptr) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMemFree(ptr);
+#endif
+#ifdef MFEM_USE_HIP
+      HipMemFree(ptr);
+#endif
+   }
 };
 
 /// The 'No' device memory space
@@ -501,6 +538,25 @@ public:
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyDtoH(dst, src, bytes);
+   }
+};
+
+class UvmHipMemorySpace : public DeviceMemorySpace
+{
+public:
+   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory&) { }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return HipMemcpyHtoD(dst, src, bytes);
+   }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return HipMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return HipMemcpyDtoH(dst, src, bytes);
    }
 };
 
@@ -661,7 +717,15 @@ public:
 
       // Filling the device memory backends, shifting with the device size
       constexpr int shift = DeviceMemoryType;
+#if defined(MFEM_USE_CUDA)
       device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
+#elif defined(MFEM_USE_HIP)
+      device[static_cast<int>(MT::MANAGED)-shift] = new UvmHipMemorySpace();
+#else
+      // this re-creates the original behavior, but should this be nullptr instead?
+      device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
+#endif
+
       // All other devices controllers are delayed
       device[static_cast<int>(MemoryType::DEVICE)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
@@ -1193,8 +1257,9 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
       {
          if (dst_h_ptr != src_d_ptr && bytes != 0)
          {
-            internal::Memory &src_d_base = maps->memories.at(src_h_ptr);
-            MemoryType src_d_mt = src_d_base.d_mt;
+            MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
+                                  maps->aliases.at(src_h_ptr).mem->d_mt :
+                                  maps->memories.at(src_h_ptr).d_mt;
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
       }
@@ -1254,9 +1319,10 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
       const void *src_d_ptr = (src_flags & Mem::ALIAS) ?
                               mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
                               mm.GetDevicePtr(src_h_ptr, bytes, false);
-      const internal::Memory &base = maps->memories.at(dest_h_ptr);
-      const MemoryType d_mt = base.d_mt;
-      ctrl->Device(d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
+      MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
+                            maps->aliases.at(src_h_ptr).mem->d_mt :
+                            maps->memories.at(src_h_ptr).d_mt;
+      ctrl->Device(src_d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
 
@@ -1283,9 +1349,10 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
       void *dest_d_ptr = (dest_flags & Mem::ALIAS) ?
                          mm.GetAliasDevicePtr(dest_h_ptr, bytes, false) :
                          mm.GetDevicePtr(dest_h_ptr, bytes, false);
-      const internal::Memory &base = maps->memories.at(dest_h_ptr);
-      const MemoryType d_mt = base.d_mt;
-      ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
+      MemoryType dest_d_mt = (dest_flags & Mem::ALIAS) ?
+                             maps->aliases.at(dest_h_ptr).mem->d_mt :
+                             maps->memories.at(dest_h_ptr).d_mt;
+      ctrl->Device(dest_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);

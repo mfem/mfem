@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -323,11 +323,10 @@ int main(int argc, char *argv[])
    // Perform time-integration for the problem (looping over the time
    // iterations, ti, with a time-step dt).
    bool done = false;
-   for (int ti = 0; !done; )
+   for ( ; !done; )
    {
       real_t dt_real = max(dt, t_final - t);
       cvodes->Step(*U, t, dt_real);
-      ti++;
 
       done = (t >= t_final - 1e-8*dt);
 

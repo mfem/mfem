@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -306,13 +306,16 @@ private:
    static const DenseTensor T, TInv;
 
 protected:
-   const int order;  // basis function order
-   const int nedofs; // number of DoFs per edge
-   const int nfdofs; // number of DoFs per face
-   const int nedges; // number of edges per element
-   const int nfaces; // number of triangular faces per element
+   const int  order;  // basis function order
+   const int  nedofs; // number of DoFs per edge
+   const int  ntdofs; // number of DoFs per triangular face
+   const int  nqdofs; // number of DoFs per quadrilateral face
+   const int  nedges; // number of edges per element
+   const int  nfaces; // number of faces per element
+   const int *ftypes; // Pointer to array of Geometry::Type for each face
 
-   ND_DofTransformation(int size, int order, int num_edges, int num_tri_faces);
+   ND_DofTransformation(int size, int order, int num_edges, int num_faces,
+                        int *face_types);
 
 public:
    // Return the 2x2 transformation operator for the given face orientation
@@ -322,7 +325,7 @@ public:
    static const DenseMatrix & GetFaceInverseTransform(int ori)
    { return TInv(ori); }
 
-   bool IsIdentity() const override { return nfdofs < 2; }
+   bool IsIdentity() const override { return ntdofs < 2; }
 
    void TransformPrimal(const Array<int> & Fo, real_t *v) const override;
    void InvTransformPrimal(const Array<int> & Fo, real_t *v) const override;
@@ -334,9 +337,11 @@ public:
 /// triangles
 class ND_TriDofTransformation : public ND_DofTransformation
 {
+private:
+   const int face_type[1] = { Geometry::TRIANGLE };
 public:
    ND_TriDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2), order, 3, 1)
+      : ND_DofTransformation(order*(order + 2), order, 3, 1, (int *)face_type)
    {}
 };
 
@@ -345,7 +350,9 @@ class ND_TetDofTransformation : public ND_DofTransformation
 {
 public:
    ND_TetDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2)*(order + 3)/2, order, 6, 4)
+      : ND_DofTransformation(order*(order + 2)*(order + 3)/2, order, 6, 4,
+                             (int *)Geometry::Constants<Geometry::TETRAHEDRON>::
+                             FaceTypes)
    {}
 };
 
@@ -355,7 +362,21 @@ class ND_WedgeDofTransformation : public ND_DofTransformation
 public:
    ND_WedgeDofTransformation(int order)
       : ND_DofTransformation(3 * order * ((order + 1) * (order + 2))/2,
-                             order, 9, 2)
+                             order, 9, 5,
+                             (int *)Geometry::Constants<Geometry::PRISM>::
+                             FaceTypes)
+   {}
+};
+
+/// DoF transformation implementation for the Nedelec basis on pyramid elements
+class ND_PyramidDofTransformation : public ND_DofTransformation
+{
+public:
+   ND_PyramidDofTransformation(int order)
+      : ND_DofTransformation(2 * order * (order * (order + 1) + 2),
+                             order, 8, 5,
+                             (int *)Geometry::Constants<Geometry::PYRAMID>::
+                             FaceTypes)
    {}
 };
 

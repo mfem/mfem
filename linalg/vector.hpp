@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <type_traits>
+#include <initializer_list>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -119,10 +121,16 @@ public:
    Vector(int size_, MemoryType h_mt, MemoryType d_mt)
       : data(size_, h_mt, d_mt), size(size_) { }
 
+   /// Create a vector from a statically sized C-style array of convertible type
+   template <typename CT, int N>
+   explicit Vector(const CT (&values)[N]) : Vector(N)
+   { std::copy(values, values + N, begin()); }
+
    /// Create a vector using a braced initializer list
-   template <int N, typename T = real_t>
-   explicit Vector(const T (&values)[N]) : Vector(N)
-   { std::copy(values, values + N, GetData()); }
+   template <typename CT, typename std::enable_if<
+                std::is_convertible<CT,real_t>::value,bool>::type = true>
+   explicit Vector(std::initializer_list<CT> values) : Vector(values.size())
+   { std::copy(values.begin(), values.end(), begin()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
@@ -292,7 +300,12 @@ public:
    inline const real_t &operator[](int i) const { return (*this)(i); }
 
    /// Dot product with a `double *` array.
-   real_t operator*(const real_t *) const;
+   /// This function always executes on the CPU. A HostRead() will be called if
+   /// required.
+   /// To optionally execute on the device:
+   /// Vector tmp(v, Size());
+   /// res = (*this) * tmp;
+   real_t operator*(const real_t *v) const;
 
    /// Return the inner-product.
    real_t operator*(const Vector &v) const;

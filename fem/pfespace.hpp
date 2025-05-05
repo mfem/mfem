@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,7 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh; #mesh points to this object as well. Not owned.
+   /// Parallel mesh; @a mesh points to this object as well. Not owned.
    ParMesh *pmesh;
    /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
        Not owned. */
@@ -46,6 +46,26 @@ private:
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
+
+   struct VarOrderDofInfo
+   {
+      unsigned int index;  // Index of the entity (edge or face)
+      unsigned short int edof;  // Dof index within the entity
+   };
+
+   Array<VarOrderDofInfo> var_edge_dofmap, var_face_dofmap;
+
+   /// For each true DOF on edges and faces, store data about the edge or face.
+   struct TdofLdofInfo
+   {
+      bool set; // Whether the members of this instance are set.
+      int minOrder; // Minimum order for the mesh entity containing this DOF.
+      bool isEdge; // Whether the containing mesh entity is an edge.
+      int idx; // Index of the containing mesh entity in pmesh.
+   };
+
+   /// Data for each true DOF on edges and faces.
+   Array<TdofLdofInfo> tdof2ldof;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -86,6 +106,13 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
+   /** Stores the previous ParFiniteElementSpace, before p-refinement, in the
+       case that @a PTh is constructed by PRefineAndUpdate(). */
+   std::unique_ptr<ParFiniteElementSpace> pfes_prev;
+
+   /// Ghost element order data, set by CommunicateGhostOrder().
+   Array<ParNCMesh::VarOrderElemInfo> ghost_orders;
+
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
@@ -100,6 +127,23 @@ private:
 
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
+
+   /// Set ghost_orders.
+   void CommunicateGhostOrder();
+
+   /// Sets @a tdof2ldof. See documentation of @a tdof2ldof for details.
+   void SetTDOF2LDOFinfo(int ntdofs, int vdim_factor, int dof_stride,
+                         int allnedofs);
+
+   /** Set the rows of the restriction matrix @a R in a variable-order space,
+       corresponding to true DOFs on edges and faces. */
+   void SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
+                                       int tdof_stride,
+                                       const Array<int> &dof_tdof,
+                                       const Array<HYPRE_BigInt> &dof_offs);
+
+   /// Helper function to set var_edge_dofmap or var_face_dofmap
+   void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
 
    void Construct();
    void Destroy();
@@ -122,20 +166,37 @@ private:
    typedef ParNCMesh::GroupId GroupId;
 
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
-   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs,
+                         int variant) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
-   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs,
+                     int variant) const;
 
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
+   void GetBareDofsVar(int entity, int index, Array<int> &dofs) const;
 
-   int  PackDof(int entity, int index, int edof) const;
-   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+   /** @brief Return the local space DOF index for the DOF with index @a edof
+       with respect to the mesh entity @a index of type @a entity (0: vertex,
+       1: edge, 2: face). In the variable-order case, use variant @a var. */
+   int  PackDof(int entity, int index, int edof, int var = 0) const;
+   /// Inverse of function @a PackDof, setting order instead of variant.
+   void UnpackDof(int dof, int &entity, int &index, int &edof, int &order) const;
+
+   /// Implementation of function @a PackDof for the variable-order case.
+   int  PackDofVar(int entity, int index, int edof, int var = 0) const;
+   /// Implementation of function @a UnpackDof for the variable-order case.
+   void UnpackDofVar(int dof, int &entity, int &index, int &edof,
+                     int &order) const;
 
 #ifdef MFEM_PMATRIX_STATS
    mutable int n_msgs_sent, n_msgs_recv;
    mutable int n_rows_sent, n_rows_recv, n_rows_fwd;
 #endif
+
+   void ScheduleSendOrder(int ent, int idx, int order,
+                          GroupId group_id,
+                          std::map<int, class NeighborOrderMessage> &send_msg) const;
 
    void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
                         std::map<int, class NeighborRowMessage> &send_msg) const;
@@ -170,7 +231,7 @@ private:
                                             Array<HYPRE_BigInt> &dof_offs,
                                             Array<HYPRE_BigInt> &tdof_offs,
                                             Array<int> *dof_tdof,
-                                            bool partial = false) const;
+                                            bool partial = false);
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
        The result is a parallel permutation matrix that can be used to update
@@ -367,6 +428,23 @@ public:
                              Array<int> &ess_tdof_list,
                              int component = -1) const override;
 
+   /** Helper function for GetEssentialTrueDofs(), in the case of a
+       variable-order H1 space. */
+   void GetEssentialTrueDofsVar(const Array<int>
+                                &bdr_attr_is_ess,
+                                const Array<int> &ess_dofs,
+                                Array<int> &true_ess_dofs,
+                                int component) const;
+
+   /// Determine the external degrees of freedom
+   void GetExteriorVDofs(Array<int> &ext_dofs,
+                         int component = -1) const override;
+
+   /** Get a list of external true dofs, ext_tdof_list, corresponding to the
+       face on the exterior of the mesh. */
+   void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+                            int component = -1) const override;
+
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
@@ -396,7 +474,9 @@ public:
                                DofTransformation &doftrans) const;
    DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
-   const FiniteElement *GetFaceNbrFE(int i) const;
+   /** In the variable-order case with @a ndofs > 0, the order is taken such
+       that the number of DOFs is @a ndofs. */
+   const FiniteElement *GetFaceNbrFE(int i, int ndofs = 0) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
@@ -421,6 +501,11 @@ public:
        /rebalance matrices, unless want_transform is false. */
    void Update(bool want_transform = true) override;
 
+   /** P-refine and update the space. If @a want_transfer, also maintain the old
+       space and a transfer operator accessible by GetPrefUpdateOperator(). */
+   void PRefineAndUpdate(const Array<pRefinement> & refs,
+                         bool want_transfer = true) override;
+
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override
    {
@@ -428,12 +513,48 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
+   /// Returns the maximum polynomial order over all elements globally.
+   int GetMaxElementOrder() const override;
+
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    void PrintPartitionStats();
 
    /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
+
+protected:
+   /** Helper function for finalizing intermediate DOFs on edges and faces in a
+       variable-order space, with order strictly between the minimum and
+       maximum. */
+   void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
+
+   /** Helper function for variable-order spaces, to apply the order on each
+       ghost element to its edges and faces. */
+   void ApplyGhostElementOrdersToEdgesAndFaces(
+      Array<VarOrderBits> &edge_orders,
+      Array<VarOrderBits> &face_orders) const override;
+
+   /** Helper function for variable-order spaces, to apply the lowest order on
+       each ghost face to its edges. */
+   void GhostFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
+                              Array<VarOrderBits> &edge_orders)
+   const override;
+
+   /** Performs parallel order propagation, for variable-order spaces. Returns
+       true if order propagation is done. */
+   bool OrderPropagation(const std::set<int> &edges,
+                         const std::set<int> &faces,
+                         Array<VarOrderBits> &edge_orders,
+                         Array<VarOrderBits> &face_orders) const override;
+
+   /// Returns the number of ghost edges.
+   int NumGhostEdges() const override
+   { return pncmesh ? pncmesh->GetNGhostEdges() : 0; }
+
+   /// Returns the number of ghost faces.
+   int NumGhostFaces() const override
+   { return pncmesh ? pncmesh->GetNGhostFaces() : 0; }
 };
 
 
