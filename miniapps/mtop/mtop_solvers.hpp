@@ -370,19 +370,11 @@ protected:
 /// (W+i*T)(x+i*y)=(p+i*q)
 /// The preconditioner is assumed to be applied to the following
 /// linear system of equations
-/// |W  -T| |x| =|p|
-/// |T   W| |y|  |q|
+/// |W    T| | x| =|p|
+/// |T   -W| |-y|  |q|
 /// and has the form
-/// |W+2T  -T||x|=|e|
-/// |T      W||y| |g|
-///
-/// For exchanged first and second block rows use prec_type=2. In this
-/// case the preconditioner is assumed to be
-/// | W     T||x| = |e|
-/// |-T  W+2T||y|   |g|
-/// and the linear system is assumed to be
-/// | W   T||x|=|p|
-/// |-T   W||y| |q|
+/// |W+2T   T|| x|=|e|
+/// |T     -W|| y| |g|
 ///
 class PRESBPrec:public IterativeSolver
 {
@@ -426,24 +418,27 @@ public:
         HypreParMatrix* wm=dynamic_cast<HypreParMatrix*>(W_);
         HypreParMatrix* tm=dynamic_cast<HypreParMatrix*>(T_);
 
-        sumop.reset(new HypreParMatrix(*wm));
-        (*sumop)*=a;
-        sumop->Add(b,*tm);
-        amgp.reset(new HypreBoomerAMG(*sumop));
+        if((wm!=nullptr)&&(tm!=nullptr)){
 
+             sumop.reset(new HypreParMatrix(*wm));
+             (*sumop)*=a;
+             sumop->Add(b,*tm);
+             amgp.reset(new HypreBoomerAMG());
+             amgp->SetOperator(*sumop);
+             ls.reset(new mfem::CGSolver(comm));
 
-        //sOp.reset(new SumOperator(W,a,T,b,false,false));
+             //GMRESSolver* pgmres=new mfem::GMRESSolver(comm);
+             //pgmres->SetKDim(200);
+             //ls.reset(pgmres);
+             //ls->SetOperator(*sOp);
+             ls->SetOperator(*sumop);
+             ls->SetPreconditioner(*amgp);
+             ls->iterative_mode=false;
+             ls->SetPrintLevel(0);
+        }
 
-        //ls.reset(new mfem::CGSolver(comm));
-        GMRESSolver* pgmres=new mfem::GMRESSolver(comm);
-        pgmres->SetKDim(200);
-        ls.reset(pgmres);
-        //ls->SetOperator(*sOp);
-        ls->SetOperator(*sumop);
-        ls->SetPreconditioner(*amgp);
-        ls->iterative_mode=false;
-        ls->SetPrintLevel(0);
-
+        //set MUMPS
+        /*
         {
             HypreParMatrix nm(*wm);
             nm*=a;
@@ -468,7 +463,7 @@ public:
             //mumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
             mumps->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
             mumps->SetOperator(*bm);
-        }
+        }*/
 
 
     }
@@ -476,13 +471,9 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const
     {
 
-        mumps->Mult(x,y);
-        return;
+        //mumps->Mult(x,y);
+        //return;
 
-        y=0.0;
-        if(false==this->iterative_mode){
-           y=0.0;
-        }
 
         ls->SetAbsTol(this->abs_tol);
         ls->SetRelTol(this->rel_tol);
@@ -491,14 +482,8 @@ public:
         BlockVector bvy(y,block_true_offsets);
         Vector& xx=bvy.GetBlock(0);
         Vector& yy=bvy.GetBlock(1);
-        if(prec_type==2){
-            xx=bvy.GetBlock(1);
-            yy=bvy.GetBlock(0);
-        }
 
         //set the RHS (e-g) in tv
-
-        if(prec_type==1)
         {
             const int N=W->Width();
             const bool use_dev = tv.UseDevice()||x.UseDevice();
@@ -508,21 +493,11 @@ public:
             {
                 tp[i]=xp[i]-xp[N+i];
             });
-        }else{
-            //reverse e and g
-            int N=W->Width();
-            const bool use_dev = tv.UseDevice()||x.UseDevice();
-            const real_t* xp= x.Read(use_dev);
-            real_t* tp=tv.ReadWrite(use_dev);
-            forall(N, [=] MFEM_HOST_DEVICE (int i)
-            {
-                tp[i]=-xp[i]+xp[N+i];
-            });
         }
-        //solve (W+T)(x-y)=(e-g)
+        //solve (W+T)(x+y)=(e-g)
         ls->Mult(tv,xx);
 
-        //solve (W+T)y=g-T(x-y)
+        //solve (W+T)y=-g+T(x+y)
         T->Mult(xx,tv);
         if(prec_type==1)
         {
@@ -532,32 +507,23 @@ public:
             real_t* tp=tv.ReadWrite(use_dev);
             forall(N, [=] MFEM_HOST_DEVICE (int i)
             {
-                tp[i]=xp[N+i]-b*tp[i];
-            });
-        }else{
-            int N=W->Width();
-            const bool use_dev = tv.UseDevice()||x.UseDevice();
-            const real_t* xp= x.Read(use_dev);
-            real_t* tp=tv.ReadWrite(use_dev);
-            forall(N, [=] MFEM_HOST_DEVICE (int i)
-            {
-                tp[i]=xp[i]-b*tp[i];
+                tp[i]=-xp[N+i]+b*tp[i];
             });
         }
         ls->Mult(tv,yy);
 
-        //sum (x-y)+y=x
-        xx.Add(1.0,yy);
+        //sum (x+y)-y=x
+        xx.Add(-1.0,yy);
 
 
+        //compare to MUMPS
+        /*
         Vector tmv(y);
         mumps->Mult(x,tmv);
         tmv.Add(-1,y);
         real_t rr=mfem::InnerProduct(comm, tmv,tmv);
         std::cout<<"Residual="<<sqrt(rr)<<std::endl;
-
-
-
+        */
     }
 
 private:
@@ -588,93 +554,7 @@ private:
 
 };
 
-class DPrec:public IterativeSolver
-{
-public:
-    DPrec(MPI_Comm comm_):
-        IterativeSolver(comm_)
-    {
-        comm=comm_;
-        MPI_Comm_rank(comm,&myrank);
-        a=1.0;
-        b=1.0;
-    }
 
-    virtual
-        ~DPrec(){}
-
-
-    /// (a*W+i*b*T)(x+i*y)=(e+i*g)
-    void SetOperators(Operator* W_, Operator* T_,
-                      real_t a_=1.0, real_t b_=1.0){
-
-        this->width=2*(W_->Width());
-        this->height=2*(W_->Width());
-
-
-        a=a_;
-        b=b_;
-
-        block_true_offsets.SetSize(3);
-        block_true_offsets[0] = 0;
-        block_true_offsets[1] = W_->Width();
-        block_true_offsets[2] = W_->Width();
-        block_true_offsets.PartialSum();
-
-        tv.SetSize(W_->Width());
-        diag.SetSize(W_->Width());
-
-        W=W_;
-        T=T_;
-
-        bp.reset(new BlockDiagonalPreconditioner(block_true_offsets));
-
-        HypreParMatrix* wm=dynamic_cast<HypreParMatrix*>(W_);
-        HypreParMatrix* tm=dynamic_cast<HypreParMatrix*>(T_);
-
-        if((wm!=nullptr)&&(tm!=nullptr)){
-            sumop.reset(new HypreParMatrix(*wm));
-            (*sumop)*=a;
-            sumop->Add(b,*tm);
-            amgp.reset(new HypreBoomerAMG(*sumop));
-            ls.reset(new mfem::CGSolver(comm));
-
-            ls->SetOperator(*sumop);
-            ls->SetPreconditioner(*amgp);
-            ls->iterative_mode=true;
-            ls->SetPrintLevel(0);
-
-            bp->SetDiagonalBlock(0,ls.get());
-            bp->SetDiagonalBlock(1,ls.get());
-        }
-
-    }
-
-    virtual void Mult(const Vector &x, Vector &y) const
-    {
-        ls->SetAbsTol(this->abs_tol);
-        ls->SetRelTol(this->rel_tol);
-        ls->SetMaxIter(this->max_iter);
-        bp->Mult(x,y);
-    }
-
-private:
-    MPI_Comm comm;
-    int myrank;
-
-    Operator* W;
-    Operator* T;
-    real_t a,b;
-    mfem::Array<int> block_true_offsets;
-
-    std::unique_ptr<IterativeSolver> ls;
-    std::unique_ptr<HypreBoomerAMG> amgp;
-    std::unique_ptr<HypreParMatrix> sumop;
-    std::unique_ptr<BlockDiagonalPreconditioner> bp;
-
-    Vector diag;
-    mutable Vector tv;
-};
 
 
 #endif // MTOP_SOLVERS_HPP

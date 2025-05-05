@@ -47,12 +47,12 @@ int main(int argc, char *argv[])
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
+   int myrank = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 2;
+   int order = 4;
    bool static_cond = false;
    bool pa = false;
    bool fa = false;
@@ -85,13 +85,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (myrank == 0)
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (myid == 0)
+   if (myrank == 0)
    {
       args.PrintOptions(cout);
    }
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   if (myid == 0) { device.Print(); }
+   if (myrank == 0) { device.Print(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 1;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    cf->AddDomainIntegrator(new VectorMassIntegrator(damp));
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
-   real_t freq=2.5;
+   real_t freq=0.5;
    //ProductCoefficient pc(-freq*freq,rho);
    ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
    std::cout<<pmesh.GetMyRank()<<" cwf.size="<<cwf.Width()<<std::endl;
    std::cout<<pmesh.GetMyRank()<<" vfes.size="<<vfes->GetTrueVSize()<<std::endl;
    lf.ParallelAssemble(f.GetBlock(0));
-   lf.ParallelAssemble(f.GetBlock(1)); (f.GetBlock(1))*=-1.0;
+   lf.ParallelAssemble(f.GetBlock(1));
 
    std::cout<<"RHS is ready!"<<std::endl;
 
@@ -311,13 +311,24 @@ int main(int argc, char *argv[])
 
    SumOperator W(mmat.get(),1.0,mmat.get(),0.0,false,false);
 
+   ParLORDiscretization lork(*kf,ess_dofs);
+   HypreParMatrix& lorkm=lork.GetAssembledMatrix();
+
+   ParFiniteElementSpace& lorfes=lork.GetParFESpace();
+
+   ParLORDiscretization lorc(*cf,ess_dofs);
+   HypreParMatrix& lorcm=lorc.GetAssembledMatrix();
+
+
    std::cout<<"Allocate PRESB"<<std::endl;
    PRESBPrec* prec=new PRESBPrec(pmesh.GetComm(),1);
    //prec->SetOperators(wmat.get(),mmat.get(),1.0,freq*freq,1, kmat.get());
-   prec->SetOperators(kmat.get(),cmat.get(),1.0,1.0);
+   //prec->SetOperators(kmat.get(),cmat.get(),1.0,1.0);
+   prec->SetOperators(&lorkm,&lorcm,1.0,1.0);
    prec->SetAbsTol(1e-12);
-   prec->SetRelTol(1e-10);
-   prec->SetMaxIter(5);
+   prec->SetRelTol(1e-1);
+   prec->SetMaxIter(1000);
+
 
    prec->Mult(f,x);
    {
@@ -327,22 +338,13 @@ int main(int argc, char *argv[])
        }
    }
 
-   LORDiscretization lork(*kf,ess_dofs);
 
-
-   DPrec* dprec=new DPrec(pmesh.GetComm());
-   dprec->SetOperators(kmat.get(),cmat.get(),1.0,1.0);
-   dprec->SetAbsTol(1e-12);
-   dprec->SetRelTol(1e-10);
-   dprec->SetMaxIter(100);
-
-
-
-   Vector xstat(f.GetBlock(0));
+   Vector xstat(f.GetBlock(0));xstat=0.0;
+   /*
    {
        //do the static solution
        CGSolver ls(pmesh.GetComm());
-       HypreBoomerAMG amg(*kmat);
+       HypreBoomerAMG amg(lorkm);
        amg.SetElasticityOptions(vfes);
        ls.SetOperator(*kmat);
        ls.SetPreconditioner(amg);
@@ -353,18 +355,19 @@ int main(int argc, char *argv[])
        ls.SetPrintLevel(1);
 
        ls.Mult(f.GetBlock(0),xstat);
-   }
+   }*/
 
 
 
 
 
    ///eigenvalues check
-   /*
    {
        CGSolver ls(pmesh.GetComm());
-       HypreBoomerAMG amg(*kmat);
-       amg.SetElasticityOptions(vfes);
+       HypreBoomerAMG amg;
+       //amg.SetOperator(*kmat);
+       amg.SetOperator(lorkm);
+       //amg.SetElasticityOptions(vfes);
        ls.SetOperator(*kmat);
        ls.SetPreconditioner(amg);
        ls.iterative_mode=false;
@@ -374,10 +377,47 @@ int main(int argc, char *argv[])
 
        RandomizedSubspaceIteration ss(pmesh.GetComm());
        ss.SetConstrDOFs(ess_dofs);
-       ss.SetNumModes(5);
-       ss.SetNumIter(5);
+       ss.SetNumModes(100);
+       ss.SetNumIter(10);
        ss.SetOperator(pOp);
        ss.Solve();
+
+       const std::vector<Vector>& vecs=ss.GetModes();
+       Vector rr(vecs[0]);
+
+
+       if(myrank==0){ std::cout<<std::endl;
+                      std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
+       for(int i=0;i<ss.GetNumModes();i++){
+               kmat->Mult(vecs[i],rr);
+           for(int j=0;j<ss.GetNumModes();j++){
+               real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+               if(myrank==0){std::cout<<gp<<" ";}
+           }
+           if(myrank==0){std::cout<<std::endl;}
+       }
+
+       if(myrank==0){ std::cout<<std::endl;}
+       for(int i=0;i<ss.GetNumModes();i++){
+               mmat->Mult(vecs[i],rr);
+           for(int j=0;j<ss.GetNumModes();j++){
+               real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+               if(myrank==0){std::cout<<gp<<" ";}
+           }
+           if(myrank==0){std::cout<<std::endl;}
+       }
+
+       if(myrank==0){ std::cout<<std::endl;}
+       for(int i=0;i<ss.GetNumModes();i++){
+               mmat->Mult(vecs[i],rr);
+               real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+
+               kmat->Mult(vecs[i],rr);
+               real_t kp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+
+               if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
+       }
+
 
    }
 
@@ -387,7 +427,6 @@ int main(int argc, char *argv[])
    delete vfec;
    Mpi::Finalize();
    return 0;
-   */
 
    //set the linear solver
    FGMRESSolver* ls=new FGMRESSolver(pmesh.GetComm());
@@ -400,15 +439,13 @@ int main(int argc, char *argv[])
    ls->SetKDim(100);
 
    ls->SetOperator(bop);
-   //ls->SetPreconditioner(*prec);
-   ls->SetPreconditioner(*dprec);
+   ls->SetPreconditioner(*prec);
    ls->Mult(f,x);
    delete ls;
 
    delete prec;
-   delete dprec;
 
-   //chekc the solution
+   //check the solution
    {
        Vector xm(x); xm=0.0;
        MUMPSSolver mumps(bm->GetComm());

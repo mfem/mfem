@@ -100,6 +100,8 @@ void RandomizedSubspaceIteration::Solve()
         }
 
         //test the product
+        /*
+         if(myrank==0){std::cout<<std::endl;}
         for(int i=0;i<num_modes;i++){
             for(int j=0;j<num_modes;j++){
                 real_t bb=InnerProduct(comm,omega[i],modes[j]);
@@ -108,6 +110,7 @@ void RandomizedSubspaceIteration::Solve()
             }
             if(myrank==0){std::cout<<std::endl;}
         }
+        */
 
 
         for(int i=0;i<num_modes;i++){
