@@ -1,19 +1,31 @@
-//                               Parallel contact example
-// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 4 -nsteps 10 -omaxit 20 -nonlin
-// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 4 -nsteps 10 -omaxit 20 -lin
+// srun -n 1    ./contact -testno 40 -sr 1 -pr 0 -tr 1  -nsteps 2 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1    ./contact -testno 40 -sr 2 -pr 0 -tr 2  -nsteps 2 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 8    ./contact -testno 40 -sr 3 -pr 0 -tr 4  -nsteps 2 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 64   ./contact -testno 40 -sr 3 -pr 1 -tr 8  -nsteps 2 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 512  ./contact -testno 40 -sr 3 -pr 2 -tr 16 -nsteps 2 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1024 ./contact -testno 40 -sr 3 -pr 3 -tr 32 -nsteps 2 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
 
-// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 5 -nsteps 10 -omaxit 20 -nonlin
-// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 5 -nsteps 10 -omaxit 20 -lin
+// srun -n 1    ./contact -testno 50 -sr 0 -pr 0 -tr 1  -nsteps 2 -msteps 6 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1    ./contact -testno 50 -sr 1 -pr 0 -tr 2  -nsteps 2 -msteps 6 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 8    ./contact -testno 50 -sr 2 -pr 0 -tr 4  -nsteps 2 -msteps 6 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 64   ./contact -testno 50 -sr 3 -pr 0 -tr 8  -nsteps 2 -msteps 6 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 512  ./contact -testno 50 -sr 3 -pr 1 -tr 16 -nsteps 2 -msteps 6 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1024 ./contact -testno 50 -sr 3 -pr 2 -tr 32 -nsteps 2 -msteps 6 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
 
-// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -nonlin
-// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -lin
+// srun -n 1    ./contact -testno 6 -lin -sr 0 -pr 0 -tr 1  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1    ./contact -testno 6 -lin -sr 1 -pr 0 -tr 2  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 8    ./contact -testno 6 -lin -sr 2 -pr 0 -tr 4  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 64   ./contact -testno 6 -lin -sr 3 -pr 0 -tr 8  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 512  ./contact -testno 6 -lin -sr 3 -pr 1 -tr 16 -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1024 ./contact -testno 6 -lin -sr 3 -pr 2 -tr 32 -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
 
-// Checkpoints
-// To output checkpoints
-// mpirun -np 4 ./contact -ls 6 -sr 0 -testno 4 -nsteps 4 -omaxit 20 -out -checkpoint
+// srun -n 1    ./contact -testno 6 -nonlin -bound-constraints -sr 0 -pr 0 -tr 1  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1    ./contact -testno 6 -nonlin -bound-constraints -sr 1 -pr 0 -tr 2  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 8    ./contact -testno 6 -nonlin -bound-constraints -sr 2 -pr 0 -tr 4  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 64   ./contact -testno 6 -nonlin -bound-constraints -sr 3 -pr 0 -tr 8  -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 512  ./contact -testno 6 -nonlin -bound-constraints -sr 3 -pr 1 -tr 16 -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
+// srun -n 1024 ./contact -testno 6 -nonlin -bound-constraints -sr 3 -pr 2 -tr 32 -nsteps 10 -ls 6 -amg -omaxit 70 -otol 1e-8 -mass-weights -out -checkpoint
 
-// To restart from a checkpoint
-// mpirun -np 4 ./contact -ls 6 -sr 0 -testno 4 -nsteps 4 -omaxit 20 -out -restart -rfile checkpoints/test4/ref0/step2
 
 
 #include "mfem.hpp"
@@ -445,6 +457,7 @@ int main(int argc, char *argv[])
             mesh_file = "meshes/Test5.mesh";
             break;
          case 51:
+         case 50:
             mesh_file = "meshes/Test51.mesh";
             break;
          case 6:
@@ -587,6 +600,11 @@ int main(int argc, char *argv[])
          mortar_attr.insert(4);
          nonmortar_attr.insert(7);
       }
+      else if (testNo == 50)
+      {
+         mortar_attr.insert(3);
+         nonmortar_attr.insert(4);
+      }
       else
       {
          mortar_attr.insert(3);
@@ -712,18 +730,15 @@ int main(int argc, char *argv[])
          f.constant = -p*(ii+1)/nsteps;
          prob.SetNeumanPressureData(f,ess_bdr);
       }
-      else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
+      else if (testNo == 4 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
       {
          ess_bdr = 0;
-         // essbdr_attr = (testNo == 40) ? 1 : 6;
-         essbdr_attr = (testNo == 40) ? 1 : 2;
+         essbdr_attr = 2;
          ess_bdr[essbdr_attr-1] = 1;
          ess_values = 0.0;
          if (i < nsteps)
          {
-            // ess_values[2] = -2.0/1.4*(i+1)/nsteps;
             ess_values[2] = 1.0/1.4*(i+1)/nsteps;
-            // ess_values[2] = 0.0;
          }
          else
          {
@@ -732,6 +747,32 @@ int main(int argc, char *argv[])
             ess_values[0] = -3.0/1.4*(i+1-nsteps)/msteps;
             ess_values[2] = 1.0/1.4;
          }
+         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
+      }
+      else if (testNo == 50)   
+      {
+         ess_bdr = 0;
+         essbdr_attr = 6;
+         ess_bdr[essbdr_attr-1] = 1;
+         ess_values = 0.0;
+         if (i < nsteps)
+         {
+            ess_values[2] = -1.0/1.4*(i+1)/nsteps;
+         }
+         else
+         {
+            ess_values[0] = 3.0/1.4*(i+1-nsteps)/msteps;
+            ess_values[2] = -1.0/1.4;
+         }
+         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
+      }
+      else if (testNo == 40)
+      {
+         ess_bdr = 0;
+         essbdr_attr = 10;
+         ess_bdr[essbdr_attr-1] = 1;
+         ess_values = 0.0;
+         ess_values[2] = -1.0/1.4*(i+1)/nsteps;
          prob.SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == 41)

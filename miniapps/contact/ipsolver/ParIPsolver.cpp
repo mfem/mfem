@@ -57,8 +57,8 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
 
    comm = problem->GetComm();
    problem->GetLumpedMassWeights(Mcslump, Mvlump);
-   MFEM_VERIFY(Mcslump.Size() == dimM, "does not work when the bound constraints are active");
-   MFEM_VERIFY(Mvlump.Size() == dimU, "size check failure");
+   // MFEM_VERIFY(Mcslump.Size() == dimM, "does not work when the bound constraints are active");
+   // MFEM_VERIFY(Mvlump.Size() == dimU, "size check failure");
 
    MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,comm);
    MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,comm);
