@@ -45,19 +45,19 @@ public:
    void UpdateLinearSystem();
    void UpdateRHS();
 
-   ParMesh * GetMesh() const { return pmesh; }
-   MPI_Comm GetComm() const { return comm; }
+   ParMesh * GetMesh() const { return pmesh; };
+   MPI_Comm GetComm() const { return comm; };
 
-   ParFiniteElementSpace * GetFESpace() const { return fes; }
-   const FiniteElementCollection * GetFECol() const { return fec; }
-   int GetNumDofs() const { return ndofs; }
-   int GetNumTDofs() const { return ntdofs; }
-   int GetGlobalNumDofs() const { return gndofs; }
-   const HypreParMatrix * GetOperator() const { return K; }  
-   const Vector & GetRHS() const { return B; }
+   ParFiniteElementSpace * GetFESpace() const { return fes; };
+   const FiniteElementCollection * GetFECol() const { return fec; };
+   int GetNumDofs() const { return ndofs; };
+   int GetNumTDofs() const { return ntdofs; };
+   int GetGlobalNumDofs() const { return gndofs; };
+   const HypreParMatrix * GetOperator() const { return K; };
+   const Vector & GetRHS() const { return B; };
 
-   const ParGridFunction & GetDisplacementGridFunction() const { return x; }
-   const Array<int> & GetEssentialDofs() const { return ess_tdof_list; }
+   const ParGridFunction & GetDisplacementGridFunction() const { return x; };
+   const Array<int> & GetEssentialDofs() const { return ess_tdof_list; };
 
    real_t GetEnergy(const Vector & u) const;
    void GetGradient(const Vector & u, Vector & gradE) const;
@@ -119,6 +119,14 @@ private:
 
    HypreParMatrix * dcdu = nullptr;
 
+   HypreParMatrix * Mv = nullptr; // mass matrix in the volume
+   HypreParMatrix * Mcs = nullptr; // mass matrix on the contact surface
+   Vector Mvlump;
+   Vector Mcslumpfull;
+   Vector Mcslump;
+   bool useMassWeights;
+   
+
    Vector dl;
    Vector eps;
    Array<int> block_offsetsg;
@@ -135,7 +143,8 @@ public:
                      double tribol_ratio_,
                      int tribol_nranks_,
                      bool qp_ = true,
-		     bool bound_constraints_=true);
+		     bool bound_constraints_=true,
+		     bool mass_weights_=false);
    int GetDimU() {return dimU;}
    int GetDimM() {return dimM;}
    int GetDimC() {return dimC;}
@@ -179,13 +188,20 @@ public:
    HypreParMatrix * DddE(const Vector & d);
    
    void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
-   
-   ~OptContactProblem();
-};
-
-HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
+   HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
                               const Array<int> & ess_tdofs,
                               const std::set<int> & mortar_attrs, 
                               const std::set<int> & non_mortar_attrs, 
                               Vector &gap,  double tribol_ratio, int tribol_nranks);
+   
+   void GetLumpedMassWeights(Vector & Mcslump_, Vector & Mvlump_)
+   {
+      Mcslump_.SetSize(Mcslump.Size()); Mcslump_ = 0.0;
+      Mcslump_.Set(1.0, Mcslump);
+      Mvlump_.SetSize(Mvlump.Size()); Mvlump_ = 0.0;
+      Mvlump_.Set(1.0, Mvlump);
+   };
+   ~OptContactProblem();
+};
+
 

@@ -124,7 +124,7 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
 }
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int contactdofs, int constr, int numactiveconstraints, int optit, 
-   const Array<int> & iters, const Array<int> & amgiters)
+   const Array<int> & iters, const Array<int> & amgiters, const Array<int> &dratios)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -141,6 +141,7 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "Optimizer number of iterations  = " << optit << endl;
    outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
    outputfile << "AMG CG iteration numbers        = "; amgiters.Print(outputfile, amgiters.Size());
+   //outputfile << "Dmaxmin ratios = "; dratios.Print(outputfile, dratios.Size());
    // outputfile << "OptimizerIteration,CGIterations" << endl;
    // for (int i = 0; i< iters.Size(); i++)
    // {
@@ -279,6 +280,7 @@ int main(int argc, char *argv[])
    double tribol_ratio = 8.0;
    int nsolves = 1;
    bool amgsolve=false;
+   bool use_mass_weights = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -362,6 +364,9 @@ int main(int argc, char *argv[])
       "Number of ranks used in tribol redecomposition" );
    args.AddOption(&nsolves, "-nsolves", "--nsolves",
          "Number of solves for each time step" );
+   args.AddOption(&use_mass_weights, "-mass-weights", "--mass-weights", "-no-mass-weights",
+                  "--no-mass-weights",
+                  "Enable or disable Mass weighting in optimizers.");
    
 
    args.Parse();
@@ -590,6 +595,8 @@ int main(int argc, char *argv[])
    }
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
+   
+   
    Array<int> ess_tdof_list = prob.GetEssentialDofs();
    
    int gndofs = fes->GlobalTrueVSize();
@@ -784,7 +791,7 @@ int main(int argc, char *argv[])
 
       bool enable_bound_constraints = (bound_constraints && i >= bound_constraints_step) ? true : false;
 
-      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc, tribol_ratio, tribol_nranks, qp, enable_bound_constraints);
+      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc, tribol_ratio, tribol_nranks, qp, enable_bound_constraints, use_mass_weights);
       
       if( i >= bound_constraints_step && bound_constraints)
       {
@@ -826,6 +833,7 @@ int main(int argc, char *argv[])
       optimizer.SetLinearSolveRelTol(linsolverrtol);
       optimizer.SetLinearSolveAbsTol(linsolveratol);
       optimizer.SetLinearSolveRelaxType(relax_type);
+      optimizer.SetUsingMassWeights(use_mass_weights);
 
       if (elast)
       {
@@ -922,7 +930,7 @@ int main(int argc, char *argv[])
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
             OutputData(file_name, Einitial, Efinal, gndofs,gncols,numconstr, activenumconstr, optimizer.GetNumIterations(), 
-            CGiterations, AMGCGiterations);
+            CGiterations, AMGCGiterations, DMaxMinRatios);
             if (i == total_steps-1)
             {
                ostringstream final_file_name;

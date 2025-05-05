@@ -53,8 +53,12 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    dimU = problem->GetDimU();
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
+   MFEM_VERIFY(dimM == dimC, "only works for dimC = dimM");
 
    comm = problem->GetComm();
+   problem->GetLumpedMassWeights(Mcslump, Mvlump);
+   MFEM_VERIFY(Mcslump.Size() == dimM, "does not work when the bound constraints are active");
+   MFEM_VERIFY(Mvlump.Size() == dimU, "size check failure");
 
    MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,comm);
    MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,comm);
@@ -92,6 +96,8 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    iAmRoot = MyRank == 0 ? true : false;
 }
 
+
+// s>=0, s --> s* = O(h^2)
 double ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat, double tau)
 {
    double alphaMaxloc = 1.0;
@@ -172,7 +178,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    thetaMin = 1.e-4 * max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
 
-   double Eeval, maxBarrierSolves, Eevalmu0;
+   double Eeval, Eeval0, maxBarrierSolves, Eevalmu0;
    bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
    
    maxBarrierSolves = 10;
@@ -187,15 +193,21 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = true;
       Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
-      if(Eevalmu0 < OptTol)
+      if(Eevalmu0 < OptTol) // div Eeval0 for rel tol
       {
          converged = true;
          int numActiveConstraintsLoc = 0;
-	      double zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
-         // for (int i =0; i<zlk.Size(); i++)
-         // {
-         //    mfem::out << "zlk("<<i<<") = " << zlk(i) << endl;
-         // }
+	 double zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
+	 double uinfnorm = GlobalLpNorm(infinity(), Xk.GetBlock(0).Normlinf(), MPI_COMM_WORLD);
+	 double sinfnorm = GlobalLpNorm(infinity(), Xk.GetBlock(1).Normlinf(), MPI_COMM_WORLD);
+	 double linfnorm = GlobalLpNorm(infinity(), lk.Normlinf(), MPI_COMM_WORLD);
+	 if (iAmRoot)
+	 {
+	    cout << "||u||_inf = " << uinfnorm << endl;
+	    cout << "||s||_inf = " << sinfnorm << endl;
+	    cout << "||z||_inf = " << zinfnorm << endl;
+	    cout << "||l||_inf = " << linfnorm << endl;
+	 }
 
 	      int dimG = dimM;
 	      if (dimM > dimU)
@@ -224,13 +236,17 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
       
       if(jOpt > 0) { maxBarrierSolves = 1; }
-      
+      double Eeval_mu_0;
       for(int i = 0; i < maxBarrierSolves; i++)
       {
          // A-3. Check convergence of the barrier subproblem
          printOptimalityError = true;
          Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
-         if(Eeval < kEps * mu_k)
+	 if (i == 0)
+	 {
+	    Eeval_mu_0 = Eeval;
+	 }
+	 if(Eeval < kEps * mu_k)
          {
             if(iAmRoot)
             {
@@ -393,11 +409,22 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
-   for(int ii = 0; ii < dimM; ii++)
+   if (useMassWeights)
    {
-      DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii)) + delta;
+      for(int ii = 0; ii < dimM; ii++)
+      {
+         DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+      }
    }
-
+   else
+   {
+      for(int ii = 0; ii < dimM; ii++)
+      {
+         DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii)) + delta;
+      }
+   }
+   
+   
    double dmax = (DiagLogBar.Size() > 0) ? DiagLogBar.Max() : -infinity();
    double dmin = (DiagLogBar.Size() > 0) ? DiagLogBar.Min() : infinity();
 
@@ -410,21 +437,8 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       dynamiclinSolver = 6;
    }
    dmaxmin_ratio.Append(dmax/dmin);
+   
 
-
-   if(saveLogBarrierIterates)
-   {
-      std::ofstream diagStream;
-      char diagString[100];
-      snprintf(diagString, 100, "logBarrierHessiandata/D%d.dat", jOpt);
-      diagStream.open(diagString, ios::out | ios::trunc);
-      for(int ii = 0; ii < dimM; ii++)
-      {
-         diagStream << setprecision(30) << DiagLogBar(ii) << endl;
-         // mfem::out << DiagLogBar(ii) << endl;
-      }
-      diagStream.close();
-   } 
 
    delete Wmm;
    if(Hmm)
@@ -464,16 +478,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       delete DuuS;
    }
   
-   bool generateHuudata = false;
-   if (generateHuudata)
-   {
-      std::ostringstream Huu_file_name;
-      Huu_file_name << "data/Huu" << jOpt;
-      Huu->Print(Huu_file_name.str());
-   } 
-   
-   
-
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
    //          [H_(m,u)  W_(m,m)   J_m^T]
@@ -1273,26 +1277,40 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
    Vector comp(dimM); comp = 0.0; // complementarity M Z - mu 1
 
    DxL(x, l, zl, gradL);
-   E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), MPI_COMM_WORLD); 
 
    problem->c(x, cx);
-   E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD); 
 
 
    for(int ii = 0; ii < dimM; ii++) 
    { 
-      comp(ii) = x(dimU + ii) * zl(ii) - mu;
+      comp(ii) = abs((x(dimU + ii) - ml(ii)) * zl(ii) - mu);
    }
-   E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD); 
+   
+   if (!useMassWeights)
+   {
+      E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), MPI_COMM_WORLD); 
+      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD); 
+      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD); 
 
-   // compute norms of Lagrange multipliers
-   // if they are growing large this is indicative of
-   // poorly conditioned constraint Jacobians
-   // and here we terminate the algorithm early
-   double zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD); 
-   double ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
-   sc = max(sMax, zl1 / (double(gdimM)) ) / sMax;
-   sd = max(sMax, (ll1 + zl1) / (double(gdimC + gdimM))) / sMax;
+      // compute norms of Lagrange multipliers
+      // if they are growing large this is indicative of
+      // poorly conditioned constraint Jacobians
+      // and here we terminate the algorithm early
+      double zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD); 
+      double ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
+      sc = max(sMax, zl1 / (double(gdimM)) ) / sMax;
+      sd = max(sMax, (ll1 + zl1) / (double(gdimC + gdimM))) / sMax;
+   }
+   else
+   {
+      BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
+      MxinvgradL.Set(1.0, gradL);
+      MxinvgradL.GetBlock(0) /= Mvlump; 
+      MxinvgradL.GetBlock(1) /= Mcslump;
+      E1 = sqrt(InnerProduct(MPI_COMM_WORLD, gradL, MxinvgradL));
+      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD);
+      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD);
+   }
    
    
    optimalityError = max(max(E1, E2), E3);
@@ -1305,11 +1323,11 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
       cout << "complimentarity measure = " << E3 << endl;
       cout << "optimality error = " << optimalityError << endl;
 
-      if( sc > 1.e2 || sd > 1.e2)
-      {
-         cout << "WARNING: skipping non-trivial optimality error scaling\n";
-	 cout << "sc = " << sc << ", sd = " << sd << endl;
-      }
+      //if( sc > 1.e2 || sd > 1.e2)
+      //{
+      //   cout << "WARNING: skipping non-trivial optimality error scaling\n";
+      //   cout << "sc = " << sc << ", sd = " << sd << endl;
+      //}
    }
    return optimalityError;
 }
@@ -1323,7 +1341,17 @@ double ParInteriorPointSolver::theta(const BlockVector &x)
 {
    Vector cx(dimC);
    problem->c(x, cx);
-   return sqrt(InnerProduct(MPI_COMM_WORLD,cx, cx));
+   if (useMassWeights)
+   {
+      Vector Mcx(dimC);
+      Mcx.Set(1.0, cx);
+      Mcx *= Mcslump;
+      return sqrt(InnerProduct(MPI_COMM_WORLD, Mcx, cx)); 
+   }
+   else
+   {
+      return sqrt(InnerProduct(MPI_COMM_WORLD, cx, cx));
+   }
 }
 
 // log-barrier objective
@@ -1331,9 +1359,19 @@ double ParInteriorPointSolver::phi(const BlockVector &x, double mu, int & eval_e
 {
    double fx = problem->CalcObjective(x, eval_err); 
    double logBarrierLoc = 0.0;
-   for(int i = 0; i < dimM; i++) 
-   { 
-     logBarrierLoc += log(x(dimU+i)-ml(i));
+   if (useMassWeights)
+   {
+      for(int i = 0; i < dimM; i++) 
+      { 
+        logBarrierLoc += Mcslump(i) * log(x(dimU+i)-ml(i));
+      }
+   }
+   else
+   {
+      for(int i = 0; i < dimM; i++) 
+      { 
+        logBarrierLoc += log(x(dimU+i)-ml(i));
+      }
    }
    double logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -1351,11 +1389,19 @@ double ParInteriorPointSolver::phi(const BlockVector & x, double mu)
 void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
-   
-   for(int i = 0; i < dimM; i++) 
-   { 
-      y(dimU + i) -= mu / (x(dimU + i) - ml(i));
-   } 
+   Vector ytemp(dimM); ytemp = 0.0;
+   for (int i = 0; i < dimM; i++)
+   {
+      ytemp(i) = 1. / (x(dimU + i) - ml(i));
+   }
+
+   if (useMassWeights)
+   {
+      ytemp *= Mcslump;
+   }
+
+   y.GetBlock(1).Add(-mu, ytemp);
+  
 }
 
 // Lagrangian function evaluation
@@ -1365,7 +1411,14 @@ double ParInteriorPointSolver::L(const BlockVector &x, const Vector &l, const Ve
    int eval_err = 0;
    double fx = problem->CalcObjective(x, eval_err);
    Vector cx(dimC); problem->c(x, cx);
-   return (fx + InnerProduct(MPI_COMM_WORLD,cx, l) - InnerProduct(MPI_COMM_WORLD, x.GetBlock(1), zl));
+   Vector temp(dimM); temp = 0.0;
+   temp.Set(1.0, x.GetBlock(1));
+   temp.Add(-1.0, ml);
+   if( useMassWeights)
+   {
+      temp *= Mcslump;
+   }
+   return (fx + InnerProduct(MPI_COMM_WORLD, cx, l) - InnerProduct(MPI_COMM_WORLD, temp, zl));
 }
 
 void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Vector &zl, BlockVector &y)
@@ -1387,7 +1440,14 @@ void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Ve
    delete JacmT;
    
    y.Add(1.0, gradxf);
-   (y.GetBlock(1)).Add(-1.0, zl);
+   
+   Vector temp(dimM); temp = 0.0;
+   temp.Set(1.0, zl);
+   if (useMassWeights)
+   {
+      temp *= Mcslump;
+   }
+   (y.GetBlock(1)).Add(-1.0, temp);
 }
 
 bool ParInteriorPointSolver::GetConverged() const
@@ -1408,6 +1468,11 @@ void ParInteriorPointSolver::SetMaxIter(int max_it)
 void ParInteriorPointSolver::SetBarrierParameter(double mu_0)
 {
    mu_k = mu_0;
+}
+
+void ParInteriorPointSolver::SetUsingMassWeights(bool useMassWeights_)
+{
+   useMassWeights = useMassWeights_;
 }
 
 void ParInteriorPointSolver::SaveLogBarrierHessianIterates(bool save)

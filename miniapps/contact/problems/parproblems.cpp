@@ -209,11 +209,12 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                      double tribol_ratio_,
                      int tribol_nranks_,
                      bool qp_,
-		     bool bound_constraints_)
+		     bool bound_constraints_,
+		     bool mass_weights_)
 : problem(problem_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_),
   coords(coords_), doublepass(doublepass_), xref(xref_), xrefbc(xrefbc_), 
    tribol_ratio(tribol_ratio_), tribol_nranks(tribol_nranks_), qp(qp_), 
-	bound_constraints(bound_constraints_), block_offsetsg(4)
+	bound_constraints(bound_constraints_), useMassWeihghts(mass_weights_), block_offsetsg(4)
 {
    comm = problem->GetComm(); 
    pmesh = problem->GetMesh();
@@ -266,6 +267,18 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 
    ml.SetSize(dimM); ml = 0.0;
 
+   MFEM_VERIFY(vfes, "space is null");
+   ParBilinearForm MassForm(vfes);
+   MassForm.AddDomainIntegrator(new VectorMassIntegrator);
+   MassForm.Assemble(); 
+
+   Array<int> empty_tdof_list;
+   Mv = new HypreParMatrix();
+   MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
+
+   Vector onev(Mv->Width()); onev = 1.0;
+   Mvlump.SetSize(Mv->Height());
+   Mv->Mult(onev, Mvlump);
 }
 
 
@@ -633,13 +646,15 @@ OptContactProblem::~OptContactProblem()
    delete NegId;
    delete Iu;
    delete negIu;
+   delete Mv;
+   delete Mcs;
    if (dcdu)
    {
       delete dcdu;
    }
 }
 
-HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords, 
+HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction * coords, 
                              const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs, 
                               const std::set<int> & non_mortar_attrs, 
                               Vector &gap, double ratio, int tribol_nranks)
@@ -670,6 +685,20 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
    int vsize = pressure.ParFESpace()->GlobalTrueVSize();
+   
+   ParBilinearForm acs_form(pressure.ParFESpace());
+   acs_form.AddDomainIntegrator(new MassIntegrator);
+   acs_form.Assemble();
+   Array<int> empty_tdof_list;
+   Mcs = new HypreParMatrix();
+   acs_form.FormSystemMatrix(empty_tdof_list,*Mcs);
+   
+   Vector onecs(Mcs->Width()); onecs = 1.0;
+   Mcslumpfull.SetSize(Mcs->Height()); //Vector
+   Mcs->Mult(onecs, Mcslumpfull); 
+
+
+
    if (mfem::Mpi::Root())
    {
       std::cout << "Number of pressure unknowns: " <<
@@ -683,8 +712,8 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    );
 
    // Update contact mesh decomposition
-   tribol::updateMfemParallelDecomposition(tribol_nranks);
-   //tribol::updateMfemParallelDecomposition();
+   //tribol::updateMfemParallelDecomposition(tribol_nranks);
+   tribol::updateMfemParallelDecomposition();
 
    // Update contact gaps, forces, and tangent stiffness
    int cycle = 1;   // pseudo cycle
@@ -696,6 +725,10 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
+   if (useMassWeights)
+   { 
+      Mfull->InvScaleRows(Mcslumpfull); // scaling
+   }
    HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
    delete Me;
 
@@ -713,7 +746,7 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
          max_l1_row_norm = max( max_l1_row_norm, merged.GetRowNorml1(i));
       }
    }
-
+   
    for (int i = 0; i<h; i++)
    {
       if (!merged.RowIsEmpty(i))
@@ -762,14 +795,23 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
 
    Vector gap_full;
    tribol::getMfemGap(coupling_scheme_id, gap_full);
+
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    Vector gap_true(P_submesh.Width());
+   
+   
    P_submesh.MultTranspose(gap_full,gap_true);
    gap.SetSize(nrows);
+   Mcslump.SetSize(nrows);
 
    for (int i = 0; i<nrows; i++) 
    {
       gap[i] = gap_true[nonzero_rows[i]];
+      Mcslump(i) = Mcslumpfull(nonzero_rows[i]);
+   }
+   if (useMassWeights)
+   {
+      gap /= Mcslump;
    }
    tribol::finalize();
    return M;

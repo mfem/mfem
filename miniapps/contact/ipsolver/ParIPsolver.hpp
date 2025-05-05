@@ -51,6 +51,9 @@ protected:
     HypreParMatrix * JuT = nullptr;
     HypreParMatrix * JmT = nullptr;
 
+    Vector Mcslump;
+    Vector Mvlump;
+
 
     double alphaCurvatureTest;
     double deltaRegLast;
@@ -89,6 +92,7 @@ protected:
     int relax_type = 88;
     bool monitor = false;
     bool save_matrix_data = false;
+    bool useMassWeights = false;
     int label = -1;
     MPI_Comm comm;
 public:
@@ -121,6 +125,7 @@ public:
     void SetTol(double);
     void SetMaxIter(int);
     void SetBarrierParameter(double);    
+    void SetUsingMassWeights(bool); 
     void SaveLogBarrierHessianIterates(bool);
     void SetLinearSolver(int);
     void SetLinearSolveAbsTol(double);
