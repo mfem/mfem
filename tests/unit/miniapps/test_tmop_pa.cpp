@@ -61,6 +61,7 @@ namespace mfem
 
 struct Req
 {
+   real_t bal_weights;
    real_t init_energy;
    real_t tauval;
    real_t dot;
@@ -72,23 +73,23 @@ int tmop(int id, Req &res, int argc, char *argv[])
 {
    bool pa = false;
    const char *mesh_file = nullptr;
-   int order = 1;
-   int rs_levels = 0;
-   int metric_id = 1;
-   int target_id = 1;
-   int quad_type = 1;
-   int quad_order = 2;
-   int newton_iter = 100;
-   real_t newton_rtol = 1e-8;
-   int lin_solver = 2;
-   int max_lin_iter = 100;
-   real_t lim_const = 0.0;
-   int lim_type = 0;
-   int normalization = 0;
-   real_t jitter = 0.0;
-   bool diag = true;
-   int newton_loop = 1;
-   int combo = 0;
+   int order             = 1;
+   int rs_levels         = 0;
+   int metric_id         = 1;
+   int target_id         = 1;
+   int quad_type         = 1;
+   int quad_order        = 2;
+   int newton_iter       = 100;
+   real_t newton_rtol    = 1e-8;
+   int lin_solver        = 2;
+   int max_lin_iter      = 100;
+   real_t lim_const      = 0.0;
+   int lim_type          = 0;
+   int normalization     = 0;
+   real_t jitter         = 0.0;
+   bool diag             = true;
+   int newton_loop       = 1;
+   int combo             = 0;
 
    constexpr int verbosity_level = 0;
    constexpr int seed = 0x100001b3;
@@ -100,6 +101,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    REQUIRE_FALSE(move_bnd);
 
    OptionsParser args(argc, argv);
+   args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
    args.AddOption(&mesh_file, "-m", "--mesh", "");
    args.AddOption(&order, "-o", "--order", "");
    args.AddOption(&rs_levels, "-rs", "--refine-serial", "");
@@ -114,14 +116,17 @@ int tmop(int id, Req &res, int argc, char *argv[])
    args.AddOption(&max_lin_iter, "-li", "--lin-iter", "");
    args.AddOption(&lim_const, "-lc", "--limit-const", "");
    args.AddOption(&lim_type, "-lt", "--limit-type", "");
-   args.AddOption(&normalization, "-nor", "--normalization", "");
-   args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
+   args.AddOption(&normalization, "-nor", "--normalization",
+                  "-no-nor", "--no-normalization", "");
    args.AddOption(&jitter, "-ji", "--jitter", "");
    args.AddOption(&diag, "-diag", "--diag", "-no-diag", "--no-diag", "");
-   args.AddOption(&combo, "-cmb", "--combo-type", "");
+   args.AddOption(&combomet, "-cmb", "--combo-type", "");
+   args.AddOption(&bal_expl_combo, "-bec", "--balance-explicit-combo",
+                  "-no-bec", "--balance-explicit-combo", "");
    args.Parse();
    if (!args.Good())
    {
+      args.PrintOptions(mfem::out);
       if (id == 0) { args.PrintUsage(cout); }
       return 1;
    }
@@ -194,19 +199,19 @@ int tmop(int id, Req &res, int argc, char *argv[])
    std::unique_ptr<TMOP_QualityMetric> metric = nullptr;
    switch (metric_id)
    {
-      case 1:   metric.reset(new TMOP_Metric_001); break;
-      case 2:   metric.reset(new TMOP_Metric_002); break;
-      case 7:   metric.reset(new TMOP_Metric_007); break;
-      case 77:  metric.reset(new TMOP_Metric_077); break;
-      case 80:  metric.reset(new TMOP_Metric_080(0.5)); break;
-      case 94:  metric.reset(new TMOP_Metric_094); break;
-      case 302: metric.reset(new TMOP_Metric_302); break;
-      case 303: metric.reset(new TMOP_Metric_303); break;
-      case 315: metric.reset(new TMOP_Metric_315); break;
-      case 318: metric.reset(new TMOP_Metric_318); break;
-      case 321: metric.reset(new TMOP_Metric_321); break;
-      case 332: metric.reset(new TMOP_Metric_332(0.5)); break;
-      case 338: metric.reset(new TMOP_Metric_338); break;
+      case   1: metric = new TMOP_Metric_001; break;
+      case   2: metric = new TMOP_Metric_002; break;
+      case   7: metric = new TMOP_Metric_007; break;
+      case  77: metric = new TMOP_Metric_077; break;
+      case  80: metric = new TMOP_Metric_080(0.5); break;
+      case  94: metric = new TMOP_Metric_094; break;
+      case 302: metric = new TMOP_Metric_302; break;
+      case 303: metric = new TMOP_Metric_303; break;
+      case 315: metric = new TMOP_Metric_315; break;
+      case 318: metric = new TMOP_Metric_318; break;
+      case 321: metric = new TMOP_Metric_321; break;
+      case 332: metric = new TMOP_Metric_332(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       default:
       {
          cout << "Unknown metric_id: " << metric_id << endl;
@@ -234,22 +239,22 @@ int tmop(int id, Req &res, int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff.reset(new HessianCoefficient(dim, metric_id));
-         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff.get());
-         target_c.reset(tc);
+         adapt_coeff = new HessianCoefficient(dim, metric_id);
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
          break;
       }
       case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         auto *tc = new DiscreteAdaptTC(target_t);
          tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          ConstructSizeGF(size);
          tc->SetDiscreteTargetSize(size);
          target_c.reset(tc);
          break;
       }
-      case 7: // aspect-ratio 3D
+      case 7: // Discrete aspect-ratio 3D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
@@ -274,10 +279,13 @@ int tmop(int id, Req &res, int argc, char *argv[])
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
    if (target_c == NULL)
    {
-      target_c.reset(new TargetConstructor(target_t, MPI_COMM_WORLD));
+      target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
 #else
-   if (target_c == nullptr) { target_c.reset(new TargetConstructor(target_t)); }
+   if (target_c == nullptr)
+   {
+      target_c = new TargetConstructor(target_t);
+   }
 #endif
    target_c->SetNodes(x0_before_jitter);
 
@@ -298,69 +306,83 @@ int tmop(int id, Req &res, int argc, char *argv[])
       }
    }
 
-   TMOP_Integrator *he_nlf_integ =
-      new TMOP_Integrator(metric.get(), target_c.get());
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
 
-   if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x0); }
+   // Automatically balanced gamma in composite metrics.
+   res.bal_weights = 0.0;
+   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric.get());
+   if (metric_combo && bal_expl_combo)
+   {
+      Vector bal_weights;
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, ir);
+      metric_combo->SetWeights(bal_weights);
+      res.bal_weights = bal_weights.Norml2();
+   }
+
+   if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
    ParFiniteElementSpace dist_fes(pmesh.get(), &fec); // scalar space
    ParGridFunction dist(&dist_fes);
    dist = 1.0;
-   if (normalization == 1) { dist = small_phys_size; }
+   if (normalization) { dist = small_phys_size; }
    auto coeff_lim_func = [&](const Vector &x) { return x(0) + lim_const; };
    FunctionCoefficient lim_coeff(coeff_lim_func);
    if (lim_const != 0.0)
    {
-      if (lim_type == 0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+      if (lim_type == 0)
+      {
+         he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
+      }
       else
       {
-         he_nlf_integ->EnableLimiting(x0, dist, lim_coeff,
-                                      new TMOP_ExponentialLimiter);
+         tmop_integ->EnableLimiting(x0, dist, lim_coeff,
+                                    new TMOP_ExponentialLimiter);
       }
    }
 
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
-   FunctionCoefficient *coeff1 = nullptr;
+   FunctionCoefficient *metric_coeff1 = nullptr;
    TMOP_QualityMetric *metric2 = nullptr;
    TargetConstructor *target_c2 = nullptr;
-   FunctionCoefficient coeff2(weight_fun);
-   if (combo > 0)
+   FunctionCoefficient metric_coeff2(weight_fun);
+   if (combomet > 0)
    {
       // First metric.
       auto coeff_1_func = [&](const Vector &x) { return x(0) + 10.0; };
-      coeff1 = new FunctionCoefficient(coeff_1_func);
-      he_nlf_integ->SetCoefficient(*coeff1);
+      metric_coeff1 = new FunctionCoefficient(coeff_1_func);
+      tmop_integ->SetCoefficient(*metric_coeff1);
       // Second metric.
       if (dim == 2) { metric2 = new TMOP_Metric_077; }
       else { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = nullptr;
-      if (combo == 1)
+      if (combomet == 1)
       {
          target_c2 =
             new TargetConstructor(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
          target_c2->SetVolumeScale(0.01);
          target_c2->SetNodes(x0);
          he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
-         he_nlf_integ2->SetCoefficient(coeff2);
+         he_nlf_integ2->SetCoefficient(metric_coeff2);
       }
       else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c.get()); }
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
-      auto *combo_integ = new TMOPComboIntegrator;
+      TMOPComboIntegrator *combo_integ = new TMOPComboIntegrator;
       combo_integ->AddTMOPIntegrator(he_nlf_integ);
       combo_integ->AddTMOPIntegrator(he_nlf_integ2);
       if (normalization) { combo_integ->ParEnableNormalization(x0); }
       if (lim_const != 0.0)
-      {
-         combo_integ->EnableLimiting(x0, dist, lim_coeff);
-      }
+      { combo_integ->EnableLimiting(x0, dist, lim_coeff); }
       nlf.AddDomainIntegrator(combo_integ);
    }
-   else { nlf.AddDomainIntegrator(he_nlf_integ); }
+   else
+   {
+      nlf.AddDomainIntegrator(he_nlf_integ);
+   }
    nlf.Setup();
 
    const real_t init_energy = nlf.GetParGridFunctionEnergy(x);
@@ -376,7 +398,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector d(fes.GetTrueVSize());
    d.UseDevice(true);
    res.diag = 0.0;
-   if (diag && combo == 0)
+   if (diag && combomet == 0)
    {
       if (pa) { nlf.GetGradient(xt).AssembleDiagonal(d); }
       else
@@ -384,7 +406,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          ParNonlinearForm nlf_fa(&fes);
          auto *nlfi_fa = new TMOP_Integrator(metric.get(), target_c.get());
          nlfi_fa->SetIntegrationRule(*ir);
-         if (normalization == 1) { nlfi_fa->ParEnableNormalization(x0); }
+         if (normalization) { nlfi_fa->ParEnableNormalization(x0); }
          if (lim_const != 0.0)
          {
             if (lim_type == 0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
@@ -404,7 +426,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
    // Linear solver for the system's Jacobian
    Solver *S = nullptr, *S_prec = nullptr;
    constexpr real_t linsol_rtol = 1e-12;
-   if (lin_solver == 0) { S = new DSmoother(1, 1.0, max_lin_iter); }
+   if (lin_solver == 0)
+   {
+      S = new DSmoother(1, 1.0, max_lin_iter);
+   }
    else if (lin_solver == 1)
    {
       auto cg = new CGSolver(PFesGetParMeshGetComm(fes));
@@ -499,22 +524,19 @@ int tmop(int id, Req &res, int argc, char *argv[])
       }
 
       dist *= 0.93;
-      if (normalization == 1) { dist = small_phys_size; }
+      if (normalization) { dist = small_phys_size; }
 
       if (lim_const != 0.0)
       {
-         if (lim_type == 0)
-         {
-            he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
-         }
+         if (lim_type == 0) { tmop_integ->EnableLimiting(x0, dist, lim_coeff); }
          else
          {
-            he_nlf_integ->EnableLimiting(x0, dist, lim_coeff,
-                                         new TMOP_ExponentialLimiter);
+            tmop_integ->EnableLimiting(x0, dist, lim_coeff,
+                                       new TMOP_ExponentialLimiter);
          }
       }
 
-      if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x); }
+      if (normalization) { tmop_integ->ParEnableNormalization(x); }
 
       nlf.Setup();
 
@@ -535,6 +557,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    delete S;
    delete S_prec;
+   delete pmesh;
+   delete metric;
    delete coeff1;
    delete metric2;
    delete target_c2;
@@ -555,14 +579,12 @@ static void req_tmop(int id, const char *args[], Req &res)
    REQUIRE(tmop(id, res, argn(args), const_cast<char **>(args)) == 0);
 }
 
-#define DEFAULT_ARGS                                                      \
-   const char *args[] = {                                                 \
-      "tmop_pa_tests", "-pa", "-m",    "mesh", "-o",   "0", "-rs", "0",   \
-      "-mid",          "0",   "-tid",  "0",    "-qt",  "1", "-qo", "0",   \
-      "-ni",           "10",  "-rtol", "1e-8", "-ls",  "2", "-li", "100", \
-      "-lc",           "0",   "-nor",  "0",    "-ji",  "0", "-nl", "1",   \
-      "-cmb",          "0",   "-lt",   "0",    nullptr                    \
-   }
+#define DEFAULT_ARGS const char *args[] = { \
+    "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
+    "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
+    "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
+   "-lc", "0", "-nor", "0", "-ji", "0", "-nl", "1",\
+   "-cmb", "0", "-lt", "0", nullptr }
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
@@ -571,41 +593,44 @@ constexpr int MID = 9;
 constexpr int TID = 11;
 constexpr int QTY = 13;
 constexpr int QOR = 15;
-constexpr int NI = 17;
-constexpr int RTOL = 19;
-constexpr int LS = 21;
-constexpr int LI = 23;
-constexpr int LC = 25;
+constexpr int NI  = 17;
+constexpr int LS  = 21;
+constexpr int LI  = 23;
+constexpr int LC  = 25;
 constexpr int NOR = 27;
-constexpr int JI = 29;
-constexpr int NL = 31;
+constexpr int JI  = 29;
+constexpr int NL  = 31;
 constexpr int CMB = 33;
-constexpr int LT = 35;
+constexpr int LT  = 35;
 
 static void dump_args(int id, const char *args[])
 {
    if (id != 0) { return; }
    const char *format =
-      "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s "
-      "-ni %s -rtol %s"      // newton iteration and tolerance
-      "%s%s%s%s"             // Optional args: RS, QTY
+      "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s"
+      "%s%s%s%s"         // Optional args: RS, QTY
       "%s%s%s%s%s%s%s%s%s%s" // Optional args: LC, NOR, JI, NL, CMB, LT
-      " %s\n";               // Assembly level
-   printf(
-      format, args[MSH], args[POR], args[QOR], args[MID], args[TID], args[LS],
-      args[NI], args[RTOL],
-      // Optional args: RS, QTY
-      args[RS][0] == '0' ? "" : " -rs ", args[RS][0] == '0' ? "" : args[RS],
-      args[QTY][0] == '1' ? "" : " -qt ", args[QTY][0] == '1' ? "" : args[QTY],
-      // Optional args: LC, NOR, JI, NL & CMB
-      args[LC][0] == '0' ? "" : " -lc ", args[LC][0] == '0' ? "" : args[LC],
-      args[NOR][0] == '0' ? "" : " -nor",
-      atof(args[JI]) == 0.0 ? "" : " -jitter",
-      args[NL][0] == '1' ? "" : " -nl ", args[NL][0] == '1' ? "" : args[NL],
-      args[CMB][0] == '0' ? "" : " -cmb ", args[CMB][0] == '0' ? "" : args[CMB],
-      args[LT][0] == '0' ? "" : " -lt ", args[LT][0] == '0' ? "" : args[LT],
-      // Assembly level
-      args[ALV]);
+      " %s\n";           // Assembly level
+   printf(format,
+          args[MSH], args[POR], args[QOR], args[MID], args[TID], args[LS],
+          // Optional args: RS, QTY
+          args[RS][0] == '0' ? "" : " -rs ",
+          args[RS][0] == '0' ? "" : args[RS],
+          args[QTY][0] == '1' ? "" : " -qt ",
+          args[QTY][0] == '1' ? "" : args[QTY],
+          // Optional args: LC, NOR, JI, NL & CMB
+          args[LC][0] == '0' ? "" : " -lc ",
+          args[LC][0] == '0' ? "" : args[LC],
+          args[NOR][0] == '0' ? "" : " -nor",
+          atof(args[JI]) == 0.0 ? "" : " -jitter",
+          args[NL][0] == '1' ? "" : " -nl ",
+          args[NL][0] == '1' ? "" : args[NL],
+          args[CMB][0] == '0' ? "" : " -cmb ",
+          args[CMB][0] == '0' ? "" : args[CMB],
+          args[LT][0] == '0' ? "" : " -lt ",
+          args[LT][0] == '0' ? "" : args[LT],
+          // Assembly level
+          args[ALV]);
    fflush(0);
 }
 
@@ -616,6 +641,7 @@ static void tmop_require(int id, const char *args[])
    (args[ALV] = "-no-pa", dump_args(id, args), req_tmop(id, args, res[1]));
    REQUIRE(res[0].dot == MFEM_Approx(res[1].dot));
    REQUIRE(res[0].tauval == MFEM_Approx(res[1].tauval));
+   REQUIRE(res[0].bal_weights == MFEM_Approx(res[1].bal_weights));
    REQUIRE(res[0].init_energy == MFEM_Approx(res[1].init_energy));
    REQUIRE(res[0].final_energy == MFEM_Approx(res[1].final_energy, 2e-12));
    REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
@@ -650,10 +676,11 @@ public:
       const char *name = nullptr;
       const char *mesh = "../../data/star.mesh";
       int newton_iter = 100;
-      double newton_rtol = 1e-8;
       int rs_levels = 0;
       int max_lin_iter = 100;
       int combo = 0;
+      bool diag = true;
+      bool bal_expl_combo = false;
       bool normalization = false;
       real_t lim_const = 0.0;
       int lim_type = 0;
@@ -666,107 +693,39 @@ public:
       list_t newton_loop = { 1, 3 };
 
    public:
-      Args(const char *name = nullptr): name(name) {}
-      Args &MESH(const char *arg)
-      {
-         mesh = arg;
-         return *this;
-      }
-      Args &NEWTON_ITERATIONS(const int arg)
-      {
-         newton_iter = arg;
-         return *this;
-      }
-      Args &NEWTON_RTOLERANCE(const double arg)
-      {
-         newton_rtol = arg;
-         return *this;
-      }
-      Args &REFINE(const int arg)
-      {
-         rs_levels = arg;
-         return *this;
-      }
-      Args &LINEAR_ITERATIONS(const int arg)
-      {
-         max_lin_iter = arg;
-         return *this;
-      }
-      Args &CMB(const int arg)
-      {
-         combo = arg;
-         return *this;
-      }
-      Args &NORMALIZATION(const bool arg)
-      {
-         normalization = arg;
-         return *this;
-      }
-      Args &LIMITING(const real_t arg)
-      {
-         lim_const = arg;
-         return *this;
-      }
-      Args &LIMIT_TYPE(const int arg)
-      {
-         lim_type = arg;
-         return *this;
-      }
-      Args &JI(const real_t arg)
-      {
-         jitter = arg;
-         return *this;
-      }
+      Args(const char *name =nullptr): name(name) {}
+      Args &MESH(const char *arg) { mesh = arg; return *this; }
+      Args &NEWTON_ITERATIONS(const int arg) { newton_iter = arg; return *this; }
+      Args &REFINE(const int arg) { rs_levels = arg; return *this; }
+      Args &LINEAR_ITERATIONS(const int arg) { max_lin_iter = arg; return *this; }
+      Args &CMB(const int arg) { combo = arg; return *this; }
+      Args &NORMALIZATION(const bool arg) { normalization = arg; return *this; }
+      Args &LIMITING(const real_t arg) { lim_const = arg; return *this; }
+      Args &LIMIT_TYPE(const int arg) { lim_type = arg; return *this; }
+      Args &JI(const real_t arg) { jitter = arg; return *this; }
 
-      Args &POR(list_t arg)
-      {
-         order = arg;
-         return *this;
-      }
-      Args &TID(list_t arg)
-      {
-         target_id = arg;
-         return *this;
-      }
-      Args &MID(list_t arg)
-      {
-         metric_id = arg;
-         return *this;
-      }
-      Args &QOR(list_t arg)
-      {
-         quad_order = arg;
-         return *this;
-      }
-      Args &LS(list_t arg)
-      {
-         lin_solver = arg;
-         return *this;
-      }
-      Args &NL(list_t arg)
-      {
-         newton_loop = arg;
-         return *this;
-      }
+      Args &POR(set arg) { order = arg; return *this; }
+      Args &TID(set arg) { target_id = arg; return *this; }
+      Args &MID(set arg) { metric_id = arg; return *this; }
+      Args &QOR(set arg) { quad_order = arg; return *this; }
+      Args &LS(set arg) { lin_solver = arg; return *this; }
+      Args &NL(set arg) { newton_loop = arg; return *this; }
    };
    const char *name, *mesh;
    int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
    bool NORMALIZATION;
-   double NEWTON_RTOLERANCE, LIMITING, JITTER;
-   list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS,
-          NEWTON_LOOPS;
-
+   real_t LIMITING, JITTER;
+   set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 public:
    Launch(Args a = Args()):
-      name(a.name), mesh(a.mesh), NEWTON_ITERATIONS(a.newton_iter),
-      REFINE(a.rs_levels), LINEAR_ITERATIONS(a.max_lin_iter), COMBO(a.combo),
-      LIMIT_TYPE(a.lim_type), NORMALIZATION(a.normalization),
-      NEWTON_RTOLERANCE(a.newton_rtol), LIMITING(a.lim_const), JITTER(a.jitter),
+      name(a.name), mesh(a.mesh),
+      NEWTON_ITERATIONS(a.newton_iter), REFINE(a.rs_levels),
+      LINEAR_ITERATIONS(a.max_lin_iter), COMBO(a.combo), LIMIT_TYPE(a.lim_type),
+      NORMALIZATION(a.normalization), LIMITING(a.lim_const), JITTER(a.jitter),
       P_ORDERS(a.order), TARGET_IDS(a.target_id), METRIC_IDS(a.metric_id),
       Q_ORDERS(a.quad_order), LINEAR_SOLVERS(a.lin_solver),
       NEWTON_LOOPS(a.newton_loop)
-   {
-   }
+   { }
 
    void Run(const int id = 0, bool all = false) const
    {
@@ -775,15 +734,14 @@ public:
       char ni[SZ] {}, nt[SZ] {}, rs[SZ] {}, li[SZ] {}, lc[SZ] {}, ji[SZ] {},
            cmb[SZ] {}, lt[SZ] {};
       args[MSH] = mesh;
-      args[NI] = itoa(NEWTON_ITERATIONS, ni);
-      args[RS] = itoa(REFINE, rs);
-      args[LI] = itoa(LINEAR_ITERATIONS, li);
-      args[CMB] = itoa(COMBO, cmb);
-      args[LT] = itoa(LIMIT_TYPE, lt);
+      args[RS] = itoa(REFINE,rs);
+      args[NI] = itoa(NEWTON_ITERATIONS,ni);
+      args[LI] = itoa(LINEAR_ITERATIONS,li);
+      args[CMB] = itoa(COMBO,cmb);
+      args[LC] = dtoa(LIMITING,lc);
+      args[LT] = itoa(LIMIT_TYPE,lt);
+      args[JI] = dtoa(JITTER,ji);
       args[NOR] = NORMALIZATION ? "1" : "0";
-      args[RTOL] = dtoa(NEWTON_RTOLERANCE, nt);
-      args[LC] = dtoa(LIMITING, lc);
-      args[JI] = dtoa(JITTER, ji);
       for (int p : P_ORDERS)
       {
          char por[SZ] {};
@@ -828,7 +786,7 @@ public:
    }
 };
 
-// id: MPI rank, nr: launch all non-regression tests
+// id: MPI rank, all: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
 #if defined(MFEM_TMOP_MPI)
@@ -840,56 +798,12 @@ static void tmop_tests(int id = 0, bool all = false)
    }
 #endif
 
-#ifndef _WIN32
-   {
-      using Det = QuadratureInterpolator::DetKernels;
-      Det::Specialization<2, 2, 3, 3>::Add();
-      Det::Specialization<3, 3, 2, 3>::Add();
-      Det::Specialization<3, 3, 3, 4>::Add();
-      Det::Specialization<3, 3, 4, 6>::Add();
+   const real_t jitter = 1./(M_PI*M_PI);
 
-      using Grad = QuadratureInterpolator::GradKernels;
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
-
-      using TensorEval = QuadratureInterpolator::TensorEvalKernels;
-      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
-      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 3, 3>::Opt<4>::Add();
-      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 2, 3>::Opt<2>::Add();
-      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 3, 4>::Opt<1>::Add();
-      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
-
-      using MassDiagonal = MassIntegrator::DiagonalPAKernels;
-      MassDiagonal::Specialization<2, 2, 3>::Add();
-      MassDiagonal::Specialization<3, 2, 4>::Add();
-      MassDiagonal::Specialization<3, 2, 6>::Add();
-
-      using MassApply = MassIntegrator::ApplyPAKernels;
-      MassApply::Specialization<2, 2, 3>::Add();
-      MassApply::Specialization<3, 2, 4>::Add();
-      MassApply::Specialization<3, 2, 6>::Add();
-   }
-#endif
-
-   const real_t jitter = 1. / (M_PI * M_PI);
-
-   Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL_HO")
-          .MESH("../../data/star.mesh")
-          .REFINE(1)
-          .POR({ 5 })
-          .QOR({ 8 })
-          .TID({ 1 })
-          .MID({ 2 }))
-   .Run(id, all);
-
-   Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL")
-          .MESH("../../data/star.mesh")
-          .REFINE(1)
-          .JI(jitter)
-          .POR({ 1, 2 })
-          .QOR({ 2, 3 })
-          .TID({ 1 })
-          .MID({ 2 }))
-   .Run(id, all);
+   Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,3}).
+          TID({1}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL")
           .MESH("../../data/star.mesh")
@@ -901,31 +815,18 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 2 }))
    .Run(id, all);
 
-   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_2D_KERNEL")
-          .MESH("../../data/star.mesh")
-          .REFINE(1)
-          .JI(jitter)
-          .NORMALIZATION(true)
-          .POR({ 1, 2 })
-          .QOR({ 2, 3 })
-          .TID({ 8 })
-          .MID({ 94 })
-          .LS({ 3 }))
-   .Run(id, all);
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_2D_KERNEL").
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({2,3}).
+          TID({8}).MID({94}).LS({3})).Run(id,all);
 
-   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL")
-          .MESH("../../data/toroid-hex.mesh")
-          .LIMITING(M_PI)
-          .LIMIT_TYPE(1)
-          .REFINE(1)
-          .JI(jitter)
-          .NORMALIZATION(true)
-          .POR({ 2 })
-          .QOR({ 4 })
-          .TID({ 8 })
-          .MID({ 338 })
-          .LS({ 3 }))
-   .Run(id, all);
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).LIMIT_TYPE(1).REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({2}).QOR({4}).
+          TID({8}).MID({338}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL")
           .MESH("../../miniapps/meshing/cube.mesh")
@@ -964,17 +865,12 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 1, 2 }))
    .Run(id, all);
 
-   Launch(Launch::Args("Square01 + Adapted discrete size")
-          .MESH("../../miniapps/meshing/square01.mesh")
-          .REFINE(1)
-          .NORMALIZATION(true)
-          .POR({ 1 })
-          .QOR({ 4, 6 })
-          .LINEAR_ITERATIONS(150)
-          .TID({ 5 })
-          .MID({ 80, 94 })
-          .LS({ 3 }))
-   .Run(id, all);
+   Launch(Launch::Args("Square01 + Adapted discrete size").
+          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({4,6}).
+          LINEAR_ITERATIONS(150).
+          TID({5}).MID({80,94}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("Blade")
           .MESH("../../miniapps/meshing/blade.mesh")
@@ -986,42 +882,23 @@ static void tmop_tests(int id = 0, bool all = false)
           .LS({ 2 }))
    .Run(id, all);
 
-   Launch(Launch::Args("Blade + normalization")
-          .MESH("../../miniapps/meshing/blade.mesh")
-          .NORMALIZATION(true)
-          .POR({ 1, 2 })
-          .QOR({ 2, 4 })
-          .LINEAR_ITERATIONS(200)
-          .NEWTON_RTOLERANCE(1e-12)
-          .NL({ 2 })
-          .TID({ 1, 2, 3 })
-          .MID({ 2 }))
-   .Run(id, all);
+   Launch(Launch::Args("Blade + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          NORMALIZATION(true).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id,all);
 
-   Launch(Launch::Args("Blade + limiting + normalization")
-          .MESH("../../miniapps/meshing/blade.mesh")
-          .NORMALIZATION(true)
-          .LIMITING(M_PI)
-          .POR({ 1, 2 })
-          .QOR({ 2, 4 })
-          .LINEAR_ITERATIONS(200)
-          .NEWTON_RTOLERANCE(1e-12)
-          .TID({ 1, 2, 3 })
-          .MID({ 2 }))
-   .Run(id, all);
+   Launch(Launch::Args("Blade + limiting + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          NORMALIZATION(true).LIMITING(M_PI).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id,all);
 
-   Launch(Launch::Args("Blade + limiting_expo + normalization")
-          .MESH("../../miniapps/meshing/blade.mesh")
-          .NORMALIZATION(true)
-          .LIMITING(M_PI)
-          .LIMIT_TYPE(1)
-          .LINEAR_ITERATIONS(200)
-          .NEWTON_RTOLERANCE(1e-12)
-          .POR({ 1, 2 })
-          .QOR({ 2, 4 })
-          .TID({ 1, 2, 3 })
-          .MID({ 2 }))
-   .Run(id, all);
+   Launch(Launch::Args("Blade + limiting_expo + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          NORMALIZATION(true).LIMITING(M_PI).LIMIT_TYPE(1).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("Cube")
           .MESH("../../miniapps/meshing/cube.mesh")
@@ -1033,26 +910,17 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 302, 303 }))
    .Run(id, all);
 
-   Launch(
-      Launch::Args("Cube + Discrete size & aspect + normalization + limiting")
-      .MESH("../../miniapps/meshing/cube.mesh")
-      .NORMALIZATION(true)
-      .LIMITING(M_PI)
-      .POR({ 1, 2 })
-      .QOR({ 4, 2 })
-      .TID({ 7 })
-      .MID({ 302, 321 }))
-   .Run(id, all);
+   Launch(Launch::Args("Cube + Discrete size & aspect + normalization + limiting").
+          MESH("../../miniapps/meshing/cube.mesh").
+          NORMALIZATION(true).LIMITING(M_PI).
+          POR({1,2}).QOR({4,2}).
+          TID({7}).MID({302,321})).Run(id,all);
 
-   Launch(Launch::Args("Cube + Discrete size + normalization")
-          .MESH("../../miniapps/meshing/cube.mesh")
-          .NORMALIZATION(true)
-          .POR({ 1 })
-          .QOR({ 4, 2 })
-          .NEWTON_RTOLERANCE(1e-12)
-          .TID({ 5 })
-          .MID({ 315, 318, 332, 338 }))
-   .Run(id, all);
+   Launch(Launch::Args("Cube + Discrete size + normalization").
+          MESH("../../miniapps/meshing/cube.mesh").
+          NORMALIZATION(true).
+          POR({1,2}).QOR({4,2}).
+          TID({5}).MID({332,338})).Run(id,all);
 
    // Note: order 1 has no interior nodes, so all residuals are zero and the
    // Newton iteration exits immediately.
@@ -1076,69 +944,38 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 321, 338 }))
    .Run(id, all);
 
-   Launch(Launch::Args("Toroid-Hex + limiting + norm.")
-          .MESH("../../data/toroid-hex.mesh")
-          .LIMITING(M_PI)
-          .NORMALIZATION(true)
-          .POR({ 1, 2 })
-          .QOR({ 2, 4 })
-          .TID({ 1, 2 })
-          .MID({ 321, 315, 318, 332, 338 }))
-   .Run(id, all);
+   Launch(Launch::Args("Toroid-Hex + limiting + norm.").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).NORMALIZATION(true).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id,all);
 
-   Launch(Launch::Args("Toroid-Hex + limiting_expo + norm.")
-          .MESH("../../data/toroid-hex.mesh")
-          .LIMITING(M_PI)
-          .LIMIT_TYPE(1)
-          .NORMALIZATION(true)
-          .POR({ 1, 2 })
-          .QOR({ 2, 4 })
-          .TID({ 1, 2 })
-          .MID({ 321 }))
-   .Run(id, all);
+   Launch(Launch::Args("Toroid-Hex + limiting_expo + norm.").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).LIMIT_TYPE(1).NORMALIZATION(true).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id,all);
 
    // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
-   Launch(Launch::Args("Cube + Blast options")
-          .MESH("../../miniapps/meshing/cube.mesh")
-          .REFINE(1)
-          .TID({ 5 })
-          .MID({ 321 })
-          .LS({ 3 })
-          .LINEAR_ITERATIONS(100)
-          .LIMITING(M_PI)
-          .NORMALIZATION(true)
-          .POR({ 1, 2, 3 })
-          .QOR({ 2, 4 })
-          .NL({ 1, 2 }))
-   .Run(id, all);
+   Launch(Launch::Args("Cube + Blast options").
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).
+          TID({5}).MID({321}).LS({3}).LINEAR_ITERATIONS(100).
+          LIMITING(M_PI).NORMALIZATION(true).
+          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id,all);
 
    // Combo 2D
-   Launch(Launch::Args("Square01 + Combo")
-          .MESH("../../miniapps/meshing/square01.mesh")
-          .REFINE(1)
-          .JI(jitter)
-          .NORMALIZATION(true)
-          .TID({ 5 })
-          .MID({ 2 })
-          .LS({ 2 })
-          .POR({ 2 })
-          .QOR({ 8 })
-          .CMB(2))
-   .Run(id, all);
+   Launch(Launch::Args("Square01 + Combo").
+          MESH("../../miniapps/meshing/square01.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          TID({5}).MID({2}).LS({2}).
+          POR({2}).QOR({8}).CMB(2)).Run(id,all);
 
    // Combo 3D
-   Launch(Launch::Args("Cube + Combo")
-          .MESH("../../miniapps/meshing/cube.mesh")
-          .REFINE(1)
-          .JI(jitter)
-          .NORMALIZATION(true)
-          .TID({ 5 })
-          .MID({ 302 })
-          .LS({ 2 })
-          .POR({ 1, 2 })
-          .QOR({ 2, 8 })
-          .CMB(2))
-   .Run(id, all);
+   Launch(Launch::Args("Cube + Combo").
+          MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          TID({5}).MID({302}).LS({2}).
+          POR({1,2}).QOR({2,8}).CMB(2)).Run(id,all);
 
    // NURBS
    Launch(Launch::Args("2D Nurbs")
@@ -1166,29 +1003,17 @@ static void tmop_tests(int id = 0, bool all = false)
 
    if (!all) { return; }
 
-   Launch(Launch::Args("Blade + Discrete size + normalization")
-          .MESH("../../miniapps/meshing/blade.mesh")
-          .LINEAR_ITERATIONS(1000)
-          .NORMALIZATION(true)
-          .NEWTON_RTOLERANCE(1e-14)
-          .POR({ 1 })
-          .QOR({ 2 })
-          .TID({ 5 })
-          .MID({ 7 })
-          .LS({ 2 })
-          .NL({ 4 }))
-   .Run(id, true);
+   Launch(Launch::Args("Blade + Discrete size + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          LINEAR_ITERATIONS(300).NORMALIZATION(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,true);
 
-   Launch(Launch::Args("Blade + Discrete size + normalization")
-          .MESH("../../miniapps/meshing/blade.mesh")
-          .LINEAR_ITERATIONS(500)
-          .NORMALIZATION(true)
-          .NEWTON_RTOLERANCE(1e-12)
-          .POR({ 1 })
-          .QOR({ 2 })
-          .TID({ 5 })
-          .MID({ 2 }))
-   .Run(id, true);
+   Launch(Launch::Args("Blade + Discrete size + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          LINEAR_ITERATIONS(200).NORMALIZATION(true).
+          POR({1}).QOR({2}).
+          TID({5}).MID({2})).Run(id,true);
 }
 
 #ifdef MFEM_TMOP_MPI

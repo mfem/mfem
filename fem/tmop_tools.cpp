@@ -232,32 +232,31 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    M.BilinearForm::operator=(0.0);
    M.Assemble();
 
-   di_dt = 0.0;
-   CGSolver lin_solver;
-   Solver *prec = nullptr;
-   Array<int> ess_tdof_list;
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-      lin_solver.SetOperator(M);
-   }
-   else
-   {
-      prec = new DSmoother(M.SpMat());
-      lin_solver.SetOperator(M.SpMat());
-   }
-   lin_solver.SetPreconditioner(*prec);
 #ifdef MFEM_USE_SINGLE
    const real_t rtol = 1e-4;
 #else
    const real_t rtol = 1e-12;
 #endif
-   lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
-   lin_solver.SetMaxIter(100);
-   lin_solver.SetPrintLevel(0);
-   lin_solver.Mult(rhs, di_dt);
 
-   delete prec;
+   // Solve.
+   di_dt = 0.0;
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      // Solve mat-free on the tdofs as the JacobiSmoother operates on tdofs.
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list;
+      M.FormLinearSystem(ess_tdof_list, di_dt, rhs, A, X, B);
+      OperatorJacobiSmoother S(M, ess_tdof_list);
+      PCG(*A, S, B, X, 0, 100, rtol, 0.0);
+      M.RecoverFEMSolution(X, rhs, di_dt);
+   }
+   else
+   {
+      // Solve the SpMat directly on the ldofs.
+      DSmoother S(M.SpMat());
+      PCG(M.SpMat(), S, rhs, di_dt, 0, 100, rtol, 0.0);
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -357,6 +356,11 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 #endif
    m->SetNodes(nodes0);
 
+   if (m->GetNodes()->FESpace()->IsDGSpace())
+   {
+      MFEM_ABORT("InterpolatorFP is not supported for periodic meshes yet.");
+   }
+
    const real_t rel_bbox_el = 0.1;
    const real_t newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
@@ -420,9 +424,6 @@ void InterpolatorFP::ComputeAtGivenPositions(const Vector &positions,
 real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
                                               const Vector &b) const
 {
-   Vector x_in(x_0.Size());
-   add(x_0, d_in, x_in);
-
    const FiniteElementSpace *fes = NULL;
    real_t energy_in = 0.0;
 #ifdef MFEM_USE_MPI
@@ -444,18 +445,18 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 
    // Get the local prolongation of the solution vector.
-   Vector x_out_loc(fes->GetVSize(),
-                    (temp_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : temp_mt);
+   Vector d_loc(fes->GetVSize(), (temp_mt == MemoryType::DEFAULT) ?
+                /* */            Device::GetDeviceMemoryType() : temp_mt);
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
-      if (!cP) { x_out_loc = x_in; }
-      else     { cP->Mult(x_in, x_out_loc); }
+      if (!cP) { d_loc = d_in; }
+      else     { cP->Mult(d_in, d_loc); }
    }
 #ifdef MFEM_USE_MPI
    else
    {
-      fes->GetProlongationMatrix()->Mult(x_in, x_out_loc);
+      fes->GetProlongationMatrix()->Mult(d_in, d_loc);
    }
 #endif
 
@@ -464,7 +465,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
-      GetSurfaceFittingError(x_out_loc, init_fit_avg_err, init_fit_max_err);
+      GetSurfaceFittingError(d_loc, init_fit_avg_err, init_fit_max_err);
       // Check for convergence
       if (init_fit_max_err < surf_fit_max_err_limit)
       {
@@ -492,7 +493,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   const real_t min_detT_in = ComputeMinDet(d_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
@@ -508,7 +509,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    const bool have_b = (b.Size() == Height());
 
-   Vector x_out(x_in.Size()), d_out(d_in.Size());
+   Vector d_out(d_in.Size());
    bool x_out_ok = false;
    real_t energy_out = 0.0, min_detT_out;
    const real_t norm_in = Norm(r);
@@ -532,19 +533,18 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // Form limited (line-search) displacement d_out = d_in - scale * c,
       // and the corresponding mesh positions x_out = x_0 + d_out.
       add(d_in, -scale, c, d_out);
-      add(x_0, d_out, x_out);
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
-         if (!cP) { x_out_loc = x_out; }
-         else     { cP->Mult(x_out, x_out_loc); }
+         if (!cP) { d_loc = d_out; }
+         else     { cP->Mult(d_out, d_loc); }
       }
 #ifdef MFEM_USE_MPI
-      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
+      else { fes->GetProlongationMatrix()->Mult(d_out, d_loc); }
 #endif
 
       // Check the changes in detJ.
-      min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      min_detT_out = ComputeMinDet(d_loc, *fes);
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
@@ -576,7 +576,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // converge based on error.
       if (fitting && surf_fit_converge_error)
       {
-         GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(d_loc, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*init_fit_max_err)
          {
             if (print_options.iterations)
@@ -667,36 +667,52 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
 void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
 {
-   x_0 = x;
-
-   //
-   // Pass down the initial position to the integrators.
-   //
    // Prolongate x to ldofs.
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   GridFunction x_0_loc(const_cast<FiniteElementSpace *>(nlf->FESpace()));
-   const Operator *P = nlf->GetProlongation();
-   // TODO if (periodic) { x_0_loc = x }
-   if (P) { P->Mult(x, x_0_loc); }
-   else   { x_0_loc = x; }
-   // Pass the positions to the integrators.
+   auto fes_mesh_nodes = nlf->FESpace()->GetMesh()->GetNodes()->FESpace();
+   const Operator *P = fes_mesh_nodes->GetProlongationMatrix();
+   x_0.SetSpace(fes_mesh_nodes);
+   periodic = fes_mesh_nodes->IsDGSpace();
+   if (P)
+   {
+      MFEM_VERIFY(x.Size() == P->Width(),
+                  "The input's size must be the tdof size of the mesh nodes.");
+      P->Mult(x, x_0);
+   }
+   else
+   {
+      MFEM_VERIFY(x.Size() == x_0.Size(),
+                  "The input's size must match the size of the mesh nodes.");
+      x_0 = x;
+   }
+
+   // Pass down the initial position to the integrators.
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
    for (int i = 0; i < integs.Size(); i++)
    {
       auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti) { ti->SetInitialMeshPos(&x_0_loc); }
+      if (ti) { ti->SetInitialMeshPos(&x_0); }
       auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co) { co->SetInitialMeshPos(&x_0_loc); }
+      if (co) { co->SetInitialMeshPos(&x_0); }
    }
 
-   // We solve for the displacement, which always starts from zero.
-   Vector d(x.Size()); d = 0.0;
-   if (solver_type == 0)      { NewtonSolver::Mult(b, d); }
-   else if (solver_type == 1) { LBFGSSolver::Mult(b, d); }
+   // Solve for the displacement, which always starts from zero.
+   Vector dx(height); dx = 0.0;
+   if (solver_type == 0)      { NewtonSolver::Mult(b, dx); }
+   else if (solver_type == 1) { LBFGSSolver::Mult(b, dx); }
    else { MFEM_ABORT("Invalid solver_type"); }
 
    // Form the final mesh using the computed displacement.
-   x += d;
+   if (periodic)
+   {
+      Vector dx_loc(nlf->FESpace()->GetVSize());
+      const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
+      if (Pd) { Pd->Mult(dx, dx_loc); }
+      else    { dx_loc = dx; }
+
+      GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes, *nlf->FESpace(), x);
+   }
+   else { x += dx; }
 
    // Make sure the pointers don't use invalid memory (x_0_loc is gone).
    for (int i = 0; i < integs.Size(); i++)
@@ -766,7 +782,7 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<real_t> &weights) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
+void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &d_loc,
                                               real_t &err_avg,
                                               real_t &err_max) const
 {
@@ -785,7 +801,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
       {
          if (ti->IsSurfaceFittingEnabled())
          {
-            ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
+            ti->GetSurfaceFittingErrors(d_loc, err_avg_loc, err_max_loc);
             err_avg = std::max(err_avg_loc, err_avg);
             err_max = std::max(err_max_loc, err_max);
          }
@@ -798,7 +814,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
          {
             if (ati[j]->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
+               ati[j]->GetSurfaceFittingErrors(d_loc, err_avg_loc, err_max_loc);
                err_avg = std::max(err_avg_loc, err_avg);
                err_max = std::max(err_max_loc, err_max);
             }
@@ -840,11 +856,8 @@ bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
    return false;
 }
 
-void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
+void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
 {
-   Vector x(x_0.Size());
-   add(x_0, d, x);
-
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
 
@@ -873,25 +886,25 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
       }
    }
 
-   Vector x_loc;
+   Vector dx_loc;
    const Operator *P = nlf->GetProlongation();
    if (P)
    {
-      x_loc.SetSize(P->Height());
-      P->Mult(x, x_loc);
+      dx_loc.SetSize(P->Height());
+      P->Mult(dx, dx_loc);
    }
-   else { x_loc = x; }
+   else { dx_loc = dx; }
 
-   const FiniteElementSpace *x_fes = nlf->FESpace();
+   const FiniteElementSpace *dx_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+         ti->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
          if (compute_metric_quantile_flag)
          {
-            ti->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+            ti->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -900,10 +913,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+            ati[j]->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
             if (compute_metric_quantile_flag)
             {
-               ati[j]->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+               ati[j]->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
             }
          }
       }
@@ -916,7 +929,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
    if (surf_fit_coeff_update)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(x_loc, surf_fit_avg_err, surf_fit_max_err);
+      GetSurfaceFittingError(dx_loc, surf_fit_avg_err, surf_fit_max_err);
       // Get array with surface fitting weights.
       Array<real_t> fitweights;
       GetSurfaceFittingWeight(fitweights);
@@ -956,7 +969,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &d) const
    }
 }
 
-real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
+real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
                                        const FiniteElementSpace &fes) const
 {
    real_t min_detJ = infinity();
@@ -964,8 +977,8 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false ||
-       fes.IsVariableOrder())
+   if (dim == 1 || mixed_mesh ||
+       UsesTensorBasis(fes) == false || fes.IsVariableOrder())
    {
       for (int i = 0; i < NE; i++)
       {
@@ -973,8 +986,17 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
          DenseMatrix dshape(dof, dim), pos(dof, dim);
          Vector posV(pos.Data(), dof * dim);
 
+         x_0.GetElementDofValues(i, posV);
+         if (periodic)
+         {
+            auto n_el = dynamic_cast<const NodalFiniteElement *>(fes.GetFE(i));
+            n_el->ReorderLexToNative(dim, posV);
+         }
+
+         Vector d_loc_el;
          fes.GetElementVDofs(i, xdofs);
-         x_loc.GetSubVector(xdofs, posV);
+         d_loc.GetSubVector(xdofs, d_loc_el);
+         posV += d_loc_el;
 
          const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
          const int nsp = irule.GetNPoints();
@@ -988,24 +1010,22 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    }
    else
    {
-      min_detJ = dim == 2 ? MinDetJpr_2D(&fes, x_loc) :
-                 dim == 3 ? MinDetJpr_3D(&fes, x_loc) : 0.0;
+      min_detJ = dim == 2 ? MinDetJpr_2D(&fes, d_loc) :
+                 dim == 3 ? MinDetJpr_3D(&fes, d_loc) : 0.0;
    }
-   real_t min_detT_all = min_detJ;
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
       auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_MIN,
-                    p_nlf->ParFESpace()->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, p_nlf->ParFESpace()->GetComm());
    }
 #endif
    const DenseMatrix &Wideal =
       Geometries.GetGeomToPerfGeomJac(fes.GetMesh()->GetTypicalElementGeometry());
-   min_detT_all /= Wideal.Det();
+   min_detJ /= Wideal.Det();
 
-   return min_detT_all;
+   return min_detJ;
 }
 
 #ifdef MFEM_USE_MPI
@@ -1056,6 +1076,19 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
         << "window_geometry "
         << position << " " << 0 << " " << 600 << " " << 600 << "\n"
         << "keys jRmclA\n";
+}
+
+void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
+                          const FiniteElementSpace &fesL2,
+                          const FiniteElementSpace &fesH1, Vector &x)
+{
+   x = x_0;
+   Vector dx_r(x.Size());
+   const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+   auto R_H1 = fesH1.GetElementRestriction(ord);
+   auto R_L2 = fesL2.GetElementRestriction(ord);
+   R_H1->Mult(dx, dx_r);
+   R_L2->AddMultTranspose(dx_r, x);
 }
 
 }

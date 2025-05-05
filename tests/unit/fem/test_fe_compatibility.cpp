@@ -800,6 +800,8 @@ public:
    void SetDoF(int dof) { dofs = 0.0; dofs(dof) = 1.0; }
    int GetNDoF() const { return ndof; }
 
+   using VectorCoefficient::Eval;
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip2d)
    {
@@ -897,6 +899,8 @@ public:
 
    void SetDoF(int dof) { dofs = 0.0; dofs(dof) = 1.0; }
    int GetNDoF() const { return ndof; }
+
+   using VectorCoefficient::Eval;
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip2d)
