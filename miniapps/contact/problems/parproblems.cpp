@@ -214,7 +214,7 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 : problem(problem_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_),
   coords(coords_), doublepass(doublepass_), xref(xref_), xrefbc(xrefbc_), 
    tribol_ratio(tribol_ratio_), tribol_nranks(tribol_nranks_), qp(qp_), 
-	bound_constraints(bound_constraints_), useMassWeihghts(mass_weights_), block_offsetsg(4)
+	bound_constraints(bound_constraints_), useMassWeights(mass_weights_), block_offsetsg(4)
 {
    comm = problem->GetComm(); 
    pmesh = problem->GetMesh();

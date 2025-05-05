@@ -35,6 +35,8 @@ protected:
     double Dxphi0_xhat;
 
     int dimU, dimM, dimC;
+    int dimG; // num of gap constraints
+    Array<int> constraint_offsets;
     int gdimU, gdimM, gdimC;
     Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
     Vector ml;

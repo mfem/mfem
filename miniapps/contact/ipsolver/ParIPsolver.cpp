@@ -77,6 +77,25 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    block_offsetsumlz[4] = dimM; // zl
    block_offsetsumlz.PartialSum();
 
+   if (dimM < dimU)
+   {
+      dimG = dimM;
+      constraint_offsets.SetSize(2);
+      constraint_offsets[0] = 0;
+      constraint_offsets[1] = dimM;
+   } 
+   else
+   {
+      dimG = dimM - 2 * dimU;
+      constraint_offsets.SetSize(4);
+      constraint_offsets[0] = 0;
+      constraint_offsets[1] = dimG;
+      constraint_offsets[2] = dimU;
+      constraint_offsets[3] = dimU;
+   }
+   constraint_offsets.PartialSum();
+
+
    for(int i = 0; i < block_offsetsuml.Size(); i++)  
    { 
       block_offsetsuml[i] = block_offsetsumlz[i]; 
@@ -411,9 +430,27 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    if (useMassWeights)
    {
-      for(int ii = 0; ii < dimM; ii++)
+      if (constraint_offsets.Size() == 2)
       {
-         DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+         for(int ii = 0; ii < dimM; ii++)
+         {
+            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+         }
+      }
+      else if(constraint_offsets.Size() == 4)
+      {
+         for(int ii = 0; ii < dimG; ii++)
+         {
+            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+         }
+         for(int ii = dimG; ii < dimG + dimU; ii++)
+         {
+            DiagLogBar(ii) = (Mvlump(ii - dimG) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+         }
+         for(int ii = dimG + dimU; ii < dimM; ii++)
+         {
+            DiagLogBar(ii) = (Mvlump(ii - dimG - dimU) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+         }
       }
    }
    else
@@ -1306,7 +1343,15 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
       BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
       MxinvgradL.Set(1.0, gradL);
       MxinvgradL.GetBlock(0) /= Mvlump; 
-      MxinvgradL.GetBlock(1) /= Mcslump;
+      BlockVector gradsL(constraint_offsets); gradsL = 0.0;
+      gradsL.Set(1.0, MxinvgradL.GetBlock(1));
+      gradsL.GetBlock(0) /= Mcslump;
+      if (constraint_offsets.Size() == 4)
+      {
+         gradsL.GetBlock(1) /= Mvlump;
+	 gradsL.GetBlock(2) /= Mvlump;
+      }
+      MxinvgradL.GetBlock(1).Set(1.0, gradsL);
       E1 = sqrt(InnerProduct(MPI_COMM_WORLD, gradL, MxinvgradL));
       E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD);
       E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD);
@@ -1343,10 +1388,22 @@ double ParInteriorPointSolver::theta(const BlockVector &x)
    problem->c(x, cx);
    if (useMassWeights)
    {
-      Vector Mcx(dimC);
-      Mcx.Set(1.0, cx);
-      Mcx *= Mcslump;
-      return sqrt(InnerProduct(MPI_COMM_WORLD, Mcx, cx)); 
+      if (constraint_offsets.Size() == 2)
+      {
+         Vector Mcx(dimC);
+         Mcx.Set(1.0, cx);
+         Mcx *= Mcslump;
+         return sqrt(InnerProduct(MPI_COMM_WORLD, Mcx, cx));
+      }
+      else
+      {
+         BlockVector Mcx(constraint_offsets);
+	 Mcx.Set(1.0, cx);
+	 Mcx.GetBlock(0) *= Mcslump;
+	 Mcx.GetBlock(1) *= Mvlump;
+	 Mcx.GetBlock(2) *= Mvlump;
+	 return sqrt(InnerProduct(MPI_COMM_WORLD, Mcx, cx));
+      } 
    }
    else
    {
@@ -1361,9 +1418,20 @@ double ParInteriorPointSolver::phi(const BlockVector &x, double mu, int & eval_e
    double logBarrierLoc = 0.0;
    if (useMassWeights)
    {
-      for(int i = 0; i < dimM; i++) 
+      for(int i = 0; i < dimG; i++) 
       { 
         logBarrierLoc += Mcslump(i) * log(x(dimU+i)-ml(i));
+      }
+      if (dimM != dimG)
+      {
+         for(int i = dimG; i < dimU + dimG; i++)
+	 {
+            logBarrierLoc += Mvlump(i - dimG) * log(x(dimU+i)-ml(i));
+	 }
+	 for(int i = dimG + dimU; i < dimM; i++)
+	 {
+            logBarrierLoc += Mvlump(i - dimG - dimU) * log(x(dimU+i)-ml(i));
+	 }
       }
    }
    else
@@ -1389,7 +1457,8 @@ double ParInteriorPointSolver::phi(const BlockVector & x, double mu)
 void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
-   Vector ytemp(dimM); ytemp = 0.0;
+   //Vector ytemp(dimM); ytemp = 0.0;
+   BlockVector ytemp(constraint_offsets); ytemp = 0.0;
    for (int i = 0; i < dimM; i++)
    {
       ytemp(i) = 1. / (x(dimU + i) - ml(i));
@@ -1397,7 +1466,12 @@ void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector 
 
    if (useMassWeights)
    {
-      ytemp *= Mcslump;
+      ytemp.GetBlock(0) *= Mcslump;
+      if (constraint_offsets.Size() == 4)
+      {
+         ytemp.GetBlock(1) *= Mvlump;
+	 ytemp.GetBlock(2) *= Mvlump;
+      }
    }
 
    y.GetBlock(1).Add(-mu, ytemp);
@@ -1411,12 +1485,18 @@ double ParInteriorPointSolver::L(const BlockVector &x, const Vector &l, const Ve
    int eval_err = 0;
    double fx = problem->CalcObjective(x, eval_err);
    Vector cx(dimC); problem->c(x, cx);
-   Vector temp(dimM); temp = 0.0;
+   //Vector temp(dimM); temp = 0.0;
+   BlockVector temp(constraint_offsets); temp = 0.0;
    temp.Set(1.0, x.GetBlock(1));
    temp.Add(-1.0, ml);
    if( useMassWeights)
    {
-      temp *= Mcslump;
+      temp.GetBlock(0) *= Mcslump;
+      if (constraint_offsets.Size() == 4)
+      {
+         temp.GetBlock(1) *= Mvlump;
+	 temp.GetBlock(2) *= Mvlump;
+      }
    }
    return (fx + InnerProduct(MPI_COMM_WORLD, cx, l) - InnerProduct(MPI_COMM_WORLD, temp, zl));
 }
@@ -1441,11 +1521,17 @@ void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Ve
    
    y.Add(1.0, gradxf);
    
-   Vector temp(dimM); temp = 0.0;
+   //Vector temp(dimM); temp = 0.0;
+   BlockVector temp(constraint_offsets); temp = 0.0;
    temp.Set(1.0, zl);
    if (useMassWeights)
    {
-      temp *= Mcslump;
+      temp.GetBlock(0) *= Mcslump;
+      if (constraint_offsets.Size() == 4)
+      {
+         temp.GetBlock(1) *= Mvlump;
+	 temp.GetBlock(2) *= Mvlump;
+      }
    }
    (y.GetBlock(1)).Add(-1.0, temp);
 }
