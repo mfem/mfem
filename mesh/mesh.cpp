@@ -6279,7 +6279,6 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    }
 }
 
-
 void XYZ_VectorFunction(const Vector &p, Vector &v)
 {
    if (p.Size() >= v.Size())
@@ -10772,24 +10771,6 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
 
       UpdateNURBS();
    }
-}
-
-void Mesh::GetNURBSPatches(Array<NURBSPatch*> patches)
-{
-   MFEM_VERIFY(NURBSext, "Must be a NURBS mesh");
-   // This sets the NURBSPatch(es) from the control points (Nodes)
-   NURBSext->ConvertToPatches(*Nodes);
-   const int NP = NURBSext->GetNP();
-
-   // Copy patches
-   patches.SetSize(NP);
-   for (int p = 0; p < NP; p++)
-   {
-      patches[p] = new NURBSPatch(*NURBSext->GetPatch(p));
-   }
-
-   // Among other things, this deletes patches in NURBSext
-   UpdateNURBS();
 }
 
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
