@@ -1329,7 +1329,7 @@ tensor<T, n, n> dev(const tensor<T, n, n>& A)
  * @return I_dim
  */
 template <int dim>
-MFEM_HOST_DEVICE tensor<real_t, dim, dim> Identity()
+MFEM_HOST_DEVICE tensor<real_t, dim, dim> IdentityMatrix()
 {
    tensor<real_t, dim, dim> I{};
    for (int i = 0; i < dim; i++)
@@ -1727,7 +1727,7 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
       y        = tmp;
    };
 
-   tensor<T, n, n> B = Identity<n>();
+   tensor<T, n, n> B = IdentityMatrix<n>();
 
    for (int i = 0; i < n; i++)
    {
@@ -2245,7 +2245,7 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
           const tensor<T, m, m>& A)
 -> tensor<decltype(S {} * T{}), m, m>
 {
-   return I.c1 * tr(A) * Identity<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
+   return I.c1 * tr(A) * IdentityMatrix<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
 }
 
 } // namespace future

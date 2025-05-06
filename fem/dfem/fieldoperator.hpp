@@ -54,26 +54,26 @@ public:
    int vdim = -1;
 };
 
-/// @brief Id FieldOperator.
+/// @brief Identity FieldOperator.
 ///
 /// This FieldOperator does nothing to the field. The field (usually a
 /// ParametricFunction) transfers the values to the quadrature point data and
-/// Id can be viewed as an identity operation.
+/// Identity can be viewed as an identity operation.
 template <int FIELD_ID = -1>
-class Id : public FieldOperator<FIELD_ID>
+class Identity : public FieldOperator<FIELD_ID>
 {
 public:
-   constexpr Id() : FieldOperator<FIELD_ID>() {}
+   constexpr Identity() : FieldOperator<FIELD_ID>() {}
 };
 
 template< typename T >
-struct is_id_fop
+struct is_identity_fop
 {
    static const bool value = false;
 };
 
 template <int FIELD_ID>
-struct is_id_fop<Id<FIELD_ID>>
+struct is_identity_fop<Identity<FIELD_ID>>
 {
    static const bool value = true;
 };

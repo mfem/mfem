@@ -1058,7 +1058,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       };
       return PT;
    }
-   else if constexpr (is_id_fop<fop_t>::value)
+   else if constexpr (is_identity_fop<fop_t>::value)
    {
       auto PT = [](Vector &r_local, Vector &y)
       {
@@ -1240,7 +1240,7 @@ void CheckCompatibility(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParametricSpace *>)
       {
-         if constexpr (std::is_same_v<field_operator_t, Id<>>)
+         if constexpr (std::is_same_v<field_operator_t, Identity<>>)
          {
             // Only supported field operation for ParametricSpace
          }
@@ -1278,7 +1278,7 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       return GetVDim(f) * GetDimension<entity_t>(f);
    }
-   else if constexpr (is_id_fop<field_operator_t>::value)
+   else if constexpr (is_identity_fop<field_operator_t>::value)
    {
       return GetVDim(f);
    }
@@ -2108,7 +2108,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int grad_dim = 1;
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_id_fop<decltype(fop)>::value))
+             (!is_identity_fop<decltype(fop)>::value))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
@@ -2137,7 +2137,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             -1
          };
       }
-      else if constexpr (is_id_fop<decltype(fop)>::value ||
+      else if constexpr (is_identity_fop<decltype(fop)>::value ||
                          is_sum_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = g(idx);
