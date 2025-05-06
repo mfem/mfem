@@ -19,7 +19,6 @@ namespace mfem
 
 class TMOPEnergyPA2D
 {
-   const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
    Vector &E, &L;
    const Vector &O;
@@ -41,7 +40,6 @@ public:
                   const Vector &X,
                   Vector &L,
                   const bool use_detA):
-      ti(ti),
       x(X),
       E(ti->PA.E),
       L(L),
@@ -76,7 +74,6 @@ public:
                   const DenseTensor &Jtr,
                   const IntegrationRule &ir,
                   const Vector &mc):
-      ti(nullptr),
       x(X),
       E(E),
       L(L),
@@ -94,13 +91,10 @@ public:
       Jtr(Jtr),
       ir(ir),
       mc(mc)
-   {}
+   { }
 
-   void GetEnergy(real_t &met_energy, real_t &lim_energy) const
-   {
-      met_energy = this->metric_energy;
-      lim_energy = this->limiting_energy;
-   }
+   int Ndof() const { return ndof; }
+   int Nqpt() const { return nqpt; }
 
    template <int MD1, int MQ1, typename METRIC, int T_D1D = 0, int T_Q1D = 0>
    static void Mult(TMOPEnergyPA2D &ker)
@@ -182,6 +176,12 @@ public:
       });
       ker.metric_energy = ker.E * ker.O;
       ker.limiting_energy = ker.L * ker.O;
+   }
+
+   void GetEnergy(real_t &met_energy, real_t &lim_energy) const
+   {
+      met_energy = this->metric_energy;
+      lim_energy = this->limiting_energy;
    }
 };
 

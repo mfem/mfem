@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
+#include "../tmop_tools.hpp"
 #include "../gridfunc.hpp"
 #include "../../linalg/dtensor.hpp"
 
