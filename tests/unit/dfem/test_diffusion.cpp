@@ -149,7 +149,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
       dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 tuple{ Gradient<U>{}, None<Rho>{},
+                                 tuple{ Gradient<U>{}, Id<Rho>{},
                                         Gradient<Coords>{}, Weight{} },
                                  tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr);
@@ -187,8 +187,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
       typename Diffusion<real_t, DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
-         tuple{ Value<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ None<QData>{} }, *ir, all_domain_attr);
+         tuple{ Value<U>{}, Id<Rho>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ Id<QData>{} }, *ir, all_domain_attr);
       dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
       pfes.GetRestrictionMatrix()->Mult(x, X);
       dSetup.Mult(X, qdata);
@@ -196,7 +196,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
       typename Diffusion<real_t, DIM>::PAApply pa_apply_qf;
       dop_pa.AddDomainIntegrator(pa_apply_qf,
-                                 tuple{ Gradient<U>{}, None<QData>{} },
+                                 tuple{ Gradient<U>{}, Id<QData>{} },
                                  tuple{ Gradient<U>{} },
                                  *ir, all_domain_attr);
       dop_pa.SetParameters({ &qdata });
@@ -227,7 +227,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
 #endif
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 tuple{ Gradient<U>{}, None<Rho>{},
+                                 tuple{ Gradient<U>{}, Id<Rho>{},
                                         Gradient<Coords>{}, Weight{} },
                                  tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr, derivatives);

@@ -54,26 +54,26 @@ public:
    int vdim = -1;
 };
 
-/// @brief None FieldOperator.
+/// @brief Id FieldOperator.
 ///
 /// This FieldOperator does nothing to the field. The field (usually a
 /// ParametricFunction) transfers the values to the quadrature point data and
-/// None can be viewed as an identity operation.
+/// Id can be viewed as an identity operation.
 template <int FIELD_ID = -1>
-class None : public FieldOperator<FIELD_ID>
+class Id : public FieldOperator<FIELD_ID>
 {
 public:
-   constexpr None() : FieldOperator<FIELD_ID>() {}
+   constexpr Id() : FieldOperator<FIELD_ID>() {}
 };
 
 template< typename T >
-struct is_none_fop
+struct is_id_fop
 {
    static const bool value = false;
 };
 
 template <int FIELD_ID>
-struct is_none_fop<None<FIELD_ID>>
+struct is_id_fop<Id<FIELD_ID>>
 {
    static const bool value = true;
 };
@@ -146,25 +146,25 @@ struct is_gradient_fop<Gradient<FIELD_ID>>
    static const bool value = true;
 };
 
-/// @brief One FieldOperator.
+/// @brief Sum FieldOperator.
 ///
 /// This FieldOperator is commonly used to signal that an output of a quadrature
-/// function should be integrated.
+/// function should be summed.
 template <int FIELD_ID = -1>
-class One : public FieldOperator<FIELD_ID>
+class Sum : public FieldOperator<FIELD_ID>
 {
 public:
-   constexpr One() : FieldOperator<FIELD_ID>() {};
+   constexpr Sum() : FieldOperator<FIELD_ID>() {};
 };
 
 template< typename T >
-struct is_one_fop
+struct is_sum_fop
 {
    static const bool value = false;
 };
 
 template <int FIELD_ID>
-struct is_one_fop<One<FIELD_ID>>
+struct is_sum_fop<Sum<FIELD_ID>>
 {
    static const bool value = true;
 };

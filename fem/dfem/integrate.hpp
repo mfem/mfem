@@ -65,7 +65,7 @@ void map_quadrature_data_to_fields_impl(
          }
       }
    }
-   else if constexpr (is_one_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_sum_fop<std::decay_t<output_t>>::value)
    {
       // This is the "integral over all quadrature points type" applying
       // B = 1 s.t. B^T * C \in R^1.
@@ -76,7 +76,7 @@ void map_quadrature_data_to_fields_impl(
          y(0, 0) += cc(i);
       }
    }
-   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_id_fop<std::decay_t<output_t>>::value)
    {
       const auto [num_qp, unused, num_dof] = B.GetShape();
       const auto vdim = output.vdim;
@@ -193,7 +193,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_id_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
 
@@ -389,7 +389,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_id_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);

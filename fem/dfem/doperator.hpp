@@ -509,7 +509,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
 
-   if constexpr (is_one_fop<decltype(output_fop)>::value)
+   if constexpr (is_sum_fop<decltype(output_fop)>::value)
    {
       residual_l.SetSize(1);
       height = 1;
