@@ -5180,7 +5180,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       {
          GetLocalNormalizationEnergiesPA_3D(xe, metric_energy, lim_energy);
       }
-      MFEM_VERIFY(!std::isnan(metric_energy), "metric_energy is NaN");
 
       // Cases when integration is not over the target element, or when the
       // targets don't contain volumetric information.
