@@ -69,14 +69,31 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C =
          const_c ? Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
-      mfem::forall(NE * NQ, [=] MFEM_HOST_DEVICE(int idx)
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
-         int e = idx / NQ;
-         int q = idx % NQ;
-         const real_t detJ = J(q, e);
-         const real_t coeff = const_c ? C(0, 0) : C(q, e);
-         v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
-      });
+         // 1D forall is an order of magnitude faster on GPUs
+         mfem::forall(NE * NQ, [=] MFEM_HOST_DEVICE(int idx)
+         {
+            int e = idx / NQ;
+            int q = idx % NQ;
+            const real_t detJ = J(q, e);
+            const real_t coeff = const_c ? C(0, 0) : C(q, e);
+            v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
+         });
+      }
+      else
+      {
+         // 2D forall is an order of magnitude faster on CPUs
+         mfem::forall_2D(NE, NQ, 1, [=] MFEM_HOST_DEVICE(int e)
+         {
+            MFEM_FOREACH_THREAD(i, x, NQ)
+            {
+               const real_t detJ = J(i, e);
+               const real_t coeff = const_c ? C(0, 0) : C(i, e);
+               v(i, e) = W(i) * coeff * (by_val ? detJ : 1.0 / detJ);
+            }
+         });
+      }
    }
 }
 
