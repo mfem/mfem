@@ -27,7 +27,6 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
    mfem::forall_3D(NE, Q1D, Q1D, Q1D,
                    [=] MFEM_HOST_DEVICE(int e)
    {
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy, y, Q1D)
       {
          MFEM_FOREACH_THREAD(qx, x, Q1D)

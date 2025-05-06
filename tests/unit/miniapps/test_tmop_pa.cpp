@@ -30,11 +30,11 @@
 
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
-#if defined(MFEM_TMOP_MPI) && !defined(MFEM_USE_MPI)
-#error "Cannot use MFEM_TMOP_MPI without MFEM_USE_MPI!"
+#if defined(MFEM_TMOP_PA_MPI) && !defined(MFEM_USE_MPI)
+#error "Cannot use MFEM_TMOP_PA_MPI without MFEM_USE_MPI!"
 #endif
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
 #define PFesGetParMeshGetComm(pfes) pfes.GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
@@ -151,7 +151,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    ParMesh mesh([](Mesh &mesh)
    {
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
       return ParMesh(MPI_COMM_WORLD, mesh);
 #else
       return Mesh(mesh);
@@ -333,7 +333,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          return 3;
       }
    }
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
    if (target_c == nullptr)
    {
       target_c.reset(new TargetConstructor(target_t, MPI_COMM_WORLD));
@@ -545,14 +545,14 @@ int tmop(int id, Req &res, int argc, char *argv[])
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
             S_prec.reset(new OperatorJacobiSmoother);
          }
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
          else
          {
             auto hs = new HypreSmoother;
             hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
                         : HypreSmoother::l1Jacobi,
                         1);
-            S_prec = hs;
+            S_prec.reset(hs);
          }
 #else
          else { S_prec.reset(new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1)); }
@@ -566,9 +566,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(mesh.GetTypicalElementGeometry(), quad_order);
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-   std::unique_ptr<NewtonSolver> newton(
-      new TMOPNewtonSolver(PFesGetParMeshGetComm(fes), ir));
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
+   TMOPNewtonSolver solver(PFesGetParMeshGetComm(fes), ir);
 #else
    TMOPNewtonSolver solver(ir);
 #endif
@@ -628,7 +627,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector &x_t(x.GetTrueVector());
    real_t x_t_dot = x_t * x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 pmesh->GetComm());
+                 mesh.GetComm());
    res.dot = dot;
 
    return EXIT_SUCCESS;
@@ -860,7 +859,7 @@ public:
 // id: MPI rank, all: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
-#if defined(MFEM_TMOP_MPI)
+#if defined(MFEM_TMOP_PA_MPI)
    if (HypreUsingGPU())
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
@@ -1248,7 +1247,7 @@ static void tmop_tests(int id = 0, bool all = false)
    .Run(id, true);
 }
 
-#ifdef MFEM_TMOP_MPI
+#ifdef MFEM_TMOP_PA_MPI
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
    tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
@@ -1268,7 +1267,7 @@ int main(int argc, char *argv[])
    return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-#ifdef MFEM_TMOP_MPI
+#ifdef MFEM_TMOP_PA_MPI
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
@@ -1279,7 +1278,7 @@ int main(int argc, char *argv[])
 #endif
    device.Print();
 
-#ifdef MFEM_TMOP_MPI
+#ifdef MFEM_TMOP_PA_MPI
    return RunCatchSession(argc, argv, { "[Parallel]" }, Root());
 #else
    // Exclude parallel tests.

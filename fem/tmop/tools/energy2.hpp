@@ -19,7 +19,7 @@ namespace mfem
 
 class TMOPEnergyPA2D
 {
-   const Vector &x;
+   const Vector &X;
    Vector &E, &L;
    const Vector &O;
    const bool use_detA;
@@ -37,14 +37,14 @@ class TMOPEnergyPA2D
 
 public:
    TMOPEnergyPA2D(const TMOP_Integrator *ti,
-                  const Vector &X,
-                  Vector &L,
-                  const bool use_detA):
-      x(X),
+                  const Vector &x,
+                  Vector &l,
+                  const bool detA):
+      X(x),
       E(ti->PA.E),
-      L(L),
+      L(l),
       O(ti->PA.O),
-      use_detA(use_detA),
+      use_detA(detA),
       metric_energy{},
       limiting_energy{},
       ndof(ti->PA.maps->ndof),
@@ -60,61 +60,61 @@ public:
    { }
 
    TMOPEnergyPA2D(const TMOP_Integrator *ti,
-                  const Vector &X,
-                  Vector &L,
-                  const real_t metric_normal,
-                  const Vector &metric_coeff,
-                  const bool use_detA):
-      x(X),
+                  const Vector &x,
+                  Vector &l,
+                  const real_t normal,
+                  const Vector &coeff,
+                  const bool detA):
+      X(x),
       E(ti->PA.E),
-      L(L),
+      L(l),
       O(ti->PA.O),
-      use_detA(use_detA),
+      use_detA(detA),
       metric_energy{},
       limiting_energy{},
       ndof(ti->PA.maps->ndof),
       nqpt(ti->PA.maps->nqpt),
-      metric_normal(metric_normal),
+      metric_normal(normal),
       ne(ti->PA.ne),
       metric(ti->metric),
       B(ti->PA.maps->B),
       G(ti->PA.maps->G),
       Jtr(ti->PA.Jtr),
       ir(*ti->PA.ir),
-      metric_coeff(metric_coeff)
+      metric_coeff(coeff)
    { }
 
-   TMOPEnergyPA2D(const Vector &X,
-                  Vector &E,
-                  Vector &L,
-                  const Vector &O,
-                  const bool use_detA,
-                  const int ndof,
-                  const int nqpt,
-                  const real_t metric_normal,
-                  const int ne,
-                  TMOP_QualityMetric *metric,
-                  const Array<real_t> &B,
-                  const Array<real_t> &G,
-                  const DenseTensor &Jtr,
-                  const IntegrationRule &ir,
+   TMOPEnergyPA2D(const Vector &x,
+                  Vector &e,
+                  Vector &l,
+                  const Vector &o,
+                  const bool detA,
+                  const int d1d,
+                  const int q1d,
+                  const real_t normal,
+                  const int NE,
+                  TMOP_QualityMetric *quality_metric,
+                  const Array<real_t> &b,
+                  const Array<real_t> &g,
+                  const DenseTensor &J,
+                  const IntegrationRule &integration_rule,
                   const Vector &mc):
-      x(X),
-      E(E),
-      L(L),
-      O(O),
-      use_detA(use_detA),
+      X(x),
+      E(e),
+      L(l),
+      O(o),
+      use_detA(detA),
       metric_energy{},
       limiting_energy{},
-      ndof(ndof),
-      nqpt(nqpt),
-      metric_normal(metric_normal),
-      ne(ne),
-      metric(metric),
-      B(B),
-      G(G),
-      Jtr(Jtr),
-      ir(ir),
+      ndof(d1d),
+      nqpt(q1d),
+      metric_normal(normal),
+      ne(NE),
+      metric(quality_metric),
+      B(b),
+      G(g),
+      Jtr(J),
+      ir(integration_rule),
       metric_coeff(mc)
    { }
 
@@ -141,7 +141,7 @@ public:
       const auto *b = ker.B.Read();
       const auto *g = ker.G.Read();
 
-      const auto X = Reshape(ker.x.Read(), D1D, D1D, 2, NE);
+      const auto X = Reshape(ker.X.Read(), D1D, D1D, 2, NE);
       const auto J = Reshape(ker.Jtr.Read(), 2, 2, Q1D, Q1D, NE);
       const auto W = Reshape(ker.ir.GetWeights().Read(), Q1D, Q1D);
 
