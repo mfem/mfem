@@ -299,10 +299,14 @@ private:
    /// Get the four edges of the auxiliary face with index @a auxFace.
    void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
 
-   /// Helper function for @a SetPatchFactors.
+   /// Helper function for @a SetPatchFactors().
    void SlaveEdgeToParent(int se, int parent, const Array<int> &os,
                           const std::vector<int> &parentVerts,
                           Array<int> &edges);
+
+   /// Helper function for @a FindAdditionalFacesSA().
+   void GetMasterEdgeEntities(int edge, Array<int> &edgeV, Array<int> &edgeE,
+                              Array<int> &edgeVki);
 
    /// Helper function for @a Refine().
    void UpdateCoarseKVF();
