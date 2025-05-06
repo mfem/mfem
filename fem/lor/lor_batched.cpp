@@ -396,6 +396,9 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
       A.Reset(A_mat);
    }
 
+   // The second argument (nrows + face_nbr_vsize) accounts for additional
+   // columns contributed by DG face neighbors in parallel finite element
+   // spaces. In serial, face_nbr_vsize is set to 0.
    A_mat->OverrideSize(nrows, nrows + face_nbr_vsize);
 
    EnsureCapacity(A_mat->GetMemoryI(), nrows + 1);
