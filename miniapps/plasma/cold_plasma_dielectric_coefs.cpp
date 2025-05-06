@@ -2571,8 +2571,16 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case RHO_CORE:
       {
+         // For stix2d:
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
+
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2];         
+         }
 
          double x_tok_data[2];
          Vector xTokVec(x_tok_data, 2);
