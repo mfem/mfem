@@ -558,17 +558,17 @@ protected:
 
    bool nonconforming = false; /// Whether patchTopo is a nonconforming mesh.
 
+   int num_structured_patches = 0; /// Number of structured patches
+
+   Array3D<double> patchCP; /// Control points for coarse structured patches
+
    std::vector<Array<int>> kvf, kvf_coarse; /// Knotvector refinement factors
 
    Array<int> ref_factors; /// Refinement factors in each dimension.
 
-   int num_structured_patches = 0; /// Number of structured patches
-
    static constexpr int unsetFactor = 0; /// Unset refinement factor value
 
    Array<int> dof2patch; /// DOF to owning patch map in @a SetSolutionVector()
-
-   Array3D<double> patchCP; /// Control points for coarse structured patches
 
    /// Access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
