@@ -115,6 +115,7 @@ public:
         max_iter=10;
         eps=1e-6;
 
+        modes.resize(num_modes);
     }
 
     void SetOperators(const Operator& A_, const Operator& iB_)
@@ -169,8 +170,12 @@ public:
     }
 
 
-    void OrthoB(Operator* B,
+    void OrthoB(Operator* C,
                 std::vector<Vector>& vecs);
+
+    void OrthoB(Operator* C,
+                std::vector<Vector>& vecs,
+                std::vector<Vector>& orth);
 private:
     MPI_Comm comm;
 

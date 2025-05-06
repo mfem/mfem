@@ -233,6 +233,39 @@ void AdaptiveRandomizedGenEig::OrthoB(Operator* B,
 }
 
 
+//return the othogonalized vectors in orth
+void AdaptiveRandomizedGenEig::OrthoB(Operator* B,
+                                      std::vector<Vector>& vecs,
+                                      std::vector<Vector>& orth)
+{
+    real_t gp;
+
+
+    DenseMatrix A(vecs.size(),vecs.size());
+    for(int i=0;i<vecs.size();i++){
+        orth[i].SetSize(vecs[i].Size());
+        B->Mult(vecs[i],orth[i]);
+        for(int j=0;j<i;j++){
+            gp=InnerProduct (comm, orth[i], vecs[j]);
+            A(i,j)=gp;
+            A(j,i)=gp;
+        }
+        gp=InnerProduct (comm, orth[i], vecs[i]);
+        A(i,i)=gp;
+    }
+
+    Vector eval; eval.SetSize(vecs.size());
+    DenseMatrix evec; evec.SetSize(vecs.size(),vecs.size());
+    A.Eigensystem(eval,evec);
+
+    for(int i=0;i<vecs.size();i++){
+        orth[i]=real_t(0.0);
+        for(int j=0;j<vecs.size();j++){
+            orth[i].Add(evec(j,i)/sqrt(eval(i)),vecs[j]);
+        }
+    }
+}
+
 
 
 }

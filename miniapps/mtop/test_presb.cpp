@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 4;
+   int order = 2;
    bool static_cond = false;
    bool pa = false;
    bool fa = false;
@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
 
        RandomizedSubspaceIteration ss(pmesh.GetComm());
        ss.SetConstrDOFs(ess_dofs);
-       ss.SetNumModes(100);
+       ss.SetNumModes(10);
        ss.SetNumIter(10);
        ss.SetOperator(pOp);
        ss.Solve();
@@ -418,6 +418,35 @@ int main(int argc, char *argv[])
                if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
        }
 
+       std::random_device rd;
+       std::mt19937 generator(rd());
+       // Create a normal distribution object
+       std::normal_distribution<real_t> distribution(0.0, 1.0);
+
+       std::vector<Vector> pvecs; pvecs.resize(5);
+       std::vector<Vector> ovecs; ovecs.resize(5);
+       for(int i=0;i<5;i++){
+           pvecs[i].SetSize(vecs[0].Size());
+           for(int j=0;j<vecs[0].Size();j++){
+               (pvecs[i])[j]=distribution(generator);
+           }
+       }
+
+       AdaptiveRandomizedGenEig ae(pmesh.GetComm());
+       ae.SetOperators(*kmat,*mmat);
+
+
+       ae.OrthoB(kmat.get(), pvecs, ovecs);
+
+       if(myrank==0){ std::cout<<std::endl;}
+       for(int i=0;i<5;i++){
+           kmat->Mult(ovecs[i],rr);
+           for(int j=0;j<5;j++){
+               real_t gp=InnerProduct (pmesh.GetComm(), ovecs[j], rr);
+               if(myrank==0){std::cout<<gp<<" ";}
+           }
+           if(myrank==0){std::cout<<std::endl;}
+       }
 
    }
 
