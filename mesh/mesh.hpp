@@ -64,6 +64,7 @@ class Mesh
 {
    friend class NCMesh;
    friend class NURBSExtension;
+   friend class NCNURBSExtension;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
