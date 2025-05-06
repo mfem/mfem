@@ -49,6 +49,7 @@ set(HDRS
   mesh_headers.hpp
   mesh_operators.hpp
   ncmesh.hpp
+  ncnurbs.hpp
   nurbs.hpp
   point.hpp
   pyramid.hpp

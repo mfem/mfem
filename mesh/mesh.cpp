@@ -5025,7 +5025,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
        skip_comment_lines(input, '#');
        input >> ident;
        if (ident == "patch_cp")
-	 NURBSext->ReadStructuredPatchCP(input);
+	 NURBSext->ReadCoarsePatchCP(input);
      }
 
    // Finalize(...) should be called after this, if needed.
