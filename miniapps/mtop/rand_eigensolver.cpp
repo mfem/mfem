@@ -138,4 +138,101 @@ void RandomizedSubspaceIteration::Solve()
 
 }
 
+
+/// Solves the generalized eigenproble using fixed number of iterations
+/// Does not use adaptive check of the precision just run the
+/// specified number of iterations
+void AdaptiveRandomizedGenEig::SolveNA()
+{
+    if(A==nullptr){return;}
+
+    int myrank=0;
+    MPI_Comm_rank(comm,&myrank);
+
+    std::random_device rd;
+    std::mt19937 generator(rd());
+
+    // Create a normal distribution object
+    std::normal_distribution<real_t> distribution(0.0, 1.0);
+
+    std::vector<Vector> omega; omega.resize(num_modes);
+
+    //populate omega with standard Gaussian RV
+    for(int i=0;i<num_modes;i++){
+        omega[i].SetSize(A->NumCols());
+        Vector& cv=omega[i];
+
+        for(int j=0;j<A->NumCols();j++)
+        {
+            cv[j]=distribution(generator);
+        }
+    }
+
+    //initialize the modes
+    for(int i=0;i<num_modes;i++){
+        iB->Mult(omega[i],modes[i]);
+    }
+
+    real_t gp;
+    Vector tv(modes[0]);
+    Vector bv(modes[0]);
+
+    //Orthogonalize the modes using A inner product
+    for(int i=0;i<num_modes;i++){
+        A->Mult(modes[i],tv);
+        iB->Mult(tv,modes[i]);
+        for(int j=0;j<i;j++){
+            gp=InnerProduct (comm, modes[i], modes[j]);
+            modes[i].Add(-gp,modes[j]);
+        }
+
+        A->Mult(modes[i],tv);
+        gp=InnerProduct (comm, tv, modes[i]);
+        if(fabs(gp)>std::numeric_limits<real_t>::epsilon()){
+            modes[i]/=sqrt(gp); //scale the vector
+        }
+    }
+
+    for(int it=0;it<max_iter;it++){
+        for(int i=0;i<num_modes;i++){
+            A->Mult(modes[i],tv);
+            iB->Mult(tv,modes[i]);
+            for(int j=0;j<i;j++){
+                gp=InnerProduct (comm, modes[i], modes[j]);
+                modes[i].Add(-gp,modes[j]);
+            }
+
+            A->Mult(modes[i],tv);
+            gp=InnerProduct (comm, tv, modes[i]);
+            if(fabs(gp)>std::numeric_limits<real_t>::epsilon()){
+                modes[i]/=sqrt(gp); //scale the vector
+            }
+        }
+    }
+}
+
+void AdaptiveRandomizedGenEig::OrthoB(Operator* B,
+                                      std::vector<Vector>& vecs)
+{
+    Vector tv(vecs[0]);
+
+    real_t gp;
+
+    for(int i=0;i<vecs.size();i++){
+        for(int j=0;j<i;j++){
+            B->Mult(vecs[i],tv);
+            gp=InnerProduct (comm, tv, vecs[j]);
+            vecs[i].Add(-gp,vecs[j]);
+        }
+        B->Mult(vecs[i],tv);
+        gp=InnerProduct (comm, tv, vecs[i]);
+        if(fabs(gp)>std::numeric_limits<real_t>::epsilon()){
+            vecs[i]/=sqrt(gp); //scale the vector
+        }
+    }
+}
+
+
+
+
 }
