@@ -373,6 +373,9 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/dg-agglomeration/ParaView
+miniapps/dg-agglomeration/dg_agglom
+
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div
 
