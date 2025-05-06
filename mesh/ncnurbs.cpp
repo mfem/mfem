@@ -83,17 +83,17 @@ void NCNURBSExtension::GetMasterEdgeEntities(
 
    for (std::size_t i=0; i<nes; ++i)
    {
-      const int edge = slaveEdges[masterEdgeInfo[mid].slaves[i]];
-      edgeE.Append(edge);
+      const int edge_i = slaveEdges[masterEdgeInfo[mid].slaves[i]];
+      edgeE.Append(edge_i);
 
       Array<int> sverts(2);
-      if (edge >= 0) // If a slave edge
+      if (edge_i >= 0) // If a slave edge
       {
-         patchTopo->GetEdgeVertices(edge, sverts);
+         patchTopo->GetEdgeVertices(edge_i, sverts);
       }
       else
       {
-         const int auxEdge = -1 - edge;
+         const int auxEdge = -1 - edge_i;
          GetAuxEdgeVertices(auxEdge, sverts);
       }
 
