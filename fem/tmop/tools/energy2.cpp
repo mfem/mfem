@@ -48,7 +48,10 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
 
    Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
 
-   TMOPEnergyPA2D ker(this, X, L, use_detA);
+   const real_t mn = 1.0;
+   Vector mc(1); mc = 1.0;
+
+   TMOPEnergyPA2D ker(this, X, L, mn, mc, use_detA);
 
    if (mid == 1) { tmop::Kernel<1>(ker); }
    else if (mid == 2) { tmop::Kernel<2>(ker); }
@@ -80,8 +83,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
    const int d = maps.ndof;
    const int q = maps.nqpt;
 
-   const real_t mn = 1.0;
-   Vector MC(1); MC = 1.0;
+   const real_t metric_normal = 1.0;
+   Vector metric_coeff(1); metric_coeff = 1.0;
 
    const Array<real_t> &B = maps.B, &G = maps.G;
 
@@ -96,7 +99,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
    DenseTensor Jtr(2, 2, N * ir.GetNPoints(), Device::GetDeviceMemoryType());
    tc.ComputeAllElementTargets(*fes, ir, X, Jtr);
 
-   TMOPEnergyPA2D ker(X, E, L, O, true, d, q, mn, N, metric, B, G, Jtr, ir, MC);
+   TMOPEnergyPA2D ker(X, E, L, O, true, d, q,
+                      metric_normal, N, metric, B, G, Jtr, ir, metric_coeff);
 
    if (mid == 1) { tmop::Kernel<1>(ker); }
    else if (mid == 2) { tmop::Kernel<2>(ker); }

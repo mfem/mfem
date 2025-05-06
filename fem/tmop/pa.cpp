@@ -174,6 +174,11 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    if (PA.ne == 0) { return; } // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
 
+   const FiniteElement &fe = *fes->GetTypicalFE();
+   MFEM_VERIFY(PA.ir == &EnergyIntegrationRule(fe),
+               "TMOP_Integrator::ComputeAllElementTargets() called with "
+               "different IntegrationRule than the one used in AssemblePA()!");
+
    // Compute PA.Jtr for all elements
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }

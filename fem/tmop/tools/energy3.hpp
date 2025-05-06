@@ -33,7 +33,7 @@ class TMOPEnergyPA3D
    const Array<real_t> &B, &G;
    const DenseTensor &Jtr;
    const IntegrationRule &ir;
-   const Vector &mc;
+   const Vector &metric_coeff;
 
 public:
    TMOPEnergyPA3D(const TMOP_Integrator *ti,
@@ -56,8 +56,33 @@ public:
       G(ti->PA.maps->G),
       Jtr(ti->PA.Jtr),
       ir(*ti->PA.ir),
-      mc(ti->PA.MC)
-   {}
+      metric_coeff(ti->PA.MC)
+   { }
+
+   TMOPEnergyPA3D(const TMOP_Integrator *ti,
+                  const Vector &X,
+                  Vector &L,
+                  const real_t metric_normal,
+                  const Vector &metric_coeff,
+                  const bool use_detA):
+      x(X),
+      E(ti->PA.E),
+      L(L),
+      O(ti->PA.O),
+      use_detA(use_detA),
+      metric_energy{},
+      limiting_energy{},
+      ndof(ti->PA.maps->ndof),
+      nqpt(ti->PA.maps->nqpt),
+      metric_normal(metric_normal),
+      ne(ti->PA.ne),
+      metric(ti->metric),
+      B(ti->PA.maps->B),
+      G(ti->PA.maps->G),
+      Jtr(ti->PA.Jtr),
+      ir(*ti->PA.ir),
+      metric_coeff(metric_coeff)
+   { }
 
    TMOPEnergyPA3D(const Vector &X,
                   Vector &E,
@@ -90,7 +115,7 @@ public:
       G(G),
       Jtr(Jtr),
       ir(ir),
-      mc(mc)
+      metric_coeff(mc)
    { }
 
    int Ndof() const { return ndof; }
@@ -120,7 +145,7 @@ public:
       const auto J = Reshape(ker.Jtr.Read(), 3, 3, Q1D, Q1D, Q1D, NE);
       const auto W = Reshape(ker.ir.GetWeights().Read(), Q1D, Q1D, Q1D);
 
-      const Vector &mc = ker.mc;
+      const Vector &mc = ker.metric_coeff;
       const bool const_m0 = mc.Size() == 1;
       const auto MC = const_m0
                       ? Reshape(mc.Read(), 1, 1, 1, 1)
@@ -149,9 +174,9 @@ public:
                mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-                  const real_t m_coef = const_m0
-                                        ? MC(0, 0, 0, 0)
-                                        : MC(qx, qy, qz, e);
+                  const real_t metric_coeff = const_m0
+                                              ? MC(0, 0, 0, 0)
+                                              : MC(qx, qy, qz, e);
 
                   // Jrt = Jtr^{-1}
                   real_t Jrt[9];
@@ -170,7 +195,7 @@ public:
                   kernels::Mult(3, 3, 3, Jpr, Jrt, Jpt);
 
                   const real_t det = kernels::Det<3>(use_detA ? Jpr : Jtr);
-                  const real_t weight = metric_normal * m_coef * W(qx, qy, qz) * det;
+                  const real_t weight = metric_normal * metric_coeff * W(qx, qy, qz) * det;
 
                   const real_t EvalW = METRIC{}.EvalW(Jpt, w);
 

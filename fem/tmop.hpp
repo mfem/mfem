@@ -2426,6 +2426,11 @@ public:
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
 
+   /** @brief Get the normalization factors of the metric */
+   void GetNormalizationFactors(real_t &metric_normal,
+                                real_t &lim_normal,
+                                real_t &surf_fit_normal);
+
    /** @brief Enables FD-based approximation and computes dx. */
    void EnableFiniteDifferences(const GridFunction &x);
 #ifdef MFEM_USE_MPI

@@ -48,7 +48,10 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
 
    Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
 
-   TMOPEnergyPA3D ker(this, X, L, use_detA);
+   const real_t mn = 1.0;
+   Vector mc(1); mc = 1.0;
+
+   TMOPEnergyPA3D ker(this, X, L, mn, mc, use_detA);
 
    if (mid == 302) { tmop::Kernel<302>(ker); }
    else if (mid == 303) { tmop::Kernel<303>(ker); }

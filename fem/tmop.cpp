@@ -5144,6 +5144,15 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
+void TMOP_Integrator::GetNormalizationFactors(real_t &m_normal,
+                                              real_t &l_normal,
+                                              real_t &s_normal)
+{
+   m_normal = this->metric_normal;
+   l_normal = this->lim_normal;
+   s_normal = this->surf_fit_normal;
+}
+
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
                                                    real_t &lim_energy,
@@ -5171,6 +5180,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       {
          GetLocalNormalizationEnergiesPA_3D(xe, metric_energy, lim_energy);
       }
+      MFEM_VERIFY(!std::isnan(metric_energy), "metric_energy is NaN");
 
       // Cases when integration is not over the target element, or when the
       // targets don't contain volumetric information.
