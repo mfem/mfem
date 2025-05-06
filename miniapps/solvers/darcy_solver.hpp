@@ -37,7 +37,7 @@ struct IterSolveParameters
 #endif
 };
 
-void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);
+void SetOptions(IterativeSolver &solver, const IterSolveParameters &param);
 
 /// Abstract solver class for Darcy's flow
 class DarcySolver : public Solver
@@ -60,10 +60,10 @@ class BDPMinresSolver : public DarcySolver
    MINRESSolver solver_;
    Array<int> ess_zero_dofs_;
 public:
-   BDPMinresSolver(const HypreParMatrix& M,
-                   const HypreParMatrix& B,
+   BDPMinresSolver(const HypreParMatrix &M,
+                   const HypreParMatrix &B,
                    IterSolveParameters param);
-   void Mult(const Vector & x, Vector & y) const override;
+   void Mult(const Vector &x, Vector &y) const override;
    void SetOperator(const Operator &op) override { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
    int GetNumIterations() const override { return solver_.GetNumIterations(); }

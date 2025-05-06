@@ -17,7 +17,7 @@ namespace mfem
 {
 namespace blocksolvers
 {
-void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
+void SetOptions(IterativeSolver &solver, const IterSolveParameters &param)
 {
    solver.SetPrintLevel(param.print_level);
    solver.SetMaxIter(param.max_iter);
@@ -30,8 +30,8 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
                      [ M  B^T ] [u] = [f]
                      [ B   0  ] [p] = [g]
 */
-BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
-                                 const HypreParMatrix& B,
+BDPMinresSolver::BDPMinresSolver(const HypreParMatrix &M,
+                                 const HypreParMatrix &B,
                                  IterSolveParameters param)
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
      BT_(B.Transpose()), solver_(M.GetComm())
@@ -56,7 +56,7 @@ BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
    solver_.SetPreconditioner(prec_);
 }
 
-void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
+void BDPMinresSolver::Mult(const Vector &x, Vector &y) const
 {
    solver_.Mult(x, y);
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
