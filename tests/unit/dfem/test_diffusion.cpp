@@ -78,9 +78,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
    smesh.Clear();
 
    Array<int> all_domain_attr;
-   if (pmesh.bdr_attributes.Size() > 0)
+   if (pmesh.attributes.Size() > 0)
    {
-      all_domain_attr.SetSize(pmesh.bdr_attributes.Max());
+      all_domain_attr.SetSize(pmesh.attributes.Max());
       all_domain_attr = 1;
    }
 
