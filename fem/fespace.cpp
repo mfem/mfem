@@ -1490,10 +1490,8 @@ int FiniteElementSpace::GetNConformingDofs() const
 int FiniteElementSpace::GetVectorDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
-   if (fe == nullptr)
-   {
-      fe = GetTypicalTraceElement();
-   }
+   MFEM_VERIFY(fe, "A typical finite element does not exist!");
+
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
