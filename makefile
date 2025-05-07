@@ -425,11 +425,12 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
-       fem/ceed/integrators/mass fem/ceed/integrators/convection \
-       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
-       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop
+DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
+       fem/ceed/interface fem/ceed/integrators/mass \
+       fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
+       fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
+       fem/qinterp fem/integ fem/gslib fem/tmop fem/tmop/assemble \
+	   fem/tmop/metrics fem/tmop/mult fem/tmop/tools
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
