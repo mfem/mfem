@@ -20,10 +20,11 @@ private:
    static constexpr int SOLUTION_U = 1;
    static constexpr int MESH_NODES = 2;
 
+   template <typename T>
    MFEM_HOST_DEVICE inline
-   static auto coeff(const tensor<dscalar_t, dim> &a)
+   static auto coeff(const tensor<T, dim> &a)
    {
-      return 1.0 / sqrt(1.0 + pow(norm(a), 2.0));
+      return 1.0 / sqrt(1.0 + sqnorm(a));
    }
 
    struct MFApply
@@ -337,7 +338,7 @@ int main(int argc, char *argv[])
    minsurface = std::make_unique<MinimalSurface<real_t>>(H1, *ir,
                                                          derivative_type);
 #else
-using mfem::future:dual;
+   using mfem::future::dual;
    using dual_t = dual<real_t, real_t>;
    minsurface = std::make_unique<MinimalSurface<dual_t>>(H1, *ir,
                                                          derivative_type);
