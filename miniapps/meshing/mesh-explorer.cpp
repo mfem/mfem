@@ -618,26 +618,25 @@ int main (int argc, char *argv[])
          }
          else if (type == 'a')
          {
-            const int sdim = mesh->SpaceDimension();
             DenseMatrix A(sdim);
             Vector b(sdim);
 
-            char type;
+            char tmtype;
             cout << "Type of transformation matrix:\n"
                  "i) Identity\n"
                  "r) Rotation\n"
                  "s) Scale\n"
                  "g) General\n" << " ---> " << flush;
-            cin >> type;
+            cin >> tmtype;
 
-            if (type == 'i')
+            if (tmtype == 'i')
             {
                A = 0.0;
                A(0,0) = 1.0;
                if (sdim > 1) { A(1,1) = 1.0; }
                if (sdim > 2) { A(2,2) = 1.0; }
             }
-            if (type == 'r')
+            if (tmtype == 'r')
             {
                if (sdim == 2)
                {
@@ -677,7 +676,7 @@ int main (int argc, char *argv[])
                   A(2,2) = cb;
                }
             }
-            if (type == 's')
+            if (tmtype == 's')
             {
                A = 0.0;
                cout << "Scale factors for each cartesian direction --> "
@@ -686,7 +685,7 @@ int main (int argc, char *argv[])
                if (sdim > 1) { cin >> A(1,1); }
                if (sdim > 2) { cin >> A(2,2); }
             }
-            if (type == 'g')
+            if (tmtype == 'g')
             {
                cout << "General matrix entries in column major order --> "
                     << flush;
