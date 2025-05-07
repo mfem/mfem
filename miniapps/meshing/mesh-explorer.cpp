@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -265,6 +265,7 @@ int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   int visport = 19916;
    bool refine = true;
 
    OptionsParser args(argc, argv);
@@ -274,6 +275,7 @@ int main (int argc, char *argv[])
                   "Load mesh from multiple processors.");
    args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
                   "Prepare the mesh for refinement or not.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -301,6 +303,7 @@ int main (int argc, char *argv[])
    // Helper for visualizing the partitioning.
    Array<int> partitioning;
    Array<int> bdr_partitioning;
+   Array<int> elem_partitioning;
    if (!use_par_mesh)
    {
       mesh = new Mesh(mesh_file, 1, refine);
@@ -308,6 +311,9 @@ int main (int argc, char *argv[])
       partitioning = 0;
       bdr_partitioning.SetSize(mesh->GetNBE());
       bdr_partitioning = 0;
+      elem_partitioning.SetSize(mesh->GetNE());
+      elem_partitioning = 0;
+      np = 1;
    }
    else
    {
@@ -382,8 +388,12 @@ int main (int argc, char *argv[])
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "o) Reorder elements\n"
-           "S) Save in MFEM format\n"
+           "S) Save in MFEM serial format\n"
+           "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_NETCDF
+           "X) Save in Exodus II format (only linear and quadratic meshes)\n"
+#endif
            "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
@@ -566,7 +576,8 @@ int main (int argc, char *argv[])
          char type;
          cout << "Choose a transformation:\n"
               "u) User-defined transform through mesh-explorer::transformation()\n"
-              "k) Kershaw transform\n"<< "---> " << flush;
+              "k) Kershaw transform\n"
+              "s) Spiral transform\n"<< "---> " << flush;
          cin >> type;
          if (type == 'u')
          {
@@ -589,6 +600,30 @@ int main (int argc, char *argv[])
             }
             common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
             mesh->Transform(kershawT);
+         }
+         else if (type == 's')
+         {
+            MFEM_VERIFY(mesh->SpaceDimension() >= 2,
+                        "Mesh space dimension must be at least 2 "
+                        "for spiral transformation.\n");
+            cout << "Note: For Spiral transformation, the input mesh is "
+                 "assumed to be in [0,1]^D.\n" << flush;
+            real_t turns, width, gap, height = 1.0;
+            cout << "Number of turns: ---> " << flush;
+            cin >> turns;
+            cout << "Width of spiral arm (e.g. 0.1) ---> " << flush;
+            cin >> width;
+            cout << "Gap between adjacent spiral arms at the end of each turn (e.g. 0.05) ---> "
+                 << flush;
+            cin >> gap;
+            if (mesh->SpaceDimension() == 3)
+            {
+               cout << "Maximum spiral height ---> " << flush;
+               cin >> height;
+            }
+            common::SpiralTransformation spiralT(mesh->SpaceDimension(), turns,
+                                                 width, gap, height);
+            mesh->Transform(spiralT);
          }
          else
          {
@@ -907,8 +942,13 @@ int main (int argc, char *argv[])
             cout << "Number of colors: " << attr.Max() + 1 << endl;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               attr(i) = i; // coloring by element number
+               attr(i) = elem_partitioning[i] = i; // coloring by element number
             }
+            cout << "GLVis keystrokes for mesh element visualization:\n"
+                 << "- F3/F4      - Shrink/Zoom the elements\n"
+                 << "- Ctrl+F3/F4 - 3D: cut holes in element faces \n"
+                 << "- F8         - 3D: toggle visible elements\n"
+                 << "- F9/F10     - 3D: cycle through visible elements\n";
          }
 
          if (mk == 'h')
@@ -1037,7 +1077,7 @@ int main (int argc, char *argv[])
                partitioning.SetSize(mesh->GetNE());
                for (int i = 0; i < mesh->GetNE(); i++)
                {
-                  partitioning[i] = i * np / mesh->GetNE();
+                  partitioning[i] = (long long)i * np / mesh->GetNE();
                }
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
@@ -1109,7 +1149,6 @@ int main (int argc, char *argv[])
          }
 
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -1134,7 +1173,14 @@ int main (int argc, char *argv[])
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     if (mk == 'e')
+                     {
+                        mesh->PrintWithPartitioning(elem_partitioning, sol_sock, 1);
+                     }
+                     else
+                     {
+                        mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     }
                   }
                }
                attr.Save(sol_sock);
@@ -1176,7 +1222,14 @@ int main (int argc, char *argv[])
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(partitioning, sol_sock);
+                     if (mk == 'e')
+                     {
+                        mesh->PrintWithPartitioning(elem_partitioning, sol_sock, 1);
+                     }
+                     else
+                     {
+                        mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     }
                   }
                }
                if (mk != 'b' && mk != 'B')
@@ -1226,7 +1279,6 @@ int main (int argc, char *argv[])
          FunctionCoefficient coeff(f);
          level.ProjectCoefficient(coeff);
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -1250,6 +1302,33 @@ int main (int argc, char *argv[])
          cout << "New mesh file: " << omesh_file << endl;
       }
 
+      if (mk == 'T')
+      {
+         string mesh_prefix("mesh-explorer.mesh."), line;
+         MeshPartitioner partitioner(*mesh, np, partitioning);
+         MeshPart mesh_part;
+         cout << "Enter mesh file prefix or press <enter> to use \""
+              << mesh_prefix << "\": " << flush;
+         // extract and ignore all characters after 'T' up to and including the
+         // new line:
+         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+         getline(cin, line);
+         if (!line.empty()) { mesh_prefix = line; }
+         int precision;
+         cout << "Enter floating point output precision (num. digits): "
+              << flush;
+         cin >> precision;
+         for (int i = 0; i < np; i++)
+         {
+            partitioner.ExtractPart(i, mesh_part);
+
+            ofstream omesh(MakeParFilename(mesh_prefix, i));
+            omesh.precision(precision);
+            mesh_part.Print(omesh);
+         }
+         cout << "New parallel mesh files: " << mesh_prefix << "<rank>" << endl;
+      }
+
       if (mk == 'V')
       {
          const char omesh_file[] = "mesh-explorer.vtk";
@@ -1258,6 +1337,15 @@ int main (int argc, char *argv[])
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << omesh_file << endl;
       }
+
+#ifdef MFEM_USE_NETCDF
+      if (mk == 'X')
+      {
+         const char omesh_file[] = "mesh-explorer.e";
+         mesh->PrintExodusII(omesh_file);
+         cout << "New Exodus II mesh file: " << omesh_file << endl;
+      }
+#endif
 
       if (mk == 'D')
       {

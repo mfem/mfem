@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -973,6 +973,22 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+void NodalFiniteElement::ReorderLexToNative(int ncomp,
+                                            Vector &dofs) const
+{
+   MFEM_ASSERT(lex_ordering.Size() == dof, "Permutation is not defined by FE.");
+   MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
+
+   Vector dofs_native(ncomp * dof);
+   for (int i = 0; i < dof; i++)
+   {
+      for (int c = 0; c < ncomp; c++)
+      {
+         dofs_native(c*dof + lex_ordering[i]) = dofs(c*dof + i);
+      }
+   }
+   dofs = dofs_native;
+}
 
 VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
                                          int Do, int O, int M, int F)
@@ -2168,6 +2184,64 @@ void Poly_1D::CalcDBinomTerms(const int p, const real_t x, const real_t y,
    }
 }
 
+void Poly_1D::CalcDxBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *u)
+{
+   if (p == 0)
+   {
+      u[0] = 0.;
+   }
+   else
+   {
+      int i;
+      const int *b = Binom(p);
+      real_t z = 1.;
+
+      for (i = 1; i < p; i++)
+      {
+         u[i] = i * b[i]*z;
+         z *= x;
+      }
+      u[p] = i * z;
+      z = y;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= z;
+         z *= y;
+      }
+      u[0] = 0;
+   }
+}
+
+void Poly_1D::CalcDyBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *u)
+{
+   if (p == 0)
+   {
+      u[0] = 0.;
+   }
+   else
+   {
+      int i;
+      const int *b = Binom(p);
+      real_t z = x;
+
+      for (i = 1; i < p; i++)
+      {
+         u[i] = b[i]*z;
+         z *= x;
+      }
+      u[p] = 0.;
+      z = 1.;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= (p - i) * z;
+         z *= y;
+      }
+      u[0] = p * z;
+   }
+}
+
 void Poly_1D::CalcLegendre(const int p, const real_t x, real_t *u)
 {
    // use the recursive definition for [-1,1]:
@@ -2267,99 +2341,58 @@ void Poly_1D::CalcChebyshev(const int p, const real_t x, real_t *u, real_t *d,
    }
 }
 
-const real_t *Poly_1D::GetPoints(const int p, const int btype)
+const Array<real_t>* Poly_1D::GetPointsArray(const int p, const int btype)
 {
-   Array<real_t*> *pts;
+   Array<real_t> *val;
    BasisType::Check(btype);
    const int qtype = BasisType::GetQuadrature1D(btype);
-   if (qtype == Quadrature1D::Invalid) { return NULL; }
+   if (qtype == Quadrature1D::Invalid) { return nullptr; }
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Poly1DGetPoints)
 #endif
    {
-      auto it = points_container.find(btype);
-      if (it != points_container.end())
+      std::pair<int, int> key(btype, p);
+      auto it = points_container.find(key);
+      if (it == points_container.end())
       {
-         pts = it->second;
+         it = points_container.emplace(key, new Array<real_t>(p + 1, h_mt)).first;
+         val = it->second.get();
+         real_t* hptr = val->HostWrite();
+         quad_func.GivePolyPoints(p + 1, hptr, qtype);
       }
       else
       {
-         pts = new Array<real_t*>(h_mt);
-         points_container[btype] = pts;
-      }
-      if (pts->Size() <= p)
-      {
-         pts->SetSize(p + 1, NULL);
-      }
-      if ((*pts)[p] == NULL)
-      {
-         (*pts)[p] = new real_t[p + 1];
-         quad_func.GivePolyPoints(p + 1, (*pts)[p], qtype);
+         val = it->second.get();
       }
    }
-   return (*pts)[p];
+   return val;
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
 {
-   Array<Basis*> *bases;
    BasisType::Check(btype);
+   Basis* val;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Poly1DGetBasis)
 #endif
    {
-      auto it = bases_container.find(btype);
-      if (it != bases_container.end())
-      {
-         bases = it->second;
-      }
-      else
-      {
-         // we haven't been asked for basis or points of this type yet
-         bases = new Array<Basis*>(h_mt);
-         bases_container[btype] = bases;
-      }
-      if (bases->Size() <= p)
-      {
-         bases->SetSize(p + 1, NULL);
-      }
-      if ((*bases)[p] == NULL)
+      std::pair<int, int> key(btype, p);
+      auto it = bases_container.find(key);
+      if (it == bases_container.end())
       {
          EvalType etype;
          if (btype == BasisType::Positive) { etype = Positive; }
          else if (btype == BasisType::IntegratedGLL) { etype = Integrated; }
          else { etype = Barycentric; }
-         (*bases)[p] = new Basis(p, GetPoints(p, btype), etype);
+         it = bases_container
+              .emplace(key, new Basis(p, GetPoints(p, btype), etype))
+              .first;
       }
+      val = it->second.get();
    }
-   return *(*bases)[p];
-}
-
-Poly_1D::~Poly_1D()
-{
-   for (PointsMap::iterator it = points_container.begin();
-        it != points_container.end() ; ++it)
-   {
-      Array<real_t*>& pts = *it->second;
-      for (int i = 0; i < pts.Size(); ++i)
-      {
-         delete [] pts[i];
-      }
-      delete it->second;
-   }
-
-   for (BasisMap::iterator it = bases_container.begin();
-        it != bases_container.end() ; ++it)
-   {
-      Array<Basis*>& bases = *it->second;
-      for (int i = 0; i < bases.Size(); ++i)
-      {
-         delete bases[i];
-      }
-      delete it->second;
-   }
+   return *val;
 }
 
 

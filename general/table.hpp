@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,6 +57,14 @@ public:
 
    /// Copy constructor
    Table(const Table &);
+
+   /** Merge constructors
+       This is used to combine two or three tables into one table.*/
+   Table(const Table &table1,
+         const Table &table2, int offset2);
+   Table(const Table &table1,
+         const Table &table2, int offset2,
+         const Table &table3, int offset3);
 
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);
@@ -207,7 +215,12 @@ template <> inline void Swap<Table>(Table &a, Table &b)
 void Transpose (const Table &A, Table &At, int ncols_A_ = -1);
 Table * Transpose (const Table &A);
 
-///  Transpose an Array<int>
+///  @brief Transpose an Array<int>.
+///
+/// The array @a A represents a table where each row @a i has exactly one
+/// connection to the column (TYPE II) index specified by @a A[i].
+///
+/// @note The column (TYPE II) indices in each row of @a At will be sorted.
 void Transpose(const Array<int> &A, Table &At, int ncols_A_ = -1);
 
 ///  C = A * B  (as boolean matrices)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -85,7 +85,7 @@ void EliminateColumns(HypreParMatrix &D, const Array<int> &ess_dofs)
       const auto I = diag->i;
       const auto J = diag->j;
       auto data = diag->data;
-      MFEM_HYPRE_FORALL(i, nrows_diag,
+      mfem::hypre_forall(nrows_diag, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int jj=I[i]; jj<I[i+1]; ++jj)
          {
@@ -109,7 +109,7 @@ void EliminateColumns(HypreParMatrix &D, const Array<int> &ess_dofs)
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, nrows_offd,
+      mfem::hypre_forall(nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int jj=I[i]; jj<I[i+1]; ++jj)
          {

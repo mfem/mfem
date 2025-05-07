@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,11 +51,11 @@ class CExample : public BlockNonlinearFormIntegrator
 private:
 public:
    CExample() {}
-   virtual ~CExample() {}
+   ~CExample() override {}
 
-   virtual real_t GetElementEnergy(const Array<const FiniteElement *> &el,
-                                   ElementTransformation &trans,
-                                   const Array<const Vector *> &elfun)
+   real_t GetElementEnergy(const Array<const FiniteElement *> &el,
+                           ElementTransformation &trans,
+                           const Array<const Vector *> &elfun) override
    {
       real_t energy = 0;
       int dof_u = el[0]->GetDof();

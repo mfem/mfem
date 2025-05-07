@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,7 +61,7 @@ string direction;
 real_t RHO_exact(const Vector &x);
 
 // Helper functions
-void visualize(VisItDataCollection &, string, int, int);
+void visualize(VisItDataCollection &, string, int, int, int visport = 19916);
 real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
                     string);
 
@@ -74,7 +74,10 @@ int main(int argc, char *argv[])
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
+   int visport = 19916;
    bool use_pointwise_transfer = false;
+   const char *device_config = "cpu";
+   bool use_ea       = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -95,7 +98,14 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
+                  "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
+
+   // Configure device
+   Device device(device_config);
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -156,7 +166,7 @@ int main(int argc, char *argv[])
    rho.SetFromTrueVector();
 
    real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
-   if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
+   if (vis) { visualize(HO_dc, "HO", Wx, Wy, visport); Wx += offx; }
 
    GridTransfer *gt;
    if (use_pointwise_transfer)
@@ -167,13 +177,17 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
+
+   // Configure element assembly for device acceleration
+   gt->UseEA(use_ea);
+
    const Operator &R = gt->ForwardOperator();
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
-   if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
+   if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy, visport); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
@@ -183,7 +197,7 @@ int main(int argc, char *argv[])
       GridFunction rho_prev = rho;
       P.Mult(rho_lor, rho);
       compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
-      if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
+      if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy, visport); Wx = 0; Wy += offy; }
 
       rho_prev -= rho;
       cout.precision(12);
@@ -205,7 +219,7 @@ int main(int argc, char *argv[])
    rho_lor.ProjectCoefficient(RHO);
    GridFunction rho_lor_prev = rho_lor;
    real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
-   if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
+   if (vis) { visualize(LOR_dc, "LOR", Wx, Wy, visport); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
@@ -214,14 +228,14 @@ int main(int argc, char *argv[])
       direction = "LOR -> HO @ HO";
       P.Mult(rho_lor, rho);
       compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
-      if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
+      if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy, visport); Wx += offx; }
 
       // Restrict back to LOR space. This won't give the original function because
       // the rho_lor doesn't necessarily live in the range of R.
       direction = "LOR -> HO @ LOR";
       R.Mult(rho, rho_lor);
       compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
-      if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
+      if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy, visport); }
 
       rho_lor_prev -= rho_lor;
       cout.precision(12);
@@ -236,6 +250,7 @@ int main(int argc, char *argv[])
       cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
    }
 
+   delete gt;
    delete fec;
    delete fec_lor;
 
@@ -261,12 +276,12 @@ real_t RHO_exact(const Vector &x)
 }
 
 
-void visualize(VisItDataCollection &dc, string prefix, int x, int y)
+void visualize(VisItDataCollection &dc, string prefix, int x, int y,
+               int visport)
 {
    int w = Ww, h = Wh;
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
    sol_sockL2.precision(8);

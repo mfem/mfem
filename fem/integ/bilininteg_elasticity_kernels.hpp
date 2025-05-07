@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /**
+ * @file
  * @brief Header for small strain, isotropic, linear elasticity kernels.
  *
  *        Strong form:    -div(sigma(u))
@@ -157,7 +158,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
    static constexpr int aSize = aUpper-aLower;
    static constexpr bool isComponent = (i_block >= 0);
 
-   //Assuming all elements are the same
+   // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
@@ -180,7 +181,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
          auto invJ = inv(make_tensor<d, d>(
          [&](int i, int j) { return J(p, i, j, e); }));
          tensor<real_t, aSize, d> gradx;
-         //load grad(x) into gradx
+         // load grad(x) into gradx
          if (isComponent)
          {
             for (int i = 0; i < d; i++)
@@ -198,11 +199,11 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                }
             }
          }
-         //compute divergence
+         // compute divergence
          real_t div = 0.;
          for (int i = aLower; i < aUpper; i++)
          {
-            //take size of gradx into account
+            // take size of gradx into account
             const int iIndex = isComponent ? 0 : i;
             div += gradx(iIndex,i);
          }
@@ -211,11 +212,11 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
          {
             for (int q = qLower; q < qUpper; q++)
             {
-               //compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-               //this contraction could be made slightly cheaper using Voigt
-               //notation, but repeated entries are summed for simplicity.
+               // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+               // this contraction could be made slightly cheaper using Voigt
+               // notation, but repeated entries are summed for simplicity.
                real_t contraction = 0.;
-               //not sure how to combine cases
+               // not sure how to combine cases
                if (isComponent)
                {
                   for (int a = 0; a < d; a++)
@@ -276,7 +277,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
                                    const CoefficientVector &mu, const GeometricFactors &geom,
                                    const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
-   //Assuming all elements are the same
+   // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
@@ -299,9 +300,9 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
             {
                for (int q = 0; q < d; q++)
                {
-                  //compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-                  //this contraction could be made slightly cheaper using Voigt
-                  //notation, but repeated entries are summed for simplicity.
+                  // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+                  // this contraction could be made slightly cheaper using Voigt
+                  // notation, but repeated entries are summed for simplicity.
                   real_t contraction = 0.;
                   for (int a = 0; a < d; a++)
                   {
@@ -321,7 +322,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
       }
    });
 
-   //Reduce quadrature function to an E-Vector
+   // Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(QVec.Read(), numPoints, d, d, d, numEls);
    auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
@@ -348,7 +349,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
    });
 }
 
-//Templated implementation of ElasticityAssembleEA.
+// Templated implementation of ElasticityAssembleEA.
 template<int dim>
 void ElasticityAssembleEA_(const int i_block,
                            const int j_block,
@@ -360,7 +361,7 @@ void ElasticityAssembleEA_(const int i_block,
                            const DofToQuad &maps,
                            Vector &emat)
 {
-   //Assuming all elements are the same
+   // Assuming all elements are the same
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
    const int numEls = lambda.Size()/numPoints;
@@ -386,7 +387,7 @@ void ElasticityAssembleEA_(const int i_block,
                {
                   for (int m = 0; m < d; m++)
                   {
-                     //compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+                     // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
                      real_t contraction = 0.;
                      for (int a = 0; a < d; a++)
                      {

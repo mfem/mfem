@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 #    for d in general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
   general/test_array.cpp
+  general/test_reduction.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
@@ -40,6 +41,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_rectangular.cpp
   linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
+  linalg/test_mma.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
@@ -47,6 +49,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_face_orientations.cpp
   mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
+  mesh/test_exodus_reader.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
@@ -56,12 +59,14 @@ set(UNIT_TESTS_SRCS
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
   mesh/test_nurbs.cpp
+  mesh/test_exodus_writer.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
+  fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_build_dof_to_arrays.cpp
   fem/test_calccurlshape.cpp
@@ -82,9 +87,13 @@ set(UNIT_TESTS_SRCS
   fem/test_face_permutation.cpp
   fem/test_face_restriction.cpp
   fem/test_fe.cpp
+  fem/test_fe_compatibility.cpp
+  fem/test_fe_fixed.cpp
+  fem/test_fe_symmetry.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
+  fem/test_gslib.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
@@ -146,6 +155,8 @@ target_link_libraries(unit_tests mfem)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 # Unit tests need the ../../data directory.
 add_dependencies(unit_tests copy_data)
+# ParSubMesh tests need meshes in ../../miniapps/multidomain
+add_dependencies(unit_tests copy_miniapps_multidomain_data)
 
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
@@ -179,7 +190,7 @@ endif()
 
 #-----------------------------------------------------------
 # SERIAL SEDOV + TMOP TESTS:
-#     sedov_tests_{cpu,debug,cuda,cuda_uvm}
+#   sedov_tests_{cpu,debug,cuda,cuda_uvm}
 #   tmop_pa_tests_{cpu,debug,cuda}
 #-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
@@ -188,10 +199,7 @@ endif()
 function(add_serial_miniapp_test name test_uvm)
     string(TOUPPER ${name} NAME)
 
-    set(${NAME}_TESTS_SRCS
-        unit_test_main.cpp
-        miniapps/test_${name}.cpp)
-
+    set(${NAME}_TESTS_SRCS miniapps/test_${name}.cpp)
     if (MFEM_USE_CUDA)
        set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
@@ -239,9 +247,6 @@ add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
-
-# ParSubMesh tests need meshes in ../../miniapps/multidomain
-add_dependencies(unit_tests copy_miniapps_multidomain_data)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
@@ -309,7 +314,7 @@ endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
 # PARALLEL SEDOV + TMOP TESTS:
-#     psedov_tests_{cpu,debug,cuda,cuda_uvm}
+#   psedov_tests_{cpu,debug,cuda,cuda_uvm}
 #   ptmop_pa_tests_{cpu,cuda}
 #-----------------------------------------------------------
 # Function to add one MPI executable for a test.
@@ -337,14 +342,28 @@ function(add_parallel_miniapp_test name HYPRE_MM)
         endif()
     endfunction()
 
-    set(PAR_${NAME}_TESTS_SRCS punit_test_main.cpp miniapps/test_${name}.cpp)
+    set(PAR_${NAME}_TESTS_SRCS miniapps/test_${name}.cpp)
     if (MFEM_USE_CUDA)
         set_property(SOURCE ${PAR_${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif()
 
     set(backends cpu)
     if (HYPRE_MM)
-        list(APPEND backends debug)
+        # psedov_tests_debug_* will return MFEM_SKIP_RETURN_VALUE when all of
+        # the following conditions are met:
+        # * MFEM_SEDOV_MPI is defined (true here)
+        # * MFEM_DEBUG is defined
+        # * MFEM_SEDOV_DEVICE is "debug" (the case added here)
+        # * HypreUsingGPU() is true; this is the same as: HYPRE_USING_GPU is
+        #   defined and MFEM_HYPRE_VERSION < 23100 (if the version is >= 23100,
+        #   the code will switch to HYPRE running on CPU).
+        # We check these conditions here to skip the "debug" backend and avoid
+        # the ctest failure.
+        if (NOT ((${name} STREQUAL "sedov") AND MFEM_DEBUG AND
+                 (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND
+                 (${MFEM_HYPRE_VERSION} LESS "23100")))
+            list(APPEND backends debug)
+        endif()
     endif()
     if (MFEM_USE_CUDA)
         list(APPEND backends cuda)

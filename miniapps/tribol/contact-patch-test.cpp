@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,8 +13,8 @@
 //                Tribol Miniapp: Mortar contact patch test
 //                -----------------------------------------
 //
-// Tribol is an open source contact mechanics library available at
-// https://github.com/LLNL/Tribol.
+// This miniapp depends on Tribol, an open source contact mechanics library
+// available at https://github.com/LLNL/Tribol.
 //
 // This miniapp uses Tribol's mortar method to solve a contact patch test.
 // Tribol has native support for MFEM data structures (ParMesh, ParGridFunction,
@@ -40,8 +40,8 @@
 //
 // Compile with: see README.md
 //
-// Sample runs:  mpirun -n 2 ContactPatchTest
-//               mpirun -n 2 ContactPatchTest -r 3
+// Sample runs:  mpirun -n 2 contact-patch-test
+//               mpirun -n 2 contact-patch-test -r 3
 
 #include "mfem.hpp"
 
@@ -361,11 +361,11 @@ int main(int argc, char *argv[])
    tribol::updateMfemParallelDecomposition();
 
    // Save data in VisIt format
-   mfem::VisItDataCollection visit_vol_dc("ContactPatchTestVolume", &mesh);
+   mfem::VisItDataCollection visit_vol_dc("contact-patch-test-volume", &mesh);
    visit_vol_dc.RegisterField("coordinates", &coords);
    visit_vol_dc.RegisterField("displacement", &displacement);
    visit_vol_dc.Save();
-   mfem::VisItDataCollection visit_surf_dc("ContactPatchTestSurface",
+   mfem::VisItDataCollection visit_surf_dc("contact-patch-test-surface",
                                            pressure.ParFESpace()->GetMesh());
    visit_surf_dc.RegisterField("pressure", &pressure);
    visit_surf_dc.Save();

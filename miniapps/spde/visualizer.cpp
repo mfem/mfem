@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,10 +36,9 @@ void Visualizer::ExportToParaView()
    paraview_dc.Save();
 }
 
-void Visualizer::SendToGLVis() const
+void Visualizer::SendToGLVis(int visport) const
 {
    std::string vishost{"localhost"};
-   int visport = 19916;
    int num_procs = Mpi::WorldSize();
    int process_rank = Mpi::WorldRank();
    socketstream uout;
