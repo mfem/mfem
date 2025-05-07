@@ -414,6 +414,20 @@ public:
                          const FiniteElement &el2,
                          FaceElementTransformations &Tr,
                          const Vector &elfun, DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 };
 
 
@@ -634,6 +648,33 @@ protected:
    mutable Vector fluxN1, fluxN2;
    mutable DenseMatrix JDotN;
 #endif
+};
+
+class HDGFlux : public RusanovFlux
+{
+public:
+   enum class HDGScheme
+   {
+      HDG_1,
+      HDG_2,
+   };
+
+private:
+   HDGScheme scheme;
+   real_t Ctau;
+
+public:
+   HDGFlux(const FluxFunction &fluxFunction,
+           HDGScheme scheme, real_t Ctau=1.)
+      : RusanovFlux(fluxFunction), scheme(scheme), Ctau(Ctau) { }
+
+   real_t Average(const Vector &state1, const Vector &state2,
+                  const Vector &nor, FaceElementTransformations &Tr,
+                  Vector &flux) const override;
+
+   void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                    const Vector &nor, FaceElementTransformations &Tr,
+                    DenseMatrix &grad) const override;
 };
 
 /// Advection flux
