@@ -18,16 +18,13 @@ private:
    {
       MFEM_HOST_DEVICE inline
       auto operator()(
-         const real_t &u,
          const tensor<real_t, dim> &dudxi,
          const tensor<real_t, dim, dim> &J,
          const real_t &w) const
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
-         // const auto f = 1.0 / sqrt(1.0 + pow(norm(dudx), 2.0));
-         // const auto f = 1.0 + u * u;
-         const auto f = 1.0;
+         const auto f = 1.0 / sqrt(1.0 + pow(norm(dudx), 2.0));
          return tuple{f * dudx * transpose(invJ) * det(J) * w};
       }
    };
@@ -89,7 +86,6 @@ public:
 
       auto input_operators = tuple
       {
-         Value<SOLUTION_U>{},
          Gradient<SOLUTION_U>{},
          Gradient<MESH_NODES>{},
          Weight{}
@@ -144,7 +140,8 @@ real_t boundary_func(const Vector &coords)
    {
       MFEM_ABORT("internal error");
    }
-   return 1.0 + x * x + 2.0 * y * y;
+   const real_t a = 1.0e-2;
+   return log(cos(a * x) / cos(a * y)) / a;
 }
 
 int main(int argc, char *argv[])
@@ -175,15 +172,16 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { device.Print(); }
 
    Mesh mesh(mesh_file, 1, 1);
+   mesh.SetCurvature(order);
 
-   // auto transform_mesh = [](const Vector &cold, Vector &cnew)
-   // {
-   //    cnew = cold;
-   //    cnew -= 0.5;
-   //    cnew *= M_PI;
-   // };
+   auto transform_mesh = [](const Vector &cold, Vector &cnew)
+   {
+      cnew = cold;
+      cnew -= 0.5;
+      cnew *= M_PI;
+   };
 
-   // mesh.Transform(transform_mesh);
+   mesh.Transform(transform_mesh);
 
    for (int i = 0; i < refinements; i++)
    {
@@ -194,8 +192,6 @@ int main(int argc, char *argv[])
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-
-   pmesh.EnsureNodes();
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace H1(&pmesh, &fec);
@@ -226,13 +222,14 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient boundary_coeff(boundary_func);
 
-   X.Randomize(1);
-   u.SetFromTrueDofs(X);
+   // X.Randomize(1);
+   u.ProjectCoefficient(boundary_coeff);
+   u *= 1e-2;
    u.ProjectBdrCoefficient(boundary_coeff, ess_bdr);
 
    GMRESSolver krylov(MPI_COMM_WORLD);
    krylov.SetAbsTol(0.0);
-   krylov.SetRelTol(1e-8);
+   krylov.SetRelTol(1e-4);
    krylov.SetKDim(300);
    krylov.SetMaxIter(500);
    krylov.SetPrintLevel(2);
@@ -240,7 +237,7 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetOperator(*minsurface);
    newton.SetAbsTol(0.0);
-   newton.SetRelTol(1e-12);
+   newton.SetRelTol(1e-6);
    newton.SetMaxIter(10);
    newton.SetSolver(krylov);
    newton.SetPrintLevel(1);
@@ -248,6 +245,8 @@ int main(int argc, char *argv[])
    H1.GetRestrictionMatrix()->Mult(u, X);
    Vector zero;
    newton.Mult(zero, X);
+
+   H1.GetProlongationMatrix()->Mult(X, u);
 
    ParaViewDataCollection dc("dfem", &pmesh);
    dc.SetHighOrderOutput(true);
