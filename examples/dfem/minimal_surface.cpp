@@ -2,6 +2,8 @@
 #include <fstream>
 #include <iostream>
 
+#ifdef MFEM_USE_ENZYME
+
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
@@ -386,3 +388,5 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+#endif // MFEM_USE_ENZYME
