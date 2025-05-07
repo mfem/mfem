@@ -352,7 +352,7 @@ void Vector::SetVector(const Vector &v, int offset)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int vs = v.Size();
-   const real_t *vp = v.Read();
+   const real_t *vp = v.Read(use_dev);
    // Use read+write access for *this - we only modify some of its entries
    real_t *p = ReadWrite(use_dev) + offset;
    mfem::forall_switch(use_dev, vs, [=] MFEM_HOST_DEVICE (int i) { p[i] = vp[i]; });
