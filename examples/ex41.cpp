@@ -28,9 +28,9 @@
 //                [1] Xiangxiong Zhang and Chi-Wang Shu. On maximum-principle-
 //                    satisfying high order schemes for scalar conservation laws.
 //                    Journal of Computational Physics. 229(9):3091–3120, May 2010.
-//                [2] Tarik Dzanic, Tzanio Kolev, and Ketan Mittal. A method for 
-//                    bounding high-order finite element functions: Applications to 
-//                    mesh validity and bounds-preserving limiters. 
+//                [2] Tarik Dzanic, Tzanio Kolev, and Ketan Mittal. A method for
+//                    bounding high-order finite element functions: Applications to
+//                    mesh validity and bounds-preserving limiters.
 
 #include "mfem.hpp"
 #include "ex18.hpp"
@@ -53,8 +53,9 @@ void velocity_function(const Vector &x, Vector &v);
 Vector bb_min, bb_max;
 
 // Bounds-preserving a posteriori limiter
-void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFunction &ubound,
-           int dim, int limiter_type, double a, double b);
+void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound,
+           GridFunction &ubound, int dim, int limiter_type, double a,
+           double b);
 
 int main(int argc, char *argv[])
 {
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 50;
-   int nbrute = 100; 
+   int nbrute = 100;
 
    int precision = 8;
    cout.precision(precision);
@@ -285,7 +286,7 @@ int main(int argc, char *argv[])
    cout << "Solution (discrete) maximum: " << u.Max() << endl;
 
 
-   // 19. Brute-force search for the min/max value of u(x) in each element at an array 
+   // 19. Brute-force search for the min/max value of u(x) in each element at an array
    //     of integration points
    real_t umin = numeric_limits<real_t>::max();
    real_t umax = numeric_limits<real_t>::min();
@@ -316,7 +317,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFunction &ubound,
+void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound,
+           GridFunction &ubound,
            int dim, int limiter_type, real_t a, real_t b)
 {
    // Return if no limiter is chosen
@@ -331,14 +333,14 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFuncti
    // Compute lower/upper bounds on u
    u.GetElementBounds(lbound, ubound, 2);
 
-   #if defined(MFEM_USE_DOUBLE)
+#if defined(MFEM_USE_DOUBLE)
    constexpr real_t tol = 1e-12;
-   #elif defined(MFEM_USE_SINGLE)
+#elif defined(MFEM_USE_SINGLE)
    constexpr real_t tol = 1e-6;
-   #else
-   #error "Only single and double precision are supported!"
+#else
+#error "Only single and double precision are supported!"
    constexpr real_t tol = 1.;
-   #endif
+#endif
 
 
 
@@ -349,7 +351,8 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFuncti
       u.GetElementDofValues(i, u_elem);
 
       // Compute bounds on min(u(x)) and max(u(x))
-      if (limiter_type == 1) {
+      if (limiter_type == 1)
+      {
          // Use min/max of DOFs
          umin = numeric_limits<real_t>::max();
          umax = numeric_limits<real_t>::min();
@@ -359,26 +362,32 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFuncti
             umax = max(umax, u_elem(j));
          }
       }
-      else if (limiter_type == 2) {
+      else if (limiter_type == 2)
+      {
          // Use min/max of piecewise-linear bounds
          umin = lbound(i);
          umax = ubound(i);
       }
-      else {
+      else
+      {
          MFEM_ABORT("Unknown limiter type: " << limiter_type);
       }
 
 
       // Perform convex limiting towards element-wise mean using maximum limiting factor
       real_t alpha = 1.0;
-      if ((umin < a-tol) || (umax > b + tol)) {
+      if ((umin < a-tol) || (umax > b + tol))
+      {
          // Catch edge case if mean violates bounds
-         if ((uavg(i) < a) || (uavg(i) > b)) {
+         if ((uavg(i) < a) || (uavg(i) > b))
+         {
             alpha = 0.0;
          }
          // Else compute convex limiting factor as per Zhang & Shu
-         else {
-            alpha = min((uavg(i) - a)/max(tol, uavg(i) - umin), (b - uavg(i))/max(tol, umax - uavg(i)));
+         else
+         {
+            alpha = min((uavg(i) - a)/max(tol, uavg(i) - umin), (b - uavg(i))/max(tol,
+                                                                                  umax - uavg(i)));
             alpha = max(0.0, min(alpha, 1.0));
          }
       }
