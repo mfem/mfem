@@ -275,7 +275,6 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   const char *mesh_file = "../../data/ref-square.mesh";
    int order = 1;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -283,8 +282,6 @@ int main(int argc, char *argv[])
    int derivative_type = AUTODIFF;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&device_config, "-d", "--device",
@@ -301,7 +298,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
    mesh.SetCurvature(order);
 
    auto transform_mesh = [](const Vector &cold, Vector &cnew)
