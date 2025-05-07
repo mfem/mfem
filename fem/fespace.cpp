@@ -3943,9 +3943,9 @@ const FiniteElement *FiniteElementSpace::GetTypicalBE() const
    if (mesh->GetNBE() > 0) { return GetBE(0); }
 
    Geometry::Type geom = mesh->GetTypicalFaceGeometry();
-   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
-   MFEM_VERIFY(fe != nullptr, "Could not determine a typical FE!");
-   return fe;
+   const FiniteElement *be = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(be != nullptr, "Could not determine a typical BE!");
+   return be;
 }
 
 const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
