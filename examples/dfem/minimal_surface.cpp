@@ -24,7 +24,7 @@ private:
    MFEM_HOST_DEVICE inline
    static auto coeff(const tensor<T, dim> &a)
    {
-      return 1.0 / sqrt(1.0 + sqnorm(a));
+      return real_t(1.0) / sqrt(real_t(1.0) + sqnorm(a));
    }
 
    struct MFApply
