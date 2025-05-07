@@ -346,7 +346,6 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient boundary_coeff(boundary_func);
 
-   // X.Randomize(1);
    u.ProjectCoefficient(boundary_coeff);
    u *= 1e-2;
    u.ProjectBdrCoefficient(boundary_coeff, ess_bdr);
