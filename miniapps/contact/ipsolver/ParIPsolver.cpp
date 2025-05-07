@@ -434,22 +434,22 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       {
          for(int ii = 0; ii < dimM; ii++)
          {
-            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta * Mcslump(ii);
          }
       }
       else if(constraint_offsets.Size() == 4)
       {
          for(int ii = 0; ii < dimG; ii++)
          {
-            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta * Mcslump(ii);
          }
          for(int ii = dimG; ii < dimG + dimU; ii++)
          {
-            DiagLogBar(ii) = (Mvlump(ii - dimG) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+            DiagLogBar(ii) = (Mvlump(ii - dimG) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta * Mvlump(ii-dimG);
          }
          for(int ii = dimG + dimU; ii < dimM; ii++)
          {
-            DiagLogBar(ii) = (Mvlump(ii - dimG - dimU) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta;
+            DiagLogBar(ii) = (Mvlump(ii - dimG - dimU) * zl(ii)) / (x(ii+dimU) - ml(ii)) + delta * Mvlump(ii - dimG - dimU);
          }
       }
    }
@@ -497,6 +497,10 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    
    Vector deltaDiagVec(dimU);
    deltaDiagVec = delta;
+   if (useMassWeights)
+   {
+      deltaDiagVec *= Mvlump;
+   }
    delete Wuu;
    if (Huu)
    {
@@ -520,8 +524,8 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    //          [H_(m,u)  W_(m,m)   J_m^T]
    //          [ J_u      J_m       0  ]]
 
-   //    Ak = [[K    0     Jᵀ ]   [u]    [bᵤ]
-   //          [0    D    -I  ]   [m]  = [bₘ]      
+   //    Ak = [[K+d  0     Jᵀ ]   [u]    [bᵤ]
+   //          [0    D+d    -I]   [m]  = [bₘ]      
    //          [J   -I     0  ]]  [λ]  = [bₗ ]
    Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
@@ -543,7 +547,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml); 
    BlockVector b(block_offsetsuml); b = 0.0;
-   FormIPNewtonMat(x, l, zl, A);
+   FormIPNewtonMat(x, l, zl, A, delta);
 
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
