@@ -2,12 +2,9 @@
 #include <fstream>
 #include <iostream>
 
-#ifdef MFEM_USE_ENZYME
-
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
-using mfem::future::dual;
 
 enum DerivativeType
 {
@@ -16,7 +13,7 @@ enum DerivativeType
    FD
 };
 
-template <int dim>
+template <typename dscalar_t, int dim = 2>
 class MinimalSurface : public Operator
 {
 private:
@@ -24,7 +21,7 @@ private:
    static constexpr int MESH_NODES = 2;
 
    MFEM_HOST_DEVICE inline
-   static auto coeff(const tensor<real_t, dim> &a)
+   static auto coeff(const tensor<dscalar_t, dim> &a)
    {
       return 1.0 / sqrt(1.0 + pow(norm(a), 2.0));
    }
@@ -33,7 +30,7 @@ private:
    {
       MFEM_HOST_DEVICE inline
       auto operator()(
-         const tensor<real_t, dim> &dudxi,
+         const tensor<dscalar_t, dim> &dudxi,
          const tensor<real_t, dim, dim> &J,
          const real_t &w) const
       {
@@ -259,6 +256,7 @@ private:
    int derivative_type;
 };
 
+
 real_t boundary_func(const Vector &coords)
 {
    const real_t x = coords(0);
@@ -335,18 +333,15 @@ int main(int argc, char *argv[])
    Vector X(H1.GetTrueVSize());
 
    std::unique_ptr<Operator> minsurface;
-   if (dim == 2)
-   {
-      minsurface = std::make_unique<MinimalSurface<2>>(H1, *ir, derivative_type);
-   }
-   else if (dim == 3)
-   {
-      minsurface = std::make_unique<MinimalSurface<3>>(H1, *ir, derivative_type);
-   }
-   else
-   {
-      MFEM_ABORT("unsupported dimension");
-   }
+#ifdef MFEM_USE_ENZYME
+   minsurface = std::make_unique<MinimalSurface<real_t>>(H1, *ir,
+                                                         derivative_type);
+#else
+using mfem::future:dual;
+   using dual_t = dual<real_t, real_t>;
+   minsurface = std::make_unique<MinimalSurface<dual_t>>(H1, *ir,
+                                                         derivative_type);
+#endif
 
    Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
    ess_bdr = 1;
@@ -388,5 +383,3 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
-#endif // MFEM_USE_ENZYME
