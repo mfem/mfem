@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <algorithm>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
@@ -6129,7 +6130,7 @@ void Mesh::UpdateNURBS()
    GenerateFaces();
 }
 
-void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
+void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
 {
    SetEmpty();
 
@@ -6169,20 +6170,20 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    if (NumOfEdges > 0)
    {
       edge_vertex = new Table(NumOfEdges, 2);
-      edge_to_knot.SetSize(NumOfEdges);
+      edge_to_ukv.SetSize(NumOfEdges);
       for (int j = 0; j < NumOfEdges; j++)
       {
          int *v = edge_vertex->GetRow(j);
-         input >> edge_to_knot[j] >> v[0] >> v[1];
+         input >> edge_to_ukv[j] >> v[0] >> v[1];
          if (v[0] > v[1])
          {
-            edge_to_knot[j] = -1 - edge_to_knot[j];
+            edge_to_ukv[j] = -1 - edge_to_ukv[j];
          }
       }
    }
    else
    {
-      edge_to_knot.SetSize(0);
+      edge_to_ukv.SetSize(0);
    }
 
    skip_comment_lines(input, '#');
@@ -6194,196 +6195,87 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    FinalizeTopology();
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 
-   /* Generate knot 2 edge mapping -- if edges are not specified in the mesh file
+   /* Generate edge to knotvector mapping if edges are not specified in the mesh file
       See data/two-squares-nurbs-autoedge.mesh for an example */
-   if (edge_to_knot.Size() == 0)
+   Array<int> ukv_to_pkv;
+   if (edge_to_ukv.Size() == 0)
    {
-      edge_vertex = new Table(NumOfEdges, 2);
-      edge_to_knot.SetSize(NumOfEdges);
-      constexpr int notset = -9999999;
-      edge_to_knot = notset;
-      Array<int> edges;
-      Array<int> oedge;
-      int knot = 0;
+      GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_pkv);
+      mfem::out << "Generated edge to knot mapping:" << endl;
+      edge_to_ukv.Print(mfem::out);
+   }
+}
 
-      Array<int> edge0, edge1;
-      int flip = 1;
-      if (Dimension() == 2)
+void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_pkv) const
+{
+   int dim = Dimension();
+   // Local (per-patch) variables
+   int kvidx;
+   Array<int> kvs(dim); // knotvector indices for a patch
+   Array<int> edges, oedges;
+   Array<int> v(2);
+   int d; // local dimension
+   // Edge index -> signed patch knotvector index (p*dim + d)
+   Array<int> edge_to_pkv(NumOfEdges);
+   edge_to_pkv.SetSize(NumOfEdges);
+   constexpr int notset = -9999999;
+   edge_to_pkv = notset;
+
+   auto unsign = [](int i) { return (i < 0) ? -i - 1 : i; };
+
+   // Get the edge_to_pkv map
+   for (int p = 0; p < NumOfElements; p++)
+   {
+      GetElementEdges(p, edges, oedges);
+
+      // First loop checks for if edge has already been set
+      kvs = notset;
+      for (int i = 0; i < edges.Size(); i++)
       {
-         edge0.SetSize(2);
-         edge1.SetSize(2);
-
-         edge0[0] = 0; edge1[0] = 2;
-         edge0[1] = 1; edge1[1] = 3;
-         flip = 1;
-      }
-      else if (Dimension() == 3)
-      {
-         edge0.SetSize(9);
-         edge1.SetSize(9);
-
-         edge0[0] = 0; edge1[0] = 2;
-         edge0[1] = 0; edge1[1] = 4;
-         edge0[2] = 0; edge1[2] = 6;
-
-         edge0[3] = 1; edge1[3] = 3;
-         edge0[4] = 1; edge1[4] = 5;
-         edge0[5] = 1; edge1[5] = 7;
-
-         edge0[6] = 8; edge1[6] = 9;
-         edge0[7] = 8; edge1[7] = 10;
-         edge0[8] = 8; edge1[8] = 11;
-         flip = -1;
-      }
-
-      /* Initial assignment of knots to edges. This is an algorithm that loops over the
-         patches and assigns knot vectors to edges. It starts with assigning knot vector 0
-         and 1 to the edges of the first patch. Then it uses: 1) patches can share edges
-         2) knot vectors on opposing edges in a patch are equal, to create edge_to_knot */
-      int e0, e1, v0, v1, df;
-      int p,j,k;
-      for (p = 0; p < GetNE(); p++)
-      {
-         GetElementEdges(p, edges, oedge);
-
-         const int *v = elements[p]->GetVertices();
-         for (j = 0; j < edges.Size(); j++)
+         d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
+         GetEdgeVertices(edges[i], v); // Get the vertices of edge i
+         // We've set this edge-to-knot previously
+         if (edge_to_pkv[edges[i]] != notset)
          {
-            int *vv = edge_vertex->GetRow(edges[j]);
-            const int *e = elements[p]->GetEdgeVertices(j);
-            if (oedge[j] == 1)
-            {
-               vv[0] = v[e[0]];
-               vv[1] = v[e[1]];
-            }
-            else
-            {
-               vv[0] = v[e[1]];
-               vv[1] = v[e[0]];
-            }
-         }
-
-         for (j = 0; j < edge1.Size(); j++)
-         {
-            e0 = edges[edge0[j]];
-            e1 = edges[edge1[j]];
-            v0 = edge_to_knot[e0];
-            v1 = edge_to_knot[e1];
-            df = flip*oedge[edge0[j]]*oedge[edge1[j]];
-
-            // Case 1: knot vector is not set
-            if ((v0 == notset) && (v1 == notset))
-            {
-               edge_to_knot[e0] = knot;
-               edge_to_knot[e1] = knot;
-               knot++;
-            }
-            // Case 2 & 3: knot vector on one of the two edges
-            // is set earlier (in another patch). We just have
-            // to copy it for the opposing edge.
-            else if ((v0 != notset) && (v1 == notset))
-            {
-               edge_to_knot[e1] = (df >= 0 ? -v0-1 : v0);
-            }
-            else if ((v0 == notset) && (v1 != notset))
-            {
-               edge_to_knot[e0] = (df >= 0 ? -v1-1 : v1);
-            }
+            // Old knot vector index (unsigned)
+            kvidx = unsign(edge_to_pkv[edges[i]]);
+            // Keep the lowest index
+            kvs[d] = std::min({kvidx, p*dim+d, unsign(kvs[d])});
          }
       }
 
-      /* Verify correct assignment, make sure that corresponding edges
-         within patch point to same knot vector. If not assign the lowest number.
-
-         We bound the while by GetNE() + 1 as this is probably the most unlucky
-         case. +1 to finish without corrections. Note that this is a check and
-         in general the initial assignment is correct. Then the while is performed
-         only once. Only on very tricky meshes it might need corrections.*/
-      int corrections;
-      int passes = 0;
-      do
+      // Second loop sets the edge-to-knot mapping
+      for (int i = 0; i < edges.Size(); i++)
       {
-         corrections = 0;
-         for (p = 0; p < GetNE(); p++)
-         {
-            GetElementEdges(p, edges, oedge);
-            for (j = 0; j < edge1.Size(); j++)
-            {
-               e0 = edges[edge0[j]];
-               e1 = edges[edge1[j]];
-               v0 = edge_to_knot[e0];
-               v1 = edge_to_knot[e1];
-               v0 = ( v0 >= 0 ?  v0 : -v0-1);
-               v1 = ( v1 >= 0 ?  v1 : -v1-1);
-               if (v0 != v1)
-               {
-                  corrections++;
-                  if (v0 < v1)
-                  {
-                     edge_to_knot[e1] = (oedge[edge1[j]] >= 0 ? v0 : -v0-1);
-                  }
-                  else if (v1 < v0)
-                  {
-                     edge_to_knot[e0] = (oedge[edge0[j]] >= 0 ? v1 : -v1-1);
-                  }
-               }
-            }
-         }
-
-         passes++;
+         d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
+         GetEdgeVertices(edges[i], v); // Get the vertices of edge i
+         // Not set yet -> use global index (p*dim+d)
+         kvidx = (kvs[d] == notset) ? p*dim+d : kvs[d];
+         // Sign is based on the edge's vertex indices
+         edge_to_pkv[edges[i]] = (v[1] > v[0]) ? kvidx : -1 - kvidx;
       }
-      while (corrections > 0 && passes < GetNE() + 1);
+   }
 
-      // Check the validity of corrections applied
-      if (corrections > 0)
-      {
-         mfem::err<<"Edge_to_knot mapping potentially incorrect"<<endl;
-         mfem::err<<"  passes      = "<<passes<<endl;
-         mfem::err<<"  corrections = "<<corrections<<endl;
-      }
+   // ukv_to_pkv (unsigned) - unique knotvector index -> p*dim+d
+   ukv_to_pkv.SetSize(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      ukv_to_pkv[i] = unsign(edge_to_pkv[i]);
+   }
+   ukv_to_pkv.Sort();
+   ukv_to_pkv.Unique();
 
-      /* Renumber knotvectors, such that:
-         -- numbering is consecutive
-         -- starts at zero */
-      Array<int> cnt(NumOfEdges);
-      cnt = 0;
-      for (j = 0; j < NumOfEdges; j++)
-      {
-         k = edge_to_knot[j];
-         cnt[(k >= 0 ? k : -k-1)]++;
-      }
-
-      k = 0;
-      for (j = 0; j < cnt.Size(); j++)
-      {
-         cnt[j] = (cnt[j] > 0 ? k++ : -1);
-      }
-
-      for (j = 0; j < NumOfEdges; j++)
-      {
-         k = edge_to_knot[j];
-         edge_to_knot[j] = (k >= 0 ? cnt[k]:-cnt[-k-1]-1);
-      }
-
-      // Print knot to edge mapping
-      mfem::out<<"Generated edge to knot mapping:"<<endl;
-      for (j = 0; j < NumOfEdges; j++)
-      {
-         int *v = edge_vertex->GetRow(j);
-         k = edge_to_knot[j];
-
-         v0 = v[0];
-         v1 = v[1];
-         if (k < 0)
-         {
-            v[0] = v1;
-            v[1] = v0;
-         }
-         mfem::out<<(k >= 0 ? k:-k-1)<<" "<< v[0] <<" "<<v[1]<<endl;
-      }
-
-      // Terminate here upon failure after printing to have an idea of edge_to_knot.
-      if (corrections > 0 ) {mfem_error("Mesh::LoadPatchTopo");}
+   // Get edge_to_ukv = edge_to_pkv o ukv_to_pkv^{-1}
+   edge_to_ukv.SetSize(NumOfEdges);
+   bool sign;
+   int ukv, pkv;
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      sign = edge_to_pkv[i] < 0;
+      pkv = unsign(edge_to_pkv[i]);
+      ukv = ukv_to_pkv.Find(pkv);
+      MFEM_VERIFY(ukv >= 0, "Mapping error")
+      edge_to_ukv[i] = sign ? -1 - ukv : ukv;
    }
 }
 
