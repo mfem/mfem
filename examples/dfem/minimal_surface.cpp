@@ -7,12 +7,25 @@ using namespace mfem::future;
 using mfem::future::tensor;
 using mfem::future::dual;
 
+enum DerivativeType
+{
+   AUTODIFF,
+   HANDCODED,
+   FD
+};
+
 template <int dim>
-class MinimalSurfaceOperator : public Operator
+class MinimalSurface : public Operator
 {
 private:
    static constexpr int SOLUTION_U = 1;
    static constexpr int MESH_NODES = 2;
+
+   MFEM_HOST_DEVICE inline
+   static auto coeff(const tensor<real_t, dim> &a)
+   {
+      return 1.0 / sqrt(1.0 + pow(norm(a), 2.0));
+   }
 
    struct MFApply
    {
@@ -24,25 +37,44 @@ private:
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
-         const auto f = 1.0 / sqrt(1.0 + pow(norm(dudx), 2.0));
-         return tuple{f * dudx * transpose(invJ) * det(J) * w};
+         return tuple{coeff(dudx) * dudx * transpose(invJ) * det(J) * w};
       }
    };
 
-   class MinimalSurfaceJacobianOperator : public Operator
+   struct ManualDerivativeApply
+   {
+      MFEM_HOST_DEVICE inline
+      auto operator()(
+         const tensor<real_t, dim> &ddelta_udxi,
+         const tensor<real_t, dim> &dudxi,
+         const tensor<real_t, dim, dim> &J,
+         const real_t &w) const
+      {
+         const auto invJ = inv(J);
+         const auto dudx = dudxi * invJ;
+         const auto ddelta_udx = ddelta_udxi * invJ;
+
+         const auto c = coeff(dudx);
+         const auto term1 = c * ddelta_udx;
+         const auto term2 = c * c * c * dot(dudx, ddelta_udx) * dudx;
+
+         return tuple{(term1 - term2) * transpose(invJ) * det(J) * w};
+      }
+   };
+
+   class MinimalSurfaceJacobian : public Operator
    {
    public:
-      MinimalSurfaceJacobianOperator(const MinimalSurfaceOperator *minsurface,
-                                     const Vector &x) :
+      MinimalSurfaceJacobian(const MinimalSurface *minsurface,
+                             const Vector &x) :
          Operator(minsurface->Height()),
          minsurface(minsurface),
          z(minsurface->Height())
       {
-         ParGridFunction u(&minsurface->H1);
-         u.SetFromTrueDofs(x);
+         minsurface->u.SetFromTrueDofs(x);
          auto mesh_nodes = static_cast<ParGridFunction*>
                            (minsurface->H1.GetParMesh()->GetNodes());
-         dres_du = minsurface->res->GetDerivative(SOLUTION_U, {&u}, {mesh_nodes});
+         dres_du = minsurface->res->GetDerivative(SOLUTION_U, {&minsurface->u}, {mesh_nodes});
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -58,18 +90,90 @@ private:
          }
       }
 
-      const MinimalSurfaceOperator *minsurface = nullptr;
+      const MinimalSurface *minsurface = nullptr;
       std::shared_ptr<DerivativeOperator> dres_du;
       mutable Vector z;
    };
 
+   class MinimalSurfaceHandcodedJacobian : public Operator
+   {
+      static constexpr int DIRECTION_U = 3;
+
+   public:
+      MinimalSurfaceHandcodedJacobian(const MinimalSurface *minsurface,
+                                      const Vector &x) :
+         Operator(minsurface->Height()),
+         minsurface(minsurface),
+         z(minsurface->Height())
+      {
+         Array<int> all_domain_attr;
+         all_domain_attr.SetSize(minsurface->H1.GetMesh()->attributes.Max());
+         all_domain_attr = 1;
+
+         auto &mesh_nodes = *static_cast<ParGridFunction *>
+                            (minsurface->H1.GetParMesh()->GetNodes());
+         auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
+
+         std::vector<FieldDescriptor> solutions = {{DIRECTION_U, &minsurface->H1}};
+         std::vector<FieldDescriptor> parameters =
+         {
+            {SOLUTION_U, &minsurface->H1},
+            {MESH_NODES, &mesh_nodes_fes}
+         };
+
+         dres_du = std::make_shared<DifferentiableOperator>(
+                      solutions, parameters, *minsurface->H1.GetParMesh());
+
+         auto input_operators = tuple
+         {
+            Gradient<DIRECTION_U>{},
+            Gradient<SOLUTION_U>{},
+            Gradient<MESH_NODES>{},
+            Weight{}
+         };
+
+         auto output_operators = tuple
+         {
+            Gradient<SOLUTION_U>{}
+         };
+
+         ManualDerivativeApply manual_derivative_apply;
+         dres_du->AddDomainIntegrator(manual_derivative_apply, input_operators,
+                                      output_operators, minsurface->ir,
+                                      all_domain_attr);
+
+         minsurface->u.SetFromTrueDofs(x);
+         dres_du->SetParameters({&minsurface->u, &mesh_nodes});
+      }
+
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         z = x;
+         z.SetSubVector(minsurface->ess_tdofs, 0.0);
+
+         dres_du->Mult(z, y);
+
+         for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
+         {
+            y[minsurface->ess_tdofs[i]] = x[minsurface->ess_tdofs[i]];
+         }
+      }
+
+      const MinimalSurface *minsurface = nullptr;
+      std::shared_ptr<DifferentiableOperator> dres_du;
+      mutable Vector z;
+   };
+
+
 public:
-   MinimalSurfaceOperator(ParFiniteElementSpace &H1,
-                          const IntegrationRule &ir) :
+   MinimalSurface(ParFiniteElementSpace &H1,
+                  const IntegrationRule &ir,
+                  int deriv_type = AUTODIFF) :
       Operator(H1.GetTrueVSize(), H1.GetTrueVSize()),
       H1(H1),
       ir(ir),
-      u_gf(&H1)
+      u(&H1),
+      derivative_type(deriv_type)
    {
       Array<int> all_domain_attr;
       all_domain_attr.SetSize(H1.GetMesh()->attributes.Max());
@@ -78,30 +182,33 @@ public:
       auto &mesh_nodes = *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes());
       auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
 
-      std::vector<FieldDescriptor> solutions = {{SOLUTION_U, &H1}};
-      std::vector<FieldDescriptor> parameters = {{MESH_NODES, &mesh_nodes_fes}};
-
-      res = std::make_shared<DifferentiableOperator>(
-               solutions, parameters, *H1.GetParMesh());
-
-      auto input_operators = tuple
       {
-         Gradient<SOLUTION_U>{},
-         Gradient<MESH_NODES>{},
-         Weight{}
-      };
+         std::vector<FieldDescriptor> solutions = {{SOLUTION_U, &H1}};
+         std::vector<FieldDescriptor> parameters = {{MESH_NODES, &mesh_nodes_fes}};
 
-      auto output_operators = tuple
-      {
-         Gradient<SOLUTION_U>{}
-      };
+         res = std::make_shared<DifferentiableOperator>(
+                  solutions, parameters, *H1.GetParMesh());
 
-      MFApply mf_apply_qf;
-      auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
-      res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators, ir,
-                               all_domain_attr, derivatives);
+         auto input_operators = tuple
+         {
+            Gradient<SOLUTION_U>{},
+            Gradient<MESH_NODES>{},
+            Weight{}
+         };
 
-      res->SetParameters({&mesh_nodes});
+         auto output_operators = tuple
+         {
+            Gradient<SOLUTION_U>{}
+         };
+
+         MFApply mf_apply_qf;
+         auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
+         res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators, ir,
+                                  all_domain_attr, derivatives);
+
+         res->SetParameters({&mesh_nodes});
+      }
+
 
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;
@@ -116,20 +223,38 @@ public:
 
    Operator& GetGradient(const Vector &x) const override
    {
-      dres_du = std::make_shared<MinimalSurfaceJacobianOperator>(this, x);
-      return *dres_du;
+      switch (derivative_type)
+      {
+         case FD:
+            fd_jac = std::make_shared<FDJacobian>(*this, x);
+            return *fd_jac;
+
+         case HANDCODED:
+         {
+            man_dres_du = std::make_shared<MinimalSurfaceHandcodedJacobian>(this, x);
+            return *man_dres_du;
+         }
+
+         case AUTODIFF:
+         default:
+            dres_du = std::make_shared<MinimalSurfaceJacobian>(this, x);
+            return *dres_du;
+      }
    }
 
 private:
    ParFiniteElementSpace &H1;
    const IntegrationRule &ir;
 
-   mutable ParGridFunction u_gf;
+   mutable ParGridFunction u;
 
    Array<int> ess_tdofs;
 
    std::shared_ptr<DifferentiableOperator> res;
-   mutable std::shared_ptr<MinimalSurfaceJacobianOperator> dres_du;
+   mutable std::shared_ptr<MinimalSurfaceJacobian> dres_du;
+   mutable std::shared_ptr<MinimalSurfaceHandcodedJacobian> man_dres_du;
+   mutable std::shared_ptr<FDJacobian> fd_jac;
+   int derivative_type;
 };
 
 real_t boundary_func(const Vector &coords)
@@ -154,6 +279,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    int refinements = 0;
+   int derivative_type = AUTODIFF;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -166,6 +292,9 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&refinements, "-r", "--refinements", "");
+   args.AddOption(&derivative_type, "-der", "--derivative-type",
+                  "Derivative computation type: 0=AutomaticDifferentiation, 1=HandCoded, 2=FiniteDifference");
+
    args.ParseCheck();
 
    Device device(device_config);
@@ -206,11 +335,11 @@ int main(int argc, char *argv[])
    std::unique_ptr<Operator> minsurface;
    if (dim == 2)
    {
-      minsurface = std::make_unique<MinimalSurfaceOperator<2>>(H1, *ir);
+      minsurface = std::make_unique<MinimalSurface<2>>(H1, *ir, derivative_type);
    }
    else if (dim == 3)
    {
-      minsurface = std::make_unique<MinimalSurfaceOperator<3>>(H1, *ir);
+      minsurface = std::make_unique<MinimalSurface<3>>(H1, *ir, derivative_type);
    }
    else
    {
