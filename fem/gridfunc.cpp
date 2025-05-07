@@ -350,16 +350,6 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
    }
 }
 
-int GridFunction::VectorDim() const
-{
-   return fes->GetVectorDim();
-}
-
-int GridFunction::CurlDim() const
-{
-   return fes->GetCurlDim();
-}
-
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
