@@ -103,7 +103,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
    }
 
    // lim_nodes0 -> PA.XL (E-vector)
-   MFEM_VERIFY(lim_nodes0->FESpace() == fes, "");
+   MFEM_VERIFY(lim_nodes0->FESpace()->GetVSize() == fes->GetVSize(), "");
    const Operator *n0_R = fes->GetElementRestriction(ordering);
    PA.XL.SetSize(n0_R->Height(), Device::GetMemoryType());
    PA.XL.UseDevice(true);

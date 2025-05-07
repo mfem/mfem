@@ -80,7 +80,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    int quad_order = 2;
    int newton_iter = 100;
    real_t newton_rtol = 1e-10;
-   real_t linsol_rtol = 1e-12;
+   real_t linsol_rtol = 1e-10;
    int lin_solver = 2;
    int max_lin_iter = 100;
    real_t lim_const = 0.0;
@@ -91,7 +91,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    int newton_loop = 1;
    int combomet = 0;
    bool bal_expl_combo = false;
-   const int mesh_node_ordering = Ordering::byNODES;
+   bool periodic = false;
+   const int mesh_node_order = Ordering::byNODES;
 
    constexpr int verbosity_level = 0;
    constexpr int seed = 0x100001b3;
@@ -99,13 +100,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
    constexpr bool fdscheme = false;
    constexpr bool integ_over_targ  = true;
    constexpr bool exactaction = false;
-   constexpr bool hradaptivity = false;
-   constexpr bool periodic = false;
-
-   REQUIRE_FALSE(fdscheme);
-   REQUIRE_FALSE(move_bnd);
-   REQUIRE_FALSE(hradaptivity);
-   REQUIRE_FALSE(periodic);
 
    OptionsParser args(argc, argv);
    args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
@@ -130,7 +124,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    args.AddOption(&diag, "-diag", "--diag", "-no-diag", "--no-diag", "");
    args.AddOption(&combomet, "-cmb", "--combo-type", "");
    args.AddOption(&bal_expl_combo, "-bec", "--balance-explicit-combo",
-                  "-no-bec", "--balance-explicit-combo", "");
+                  "-no-bec", "--no-balance-explicit-combo", "");
+   args.AddOption(&periodic, "-per", "--periodic", "-no-per", "--no-periodic", "");
    args.Parse();
    if (!args.Good())
    {
@@ -143,11 +138,16 @@ int tmop(int id, Req &res, int argc, char *argv[])
       if (id == 0) { args.PrintOptions(cout); }
    }
 
-   REQUIRE(mesh_file);
+   // Initialize and refine the starting mesh.
    Mesh smesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { smesh.UniformRefinement(); }
    const int dim = smesh.Dimension();
 
+   if (periodic)
+   {
+      auto s = smesh.GetNodalFESpace();
+      REQUIRE((s && s->IsDGSpace()));
+   }
 
    ParMesh mesh([](Mesh &mesh)
    {
@@ -160,17 +160,20 @@ int tmop(int id, Req &res, int argc, char *argv[])
    smesh.Clear();
 
    // Define a FE space on the mesh, based on the input order.
-   REQUIRE(!periodic);
    REQUIRE(mesh_poly_deg > 0);
-   H1_FECollection fec(mesh_poly_deg, dim);
-   // fec = new L2_FECollection(mesh_poly_deg, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace fes(&mesh, &fec, dim, mesh_node_ordering);
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (periodic)
+   {
+      fec.reset(new L2_FECollection(mesh_poly_deg, dim, BasisType::GaussLobatto));
+   }
+   else { fec.reset(new H1_FECollection(mesh_poly_deg, dim)); }
+   ParFiniteElementSpace fespace(&mesh, fec.get(), dim, mesh_node_order);
 
    // Make the starting mesh curved.
-   mesh.SetNodalFESpace(&fes);
+   mesh.SetNodalFESpace(&fespace);
 
    // Get the mesh nodes (vertices and other DOFs in the FE space)
-   ParGridFunction x(&fes), x0_before_jitter(&fes);
+   ParGridFunction x(&fespace), x0_before_jitter(&fespace);
    mesh.SetNodalGridFunction(&x);
 
    // When the target is GIVEN_SHAPE_AND_SIZE, we want to call tc->SetNodes()
@@ -178,20 +181,20 @@ int tmop(int id, Req &res, int argc, char *argv[])
    x0_before_jitter = x;
 
    // We create an H1 space for the mesh displacement.
-   // H1_FECollection fec_h1(mesh_poly_deg, dim);
-   // ParFiniteElementSpace fes_h1(&mesh, &fec_h1, dim, mesh_node_ordering);
-   ParGridFunction dx(&fes); dx = 0.0;
+   H1_FECollection fec_h1(mesh_poly_deg, dim);
+   ParFiniteElementSpace fes_h1(&mesh, &fec_h1, dim, mesh_node_order);
+   ParGridFunction dx(&fes_h1); dx = 0.0;
 
    // Define a vector representing the minimal local mesh size in the mesh nodes.
    // In addition, compute average mesh size and total volume.
-   Vector h0(fes.GetNDofs());
+   Vector h0(fes_h1.GetNDofs());
    h0 = infinity();
    real_t mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh.GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
-      fes.GetElementDofs(i, dofs);
+      fes_h1.GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
       const real_t hi = mesh.GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
@@ -205,28 +208,28 @@ int tmop(int id, Req &res, int argc, char *argv[])
    // Add a random perturbation to the nodes in the interior of the domain.
    if (jitter > 0)
    {
-      ParGridFunction rdm(&fes);
+      ParGridFunction rdm(&fes_h1);
       rdm.Randomize(seed);
       rdm -= 0.25;
       rdm *= jitter;
       rdm.HostReadWrite();
       // Scale the random values to be of order of the local mesh size.
-      for (int i = 0; i < fes.GetNDofs(); i++)
+      for (int i = 0; i < fes_h1.GetNDofs(); i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            rdm(fes.DofToVDof(i, d)) *= h0(i);
+            rdm(fes_h1.DofToVDof(i, d)) *= h0(i);
          }
       }
       // Set the boundary values to zero.
       Array<int> vdofs;
-      for (int i = 0; i < fes.GetNBE(); i++)
+      for (int i = 0; i < fes_h1.GetNBE(); i++)
       {
-         fes.GetBdrElementVDofs(i, vdofs);
+         fes_h1.GetBdrElementVDofs(i, vdofs);
          for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
       }
 
-      /*if (periodic)
+      if (periodic)
       {
          // For H1 the perturbation is controlled by the true nodes.
          rdm.SetFromTrueVector();
@@ -234,7 +237,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          rdm_l2.ProjectGridFunction(rdm);
          x -= rdm_l2;
       }
-      else*/
+      else
       {
          x -= rdm;
          // For H1 the perturbation is controlled by the true nodes.
@@ -247,7 +250,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParGridFunction x0(x);
 
    // Form the integrator that uses the chosen metric and target.
-   std::unique_ptr<TMOP_QualityMetric> metric = nullptr;
+   std::unique_ptr<TMOP_QualityMetric> metric;
    switch (metric_id)
    {
       case 1:   metric.reset(new TMOP_Metric_001); break;
@@ -374,12 +377,11 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   ParFiniteElementSpace dist_fespace(&mesh, &fec); // scalar space
+   ParFiniteElementSpace dist_fespace(&mesh, &fec_h1); // scalar space
    ParGridFunction dist(&dist_fespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
-
    auto coeff_lim_func = [&](const Vector &x) { return x(0) + lim_const; };
    FunctionCoefficient lim_coeff(coeff_lim_func);
    if (lim_const != 0.0)
@@ -393,7 +395,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
 
    // Setup the NonlinearForm which defines the integral of interest.
-   ParNonlinearForm a(&fes);
+   ParNonlinearForm a(&fes_h1);
    a.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
    std::unique_ptr<FunctionCoefficient> metric_coeff1 = nullptr;
@@ -458,7 +460,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    for (int i = 0; i < NE; i++)
    {
       const IntegrationRule &ir =
-         irules->Get(fes.GetFE(i)->GetGeomType(), quad_order);
+         irules->Get(fespace.GetFE(i)->GetGeomType(), quad_order);
       auto transf = mesh.GetElementTransformation(i);
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
@@ -470,28 +472,26 @@ int tmop(int id, Req &res, int argc, char *argv[])
    MPI_Allreduce(&min_detJ, &minJ0, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
                  MPI_COMM_WORLD);
    min_detJ = minJ0;
-   // if (id == 0) { cout << "Min det(J) of the mesh is " << min_detJ << endl; }
    REQUIRE(min_detJ > 0.0);
-   real_t h0min = h0.Min(), h0min_all; // 🔥🔥 reduce min_detJ instead ?
+   real_t h0min = h0.Min(), h0min_all;
    MPI_Allreduce(&h0min, &h0min_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
                  MPI_COMM_WORLD);
    // min_detJ -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
    res.min_detJ = min_detJ;
 
-   REQUIRE(!hradaptivity);
+   if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
    const real_t init_energy = a.GetParGridFunctionEnergy(periodic ? dx : x);
    res.init_energy = init_energy;
 
-   // if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
-
    // Fix all boundary nodes
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   REQUIRE(move_bnd == false);
+   Array<int> ess_bdr(periodic ? 0 : mesh.bdr_attributes.Max());
    ess_bdr = 1;
-   a.SetEssentialBC(ess_bdr);
+   if (!periodic) { a.SetEssentialBC(ess_bdr); }
 
    // Diagonal test, skip if combo
    Vector &xt(x.GetTrueVector());
-   Vector d(fes.GetTrueVSize());
+   Vector d(fespace.GetTrueVSize());
    d.UseDevice(true);
    res.diag = 0.0;
    if (diag && combomet == 0)
@@ -499,7 +499,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       if (pa) { a.GetGradient(xt).AssembleDiagonal(d); }
       else
       {
-         ParNonlinearForm nlf_fa(&fes);
+         ParNonlinearForm nlf_fa(&fes_h1);
          auto *nlfi_fa = new TMOP_Integrator(metric.get(), target_c.get());
          nlfi_fa->SetIntegrationRules(*irules, quad_order);
          if (normalization) { nlfi_fa->ParEnableNormalization(x0); }
@@ -555,7 +555,12 @@ int tmop(int id, Req &res, int argc, char *argv[])
             S_prec.reset(hs);
          }
 #else
-         else { S_prec.reset(new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1)); }
+         else
+         {
+            auto ds = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+            ds->SetPositiveDiagonal(true);
+            S_prec.reset(ds);
+         }
 #endif
          minres->SetPreconditioner(*S_prec);
       }
@@ -565,7 +570,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(mesh.GetTypicalElementGeometry(), quad_order);
-
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
    TMOPNewtonSolver solver(PFesGetParMeshGetComm(fes), ir);
 #else
@@ -575,12 +579,11 @@ int tmop(int id, Req &res, int argc, char *argv[])
    solver.SetIntegrationRules(*irules, quad_order);
    // Specify linear solver when we use a Newton-based solver.
    solver.SetPreconditioner(*S);
-
    solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(newton_iter);
    solver.SetRelTol(newton_rtol);
    solver.SetAbsTol(0.0);
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 3 : -1);
    solver.SetOperator(a);
 
    Vector x_init(x), b(0);
@@ -620,8 +623,19 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
       REQUIRE(solver.GetConverged());
 
-      const real_t final_energy = a.GetParGridFunctionEnergy(x);
-      res.final_energy = final_energy;
+
+      // Report the final energy of the functional.
+      if (periodic)
+      {
+         GridFunction dx_L2(x); dx_L2 -= x0;
+         dx.ProjectGridFunction(dx_L2);
+         tmop_integ->SetInitialMeshPos(&x0);
+         res.final_energy = a.GetParGridFunctionEnergy(dx);
+      }
+      else
+      {
+         res.final_energy = a.GetParGridFunctionEnergy(x);
+      }
    }
 
    Vector &x_t(x.GetTrueVector());
@@ -649,22 +663,23 @@ static inline void req_tmop(int id, const char *args[], Req &res)
 #define DEFAULT_ARGS const char *args[] = { "tmop_pa_tests", "-pa", "-m", "mesh", \
    "-o", "0", "-rs", "0", "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
    "-ni", "10", "-nl", "1", "-nrtol", "1e-8", "-lrtol", "1e-12", "-ls", "2", "-li", "100", "-lc", "0", \
-   "-lt", "0", "-no-nor", "-ji",   "0", "-diag", "-cmb",  "0", "-no-bec", nullptr }
+   "-lt", "0", "-no-nor", "-ji", "0", "-diag", "-cmb",  "0", "-no-bec", "-no-per", nullptr }
 
 constexpr int ALV = 1, MSH = 3, POR = 5, RS = 7, MID = 9, TID = 11, QTY = 13,
               QOR = 15, NI = 17, NL = 19, NRTOL = 21, LRTOL = 23, LS = 25, LI = 27, LC = 29,
-              LT = 31, NOR = 32, JI = 34, DIAG = 35, CMB = 37, BEC = 38;
+              LT = 31, NOR = 32, JI = 34, DIAG = 35, CMB = 37, BEC = 38, PER = 39;
 
 static inline void dump_args(int id, const char *args[])
 {
    if (id != 0) { return; }
    const char *format =
       "tmop_pa_tests %6.6s -m %s -o %s -rs %s -mid %s -tid %s -qt %s -qo %s "
-      "-ni %s -nl %s -nrtol %s -lrtol %s -ls %s -li %s -lc %s -lt %s %s -ji %s %s -cmb %s %s\n";
+      "-ni %s -nl %s -nrtol %s -lrtol %s -ls %s -li %s -lc %s -lt %s %s -ji %s "
+      "%s -cmb %s %s %s\n";
    printf(format, args[ALV], args[MSH], args[POR], args[RS], args[MID], args[TID],
           args[QTY], args[QOR], args[NI], args[NL], args[NRTOL], args[LRTOL],
           args[LS], args[LI], args[LC], args[LT], args[NOR], args[JI], args[DIAG],
-          args[CMB], args[BEC]);
+          args[CMB], args[BEC], args[PER]);
    fflush(nullptr);
 }
 
@@ -716,13 +731,14 @@ public:
       const char *mesh = "../../data/star.mesh";
       int newton_iter = 100;
       real_t newton_rtol = 1e-6;
-      real_t linsol_rtol = 1e-10;
+      real_t linsol_rtol = 1e-8;
       int rs_levels = 0;
       int linsol_iter = 100;
       int combo = 0;
       bool diag = true;
       bool bal_expl_combo = false;
       bool normalization = false;
+      bool periodic = false;
       real_t lim_const = 0.0;
       int lim_type = 0;
       real_t jitter = 0.0;
@@ -746,6 +762,7 @@ public:
       Args &NORMALIZATION() { normalization = true; return *this; }
       Args &DIAGONAL(const bool arg) { diag = arg; return *this; }
       Args &BALANCE_EXPLICIT_COMBO() { bal_expl_combo = true; return *this; }
+      Args &PERIODIC() { periodic = true; return *this; }
       // real_t
       Args &NEWTON_RTOLERANCE(const real_t arg) { newton_rtol = arg; return *this; }
       Args &LINSOL_RTOLERANCE(const real_t arg) { linsol_rtol = arg; return *this; }
@@ -761,7 +778,7 @@ public:
    };
    const char *name, *mesh;
    int NEWTON_ITERATIONS, LINSOL_ITERATIONS, REFINE, COMBO, LIMIT_TYPE;
-   bool NORMALIZATION, DIAGONAL, BAL_EXPL_COMBO;
+   bool NORMALIZATION, DIAGONAL, BAL_EXPL_COMBO, PERIODIC;
    real_t NEWTON_RTOLERANCE, LINSOL_RTOLERANCE, LIMITING, JITTER;
    list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 
@@ -776,6 +793,7 @@ public:
       NORMALIZATION(a.normalization),
       DIAGONAL(a.diag),
       BAL_EXPL_COMBO(a.bal_expl_combo),
+      PERIODIC(a.periodic),
       // real_t
       NEWTON_RTOLERANCE(a.newton_rtol),
       LINSOL_RTOLERANCE(a.linsol_rtol),
@@ -806,6 +824,7 @@ public:
       args[NOR] = NORMALIZATION ? "-nor" : "-no-nor";
       args[DIAG] = DIAGONAL ? "-diag" : "-no-diag";
       args[BEC] = BAL_EXPL_COMBO ? "-bec" : "-no-bec";
+      args[PER] = PERIODIC ? "-per" : "-no-per";
       // real_t
       args[NRTOL] = dtoa(NEWTON_RTOLERANCE, nrtol);
       args[LRTOL] = dtoa(LINSOL_RTOLERANCE, lrtol);
@@ -872,29 +891,37 @@ static void tmop_tests(int id = 0, bool all = false)
    {
       using Det = QuadratureInterpolator::DetKernels;
       Det::Specialization<2, 2, 3, 3>::Add();
+      Det::Specialization<2, 2, 5, 5>::Add();
       Det::Specialization<3, 3, 2, 3>::Add();
       Det::Specialization<3, 3, 3, 4>::Add();
       Det::Specialization<3, 3, 4, 6>::Add();
 
       using Grad = QuadratureInterpolator::GradKernels;
       Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 3, 5>::Add();
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 5, 5>::Add();
       Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
       Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add();
 
       using TensorEval = QuadratureInterpolator::TensorEvalKernels;
       TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
       TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 3, 3>::Opt<4>::Add();
+      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 4, 4>::Opt<2>::Add();
+      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 5, 5>::Opt<2>::Add();
       TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 2, 3>::Opt<2>::Add();
       TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 3, 4>::Opt<1>::Add();
       TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
 
       using MassDiagonal = MassIntegrator::DiagonalPAKernels;
       MassDiagonal::Specialization<2, 2, 3>::Add();
+      MassDiagonal::Specialization<2, 2, 4>::Add();
+      MassDiagonal::Specialization<2, 2, 5>::Add();
       MassDiagonal::Specialization<3, 2, 4>::Add();
       MassDiagonal::Specialization<3, 2, 6>::Add();
 
       using MassApply = MassIntegrator::ApplyPAKernels;
       MassApply::Specialization<2, 2, 3>::Add();
+      MassApply::Specialization<2, 2, 4>::Add();
+      MassApply::Specialization<2, 2, 5>::Add();
       MassApply::Specialization<3, 2, 4>::Add();
       MassApply::Specialization<3, 2, 6>::Add();
    }
@@ -902,8 +929,40 @@ static void tmop_tests(int id = 0, bool all = false)
 
    const real_t jitter = 1. / (M_PI * M_PI);
 
-   // Combo 2D with balance
-   Launch(Launch::Args("Square01 + Combo")
+   Launch(Launch::Args("2D Periodic + adapted discrete size")
+          .MESH("../../data/periodic-square.mesh")
+          .PERIODIC()
+          .REFINE(1)
+          .NORMALIZATION()
+          .MID({ 94 })
+          .TID({ 5 })
+          .LS({ 3 })
+          .NEWTON_RTOLERANCE(1e-8)
+          .LINSOL_RTOLERANCE(1e-8)
+          .LINSOL_ITERATIONS(150)
+          .POR({ 1, 2, 3, 4 })
+          .QOR({ 4, 8 })
+          .NL({ 3 })
+          .DIAGONAL(false))
+   .Run(id, all);
+
+   Launch(Launch::Args("3D Periodic + adapted discrete size")
+          .MESH("../../data/periodic-cube.mesh")
+          .PERIODIC()
+          .REFINE(1)
+          .MID({ 338 })
+          .TID({ 5 })
+          .LS({ 3 })
+          .NORMALIZATION()
+          .NEWTON_RTOLERANCE(1e-8)
+          .LINSOL_RTOLERANCE(1e-10)
+          .POR({ 1 })
+          .QOR({ 4 })
+          .NL({ 1 })
+          .DIAGONAL(false))
+   .Run(id, all);
+
+   Launch(Launch::Args("2D + Combo + Balance")
           .MESH("../../miniapps/meshing/square01.mesh")
           .REFINE(1)
           .JI(jitter)
@@ -911,6 +970,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .TID({ 5 })
           .MID({ 80 })
           .LS({ 2 })
+          .LINSOL_RTOLERANCE(1e-10)
           .POR({ 2 })
           .QOR({ 6 })
           .CMB(2)
@@ -918,8 +978,7 @@ static void tmop_tests(int id = 0, bool all = false)
          )
    .Run(id, all);
 
-   // Combo 3D with balance
-   Launch(Launch::Args("Cube + Combo")
+   Launch(Launch::Args("3D + Combo + Balance")
           .MESH("../../miniapps/meshing/cube.mesh")
           .REFINE(1)
           .JI(jitter)
@@ -1240,6 +1299,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .LINSOL_ITERATIONS(500)
           .NORMALIZATION()
           .NEWTON_RTOLERANCE(1e-12)
+          .LINSOL_RTOLERANCE(1e-10)
           .POR({ 1 })
           .QOR({ 2 })
           .TID({ 5 })

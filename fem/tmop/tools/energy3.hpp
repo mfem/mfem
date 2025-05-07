@@ -31,7 +31,7 @@ class TMOPEnergyPA3D
    int ne;
    TMOP_QualityMetric *metric;
    const Array<real_t> &B, &G;
-   const DenseTensor &Jtr;
+   const DenseTensor &J;
    const IntegrationRule &ir;
    const Vector &metric_coeff;
 
@@ -54,7 +54,7 @@ public:
       metric(ti->metric),
       B(ti->PA.maps->B),
       G(ti->PA.maps->G),
-      Jtr(ti->PA.Jtr),
+      J(ti->PA.Jtr),
       ir(*ti->PA.ir),
       metric_coeff(ti->PA.MC)
    { }
@@ -79,7 +79,7 @@ public:
       metric(ti->metric),
       B(ti->PA.maps->B),
       G(ti->PA.maps->G),
-      Jtr(ti->PA.Jtr),
+      J(ti->PA.Jtr),
       ir(*ti->PA.ir),
       metric_coeff(coeff)
    { }
@@ -113,7 +113,7 @@ public:
       metric(quality_metric),
       B(b),
       G(g),
-      Jtr(J),
+      J(J),
       ir(integration_rule),
       metric_coeff(mc)
    { }
@@ -142,7 +142,7 @@ public:
       const auto *g = ker.G.Read();
 
       const auto X = Reshape(ker.X.Read(), D1D, D1D, D1D, 3, NE);
-      const auto J = Reshape(ker.Jtr.Read(), 3, 3, Q1D, Q1D, Q1D, NE);
+      const auto J = Reshape(ker.J.Read(), 3, 3, Q1D, Q1D, Q1D, NE);
       const auto W = Reshape(ker.ir.GetWeights().Read(), Q1D, Q1D, Q1D);
 
       const Vector &mc = ker.metric_coeff;
