@@ -2708,9 +2708,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
-   MFEM_VERIFY(fes->GetVDim() * fes->GetMesh()->SpaceDimension() ==
-               vcoeff.GetVDim(),
-               "vcoeff vdim mismatch");
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
 #if 0
    // implementation for the case when the face dofs are integrals of the
    // normal component.
