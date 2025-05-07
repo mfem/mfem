@@ -397,7 +397,7 @@ endfunction(add_parallel_miniapp_test)
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
    add_parallel_miniapp_test(sedov TRUE)
-   add_parallel_miniapp_test(tmop_pa TRUE)
+   add_parallel_miniapp_test(tmop_pa FALSE)
 endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
