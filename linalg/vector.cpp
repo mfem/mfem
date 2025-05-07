@@ -364,7 +364,7 @@ void Vector::AddSubVector(const Vector &v, int offset)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int vs = v.Size();
-   const real_t *vp = v.Read();
+   const real_t *vp = v.Read(use_dev);
    real_t *p = ReadWrite(use_dev) + offset;
    mfem::forall_switch(use_dev, vs, [=] MFEM_HOST_DEVICE (int i) { p[i] += vp[i]; });
 }
