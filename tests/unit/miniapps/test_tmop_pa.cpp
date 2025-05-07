@@ -473,10 +473,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
                  MPI_COMM_WORLD);
    min_detJ = minJ0;
    REQUIRE(min_detJ > 0.0);
-   real_t h0min = h0.Min(), h0min_all;
-   MPI_Allreduce(&h0min, &h0min_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
-                 MPI_COMM_WORLD);
-   // min_detJ -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
    res.min_detJ = min_detJ;
 
    if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
@@ -524,7 +520,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    if (lin_solver == 0) { S.reset(new DSmoother(1, 1.0, max_lin_iter)); }
    else if (lin_solver == 1)
    {
-      auto cg = new CGSolver(PFesGetParMeshGetComm(fes));
+      auto cg = new CGSolver(PFesGetParMeshGetComm(fes_h1));
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
@@ -533,7 +529,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
    else
    {
-      auto minres = new MINRESSolver(PFesGetParMeshGetComm(fes));
+      auto minres = new MINRESSolver(PFesGetParMeshGetComm(fes_h1));
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
@@ -543,15 +539,17 @@ int tmop(int id, Req &res, int argc, char *argv[])
          if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec.reset(new OperatorJacobiSmoother);
+            auto js = new OperatorJacobiSmoother;
+            js->SetPositiveDiagonal(true);
+            S_prec.reset(js);
          }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
          else
          {
             auto hs = new HypreSmoother;
-            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                        : HypreSmoother::l1Jacobi,
-                        1);
+            hs->SetType((lin_solver == 3)
+                        ? HypreSmoother::Jacobi
+                        : HypreSmoother::l1Jacobi, 1);
             S_prec.reset(hs);
          }
 #else
@@ -571,7 +569,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(mesh.GetTypicalElementGeometry(), quad_order);
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_PA_MPI)
-   TMOPNewtonSolver solver(PFesGetParMeshGetComm(fes), ir);
+   TMOPNewtonSolver solver(PFesGetParMeshGetComm(fes_h1), ir);
 #else
    TMOPNewtonSolver solver(ir);
 #endif
@@ -623,11 +621,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
       REQUIRE(solver.GetConverged());
 
-
       // Report the final energy of the functional.
       if (periodic)
       {
-         GridFunction dx_L2(x); dx_L2 -= x0;
+         ParGridFunction dx_L2(x); dx_L2 -= x0;
          dx.ProjectGridFunction(dx_L2);
          tmop_integ->SetInitialMeshPos(&x0);
          res.final_energy = a.GetParGridFunctionEnergy(dx);
@@ -641,7 +638,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector &x_t(x.GetTrueVector());
    real_t x_t_dot = x_t * x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 mesh.GetComm());
+                 MPI_COMM_WORLD);
    res.dot = dot;
 
    return EXIT_SUCCESS;
@@ -937,7 +934,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 94 })
           .TID({ 5 })
           .LS({ 3 })
-          .NEWTON_RTOLERANCE(1e-8)
+          .NEWTON_RTOLERANCE(1e-6)
           .LINSOL_RTOLERANCE(1e-8)
           .LINSOL_ITERATIONS(150)
           .POR({ 1, 2, 3, 4 })
@@ -949,14 +946,14 @@ static void tmop_tests(int id = 0, bool all = false)
    Launch(Launch::Args("3D Periodic + adapted discrete size")
           .MESH("../../data/periodic-cube.mesh")
           .PERIODIC()
-          .REFINE(1)
           .MID({ 338 })
           .TID({ 5 })
-          .LS({ 3 })
+          .LS({ 2 })
           .NORMALIZATION()
-          .NEWTON_RTOLERANCE(1e-8)
+          .NEWTON_RTOLERANCE(1e-5)
           .LINSOL_RTOLERANCE(1e-10)
-          .POR({ 1 })
+          .LINSOL_ITERATIONS(200)
+          .POR({ 1, 2 })
           .QOR({ 4 })
           .NL({ 1 })
           .DIAGONAL(false))

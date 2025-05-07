@@ -174,9 +174,7 @@ public:
                mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-                  const real_t metric_coeff = const_m0
-                                              ? MC(0, 0, 0, 0)
-                                              : MC(qx, qy, qz, e);
+                  const real_t coeff = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
 
                   // Jrt = Jtr^{-1}
                   real_t Jrt[9];
@@ -195,7 +193,7 @@ public:
                   kernels::Mult(3, 3, 3, Jpr, Jrt, Jpt);
 
                   const real_t det = kernels::Det<3>(use_detA ? Jpr : Jtr);
-                  const real_t weight = metric_normal * metric_coeff * W(qx, qy, qz) * det;
+                  const real_t weight = metric_normal * coeff * W(qx, qy, qz) * det;
 
                   const real_t EvalW = METRIC{}.EvalW(Jpt, w);
 
