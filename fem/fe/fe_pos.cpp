@@ -1893,6 +1893,7 @@ L2Pos_PyramidElement::L2Pos_PyramidElement(const int p)
 
    if (p == 0)
    {
+      dof_map[idx(0,0,0,0,0)] = 0;
       Nodes.IntPoint(0).Set3(0.375, 0.375, 0.25);
    }
    else
@@ -2203,7 +2204,6 @@ void L2Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
       {
          dshape(it.second, d) = m_dshape(it.first, d);
       }
-
 }
 
 }
