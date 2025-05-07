@@ -9,10 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <iostream>
-#include <list>
-#include <memory>
-
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
@@ -27,6 +23,10 @@
 #include "fem/qinterp/eval.hpp"                  // IWYU pragma: keep
 #include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #endif
+
+#include <iostream>
+#include <list>
+#include <memory>
 
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
