@@ -63,18 +63,12 @@ int main(int argc, char *argv[])
    problem = 3;
    int ref_levels = 2;
    int order = 3;
-   bool pa = false;
-   bool ea = false;
-   bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 1;
    int limiter_type = 2;
    real_t t_final = 1;
    real_t dt = 1e-4;
    bool visualization = true;
-   bool visit = false;
-   bool paraview = false;
-   bool binary = false;
    int vis_steps = 50;
    int nbrute = 100;
 
@@ -151,7 +145,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter. If the mesh is of NURBS type, we convert it to
    //    a (piecewise-polynomial) high-order mesh.
@@ -165,24 +159,23 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
+   // 4. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
+   // 5. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    FunctionCoefficient u0(u0_function);
 
-   // 7. Define the initial conditions, save the corresponding grid function to
+   // 6. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
    u.ProjectCoefficient(u0);
-
    {
       ofstream omesh("ex41.mesh");
       omesh.precision(precision);
@@ -193,13 +186,13 @@ int main(int argc, char *argv[])
    }
 
 
-   // 8. Setup P0 DG space and grid function for element-wise mean and bounds.
+   // 7. Setup P0 DG space and grid function for element-wise mean and bounds.
    L2_FECollection uavg_fec(0, dim);
    FiniteElementSpace uavg_fes(&mesh, &uavg_fec);
    GridFunction uavg(&uavg_fes);
    GridFunction lbound(&uavg_fes), ubound(&uavg_fes);
 
-   // 9. Setup DG hyperbolic conservation law solver.
+   // 8. Setup DG hyperbolic conservation law solver.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    AdvectionFlux flux(velocity);
    RusanovFlux numericalFlux(flux);
@@ -208,10 +201,10 @@ int main(int argc, char *argv[])
                                              new HyperbolicFormIntegrator(numericalFlux, 0)),
                                           false);
 
-   // 10. Limit initial solution (if necessary).
+   // 9. Limit initial solution (if necessary).
    Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
 
-   // 11. Set up SSP time integrator (note that RK3 integrator does not apply limiting at
+   // 10. Set up SSP time integrator (note that RK3 integrator does not apply limiting at
    //     inner stages, which may cause bounds-violations).
    real_t t = 0.0;
    ODESolver *ode_solver = NULL;
@@ -227,7 +220,7 @@ int main(int argc, char *argv[])
    advection.SetTime(t);
    ode_solver->Init(advection);
 
-   // 12. Perform time-stepping and limiting after each time step.
+   // 11. Perform time-stepping and limiting after each time step.
    bool done = false;
    for (int ti = 0; !done;)
    {
@@ -245,7 +238,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 16. Visualize solution using GLVis.
+   // 12. Visualize solution using GLVis.
    socketstream sout;
    if (visualization)
    {
@@ -270,7 +263,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 17. Save the final solution. This output can be viewed later using GLVis:
+   // 13. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -m ex41.mesh -g ex41-final.gf".
    {
       ofstream osol("ex41-final.gf");
@@ -279,14 +272,14 @@ int main(int argc, char *argv[])
    }
 
 
-   // 18. Compute the L1 solution error and discrete solution extrema (at solution nodes)
+   // 14. Compute the L1 solution error and discrete solution extrema (at solution nodes)
    //     after one flow interval.
    cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
    cout << "Solution (discrete) minimum: " << u.Min() << endl;
    cout << "Solution (discrete) maximum: " << u.Max() << endl;
 
 
-   // 19. Brute-force search for the min/max value of u(x) in each element at an array
+   // 15. Brute-force search for the min/max value of u(x) in each element at an array
    //     of integration points
    real_t umin = numeric_limits<real_t>::max();
    real_t umax = numeric_limits<real_t>::min();
