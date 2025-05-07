@@ -58,9 +58,9 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFuncti
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 1;
-   int ref_levels = 1;
-   int order = 2;
+   problem = 3;
+   int ref_levels = 2;
+   int order = 3;
    bool pa = false;
    bool ea = false;
    bool fa = false;
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    int limiter_type = 2;
    real_t t_final = 1;
-   real_t dt = 2e-4;
+   real_t dt = 1e-4;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -330,7 +330,16 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFuncti
    // Compute lower/upper bounds on u
    u.GetElementBounds(lbound, ubound, 2);
 
+   #if defined(MFEM_USE_DOUBLE)
    constexpr real_t tol = 1e-12;
+   #elif defined(MFEM_USE_SINGLE)
+   constexpr real_t tol = 1e-6;
+   #else
+   #error "Only single and double precision are supported!"
+   constexpr real_t tol = 1.;
+   #endif
+
+
 
    // Loop through elements and limit if necessary
    for (int i = 0; i < u.FESpace()->GetNE(); i++)
@@ -372,7 +381,7 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound, GridFuncti
             alpha = max(0.0, min(alpha, 1.0));
          }
       }
-      
+
       // Set limited solution
       for (int j = 0; j < u_elem.Size(); j++)
       {
