@@ -2,9 +2,10 @@
 //
 // Compile with: make ex41
 //
-// Sample runs:
-//
-// Device sample runs:
+// Sample runs: ex41 -p 1 -r 1 -l 2
+//              ex41 -p 3 -r 2 -l 1
+//              ex41 -p 3 -r 2 -l 2
+//              ex41 -p 4 -r 2 -l 2
 //
 // Description:   This example code demonstrates bounds-preserving limiters for
 //                Discontinuous Galerkin (DG) approximations of hyperbolic
@@ -18,8 +19,8 @@
 //                bounds-preserving limiters of Zhang & Shu [1] or Dzanic et al. [2].
 //                The Zhang & Shu limiter enforces the minimum principle discretely
 //                (i.e, on the discrete solution/quadrature nodes) while the Dzanic
-//                limiter enforces the minimum principle continuously (i.e, across
-//                the entire solution polynomial within the element).
+//                et al. limiter enforces the minimum principle continuously (i.e,
+//                across the entire solution polynomial within the element).
 //
 //                We recommend viewing examples 9 and 18 before viewing this
 //                example.
