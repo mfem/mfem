@@ -136,6 +136,8 @@ TEST_CASE("Positive H1 Bases",
          // Verify that the gradients sum to zero
          REQUIRE(zeros.Norml2() == MFEM_Approx(0.0));
       }
+
+      delete fe;
    }
 }
 
@@ -197,5 +199,7 @@ TEST_CASE("Positive L2 Bases",
          // Verify that the gradients sum to zero
          REQUIRE(zeros.Norml2() == MFEM_Approx(0.0));
       }
+
+      delete fe;
    }
 }
