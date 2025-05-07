@@ -123,11 +123,21 @@ public:
 
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
-   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
-   int VectorDim() const;
+   /** @brief Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+       underlying #fes */
+   int VectorDim() const { return fes->GetVectorDim(); }
 
-   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
-   int CurlDim() const;
+   /** @brief Shortcut for calling FiniteElementSpace::GetBdrVectorDim() on the
+       underlying #fes */
+   int BdrVectorDim() const { return fes->GetBdrVectorDim(); }
+
+   /** @brief Shortcut for calling FiniteElementSpace::GetFaceVectorDim() on
+       the underlying #fes */
+   int FaceVectorDim() const { return fes->GetFaceVectorDim(); }
+
+   /** @brief Shortcut for calling FiniteElementSpace::GetCurlDim() on the
+       underlying #fes */
+   int CurlDim() const { return fes->GetCurlDim(); }
 
    /// Read only access to the (optional) internal true-dof Vector.
    const Vector &GetTrueVector() const
