@@ -99,12 +99,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
-   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
-                  "--no-paraview-datafiles",
-                  "Save data files for ParaView (paraview.org) visualization.");
 
    args.Parse();
    if (!args.Good())
@@ -207,15 +201,14 @@ int main(int argc, char *argv[])
    // 10. Set up SSP time integrator (note that RK3 integrator does not apply limiting at
    //     inner stages, which may cause bounds-violations).
    real_t t = 0.0;
-   ODESolver *ode_solver = NULL;
+   ODESolver * ode_solver = NULL;
    switch (ode_solver_type)
    {
       case 0: ode_solver = new ForwardEulerSolver; break;
       case 1: ode_solver = new RK3SSPSolver; break;
 
       default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
    }
    advection.SetTime(t);
    ode_solver->Init(advection);
