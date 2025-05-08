@@ -132,6 +132,9 @@
 // Enable Conduit support.
 // #define MFEM_USE_CONDUIT
 
+// Enable functionality based on the HDF5 library
+// #define MFEM_USE_HDF5
+
 // Enable functionality based on the NetCDF library (reading CUBIT files).
 // #define MFEM_USE_NETCDF
 
