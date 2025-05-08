@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes(&pmesh, &fec);
    if (Mpi::Root())
    {
-      cout << "Number of unknowns: " << fes.GetVSize() << endl;
+      cout << "Number of unknowns: " << fes.GlobalTrueVSize() << endl;
    }
 
    // 7. Set up and assemble the bilinear and linear forms corresponding to the
@@ -197,12 +197,14 @@ int main(int argc, char *argv[])
    //    GLVis visualization.
    ParGridFunction u(&fes);
    u.ProjectCoefficient(u0);
-
    {
-      ofstream omesh("ex41.mesh");
+      ostringstream mesh_name, sol_name;
+      mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
+      ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
       pmesh.Print(omesh);
-      ofstream osol("ex41-init.gf");
+      ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u.Save(osol);
    }
@@ -281,6 +283,7 @@ int main(int argc, char *argv[])
       }
       else
       {
+         sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
          sout << "pause\n";
