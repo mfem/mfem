@@ -136,7 +136,7 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
 }
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int contactdofs, int constr, int numactiveconstraints, int optit, 
-   const Array<int> & iters, const Array<int> & amgiters, const Array<int> &dratios)
+   const Array<int> & iters, const Array<int> & amgiters, const Array<int> & nocontactiters, const Array<int> &dratios)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -153,6 +153,7 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "Optimizer number of iterations  = " << optit << endl;
    outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
    outputfile << "AMG CG iteration numbers        = "; amgiters.Print(outputfile, amgiters.Size());
+   outputfile << "AMG No contact CG iterations    = "; nocontactiters.Print(outputfile, nocontactiters.Size());
    //outputfile << "Dmaxmin ratios = "; dratios.Print(outputfile, dratios.Size());
    // outputfile << "OptimizerIteration,CGIterations" << endl;
    // for (int i = 0; i< iters.Size(); i++)
@@ -169,7 +170,7 @@ void OutputFinalData(ostringstream & file_name, int dofs,
    const Array<int> & active_constraints,
    const std::vector<Array<int>> & iters, 
    const std::vector<Array<int>> & amgiters, 
-   const Array<int> & no_contact_iter)
+   const std::vector<Array<int>> & no_contact_iter)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -210,15 +211,20 @@ void OutputFinalData(ostringstream & file_name, int dofs,
       }
       outputfile << endl;
    }
+   
 
-   outputfile << "AMG No Contact CG Iterations: " << endl;
-   for (int j = 0; j < no_contact_iter.Size(); j++)
+   outputfile << "\nAMG No Contact CG Iterations: " << endl;
+   for (int i = 0; i< no_contact_iter.size(); i++)
    {
-      outputfile << no_contact_iter[j] ;
-      if (j < no_contact_iter.Size()-1)
+      for (int j = 0; j < no_contact_iter[i].Size(); j++)
       {
-         outputfile << ", ";
+         outputfile << no_contact_iter[i][j] ;
+         if (j < no_contact_iter[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
       }
+      outputfile << endl;
    }
 
    outputfile << "\nTotal constraints: " << endl;
@@ -706,6 +712,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
    std::vector<Array<int>> AMGCGiter;
+   std::vector<Array<int>> NoContactCGiterations;
    int total_steps = nsteps + msteps;
 
    if (testNo == 6)
@@ -716,7 +723,6 @@ int main(int argc, char *argv[])
 
    Vector DCvals;
    int ibegin = (restart) ? istep+1 : 0;
-   Array<int> NoContactCGiterations;
    Array<int> ActiveConstraints;
    Array<int> TotalConstraints;
    Array<int> ContactDofs;
@@ -901,9 +907,11 @@ int main(int argc, char *argv[])
       double Efinal = contact.E(xf, eval_err);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<int> & AMGCGiterations = optimizer.GetAMGIterNumbers();
+      Array<int> & NoContactAMGCGiterations = optimizer.GetCGNoContactIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
       AMGCGiter.push_back(AMGCGiterations);
+      NoContactCGiterations.push_back(NoContactAMGCGiterations);
       int gndofs = prob.GetGlobalNumDofs();
 
       int activenumconstr = optimizer.GetNumActiveConstraints();
@@ -911,10 +919,6 @@ int main(int argc, char *argv[])
 
       // Hypotherical AMG solver in the absense of contact for each time step
       // This is only for the linear case
-      if (optimizer.GetCGNoContactIterNumbers().Size() > 0 )
-      {
-         NoContactCGiterations.Append(optimizer.GetCGNoContactIterNumbers()[0]);
-      }
       if (Mpi::Root())
       {
          mfem::out << endl;
@@ -928,7 +932,13 @@ int main(int argc, char *argv[])
                 optimizer.GetNumIterations() << endl;
          if (optimizer.GetCGNoContactIterNumbers().Size() > 0)
 	      {
-	         mfem::out << " No Contact CG Solver iterations = " << optimizer.GetCGNoContactIterNumbers()[0] << endl;
+	         mfem::out << " No Contact CG Solver iterations = ";
+            Array<int> NoContactAMGCGIterCount = optimizer.GetCGNoContactIterNumbers();
+            for (int i = 0; i < NoContactAMGCGIterCount.Size(); ++i) 
+            {
+               std::cout << " " << std::setw(7) << NoContactAMGCGIterCount[i] << " |";
+            }
+            std::cout << std::endl;
 	      }
          
          if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6 || linsolver == 7)
@@ -972,7 +982,7 @@ int main(int argc, char *argv[])
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
             OutputData(file_name, Einitial, Efinal, gndofs,gncols,numconstr, activenumconstr, optimizer.GetNumIterations(), 
-            CGiterations, AMGCGiterations, DMaxMinRatios);
+            CGiterations, AMGCGiterations, NoContactAMGCGiterations, DMaxMinRatios);
             if (i == total_steps-1)
             {
                ostringstream final_file_name;

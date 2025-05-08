@@ -891,12 +891,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             cgsolver.SetPrintLevel(3);
             cgsolver.SetOperator(*Huu);
             cgsolver.SetPreconditioner(prec);
-            Vector X(Huu->Height()); X.Randomize();
-            Vector B(Huu->Height()); B.Randomize();
-	         cgsolver.Mult(B,X);
+            Vector X(Huu->Height()); X=0.0;
+	         cgsolver.Mult(breduced,X);
             int m = cgsolver.GetNumIterations();
             cgnum_iterations_nocontact.Append(m);
-            no_contact_solve = false;
+            // no_contact_solve = false;
          }
 
 
