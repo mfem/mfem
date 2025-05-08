@@ -304,8 +304,8 @@ int main(int argc, char *argv[])
 }
 
 void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound,
-           GridFunction &ubound,
-           int dim, int limiter_type, real_t a, real_t b)
+           GridFunction &ubound, int dim, int limiter_type, real_t a,
+           real_t b)
 {
    // Return if no limiter is chosen
    if (!limiter_type) { return; }
@@ -372,9 +372,9 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound,
          // Else compute convex limiting factor as per Zhang & Shu
          else
          {
-            alpha = min((uavg(i) - a)/max(tol, uavg(i) - umin), (b - uavg(i))/max(tol,
-                                                                                  umax - uavg(i)));
-            alpha = max(0.0, min(alpha, 1.0));
+            alpha = min((uavg(i) - a)/max(tol, uavg(i) - umin),
+                        (b - uavg(i))/max(tol, umax - uavg(i)));
+            alpha = max(real_t(0.0), min(alpha, real_t(1.0)));
          }
       }
 

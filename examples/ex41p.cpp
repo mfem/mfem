@@ -422,9 +422,9 @@ void Limit(ParGridFunction &u, ParGridFunction &uavg, ParGridFunction &lbound,
          // Else compute convex limiting factor as per Zhang & Shu
          else
          {
-            alpha = min((uavg(i) - a)/max(tol, uavg(i) - umin), (b - uavg(i))/max(tol,
-                                                                                  umax - uavg(i)));
-            alpha = max(0.0, min(alpha, 1.0));
+            alpha = min((uavg(i) - a)/max(tol, uavg(i) - umin),
+                        (b - uavg(i))/max(tol, umax - uavg(i)));
+            alpha = max(real_t(0.0), min(alpha, real_t(1.0)));
          }
       }
 
