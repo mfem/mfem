@@ -741,6 +741,77 @@ backend_cpu:
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 
+/// The forall kernel body wrapper
+template <const int DIM, typename d_lambda, typename h_lambda>
+inline void ForallWrap(const bool use_dev, const int N,
+                       d_lambda &&d_body, h_lambda &&h_body,
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
+{
+   MFEM_CONTRACT_VAR(X);
+   MFEM_CONTRACT_VAR(Y);
+   MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(G);
+   MFEM_CONTRACT_VAR(d_body);
+   if (!use_dev) { goto backend_cpu; }
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+   // If Backend::RAJA_CUDA is allowed, use it
+   if (Device::Allows(Backend::RAJA_CUDA))
+   {
+      return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+   }
+#endif
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+   // If Backend::RAJA_HIP is allowed, use it
+   if (Device::Allows(Backend::RAJA_HIP))
+   {
+      return RajaHipWrap<DIM>::run(N, d_body, X, Y, Z, G);
+   }
+#endif
+
+#ifdef MFEM_USE_CUDA
+   // If Backend::CUDA is allowed, use it
+   if (Device::Allows(Backend::CUDA))
+   {
+      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+   }
+#endif
+
+#ifdef MFEM_USE_HIP
+   // If Backend::HIP is allowed, use it
+   if (Device::Allows(Backend::HIP))
+   {
+      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
+   }
+#endif
+
+   // If Backend::DEBUG_DEVICE is allowed, use it
+   if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   // If Backend::RAJA_OMP is allowed, use it
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
+#endif
+
+#ifdef MFEM_USE_OPENMP
+   // If Backend::OMP is allowed, use it
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
+#endif
+
+#ifdef MFEM_USE_RAJA
+   // If Backend::RAJA_CPU is allowed, use it
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
+#endif
+
+backend_cpu:
+   // Handle Backend::CPU. This is also a fallback for any allowed backends not
+   // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
+   // OCCA_OMP with configuration 'occa-omp,cpu'.
+   for (int k = 0; k < N; k++) { h_body(k); }
+}
+
 template <const int DIM, typename lambda>
 inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
@@ -751,6 +822,59 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
 
 template<typename lambda>
 inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
+
+template<typename lambda>
+inline void forall(int NX, int NY, lambda &&body)
+{
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      forall(Nx * Ny, [=] MFEM_HOST_DEVICE(int idx)
+      {
+         int i = idx / Ny;
+         int j = idx % Ny;
+         body(i, j);
+      });
+   }
+   else
+   {
+      for (int i = 0; i < Nx; ++i)
+      {
+         for (int j = 0; j < Ny; ++j)
+         {
+            body(i, j);
+         }
+      }
+   }
+}
+
+template<typename lambda>
+inline void forall(int Nx, int Ny, int Nz, lambda &&body)
+{
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      forall(Nx * Ny * Nz, [=] MFEM_HOST_DEVICE(int idx)
+      {
+         int k = idx % Nz;
+         int j = idx / Nz;
+         int i = j / Ny;
+         j = j % Ny;
+         body(i, j, k);
+      });
+   }
+   else
+   {
+      for (int i = 0; i < Nx; ++i)
+      {
+         for (int j = 0; j < Ny; ++j)
+         {
+            for (int k = 0; k < Nz; ++k)
+            {
+               body(i, j, k);
+            }
+         }
+      }
+   }
+}
 
 template<typename lambda>
 inline void forall_switch(bool use_dev, int N, lambda &&body)

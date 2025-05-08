@@ -64,39 +64,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
       const bool by_val = map_type == FiniteElement::VALUE;
-      if (Device::Allows(Backend::DEVICE_MASK))
+      const auto W = Reshape(ir->GetWeights().Read(), NQ);
+      const auto J = Reshape(geom->detJ.Read(), NQ, NE);
+      const auto C =
+         const_c ? Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NE, NQ, [=] MFEM_HOST_DEVICE(int e, int q)
       {
-         // 1D forall is an order of magnitude faster on GPUs
-         const auto W = ir->GetWeights().Read();
-         const auto J = geom->detJ.Read();
-         const auto C = coeff.Read();
-         auto v = pa_data.Write();
-         mfem::forall(NE * NQ, [=] MFEM_HOST_DEVICE(int idx)
-         {
-            int q = idx % NQ;
-            const real_t detJ = J[idx];
-            const real_t coeff = const_c ? C[0] : C[idx];
-            v[idx] = W[q] * coeff * (by_val ? detJ : 1.0 / detJ);
-         });
-      }
-      else
-      {
-         // 2D forall is about 4-5x faster on CPUs
-         const auto W = Reshape(ir->GetWeights().Read(), NQ);
-         const auto J = Reshape(geom->detJ.Read(), NQ, NE);
-         const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
-                        : Reshape(coeff.Read(), NQ, NE);
-         auto v = Reshape(pa_data.Write(), NQ, NE);
-         mfem::forall_2D(NE, NQ, 1, [=] MFEM_HOST_DEVICE(int e)
-         {
-            MFEM_FOREACH_THREAD(i, x, NQ)
-            {
-               const real_t detJ = J(i, e);
-               const real_t coeff = const_c ? C(0, 0) : C(i, e);
-               v(i, e) = W(i) * coeff * (by_val ? detJ : 1.0 / detJ);
-            }
-         });
-      }
+         const real_t detJ = J(q, e);
+         const real_t coeff = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(i) * coeff * (by_val ? detJ : 1.0 / detJ);
+      });
    }
 }
 
