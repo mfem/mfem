@@ -434,7 +434,7 @@ real_t u0_function(const Vector &x)
       // Solid body rotation
       case 4:
       {
-         constexpr real_t r2 = pow(0.3, 2.0);
+         constexpr real_t r2 = 0.3*0.3;
          // Notched cylinder
          if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && !(abs(X(0)) < 0.05 &&
                                                                 abs(X(1) - 0.45) < 0.25))
