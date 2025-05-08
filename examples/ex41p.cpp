@@ -171,7 +171,6 @@ int main(int argc, char *argv[])
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -181,7 +180,7 @@ int main(int argc, char *argv[])
    // 6. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace fes(pmesh, &fec);
    if (Mpi::Root())
    {
       cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -210,7 +209,7 @@ int main(int argc, char *argv[])
 
    // 9. Setup P0 DG space and grid function for element-wise mean and bounds.
    L2_FECollection uavg_fec(0, dim);
-   ParFiniteElementSpace uavg_fes(&pmesh, &uavg_fec);
+   ParFiniteElementSpace uavg_fes(pmesh, &uavg_fec);
    ParGridFunction uavg(&uavg_fes);
    ParGridFunction lbound(&uavg_fes), ubound(&uavg_fes);
 
