@@ -531,6 +531,11 @@ public:
                           ElementTransformation &Trans,
                           DenseMatrix &I) const override
    { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   using FiniteElement::Project;
+
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 class RT_R2D_FiniteElement : public VectorFiniteElement
