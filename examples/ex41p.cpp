@@ -153,11 +153,11 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter. If the mesh is of NURBS type, we convert it to
-   //    a (piecewise-polynomial) high-order mesh.
-   for (int lev = 0; lev < ref_levels; lev++)
+   // 4. Refine the mesh in serial to increase the resolution. In this example
+   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   //    a command-line parameter. If the mesh is of NURBS type, we convert it
+   //    to a (piecewise-polynomial) high-order mesh.
+   for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh.UniformRefinement();
    }
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
    {
       ofstream omesh("ex41.mesh");
       omesh.precision(precision);
-      pmesh.Print(omesh);
+      pmesh->Print(omesh);
       ofstream osol("ex41-init.gf");
       osol.precision(precision);
       u.Save(osol);
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
    //     of integration points
    real_t umin = numeric_limits<real_t>::max();
    real_t umax = numeric_limits<real_t>::min();
-   for (int e = 0; e < pmesh.GetNE(); e++)
+   for (int e = 0; e < pmesh->GetNE(); e++)
    {
       IntegrationPoint ip;
       for (int k = 0; k < (dim > 2 ? nbrute : 1); k++)
@@ -342,6 +342,7 @@ int main(int argc, char *argv[])
       cout << "Solution (continuous) maximum: " << umax << endl;
    }
 
+   delete pmesh;
    delete ode_solver;
    return 0;
 }
@@ -501,7 +502,6 @@ real_t u0_function(const Vector &x)
       }
    }
 
-   delete ode_solver;
    return 0;
 }
 
