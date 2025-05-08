@@ -350,10 +350,9 @@ int main(int argc, char *argv[])
    u *= 1e-2;
    u.ProjectBdrCoefficient(boundary_coeff, ess_bdr);
 
-   GMRESSolver krylov(MPI_COMM_WORLD);
+   CGSolver krylov(MPI_COMM_WORLD);
    krylov.SetAbsTol(0.0);
    krylov.SetRelTol(1e-4);
-   krylov.SetKDim(300);
    krylov.SetMaxIter(500);
    krylov.SetPrintLevel(2);
 
