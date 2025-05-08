@@ -170,17 +170,18 @@ int main(int argc, char *argv[])
    // 5. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
+   mesh.Clear();
 
 
    // 6. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace fes(pmesh, &fec);
+   ParFiniteElementSpace fes(&pmesh, &fec);
    if (Mpi::Root())
    {
       cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -200,7 +201,7 @@ int main(int argc, char *argv[])
    {
       ofstream omesh("ex41.mesh");
       omesh.precision(precision);
-      pmesh->Print(omesh);
+      pmesh.Print(omesh);
       ofstream osol("ex41-init.gf");
       osol.precision(precision);
       u.Save(osol);
@@ -209,7 +210,7 @@ int main(int argc, char *argv[])
 
    // 9. Setup P0 DG space and grid function for element-wise mean and bounds.
    L2_FECollection uavg_fec(0, dim);
-   ParFiniteElementSpace uavg_fes(pmesh, &uavg_fec);
+   ParFiniteElementSpace uavg_fes(&pmesh, &uavg_fec);
    ParGridFunction uavg(&uavg_fes);
    ParGridFunction lbound(&uavg_fes), ubound(&uavg_fes);
 
@@ -315,7 +316,7 @@ int main(int argc, char *argv[])
    //     of integration points
    real_t umin = numeric_limits<real_t>::max();
    real_t umax = numeric_limits<real_t>::min();
-   for (int e = 0; e < pmesh->GetNE(); e++)
+   for (int e = 0; e < pmesh.GetNE(); e++)
    {
       IntegrationPoint ip;
       for (int k = 0; k < (dim > 2 ? nbrute : 1); k++)
@@ -334,6 +335,10 @@ int main(int argc, char *argv[])
          }
       }
    }
+   MPI_Allreduce(MPI_IN_PLACE, &umin, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 pmesh.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &umax, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 pmesh.GetComm());
 
    if (Mpi::Root())
    {
@@ -341,7 +346,6 @@ int main(int argc, char *argv[])
       cout << "Solution (continuous) maximum: " << umax << endl;
    }
 
-   delete pmesh;
    delete ode_solver;
    return 0;
 }
