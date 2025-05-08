@@ -73,7 +73,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          const real_t detJ = J(q, e);
          const real_t coeff = const_c ? C(0, 0) : C(q, e);
-         v(q, e) = W(i) * coeff * (by_val ? detJ : 1.0 / detJ);
+         v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
       });
    }
 }
