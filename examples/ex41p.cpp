@@ -54,8 +54,8 @@ Vector bb_min, bb_max;
 
 // Bounds-preserving a posteriori limiter
 void Limit(ParGridFunction &u, ParGridFunction &uavg, ParGridFunction &lbound,
-           ParGridFunction &ubound, int dim, int limiter_type, double a,
-           double b);
+           ParGridFunction &ubound, int dim, int limiter_type, real_t a,
+           real_t b);
 
 int main(int argc, char *argv[])
 {
