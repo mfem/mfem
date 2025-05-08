@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             cout << "Unable to connect to GLVis server at "
-               << vishost << ':' << visport << endl;
+                 << vishost << ':' << visport << endl;
          }
          visualization = false;
          if (Mpi::Root())
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             cout << "GLVis visualization paused."
-               << " Press space (in the GLVis window) to resume it.\n";
+                 << " Press space (in the GLVis window) to resume it.\n";
          }
       }
    }
