@@ -18,8 +18,8 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
-# Require C++11 and disable compiler-specific extensions
-set(CMAKE_CXX_STANDARD 11 CACHE STRING "C++ standard to use.")
+# Require C++17 and disable compiler-specific extensions
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use.")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL
   "Force the use of the chosen C++ standard.")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
@@ -532,9 +532,11 @@ if (MFEM_USE_TRIBOL)
   endif()
 endif()
 
-# Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
+    message(STATUS "Enzyme found in ${ENZYME_DIR}.")
+    set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
+    set(ENZYME_FOUND 1)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -685,6 +687,9 @@ if (MFEM_USE_MPI)
   if (MPI_CXX_LINK_FLAGS)
     target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
   endif()
+endif()
+if (MFEM_USE_ENZYME)
+  target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")

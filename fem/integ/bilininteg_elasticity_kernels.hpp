@@ -147,6 +147,11 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                           const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
                           QuadratureFunction &QVec, Vector &y)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    static_assert((i_block < 0) == (j_block < 0),
                  "i_block and j_block must both be non-negative or strictly negative.");
    static constexpr int d = dim;
@@ -277,6 +282,11 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
                                    const CoefficientVector &mu, const GeometricFactors &geom,
                                    const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
    static constexpr int d = dim;
@@ -361,6 +371,11 @@ void ElasticityAssembleEA_(const int i_block,
                            const DofToQuad &maps,
                            Vector &emat)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    // Assuming all elements are the same
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
