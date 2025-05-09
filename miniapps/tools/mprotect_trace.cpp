@@ -14,11 +14,12 @@ https://github.com/ianlancetaylor/libbacktrace
 or
 https://github.com/gcc-mirror/gcc/tree/master/libbacktrace
 or from a package manager like spack.
- */
+*/
 
 #include <dlfcn.h>
+#include <cassert>
 #include <execinfo.h>
-#include <signal.h>
+#include <csignal>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <map>
@@ -31,9 +32,24 @@ or from a package manager like spack.
 #include <cxxabi.h>
 #include <sstream>
 #include <chrono>
+#include <thread>
+#include <atomic>
+
+#include "general/mem_manager.hpp"
 
 #if BACKTRACE_SUPPORTED != 1
 #error "Backtrace not supported! See output file backtrace-supported.h for details."
+#endif
+
+#ifdef __APPLE__
+#define DYLD_SYMBOL(name) name
+#define DYLD_INTERPOSE(_to,_from) \
+   __attribute__((used)) static struct{ const void* to; const void* from; } \
+   _interpose_##_from __attribute__ ((section ("__DATA,__interpose"))) = \
+   { (const void*)(unsigned long)&_to, (const void*)(unsigned long)&_from };
+#else
+#define DYLD_INTERPOSE(...)
+#define DYLD_SYMBOL(name) dlsym(RTLD_NEXT, #name);
 #endif
 
 /// Try to undo the name mangling. Return mangled name if unsuccesful.
@@ -94,15 +110,16 @@ struct ProtectionInfo
    /// The protection code used in mprotect.
    int prot;
    /// The stack trace.
-   std::vector<std::string> trace;
+   // std::vector<std::string> trace;
    /// The timespace of the mprotect call, used to differentiate calls to overlapping memory spans.
    std::chrono::steady_clock::time_point timestamp;
 };
 
 static std::mutex g_mutex;
 
-/// the keys of this map are the addresses that mprotect was called on.s
-static std::map<void*, ProtectionInfo> g_protected;
+/// the keys of this map are the addresses that mprotect was called on.
+// static std::map<void*, ProtectionInfo> g_protected;
+static std::map<void*, void*> g_protected;
 
 void error_callback(void*, const char* msg, int errnum)
 {
@@ -113,7 +130,7 @@ void error_callback(void*, const char* msg, int errnum)
 int mprotect_backtrace_full_callback(void* data, uintptr_t pc,
                                      const char* filename, int lineno, const char* function)
 {
-   char buf[512];
+   char buf[PATH_MAX];
    std::string demangled_name;
    std::string fname_str;
    if (!function)
@@ -156,23 +173,78 @@ void collect_trace(std::vector<std::string>& out)
                   &out);
 }
 
-/// Our custom mprotect
-extern "C" int mprotect(void* addr, size_t len, int prot)
-{
-   static auto real_mprotect = (int(*)(void*, size_t, int))dlsym(RTLD_NEXT,
-                                                                 "mprotect");
+using mprotect_t = int (void*, size_t, int);
 
-   std::vector<std::string> stack;
-   collect_trace(stack);
-   auto timepoint = std::chrono::steady_clock::now();
+int computeValue()
+{
+   // Simulate some work
+   std::this_thread::sleep_for(std::chrono::milliseconds(100));
+   return 42;
+}
+
+std::atomic<int> result{0}; // Atomic variable to store the result
+
+/// Our custom mprotect
+/// 🔥🔥🔥 WIP, as on macos and apple hardware, mprotect cannot be used anymore.
+/// 🔥🔥🔥 Trying the dtrace approach...
+#ifdef __APPLE__
+extern "C"
+int mm_mprotect(void* addr, size_t len, int prot)
+#else
+extern "C" int mprotect(void* addr, size_t len, int prot)
+#endif
+{
+   static mprotect_t *_mprotect = (mprotect_t *) mprotect;
+   assert(true); // ✅
+   // static std::map<void*, int> map; // ✅
+
+   assert(getuid() == 501);
+   /*{
+      return _mprotect(addr, len, prot);
+   }*/
+
+
+   assert(false);
+   const bool known = mfem::mm.IsKnown(addr);
+   assert(false);
+   // assert(known);
 
    {
-      std::lock_guard<std::mutex> lock(g_mutex);
-      g_protected[addr] = { addr, len, prot, stack, timepoint};
+      // auto worker = []() { /*computeValue();*/ };  // ❌
+      // Launch the thread
+      // std::thread t(worker);//, std::ref(result)); // ❌
+      // Join the thread to ensure the result is set
+      // t.join();
    }
 
-   return real_mprotect(addr, len, prot);
+   {
+      // std::lock_guard<std::mutex> lock(g_mutex); // ✅
+      // printf("\n\x1b.\x1b[m"); // ❌
+      // map[addr] = prot; // ❌
+   }
+   // const int rtn = _mprotect(addr, len, prot);
+   // assert(rtn == 0);
+   // printf("\n\x1b[31m[mprotect] %p (%ld, %x)\x1b[m", addr, len, prot);
+
+   // std::vector<std::string> stack;
+   // collect_trace(stack); // ❌
+   // auto timepoint = std::chrono::steady_clock::now(); // ✅
+   // (void) timepoint;
+   {
+      // std::lock_guard<std::mutex> lock(g_mutex);
+      // g_protected[addr] = addr;
+      /*{
+         addr,
+         // len, prot,
+         // stack,
+         // timepoint
+      };*/
+   }
+   return _mprotect(addr, len, prot);
+   // return rtn;
+   // return EXIT_SUCCESS;
 }
+DYLD_INTERPOSE(mm_mprotect, mprotect)
 
 /// Return human readable protection code
 /// There are some codes I didn't write a conversion for.
@@ -186,7 +258,7 @@ std::string prot_to_string(int prot)
    return prot_string;
 }
 
-void segv_handler(int /*sig*/, siginfo_t* info, void*)
+void segv_handler(int, siginfo_t* info, void*)
 {
    void* fault_addr = info->si_addr;
    auto code = info->si_code;
@@ -220,14 +292,14 @@ void segv_handler(int /*sig*/, siginfo_t* info, void*)
       faulty_candidates;
       static std::map<std::chrono::steady_clock::time_point, bool>
       multiple_candidates;
-      for (const auto& [base, pi] : g_protected)
+      /*for (const auto& [base, pi] : g_protected)
       {
          if (fault_addr >= base && fault_addr < (char*)base + pi.len)
          {
             multiple_candidates[pi.timestamp] = faulty_candidates.count(pi.timestamp) > 0;
             faulty_candidates[pi.timestamp] = pi;
          }
-      }
+      }*/
       if (!faulty_candidates.empty())
       {
          // reverse the map from newest to oldest time. Extract most recent time.
@@ -239,7 +311,7 @@ void segv_handler(int /*sig*/, siginfo_t* info, void*)
          std::cerr << "mprotect set the following permissions: " << prot_to_string(
                       pi.prot) << "\n";
          std::cerr << "Full protection number: " << pi.prot << "\n";
-         for (const auto& s : pi.trace) { std::cerr << "  " << s << "\n"; }
+         // for (const auto& s : pi.trace) { std::cerr << "  " << s << "\n"; }
          if (multiple_matches_found)
          {
             std::cerr <<
@@ -256,11 +328,11 @@ void segv_handler(int /*sig*/, siginfo_t* info, void*)
 }
 
 // This code gets run before main.
-__attribute__((constructor))
+/*__attribute__((constructor))
 void install_handler()
 {
    struct sigaction sa {};
    sa.sa_flags = SA_SIGINFO;
    sa.sa_sigaction = segv_handler;
    sigaction(SIGSEGV, &sa, nullptr);
-}
+}*/

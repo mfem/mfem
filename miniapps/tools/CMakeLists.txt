@@ -47,14 +47,29 @@ if (MFEM_USE_MPI)
 endif()
 
 if(MFEM_ENABLE_LIBBACKTRACE AND CMAKE_CXX_STANDARD GREATER_EQUAL 17)
+  message(STATUS "[🟠 LIBBACKTRACE 🟠] Building mprotect_trace miniapp")
+  message(STATUS "[🟠 LIBBACKTRACE 🟠] PROJECT_BINARY_DIR: ${PROJECT_BINARY_DIR}")
+  
    find_package(LIBBACKTRACE REQUIRED)
    
+   # MPROTECT_TRACE library
    add_library(mprotect_trace SHARED mprotect_trace.cpp)
    # remove the preceding "lib"
    set_target_properties(mprotect_trace PROPERTIES PREFIX "")
-   target_link_libraries(mprotect_trace PRIVATE
-      LIBBACKTRACE::LIBBACKTRACE
-   )
-   install(TARGETS mprotect_trace
-   DESTINATION miniapps)
+   target_include_directories(mprotect_trace PRIVATE ${PROJECT_BINARY_DIR}/config)
+   target_link_libraries(mprotect_trace PRIVATE LIBBACKTRACE::LIBBACKTRACE mfem)
+   install(TARGETS mprotect_trace DESTINATION miniapps)
+
+   # MEM CHECK library
+   add_library(mem_check SHARED mem_check.cpp)
+   set_target_properties(mem_check PROPERTIES PREFIX "")
+  #  target_include_directories(mem_check PRIVATE /opt/homebrew/opt/fmt/include)
+   target_include_directories(mem_check PRIVATE ${PROJECT_BINARY_DIR}/config)
+   target_link_libraries(mem_check PRIVATE mfem LIBBACKTRACE::LIBBACKTRACE)
+  #  target_link_libraries(mem_check PRIVATE -L/opt/homebrew/opt/fmt/lib -lfmt)
+   install(TARGETS mem_check DESTINATION miniapps)
+else()
+  message(STATUS "[🟠 LIBBACKTRACE 🟠] Skipping mprotect_trace miniapp")
+  message(STATUS "[🟠 LIBBACKTRACE 🟠] Set MFEM_ENABLE_LIBBACKTRACE=ON to build mprotect_trace")
+  message(STATUS "[🟠 LIBBACKTRACE 🟠] Set CMAKE_CXX_STANDARD=17 or higher to build mprotect_trace")
 endif()
