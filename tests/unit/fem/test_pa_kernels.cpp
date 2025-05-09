@@ -12,8 +12,21 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
 #include <fstream>
 #include <iostream>
+
+#if __has_include("general/nvtx.hpp")
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kDeepSkyBlue
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
 
 using namespace mfem;
 
@@ -345,23 +358,47 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
 template <typename INTEGRATOR>
 real_t test_vector_pa_integrator(int dim)
 {
+   dbg();
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec, dim);
+   FiniteElementSpace fes_coeff(&mesh, &fec);
 
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes), gc(&fes_coeff);
    x.Randomize(1);
 
+   ConstantCoefficient const_coeff(M_PI_2);
+   FunctionCoefficient funct_coeff([](const Vector &x) { return M_1_PI + x[0]*x[0]; });
+   gc.ProjectCoefficient(funct_coeff);
+   GridFunctionCoefficient gf_coeff(&gc);
+   Vector val(dim);
+   val = 1.0;
+   VectorConstantCoefficient v_const_coeff(val);
+   VectorFunctionCoefficient v_funct_coeff(dim, [&](const Vector &x, Vector &v)
+   {
+      v(0) = M_LN2 * x(0);
+      if (dim > 1) { v(1) = M_E * x(1); }
+      if (dim > 2) { v(2) = M_PI * x(2); }
+   });
+
    BilinearForm blf_fa(&fes);
-   blf_fa.AddDomainIntegrator(new INTEGRATOR);
+   blf_fa.AddDomainIntegrator(new INTEGRATOR());
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddDomainIntegrator(new INTEGRATOR);
+   blf_pa.AddDomainIntegrator(new INTEGRATOR());
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
@@ -371,29 +408,34 @@ real_t test_vector_pa_integrator(int dim)
    return difference;
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
+TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [MassPA], [CUDA]")
 {
    SECTION("2D")
    {
+      dbg("Vector Mass test 2D");
       REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(2) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
+      dbg("Vector Mass test 3D");
       REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3) == MFEM_Approx(0.0));
    }
 }
 
-TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [CUDA]")
+TEST_CASE("PA Vector Diffusion",
+          "[PartialAssembly], [VectorPA], [DiffusionPA], [CUDA]")
 {
    SECTION("2D")
    {
+      dbg("Vector Diffusion test 2D");
       REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2)
               == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
+      dbg("Vector Diffusion test 3D");
       REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3)
               == MFEM_Approx(0.0));
    }
