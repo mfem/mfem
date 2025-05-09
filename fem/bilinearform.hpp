@@ -569,7 +569,7 @@ public:
 
    /// @brief Compute and store internally all element matrices.
    ///
-   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLeve(), this will
+   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLevel(), this will
    /// use efficient (device-accelerated) assembly of the element matrices.
    void ComputeElementMatrices();
 
@@ -578,7 +578,7 @@ public:
 
    /// @brief Return a DenseTensor containing the assembled element matrices.
    ///
-   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLeve(), this will
+   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLevel(), this will
    /// use efficient (device-accelerated) assembly of the element matrices.
    const DenseTensor &GetElementMatrices();
 
