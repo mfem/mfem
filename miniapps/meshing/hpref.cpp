@@ -102,7 +102,6 @@ int main(int argc, char *argv[])
       mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true);
    }
 
-
    mesh.EnsureNCMesh();
 
    // 4. Define a finite element space on the mesh. Here we use continuous
