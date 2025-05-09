@@ -207,6 +207,8 @@ if (MFEM_ENABLE_TESTING)
   endif()
 endif()
 
+add_subdirector(dfem)
+
 # Include the examples/amgx directory if AmgX is enabled
 if (MFEM_USE_AMGX)
   add_subdirectory(amgx)
