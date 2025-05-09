@@ -376,6 +376,12 @@ protected:
 /// |W+2T   T|| x|=|e|
 /// |T     -W|| y| |g|
 ///
+/// prec_type=2
+/// |-W  T| |-x| =|p|
+/// |T   W| | y|  |q|
+/// and has the form
+/// |-W     T|| x|=|e|
+/// | T  W+2T|| y| |g|
 class PRESBPrec:public IterativeSolver
 {
 public:
@@ -554,6 +560,145 @@ private:
 
 };
 
+class MSP1Prec:public IterativeSolver
+{
+public:
+    MSP1Prec(MPI_Comm comm_):
+        IterativeSolver(comm_)
+    {
+        comm=comm_;
+        MPI_Comm_rank(comm,&myrank);
+        a=1.0;
+        b=1.0;
+        c=1.0;
+    }
+
+    virtual
+        ~MSP1Prec(){}
+
+
+    /// (a*W1-b*W2+i*c*T)(x+i*y)=(e+i*g)
+    void SetOperators(Operator* W1_, Operator* W2_, Operator* T_,
+                      real_t a_=1.0, real_t b_=1.0, real_t c_=1.0){
+
+        W1=W1_;
+        W2=W2_;
+        T=T_;
+
+        a=a_;
+        b=b_;
+        c=c_;
+
+        this->width=2*(W1_->Width());
+        this->height=2*(W1_->Width());
+
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = W1_->Width();
+        block_true_offsets[2] = W1_->Width();
+        block_true_offsets.PartialSum();
+
+
+        presb1.reset(new PRESBPrec(comm,1));
+        presb2.reset(new PRESBPrec(comm,2));
+
+
+        presb1->SetOperators(W1,T,a,c);
+        presb2->SetOperators(W2,T,b,c);
+
+        bop1.reset(new BlockOperator(block_true_offsets));
+        bop2.reset(new BlockOperator(block_true_offsets));
+
+        bop1->SetBlock(0,0,W1,a);
+        bop1->SetBlock(0,1,T,c);
+        bop1->SetBlock(1,0,T,c);
+        bop1->SetBlock(1,1,W1,-a);
+
+        bop2->SetBlock(0,0,W2,-b);
+        bop2->SetBlock(0,1,T,c);
+        bop2->SetBlock(1,0,T,c);
+        bop2->SetBlock(1,1,W2,b);
+
+        ls1.reset(new FGMRESSolver(comm));
+        ls1->SetOperator(*bop1);
+        ls1->SetPreconditioner(*presb1);
+
+        ls2.reset(new FGMRESSolver(comm));
+        ls2->SetOperator(*bop2);
+        ls2->SetPreconditioner(*presb2);
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
+
+        xb.Update(const_cast<Vector&>(x), block_true_offsets);
+        yb.Update(y, block_true_offsets);
+
+        Vector& ee=fv.GetBlock(0);
+        Vector& gg=fv.GetBlock(1);
+
+
+        ls1->SetAbsTol(this->abs_tol);
+        ls1->SetRelTol(this->rel_tol);
+        ls1->SetMaxIter(this->max_iter);
+
+        ls2->SetAbsTol(this->abs_tol);
+        ls2->SetRelTol(this->rel_tol);
+        ls2->SetMaxIter(this->max_iter);
+
+
+
+        BlockVector bvy(y,block_true_offsets);
+
+        //calculate ee and gg
+        { //ee=x[0]
+            const int N=W->Width();
+            const bool use_dev = ee.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=ee.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=xp[i];
+            });
+        }
+
+
+
+
+        ls2->SetAbsTol(this->abs_tol);
+        ls2->SetRelTol(this->rel_tol);
+        ls2->SetMaxIter(this->max_iter);
+    }
+
+private:
+    MPI_Comm comm;
+    int myrank;
+    real_t a,b,c;
+
+    Operator* W1;
+    Operator* W2;
+    Operator* T;
+
+    std::unique_ptr<PRESBPrec> presb1;
+    std::unique_ptr<PRESBPrec> presb2;
+
+    std::unique_ptr<BlockOperator> bop1;
+    std::unique_ptr<BlockOperator> bop2;
+
+    std::unique_ptr<IterativeSolver> ls1;
+    std::unique_ptr<IterativeSolver> ls2;
+
+    mfem::Array<int> block_true_offsets;
+
+    mutable BlockVector fv;
+    mutable BlockVector tv;
+
+    mutable BlockVector xb;
+    mutable BlockVector yb;
+    mutable Vector tmp;
+
+};
 
 
 
