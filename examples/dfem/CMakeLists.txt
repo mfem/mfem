@@ -48,11 +48,7 @@ if (MFEM_ENABLE_TESTING)
         list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_TEST_OPTS})
         # message(STATUS "Test ${TEST_NAME} options: ${THIS_TEST_OPTIONS}")
 
-        if (NOT (${TEST_NAME} MATCHES ".*p$"))
-            add_test(NAME ${TEST_NAME}_ser
-        COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
-        else()
-            add_test(NAME ${TEST_NAME}_np=4
+        add_test(NAME ${TEST_NAME}_np=4
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
         ${MPIEXEC_PREFLAGS}
         $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
