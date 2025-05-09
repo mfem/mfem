@@ -28,7 +28,7 @@ set(PFX dfem_)
 add_mfem_examples(DFEM_EXAMPLES_SRCS ${PFX} "" test_dfem)
 
 # Testing.
-# The HIOP tests can be run separately using the target "test_dfem"
+# The DFEM tests can be run separately using the target "test_dfem"
 # which builds the examples and runs:
 #   ctest -R dfem
 
