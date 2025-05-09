@@ -24,9 +24,12 @@
 namespace mfem
 {
 
+class ParDerefineMatrixOp;
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
+   friend class ParDerefineMatrixOp;
 private:
    /// MPI data.
    MPI_Comm MyComm;
