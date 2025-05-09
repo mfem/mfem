@@ -53,6 +53,5 @@ if (MFEM_ENABLE_TESTING)
         ${MPIEXEC_PREFLAGS}
         $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
         ${MPIEXEC_POSTFLAGS})
-        endif()
     endforeach()
 endif()
