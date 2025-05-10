@@ -72,6 +72,9 @@ add_mfem_miniapp(test_presb
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
-
+add_mfem_miniapp(test_msp1
+     MAIN test_msp1.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
 
 endif ()

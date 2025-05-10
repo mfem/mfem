@@ -399,6 +399,7 @@ public:
 
 
     /// (a*W+i*b*T)(x+i*y)=(e+i*g)
+    /// (a*W-i*b*T)(x+i*y)=(e+i*g)
     void SetOperators(Operator* W_, Operator* T_,
                       real_t a_=1.0, real_t b_=1.0){
 
@@ -440,7 +441,7 @@ public:
              ls->SetOperator(*sumop);
              ls->SetPreconditioner(*amgp);
              ls->iterative_mode=false;
-             ls->SetPrintLevel(0);
+             ls->SetPrintLevel(-1);
         }
 
         //set MUMPS
@@ -480,6 +481,17 @@ public:
         //mumps->Mult(x,y);
         //return;
 
+        if(this->iterative_mode){
+            ls->iterative_mode=this->iterative_mode;
+            //set y[0]=y[0]+y[1]
+            const int N=W->Width();
+            const bool use_dev = y.UseDevice();
+            real_t* yp= y.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                yp[i]=yp[i]+yp[N+i];
+            });
+        }
 
         ls->SetAbsTol(this->abs_tol);
         ls->SetRelTol(this->rel_tol);
@@ -489,8 +501,9 @@ public:
         Vector& xx=bvy.GetBlock(0);
         Vector& yy=bvy.GetBlock(1);
 
-        //set the RHS (e-g) in tv
-        {
+
+        if(prec_type==1)
+        {//set the RHS (e-g) in tv for prec_type==1
             const int N=W->Width();
             const bool use_dev = tv.UseDevice()||x.UseDevice();
             const real_t* xp= x.Read(use_dev);
@@ -499,14 +512,26 @@ public:
             {
                 tp[i]=xp[i]-xp[N+i];
             });
+        }else{// set RHS (g-e) in tv for prec_type==2
+            const int N=W->Width();
+            const bool use_dev = tv.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=tv.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=xp[N+i]-xp[i];
+            });
+
         }
-        //solve (W+T)(x+y)=(e-g)
+
+        //solve (a*W+b*T)(x+y)=(e-g) (prec_type==1)
+        //solve (a*W+b*T)(x+y)=(g-e) (prec_type==2)
         ls->Mult(tv,xx);
 
-        //solve (W+T)y=-g+T(x+y)
-        T->Mult(xx,tv);
         if(prec_type==1)
         {
+            //solve (a*W+b*T)y=-g+b*T(x+y) (prec_type==1)
+            T->Mult(xx,tv);
             const int N=W->Width();
             const bool use_dev = tv.UseDevice()||x.UseDevice();
             const real_t* xp= x.Read(use_dev);
@@ -515,7 +540,19 @@ public:
             {
                 tp[i]=-xp[N+i]+b*tp[i];
             });
+        }else{
+            //solve (a*W+b*T)y=e+a*W(x+y) (prec_type==2)
+            W->Mult(xx,tv);
+            const int N=W->Width();
+            const bool use_dev = tv.UseDevice()||x.UseDevice();
+            const real_t* xp= x.Read(use_dev);
+            real_t* tp=tv.ReadWrite(use_dev);
+            forall(N, [=] MFEM_HOST_DEVICE (int i)
+            {
+                tp[i]=+xp[i]+a*tp[i];
+            });
         }
+
         ls->Mult(tv,yy);
 
         //sum (x+y)-y=x
@@ -599,6 +636,7 @@ public:
         block_true_offsets[2] = W1_->Width();
         block_true_offsets.PartialSum();
 
+        fv.Update(block_true_offsets);
 
         presb1.reset(new PRESBPrec(comm,1));
         presb2.reset(new PRESBPrec(comm,2));
@@ -627,6 +665,45 @@ public:
         ls2.reset(new FGMRESSolver(comm));
         ls2->SetOperator(*bop2);
         ls2->SetPreconditioner(*presb2);
+
+        //MUMPS
+        {
+            HypreParMatrix* km=dynamic_cast<HypreParMatrix*>(W1_);
+            HypreParMatrix* mm=dynamic_cast<HypreParMatrix*>(W2_);
+            HypreParMatrix* cm=dynamic_cast<HypreParMatrix*>(T_);
+
+            Array2D<const HypreParMatrix*> am(2,2);
+            am(0,0)=km;
+            am(0,1)=cm;
+            am(1,0)=cm;
+            am(1,1)=km;
+
+            Array2D<real_t> cc(2,2);
+            cc(0,0)=a; cc(0,1)=-c;
+            cc(1,0)=c; cc(1,1)=a;
+
+            std::unique_ptr<HypreParMatrix> bm;
+            bm.reset(HypreParMatrixFromBlocks(am,&cc));
+            mumps1.reset(new MUMPSSolver(comm));
+            mumps1->SetPrintLevel(1);
+            mumps1->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            mumps1->SetOperator(*bm);
+
+            am(0,0)=mm;
+            am(0,1)=cm;
+            am(1,0)=cm;
+            am(1,1)=mm;
+
+            cc(0,0)=b; cc(0,1)=c;
+            cc(1,0)=-c; cc(1,1)=b;
+
+            bm.reset(HypreParMatrixFromBlocks(am,&cc));
+
+            mumps2.reset(new MUMPSSolver(comm));
+            mumps2->SetPrintLevel(1);
+            mumps2->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            mumps2->SetOperator(*bm);
+        }
     }
 
     virtual void Mult(const Vector &x, Vector &y) const
@@ -638,37 +715,79 @@ public:
         Vector& ee=fv.GetBlock(0);
         Vector& gg=fv.GetBlock(1);
 
-
         ls1->SetAbsTol(this->abs_tol);
         ls1->SetRelTol(this->rel_tol);
         ls1->SetMaxIter(this->max_iter);
+        ls1->iterative_mode=this->iterative_mode;
 
         ls2->SetAbsTol(this->abs_tol);
         ls2->SetRelTol(this->rel_tol);
         ls2->SetMaxIter(this->max_iter);
+        ls2->iterative_mode=this->iterative_mode;
 
 
+        ls1->SetPrintLevel(-1);
+        ls2->SetPrintLevel(-1);
 
-        BlockVector bvy(y,block_true_offsets);
 
-        //calculate ee and gg
-        { //ee=x[0]
-            const int N=W->Width();
-            const bool use_dev = ee.UseDevice()||x.UseDevice();
-            const real_t* xp= x.Read(use_dev);
-            real_t* tp=ee.ReadWrite(use_dev);
-            forall(N, [=] MFEM_HOST_DEVICE (int i)
+        bool cflag=true;
+        int iter=0;
+        while(cflag)
+        {
+            //Step 1
+            //(a*W1+i*c*T) x = b*W2*x+f
+            //form ee+i*gg=b*W2*x+f
+            W2->Mult(yb.GetBlock(0),ee);
+            W2->Mult(yb.GetBlock(1),gg);
+            ee*=b; gg*=b;
+            ee.Add(1.0,xb.GetBlock(0));
+            gg.Add(1.0,xb.GetBlock(1));
+
             {
-                tp[i]=xp[i];
-            });
+                real_t gp=InnerProduct(comm,fv,fv);
+                if(myrank==0){
+                    std::cout<<"Step1 it:"<< iter<<" "<<gp<<std::endl;}
+            }
+
+            /*
+            if(iterative_mode){yb.GetBlock(1)*=-1.0;}
+            ls1->Mult(fv,y);
+            yb.GetBlock(1)*=-1.0;
+            */
+            mumps1->Mult(fv,y);
+
+
+            //Step 2
+            //(b*W2-i*c*T) x=a*W1*x-f
+            //form ee+i*gg=a*W1*x-f
+
+            W1->Mult(yb.GetBlock(0),ee);
+            W1->Mult(yb.GetBlock(1),gg);
+            ee*=a; gg*=a;
+            ee.Add(-1.0,xb.GetBlock(0));
+            gg.Add(-1.0,xb.GetBlock(1));
+
+            {
+                real_t gp=InnerProduct(comm,fv,fv);
+                if(myrank==0){
+                    std::cout<<"Step2 it:"<< iter<<" "<<gp<<std::endl;}
+            }
+
+            mumps2->Mult(fv,y);
+
+            /*
+            if(iterative_mode){yb.GetBlock(0)*=-1.0;}
+            ls2->Mult(fv,y);
+            yb.GetBlock(0)*=-1.0;
+            */
+
+
+            iter++;
+            if(iter>=this->max_iter){cflag=false;}
+
         }
-
-
-
-
-        ls2->SetAbsTol(this->abs_tol);
-        ls2->SetRelTol(this->rel_tol);
-        ls2->SetMaxIter(this->max_iter);
+        std::cout<<std::endl;
+        if(myrank==0){std::cout<<"END MSP1"<<std::endl;}
     }
 
 private:
@@ -697,6 +816,12 @@ private:
     mutable BlockVector xb;
     mutable BlockVector yb;
     mutable Vector tmp;
+
+
+    std::unique_ptr<MUMPSSolver> mumps1;
+    std::unique_ptr<HypreParMatrix> bm1;
+    std::unique_ptr<MUMPSSolver> mumps2;
+    std::unique_ptr<HypreParMatrix> bm2;
 
 };
 
