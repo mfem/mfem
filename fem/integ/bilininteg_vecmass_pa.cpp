@@ -49,9 +49,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    dim = mesh->Dimension();
    ne = mesh->GetNE();
-   dbg("ne: {}", ne);
    nq = ir->GetNPoints();
-   dbg("nq: {}", nq);
    const int flags = GeometricFactors::COORDINATES | GeometricFactors::JACOBIANS;
    geom = mesh->GetGeometricFactors(*ir, flags, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -65,12 +63,9 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else if (VQ) { coeff.Project(*VQ); }
    else if (MQ) { MFEM_ABORT("MatrixCoefficient not supported for partial assembly"); }
    else { coeff.SetConstant(1.0); }
-   dbg("coeff VDim:{} Size:{}", coeff.GetVDim(), coeff.Size());
 
    const int coeff_vdim = coeff.GetVDim();
    MFEM_VERIFY(coeff_vdim == 1 || coeff_vdim == dim, "Incorrect coefficient size");
-
-   dbg("\x1b[33mcoeff_vdim: {}", coeff_vdim);
    const bool const_coeff = coeff_vdim == 1;
 
    pa_data.SetSize(dim * nq * ne, mt);
@@ -287,9 +282,43 @@ static void PAVectorMassApply2D(const int NE, const Array<real_t> &B_,
                                 const int q1d = 0)
 {
    dbg();
+   constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int VDIM = 2;
+
+#if 1
+   const auto DE = Reshape(op_.Read(), Q1D, Q1D, VDIM, NE);
+   const auto XE = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+
+      MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+
+      kernels::internal::regs4d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
+      kernels::internal::LoadDofs2d(e, D1D, XE, r0);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
+      for (int c = 0; c < VDIM; ++c)
+      {
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            {
+               const real_t r = r1[c][0][qy][qx];
+               const real_t D = DE(qx, qy, c, e);
+               r0[c][0][qy][qx] = D * r;
+            }
+         }
+      }
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::WriteDofs2d(e, D1D, r1, YE);
+   });
+#else
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(B_.Read(), Q1D, D1D);
@@ -367,6 +396,7 @@ static void PAVectorMassApply2D(const int NE, const Array<real_t> &B_,
          }
       }
    });
+#endif
 }
 
 template <const int T_D1D = 0, const int T_Q1D = 0>
@@ -384,11 +414,8 @@ static void PAVectorMassApply3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-
 #if 1
-   const auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, VDIM, NE);
+   const auto DE = Reshape(op_.Read(), Q1D, Q1D, Q1D, VDIM, NE);
    const auto XE = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto YE = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
@@ -397,26 +424,23 @@ static void PAVectorMassApply3D(const int NE,
       constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
-      MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
       kernels::internal::regs5d_t<VDIM, 1, MQ1> r0, r1;
-
       kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
-
       kernels::internal::LoadDofs3d(e, D1D, XE, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
-
-      for (int qz = 0; qz < Q1D; qz++)
+      for (int c = 0; c < VDIM; ++c)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         for (int qz = 0; qz < Q1D; qz++)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               for (int c = 0; c < VDIM; ++c)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
-                  const real_t u = r1[c][0][qz][qy][qx];
-                  const real_t D = op(qx, qy, qz, c, e);
-                  r0[c][0][qz][qy][qx] = D * u;
+                  const real_t r = r1[c][0][qz][qy][qx];
+                  const real_t D = DE(qx, qy, qz, c, e);
+                  r0[c][0][qz][qy][qx] = D * r;
                }
             }
          }
