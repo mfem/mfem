@@ -2611,6 +2611,14 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   using VectorMassAddMultPAType =
+      void(*)(const int, const Array<real_t>&, const Vector&,
+              const Vector&, Vector&, const int, const int);
+
+   MFEM_REGISTER_KERNELS(VectorMassAddMultPA,
+                         VectorMassAddMultPAType,
+                         (int, int, int));
 };
 
 

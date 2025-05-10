@@ -1,0 +1,148 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+#pragma once
+
+#include "../../config/config.hpp"
+#include "../../general/array.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
+#include "../../linalg/vector.hpp"
+#include "../bilininteg.hpp"
+
+#include "kernels_regs.hpp"
+
+namespace mfem
+{
+
+/// \cond DO_NOT_DOCUMENT
+
+namespace internal
+{
+
+template <int T_D1D = 0, int T_Q1D = 0>
+static void PAVectorMassApply2D(const int NE,
+                                const Array<real_t> &B_,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_,
+                                const int d1d = 0,
+                                const int q1d = 0)
+{
+   constexpr int VDIM = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto DE = Reshape(op_.Read(), Q1D, Q1D, VDIM, NE);
+   const auto XE = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+
+      MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+
+      kernels::internal::regs4d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
+      kernels::internal::LoadDofs2d(e, D1D, XE, r0);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
+      for (int c = 0; c < VDIM; ++c)
+      {
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            {
+               const real_t r = r1[c][0][qy][qx];
+               const real_t D = DE(qx, qy, c, e);
+               r0[c][0][qy][qx] = D * r;
+            }
+         }
+      }
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::WriteDofs2d(e, D1D, r1, YE);
+   });
+}
+
+template <int T_D1D = 0, int T_Q1D = 0>
+static void PAVectorMassApply3D(const int NE,
+                                const Array<real_t> &B_,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_,
+                                const int d1d = 0,
+                                const int q1d = 0)
+{
+   constexpr int VDIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto DE = Reshape(op_.Read(), Q1D, Q1D, Q1D, VDIM, NE);
+   const auto XE = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+
+      MFEM_SHARED real_t sB[MD1][MQ1];
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      kernels::internal::regs5d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
+      kernels::internal::LoadDofs3d(e, D1D, XE, r0);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
+      for (int c = 0; c < VDIM; ++c)
+      {
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               {
+                  const real_t r = r1[c][0][qz][qy][qx];
+                  const real_t D = DE(qx, qy, qz, c, e);
+                  r0[c][0][qz][qy][qx] = D * r;
+               }
+            }
+         }
+      }
+      kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::WriteDofs3d(e, D1D, r1, YE);
+   });
+}
+
+} // namespace internal
+
+template<int DIM, int T_D1D, int T_Q1D>
+VectorMassIntegrator::VectorMassAddMultPAType
+VectorMassIntegrator::VectorMassAddMultPA::Kernel()
+{
+   MFEM_VERIFY(DIM != 1, "Unsupported 1D kernel");
+   if (DIM == 2) { return internal::PAVectorMassApply2D<T_D1D,T_Q1D>; }
+   else if (DIM == 3) { return internal::PAVectorMassApply3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline
+VectorMassIntegrator::VectorMassAddMultPAType
+VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
+{
+   MFEM_VERIFY(dim != 1, "Unsupported 1D kernel");
+   if (dim == 2) { return internal::PAVectorMassApply2D; }
+   else if (dim == 3) { return internal::PAVectorMassApply3D; }
+   else { MFEM_ABORT(""); }
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
+} // namespace mfem

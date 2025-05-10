@@ -13,7 +13,7 @@
 #include "../bilininteg.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 
-#include "kernels_regs.hpp"
+#include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
 
 #if __has_include("general/nvtx.hpp")
 #undef NVTX_COLOR
@@ -123,7 +123,6 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
                                            const Vector &op_, Vector &diag_,
                                            const int d1d = 0, const int q1d = 0)
 {
-   dbg();
    constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -176,7 +175,6 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
                                            const Vector &op_, Vector &diag_,
                                            const int d1d = 0, const int q1d = 0)
 {
-   dbg();
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -252,7 +250,6 @@ static void PAVectorMassAssembleDiagonal(const int dim, const int D1D,
                                          const Array<real_t> &Bt,
                                          const Vector &op, Vector &y)
 {
-   dbg();
    if (dim == 2)
    {
       return PAVectorMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
@@ -266,7 +263,6 @@ static void PAVectorMassAssembleDiagonal(const int dim, const int D1D,
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   dbg();
    if (DeviceCanUseCeed()) { ceedOp->GetDiagonal(diag); }
    else
    {
@@ -275,325 +271,42 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
 }
 
-template <const int T_D1D = 0, const int T_Q1D = 0>
-static void PAVectorMassApply2D(const int NE, const Array<real_t> &B_,
-                                const Array<real_t> &Bt_, const Vector &op_,
-                                const Vector &x_, Vector &y_, const int d1d = 0,
-                                const int q1d = 0)
-{
-   dbg();
-   constexpr int VDIM = 2;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-#if 1
-   const auto DE = Reshape(op_.Read(), Q1D, Q1D, VDIM, NE);
-   const auto XE = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto YE = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
-   {
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-
-      MFEM_SHARED real_t sB[MD1][MQ1];
-      MFEM_SHARED real_t smem[MQ1][MQ1];
-
-      kernels::internal::regs4d_t<VDIM, 1, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
-      kernels::internal::LoadDofs2d(e, D1D, XE, r0);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
-      for (int c = 0; c < VDIM; ++c)
-      {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
-            {
-               const real_t r = r1[c][0][qy][qx];
-               const real_t D = DE(qx, qy, c, e);
-               r0[c][0][qy][qx] = D * r;
-            }
-         }
-      }
-      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
-      kernels::internal::WriteDofs2d(e, D1D, r1, YE);
-   });
-#else
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   auto B = Reshape(B_.Read(), Q1D, D1D);
-   auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, VDIM, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
-   {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      real_t sol_xy[max_Q1D][max_Q1D];
-
-      for (int c = 0; c < VDIM; ++c)
-      {
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               sol_xy[qy][qx] = 0.0;
-            }
-         }
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            real_t sol_x[max_Q1D];
-            for (int qy = 0; qy < Q1D; ++qy) { sol_x[qy] = 0.0; }
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               const real_t s = x(dx, dy, c, e);
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_x[qx] += B(qx, dx) * s;
-               }
-            }
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               const real_t d2q = B(qy, dy);
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_xy[qy][qx] += d2q * sol_x[qx];
-               }
-            }
-         }
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               sol_xy[qy][qx] *= op(qx, qy, c, e);
-            }
-         }
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            real_t sol_x[max_D1D];
-            for (int dx = 0; dx < D1D; ++dx) { sol_x[dx] = 0.0; }
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const real_t s = sol_xy[qy][qx];
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  sol_x[dx] += Bt(dx, qx) * s;
-               }
-            }
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               const real_t q2d = Bt(dy, qy);
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  y(dx, dy, c, e) += q2d * sol_x[dx];
-               }
-            }
-         }
-      }
-   });
-#endif
-}
-
-template <const int T_D1D = 0, const int T_Q1D = 0>
-static void PAVectorMassApply3D(const int NE,
-                                const Array<real_t> &B_,
-                                const Array<real_t> &Bt_,
-                                const Vector &op_,
-                                const Vector &x_,
-                                Vector &y_,
-                                const int d1d = 0,
-                                const int q1d = 0)
-{
-   dbg();
-   constexpr int VDIM = 3;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-#if 1
-   const auto DE = Reshape(op_.Read(), Q1D, Q1D, Q1D, VDIM, NE);
-   const auto XE = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto YE = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
-   {
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-
-      MFEM_SHARED real_t sB[MD1][MQ1];
-      MFEM_SHARED real_t smem[MQ1][MQ1];
-      kernels::internal::regs5d_t<VDIM, 1, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
-      kernels::internal::LoadDofs3d(e, D1D, XE, r0);
-      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
-      for (int c = 0; c < VDIM; ++c)
-      {
-         for (int qz = 0; qz < Q1D; qz++)
-         {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
-               {
-                  const real_t r = r1[c][0][qz][qy][qx];
-                  const real_t D = DE(qx, qy, qz, c, e);
-                  r0[c][0][qz][qy][qx] = D * r;
-               }
-            }
-         }
-      }
-      kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
-      kernels::internal::WriteDofs3d(e, D1D, r1, YE);
-   });
-#else
-   const auto B = Reshape(B_.Read(), Q1D, D1D);
-   const auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
-   const auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, VDIM, NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      real_t sol_xyz[max_Q1D][max_Q1D][max_Q1D];
-      for (int c = 0; c < VDIM; ++c)
-      {
-         for (int qz = 0; qz < Q1D; ++qz)
-         {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_xyz[qz][qy][qx] = 0.0;
-               }
-            }
-         }
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            real_t sol_xy[max_Q1D][max_Q1D];
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_xy[qy][qx] = 0.0;
-               }
-            }
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               real_t sol_x[max_Q1D];
-               for (int qx = 0; qx < Q1D; ++qx) { sol_x[qx] = 0; }
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const real_t s = x(dx, dy, dz, c, e);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_x[qx] += B(qx, dx) * s;
-                  }
-               }
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const real_t wy = B(qy, dy);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_xy[qy][qx] += wy * sol_x[qx];
-                  }
-               }
-            }
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const real_t wz = B(qz, dz);
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_xyz[qz][qy][qx] += wz * sol_xy[qy][qx];
-                  }
-               }
-            }
-         }
-         for (int qz = 0; qz < Q1D; ++qz)
-         {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_xyz[qz][qy][qx] *= op(qx, qy, qz, c, e);
-               }
-            }
-         }
-         for (int qz = 0; qz < Q1D; ++qz)
-         {
-            real_t sol_xy[max_D1D][max_D1D];
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  sol_xy[dy][dx] = 0;
-               }
-            }
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               real_t sol_x[max_D1D];
-               for (int dx = 0; dx < D1D; ++dx) { sol_x[dx] = 0; }
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  const real_t s = sol_xyz[qz][qy][qx];
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     sol_x[dx] += Bt(dx, qx) * s;
-                  }
-               }
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  const real_t wy = Bt(dy, qy);
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     sol_xy[dy][dx] += wy * sol_x[dx];
-                  }
-               }
-            }
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               const real_t wz = Bt(dz, qz);
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     y(dx, dy, dz, c, e) += wz * sol_xy[dy][dx];
-                  }
-               }
-            }
-         }
-      }
-   });
-#endif
-}
-
-static void PAVectorMassApply(const int dim, const int D1D, const int Q1D,
-                              const int NE, const Array<real_t> &B,
-                              const Array<real_t> &Bt, const Vector &op,
-                              const Vector &x, Vector &y)
-{
-   dbg();
-   if (dim == 2) { return PAVectorMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D); }
-   if (dim == 3) { return PAVectorMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D); }
-   MFEM_ABORT("Unknown kernel.");
-}
-
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    dbg();
    if (DeviceCanUseCeed()) { ceedOp->AddMult(x, y); }
    else
    {
-      PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+      VectorMassAddMultPA::Run(dim, dofs1D, quad1D,
+                               ne, maps->B, pa_data, x, y,
+                               dofs1D, quad1D);
    }
 }
+
+static const auto add_vector_mass_kernel_specializations
+{
+   (  // 2D
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,3,3>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,4,4>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,5,5>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,6,6>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,7,7>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,8,8>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,9,9>::Add(),
+      // 3D
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,2,2>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,2,3>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,3,4>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,4,5>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,4,6>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,5,6>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,5,8>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,6,7>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,7,8>::Add(),
+      VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,8,9>::Add(),
+      true)
+};
 
 } // namespace mfem
