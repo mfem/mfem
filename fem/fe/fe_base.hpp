@@ -286,10 +286,20 @@ public:
                           $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
                           normal component $ u(x) = (J/w) \hat u(\hat x) $ */
-      H_CURL     /**< For vector fields; preserves line integrals of the
+      H_CURL,    /**< For vector fields; preserves line integrals of the
                           tangential component
                           $ u(x) = J^{-t} \hat u(\hat x) $ (square J),
                           $ u(x) = J(J^t J)^{-1} \hat u(\hat x) $ (general J) */
+      H_DIV_R2D, /**< For 3-component vector fields in 2D; equivalent to a
+                          direct sum of an H_DIV basis and an INTEGRAL basis */
+      H_CURL_R2D,/**< For 3-component vector fields in 2D; equivalent to a
+                          direct sum of an H_CURL basis and a VALUE basis */
+      H_DIV_R1D, /**< For 3-component vector fields in 1D; equivalent to a
+                          direct sum of a VALUE basis and a pair of INTEGRAL
+                          bases */
+      H_CURL_R1D /**< For 3-component vector fields in 1D; equivalent to a
+                          direct sum of an INTEGRAL basis and a pair of VALUE
+                          bases */
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -321,11 +331,27 @@ public:
    int GetDim() const { return dim; }
 
    /** @brief Returns the vector dimension for vector-valued finite elements,
-       which is also the dimension of the interpolation operation. */
+       which is also the dimension of the interpolation operation and the
+       width of the DenseMatrix argument in
+       CalcVShape(const IntegrationPoint &ip, DenseMatrix &shape). */
    int GetRangeDim() const { return vdim; }
 
-   /// Returns the dimension of the curl for vector-valued finite elements.
+   /** @brief Returns the vector dimension, in physical space, for
+       vector-valued finite elements, which is also the width of the
+       DenseMatrix argument in
+       CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape). */
+   int GetPhysRangeDim(int /* space_dim */) const { return vdim; }
+
+   /** Returns the dimension of the curl for vector-valued finite elements,
+       which is also the width of the DenseMatrix argument in
+       CalcCurlShape(const IntegrationPoint &ip, DenseMatrix &curl_shape). */
    int GetCurlDim() const { return cdim; }
+
+   /** Returns the dimension, in physical space, of the curl for vector-valued
+       finite elements, which is also the width of the DenseMatrix argument in
+       CalcPhysCurlShape(ElementTransformation &Trans, DenseMatrix &curl_shape).
+   */
+   int GetPhysCurlDim(int /* space_dim */) const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
@@ -980,6 +1006,8 @@ protected:
 public:
    VectorFiniteElement(int D, Geometry::Type G, int Do, int O, int M,
                        int F = FunctionSpace::Pk);
+
+   int GetPhysRangeDim(int space_dim) const { return space_dim; }
 };
 
 /// @brief Class for computing 1D special polynomials and their associated basis
