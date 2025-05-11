@@ -223,7 +223,10 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       }
    }
 
-   SubMeshUtils::AddBoundaryElements(*this);
+   if (NumOfBdrElements)
+   {
+      SubMeshUtils::AddBoundaryElements(*this);
+   }
 
    if (Dim > 1)
    {

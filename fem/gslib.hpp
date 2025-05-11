@@ -85,6 +85,7 @@ protected:
    int dim, spacedim,
        points_cnt;                   // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
+   Array<int> gsl_newton, gsl_newton_dev;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
    bool setupflag;              // flag to indicate if gslib data has been setup
@@ -113,6 +114,8 @@ protected:
       mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
       mutable Array<unsigned int> loc_hash_offset;
       mutable Vector loc_hash_min, loc_hash_fac;
+      double tol;
+      mutable Vector info;
    } DEV;
 
    /// Use GSLIB for communication and interpolation
@@ -155,6 +158,33 @@ protected:
                          Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
                          Vector &gsl_dist_l, int npt);
 
+   void FindPointsSurfLocal32(const Vector &point_pos,
+                              int point_pos_ordering,
+                              Array<unsigned int> &gsl_code_dev_l,
+                              Array<unsigned int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l,
+                              Vector &gsl_dist_l,
+                              Array<int> &gsl_newton_dev_l,
+                              int npt);
+
+   void FindPointsLocal2(const Vector &point_pos,
+                         int point_pos_ordering,
+                         Array<unsigned int> &gsl_code_dev_l,
+                         Array<unsigned int> &gsl_elem_dev_l,
+                         Vector &gsl_ref_l,
+                         Vector &gsl_dist_l,
+                         Array<int> &gsl_newton_dev_l,
+                         int npt);
+
+   void FindPointsSurfLocal2(const Vector &point_pos,
+                             int point_pos_ordering,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             Array<int> &gsl_newton_dev_l,
+                             int npt);
+
    // Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
@@ -169,15 +199,36 @@ protected:
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
+   void InterpolateSurfLocal2( const Vector &field_in,
+                               Array<int> &gsl_elem_dev_l,
+                               Vector &gsl_ref_l,
+                               Vector &field_out,
+                               int npt,
+                               int ncomp,
+                               int nel,
+                               int dof1dsol );
+   void InterpolateSurfLocal3( const Vector &field_in,
+                               Array<int> &gsl_elem_dev_l,
+                               Vector &gsl_ref_l,
+                               Vector &field_out,
+                               int npt,
+                               int ncomp,
+                               int nel,
+                               int dof1dsol );
 
    // Prepare data for device functions.
    void SetupDevice();
+
+   virtual void SetupSurfDevice(); // probably should be internal
 
    /** Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
    void FindPointsOnDevice(const Vector &point_pos,
                            int point_pos_ordering = Ordering::byNODES);
+
+   void FindPointsSurfOnDevice(const Vector &point_pos,
+                               int point_pos_ordering = Ordering::byNODES);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in_evec E-vector of grid function to be interpolated.
@@ -193,6 +244,13 @@ protected:
    void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
                             const int nel, const int ncomp,
                             const int dof1dsol, const int ordering);
+   void InterpolateSurfOnDevice(const Vector &field_in,
+                                Vector &field_out,
+                                const int nel,
+                                const int ncomp,
+                                const int dof1dsol,
+                                const int gf_ordering,
+                                MemoryType mt);
 public:
    FindPointsGSLIB();
 
@@ -254,6 +312,9 @@ public:
                    const double bb_t = 0.1, const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
+   void FindPointsSurf(const Vector &point_pos,
+                       int point_pos_ordering = Ordering::byNODES);
+
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in    Function values that will be interpolated on the
                               reference positions. Note: it is assumed that
@@ -262,6 +323,7 @@ public:
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
+   virtual void InterpolateSurf(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
        the output values in \p field_out corresponds to the ordering used
        in the input GridFunction \p field_in. */
@@ -375,6 +437,12 @@ public:
    void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC, Vector &obbV);
 
    virtual Mesh* GetBoundingBoxMeshSurf(int type = 0);
+
+   virtual const Array<int> &GetNewtonIters() const { return gsl_newton; }
+
+   virtual const Vector &GetInfo()              const { return DEV.info; }
+
+   virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
@@ -499,6 +567,7 @@ public:
    /// Gather-Scatter operation on senddata. Must match length of unique
    /// identifiers used in the constructor. See class description.
    void GS(Vector &senddata, GSOp op);
+   void GS(Array<int> &senddata, GSOp op);
 };
 
 } // namespace mfem

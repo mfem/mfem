@@ -32,11 +32,17 @@
 //      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-wc -no-fit
 
 // Some new sample runs:
-// make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -mid 66 -ni 1000 -no-wc -wcmid 66 -tid 1 -wctid 2
+// make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -visit -no-final
+
+// make amster -j4 && ./amster -m blade.mesh -o 4 -qo 12 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 3 -bdropt -1
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -umid 66 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 50 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
+
+// Ale tangled 
+// make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
-#include <iostream>
+#include <iostream> 
 #include <fstream>
 #include "mesh-optimizer.hpp"
 #include "amster.hpp"
@@ -49,7 +55,7 @@ void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l);
 
 void Untangle(ParGridFunction &x, double min_detA, int quad_order,
               int metric_id, int target_id, GridFunction::PLBound *plb,
-              ParGridFunction *detgf, int solver_iter);
+              ParGridFunction *detgf, int solver_iter, bool move_bnd);
 void WorstCaseOptimize(ParGridFunction &x, int quad_order,
                        int metric_id, int target_id, GridFunction::PLBound *plb,
                        ParGridFunction *detgf, int solver_iter,
@@ -80,13 +86,15 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = 1e-5;
    int metric_id         = 2;
    int target_id         = 1;
-   int u_metric_id         = 2;
-   int u_target_id         = 1;
+   int u_metric_id       = 2;
+   int u_target_id       = 1;
    bool vis              = false;
    int wc_metric_id      = 4;
-   int wc_target_id         = 1;
-   int bdr_opt            = -1;
+   int wc_target_id      = 1;
+   int bdr_opt_case      = 0;
    bool visit            = false;
+   bool move_bnd         = false;
+   bool final_pass       = true;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -125,10 +133,16 @@ int main (int argc, char *argv[])
                   "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
    args.AddOption(&wc_target_id, "-wctid", "--wc-target-id",
                   "Mesh optimization metric 1/2/3 in 2D:\n\t");
-   args.AddOption(&bdr_opt, "-bdropt", "--bdr-opt",
+   args.AddOption(&bdr_opt_case, "-bdropt", "--bdr-opt",
                   "Boundary attribute for tangential relaxation:\n\t");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
+                  "--fix-boundary",
+                  "Enable motion along horizontal and vertical boundaries.");
+   args.AddOption(&final_pass, "-final", "--final", "-no-final",
+                  "--no-final",
+                  "Enable final mesh optimization pass.");
    args.Parse();
    if (!args.Good())
    {
@@ -145,47 +159,67 @@ int main (int argc, char *argv[])
 
    // Setup edge-mesh for tangential relaxation
    Array<ParMesh *> surf_mesh_arr;
-   Array<int> surf_mesh_attr(1);
-   surf_mesh_arr.SetSize(1);
-   surf_mesh_arr[0] = nullptr;
-   if (bdr_opt > 0)
+   Array<int> surf_mesh_attr;
+   if (bdr_opt_case == 1)
    {
-      surf_mesh_attr[0] = bdr_opt;
+      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
+      surf_mesh_attr.SetSize(1);
+      surf_mesh_arr.SetSize(1);
+      surf_mesh_attr[0] = 4;
+   }
+   else if (bdr_opt_case == 2)
+   {
+      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
+      surf_mesh_attr.SetSize(2);
+      surf_mesh_arr.SetSize(2);
+      surf_mesh_attr[0] = 3;
+      surf_mesh_attr[1] = 4;
+   }
+   int bbox_fac = 2.0;
+   if (bdr_opt_case >= 1)
+   {
       if (!mesh->GetNodes())
       {
          mesh->SetCurvature(mesh_poly_deg, -1, -1, 0);
       }
-      Mesh *meshsurf = SetupEdgeMesh(mesh, bdr_opt);
-      surf_mesh_arr[0] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
-      delete meshsurf;
-
+      for (int i = 0; i < surf_mesh_attr.Size(); i++)
       {
-         ostringstream mesh_name;
-         mesh_name << "edge_extracted.mesh";
-         ofstream mesh_ofs(mesh_name.str().c_str());
-         mesh_ofs.precision(8);
-         surf_mesh_arr[0]->PrintAsOne(mesh_ofs);
+         Mesh *meshsurf = SetupEdgeMesh(mesh, surf_mesh_attr[i]);
+         surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
+         delete meshsurf;
+         {
+            ostringstream mesh_name;
+            mesh_name << "edge_extracted" + std::to_string(i) + ".mesh";
+            ofstream mesh_ofs(mesh_name.str().c_str());
+            mesh_ofs.precision(8);
+            surf_mesh_arr[i]->PrintAsOne(mesh_ofs);
+         }
+         if (visit)
+         {
+            VisItDataCollection dc("amster-input-bdr"+ std::to_string(i), surf_mesh_arr[i]);
+            dc.SetFormat(DataCollection::SERIAL_FORMAT);
+            dc.Save();
+         }
+         FindPointsGSLIB finder;
+         finder.SetupSurf(*surf_mesh_arr[i], bbox_fac);
+         Mesh *mesh_abb  = finder.GetBoundingBoxMeshSurf(0);
+         Mesh *mesh_obb  = finder.GetBoundingBoxMeshSurf(1);
+         if (myid==0 && visit)
+         {
+            VisItDataCollection dc0("amster-input-bdr-aabb"+ std::to_string(i), mesh_abb);
+            dc0.SetFormat(DataCollection::SERIAL_FORMAT);
+            dc0.Save();
+            VisItDataCollection dc1("amster-input-bdr-obb"+ std::to_string(i), mesh_obb);
+            dc1.SetFormat(DataCollection::SERIAL_FORMAT);
+            dc1.Save();
+         }
+         finder.FreeData();
       }
-      if (visit)
+      if (visit && myid == 0)
       {
-         VisItDataCollection dc("amster-input-bdr", surf_mesh_arr[0]);
+         VisItDataCollection dc("amster-input", mesh);
          dc.SetFormat(DataCollection::SERIAL_FORMAT);
          dc.Save();
-      }
-      FindPointsGSLIB finder;
-      finder.SetupSurf(*surf_mesh_arr[0]);
-      finder.FreeData();
-
-      Mesh *mesh_abb  = finder.GetBoundingBoxMeshSurf(0);
-      Mesh *mesh_obb  = finder.GetBoundingBoxMeshSurf(1);
-      if (myid==0 && visit)
-      {
-         VisItDataCollection dc0("amster-input-bdr-aabb", mesh_abb);
-         dc0.SetFormat(DataCollection::SERIAL_FORMAT);
-         dc0.Save();
-         VisItDataCollection dc1("amster-input-bdr-obb", mesh_obb);
-         dc1.SetFormat(DataCollection::SERIAL_FORMAT);
-         dc1.Save();
       }
    }
 
@@ -213,6 +247,16 @@ int main (int argc, char *argv[])
    ParGridFunction x0(&pfes);
    x0 = x;
 
+   // Setup visualization
+   int vis_count = 0;
+   VisItDataCollection dc("amster", pmesh);
+   dc.SetFormat(DataCollection::SERIAL_FORMAT);
+   if (visit)
+   {
+      dc.SetCycle(vis_count);
+      dc.Save();
+   }
+
    // Metric.
    TMOP_QualityMetric *umetric = GetMetric(u_metric_id);
    TargetConstructor *utarget_c = GetTargetConstructor(u_target_id, x0);
@@ -236,8 +280,9 @@ int main (int argc, char *argv[])
                                                 ref_factor);
    plb = &plbt;
 
-   double min_detA0, volume0;
+   double min_detA0, volume0, min_det_cur;
    GetMinDet(pmesh, x0, quad_order, min_detA0, volume0);
+   min_det_cur = min_detA0;
 
    // Visualize the starting mesh.
    if (vis)
@@ -275,7 +320,7 @@ int main (int argc, char *argv[])
 
       // Untangle the mesh
       Untangle(x, min_detA_u0, quad_order, u_metric_id, u_target_id,
-               plb, &detgf, solver_iter);
+               plb, &detgf, solver_iter, move_bnd);
 
       {
          ostringstream mesh_name;
@@ -296,6 +341,7 @@ int main (int argc, char *argv[])
       // Average quality and worst-quality for the mesh.
       GetMeshStats(pmesh, x, metric, target_c, quad_order,
                    min_detA_u, min_muT_u, max_muT_u, avg_muT_u, volume_u);
+      min_det_cur = min_detA_u;
 
       GetDeterminantJacobianGF(pmesh, &detgf);
       *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
@@ -322,6 +368,12 @@ int main (int argc, char *argv[])
          x0 -= x;
          common::VisualizeField(vis, "localhost", 19916, x0,
                                 "Displacements", 900, 0, 300, 300, "jRmclA");
+      }
+
+      if (visit)
+      {
+         dc.SetCycle(++vis_count);
+         dc.Save();
       }
    }
 
@@ -377,6 +429,7 @@ int main (int argc, char *argv[])
       // Average quality and worst-quality for the mesh.
       GetMeshStats(pmesh, x, wcmetric, wctarget_c, quad_order,
                    min_detA_wc, min_muT_wc, max_muT_wc, avg_muT_wc, volume_wc);
+      min_det_cur = min_detA_wc;
 
       GetDeterminantJacobianGF(pmesh, &detgf);
       *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
@@ -404,11 +457,17 @@ int main (int argc, char *argv[])
          common::VisualizeField(vis, "localhost", 19916, x0,
                                 "Displacements", 900, 300, 300, 300, "jRmclA");
       }
+
+      if (visit)
+      {
+         dc.SetCycle(++vis_count);
+         dc.Save();
+      }
    }
 
 
    // Do regular mesh optimization
-   if (min_detA0 > 0.0)
+   if (min_det_cur > 0.0 && final_pass)
    {
       *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
       real_t min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0;
@@ -425,9 +484,55 @@ int main (int argc, char *argv[])
       }
 
       MeshOptimizer meshopt(pmesh);
+      Array<int> ess_vdofs_aux;
+      Array<int> aux_ess_dofs = IdentifyAuxiliaryEssentialDofs(&pfes);
+
       meshopt.Setup(x, &min_detA0, quad_order, metric_id, target_id,
-                    plb, &detgf, solver_iter);
+                    plb, &detgf, solver_iter, move_bnd, surf_mesh_attr,
+                    aux_ess_dofs);
+      Array<FindPointsGSLIB *> finder_arr;
+      if (bdr_opt_case == 1) 
+      { 
+         FindPointsGSLIB *finder = new FindPointsGSLIB();
+         finder_arr.Append(finder);
+         finder->SetupSurf(*surf_mesh_arr[0], bbox_fac);
+         finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
+         meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[0],
+                                                    finder,
+                                                    surf_mesh_arr[0]->GetNodes());
+         meshopt.EnableTangentialRelaxation(); 
+      } 
+      else if (bdr_opt_case == 2) 
+      { 
+         for (int i = 0; i < surf_mesh_attr.Size(); i++)
+         {
+            FindPointsGSLIB *finder = new FindPointsGSLIB();
+            finder_arr.Append(finder); 
+            finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
+            finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
+            meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[i],
+                                                       finder,
+                                                       surf_mesh_arr[i]->GetNodes());
+         }
+         meshopt.EnableTangentialRelaxation();
+      }
+      if (visit)
+      {
+         int vis_frequency = 100;
+         if (bdr_opt_case == 1)
+         {
+            vis_frequency = 100;
+         }
+         meshopt.EnableVisualization(&dc, vis_count, vis_frequency);
+      }
       meshopt.OptimizeNodes(x);
+
+      if (visit)
+      {
+         int vcount = meshopt.GetTMOPIntegrator()->GetVisCounter();
+         dc.SetCycle(++vcount);
+         dc.Save();
+      }
 
       if (vis)
       {
@@ -478,12 +583,14 @@ int main (int argc, char *argv[])
 
 void Untangle(ParGridFunction &x, double min_detA, int quad_order,
               int metric_id, int target_id, GridFunction::PLBound *plb,
-              ParGridFunction *detgf, int solver_iter)
+              ParGridFunction *detgf, int solver_iter, bool move_bnd)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    // const int dim = pfes.GetParMesh()->Dimension();
 
    if (pfes.GetMyRank() == 0) { cout << "*** \nUntangle Phase\n***\n"; }
+   ParMesh *pmesh = pfes.GetParMesh();
+   const int dim = pfes.GetMesh()->Dimension();
 
    // The metrics work in terms of det(T).
    const DenseMatrix &Wideal =
@@ -514,8 +621,53 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
    nlf.AddDomainIntegrator(tmop_integ);
 
    Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-   ess_bdr = 1;
-   nlf.SetEssentialBC(ess_bdr);
+   if (!move_bnd)
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      nlf.SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      int n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfes.GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         if (attr == 1 || attr == 2 || (attr == 3 && dim == 3)) { n += nd; }
+         if (attr >= 4 || (dim == 2 && attr == 3)) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n);
+      n = 0;
+      Array<int> vdofs;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfes.GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         pfes.GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3 && dim == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr >= 4 || (attr == 3 && dim == 2)) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      nlf.SetEssentialVDofs(ess_vdofs);
+   }
 
    // Linear solver.
    MINRESSolver minres(pfes.GetComm());

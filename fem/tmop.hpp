@@ -20,6 +20,8 @@
 #else
 #include "gridfunc.hpp"
 #endif
+#include "gslib.hpp"
+#include "datacollection.hpp"
 
 namespace mfem
 {
@@ -2036,6 +2038,20 @@ protected:
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
 
+   bool tangential_relaxation = false;
+#ifdef MFEM_USE_GSLIB
+   Array<FindPointsGSLIB *> finder_arr;
+   Array<Array<int> *> fdofs_arr;
+   Array<GridFunction *> nodes_int_arr;
+#endif
+
+   // visualization - visualize every vis_freq steps
+   DataCollection *dc;
+   int vis_freq = 1;
+   mutable int vis_counter = 0;
+   mutable int visout_counter = 0;
+   GridFunction *vis_nodes = nullptr;
+
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
    //   Jpt: the target->physical transformation Jacobian, Jpt = Jpr Jrt.
@@ -2408,6 +2424,48 @@ public:
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
+
+   // Tangential relaxation
+#ifdef MFEM_USE_GSLIB
+   void EnableTangentialRelaxation(Array<FindPointsGSLIB *> finder_arr_,
+                                   Array<Array<int> *> fdofs_arr_,
+                                   Array<GridFunction *> nodes_int_arr_)
+   {
+      tangential_relaxation = true;
+      finder_arr = finder_arr_;
+      fdofs_arr = fdofs_arr_;
+      nodes_int_arr = nodes_int_arr_;
+   }
+
+   void TangentialRelaxation(const Vector &d_in,
+                             FiniteElementSpace *d_fes,
+                             Vector &d_out);
+
+   bool PreprocessTangentialRelaxation(const Vector &d_loc,
+                                       const FiniteElementSpace *d_fes);
+#endif
+
+   // Visualization. vis_disp is the gridfunction for nodal displacements.
+   void SetVisualization(DataCollection *dc_, int vis_freq_,
+                         int vis_counter_, GridFunction *vis_nodes_)
+   {
+      dc = dc_;
+      vis_freq = vis_freq_;
+      visout_counter = vis_counter_;
+      vis_nodes = vis_nodes_;
+   }
+
+   int GetVisCounter() const { return visout_counter; }
+
+   void Visualize(const Vector &d_loc, const FiniteElementSpace *d_fes) const;
+
+   // Mesh nodal locations are set as x_0+d_loc
+   // u is the displacement on top of that
+   void BlendDisplacement(ParFiniteElementSpace *pfes,
+                          const Vector &d_loc,
+                          Vector &uvals,
+                          double beta=1.0);
+
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }

@@ -193,6 +193,7 @@ protected:
    mutable real_t surf_fit_weight_limit = 1e10;
    bool surf_fit_converge_error = false;
    bool det_bound = false;
+   mutable bool vis_flag  = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    real_t *min_det_ptr = nullptr;
@@ -200,6 +201,8 @@ protected:
    // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
    mutable bool compute_metric_quantile_flag = true;
    bool worst_case_optimize = false;
+   // Tangential relaxation
+   bool tangential_relaxation = false;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
@@ -396,6 +399,15 @@ public:
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
 
    void SetDeterminantBound(bool bound) { det_bound = bound; }
+
+   void SetTangentialRelaxationFlag(bool flag)
+   {
+      tangential_relaxation = flag;
+   }
+
+   bool TangentialRelaxation(const Vector &d_loc_in, Vector &d_loc_out) const;
+
+   void Visualize(const Vector &d_loc, const FiniteElementSpace *d_fes) const;
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

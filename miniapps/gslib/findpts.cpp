@@ -31,7 +31,7 @@
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
-//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1 -fo 1 -nc 2
+//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1 -gfo 1 -nc 2
 //    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr -mpr -mo 2
 //    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr -mpr -mo 3
 //    findpts -m ../../data/inline-tet.mesh -o 3

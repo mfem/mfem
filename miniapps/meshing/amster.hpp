@@ -45,11 +45,12 @@ TMOP_QualityMetric *GetMetric(int metric_id)
       case 2: metric = new TMOP_Metric_002; break;
       case 4: metric = new TMOP_Metric_004; break;
       case 14: metric = new TMOP_Metric_014; break;
+      case 49: metric = new TMOP_AMetric_049(0.8); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 66: metric = new TMOP_Metric_066(0.1); break;
-      case 80: metric = new TMOP_Metric_080(0.1); break;
+      case 80: metric = new TMOP_Metric_080(0.25); break;
       case 360: metric = new TMOP_Metric_360; break;
       default:
          MFEM_ABORT("Unknown metric_id"); break;
@@ -392,9 +393,16 @@ private:
    ParNonlinearForm *nlf = nullptr;
    IterativeSolver *lin_solver = nullptr;
    TMOPNewtonSolver *solver = nullptr;
+   TMOP_Integrator *tmop_integ = nullptr; // owned by nlf
+   ParGridFunction *x_nodes; // ptr to mesh nodes
 
    ParFiniteElementSpace *pfes_nodes_scalar = nullptr;
    ParMesh *pmesh;
+#ifdef MFEM_USE_GSLIB
+   Array<FindPointsGSLIB *> finder_arr;
+   Array<Array<int> *> tang_dofs_arr;
+   Array<GridFunction *> nodes0_arr;
+#endif
 
 public:
    MeshOptimizer(ParMesh *pmesh_): pmesh(pmesh_) { }
@@ -415,7 +423,9 @@ public:
               int quad_order,
               int metric_id, int target_id,
               GridFunction::PLBound *plb,
-              ParGridFunction *detgf, int solver_iter);
+              ParGridFunction *detgf, int solver_iter,
+              bool move_bnd, Array<int> surf_mesh_attr,
+              Array<int> aux_ess_dofs);
 
    // Optimizes the node positions given in x.
    // When we enter, x contains the initial node positions.
@@ -423,22 +433,139 @@ public:
    // The underlying mesh of x remains unchanged (its positions don't change).
    void OptimizeNodes(ParGridFunction &x);
 
-   void EnableTangentialRelaxationFor2DEdge(int bdr_attr);
+#ifdef MFEM_USE_GSLIB
+   void SetupTangentialRelaxationFor2DEdge(ParFiniteElementSpace *pfespace,
+                                           int bdr_attr,
+                                           FindPointsGSLIB *finder,
+                                           GridFunction *nodes0);
+   void EnableTangentialRelaxation()
+   {
+      solver->SetTangentialRelaxationFlag(true);
+      tmop_integ->EnableTangentialRelaxation(finder_arr, tang_dofs_arr,
+                                             nodes0_arr);
+   }
+#endif
+
+   void EnableVisualization(DataCollection *dc, int vis_cycle, int vis_freq)
+   {
+      tmop_integ->SetVisualization(dc, vis_freq, vis_cycle, x_nodes);
+   }
+
+   TMOP_Integrator *GetTMOPIntegrator() { return tmop_integ; }
 };
 
-void MeshOptimizer::EnableTangentialRelaxationFor2DEdge(int bdr_attr)
+#ifdef MFEM_USE_GSLIB
+void MeshOptimizer::SetupTangentialRelaxationFor2DEdge(ParFiniteElementSpace
+                                                       *pfespace,
+                                                       int bdr_attr,
+                                                       FindPointsGSLIB *finder,
+                                                       GridFunction *nodes0)
 {
+   Array<int> *fdofs = new Array<int>;
+   ParMesh *pmesh = pfespace->GetParMesh();
 
+   Array<int> dofs;
+   int nbdr_faces = pmesh->GetNFbyType(FaceType::Boundary);
+   // int nfaces = 0;
+   for (int f = 0; f < nbdr_faces; f++)
+   {
+      int attrib = pmesh->GetBdrAttribute(f);
+      if (attrib == bdr_attr)
+      {
+         // nfaces += 1;
+         pfespace->GetBdrElementDofs(f, dofs);
+         fdofs->Append(dofs);
+      }
+   }
+   fdofs->Sort();
+   fdofs->Unique();
+   finder_arr.Append(finder);
+   tang_dofs_arr.Append(fdofs);
+   nodes0_arr.Append(nodes0);
 }
+
+Array<int> IdentifyAuxiliaryEssentialDofs(ParFiniteElementSpace *pfespace)
+{
+   ParMesh *pmesh = pfespace->GetParMesh();
+   Array<int> dof_flags(pfespace->GetVSize());
+   Array<int> dof_attr(pfespace->GetVSize());
+   Array<long long> dof_id(pfespace->GetVSize());
+   int dim = pmesh->Dimension();
+   MFEM_VERIFY(dim == 2, "Only 2D meshes supported ffor aux dofs.");
+
+   dof_flags = 0; // not an essential dof
+   dof_attr = 0; // no attribute assigned yet
+
+   Array<int> dofs;
+   int nbdr_faces = pmesh->GetNFbyType(FaceType::Boundary);
+   // int nfaces = 0;
+   for (int f = 0; f < nbdr_faces; f++)
+   {
+      int attrib = pmesh->GetBdrAttribute(f);
+      pfespace->GetBdrElementVDofs(f, dofs);
+      for (int d = 0; d < dofs.Size(); d++)
+      {
+         int dof_idx = dofs[d];
+         if (dof_flags[dof_idx] == 0)
+         {
+            if (dof_attr[dof_idx] == 0)
+            {
+               dof_attr[dof_idx] = attrib;
+            }
+            else if (dof_attr[dof_idx] != attrib)
+            {
+               dof_flags[dof_idx] = 1; // not an essential dof
+            }
+         }
+      }
+   }
+   for (int i = 0; i < pfespace->GetVSize(); i++)
+   {
+      dof_id[i] = (long long)(pfespace->GetGlobalTDofNumber(i));
+   }
+
+   GSOPGSLIB gsop(pfespace->GetComm(), dof_id);
+   gsop.GS(dof_flags, GSOPGSLIB::MAX);
+
+   Array<int> dof_attr_min = dof_attr;
+   Array<int> dof_attr_max = dof_attr;
+
+   gsop.GS(dof_attr_min, GSOPGSLIB::MIN);
+   gsop.GS(dof_attr_max, GSOPGSLIB::MAX);
+
+   for (int i = 0; i < dof_attr_min.Size(); i++)
+   {
+      if (dof_attr_min[i] != dof_attr_max[i])
+      {
+         dof_flags[i] = 1; // not an essential dof
+      }
+   }
+
+   Array<int> aux_dofs;
+   for (int i = 0; i < dof_flags.Size(); i++)
+   {
+      if (dof_flags[i] == 1)
+      {
+         aux_dofs.Append(i);
+      }
+   }
+
+   return aux_dofs;
+}
+#endif
 
 void MeshOptimizer::Setup(ParGridFunction &x,
                           double *min_det_ptr,
                           int quad_order,
                           int metric_id, int target_id,
                           GridFunction::PLBound *plb,
-                          ParGridFunction *detgf, int solver_iter)
+                          ParGridFunction *detgf, int solver_iter,
+                          bool move_bnd, Array<int> surf_mesh_attr,
+                          Array<int> aux_ess_dofs)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
+   x_nodes = &x;
+   const int dim = pfes.GetMesh()->Dimension();
 
    // Metric.
    metric = GetMetric(metric_id);
@@ -447,7 +574,7 @@ void MeshOptimizer::Setup(ParGridFunction &x,
    target_c = GetTargetConstructor(target_id, x);
 
    // Integrator.
-   auto tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
+   tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
    tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
    if (plb)
    {
@@ -460,16 +587,79 @@ void MeshOptimizer::Setup(ParGridFunction &x,
 
    // Boundary.
    Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-   ess_bdr = 1;
-   nlf->SetEssentialBC(ess_bdr);
+   if (!move_bnd)
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      nlf->SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      int n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfes.GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         if (surf_mesh_attr.Find(attr) == -1)
+         {
+            if (attr == 1 || attr == 2 || (attr == 3 && dim == 3)) { n += nd; }
+            if (attr >= dim+1) { n += nd * dim; }
+         }
+      }
+      Array<int> ess_vdofs(n);
+      n = 0;
+      Array<int> vdofs;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfes.GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         pfes.GetBdrElementVDofs(i, vdofs);
+         if (surf_mesh_attr.Find(attr) == -1)
+         {
+            if (attr == 1) // Fix x components.
+            {
+               for (int j = 0; j < nd; j++)
+               { ess_vdofs[n++] = vdofs[j]; }
+            }
+            else if (attr == 2) // Fix y components.
+            {
+               for (int j = 0; j < nd; j++)
+               { ess_vdofs[n++] = vdofs[j+nd]; }
+            }
+            else if (attr == 3 && dim == 3) // Fix z components.
+            {
+               for (int j = 0; j < nd; j++)
+               { ess_vdofs[n++] = vdofs[j+2*nd]; }
+            }
+            else if (attr >= dim+1) // Fix all components.
+            {
+               for (int j = 0; j < vdofs.Size(); j++)
+               { ess_vdofs[n++] = vdofs[j]; }
+            }
+         }
+      }
+      for (int i = 0; i < aux_ess_dofs.Size(); i++)
+      {
+         ess_vdofs.Append(aux_ess_dofs[i]);
+      }
+      nlf->SetEssentialVDofs(ess_vdofs);
+   }
 
    // Linear solver.
+   Solver *S_prec = NULL;
    lin_solver = new MINRESSolver(pfes.GetComm());
    lin_solver->SetMaxIter(100);
    lin_solver->SetRelTol(1e-12);
    lin_solver->SetAbsTol(0.0);
    IterativeSolver::PrintLevel minres_pl;
    lin_solver->SetPrintLevel(minres_pl.FirstAndLast().Summary());
+   {
+      // auto hs = new HypreSmoother;
+      // hs->SetType(HypreSmoother::l1Jacobi, 1);
+      // hs->SetPositiveDiagonal(true);
+      // S_prec = hs;
+      // lin_solver->SetPreconditioner(*S_prec);
+   }
 
    // Nonlinear solver.
    const IntegrationRule &ir =
@@ -494,20 +684,24 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
 {
    MFEM_VERIFY(solver, "Setup() has not been called.");
 
-   // ParFiniteElementSpace &pfes = *x.ParFESpace();
-   // ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
-   // int myid = pmesh.GetMyRank();
+   ParFiniteElementSpace &pfes = *x.ParFESpace();
+   ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
+   int myid = pmesh.GetMyRank();
 
-   // const int quad_order =
-   //    solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
-   // const int order = pfes.GetFE(0)->GetOrder();
-   // double init_energy = nlf->GetParGridFunctionEnergy(x);
+   const int quad_order =
+      solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
+   const int order = pfes.GetFE(0)->GetOrder();
+   double init_energy = nlf->GetParGridFunctionEnergy(x);
 
    // Optimize.
    x.SetTrueVector();
    Vector b;
    solver->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
+
+   double final_energy = nlf->GetParGridFunctionEnergy(x);
+   std::cout << "Initial energy: " << init_energy << endl
+             << "Final energy:   " << final_energy << endl;
 }
 
 void GetMinDet(ParMesh *pmesh, ParGridFunction &x,
