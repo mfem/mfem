@@ -16,6 +16,14 @@
 #include "../mesh/nurbs.hpp"
 #include <cmath>
 
+#if __has_include("general/nvtx.hpp")
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kRoyalBlue
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 namespace mfem
 {
 
@@ -506,6 +514,7 @@ void BilinearForm::Assemble(int skip_zeros)
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
+         dbg("e:{}/{}", i+1, fes->GetNE());
          // Set both doftrans (potentially needed to assemble the element
          // matrix) and vdofs, which is also needed when the element matrices
          // are pre-assembled.
@@ -522,6 +531,7 @@ void BilinearForm::Assemble(int skip_zeros)
             elmat.SetSize(0);
             for (int k = 0; k < domain_integs.Size(); k++)
             {
+               dbg("Integrator {}/{}", k+1, domain_integs.Size());
                if (domain_integs_marker[k]) { domain_integs_marker[k]->HostRead(); }
                if ((domain_integs_marker[k] == NULL ||
                     (*(domain_integs_marker[k]))[elem_attr-1] == 1)

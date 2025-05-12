@@ -3035,6 +3035,8 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    elmat.SetSize(vdim * dof);
    pelmat.SetSize(dof);
+   dbg("dof:{}", dof);
+   dbg("vdim:{}", vdim);
 
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
    if (ir == NULL)
@@ -3043,7 +3045,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
-
+   dbg("ir -> GetNPoints():{}",ir -> GetNPoints());
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       dbg("i:{}",i);
@@ -3053,6 +3055,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       Trans.SetIntPoint(&ip);
       real_t w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
+      dbg("w:{}",w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
@@ -3062,7 +3065,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
          dbg("VQ");
          VQ->Eval(vcoeff, Trans, ip);
          vcoeff.Print();
-         dbg("vdim:{}", vdim);
          for (int k = 0; k < vdim; ++k)
          {
             dbg("k:{}", k);
@@ -3075,14 +3077,25 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
          dbg("MQ");
          MQ->Eval(mcoeff, Trans, ip);
          mcoeff.Print();
+#if 1
+         for (int ii = 0; ii < vdim; ++ii)
+         {
+            const int jj = ii;
+            Mult_a_AAt(w*mcoeff(ii,jj), dshapedxt, pelmat);
+            elmat.AddMatrix(pelmat, dof*ii, dof*jj);
+         }
+#else
          for (int ii = 0; ii < vdim; ++ii)
          {
             for (int jj = 0; jj < vdim; ++jj)
             {
                Mult_a_AAt(w*mcoeff(ii,jj), dshapedxt, pelmat);
+               // dbg("ii:{} jj:{} {}", ii, jj, mcoeff(ii,jj));
                elmat.AddMatrix(pelmat, dof*ii, dof*jj);
             }
          }
+#endif
+         // elmat.Print();
       }
       else
       {

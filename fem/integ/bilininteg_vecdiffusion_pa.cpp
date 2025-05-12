@@ -84,6 +84,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       dbg("\x1b[33mMQ");
       coeff.ProjectTranspose(*MQ);
       MFEM_VERIFY(vdim*vdim * ne*nq == coeff.Size(), "");
+      dbg("coeff:");
+      coeff.Print();
    }
    else { dbg("\x1b[33m1.0"); coeff.SetConstant(1.0); }
    dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
@@ -117,7 +119,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-      pa_data.SetSize(vdim*pa_size * nq * ne, mt);
+      pa_data.SetSize(vdim*pa_size * nq * ne *2/*🔥 mcoeff*/, mt);
       dbg("pa_data size:{} = (vdim:{})x(pa_size:{})x{}x{}",
           vdim, pa_data.Size(), pa_size, nq, ne);
    }
@@ -180,19 +182,24 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          const auto W = Reshape(w_r, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim, ne);
+         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim,
+                           ne);
 
          mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
          {
+            dbg("e:{}", e);
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                MFEM_FOREACH_THREAD(qx, x, q1d)
                {
+                  const int q = qx + qy * q1d;
+                  dbg("q:{}", q);
                   const real_t J11 = J(qx, qy, 0, 0, e);
                   const real_t J21 = J(qx, qy, 1, 0, e);
                   const real_t J12 = J(qx, qy, 0, 1, e);
                   const real_t J22 = J(qx, qy, 1, 1, e);
                   const real_t w_detJ = W(qx, qy) / ((J11*J22)-(J21*J12));
+                  dbg("w:{}",w_detJ);
 
                   if (coeff_vdim != 2*2)
                   {
@@ -207,27 +214,42 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   }
                   else if (coeff_vdim == 2*2) // Matrix coefficient
                   {
-                     dbg("Matrix coefficient");
-                     const real_t M11 = C(0, qx, qy, e);
-                     const real_t M12 = C(1, qx, qy, e);
-                     const real_t M21 = C(2, qx, qy, e);
-                     const real_t M22 = C(3, qx, qy, e);
+                     const real_t C0 = C(0, qx, qy, e);
+                     const real_t C1 = C(1, qx, qy, e);
+                     const real_t C2 = C(2, qx, qy, e);
+                     const real_t C3 = C(3, qx, qy, e);
+                     dbg("[0,0] {}", C0);
+                     dbg("[0,1] {}", C1);
+                     dbg("[1,0] {}", C2);
+                     dbg("[1,1] {}", C3);
 
-                     const real_t R11 = M11*J22 - M12*J12;
-                     const real_t R21 = M21*J22 - M22*J12;
-                     const real_t R12 = -M11*J21 + M12*J11;
-                     const real_t R22 = -M21*J21 + M22*J11;
-
-                     // Now set y to J^{-1}R.
-                     DE(qx, qy, 0, 0, e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
-                     DE(qx, qy, 1, 0, e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
-                     DE(qx, qy, 2, 0, e) = w_detJ * (J22*R12 - J12*R22); // 2,2 or 1,2
-                     DE(qx, qy, 3, 0, e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
-
-                     // DE(qx, qy, 0, c, e) =  w_detJ * (J12*C11*J12 + J22*C22*J22);
-                     // DE(qx, qy, 1, c, e) = -w_detJ * (J12*C12*J11 + J22*C21*J21);
-                     // DE(qx, qy, 2, c, e) = -w_detJ * (J12*C21*J11 + J22*C12*J21);
-                     // DE(qx, qy, 3, c, e) =  w_detJ * (J11*C11*J11 + J21*C22*J21);
+                     // for (int c = 0; c < vdim; ++c)
+                     {
+                        // 0
+                        DE(qx, qy, 0, 0, e) =  w_detJ * C0 * (J12*J12 + J22*J22);
+                        DE(qx, qy, 1, 0, e) = -w_detJ * C0 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 2, 0, e) = -w_detJ * C0 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 3, 0, e) =  w_detJ * C0 * (J11*J11 + J21*J21);
+                     }
+                     {
+                        // 3
+                        DE(qx, qy, 0, 1, e) =  w_detJ * C3 * (J12*J12 + J22*J22);
+                        DE(qx, qy, 1, 1, e) = -w_detJ * C3 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 2, 1, e) = -w_detJ * C3 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 3, 1, e) =  w_detJ * C3 * (J11*J11 + J21*J21);
+                     }
+                     /*{
+                        DE(qx, qy, 0, 2, e) =  w_detJ * C2 * (J12*J12 + J22*J22);
+                        DE(qx, qy, 1, 2, e) = -w_detJ * C2 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 2, 2, e) = -w_detJ * C2 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 3, 2, e) =  w_detJ * C2 * (J11*J11 + J21*J21);
+                     }
+                     {
+                        DE(qx, qy, 0, 3, e) =  w_detJ * C1 * (J12*J12 + J22*J22);
+                        DE(qx, qy, 1, 3, e) = -w_detJ * C1 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 2, 3, e) = -w_detJ * C1 * (J12*J11 + J22*J21);
+                        DE(qx, qy, 3, 3, e) =  w_detJ * C1 * (J11*J11 + J21*J21);
+                     }*/
                   }
                   else { assert(false); }
                }

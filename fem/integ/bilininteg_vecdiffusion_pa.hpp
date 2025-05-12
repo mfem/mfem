@@ -72,7 +72,7 @@ void PAVectorDiffusionApply2D(const int NE,
    const auto G = Reshape(g.Read(), Q1D, D1D);
    const auto Bt = Reshape(bt.Read(), D1D, Q1D);
    const auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   const auto D = Reshape(d_.Read(), Q1D*Q1D, PA_SIZE, VDIM, NE);
+   const auto D = Reshape(d_.Read(), Q1D*Q1D, PA_SIZE, VDIM*2/*🔥*/, NE);
    const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
 
@@ -135,8 +135,17 @@ void PAVectorDiffusionApply2D(const int NE,
                const real_t O22 = D(q,3,c,e);
                const real_t gradX = grad[qy][qx][0];
                const real_t gradY = grad[qy][qx][1];
+               dbg("{} {} {} {}", O11, O12, O21, O22);
                grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+               /*{
+                  const real_t G11 = D(q,0,c+VDIM,e);
+                  const real_t G12 = D(q,1,c+VDIM,e);
+                  const real_t G21 = D(q,2,c+VDIM,e);
+                  const real_t G22 = D(q,3,c+VDIM,e);
+                  grad[qy][qx][0] += (G11 * gradX) + (G12 * gradY);
+                  grad[qy][qx][1] += (G21 * gradX) + (G22 * gradY);
+               }*/
             }
          }
          for (int qy = 0; qy < Q1D; ++qy)

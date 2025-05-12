@@ -359,7 +359,8 @@ template <typename INTEGRATOR>
 real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
 {
    dbg();
-   constexpr int NE = 2, P = 2;
+   // constexpr int NE = 2, P = 2; // 🔥🔥🔥🔥  NE, P 🔥🔥🔥🔥
+   constexpr int NE = 1, P = 1;
    Mesh mesh = MakeCartesianNonaligned(dim, NE);
    H1_FECollection fec(P, dim);
    const int vdim = 2; // 🔥🔥🔥🔥  VDIM 🔥🔥🔥🔥
@@ -413,16 +414,16 @@ real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
 
    BilinearForm blf_fa(&fes);
    // scalar coefficients
-   blf_fa.AddDomainIntegrator(new INTEGRATOR());
-   blf_fa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
-   blf_fa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   // blf_fa.AddDomainIntegrator(new INTEGRATOR());
+   // blf_fa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   // blf_fa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
    // vector coefficients
-   blf_fa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
-   blf_fa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
+   // blf_fa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+   // blf_fa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
    if (test_mcoeff)
    {
       // matrix coefficients
-      // blf_fa.AddDomainIntegrator(new INTEGRATOR(mcoeff));
+      blf_fa.AddDomainIntegrator(new INTEGRATOR(mcoeff));
    }
    blf_fa.Assemble();
    blf_fa.Finalize();
@@ -431,15 +432,15 @@ real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    // scalar coefficients
-   blf_pa.AddDomainIntegrator(new INTEGRATOR());
-   blf_pa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
-   blf_pa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   // blf_pa.AddDomainIntegrator(new INTEGRATOR());
+   // blf_pa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   // blf_pa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
    // vector coefficients
-   blf_pa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
-   blf_pa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
+   // blf_pa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+   // blf_pa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
    if (test_mcoeff)
    {
-      // blf_pa.AddDomainIntegrator(new INTEGRATOR(mcoeff));
+      blf_pa.AddDomainIntegrator(new INTEGRATOR(mcoeff));
    }
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
