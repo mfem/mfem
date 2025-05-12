@@ -113,7 +113,7 @@ class QuadratureSpace;
 class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
 class PRefinementTransferOperator;
-class DerefineMatrixOp;
+struct DerefineMatrixOp;
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
     mesh, mainly managing the set of degrees of freedom.

@@ -23,7 +23,6 @@ namespace mfem
 
 struct DerefineMatrixOp : public Operator
 {
-public:
    FiniteElementSpace *fespace;
    /// offsets into block_storage
    Array<int> block_offsets;

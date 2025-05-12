@@ -24,7 +24,7 @@
 namespace mfem
 {
 
-class ParDerefineMatrixOp;
+struct ParDerefineMatrixOp;
 
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
