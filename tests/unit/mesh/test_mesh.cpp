@@ -181,6 +181,30 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
 }
 
+TEST_CASE("MakeHigherOrderSimplicial", "[Mesh]")
+{
+   // for (int curv : {1,2,3})
+   // {
+   //    std::cout << "Curvature " << curv << '\n';
+   //    Mesh mesh("/Users/hughcars/AWS/mfem/data/ref-prism.mesh", 1, 1);
+   //    mesh.SetCurvature(curv);
+   //    auto *fe = mesh.GetNodes()->FESpace()->GetFE(0);
+
+   //    auto nodes = fe->GetNodes();
+   //    std::cout << "nodes \n";
+   //    for (const auto &ip : nodes)
+   //    {
+   //       std::cout << ip.x << ' ' << ip.y << ' ' << ip.z << '\n';
+   //    }
+   // }
+
+   Mesh mesh("/Users/hughcars/AWS/mfem/data/ref-square.mesh", 1, 1);
+   mesh.SetCurvature(1);
+   auto smesh = Mesh::MakeSimplicial(mesh);
+
+
+}
+
 TEST_CASE("MakeNurbs", "[Mesh]")
 {
    Array<real_t> intervals_array({1, 1, 1});
