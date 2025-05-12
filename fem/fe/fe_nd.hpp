@@ -663,6 +663,9 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const { return 2; }
+   int GetPhysCurlDim(int space_dim) const { return 1; }
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
 
@@ -708,6 +711,9 @@ private:
                            DenseMatrix &I) const;
 
 public:
+   int GetPhysRangeDim(int space_dim) const { return 3; }
+   int GetPhysCurlDim(int space_dim) const { return 3; }
+
    using FiniteElement::CalcVShape;
    using FiniteElement::CalcPhysCurlShape;
 

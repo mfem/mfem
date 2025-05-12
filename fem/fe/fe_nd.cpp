@@ -2531,7 +2531,7 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
 
 ND_R1D_PointElement::ND_R1D_PointElement(int p)
    : VectorFiniteElement(1, Geometry::POINT, 2, p,
-                         H_CURL, FunctionSpace::Pk)
+                         H_CURL_R1D, FunctionSpace::Pk)
 {
    // VectorFiniteElement::SetDerivMembers doesn't support 0D H_CURL elements
    // so we mimic a 1D element and then correct the dimension here.
@@ -2562,7 +2562,7 @@ ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, 3 * p + 2, p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL_R1D, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
@@ -2839,7 +2839,7 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, 2 * p + 1, p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL_R2D, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
@@ -3149,7 +3149,7 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const real_t *tk_fe)
    : VectorFiniteElement(2, G, Do, p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL_R2D, FunctionSpace::Pk),
      tk(tk_fe),
      dof_map(dof),
      dof2tk(dof)

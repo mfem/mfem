@@ -1024,9 +1024,50 @@ void VectorFiniteElement::SetDerivMembers()
    switch (map_type)
    {
       case H_DIV:
-         deriv_type = DIV;
-         deriv_range_type = SCALAR;
-         deriv_map_type = INTEGRAL;
+         switch (dim)
+         {
+            case 3: // div: 3D H_DIV -> 3D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            case 2: // div: 2D H_DIV -> 2D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_DIV_R2D:
+         switch (dim)
+         {
+            case 2: // div: 2D H_DIV_R2D -> 2D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            case 1: // div: 1D H_DIV_R2D -> 1D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_DIV_R1D:
+         switch (dim)
+         {
+            case 1: // div: 1D H_DIV_R1D -> 1D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
          break;
       case H_CURL:
          switch (dim)
@@ -1044,9 +1085,45 @@ void VectorFiniteElement::SetDerivMembers()
                break;
             case 1:
                deriv_type = NONE;
-               deriv_range_type = SCALAR;
-               deriv_map_type = INTEGRAL;
+               deriv_range_type = UNKNOWN_RANGE_TYPE;
+               deriv_map_type = UNKNOWN_MAP_TYPE;
                break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_CURL_R2D:
+         switch (dim)
+         {
+            case 2:
+               // curl: 2D H_CURL_R2D -> H_DIV_R2D
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV_R2D;
+               break;
+            case 1:
+               // curl: 1D H_CURL_R2D -> H_DIV_R2D
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV_R2D;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_CURL_R1D:
+         switch (dim)
+         {
+            case 1:
+               // curl: 1D H_CURL_R1D -> H_DIV_R1D
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV_R1D;
+               break;
+            case 0:
+               deriv_type = NONE;
+               deriv_range_type = UNKNOWN_RANGE_TYPE;
+               deriv_map_type = UNKNOWN_MAP_TYPE;
             default:
                MFEM_ABORT("Invalid dimension, Dim = " << dim);
          }
