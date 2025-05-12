@@ -1490,15 +1490,38 @@ int FiniteElementSpace::GetNConformingDofs() const
 int FiniteElementSpace::GetVectorDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
-   if (fe == nullptr)
-   {
-      fe = GetTypicalTraceElement();
-   }
+   MFEM_VERIFY(fe, "A typical finite element does not exist!");
+
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
    }
    return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
+}
+
+int FiniteElementSpace::GetBdrVectorDim() const
+{
+   const FiniteElement *be = GetTypicalBE();
+   MFEM_VERIFY(be, "A typical boundary finite element does not exist!");
+
+   if (be->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return GetVDim();
+   }
+   return GetVDim()*std::max(GetMesh()->SpaceDimension()-1, be->GetRangeDim());
+}
+
+int FiniteElementSpace::GetFaceVectorDim() const
+{
+   const FiniteElement *face_el = GetTypicalFaceElement();
+   MFEM_VERIFY(face_el, "A typical face finite element does not exist!");
+
+   if (face_el->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return GetVDim();
+   }
+   return GetVDim()*std::max(GetMesh()->SpaceDimension()-1,
+                             face_el->GetRangeDim());
 }
 
 int FiniteElementSpace::GetCurlDim() const
@@ -3915,6 +3938,16 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
    return BE;
 }
 
+const FiniteElement *FiniteElementSpace::GetTypicalBE() const
+{
+   if (mesh->GetNBE() > 0) { return GetBE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalFaceGeometry();
+   const FiniteElement *be = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(be != nullptr, "Could not determine a typical BE!");
+   return be;
+}
+
 const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 {
    MFEM_VERIFY(!IsVariableOrder(), "not implemented");
@@ -3943,6 +3976,11 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    }
 
    return fe;
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalFaceElement() const
+{
+   return fec->FiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
