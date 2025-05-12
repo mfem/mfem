@@ -31,10 +31,6 @@
 namespace mfem
 {
 /// \cond DO_NOT_DOCUMENT
-namespace internal
-{
-}
-
 class ParDerefineMatrixOp : public Operator
 {
 public:
@@ -282,7 +278,7 @@ public:
       block_off_diag_widths.SetSize(num_offdiagonal_blocks);
       block_off_diag_widths.HostWrite();
       pack_col_idcs.SetSize(send_len);
-      // memory manager doesn't appear to have a grace-full fallback for
+      // memory manager doesn't appear to have a graceful fallback for
       // HOST_PINNED if not built with CUDA or HIP
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
       xghost_send.SetSize(send_len * fespace->GetVDim(),
@@ -594,7 +590,8 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          op.requests.emplace_back();
          MPI_Irecv(rcv + op.recv_segments[i] * vdims,
                    (op.recv_segments[i + 1] - op.recv_segments[i]) * vdims,
-                   MPITypeMap<real_t>::mpi_type, op.recv_ranks[i], 291,
+                   MPITypeMap<real_t>::mpi_type, op.recv_ranks[i],
+                   VarMessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
                    op.fespace->GetComm(), &op.requests.back());
       }
    }
@@ -609,8 +606,9 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          op.requests.emplace_back();
          MPI_Isend(dst + op.send_segments[i] * vdims,
                    (op.send_segments[i + 1] - op.send_segments[i]) * vdims,
-                   MPITypeMap<real_t>::mpi_type, op.send_ranks[i], 291,
-                   op.fespace->GetComm(), &op.requests.back());
+                   MPITypeMap<real_t>::mpi_type, op.send_ranks[i],
+                   VarMessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM, op.fespace->GetComm(),
+                   &op.requests.back());
       }
    }
    {
@@ -5229,14 +5227,16 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    {
       requests.emplace_back();
       MPI_Irecv(v.second.data(), v.second.size(), HYPRE_MPI_BIG_INT, v.first,
-                291, MyComm, &requests.back());
+                VarMessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM, MyComm,
+                &requests.back());
    }
    // enqueue sends
    for (auto &v : to_send)
    {
       requests.emplace_back();
       MPI_Isend(v.second.data(), v.second.size(), HYPRE_MPI_BIG_INT, v.first,
-                291, MyComm, &requests.back());
+                VarMessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM, MyComm,
+                &requests.back());
    }
 
    DenseTensor localR[Geometry::NumGeom];

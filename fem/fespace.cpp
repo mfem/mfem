@@ -72,8 +72,8 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      bool is_dg = fespace->FEColl()->GetContType() ==
-                   FiniteElementCollection::DISCONTINUOUS;
+      const bool is_dg = fespace->FEColl()->GetContType() ==
+                         FiniteElementCollection::DISCONTINUOUS;
       // DG needs atomic summation
       MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
    }
