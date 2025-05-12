@@ -14,7 +14,6 @@
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
-#include "../../linalg/kernels.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 

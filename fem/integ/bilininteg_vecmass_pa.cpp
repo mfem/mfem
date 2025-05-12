@@ -73,39 +73,26 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs);
 
-   if (Q)
-   {
-      dbg("[Q]");
-      coeff.Project(*Q);
-   }
-   else if (VQ)
-   {
-      coeff.Project(*VQ);
-      dbg("[VQ] coeff size: {}", coeff.Size());
-   }
+   if (Q) { coeff.Project(*Q); }
+   else if (VQ) { coeff.Project(*VQ); }
    else if (MQ)
    {
       coeff.ProjectTranspose(*MQ);
-      dbg("[MQ] ne*nq:{} coeff_size:{}", ne*nq, coeff.Size());
       MFEM_VERIFY(vdim*vdim * ne*nq == coeff.Size(), "");
    }
-   else
-   {
-      dbg("1.0");
-      coeff.SetConstant(1.0);
-   }
+   else { coeff.SetConstant(1.0); }
 
    const int coeff_vdim = coeff.GetVDim();
-   dbg("coeff_vdim: {}", coeff_vdim);
    MFEM_VERIFY(coeff_vdim == 1 ||
                coeff_vdim == vdim ||
                coeff_vdim == vdim*vdim, "Incorrect coefficient size");
    const bool const_coeff = coeff_vdim == 1;
    const bool vector_coeff = coeff_vdim == vdim;
    const bool matrix_coeff = coeff_vdim == vdim*vdim;
+   MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
 
    pa_data.SetSize(coeff_vdim * nq * ne, mt);
-   MFEM_VERIFY(vdim == dim, "!!! vdim != dim");
+   MFEM_VERIFY(vdim == dim, "vdim != dim");
 
    if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
 
@@ -117,7 +104,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto W = Reshape(w_r, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
-      // const auto J = Reshape(geom->J.Read(), dim, dim, NQ, NE);
       auto DE = Reshape(pa_data.Write(), q1d, q1d, coeff_vdim, ne);
 
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
@@ -126,8 +112,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             MFEM_FOREACH_THREAD(qx, x, q1d)
             {
-               // const real_t *Jtr = &J(0, 0, qx, qy, e);
-               // const real_t detJ = kernels::Det<2>(Jtr);
                const real_t J11 = J(qx, qy, 0, 0, e), J12 = J(qx, qy, 1, 0, e);
                const real_t J21 = J(qx, qy, 0, 1, e), J22 = J(qx, qy, 1, 1, e);
                const real_t detJ = (J11 * J22) - (J21 * J12);
@@ -159,12 +143,14 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             {
                MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  const real_t J11 = J(qx, qy, qz, 0, 0, e);
-                  const real_t J12 = J(qx, qy, qz, 0, 1, e),
+                  const real_t J11 = J(qx, qy, qz, 0, 0, e),
+                               J12 = J(qx, qy, qz, 0, 1, e),
                                J13 = J(qx, qy, qz, 0, 2, e);
-                  const real_t J21 = J(qx, qy, qz, 1, 0, e), J22 = J(qx, qy, qz, 1, 1, e),
+                  const real_t J21 = J(qx, qy, qz, 1, 0, e),
+                               J22 = J(qx, qy, qz, 1, 1, e),
                                J23 = J(qx, qy, qz, 1, 2, e);
-                  const real_t J31 = J(qx, qy, qz, 2, 0, e), J32 = J(qx, qy, qz, 2, 1, e),
+                  const real_t J31 = J(qx, qy, qz, 2, 0, e),
+                               J32 = J(qx, qy, qz, 2, 1, e),
                                J33 = J(qx, qy, qz, 2, 2, e);
                   const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                                       J21 * (J12 * J33 - J32 * J13) +
@@ -175,7 +161,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   DE(qx, qy, qz, 1, e) = C(1, qx, qy, qz, e) * w_det;
                   DE(qx, qy, qz, 2, e) = C(2, qx, qy, qz, e) * w_det;
                   if (vector_coeff) { continue; }
-                  assert(matrix_coeff);
                   DE(qx, qy, qz, 3, e) = C(3, qx, qy, qz, e) * w_det;
                   DE(qx, qy, qz, 4, e) = C(4, qx, qy, qz, e) * w_det;
                   DE(qx, qy, qz, 5, e) = C(5, qx, qy, qz, e) * w_det;
