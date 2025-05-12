@@ -10,18 +10,10 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SEQMTOP_COMMON_SOURCES
-	paramnonlinearform.cpp
-        mtop_integrators.cpp
-	rand_eigensolver.cpp
-	mtop_solvers.cpp
-	stokes_solver.cpp)
+        )
 
 list(APPEND SEQMTOP_COMMON_HEADERS
-	paramnonlinearform.hpp
-        mtop_integrators.hpp
-	rand_eigensolver.hpp
-	mtop_solvers.hpp
-	stokes_solver.hpp)
+        )
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
@@ -30,17 +22,17 @@ set(SEQMTOP_COMMON_FILES
 	EXTRA_SOURCES ${SEQMTOP_COMMON_SOURCES}
 	EXTRA_HEADERS ${SEQMTOP_COMMON_HEADERS})
 
-add_mfem_miniapp(seqheat
-	MAIN seqheat.cpp
-	${SEQMTOP_COMMON_FILES}
-	LIBRARIES mfem)
 
 if(MFEM_USE_MPI)
 
 list(APPEND PARMTOP_COMMON_SOURCES
-	pparamnonlinearform.cpp)
+	rand_eigensolver.cpp
+        mtop_solvers.cpp
+        stokes_solver.cpp)
 list(APPEND PARMTOP_COMMON_HEADERS
-	pparamnonlinearform.hpp)
+	rand_eigensolver.hpp
+        mtop_solvers.hpp
+        stokes_solver.hpp)
 
 convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)
@@ -52,10 +44,6 @@ set(PARMTOP_COMMON_FILES
 # message(STATUS "PARMTOP_COMMON_FILES: ${PARMTOP_COMMON_FILES}")
 # message(STATUS "SEQMTOP_COMMON_FILES: ${SEQMTOP_COMMON_FILES}")
 
-add_mfem_miniapp(parheat
-     MAIN parheat.cpp
-     ${PARMTOP_COMMON_FILES}
-     LIBRARIES mfem)
 
 add_mfem_miniapp(test_eigp
      MAIN test_eig.cpp

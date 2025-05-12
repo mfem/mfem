@@ -845,7 +845,7 @@ public:
 
     /// (a*W1-b*W2+i*c*T)(x+i*y)=(e+i*g)
     void SetOperators(Operator* W1_, Operator* W2_, Operator* T_,
-                      real_t a_=1.0, real_t b_=1.0, real_t c_=1.0){
+                      real_t a_=1.0, real_t b_=1.0, real_t c_=1.0, real_t alpha_=1.0){
 
         W1=W1_;
         W2=W2_;
@@ -854,6 +854,8 @@ public:
         a=a_;
         b=b_;
         c=c_;
+
+        alpha=alpha_;
 
         this->width=2*(W1_->Width());
         this->height=2*(W1_->Width());
@@ -910,10 +912,6 @@ public:
 
     }
 
-    void SetAlpha(real_t al_)
-    {
-        alpha=al_;
-    }
 
     virtual void Mult(const Vector &x, Vector &y) const
     {
@@ -923,6 +921,8 @@ public:
 
         Vector& ee=fv.GetBlock(0);
         Vector& gg=fv.GetBlock(1);
+
+        /*
 
         ls1->SetAbsTol(this->abs_tol);
         ls1->SetRelTol(this->rel_tol);
@@ -936,6 +936,8 @@ public:
 
         ls1->SetPrintLevel(-1);
         ls2->SetPrintLevel(-1);
+
+        */
 
 
         bool cflag=true;
@@ -953,6 +955,14 @@ public:
             W1->Mult(yb.GetBlock(0),tv); ee.Add(+a,tv);
 
 
+            /*
+            {
+                real_t gp=InnerProduct(comm,fv,fv);
+                if(myrank==0){
+                    std::cout<<"Step1 it:"<< iter<<" "<<gp<<std::endl;}
+            }*/
+
+
             mumps1->Mult(fv,y);
 
 
@@ -964,6 +974,14 @@ public:
             T->Mult(yb.GetBlock(1),tv); gg.Add((alpha-1.0)*c,tv);
             W2->Mult(yb.GetBlock(1),tv); ee.Add(+b,tv);
             W2->Mult(yb.GetBlock(0),tv); ee.Add(-b,tv);
+
+            /*
+            {
+                real_t gp=InnerProduct(comm,fv,fv);
+                if(myrank==0){
+                    std::cout<<"Step2 it:"<< iter<<" "<<gp<<std::endl;}
+            }*/
+
 
             mumps2->Mult(fv,y);
 

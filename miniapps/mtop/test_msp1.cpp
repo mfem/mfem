@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    cf->AddDomainIntegrator(new VectorMassIntegrator(damp));
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
-   real_t freq=3.5;
+   real_t freq=2.0;
    ProductCoefficient pc(-freq*freq,rho);
    //ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));
@@ -254,14 +254,14 @@ int main(int argc, char *argv[])
    unique_ptr<HypreParMatrix> bm;
    {
        Array2D<const HypreParMatrix*> am(2,2);
-       am(0,0)=kmat.get();
+       am(0,0)=wmat.get();
        am(0,1)=cmat.get();
        am(1,0)=cmat.get();
-       am(1,1)=kmat.get();
+       am(1,1)=wmat.get();
 
        Array2D<real_t> cm(2,2);
-       cm(0,0)=1.0; cm(0,1)=1;
-       cm(1,0)=1.0; cm(1,1)=-1;
+       cm(0,0)=1.0; cm(0,1)=-1;
+       cm(1,0)=1.0; cm(1,1)=1;
 
        bm.reset(HypreParMatrixFromBlocks(am,&cm));
     }
@@ -321,8 +321,9 @@ int main(int argc, char *argv[])
 
 
    std::cout<<"Allocate MSP1"<<std::endl;
-   MSP1Prec* prec=new MSP1Prec(pmesh.GetComm());
-   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,5.0);
+   //MSP1Prec* prec=new MSP1Prec(pmesh.GetComm());
+   MSP3Prec* prec=new MSP3Prec(pmesh.GetComm());
+   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0,512.0);
    //prec->SetOperators(&lorkm,&lorcm,1.0,1.0);
    prec->SetAbsTol(1e-12);
    prec->SetRelTol(1e-6);
