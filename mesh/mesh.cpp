@@ -5853,7 +5853,7 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
                }
                // All the non-simplex basis functions have now been evaluated at all the
                // simplex basis function node locations.
-               orig_mesh.GetNodes()->GetElementDofValues(i, edofvals);
+               orig_mesh.GetNodes()->GetElementDofValues(ip, edofvals);
                DenseMatrix edofvals_mat(edofvals.GetData(),
                   ordering == Ordering::byVDIM ? sdim : orig_FE->GetDof(),
                   ordering == Ordering::byVDIM ? orig_FE->GetDof() : sdim);
@@ -5867,8 +5867,14 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
                // TODO: Need to now place the point matrix data into the new Nodes variable.
                // Question is how to go from the dof indices, to the locations in the
                // FEspace, given there'll be sdim times more dof values, than indices.
-
-
+               GetNodes()->FESpace()->GetElementDofs(i, edofs);
+               if (ordering != Ordering::byVDIM)
+               {
+                  // point_matrix was [x,y,z]_1, [x,y,z]_2,... ] in col major
+                  // need to change back to [[x_1,x_2,x_3,...], [y_1,y_2,y_3,...], [z_1,z_2,z_3,...]]
+                  point_matrix.Transpose();
+               }
+               GetNodes()->SetSubVector(edofs, point_matrix.GetData());
             break;
             case Geometry::Type::POINT :  // fall through
             case Geometry::Type::INVALID :
@@ -5876,65 +5882,6 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
                MFEM_ABORT("Internal Error!");
          }
       }
-
-
-      // DRAFTY STUFF.
-      if (orig_mesh.GetNodes())
-      {
-         // Higher order nodes of an unsplit element are copied
-         orig_mesh.GetNodes()->GetElementDofValues(i, edofvals);
-         GetNodes()->FESpace()->GetElementDofs(NumOfElements-1, edofs);
-         GetNodes()->SetSubVector(edofs, edofvals);
-      }
-
-
-      if (orig_mesh.GetNodes())
-      {
-         // Collect the quad reference coordinates of the vertices corresponding to the
-         // triangle. Can then use this to define a reference coordinate transform, because
-         // the reference elements are all linear.
-         std::array<IntegrationPoint, nv_tri> ref_verts;
-         const auto *quad_FE = orig_mesh.GetNodes()->FESpace()->GetFE(i);
-         for (int iv=0; iv<nv_tri; ++iv)
-         {
-            ref_verts[iv] = quad_FE->GetNodes()[quad_trimap[0][itri + iv*quad_ntris]];
-         }
-         const auto *tri_FE = GetNodes()->FESpace()->GetFE(NumOfElements-1);
-         GetNodes()->FESpace()->GetElementDofs(NumOfElements-1, edofs);
-         shape.SetSize(quad_FE->GetDof(), tri_FE->GetDof());
-         MFEM_ASSERT(tri_FE->GetDof() == tri_FE->GetNodes().Size(), "One dof per node..."); // TODO: delete
-         Vector col;
-         for (int ip = 0; ip < tri_FE->GetNodes().Size(); ip++)
-         {
-            // Evaluating the original quad basis functions at the new triangle's nodes
-            const auto &tri_node = tri_FE->GetNodes()[ip];
-            IntegrationPoint tri_node_in_quad;
-            tri_node_in_quad.x = tri_node.x * (ref_verts[1].x - ref_verts[0].x)
-                               + tri_node.y * (ref_verts[2].x - ref_verts[0].x);
-            tri_node_in_quad.y = tri_node.x * (ref_verts[1].y - ref_verts[0].y)
-                               + tri_node.y * (ref_verts[2].y - ref_verts[0].y);
-            tri_node_in_quad.z = 0.0; // Reference coordinates are 2D.
-            shape.GetColumnReference(ip, col);
-            quad_FE->CalcShape(tri_node_in_quad, col);
-         }
-         // Combine the dof values and shape function evaluations.
-         orig_mesh.GetNodes()->GetElementDofValues(i, edofvals);
-         DenseMatrix edofvals_mat(edofvals.GetData(), edofvals.Size() / sdim, sdim);
-         point_matrix.SetSize(sdim, tri_FE->GetDof());
-         MultAtB(edofvals_mat, shape, point_matrix);
-
-         // point_matrix now has all the dof values for new element stored with each
-         // column corresponding to each node. Now place back into actual Nodes.
-         GetNodes()->FESpace()->GetElementDofs(NumOfElements-1, edofs);
-         if (GetNodes()->FESpace()->GetOrdering() == Ordering::Type::byNODES)
-         {
-            // Data has been collected as Ordering::Type::byVDIM
-            // Go from [x1,y1,z1,x2,y2,z2,x3,y3,z3] to [x1,x2,x3,y1,y2,y3,z1,z2,z3...]
-            point_matrix.Transpose();
-         }
-         GetNodes()->SetSubVector(edofs, point_matrix.GetData());
-      }
-
    }
 
 }
