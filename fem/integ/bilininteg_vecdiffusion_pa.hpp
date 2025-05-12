@@ -19,6 +19,14 @@
 
 // #include "kernels_regs.hpp"
 
+#if __has_include("general/nvtx.hpp")
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kCyan
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 namespace mfem
 {
 
@@ -30,6 +38,7 @@ namespace internal
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
 void PAVectorDiffusionApply2D(const int NE,
+                              const int coeff_vdim,
                               const Array<real_t> &b,
                               const Array<real_t> &g,
                               const Array<real_t> &bt,
@@ -41,35 +50,29 @@ void PAVectorDiffusionApply2D(const int NE,
                               const int q1d = 0,
                               const int vdim = 0)
 {
+   dbg("T_D1D: {} T_Q1D: {} T_VDIM: {}", T_D1D, T_Q1D, T_VDIM);
+   dbg("d1d: {} q1d: {} vdim: {}", d1d, q1d, vdim);
+
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
+   dbg("D1D: {} Q1D: {} VDIM: {}", D1D, Q1D, VDIM);
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const int coeff_vdim = d_.Size() / (VDIM*2*2*Q1D*Q1D*NE);
-   const bool scalar_coeff = coeff_vdim == 1;
-   const bool vector_coeff = coeff_vdim == VDIM;
-   const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
-   MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
+   const int PA_SIZE = 2*2;
 
-   mfem::out << "\x1b[33m"
-             << "PAVectorDiffusionApply2D: NE: " << NE
-             << " D1D: " << D1D
-             << " Q1D: " << Q1D
-             << " VDIM: " << VDIM
-             << " coeff_vdim: " << coeff_vdim
-             << " scalar_coeff: " << scalar_coeff
-             << " vector_coeff: " << vector_coeff
-             << " matrix_coeff: " << matrix_coeff
-             << "\x1b[m" << std::endl;
+   //    const bool scalar_coeff = coeff_vdim == 1;
+   //    const bool vector_coeff = coeff_vdim > 1;
+   //    const bool matrix_coeff = vector_coeff && coeff_vdim == VDIM*VDIM;
+   //    MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
    const auto Bt = Reshape(bt.Read(), D1D, Q1D);
    const auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   const auto D = Reshape(d_.Read(), Q1D*Q1D, 2*2, VDIM, NE);
+   const auto D = Reshape(d_.Read(), Q1D*Q1D, PA_SIZE, VDIM, NE);
    const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
 

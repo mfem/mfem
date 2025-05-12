@@ -28,6 +28,7 @@ namespace mfem
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
@@ -46,35 +47,38 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dim = mesh->Dimension();
    sdim = mesh->SpaceDimension();
-
+   const int nq = ir->GetNPoints();
    const int nd = el.GetDof();
-   dbg("dim:{} vdim: {} fes.VDim(): {} sdim: {} nd:{}",
-       dim, vdim, fes.GetVDim(), sdim, nd);
+   const int dims = el.GetDim();
+
+   dbg("dim:{} vdim:{} fes.VDim():{} sdim:{} nq:{} nd:{} dims:{}",
+       dim, vdim, fes.GetVDim(), sdim, nq, nd, dims);
 
    // If vdim is not set, set it to the space dimension
+   dbg("\x1b[31mvdim:{} fes.VDim:{}", vdim, fes.GetVDim());
+   if (vdim != -1) { MFEM_VERIFY(vdim == fes.GetVDim(), ""); }
    vdim = (vdim == -1) ? fes.GetVDim() : vdim;
-   dbg("vdim: {}", vdim);
+   dbg("\x1b[33mvdim: {}", vdim);
 
-   const int dims = el.GetDim();
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   dbg("symmDims:{}", symmDims);
-
-   const int nq = ir->GetNPoints();
    const MemoryType mt = pa_mt == MemoryType::DEFAULT
                          ? Device::GetDeviceMemoryType()
                          : pa_mt;
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
-
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs);//, CoefficientStorage::COMPRESSED);
-   dbg("coeff size:{} coeff vdim:{}", coeff.Size(), coeff.GetVDim());
+   CoefficientVector coeff(qs, CoefficientStorage::FULL);
 
    if (Q) { dbg("\x1b[33mQ"); coeff.Project(*Q); }
-   else if (VQ) { dbg("\x1b[33mVQ"); coeff.Project(*VQ); }
+   else if (VQ)
+   {
+      dbg("\x1b[33mVQ");
+      coeff.Project(*VQ);
+      dbg("coeff:");
+      coeff.Print();
+   }
    else if (MQ)
    {
       dbg("\x1b[33mMQ");
@@ -82,32 +86,42 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(vdim*vdim * ne*nq == coeff.Size(), "");
    }
    else { dbg("\x1b[33m1.0"); coeff.SetConstant(1.0); }
+   dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
+   // assert(coeff.GetVDim() == vdim);
 
-   const int coeff_vdim = coeff.GetVDim();
-   MFEM_VERIFY(coeff_vdim == 1 ||
-               coeff_vdim == vdim ||
-               coeff_vdim == vdim*vdim, "Incorrect coefficient size");
-   const bool scalar_coeff = coeff_vdim == 1;
-   const bool vector_coeff = coeff_vdim == vdim;
-   const bool matrix_coeff = coeff_vdim == vdim*vdim;
-   dbg("\x1b[31mscalar_coeff:{} vector_coeff:{} matrix_coeff:{}",
-       scalar_coeff, vector_coeff, matrix_coeff);
-   MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
+   const int pa_size = dims*dims;
+   assert(pa_size == 2*2);
+   coeff_vdim = coeff.GetVDim();
+   const bool const_coeff = coeff.Size() == 1;
+   assert(!const_coeff);
+   dbg("const_coeff:{}", const_coeff);
+
+   // MFEM_VERIFY(coeff_vdim == 1 ||
+   //             coeff_vdim == vdim ||
+   //             coeff_vdim == vdim*vdim, "Incorrect coefficient size");
+   // const bool scalar_coeff = coeff_vdim == 1;
+   // const bool vector_coeff = coeff_vdim > 1;
+   // const bool matrix_coeff = vector_coeff && (coeff_vdim == vdim*vdim);
+   // dbg("\x1b[31mscalar_coeff:{} vector_coeff:{} matrix_coeff:{}",
+   //     scalar_coeff, vector_coeff, matrix_coeff);
+   // MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
    dbg("coeff_vdim:{}", coeff_vdim);
 
    if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
    {
+      const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+      dbg("symmDims:{}", symmDims);
       assert(coeff_vdim == 1);
       assert(coeff_vdim == symmDims);
       pa_data.SetSize(symmDims * nq * ne, mt);
    }
    else
    {
-      pa_data.SetSize(vdim * 2*2 * nq * ne, mt);
-      dbg("pa_data size:{} = ({}x(2*2))x{}x{}",
-          pa_data.Size(), vdim, nq, ne);
+      pa_data.SetSize(vdim*pa_size * nq * ne, mt);
+      dbg("pa_data size:{} = (vdim:{})x(pa_size:{})x{}x{}",
+          vdim, pa_data.Size(), pa_size, nq, ne);
    }
-   MFEM_VERIFY(vdim == dim, "vdim != dim");
+   // MFEM_VERIFY(vdim == dim, "vdim != dim");
 
    const auto w_r = ir->GetWeights().Read();
 
@@ -160,13 +174,13 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       if (dim == 2)
       {
-         dbg("dim:{}(2) sdim:{}(2) vdim:{}(2)", dim, sdim, vdim);
-         assert(sdim == 2);
+         dbg("dim:{}(==2!) sdim:{}(==2!) vdim:{}", dim, sdim, vdim);
+         assert(dim == 2 && sdim == 2);
 
          const auto W = Reshape(w_r, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, 2,2, vdim, ne);
+         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim, ne);
 
          mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
          {
@@ -180,28 +194,42 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t J22 = J(qx, qy, 1, 1, e);
                   const real_t w_detJ = W(qx, qy) / ((J11*J22)-(J21*J12));
 
-                  // const real_t C1 = C(const_coeff ? 0 : 1, qx, qy, e);
-                  // if (!const_coeff) { dbg("{} {}", C0, C1); }
-                  for (int c = 0; c < vdim; c++)
+                  if (coeff_vdim != 2*2)
                   {
-                     if (scalar_coeff)
+                     for (int c = 0; c < vdim; ++c)
                      {
-                        const real_t C0 = C(0, qx, qy, e);
-                        DE(qx, qy, 0,0, c, e) =  w_detJ * (J12*C0*J12 + J22*C0*J22);
-                        DE(qx, qy, 0,1, c, e) = -w_detJ * (J12*C0*J11 + J22*C0*J21);
-                        DE(qx, qy, 1,0, c, e) = -w_detJ * (J12*C0*J11 + J22*C0*J21);
-                        DE(qx, qy, 1,1, c, e) =  w_detJ * (J11*C0*J11 + J21*C0*J21);
+                        const real_t Cc = C(coeff_vdim == vdim ? c : 0, qx, qy, e);
+                        DE(qx, qy, 0, c, e) =  w_detJ * Cc * (J12*J12 + J22*J22);
+                        DE(qx, qy, 1, c, e) = -w_detJ * Cc * (J12*J11 + J22*J21);
+                        DE(qx, qy, 2, c, e) = -w_detJ * Cc * (J12*J11 + J22*J21);
+                        DE(qx, qy, 3, c, e) =  w_detJ * Cc * (J11*J11 + J21*J21);
                      }
-                     if (vector_coeff)
-                     {
-                        const real_t Cc = C(c, qx, qy, e);
-                        DE(qx, qy, 0,0, c, e) =  w_detJ * (J12*Cc*J12 + J22*Cc*J22);
-                        DE(qx, qy, 0,1, c, e) = -w_detJ * (J12*Cc*J11 + J22*Cc*J21);
-                        DE(qx, qy, 1,0, c, e) = -w_detJ * (J12*Cc*J11 + J22*Cc*J21);
-                        DE(qx, qy, 1,1, c, e) =  w_detJ * (J11*Cc*J11 + J21*Cc*J21);
-                     }
-                     if (matrix_coeff) { assert(false); }
                   }
+                  else if (coeff_vdim == 2*2) // Matrix coefficient
+                  {
+                     dbg("Matrix coefficient");
+                     const real_t M11 = C(0, qx, qy, e);
+                     const real_t M12 = C(1, qx, qy, e);
+                     const real_t M21 = C(2, qx, qy, e);
+                     const real_t M22 = C(3, qx, qy, e);
+
+                     const real_t R11 = M11*J22 - M12*J12;
+                     const real_t R21 = M21*J22 - M22*J12;
+                     const real_t R12 = -M11*J21 + M12*J11;
+                     const real_t R22 = -M21*J21 + M22*J11;
+
+                     // Now set y to J^{-1}R.
+                     DE(qx, qy, 0, 0, e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
+                     DE(qx, qy, 1, 0, e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
+                     DE(qx, qy, 2, 0, e) = w_detJ * (J22*R12 - J12*R22); // 2,2 or 1,2
+                     DE(qx, qy, 3, 0, e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+
+                     // DE(qx, qy, 0, c, e) =  w_detJ * (J12*C11*J12 + J22*C22*J22);
+                     // DE(qx, qy, 1, c, e) = -w_detJ * (J12*C12*J11 + J22*C21*J21);
+                     // DE(qx, qy, 2, c, e) = -w_detJ * (J12*C21*J11 + J22*C12*J21);
+                     // DE(qx, qy, 3, c, e) =  w_detJ * (J11*C11*J11 + J21*C22*J21);
+                  }
+                  else { assert(false); }
                }
             }
          });
@@ -288,16 +316,26 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          switch ((dofs1D << 4 ) | quad1D)
          {
-            case 0x22: return internal::PAVectorDiffusionApply2D<2,2,3>(ne,B,G,Bt,Gt,D,x,y);
-            case 0x33: return internal::PAVectorDiffusionApply2D<3,3,3>(ne,B,G,Bt,Gt,D,x,y);
-            case 0x44: return internal::PAVectorDiffusionApply2D<4,4,3>(ne,B,G,Bt,Gt,D,x,y);
-            case 0x55: return internal::PAVectorDiffusionApply2D<5,5,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x22:
+               return internal::PAVectorDiffusionApply2D<2,2,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
+            case 0x33:
+               return internal::PAVectorDiffusionApply2D<3,3,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
+            case 0x44:
+               return internal::PAVectorDiffusionApply2D<4,4,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
+            case 0x55:
+               return internal::PAVectorDiffusionApply2D<5,5,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
             default:
-               return internal::PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
+               return internal::PAVectorDiffusionApply2D(ne,coeff_vdim,B,G,Bt,Gt,D,x,y,D1D,Q1D,
+                                                         sdim);
          }
       }
       if (dim == 2 && sdim == 2)
-      { return internal::PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim); }
+      {
+         dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
+         return internal::PAVectorDiffusionApply2D(ne, coeff_vdim,
+                                                   B, G, Bt, Gt, D, x, y,
+                                                   D1D, Q1D, vdim);
+      }
 
       if (dim == 3 && sdim == 3)
       { return internal::PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }

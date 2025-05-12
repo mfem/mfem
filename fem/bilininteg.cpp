@@ -16,6 +16,15 @@
 #include <algorithm>
 #include <memory>
 
+#if __has_include("general/nvtx.hpp")
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kGold
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
+
 using namespace std;
 
 namespace mfem
@@ -3037,7 +3046,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
-
+      dbg("i:{}",i);
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 
@@ -3050,16 +3059,22 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
       if (VQ)
       {
+         dbg("VQ");
          VQ->Eval(vcoeff, Trans, ip);
+         vcoeff.Print();
+         dbg("vdim:{}", vdim);
          for (int k = 0; k < vdim; ++k)
          {
+            dbg("k:{}", k);
             Mult_a_AAt(w*vcoeff(k), dshapedxt, pelmat);
             elmat.AddMatrix(pelmat, dof*k, dof*k);
          }
       }
       else if (MQ)
       {
+         dbg("MQ");
          MQ->Eval(mcoeff, Trans, ip);
+         mcoeff.Print();
          for (int ii = 0; ii < vdim; ++ii)
          {
             for (int jj = 0; jj < vdim; ++jj)
@@ -3071,7 +3086,11 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       }
       else
       {
-         if (Q) { w *= Q->Eval(Trans, ip); }
+         if (Q)
+         {
+            dbg("Q: {}", Q->Eval(Trans, ip));
+            w *= Q->Eval(Trans, ip);
+         }
          Mult_a_AAt(w, dshapedxt, pelmat);
          for (int k = 0; k < vdim; ++k)
          {
