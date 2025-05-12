@@ -32,6 +32,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -5403,11 +5404,15 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
 Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
 {
    Mesh mesh;
-   mesh.MakeSimplicial_(orig_mesh, NULL);
+   auto parent_elements = mesh.MakeSimplicial_(orig_mesh, NULL);
+   if (orig_mesh.GetNodes() != nullptr)
+   {
+      mesh.MakeHigherOrderSimplicial_(orig_mesh, parent_elements);
+   }
    return mesh;
 }
 
-void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
+Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 {
    MFEM_VERIFY(const_cast<Mesh&>(orig_mesh).CheckElementOrientation(false) == 0,
                "Mesh::MakeSimplicial requires a properly oriented input mesh");
@@ -5421,7 +5426,9 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    {
       Mesh copy(orig_mesh);
       Swap(copy, true);
-      return;
+      Array<int> parent_elements(GetNE());
+      std::iota(parent_elements.begin(), parent_elements.end(), 0);
+      return parent_elements;
    }
 
    int nv = orig_mesh.GetNV();
@@ -5738,129 +5745,126 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 
-   // Now the base mesh has been created, can transfer the higher order information. Can not
-   // do this as we go along, because the element connectivity is incomplete, thus we could
-   // not correctly build Nodes's relationships.
-   if (orig_mesh.GetNodes())
-   {
-      // Higher order associated to vertices are unchanged, and those for previously
-      // existing edges. DOFs associated to new elements need to be set.
-      auto *orig_fespace = orig_mesh.GetNodes()->FESpace();
-      auto ordering = orig_fespace->GetOrdering();
-      const bool discont =
-      (dynamic_cast<const mfem::L2_FECollection *>(orig_fespace->FEColl()) != nullptr);
-      SetCurvature(orig_fespace->GetMaxElementOrder(), discont, orig_mesh.SpaceDimension(), ordering);
-
-      // The dofs associated with vertices are unchanged, but there can be new dofs
-      // associated to edges, faces and volumes. Additionally, because we know that the set
-      // of vertices is unchanged by the splitting operation, we can use the vertices to map
-      // local coordinates of the "child" elements (the new simplices introduced), from the
-      // "parent" element (the quad, prism, hex that was split).
-
-      // For segment, triangle and tetrahedron, the dof values are copied directly. For the
-      // others, we have to construct a map from the Node locations in the new simplex to
-      // the parent non-simplex element. This could be sped up by not repeatedly access the
-      // original FE as the accesses will be coherent (i.e. all child elems are consecutive).
-
-      Array<int> edofs; // element dofs in new element
-      Array<int> parent_vertices, child_vertices; // vertices of parent and child.
-      Array<int> node_map; // node indices of parent from child.
-      Vector edofvals; // values of elements dofs in original element
-      // Storage for evaluating node function on parent element, at node locations of child element
-      DenseMatrix shape; // ndof_coarse x nnode_refined.
-      DenseMatrix point_matrix; // sdim x nnode_refined
-      IntegrationRule child_nodes_in_parent; // The parent nodes that correspond to the child nodes
-      for (int i = 0; i < parent_elems.Size(); i++)
-      {
-         const int ip = parent_elems[i];
-         const Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(ip);
-         orig_mesh.GetNodes()->GetElementDofValues(ip, edofvals);
-         switch (orig_geom)
-         {
-            case Geometry::Type::SEGMENT : // fall through
-            case Geometry::Type::TRIANGLE : // fall through
-            case Geometry::Type::TETRAHEDRON :
-               GetNodes()->FESpace()->GetElementVDofs(i, edofs);
-               GetNodes()->SetSubVector(edofs, edofvals);
-               break;
-            case Geometry::Type::CUBE : // fall through
-            case Geometry::Type::PRISM : // fall through
-            case Geometry::Type::PYRAMID : // fall through
-            case Geometry::Type::SQUARE :
-               {
-                  // Extract the vertices of parent and child, can then form the map from child
-                  // reference coordinates to parent reference coordinates. Exploit the fact
-                  // that for Nodes, the vertex entries come first, and their indexing matches
-                  // the vertex numbering. Thus we have already have an inverse index map.
-                  orig_mesh.GetElementVertices(ip, parent_vertices);
-                  GetElementVertices(i, child_vertices);
-                  node_map.SetSize(0);
-                  for (auto cv : child_vertices)
-                     for (int ipv = 0; ipv < parent_vertices.Size(); ipv++)
-                        if (cv == parent_vertices[ipv])
-                        {
-                           node_map.Append(ipv);
-                           break;
-                        }
-                  MFEM_ASSERT(node_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)], "!");
-                  // node_map now says which of the parent vertex nodes map to each of the
-                  // child vertex nodes. Using this can build a basis in the parent element
-                  // from child Node values, exploit the linearity to then transform all nodes.
-                  child_nodes_in_parent.SetSize(0);
-                  const auto *orig_FE = orig_mesh.GetNodes()->FESpace()->GetFE(ip);
-                  for (auto pn : node_map)
-                  {
-                     child_nodes_in_parent.Append(orig_FE->GetNodes()[pn]);
-                  }
-                  const auto *simplex_FE = GetNodes()->FESpace()->GetFE(i);
-                  shape.SetSize(orig_FE->GetDof(), simplex_FE->GetDof()); // One set of evaluations per simplex dof.
-                  Vector col;
-                  for (int j = 0; j < simplex_FE->GetNodes().Size(); j++)
-                  {
-                     const auto &simplex_node = simplex_FE->GetNodes()[j];
-                     IntegrationPoint simplex_node_in_orig;
-                     // Handle the 2D vs 3D case by multiplying .z by zero.
-                     simplex_node_in_orig.Set3(
-                          child_nodes_in_parent[0].x +
-                          simplex_node.x * (child_nodes_in_parent[1].x - child_nodes_in_parent[0].x)
-                        + simplex_node.y * (child_nodes_in_parent[2].x - child_nodes_in_parent[0].x)
-                        + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].x - child_nodes_in_parent[0].x),
-                          child_nodes_in_parent[0].y +
-                          simplex_node.x * (child_nodes_in_parent[1].y - child_nodes_in_parent[0].y)
-                        + simplex_node.y * (child_nodes_in_parent[2].y - child_nodes_in_parent[0].y)
-                        + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].y - child_nodes_in_parent[0].y),
-                          child_nodes_in_parent[0].z +
-                          simplex_node.x * (child_nodes_in_parent[1].z - child_nodes_in_parent[0].z)
-                        + simplex_node.y * (child_nodes_in_parent[2].z - child_nodes_in_parent[0].z)
-                        + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].z - child_nodes_in_parent[0].z));
-                     shape.GetColumnReference(j, col);
-                     orig_FE->CalcShape(simplex_node_in_orig, col);
-                  }
-                  // All the non-simplex basis functions have now been evaluated at all the
-                  // simplex basis function node locations. Now evaluate the summations and
-                  // place back into the Nodes vector.
-                  orig_mesh.GetNodes()->GetElementDofValues(ip, edofvals);
-                  // Dof values are always returned as [[x_1,x_2,x_3,...], [y_1,y_2,y_3,...], [z_1,z_2,z_3,...]]
-                  DenseMatrix edofvals_mat(edofvals.GetData(), orig_FE->GetDof(), sdim);
-                  point_matrix.SetSize(simplex_FE->GetDof(), sdim);
-                  MultAtB(shape, edofvals_mat, point_matrix);
-                  auto *doftrans = GetNodes()->FESpace()->GetElementVDofs(i, edofs);
-                  MFEM_ASSERT(doftrans == nullptr, "!");
-                  GetNodes()->SetSubVector(edofs, point_matrix.GetData());
-               }
-               break;
-            case Geometry::Type::POINT :  // fall through
-            case Geometry::Type::INVALID :
-            case Geometry::Type::NUM_GEOMETRIES :
-               MFEM_ABORT("Internal Error!");
-         }
-      }
-
-      SetVerticesFromNodes(Nodes);
-   }
-
-
+   return parent_elems;
 }
+
+
+void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh, const Array<int> &parent_elements)
+{
+   // Higher order associated to vertices are unchanged, and those for previously
+   // existing edges. DOFs associated to new elements need to be set.
+   const int sdim = orig_mesh.SpaceDimension();
+   auto *orig_fespace = orig_mesh.GetNodes()->FESpace();
+   const bool discont =
+      (dynamic_cast<const mfem::L2_FECollection *>(orig_fespace->FEColl()) != nullptr);
+   SetCurvature(orig_fespace->GetMaxElementOrder(), discont,
+      orig_mesh.SpaceDimension(), orig_fespace->GetOrdering());
+
+   // The dofs associated with vertices are unchanged, but there can be new dofs
+   // associated to edges, faces and volumes. Additionally, because we know that the set
+   // of vertices is unchanged by the splitting operation, we can use the vertices to map
+   // local coordinates of the "child" elements (the new simplices introduced), from the
+   // "parent" element (the quad, prism, hex that was split).
+
+   // For segment, triangle and tetrahedron, the dof values are copied directly. For the
+   // others, we have to construct a map from the Node locations in the new simplex to
+   // the parent non-simplex element. This could be sped up by not repeatedly access the
+   // original FE as the accesses will be coherent (i.e. all child elems are consecutive).
+
+   Array<int> edofs; // element dofs in new element
+   Array<int> parent_vertices, child_vertices; // vertices of parent and child.
+   Array<int> node_map; // node indices of parent from child.
+   Vector edofvals; // values of elements dofs in original element
+   // Storage for evaluating node function on parent element, at node locations of child element
+   DenseMatrix shape; // ndof_coarse x nnode_refined.
+   DenseMatrix point_matrix; // sdim x nnode_refined
+   IntegrationRule child_nodes_in_parent; // The parent nodes that correspond to the child nodes
+   for (int i = 0; i < parent_elements.Size(); i++)
+   {
+      const int ip = parent_elements[i];
+      const Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(ip);
+      orig_mesh.GetNodes()->GetElementDofValues(ip, edofvals);
+      switch (orig_geom)
+      {
+         case Geometry::Type::SEGMENT : // fall through
+         case Geometry::Type::TRIANGLE : // fall through
+         case Geometry::Type::TETRAHEDRON :
+            GetNodes()->FESpace()->GetElementVDofs(i, edofs);
+            GetNodes()->SetSubVector(edofs, edofvals);
+            break;
+         case Geometry::Type::CUBE : // fall through
+         case Geometry::Type::PRISM : // fall through
+         case Geometry::Type::PYRAMID : // fall through
+         case Geometry::Type::SQUARE :
+            {
+               // Extract the vertices of parent and child, can then form the map from child
+               // reference coordinates to parent reference coordinates. Exploit the fact
+               // that for Nodes, the vertex entries come first, and their indexing matches
+               // the vertex numbering. Thus we have already have an inverse index map.
+               orig_mesh.GetElementVertices(ip, parent_vertices);
+               GetElementVertices(i, child_vertices);
+               node_map.SetSize(0);
+               for (auto cv : child_vertices)
+                  for (int ipv = 0; ipv < parent_vertices.Size(); ipv++)
+                     if (cv == parent_vertices[ipv])
+                     {
+                        node_map.Append(ipv);
+                        break;
+                     }
+               MFEM_ASSERT(node_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)], "!");
+               // node_map now says which of the parent vertex nodes map to each of the
+               // child vertex nodes. Using this can build a basis in the parent element
+               // from child Node values, exploit the linearity to then transform all nodes.
+               child_nodes_in_parent.SetSize(0);
+               const auto *orig_FE = orig_mesh.GetNodes()->FESpace()->GetFE(ip);
+               for (auto pn : node_map)
+               {
+                  child_nodes_in_parent.Append(orig_FE->GetNodes()[pn]);
+               }
+               const auto *simplex_FE = GetNodes()->FESpace()->GetFE(i);
+               shape.SetSize(orig_FE->GetDof(), simplex_FE->GetDof()); // One set of evaluations per simplex dof.
+               Vector col;
+               for (int j = 0; j < simplex_FE->GetNodes().Size(); j++)
+               {
+                  const auto &simplex_node = simplex_FE->GetNodes()[j];
+                  IntegrationPoint simplex_node_in_orig;
+                  // Handle the 2D vs 3D case by multiplying .z by zero.
+                  simplex_node_in_orig.Set3(
+                        child_nodes_in_parent[0].x +
+                        simplex_node.x * (child_nodes_in_parent[1].x - child_nodes_in_parent[0].x)
+                     + simplex_node.y * (child_nodes_in_parent[2].x - child_nodes_in_parent[0].x)
+                     + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].x - child_nodes_in_parent[0].x),
+                        child_nodes_in_parent[0].y +
+                        simplex_node.x * (child_nodes_in_parent[1].y - child_nodes_in_parent[0].y)
+                     + simplex_node.y * (child_nodes_in_parent[2].y - child_nodes_in_parent[0].y)
+                     + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].y - child_nodes_in_parent[0].y),
+                        child_nodes_in_parent[0].z +
+                        simplex_node.x * (child_nodes_in_parent[1].z - child_nodes_in_parent[0].z)
+                     + simplex_node.y * (child_nodes_in_parent[2].z - child_nodes_in_parent[0].z)
+                     + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].z - child_nodes_in_parent[0].z));
+                  shape.GetColumnReference(j, col);
+                  orig_FE->CalcShape(simplex_node_in_orig, col);
+               }
+               // All the non-simplex basis functions have now been evaluated at all the
+               // simplex basis function node locations. Now evaluate the summations and
+               // place back into the Nodes vector.
+               orig_mesh.GetNodes()->GetElementDofValues(ip, edofvals);
+               // Dof values are always returned as [[x_1,x_2,x_3,...], [y_1,y_2,y_3,...], [z_1,z_2,z_3,...]]
+               DenseMatrix edofvals_mat(edofvals.GetData(), orig_FE->GetDof(), sdim);
+               point_matrix.SetSize(simplex_FE->GetDof(), sdim);
+               MultAtB(shape, edofvals_mat, point_matrix);
+               GetNodes()->FESpace()->GetElementVDofs(i, edofs);
+               GetNodes()->SetSubVector(edofs, point_matrix.GetData());
+            }
+            break;
+         case Geometry::Type::POINT :  // fall through
+         case Geometry::Type::INVALID :
+         case Geometry::Type::NUM_GEOMETRIES :
+            MFEM_ABORT("Internal Error!");
+      }
+   }
+}
+
 
 Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
 {

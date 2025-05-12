@@ -1400,7 +1400,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    {
       vglobal[iv] = fes.GetGlobalTDofNumber(iv);
    }
-   mesh.MakeSimplicial_(orig_mesh, vglobal);
+   auto parent_elements = mesh.MakeSimplicial_(orig_mesh, vglobal);
 
    // count the number of entries in each row of group_s{vert,edge,face}
    mesh.group_svert.MakeI(mesh.GetNGroups()-1); // exclude the local group 0
@@ -1516,6 +1516,11 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    mesh.group_stria.ShiftUpI();
 
    mesh.FinalizeParTopo();
+
+   if (orig_mesh.GetNodes() != nullptr)
+   {
+      mesh.MakeHigherOrderSimplicial_(orig_mesh, parent_elements);
+   }
 
    return mesh;
 }
