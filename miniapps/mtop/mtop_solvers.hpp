@@ -825,6 +825,186 @@ private:
 
 };
 
+class MSP3Prec:public IterativeSolver
+{
+public:
+    MSP3Prec(MPI_Comm comm_):
+        IterativeSolver(comm_)
+    {
+        comm=comm_;
+        MPI_Comm_rank(comm,&myrank);
+        a=1.0;
+        b=1.0;
+        c=1.0;
+        alpha=1.0;
+    }
 
+    virtual
+        ~MSP3Prec(){}
+
+
+    /// (a*W1-b*W2+i*c*T)(x+i*y)=(e+i*g)
+    void SetOperators(Operator* W1_, Operator* W2_, Operator* T_,
+                      real_t a_=1.0, real_t b_=1.0, real_t c_=1.0){
+
+        W1=W1_;
+        W2=W2_;
+        T=T_;
+
+        a=a_;
+        b=b_;
+        c=c_;
+
+        this->width=2*(W1_->Width());
+        this->height=2*(W1_->Width());
+
+        tv.SetSize(W1_->Width());
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = W1_->Width();
+        block_true_offsets[2] = W1_->Width();
+        block_true_offsets.PartialSum();
+
+        fv.Update(block_true_offsets);
+
+        //MUMPS
+        {
+            HypreParMatrix* km=dynamic_cast<HypreParMatrix*>(W1_);
+            HypreParMatrix* mm=dynamic_cast<HypreParMatrix*>(W2_);
+            HypreParMatrix* cm=dynamic_cast<HypreParMatrix*>(T_);
+
+            Array2D<const HypreParMatrix*> am(2,2);
+            am(0,0)=cm;
+            am(0,1)=mm;
+            am(1,0)=mm;
+            am(1,1)=cm;
+
+            Array2D<real_t> cc(2,2);
+            cc(0,0)=c*alpha; cc(0,1)=-b;
+            cc(1,0)=b;       cc(1,1)=c*alpha;
+
+            std::unique_ptr<HypreParMatrix> bm;
+            bm.reset(HypreParMatrixFromBlocks(am,&cc));
+            mumps1.reset(new MUMPSSolver(comm));
+            mumps1->SetPrintLevel(1);
+            mumps1->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            mumps1->SetOperator(*bm);
+
+            am(0,0)=cm;
+            am(0,1)=km;
+            am(1,0)=km;
+            am(1,1)=cm;
+
+            cc(0,0)=c*alpha; cc(0,1)=a;
+            cc(1,0)=-a;      cc(1,1)=c*alpha;
+
+            bm.reset(HypreParMatrixFromBlocks(am,&cc));
+
+            mumps2.reset(new MUMPSSolver(comm));
+            mumps2->SetPrintLevel(1);
+            mumps2->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            mumps2->SetOperator(*bm);
+
+        }
+
+    }
+
+    void SetAlpha(real_t al_)
+    {
+        alpha=al_;
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
+        xb.Update(const_cast<Vector&>(x), block_true_offsets);
+        yb.Update(y, block_true_offsets);
+
+
+        Vector& ee=fv.GetBlock(0);
+        Vector& gg=fv.GetBlock(1);
+
+        ls1->SetAbsTol(this->abs_tol);
+        ls1->SetRelTol(this->rel_tol);
+        ls1->SetMaxIter(this->max_iter);
+        ls1->iterative_mode=this->iterative_mode;
+
+        ls2->SetAbsTol(this->abs_tol);
+        ls2->SetRelTol(this->rel_tol);
+        ls2->SetMaxIter(this->max_iter);
+        ls2->iterative_mode=this->iterative_mode;
+
+        ls1->SetPrintLevel(-1);
+        ls2->SetPrintLevel(-1);
+
+
+        bool cflag=true;
+        int iter=0;
+        while(cflag)
+        {
+            //Step 1
+            //set RHS
+            ee.Set(+1.0,xb.GetBlock(1));
+            gg.Set(-1.0,xb.GetBlock(0));
+
+            T->Mult(yb.GetBlock(0),tv); ee.Add((alpha-1.0)*c,tv);
+            T->Mult(yb.GetBlock(1),tv); gg.Add((alpha-1.0)*c,tv);
+            W1->Mult(yb.GetBlock(1),tv); ee.Add(-a,tv);
+            W1->Mult(yb.GetBlock(0),tv); ee.Add(+a,tv);
+
+
+            mumps1->Mult(fv,y);
+
+
+            //Step 2
+            //set RHS
+            ee.Set(+1.0,xb.GetBlock(1));
+            gg.Set(-1.0,xb.GetBlock(0));
+            T->Mult(yb.GetBlock(0),tv); ee.Add((alpha-1.0)*c,tv);
+            T->Mult(yb.GetBlock(1),tv); gg.Add((alpha-1.0)*c,tv);
+            W2->Mult(yb.GetBlock(1),tv); ee.Add(+b,tv);
+            W2->Mult(yb.GetBlock(0),tv); ee.Add(-b,tv);
+
+            mumps2->Mult(fv,y);
+
+            iter++;
+            if(iter>=this->max_iter){cflag=false;}
+        }
+        std::cout<<std::endl;
+        if(myrank==0){std::cout<<"END MSP3"<<std::endl;}
+
+
+    }
+
+private:
+    MPI_Comm comm;
+    int myrank;
+    real_t a,b,c;
+    real_t alpha;
+
+    Operator* W1;
+    Operator* W2;
+    Operator* T;
+
+    std::unique_ptr<PRESBPrec> presb1;
+    std::unique_ptr<PRESBPrec> presb2;
+
+    std::unique_ptr<BlockOperator> bop1;
+    std::unique_ptr<BlockOperator> bop2;
+
+    std::unique_ptr<IterativeSolver> ls1;
+    std::unique_ptr<IterativeSolver> ls2;
+
+    mfem::Array<int> block_true_offsets;
+
+    mutable BlockVector fv;
+    mutable BlockVector xb;
+    mutable BlockVector yb;
+    mutable Vector tv;
+
+    std::unique_ptr<MUMPSSolver> mumps1;
+    std::unique_ptr<MUMPSSolver> mumps2;
+
+};
 
 #endif // MTOP_SOLVERS_HPP

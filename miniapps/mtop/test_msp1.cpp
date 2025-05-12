@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
    const Operator *P = kf->GetProlongation();
    ConstrainedOperator ckf(new RAPOperator(*P,*kf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
    ConstrainedOperator cmf(new RAPOperator(*P,*mf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ZERO);
-   ConstrainedOperator ccf(new RAPOperator(*P,*cf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ZERO);
+   ConstrainedOperator ccf(new RAPOperator(*P,*cf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
    ConstrainedOperator cwf(new RAPOperator(*P,*wf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
 
    OperatorHandle hkf;

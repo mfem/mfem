@@ -116,12 +116,26 @@ public:
         eps=1e-6;
 
         modes.resize(num_modes);
+        B=nullptr;
+        A=nullptr;
+        iB=nullptr;
     }
 
     void SetOperators(const Operator& A_, const Operator& iB_)
     {
         A=&A_;
         iB=&iB_;
+
+        for(int i=0;i<num_modes;i++){
+            modes[i].SetSize(A->NumRows());
+        }
+    }
+
+    void SetOperators(const Operator& A_, const Operator& B_, const Operator& iB_)
+    {
+        A=&A_;
+        iB=&iB_;
+        B=&B_;
 
         for(int i=0;i<num_modes;i++){
             modes[i].SetSize(A->NumRows());
@@ -169,18 +183,24 @@ public:
         return modes;
     }
 
-
-    void OrthoB(Operator* C,
+    void Ortho(const Operator* C,
                 std::vector<Vector>& vecs);
 
-    void OrthoB(Operator* C,
+    void Ortho(const Operator* C,
                 std::vector<Vector>& vecs,
                 std::vector<Vector>& orth);
+
+    void Ortho( std::vector<Vector>& vecs,
+                std::vector<Vector>& orth);
+
+
+    void SolveNA(); //non-addaptive solve
 private:
     MPI_Comm comm;
 
     const Operator* A;
     const Operator* iB;
+    const Operator* B;
 
     int num_modes;
     int max_iter;
@@ -189,7 +209,6 @@ private:
     std::vector<Vector> modes;
     Vector evals;
 
-    void SolveNA(); //non-addaptive solve
 
 };
 

@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 2;
+   int order = 3;
    bool static_cond = false;
    bool pa = false;
    bool fa = false;
@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
 
    kmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ONE);
    mmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ZERO);
-   cmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ZERO);
+   cmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ONE);
    wmat->EliminateBC(ess_dofs,Operator::DiagonalPolicy::DIAG_ONE);
 
    //kmat->EliminateRowsCols(ess_dofs); kmat->EliminateZeroRows();
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
    const Operator *P = kf->GetProlongation();
    ConstrainedOperator ckf(new RAPOperator(*P,*kf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
    ConstrainedOperator cmf(new RAPOperator(*P,*mf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ZERO);
-   ConstrainedOperator ccf(new RAPOperator(*P,*cf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ZERO);
+   ConstrainedOperator ccf(new RAPOperator(*P,*cf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
    ConstrainedOperator cwf(new RAPOperator(*P,*wf,*P),ess_dofs,true, Operator::DiagonalPolicy::DIAG_ONE);
 
    OperatorHandle hkf;
@@ -367,10 +367,14 @@ int main(int argc, char *argv[])
        HypreBoomerAMG amg;
        //amg.SetOperator(*kmat);
        amg.SetOperator(lorkm);
-       //amg.SetElasticityOptions(vfes);
+       //amg.SetElasticityOptions(&lorfes);
        ls.SetOperator(*kmat);
        ls.SetPreconditioner(amg);
        ls.iterative_mode=false;
+       ls.SetPrintLevel(1);
+       ls.SetAbsTol(1e-12);
+       ls.SetRelTol(1e-12);
+       ls.SetMaxIter(20);
 
        //ProductOperator pOp(&ls,mmat.get(),false,false);
        LocProductOperator pOp(&ls,mmat.get());
@@ -378,46 +382,96 @@ int main(int argc, char *argv[])
        RandomizedSubspaceIteration ss(pmesh.GetComm());
        ss.SetConstrDOFs(ess_dofs);
        ss.SetNumModes(10);
-       ss.SetNumIter(10);
+       ss.SetNumIter(2);
        ss.SetOperator(pOp);
        ss.Solve();
 
-       const std::vector<Vector>& vecs=ss.GetModes();
-       Vector rr(vecs[0]);
+       {
+
+           const std::vector<Vector>& vecs=ss.GetModes();
+           Vector rr(vecs[0]);
 
 
-       if(myrank==0){ std::cout<<std::endl;
-                      std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
-       for(int i=0;i<ss.GetNumModes();i++){
-               kmat->Mult(vecs[i],rr);
-           for(int j=0;j<ss.GetNumModes();j++){
-               real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
-               if(myrank==0){std::cout<<gp<<" ";}
+           if(myrank==0){ std::cout<<std::endl;
+                          std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
+           for(int i=0;i<ss.GetNumModes();i++){
+                   kmat->Mult(vecs[i],rr);
+               for(int j=0;j<ss.GetNumModes();j++){
+                   real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+                   if(myrank==0){std::cout<<gp<<" ";}
+               }
+               if(myrank==0){std::cout<<std::endl;}
            }
-           if(myrank==0){std::cout<<std::endl;}
-       }
 
-       if(myrank==0){ std::cout<<std::endl;}
-       for(int i=0;i<ss.GetNumModes();i++){
-               mmat->Mult(vecs[i],rr);
-           for(int j=0;j<ss.GetNumModes();j++){
-               real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
-               if(myrank==0){std::cout<<gp<<" ";}
+           if(myrank==0){ std::cout<<std::endl;}
+           for(int i=0;i<ss.GetNumModes();i++){
+                   mmat->Mult(vecs[i],rr);
+               for(int j=0;j<ss.GetNumModes();j++){
+                   real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+                   if(myrank==0){std::cout<<gp<<" ";}
+               }
+               if(myrank==0){std::cout<<std::endl;}
            }
-           if(myrank==0){std::cout<<std::endl;}
+
+           if(myrank==0){ std::cout<<std::endl;}
+           for(int i=0;i<ss.GetNumModes();i++){
+                   mmat->Mult(vecs[i],rr);
+                   real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+
+                   kmat->Mult(vecs[i],rr);
+                   real_t kp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+
+                   if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
+           }
        }
 
-       if(myrank==0){ std::cout<<std::endl;}
-       for(int i=0;i<ss.GetNumModes();i++){
-               mmat->Mult(vecs[i],rr);
-               real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+       AdaptiveRandomizedGenEig ae(pmesh.GetComm());
+       ae.SetOperators(*mmat,*kmat,ls);
+       ae.SetNumModes(10);
+       ae.SetNumIter(10);
+       ae.SolveNA();
 
-               kmat->Mult(vecs[i],rr);
-               real_t kp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+       {
 
-               if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
+           const std::vector<Vector>& vecs=ae.GetModes();
+           Vector rr(vecs[0]);
+
+
+           if(myrank==0){ std::cout<<std::endl;
+                          std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
+           for(int i=0;i<ss.GetNumModes();i++){
+                   kmat->Mult(vecs[i],rr);
+               for(int j=0;j<ss.GetNumModes();j++){
+                   real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+                   if(myrank==0){std::cout<<gp<<" ";}
+               }
+               if(myrank==0){std::cout<<std::endl;}
+           }
+
+           if(myrank==0){ std::cout<<std::endl;}
+           for(int i=0;i<ss.GetNumModes();i++){
+                   mmat->Mult(vecs[i],rr);
+               for(int j=0;j<ss.GetNumModes();j++){
+                   real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+                   if(myrank==0){std::cout<<gp<<" ";}
+               }
+               if(myrank==0){std::cout<<std::endl;}
+           }
+
+           if(myrank==0){ std::cout<<std::endl;}
+           for(int i=0;i<ae.GetNumModes();i++){
+                   mmat->Mult(vecs[i],rr);
+                   real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+
+                   kmat->Mult(vecs[i],rr);
+                   real_t kp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
+
+                   if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
+           }
        }
 
+
+/*
        std::random_device rd;
        std::mt19937 generator(rd());
        // Create a normal distribution object
@@ -432,11 +486,21 @@ int main(int argc, char *argv[])
            }
        }
 
-       AdaptiveRandomizedGenEig ae(pmesh.GetComm());
-       ae.SetOperators(*kmat,*mmat);
+
+       if(myrank==0){ std::cout<<std::endl;
+                      std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
+       for(int i=0;i<ss.GetNumModes();i++){
+               kmat->Mult(vecs[i],rr);
+           for(int j=0;j<ss.GetNumModes();j++){
+               real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
+               if(myrank==0){std::cout<<gp<<" ";}
+           }
+           if(myrank==0){std::cout<<std::endl;}
+       }
 
 
-       ae.OrthoB(kmat.get(), pvecs, ovecs);
+
+       ae.Ortho(kmat.get(), pvecs, ovecs);
 
        if(myrank==0){ std::cout<<std::endl;}
        for(int i=0;i<5;i++){
@@ -447,6 +511,28 @@ int main(int argc, char *argv[])
            }
            if(myrank==0){std::cout<<std::endl;}
        }
+
+       if(myrank==0){std::cout<<std::endl;}
+       for(int i=0;i<5;i++){
+           mmat->Mult(pvecs[i],rr);
+           for(int j=0;j<5;j++){
+               real_t gp=InnerProduct (pmesh.GetComm(), pvecs[j], rr);
+               if(myrank==0){std::cout<<gp<<" ";}
+           }
+           if(myrank==0){std::cout<<std::endl;}
+       }
+
+       if(myrank==0){std::cout<<std::endl;}
+       ae.Ortho(mmat.get(),pvecs);
+       for(int i=0;i<5;i++){
+           mmat->Mult(pvecs[i],rr);
+           for(int j=0;j<5;j++){
+               real_t gp=InnerProduct (pmesh.GetComm(), pvecs[j], rr);
+               if(myrank==0){std::cout<<gp<<" ";}
+           }
+           if(myrank==0){std::cout<<std::endl;}
+       }
+       */
 
    }
 
