@@ -204,8 +204,6 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    }
 }
 
-
-
 TEST_CASE("MakeMixedSimplicial", "[Mesh]")
 {
    auto mesh_fname = "../../data/fichera-mixed-p2.mesh";
