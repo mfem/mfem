@@ -29,10 +29,10 @@ namespace internal
 
 template <int T_D1D = 0, int T_Q1D = 0>
 static void PAVectorMassApply2D(const int NE,
-                                const Array<real_t> &B_,
-                                const Vector &op_,
-                                const Vector &x_,
-                                Vector &y_,
+                                const Array<real_t> &b,
+                                const Vector &d,
+                                const Vector &x,
+                                Vector &y,
                                 const int d1d = 0,
                                 const int q1d = 0)
 {
@@ -40,9 +40,21 @@ static void PAVectorMassApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto DE = Reshape(op_.Read(), Q1D, Q1D, VDIM, NE);
-   const auto XE = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto YE = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   const int coeff_vdim = d.Size() / (Q1D*Q1D*NE);
+   const bool const_coeff = coeff_vdim == 1;
+   const bool vector_coeff = coeff_vdim == VDIM;
+   const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
+
+   mfem::out << "\x1b[33m"
+             << "PAVectorMassApply2D: coeff_vdim = " << coeff_vdim
+             << ", const_coeff = " << const_coeff
+             << ", vector_coeff = " << vector_coeff
+             << ", matrix_coeff = " << matrix_coeff
+             << "\x1b[m" << std::endl;
+
+   const auto DE = Reshape(d.Read(), Q1D, Q1D, coeff_vdim, NE);
+   const auto XE = Reshape(x.Read(), D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -53,19 +65,37 @@ static void PAVectorMassApply2D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
       kernels::internal::regs4d_t<VDIM, 1, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs2d(e, D1D, XE, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
-      for (int c = 0; c < VDIM; ++c)
+      MFEM_FOREACH_THREAD(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            const real_t Qx = r1[0][0][qy][qx];
+            const real_t Qy = r1[1][0][qy][qx];
+            const real_t D0 = DE(qx, qy, 0, e);
+
+            if (const_coeff)
             {
-               const real_t r = r1[c][0][qy][qx];
-               const real_t D = DE(qx, qy, c, e);
-               r0[c][0][qy][qx] = D * r;
+               r0[0][0][qy][qx] = D0*Qx;
+               r0[1][0][qy][qx] = D0*Qy;
             }
+            else if (vector_coeff)
+            {
+               const real_t D1 = DE(qx, qy, 1, e);
+               r0[0][0][qy][qx] = D0*Qx;
+               r0[1][0][qy][qx] = D1*Qy;
+            }
+            else if (matrix_coeff)
+            {
+               const real_t D1 = DE(qx, qy, 1, e);
+               const real_t D2 = DE(qx, qy, 2, e);
+               const real_t D3 = DE(qx, qy, 3, e);
+               r0[0][0][qy][qx] = D0*Qx + D1*Qy;
+               r0[1][0][qy][qx] = D2*Qx + D3*Qy;
+            }
+            else { assert(false); }
          }
       }
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
@@ -101,13 +131,13 @@ static void PAVectorMassApply3D(const int NE,
       kernels::internal::LoadMatrix(D1D, Q1D, B_, sB);
       kernels::internal::LoadDofs3d(e, D1D, XE, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
-      for (int c = 0; c < VDIM; ++c)
+      for (int qz = 0; qz < Q1D; qz++)
       {
-         for (int qz = 0; qz < Q1D; qz++)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               for (int c = 0; c < VDIM; ++c)
                {
                   const real_t r = r1[c][0][qz][qy][qx];
                   const real_t D = DE(qx, qy, qz, c, e);
