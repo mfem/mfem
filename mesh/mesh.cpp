@@ -1553,6 +1553,7 @@ Geometry::Type Mesh::GetTypicalElementGeometry() const
    return geom;
 }
 
+
 void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
 {
    const int num_faces = GetNumFaces();
@@ -5473,25 +5474,6 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    constexpr int nv_tri = 3, nv_quad = 4, nv_tet = 4, nv_prism = 6, nv_hex = 8;
    constexpr int quad_ntris = 2; // NTriangles per quad
    constexpr int prism_ntets = 3; // NTets per prism
-   /*
-      Config 0
-      3_____2
-      |    /|
-      | 1 / |
-      |  /  |
-      | / 0 |
-      |/____|
-      0      1
-
-      Config 1
-      3_____2
-      |\    |
-      | \ 1 |
-      |  \  |
-      | 0 \ |
-      |____\|
-      0      1
-   */
    // Map verts of quad to verts of tri, in two possible configurations.
    // quad_trimap[i][0,2,4] is the first triangle, and quad_trimap[i][1,3,5] is the second,
    // for each configuration.
@@ -5769,7 +5751,6 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
       (dynamic_cast<const mfem::L2_FECollection *>(orig_fespace->FEColl()) != nullptr);
       SetCurvature(orig_fespace->GetMaxElementOrder(), discont, orig_mesh.SpaceDimension(), ordering);
 
-      *GetNodes() = 0.0; // zero them all out
       // The dofs associated with vertices are unchanged, but there can be new dofs
       // associated to edges, faces and volumes. Additionally, because we know that the set
       // of vertices is unchanged by the splitting operation, we can use the vertices to map
@@ -5783,12 +5764,12 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 
       Array<int> edofs; // element dofs in new element
       Array<int> parent_vertices, child_vertices; // vertices of parent and child.
-      Array<int> node_map;
+      Array<int> node_map; // node indices of parent from child.
       Vector edofvals; // values of elements dofs in original element
-      // Storage for evaluating node function on original element, at node locations on split element
+      // Storage for evaluating node function on parent element, at node locations of child element
       DenseMatrix shape; // ndof_coarse x nnode_refined.
       DenseMatrix point_matrix; // sdim x nnode_refined
-      IntegrationRule child_in_parent_nodes; // The nodes in the parent element that match the child nodes
+      IntegrationRule child_nodes_in_parent; // The parent nodes that correspond to the child nodes
       for (int i = 0; i < parent_elems.Size(); i++)
       {
          const int ip = parent_elems[i];
@@ -5824,63 +5805,47 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
                   MFEM_ASSERT(node_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)], "!");
                   // node_map now says which of the parent vertex nodes map to each of the
                   // child vertex nodes. Using this can build a basis in the parent element
-                  // from child Node values.
-                  child_in_parent_nodes.SetSize(0);
+                  // from child Node values, exploit the linearity to then transform all nodes.
+                  child_nodes_in_parent.SetSize(0);
                   const auto *orig_FE = orig_mesh.GetNodes()->FESpace()->GetFE(ip);
                   for (auto pn : node_map)
                   {
-                     child_in_parent_nodes.Append(orig_FE->GetNodes()[pn]);
+                     child_nodes_in_parent.Append(orig_FE->GetNodes()[pn]);
                   }
                   const auto *simplex_FE = GetNodes()->FESpace()->GetFE(i);
                   shape.SetSize(orig_FE->GetDof(), simplex_FE->GetDof()); // One set of evaluations per simplex dof.
                   Vector col;
-                  MFEM_ASSERT(simplex_FE->GetDof() == simplex_FE->GetNodes().Size(), "One dof per node..."); // TODO: delete
                   for (int j = 0; j < simplex_FE->GetNodes().Size(); j++)
                   {
                      const auto &simplex_node = simplex_FE->GetNodes()[j];
                      IntegrationPoint simplex_node_in_orig;
                      // Handle the 2D vs 3D case by multiplying .z by zero.
                      simplex_node_in_orig.Set3(
-                          child_in_parent_nodes[0].x +
-                          simplex_node.x * (child_in_parent_nodes[1].x - child_in_parent_nodes[0].x)
-                        + simplex_node.y * (child_in_parent_nodes[2].x - child_in_parent_nodes[0].x)
-                        + simplex_node.z * (child_in_parent_nodes[(sdim > 2) ? 3 : 0].x - child_in_parent_nodes[0].x),
-                          child_in_parent_nodes[0].y +
-                          simplex_node.x * (child_in_parent_nodes[1].y - child_in_parent_nodes[0].y)
-                        + simplex_node.y * (child_in_parent_nodes[2].y - child_in_parent_nodes[0].y)
-                        + simplex_node.z * (child_in_parent_nodes[(sdim > 2) ? 3 : 0].y - child_in_parent_nodes[0].y),
-                          child_in_parent_nodes[0].z +
-                          simplex_node.x * (child_in_parent_nodes[1].z - child_in_parent_nodes[0].z)
-                        + simplex_node.y * (child_in_parent_nodes[2].z - child_in_parent_nodes[0].z)
-                        + simplex_node.z * (child_in_parent_nodes[(sdim > 2) ? 3 : 0].z - child_in_parent_nodes[0].z));
+                          child_nodes_in_parent[0].x +
+                          simplex_node.x * (child_nodes_in_parent[1].x - child_nodes_in_parent[0].x)
+                        + simplex_node.y * (child_nodes_in_parent[2].x - child_nodes_in_parent[0].x)
+                        + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].x - child_nodes_in_parent[0].x),
+                          child_nodes_in_parent[0].y +
+                          simplex_node.x * (child_nodes_in_parent[1].y - child_nodes_in_parent[0].y)
+                        + simplex_node.y * (child_nodes_in_parent[2].y - child_nodes_in_parent[0].y)
+                        + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].y - child_nodes_in_parent[0].y),
+                          child_nodes_in_parent[0].z +
+                          simplex_node.x * (child_nodes_in_parent[1].z - child_nodes_in_parent[0].z)
+                        + simplex_node.y * (child_nodes_in_parent[2].z - child_nodes_in_parent[0].z)
+                        + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].z - child_nodes_in_parent[0].z));
                      shape.GetColumnReference(j, col);
                      orig_FE->CalcShape(simplex_node_in_orig, col);
                   }
                   // All the non-simplex basis functions have now been evaluated at all the
-                  // simplex basis function node locations.
+                  // simplex basis function node locations. Now evaluate the summations and
+                  // place back into the Nodes vector.
                   orig_mesh.GetNodes()->GetElementDofValues(ip, edofvals);
-                  DenseMatrix edofvals_mat(edofvals.GetData(),
-                     ordering == Ordering::byNODES ? sdim : orig_FE->GetDof(),
-                     ordering == Ordering::byNODES ? orig_FE->GetDof() : sdim);
-
-                  if (ordering == Ordering::byVDIM)
-                  {
-                     edofvals_mat.Transpose(); // Now sdim x nOrigDof
-                  }
-                  point_matrix.SetSize(sdim, simplex_FE->GetDof()); // [[x,y,z]_1, [x,y,z]_2,... ] in col major
-                  Mult(edofvals_mat, shape, point_matrix);
-
-                  // Need to now place the point matrix data into the new Nodes variable.
-                  // Need to use VDofs to account for the striding of
+                  // Dof values are always returned as [[x_1,x_2,x_3,...], [y_1,y_2,y_3,...], [z_1,z_2,z_3,...]]
+                  DenseMatrix edofvals_mat(edofvals.GetData(), orig_FE->GetDof(), sdim);
+                  point_matrix.SetSize(simplex_FE->GetDof(), sdim);
+                  MultAtB(shape, edofvals_mat, point_matrix);
                   auto *doftrans = GetNodes()->FESpace()->GetElementVDofs(i, edofs);
                   MFEM_ASSERT(doftrans == nullptr, "!");
-                  if (ordering == Ordering::byVDIM)
-                  {
-                     // point_matrix was [x,y,z]_1, [x,y,z]_2,... ] in col major
-                     // need to change back to
-                     //    [[x_1,x_2,x_3,...], [y_1,y_2,y_3,...], [z_1,z_2,z_3,...]]
-                     point_matrix.Transpose();
-                  }
                   GetNodes()->SetSubVector(edofs, point_matrix.GetData());
                }
                break;
