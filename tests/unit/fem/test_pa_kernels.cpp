@@ -449,12 +449,12 @@ TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [MassPA], [CUDA]")
               == MFEM_Approx(0.0));
    }
 
-   // SECTION("3D")
-   // {
-   //    dbg("Vector Mass test 3D");
-   //    REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3, true)
-   //            == MFEM_Approx(0.0));
-   // }
+   SECTION("3D")
+   {
+      dbg("Vector Mass test 3D");
+      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3, true)
+              == MFEM_Approx(0.0));
+   }
 }
 
 TEST_CASE("PA Vector Diffusion",

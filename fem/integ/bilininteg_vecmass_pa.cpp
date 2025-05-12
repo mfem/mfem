@@ -29,18 +29,19 @@ namespace mfem
 void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const int spaceDim = Trans.GetSpaceDim();
 
-   const FiniteElement &el = *fes.GetTypicalFE();
    const int nd = el.GetDof();
    dbg("nd: {} spaceDim: {}", nd, spaceDim);
-
    dbg("vdim: {} spaceDim: {}", vdim, spaceDim);
 
    // If vdim is not set, set it to the space dimension
    vdim = (vdim == -1) ? Trans.GetSpaceDim() : vdim;
    dbg("vdim: {}", vdim);
+
+   MFEM_VERIFY(vdim == fes.GetVDim(), "vdim != fes.GetVDim()");
 
    const MemoryType mt = pa_mt == MemoryType::DEFAULT
                          ? Device::GetDeviceMemoryType()
@@ -60,8 +61,11 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = mesh->GetNE();
    nq = ir->GetNPoints();
-   const int flags = GeometricFactors::COORDINATES | GeometricFactors::JACOBIANS;
+   const int sdim = mesh->SpaceDimension();
+   MFEM_VERIFY(sdim == dim, "sdim != dim");
+   const int flags = GeometricFactors::JACOBIANS;
    geom = mesh->GetGeometricFactors(*ir, flags, mt);
+
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -105,83 +109,84 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
 
-   const int NE = ne, NQ = nq;
-   const auto W = ir->GetWeights().Read();
-   const auto C = Reshape(coeff.Read(), coeff_vdim, NQ, NE);
-   const auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
-
-   auto DE = Reshape(pa_data.Write(), NQ, coeff_vdim, NE);
+   const int q1d = quad1D;
+   const auto w_r = ir->GetWeights().Read();
 
    if (dim == 2)
    {
+      const auto W = Reshape(w_r, q1d, q1d);
+      const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
+      // const auto J = Reshape(geom->J.Read(), dim, dim, NQ, NE);
+      auto DE = Reshape(pa_data.Write(), q1d, q1d, coeff_vdim, ne);
 
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
          {
-            const real_t J11 = J(q, 0, 0, e);
-            const real_t J12 = J(q, 1, 0, e);
-            const real_t J21 = J(q, 0, 1, e);
-            const real_t J22 = J(q, 1, 1, e);
-            const real_t detJ = (J11 * J22) - (J21 * J12);
-            const real_t w_det = W[q] * detJ;
-            DE(q, 0, e) = C(0, q, e) * w_det;
-            if (const_coeff) { continue; }
-            DE(q, 1, e) = C(1, q, e) * w_det;
-            if (vector_coeff) { continue; }
-            assert(matrix_coeff);
-            DE(q, 2, e) = C(2, q, e) * w_det;
-            DE(q, 3, e) = C(3, q, e) * w_det;
+            MFEM_FOREACH_THREAD(qx, x, q1d)
+            {
+               // const real_t *Jtr = &J(0, 0, qx, qy, e);
+               // const real_t detJ = kernels::Det<2>(Jtr);
+               const real_t J11 = J(qx, qy, 0, 0, e), J12 = J(qx, qy, 1, 0, e);
+               const real_t J21 = J(qx, qy, 0, 1, e), J22 = J(qx, qy, 1, 1, e);
+               const real_t detJ = (J11 * J22) - (J21 * J12);
+               const real_t w_det = W(qx, qy) * detJ;
+               DE(qx, qy, 0, e) = C(0, qx, qy, e) * w_det;
+               if (const_coeff) { continue; }
+               DE(qx, qy, 1, e) = C(1, qx, qy, e) * w_det;
+               if (vector_coeff) { continue; }
+               assert(matrix_coeff);
+               DE(qx, qy, 2, e) = C(2, qx, qy, e) * w_det;
+               DE(qx, qy, 3, e) = C(3, qx, qy, e) * w_det;
+            }
          }
       });
    }
 
    if (dim == 3)
    {
-      assert(false);
-      /*mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
-      {
-         for (int q = 0; q < NQ; ++q)
-         {
-            const real_t J11 = J(q, 0, 0, e), J12 = J(q, 0, 1, e), J13 = J(q, 0, 2, e);
-            const real_t J21 = J(q, 1, 0, e), J22 = J(q, 1, 1, e), J23 = J(q, 1, 2, e);
-            const real_t J31 = J(q, 2, 0, e), J32 = J(q, 2, 1, e), J33 = J(q, 2, 2, e);
-            const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
-                                J21 * (J12 * J33 - J32 * J13) +
-                                J31 * (J12 * J23 - J22 * J13);
-            const real_t w_det = W[q] * detJ;
-            y(q, 0, e) = C(0, q, e) * w_det;
-            y(q, 1, e) = C(const_coeff ? 0 : 1, q, e) * w_det;
-            y(q, 2, e) = C(const_coeff ? 0 : 2, q, e) * w_det;
-         }
-      });*/
-   }
+      const auto W = Reshape(w_r, q1d, q1d, q1d);
+      const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, dim, dim, ne);
+      auto DE = Reshape(pa_data.Write(), q1d, q1d, q1d, coeff_vdim, ne);
 
-   // Add the VectorMassIntegrator specializations
-   static const auto add_vector_mass_kernel_specializations =
-      (  // 2D
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,3,3>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,4,4>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,5,5>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,6,6>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,7,7>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,8,8>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,9,9>::Add(),
-         // 3D
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,2,2>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,2,3>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,3,4>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,4,5>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,4,6>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,5,6>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,5,8>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,6,7>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,7,8>::Add(),
-         VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,8,9>::Add(),
-         true);
-   MFEM_CONTRACT_VAR(add_vector_mass_kernel_specializations);
+      mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      {
+         MFEM_FOREACH_THREAD(qz, z, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD(qx, x, q1d)
+               {
+                  const real_t J11 = J(qx, qy, qz, 0, 0, e);
+                  const real_t J12 = J(qx, qy, qz, 0, 1, e),
+                               J13 = J(qx, qy, qz, 0, 2, e);
+                  const real_t J21 = J(qx, qy, qz, 1, 0, e), J22 = J(qx, qy, qz, 1, 1, e),
+                               J23 = J(qx, qy, qz, 1, 2, e);
+                  const real_t J31 = J(qx, qy, qz, 2, 0, e), J32 = J(qx, qy, qz, 2, 1, e),
+                               J33 = J(qx, qy, qz, 2, 2, e);
+                  const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
+                                      J21 * (J12 * J33 - J32 * J13) +
+                                      J31 * (J12 * J23 - J22 * J13);
+                  const real_t w_det = W(qx, qy, qz) * detJ;
+                  DE(qx, qy, qz, 0, e) = C(0, qx, qy, qz, e) * w_det;
+                  if (const_coeff) { continue; }
+                  DE(qx, qy, qz, 1, e) = C(1, qx, qy, qz, e) * w_det;
+                  DE(qx, qy, qz, 2, e) = C(2, qx, qy, qz, e) * w_det;
+                  if (vector_coeff) { continue; }
+                  assert(matrix_coeff);
+                  DE(qx, qy, qz, 3, e) = C(3, qx, qy, qz, e) * w_det;
+                  DE(qx, qy, qz, 4, e) = C(4, qx, qy, qz, e) * w_det;
+                  DE(qx, qy, qz, 5, e) = C(5, qx, qy, qz, e) * w_det;
+                  DE(qx, qy, qz, 6, e) = C(6, qx, qy, qz, e) * w_det;
+                  DE(qx, qy, qz, 7, e) = C(7, qx, qy, qz, e) * w_det;
+                  DE(qx, qy, qz, 8, e) = C(8, qx, qy, qz, e) * w_det;
+               }
+            }
+         }
+      });
+   }
 }
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -190,9 +195,34 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed()) { ceedOp->AddMult(x, y); }
    else
    {
+      // Add the VectorMassIntegrator specializations
+      static const auto vector_mass_kernel_specializations =
+         (  // 2D
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,3,3>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,4,4>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,5,5>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,6,6>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,7,7>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,8,8>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,9,9>::Add(),
+            // 3D
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,2,2>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,2,3>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,3,4>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,4,5>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,4,6>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,5,6>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,5,8>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,6,7>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,7,8>::Add(),
+            VectorMassIntegrator::VectorMassAddMultPA::Specialization<3,8,9>::Add(),
+            true);
+      MFEM_CONTRACT_VAR(vector_mass_kernel_specializations);
+
       VectorMassAddMultPA::Run(dim, dofs1D, quad1D,
-                               ne, //coeff.GetVDim(),
-                               maps->B, pa_data, x, y,
+                               ne, maps->B, pa_data, x, y,
                                dofs1D, quad1D);
    }
 }
