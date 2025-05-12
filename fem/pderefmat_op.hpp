@@ -20,9 +20,8 @@ namespace mfem
 {
 
 /// \cond DO_NOT_DOCUMENT
-class ParDerefineMatrixOp : public Operator
+struct ParDerefineMatrixOp : public Operator
 {
-public:
    ParFiniteElementSpace *fespace;
    /// offsets into block_storage for diagonal
    Array<int> block_offsets;
