@@ -198,11 +198,33 @@ TEST_CASE("MakeHigherOrderSimplicial", "[Mesh]")
    //    }
    // }
 
-   Mesh mesh("/Users/hughcars/AWS/mfem/data/ref-square.mesh", 1, 1);
+   auto mesh_fname = GENERATE(
+      "../../data/star.mesh",
+      "../../data/inline-quad.mesh",
+      "../../data/inline-hex.mesh",
+      "../../data/inline-wedge.mesh",
+      "../../data/beam-wedge.mesh"
+   );
+
+   Mesh mesh(mesh_fname, 1, 1);
+
+   auto simplex_mesh = Mesh::MakeSimplicial(mesh);
    mesh.SetCurvature(1);
-   auto smesh = Mesh::MakeSimplicial(mesh);
+   auto ho_simplex_mesh = Mesh::MakeSimplicial(mesh);
 
+   CHECK(mesh.GetNV() == simplex_mesh.GetNV());
+   CHECK(mesh.GetNV() == ho_simplex_mesh.GetNV());
 
+   Vector vert;
+   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < ho_simplex_mesh.SpaceDimension(); i++)
+   {
+      ho_simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
+      for (int j = 0; j < ho_simplex_mesh.GetNV(); j++)
+      {
+         CHECK(std::abs(simplex_mesh.GetVertex(j)[i] - vert(j)) < tol);
+      }
+   }
 }
 
 TEST_CASE("MakeNurbs", "[Mesh]")
