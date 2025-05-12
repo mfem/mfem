@@ -183,33 +183,18 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
 
 TEST_CASE("MakeHigherOrderSimplicial", "[Mesh]")
 {
-   // for (int curv : {1,2,3})
-   // {
-   //    std::cout << "Curvature " << curv << '\n';
-   //    Mesh mesh("/Users/hughcars/AWS/mfem/data/ref-prism.mesh", 1, 1);
-   //    mesh.SetCurvature(curv);
-   //    auto *fe = mesh.GetNodes()->FESpace()->GetFE(0);
-
-   //    auto nodes = fe->GetNodes();
-   //    std::cout << "nodes \n";
-   //    for (const auto &ip : nodes)
-   //    {
-   //       std::cout << ip.x << ' ' << ip.y << ' ' << ip.z << '\n';
-   //    }
-   // }
-
+   auto curvature = GENERATE(1,2,3);
    auto mesh_fname = GENERATE(
-      "../../data/star.mesh",
-      "../../data/inline-quad.mesh",
-      "../../data/inline-hex.mesh",
-      "../../data/inline-wedge.mesh",
-      "../../data/beam-wedge.mesh"
-   );
-
+                        "../../data/star.mesh",
+                        "../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/inline-wedge.mesh",
+                        "../../data/beam-wedge.mesh"
+                     );
    Mesh mesh(mesh_fname, 1, 1);
 
    auto simplex_mesh = Mesh::MakeSimplicial(mesh);
-   mesh.SetCurvature(1);
+   mesh.SetCurvature(curvature);
    auto ho_simplex_mesh = Mesh::MakeSimplicial(mesh);
 
    CHECK(mesh.GetNV() == simplex_mesh.GetNV());
