@@ -42,9 +42,9 @@ struct DerefineMatrixOpFunctorBase;
 template <class Base>
 struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, true>
 {
-   /// block col idcs offsets
+   /// block column indices offsets
    const int *bcptr;
-   /// col idcs
+   /// column indices
    const int *cptr;
 
    int MFEM_HOST_DEVICE BlockWidth(int k) const
@@ -75,9 +75,9 @@ struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, true>
 template <class Base>
 struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, true>
 {
-   /// block col idcs offsets
+   /// block column indices offsets
    const int *bcptr;
-   /// col idcs
+   /// column indices
    const int *cptr;
 
    int MFEM_HOST_DEVICE BlockWidth(int k) const
@@ -108,10 +108,13 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, true>
 template <class Base>
 struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, false>
 {
+   /// receive segment offsets
    const int *segptr;
+   /// receive segment index
    const int *rsptr;
-
+   /// off-diagonal block column offsets
    const int *coptr;
+   /// off-diagonal block widths
    const int *bwptr;
 
    int MFEM_HOST_DEVICE BlockWidth(int k) const { return bwptr[k]; }
@@ -137,10 +140,13 @@ struct DerefineMatrixOpFunctorBase<Ordering::byNODES, Base, false>
 template <class Base>
 struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, false>
 {
+   /// receive segment offsets
    const int *segptr;
+   /// receive segment index
    const int *rsptr;
-
+   /// off-diagonal block column offsets
    const int *coptr;
+   /// off-diagonal block widths
    const int *bwptr;
 
    int MFEM_HOST_DEVICE BlockWidth(int k) const { return bwptr[k]; }
@@ -163,7 +169,7 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, false>
    }
 };
 
-/// internally used to implementing the derefinement operator Mult diagonal
+/// internally used to implement the derefinement operator Mult diagonal
 /// block
 template <Ordering::Type Order, bool Atomic, bool Diag = true>
 struct DerefineMatrixOpMultFunctor
@@ -177,9 +183,9 @@ struct DerefineMatrixOpMultFunctor
    const real_t *bsptr;
    /// block offsets
    const int *boptr;
-   /// block row idcs offsets
+   /// block row index offsets
    const int *brptr;
-   /// row idcs
+   /// row indices
    const int *rptr;
 
    // number of blocks
