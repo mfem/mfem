@@ -5799,7 +5799,7 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
             case Geometry::Type::SEGMENT : // fall through
             case Geometry::Type::TRIANGLE : // fall through
             case Geometry::Type::TETRAHEDRON :
-               GetNodes()->FESpace()->GetElementDofs(i, edofs);
+               GetNodes()->FESpace()->GetElementVDofs(i, edofs);
                GetNodes()->SetSubVector(edofs, edofvals);
                break;
             case Geometry::Type::CUBE : // fall through

@@ -149,8 +149,10 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/inline-tri.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
+                              "../../data/inline-tet.mesh",
                               "../../data/inline-wedge.mesh",
                               "../../data/beam-wedge.mesh");
 
@@ -161,6 +163,8 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    int factor;
    switch (orig_geom)
    {
+      case Geometry::TRIANGLE : // fall through
+      case Geometry::TETRAHEDRON : factor = 1; break; // No-op
       case Geometry::SQUARE: factor = 2; break;
       case Geometry::PRISM: factor = 3; break;
       case Geometry::CUBE: factor = 6; break;
@@ -179,27 +183,15 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    // Note: assuming no hex is subdivided into 5 tets. This can happen depending
    // on the original mesh, but it doesn't happen for these test cases.
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
-}
 
-TEST_CASE("MakeHigherOrderSimplicial", "[Mesh]")
-{
    auto curvature = GENERATE(1,2,3);
-   auto mesh_fname = GENERATE(
-                        "../../data/star.mesh",
-                        "../../data/inline-quad.mesh",
-                        "../../data/inline-hex.mesh",
-                        "../../data/inline-wedge.mesh",
-                        "../../data/beam-wedge.mesh"
-                     );
-   Mesh mesh(mesh_fname, 1, 1);
+   orig_mesh.SetCurvature(curvature);
+   auto ho_simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
-   auto simplex_mesh = Mesh::MakeSimplicial(mesh);
-   mesh.SetCurvature(curvature);
-   auto ho_simplex_mesh = Mesh::MakeSimplicial(mesh);
+   CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
+   CHECK(orig_mesh.GetNV() == ho_simplex_mesh.GetNV());
 
-   CHECK(mesh.GetNV() == simplex_mesh.GetNV());
-   CHECK(mesh.GetNV() == ho_simplex_mesh.GetNV());
-
+   // Vertex locations should be unchanged after higher order transformation.
    Vector vert;
    constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
    for (int i = 0; i < ho_simplex_mesh.SpaceDimension(); i++)
