@@ -1,3 +1,28 @@
+//                       MFEM Example - Minimal Surface
+//
+// Compile with: make minimal_surface
+//
+// Sample runs:  mpirun -np 4 minimal_surface -der 0
+//               mpirun -np 4 minimal_surface -der 0 -o 2
+//               mpirun -np 4 minimal_surface -der 0 -r 2
+//               mpirun -np 4 minimal_surface -der 1
+//               mpirun -np 4 minimal_surface -der 2
+//
+// Description:  This example code demonstrates the use of MFEM to solve the minimal
+//              surface problem in 2D:
+//
+//              min \int sqrt(1 + |\nabla u|^2) dx
+//
+//              with Dirichlet boundary conditions. The nonlinear problem is solved
+//              using Newton's method, where the necessary derivatives are computed
+//              in one of three ways (controlled by -der command line parameter):
+//              0) Automatic differentiation using Enzyme or dual type (default)
+//              1) Hand-coded derivatives
+//              2) Finite differences
+//
+//              The example demonstrates the use of MFEM's nonlinear solvers,
+//              automatic differentiation capabilities, and GLVis/ParaView visualization.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -272,9 +297,11 @@ real_t boundary_func(const Vector &coords)
 
 int main(int argc, char *argv[])
 {
+   // 1. Initialize MPI and HYPRE
    Mpi::Init();
    Hypre::Init();
 
+   // 2. Parse command-line options
    int order = 1;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -295,9 +322,11 @@ int main(int argc, char *argv[])
 
    args.ParseCheck();
 
+   // 3. Enable hardware devices such as GPUs, and programming models such as CUDA
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
+   // 4. Create a 2D mesh on the square domain [-π/2,π/2]^2
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
    mesh.SetCurvature(order);
 
@@ -310,6 +339,7 @@ int main(int argc, char *argv[])
 
    mesh.Transform(transform_mesh);
 
+   // 5. Refine the mesh to increase the resolution
    for (int i = 0; i < refinements; i++)
    {
       mesh.UniformRefinement();
@@ -317,45 +347,53 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
+   // 6. Define a parallel mesh
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
+   // 7. Define a parallel finite element space on the parallel mesh
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace H1(&pmesh, &fec);
 
+   // 8. Set up the integration rule
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(),
                                   2 * order + 1);
 
    ParGridFunction u(&H1);
-
    Vector X(H1.GetTrueVSize());
 
+   // 9. Create the nonlinear operator for the minimal surface equation
    std::unique_ptr<Operator> minsurface;
 #ifdef MFEM_USE_ENZYME
+   // When Enzyme is available, use it for automatic differentiation
    minsurface = std::make_unique<MinimalSurface<real_t>>(H1, *ir,
                                                          derivative_type);
 #else
+   // When Enzyme is not available, use the dual type for automatic differentiation
    using mfem::future::dual;
    using dual_t = dual<real_t, real_t>;
    minsurface = std::make_unique<MinimalSurface<dual_t>>(H1, *ir,
                                                          derivative_type);
 #endif
 
+   // 10. Set up and apply the boundary conditions
    Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
    ess_bdr = 1;
 
+   // 11. Set up the essential boundary conditions and initial condition
    FunctionCoefficient boundary_coeff(boundary_func);
-
    u.ProjectCoefficient(boundary_coeff);
    u *= 1e-2;
    u.ProjectBdrCoefficient(boundary_coeff, ess_bdr);
 
+   // 12. Set up the linear solver to be used within Newton's method
    CGSolver krylov(MPI_COMM_WORLD);
    krylov.SetAbsTol(0.0);
    krylov.SetRelTol(1e-4);
    krylov.SetMaxIter(500);
    krylov.SetPrintLevel(2);
 
+   // 13. Set up the nonlinear solver (Newton) for the minimal surface equation
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetOperator(*minsurface);
    newton.SetAbsTol(0.0);
@@ -364,13 +402,14 @@ int main(int argc, char *argv[])
    newton.SetSolver(krylov);
    newton.SetPrintLevel(1);
 
+   // 14. Solve the nonlinear system using Newton's method
    H1.GetRestrictionMatrix()->Mult(u, X);
    Vector zero;
    newton.Mult(zero, X);
-
    H1.GetProlongationMatrix()->Mult(X, u);
 
-   ParaViewDataCollection dc("dfem", &pmesh);
+   // 15. Save the solution in parallel using ParaView format
+   ParaViewDataCollection dc("minimal_surface", &pmesh);
    dc.SetHighOrderOutput(true);
    dc.SetLevelsOfDetail(order);
    dc.RegisterField("solution", &u);
