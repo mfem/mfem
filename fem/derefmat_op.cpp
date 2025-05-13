@@ -63,8 +63,8 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
-   const bool is_dg = fespace->FEColl()->GetContType() ==
-                      FiniteElementCollection::DISCONTINUOUS;
+   const bool is_dg = fespace->FEColl()->GetContType()
+                      == FiniteElementCollection::DISCONTINUOUS;
    DenseMatrix localRVO; // for variable-order only
 
    DenseTensor localR[Geometry::NumGeom];
@@ -116,8 +116,8 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          for (int i = 0; i < elem_geoms.Size(); ++i)
          {
             std::copy(localR[elem_geoms[i]].Data(),
-                      localR[elem_geoms[i]].Data() +
-                      localR[elem_geoms[i]].TotalSize(),
+                      localR[elem_geoms[i]].Data()
+                      + localR[elem_geoms[i]].TotalSize(),
                       bs_ptr);
             bs_ptr += localR[elem_geoms[i]].TotalSize();
          }
@@ -237,8 +237,8 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
 
 void DerefineMatrixOp::Mult(const Vector &x, Vector &y) const
 {
-   const bool is_dg = fespace->FEColl()->GetContType() ==
-                      FiniteElementCollection::DISCONTINUOUS;
+   const bool is_dg = fespace->FEColl()->GetContType()
+                      == FiniteElementCollection::DISCONTINUOUS;
    // DG needs atomic summation
    MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
 }

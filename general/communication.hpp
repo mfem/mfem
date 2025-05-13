@@ -425,6 +425,14 @@ public:
    ~GroupCommunicator();
 };
 
+/// General MPI message tags used by MFEM
+enum MessageTag
+{
+   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM =
+      291, /// ParFiniteElementSpace ParallelDerefinementMatrix and
+   /// ParDerefineMatrixOp
+};
+
 enum VarMessageTag
 {
    NEIGHBOR_ELEMENT_RANK_VM, ///< NeighborElementRankMessage
@@ -435,9 +443,6 @@ enum VarMessageTag
    NEIGHBOR_ROW_VM,          ///< NeighborRowMessage
    REBALANCE_VM,             ///< RebalanceMessage
    REBALANCE_DOF_VM,         ///< RebalanceDofMessage
-   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM =
-      291, /// ParFiniteElementSpace ParallelDerefinementMatrix and
-   /// ParDerefineMatrixOp
 };
 
 /// \brief Variable-length MPI message containing unspecific binary data.
