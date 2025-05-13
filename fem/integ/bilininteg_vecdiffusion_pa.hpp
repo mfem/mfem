@@ -51,7 +51,7 @@ void PAVectorDiffusionApply2D(const int NE,
                               const int vdim = 0)
 {
    dbg("T_D1D: {} T_Q1D: {} T_VDIM: {}", T_D1D, T_Q1D, T_VDIM);
-   dbg("d1d: {} q1d: {} vdim: {}", d1d, q1d, vdim);
+   dbg("d1d:{} q1d:{} vdim:{} coeff_vdim:{}", d1d, q1d, vdim, coeff_vdim);
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -63,16 +63,14 @@ void PAVectorDiffusionApply2D(const int NE,
 
    const int PA_SIZE = 2*2;
 
-   //    const bool scalar_coeff = coeff_vdim == 1;
-   //    const bool vector_coeff = coeff_vdim > 1;
-   //    const bool matrix_coeff = vector_coeff && coeff_vdim == VDIM*VDIM;
-   //    MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
+   const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
    const auto Bt = Reshape(bt.Read(), D1D, Q1D);
    const auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   const auto D = Reshape(d_.Read(), Q1D*Q1D, PA_SIZE, VDIM*2/*🔥*/, NE);
+   const auto D = Reshape(d_.Read(), Q1D*Q1D, PA_SIZE, VDIM * (matrix_coeff?2:1),
+                          NE);
    const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
 
@@ -85,136 +83,137 @@ void PAVectorDiffusionApply2D(const int NE,
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       real_t grad[max_Q1D][max_Q1D][2];
-      // for (int c = 0; c < VDIM; c++)
-      // const int c = 0, d = 0; // ✅
-      // const int c = 1, d = 1; // ✅
+
+      // const int c = 0, d = 0; // ✅ with ii = 0, jj = 0
+      // const int c = 1, d = 1; // ✅ with ii = 1, jj = 1
       // const int c = 1, d = 0; // ✅ with ii = 0, jj = 1
-      const int c = 0, d = 1; // ???
+      // const int c = 0, d = 1; // ✅ with ii = 1, jj = 0
+      for (int ii = 0; ii < VDIM; ii++)
       {
-         for (int qy = 0; qy < Q1D; ++qy)
+         for (int jj = 0; jj < (matrix_coeff ? VDIM : 1); jj++)
          {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               grad[qy][qx][0] = 0.0;
-               grad[qy][qx][1] = 0.0;
-            }
-         }
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            real_t gradX[max_Q1D][2];
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               gradX[qx][0] = 0.0;
-               gradX[qx][1] = 0.0;
-            }
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               const real_t s = x(dx,dy,c,e);
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  gradX[qx][0] += s * B(qx,dx);
-                  gradX[qx][1] += s * G(qx,dx);
-               }
-            }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const real_t wy  = B(qy,dy);
-               const real_t wDy = G(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  grad[qy][qx][0] += gradX[qx][1] * wy;
-                  grad[qy][qx][1] += gradX[qx][0] * wDy;
-               }
-            }
-         }
-         // Calculate Dxy, xDy in plane
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const int q = qx + qy * Q1D;
-               const real_t gradX = grad[qy][qx][0];
-               const real_t gradY = grad[qy][qx][1];
-
-               grad[qy][qx][0] = 0.0;
-               grad[qy][qx][1] = 0.0;
-
-               if ((c==0 && d==0)||(c==1 && d==1))
-               {
-                  const real_t O11 = D(q,0,c,e);
-                  const real_t O12 = D(q,1,c,e);
-                  const real_t O21 = D(q,2,c,e);
-                  const real_t O22 = D(q,3,c,e);
-                  dbg("{} {} {} {}", O11, O12, O21, O22);
-                  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-                  grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
-               }
-
-               if (c==1 && d==0)
-               {
-                  const real_t O11 = D(q,0,2,e);
-                  const real_t O12 = D(q,1,2,e);
-                  const real_t O21 = D(q,2,2,e);
-                  const real_t O22 = D(q,3,2,e);
-                  dbg("{} {} {} {}", O11, O12, O21, O22);
-                  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-                  grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
-               }
-
-               if (c==0 && d==1)
-               {
-                  const real_t O11 = D(q,0,3,e);
-                  const real_t O12 = D(q,1,3,e);
-                  const real_t O21 = D(q,2,3,e);
-                  const real_t O22 = D(q,3,3,e);
-                  dbg("{} {} {} {}", O11, O12, O21, O22);
-                  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-                  grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
-               }
-               /*else
                {
                   grad[qy][qx][0] = 0.0;
                   grad[qy][qx][1] = 0.0;
-               }*/
-
-               /*{
-                  const real_t P11 = D(q,0,VDIM-c-1,e);
-                  const real_t P12 = D(q,1,VDIM-c-1,e);
-                  const real_t P21 = D(q,2,VDIM-c-1,e);
-                  const real_t P22 = D(q,3,VDIM-c-1,e);
-                  dbg("{} {} {} {}", O11, O12, O21, O22);
-                  grad[qy][qx][0] += (P11 * gradX) + (P12 * gradY);
-                  grad[qy][qx][1] += (P21 * gradX) + (P22 * gradY);
-               }*/
-            }
-         }
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            real_t gradX[max_D1D][2];
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               gradX[dx][0] = 0.0;
-               gradX[dx][1] = 0.0;
-            }
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const real_t gX = grad[qy][qx][0];
-               const real_t gY = grad[qy][qx][1];
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const real_t wx  = Bt(dx,qx);
-                  const real_t wDx = Gt(dx,qx);
-                  gradX[dx][0] += gX * wDx;
-                  gradX[dx][1] += gY * wx;
                }
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const real_t wy  = Bt(dy,qy);
-               const real_t wDy = Gt(dy,qy);
+               real_t gradX[max_Q1D][2];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx][0] = 0.0;
+                  gradX[qx][1] = 0.0;
+               }
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  y(dx,dy,d,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+                  const real_t s = x(dx,dy,ii,e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     gradX[qx][0] += s * B(qx,dx);
+                     gradX[qx][1] += s * G(qx,dx);
+                  }
+               }
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const real_t wy  = B(qy,dy);
+                  const real_t wDy = G(qy,dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     grad[qy][qx][0] += gradX[qx][1] * wy;
+                     grad[qy][qx][1] += gradX[qx][0] * wDy;
+                  }
+               }
+            }
+            // Calculate Dxy, xDy in plane
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const int q = qx + qy * Q1D;
+                  const real_t gradX = grad[qy][qx][0];
+                  const real_t gradY = grad[qy][qx][1];
+
+                  grad[qy][qx][0] = 0.0;
+                  grad[qy][qx][1] = 0.0;
+
+                  if (matrix_coeff)
+                  {
+                     if (matrix_coeff && ((ii==0 && jj==0)||(ii==1 && jj==1)))
+                     {
+                        const real_t O11 = D(q,0,ii,e);
+                        const real_t O12 = D(q,1,ii,e);
+                        const real_t O21 = D(q,2,ii,e);
+                        const real_t O22 = D(q,3,ii,e);
+                        dbg("{} {} {} {}", O11, O12, O21, O22);
+                        grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+                        grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+                     }
+
+                     if (matrix_coeff && ii==1 && jj==0)
+                     {
+                        const real_t O11 = D(q,0,2,e);
+                        const real_t O12 = D(q,1,2,e);
+                        const real_t O21 = D(q,2,2,e);
+                        const real_t O22 = D(q,3,2,e);
+                        dbg("{} {} {} {}", O11, O12, O21, O22);
+                        grad[qy][qx][0] += (O11 * gradX) + (O12 * gradY);
+                        grad[qy][qx][1] += (O21 * gradX) + (O22 * gradY);
+                     }
+
+                     if (matrix_coeff && ii==0 && jj==1)
+                     {
+                        const real_t O11 = D(q,0,3,e);
+                        const real_t O12 = D(q,1,3,e);
+                        const real_t O21 = D(q,2,3,e);
+                        const real_t O22 = D(q,3,3,e);
+                        dbg("{} {} {} {}", O11, O12, O21, O22);
+                        grad[qy][qx][0] += (O11 * gradX) + (O12 * gradY);
+                        grad[qy][qx][1] += (O21 * gradX) + (O22 * gradY);
+                     }
+                  }
+                  else
+                  {
+                     const real_t O11 = D(q,0,ii,e);
+                     const real_t O12 = D(q,1,ii,e);
+                     const real_t O21 = D(q,2,ii,e);
+                     const real_t O22 = D(q,3,ii,e);
+                     grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+                     grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+                  }
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               real_t gradX[max_D1D][2];
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  gradX[dx][0] = 0.0;
+                  gradX[dx][1] = 0.0;
+               }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const real_t gX = grad[qy][qx][0];
+                  const real_t gY = grad[qy][qx][1];
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     const real_t wx  = Bt(dx,qx);
+                     const real_t wDx = Gt(dx,qx);
+                     gradX[dx][0] += gX * wDx;
+                     gradX[dx][1] += gY * wx;
+                  }
+               }
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  const real_t wy  = Bt(dy,qy);
+                  const real_t wDy = Gt(dy,qy);
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     y(dx,dy,matrix_coeff?jj:ii,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+                  }
                }
             }
          }

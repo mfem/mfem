@@ -359,11 +359,10 @@ template <typename INTEGRATOR>
 real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
 {
    dbg();
-   // constexpr int NE = 2, P = 2; // 🔥🔥🔥🔥  NE, P 🔥🔥🔥🔥
-   constexpr int NE = 1, P = 1;
+   constexpr int NE = 2, P = 2;
    Mesh mesh = MakeCartesianNonaligned(dim, NE);
    H1_FECollection fec(P, dim);
-   const int vdim = 2; // 🔥🔥🔥🔥  VDIM 🔥🔥🔥🔥
+   const int vdim = dim; // 🔥🔥🔥
    dbg("\x1b[31mvdim:{}", vdim);
    FiniteElementSpace fes(&mesh, &fec, vdim);
    FiniteElementSpace fes_coeff(&mesh, &fec);
@@ -375,7 +374,7 @@ real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
    FunctionCoefficient funct_coeff([](const Vector &x) { return M_1_PI + x[0]*x[0]; });
    // gc.ProjectCoefficient(funct_coeff);
    // GridFunctionCoefficient gf_coeff(&gc); // 🔥🔥🔥
-   Vector val(vdim);
+   Vector val(dim);
    val = 1.0;
    VectorConstantCoefficient v_const_coeff(val);
    VectorFunctionCoefficient v_funct_coeff(dim, [&](const Vector &x, Vector &v)
@@ -384,21 +383,21 @@ real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
       if (dim > 1) { v(1) = M_E * x(1); }
       if (dim > 2) { v(2) = M_PI * x(2); }
    });
-   MatrixFunctionCoefficient mcoeff(vdim, [&](const Vector &x, DenseMatrix &f)
+   MatrixFunctionCoefficient mcoeff(dim, [&](const Vector &x, DenseMatrix &f)
    {
       f = 0.0;
-      if (vdim == 1)
+      if (dim == 1)
       {
          f(0,0) = 1.1 + sin(M_PI * x[0]);  // 1,1
       }
-      else if (vdim == 2)
+      else if (dim == 2)
       {
          f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
          f(1,0) = cos(1.3 * M_PI * x[1]);  // 2,1
          f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
          f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
       }
-      else if (vdim == 3)
+      else if (dim == 3)
       {
          f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
          f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -414,12 +413,12 @@ real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
 
    BilinearForm blf_fa(&fes);
    // scalar coefficients
-   // blf_fa.AddDomainIntegrator(new INTEGRATOR());
-   // blf_fa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
-   // blf_fa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR());
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
    // vector coefficients
-   // blf_fa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
-   // blf_fa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
    if (test_mcoeff)
    {
       // matrix coefficients
@@ -432,12 +431,12 @@ real_t test_vector_pa_integrator(int dim, bool test_mcoeff)
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    // scalar coefficients
-   // blf_pa.AddDomainIntegrator(new INTEGRATOR());
-   // blf_pa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
-   // blf_pa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR());
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
    // vector coefficients
-   // blf_pa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
-   // blf_pa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
    if (test_mcoeff)
    {
       blf_pa.AddDomainIntegrator(new INTEGRATOR(mcoeff));

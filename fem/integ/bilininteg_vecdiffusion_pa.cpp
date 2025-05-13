@@ -108,6 +108,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    //     scalar_coeff, vector_coeff, matrix_coeff);
    // MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
    dbg("coeff_vdim:{}", coeff_vdim);
+   const bool matrix_coeff = coeff_vdim == vdim*vdim;
 
    if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
    {
@@ -119,7 +120,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-      pa_data.SetSize(vdim*pa_size * nq * ne *2/*🔥 mcoeff*/, mt);
+      pa_data.SetSize(vdim*pa_size * nq * ne * (matrix_coeff ?2:1), mt);
       dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*2🔥)x{}x{}",
           vdim, pa_data.Size(), pa_size, nq, ne);
    }
@@ -182,7 +183,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          const auto W = Reshape(w_r, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim*2/*🔥*/,
+         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim*(matrix_coeff?2:1),
                            ne);
 
          mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
