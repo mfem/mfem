@@ -143,6 +143,10 @@ private:
          minsurface->u.SetFromTrueDofs(x);
          auto mesh_nodes = static_cast<ParGridFunction*>
                            (minsurface->H1.GetParMesh()->GetNodes());
+
+         // One can retrieve the derivative of a DifferentiableOperator wrt a
+         // field variable if the derivative has been requested during the
+         // DifferentiableOperator::AddDomainIntegrator call.
          dres_du = minsurface->res->GetDerivative(SOLUTION_U, {&minsurface->u}, {mesh_nodes});
       }
 
@@ -159,11 +163,18 @@ private:
          }
       }
 
+      // Pointer to the wrapped MinimalSurface operator
       const MinimalSurface *minsurface = nullptr;
+
+      // Pointer to the DifferentiableOperator that computes the Jacobian
       std::shared_ptr<DerivativeOperator> dres_du;
+
+      // Temporary vector
       mutable Vector z;
    };
 
+   // This class implements the Jacobian of the minimal surface operator using
+   // manually computed derivatives.
    class MinimalSurfaceHandcodedJacobian : public Operator
    {
       static constexpr int DIRECTION_U = 3;
@@ -251,33 +262,74 @@ public:
       auto &mesh_nodes = *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes());
       auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
 
+      // The following section is the heart of this example. It shows how to
+      // create and interact with the DifferentialOperator class.
+
+      // The constructor of DifferentiableOperator takes two vectors of
+      // FieldDescriptors. A FieldDescriptor can be viewed as a a pair of an
+      // identifier (the field ID) and it's accompanying space.
+      std::vector<FieldDescriptor> solutions = {{SOLUTION_U, &H1}};
+      std::vector<FieldDescriptor> parameters = {{MESH_NODES, &mesh_nodes_fes}};
+
+      // Create the DifferentiableOperator on the desired mesh.
+      res = std::make_shared<DifferentiableOperator>(
+               solutions, parameters, *H1.GetParMesh());
+
+      // DifferentiableOperator::AddIntegrator consists mainly of multiple
+      // components. The input and output operators and the pointwise
+      // "quadrature function" form a description of how the inputs and outputs
+      // to the pointwise function have to be treated.
+
+      // The input operators tuple consists of derived FieldOperator types.
+      // Here, we use Gradient<FIELD_ID> to signal that we request the gradient
+      // on the reference coordinates of the FIELD_ID field to be interpolated
+      // and translated to the pointwise function as the first and second input.
+      // Other choices are possible, e.g. Value<FIELD_ID> to interpolate the
+      // pointwise funciton. `Weight` is a special field that translates the
+      // integration rule weights to the input of the pointwise function.
+      auto input_operators = tuple
       {
-         std::vector<FieldDescriptor> solutions = {{SOLUTION_U, &H1}};
-         std::vector<FieldDescriptor> parameters = {{MESH_NODES, &mesh_nodes_fes}};
+         Gradient<SOLUTION_U>{},
+         Gradient<MESH_NODES>{},
+         Weight{}
+      };
 
-         res = std::make_shared<DifferentiableOperator>(
-                  solutions, parameters, *H1.GetParMesh());
+      // The output operators tuple also consists of derived FieldOperator
+      // types. Currently, only _one_ output operator is allowed. One should
+      // think of this as an operator on the output of a pointwise function. For
+      // example with the above input operators and the output operator below we
+      // create the following operator sequence:
+      //
+      // $ B^T D(B u, B x, w) $
+      //
+      // where B is the gradient interpolation operator, D is the pointwise
+      // function and u and x are solution and coordinate functions,
+      // respectively. The output operator is the gradient of the basis of the
+      // solution, which completes the "diffusion" like weak form.
+      auto output_operators = tuple
+      {
+         Gradient<SOLUTION_U>{}
+      };
 
-         auto input_operators = tuple
-         {
-            Gradient<SOLUTION_U>{},
-            Gradient<MESH_NODES>{},
-            Weight{}
-         };
+      // The pointwise function is defined as a lambda function. Here we just
+      // instantiate an object for it which is passed to
+      // DifferentiableOperator::AddDomainIntegrator.
+      MFApply mf_apply_qf;
 
-         auto output_operators = tuple
-         {
-            Gradient<SOLUTION_U>{}
-         };
+      // The integeger sequence is used to specify which derivatives of the
+      // formed integrator should be formed. This is necessary to specify at
+      // compile time in order to instantiate the correct functions.
+      auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
+      res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators, ir,
+                               all_domain_attr, derivatives);
 
-         MFApply mf_apply_qf;
-         auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
-         res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators, ir,
-                                  all_domain_attr, derivatives);
-
-         res->SetParameters({&mesh_nodes});
-      }
-
+      // Before we are able to use DifferentiableOperator::Mult, we need to call
+      // DifferentiableOperator::SetParameters to set the parameters of the
+      // operator. Here, only the mesh node function is required. We do this
+      // here once, because we know that the nodes won't change. If they do,
+      // we'd have to call SetParameters before each call to Mult. This is done
+      // to be mathematically consistent with fixing paramaters.
+      res->SetParameters({&mesh_nodes});
 
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;
