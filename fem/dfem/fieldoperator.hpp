@@ -35,7 +35,7 @@ public:
    /// Vector FiniteElementSpace with Gradient FieldOperator:
    /// size = vdim x dim x dim = vdim x dim x dim = vdim * dim^2
    ///
-   /// ParametricSpace with Identity FieldOperator:
+   /// ParameterSpace with Identity FieldOperator:
    /// size = vdim = vdim
    constexpr FieldOperator(int size_on_qp = 0) :
       size_on_qp(size_on_qp) {};

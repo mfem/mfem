@@ -184,7 +184,7 @@ set(HDRS
   dfem/doperator.hpp
   dfem/fieldoperator.hpp
   dfem/integrate.hpp
-  dfem/parametricspace.hpp
+  dfem/parameterspace.hpp
   dfem/qf_derivative_dual.hpp
   dfem/qf_derivative_enzyme.hpp
   dfem/tuple.hpp

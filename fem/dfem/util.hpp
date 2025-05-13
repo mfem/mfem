@@ -29,7 +29,7 @@
 #include "../../linalg/dtensor.hpp"
 
 #include "fieldoperator.hpp"
-#include "parametricspace.hpp"
+#include "parameterspace.hpp"
 #include "tuple.hpp"
 
 namespace mfem::future
@@ -526,7 +526,7 @@ struct FieldDescriptor
    /// Field variant
    std::variant<const FiniteElementSpace *,
        const ParFiniteElementSpace *,
-       const ParametricSpace *> data;
+       const ParameterSpace *> data;
 };
 
 namespace dfem
@@ -712,7 +712,7 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTotalSize();
       }
@@ -725,7 +725,7 @@ int GetVSize(const FieldDescriptor &f)
 
 /// @brief Get the element vdofs of a field descriptor.
 ///
-/// @note Can't be used with ParametricSpace.
+/// @note Can't be used with ParameterSpace.
 ///
 /// @param f the field descriptor.
 /// @param el the element index.
@@ -749,7 +749,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          MFEM_ABORT("internal error");
       }
@@ -783,7 +783,7 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTotalSize();
       }
@@ -812,7 +812,7 @@ int GetVDim(const FieldDescriptor &f)
       {
          return arg->GetVDim();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetLocalSize();
       }
@@ -846,7 +846,7 @@ int GetDimension(const FieldDescriptor &f)
             return arg->GetMesh()->Dimension() - 1;
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->Dimension();
       }
@@ -873,7 +873,7 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       {
          return arg->GetProlongationMatrix();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetProlongation();
       }
@@ -902,7 +902,7 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       {
          return arg->GetElementRestriction(o);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetRestriction();
       }
@@ -1195,7 +1195,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
             return &arg->GetBE(0)->GetDofToQuad(ir, mode);
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return &arg->GetDofToQuad();
       }
@@ -1238,16 +1238,16 @@ void CheckCompatibility(const FieldDescriptor &f)
                           "FieldOperator not compatible with FiniteElementSpace");
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          if constexpr (std::is_same_v<field_operator_t, Identity<>>)
          {
-            // Only supported field operation for ParametricSpace
+            // Only supported field operation for ParameterSpace
          }
          else
          {
             static_assert(dfem::always_false<T, field_operator_t>,
-                          "FieldOperator not compatible with ParametricSpace");
+                          "FieldOperator not compatible with ParameterSpace");
          }
       }
       else

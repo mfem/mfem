@@ -137,9 +137,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
    const int rho_local_size = 1;
    const int rho_elem_size(rho_local_size * ir->GetNPoints());
    const int rho_total_size(rho_elem_size * NE);
-   ParametricSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
-                          DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                          DIM == 3 ? q1d : q1d * q1d);
+   ParameterSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
+                         DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
+                         DIM == 3 ? q1d : q1d * q1d);
 
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
@@ -177,9 +177,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
       const int qd_local_size = DIM * DIM;
       const int qd_elem_size(qd_local_size * ir->GetNPoints());
       const int qd_total_size(qd_elem_size * NE);
-      ParametricSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
-                            DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                            DIM == 3 ? q1d : q1d * q1d);
+      ParameterSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
+                           DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
+                           DIM == 3 ? q1d : q1d * q1d);
       ParametricFunction qdata(qd_ps);
       qdata.UseDevice(true);
 
