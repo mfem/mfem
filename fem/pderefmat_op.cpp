@@ -50,8 +50,9 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          for (int vdim = 0; vdim < vdims; ++vdim)
          {
             tdst[vdim * width] =
-               sign * src[Order == Ordering::byNODES ? (col + vdim * old_ndofs)
-                                : (col * vdims + vdim)];
+               sign
+               * src[Order == Ordering::byNODES ? (col + vdim * old_ndofs)
+                           : (col * vdims + vdim)];
          }
       });
       // TODO: is this needed so we can send the packed data correctly?
@@ -71,7 +72,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          MPI_Irecv(rcv + op.recv_segments[i] * vdims,
                    (op.recv_segments[i + 1] - op.recv_segments[i]) * vdims,
                    MPITypeMap<real_t>::mpi_type, op.recv_ranks[i],
-                   VarMessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
+                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
                    op.fespace->GetComm(), &op.requests.back());
       }
    }
@@ -87,7 +88,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          MPI_Isend(dst + op.send_segments[i] * vdims,
                    (op.send_segments[i + 1] - op.send_segments[i]) * vdims,
                    MPITypeMap<real_t>::mpi_type, op.send_ranks[i],
-                   VarMessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
+                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
                    op.fespace->GetComm(), &op.requests.back());
       }
    }
@@ -162,8 +163,8 @@ ParDerefineMatrixOp::Kernels::Kernels()
 
 void ParDerefineMatrixOp::Mult(const Vector &x, Vector &y) const
 {
-   const bool is_dg = fespace->FEColl()->GetContType() ==
-                      FiniteElementCollection::DISCONTINUOUS;
+   const bool is_dg = fespace->FEColl()->GetContType()
+                      == FiniteElementCollection::DISCONTINUOUS;
    // DG needs atomic summation
    MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
    // use this to prevent xghost* from being re-purposed for subsequent Mult
@@ -196,8 +197,8 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
       old_pncmesh->GetDerefinementTransforms();
    const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
-   const bool is_dg = fespace->FEColl()->GetContType() ==
-                      FiniteElementCollection::DISCONTINUOUS;
+   const bool is_dg = fespace->FEColl()->GetContType()
+                      == FiniteElementCollection::DISCONTINUOUS;
    DenseMatrix localRVO; // for variable-order only
 
    DenseTensor localR[Geometry::NumGeom];
@@ -378,8 +379,8 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
       for (int i = 0; i < elem_geoms.Size(); ++i)
       {
          std::copy(localR[elem_geoms[i]].Data(),
-                   localR[elem_geoms[i]].Data() +
-                   localR[elem_geoms[i]].TotalSize(),
+                   localR[elem_geoms[i]].Data()
+                   + localR[elem_geoms[i]].TotalSize(),
                    bs_ptr);
          bs_ptr += localR[elem_geoms[i]].TotalSize();
       }
