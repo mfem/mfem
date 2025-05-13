@@ -334,6 +334,27 @@ void LoadDofs3d(const int e, const int d1d,
    }
 }
 
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE
+void LoadDofs3dOneComponent(const int e, const int c, const int d1d,
+                            const DeviceTensor<5, const real_t> &X,
+                            regs5d_t<VDIM, DIM, MQ1> &Y)
+{
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            for (int d = 0; d < DIM; d++)
+            {
+               Y[c][d][dz][dy][dx] = X(dx, dy, dz, c, e);
+            }
+         }
+      }
+   }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE
@@ -484,12 +505,15 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
                                     regs5d_t<VDIM, DIM, MQ1> &X,
                                     regs5d_t<VDIM, DIM, MQ1> &Y)
 {
-   for (int d = 0; d < DIM; d++)
+   for (int c = 0; c < VDIM; c++)
    {
-      const real_t(*Bx)[MQ1] = (d == 0) ? G : B;
-      const real_t(*By)[MQ1] = (d == 1) ? G : B;
-      const real_t(*Bz)[MQ1] = (d == 2) ? G : B;
-      Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[d], Y[d]);
+      for (int d = 0; d < DIM; d++)
+      {
+         const real_t (*Bx)[MQ1] = (d == 0) ? G : B;
+         const real_t (*By)[MQ1] = (d == 1) ? G : B;
+         const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
+         Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[c][d], Y[c][d]);
+      }
    }
 }
 
@@ -523,6 +547,26 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
                for (int d = 0; d < DIM; d++) { value += X(c, d, dz, dy, dx); }
                Y(dx, dy, dz, c, e) += value;
             }
+         }
+      }
+   }
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE
+void WriteDofs3dOneComponent(const int e, const int c, const int d1d,
+                             regs5d_t<VDIM, DIM, MQ1> &X,
+                             const DeviceTensor<5, real_t> &Y)
+{
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t value = 0.0;
+            for (int d = 0; d < DIM; d++) { value += X(c, d, dz, dy, dx); }
+            Y(dx, dy, dz, c, e) += value;
          }
       }
    }

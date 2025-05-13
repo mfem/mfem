@@ -78,7 +78,6 @@ void SmemPAVectorDiffusionApply2D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::regs4d_t<VDIM, DIM, MQ1> r0, r1;
-
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
@@ -243,6 +242,80 @@ void PAVectorDiffusionApply2D(const int NE,
             }
          }
       }
+   });
+}
+
+// Smem PA Diffusion Apply 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0>
+void SmemPAVectorDiffusionApply3D(const int NE,
+                                  const int coeff_vdim,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
+                                  const Array<real_t> &bt,
+                                  const Array<real_t> &gt,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
+{
+
+   constexpr int DIM = 3, VDIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const int PA_SIZE = VDIM*VDIM;
+   const bool const_coeff = coeff_vdim == 1;
+   const bool vector_coeff = coeff_vdim == VDIM;
+   const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
+   MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
+
+   const auto DE = Reshape(d.Read(), Q1D, Q1D, Q1D, PA_SIZE,
+                           VDIM * (matrix_coeff ? VDIM : 1), NE);
+   const auto XE = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
+      kernels::internal::regs5d_t<VDIM, DIM, MQ1> r0, r1;
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+
+      for (int i = 0; i < VDIM; i++)
+      {
+         for (int j = 0; j < (matrix_coeff ? VDIM : 1); j++)
+         {
+            kernels::internal::LoadDofs3dOneComponent(e, i, D1D, XE, r0);
+            kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+            for (int qz = 0; qz < Q1D; qz++)
+            {
+               MFEM_FOREACH_THREAD(qy, y, Q1D)
+               {
+                  MFEM_FOREACH_THREAD(qx, x, Q1D)
+                  {
+                     const real_t gradX = r1[i][0][qz][qy][qx];
+                     const real_t gradY = r1[i][1][qz][qy][qx];
+                     const real_t gradZ = r1[i][2][qz][qy][qx];
+                     const int k = matrix_coeff ? j + i * VDIM : i;
+                     const real_t O11 = DE(qx,qy,qz,0,k,e), O12 = DE(qx,qy,qz,1,k,e),
+                                  O13 = DE(qx,qy, qz,2,k,e);
+                     const real_t O22 = DE(qx,qy,qz,3,k,e), O23 = DE(qx,qy,qz,4,k,e);
+                     const real_t O33 = DE(qx,qy,qz,5,k,e);
+                     r0[i][0][qz][qy][qx] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
+                     r0[i][1][qz][qy][qx] = (O12*gradX)+(O22*gradY)+(O23*gradZ);
+                     r0[i][2][qz][qy][qx] = (O13*gradX)+(O23*gradY)+(O33*gradZ);
+                  } // qx
+               } // qy
+            } // qz
+            MFEM_SYNC_THREAD;
+            kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+            kernels::internal::WriteDofs3dOneComponent(e, (matrix_coeff?j:i), D1D, r1, YE);
+         } // j
+      } // i
    });
 }
 

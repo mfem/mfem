@@ -472,11 +472,11 @@ TEST_CASE("PA Vector Diffusion",
       REQUIRE(test_vector_pa_integrator<INTEGRATOR>(2) == MFEM_Approx(0.0));
    }
 
-   // SECTION("3D")
-   // {
-   //    dbg("Vector Diffusion test 3D");
-   //    REQUIRE(test_vector_pa_integrator<INTEGRATOR>(3) == MFEM_Approx(0.0));
-   // }
+   SECTION("3D")
+   {
+      dbg("Vector Diffusion test 3D");
+      REQUIRE(test_vector_pa_integrator<INTEGRATOR>(3) == MFEM_Approx(0.0));
+   }
 }
 
 void velocity_function(const Vector &x, Vector &v)
