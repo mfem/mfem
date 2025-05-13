@@ -348,8 +348,10 @@ public:
    /// (*this) = a * x
    Vector &Set(const real_t a, const Vector &x);
 
+   /// (*this)[i + offset] = v[i]
    void SetVector(const Vector &v, int offset);
 
+   /// (*this)[i + offset] += v[i]
    void AddSubVector(const Vector &v, int offset);
 
    /// (*this) = -(*this)
