@@ -105,18 +105,18 @@ int main(int argc, char *argv[])
 
    // // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB_pol", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_pol_B", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB_pol", &JxB_pol);
+      paraview_dc.RegisterField("JxB_pol_B", &JxB_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/JxB_pol.gf");
+   ofstream sol_ofs("output/JxB_pol_B.gf");
    sol_ofs.precision(8);
    JxB_pol.Save(sol_ofs);
 

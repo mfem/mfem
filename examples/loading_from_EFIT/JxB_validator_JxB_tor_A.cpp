@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/JxB_tor.gf");
+   ofstream sol_ofs("output/JxB_tor_A.gf");
    sol_ofs.precision(8);
    JxB_tor.Save(sol_ofs);
 
