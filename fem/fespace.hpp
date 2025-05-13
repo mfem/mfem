@@ -246,7 +246,7 @@ class FiniteElementSpace
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
-   friend class DerefineMatrixOp;
+   friend struct DerefineMatrixOp;
 
 protected:
    /// The mesh that FE space lives on (not owned).
