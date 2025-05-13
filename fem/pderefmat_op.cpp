@@ -10,6 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "pderefmat_op.hpp"
+
+#ifdef MFEM_USE_MPI
+
 #include "fes_kernels.hpp"
 /// \cond DO_NOT_DOCUMENT
 namespace mfem
@@ -583,3 +586,5 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
 }
 } // namespace mfem
 /// \endcond DO_NOT_DOCUMENT
+
+#endif
