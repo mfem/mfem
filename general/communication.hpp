@@ -428,7 +428,7 @@ public:
 /// General MPI message tags used by MFEM
 enum MessageTag
 {
-   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM =
+   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA =
       291, /// ParFiniteElementSpace ParallelDerefinementMatrix and
    /// ParDerefineMatrixOp
 };
