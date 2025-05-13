@@ -15,7 +15,7 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
-// #include "../bilininteg.hpp"
+#include "../bilininteg.hpp"
 
 #include "kernels_regs.hpp"
 
@@ -36,25 +36,20 @@ namespace internal
 {
 
 // Smem PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPAVectorDiffusionApply2D(const int NE,
                                   const int coeff_vdim,
                                   const Array<real_t> &b,
                                   const Array<real_t> &g,
-                                  const Array<real_t> &bt,
-                                  const Array<real_t> &gt,
                                   const Vector &d,
                                   const Vector &x,
                                   Vector &y,
                                   const int d1d = 0,
-                                  const int q1d = 0,
-                                  const int vdim = 0)
+                                  const int q1d = 0)
 {
-   assert(vdim == 0 || T_VDIM == 2);
    constexpr int DIM = 2, VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   // const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    const bool const_coeff = coeff_vdim == 1;
    const bool vector_coeff = coeff_vdim == VDIM;
@@ -251,8 +246,6 @@ void SmemPAVectorDiffusionApply3D(const int NE,
                                   const int coeff_vdim,
                                   const Array<real_t> &b,
                                   const Array<real_t> &g,
-                                  const Array<real_t> &bt,
-                                  const Array<real_t> &gt,
                                   const Vector &d,
                                   const Vector &x,
                                   Vector &y,
@@ -530,6 +523,26 @@ void PAVectorDiffusionApply3D(const int NE,
 }
 
 } // namespace internal
+
+template<int DIM, int T_D1D, int T_Q1D>
+VectorDiffusionIntegrator::VectorDiffusionAddMultPAType
+VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Kernel()
+{
+   MFEM_VERIFY(DIM != 1, "Unsupported 1D kernel");
+   if (DIM == 2) { return internal::SmemPAVectorDiffusionApply2D<T_D1D,T_Q1D>; }
+   else if (DIM == 3) { return internal::SmemPAVectorDiffusionApply3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline
+VectorDiffusionIntegrator::VectorDiffusionAddMultPAType
+VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Fallback(int dim, int, int)
+{
+   MFEM_VERIFY(dim != 1, "Unsupported 1D kernel");
+   if (dim == 2) { return internal::SmemPAVectorDiffusionApply2D; }
+   else if (dim == 3) { return internal::SmemPAVectorDiffusionApply3D; }
+   else { MFEM_ABORT(""); }
+}
 
 /// \endcond DO_NOT_DOCUMENT
 

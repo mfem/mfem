@@ -288,6 +288,31 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
+      // Add the VectorDiffusionIntegrator specializations
+      static const auto vector_diffusion_kernel_specializations =
+         (  // 2D
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2,2>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3,3>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,4,4>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,5,5>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,6,6>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,7,7>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,8,8>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,9,9>::Add(),
+            // 3D
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,2,2>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,2,3>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3,4>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,4,5>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,4,6>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,5,6>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,5,8>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,6,7>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,7,8>::Add(),
+            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,8,9>::Add(),
+            true);
+      MFEM_CONTRACT_VAR(vector_diffusion_kernel_specializations);
+
       const int D1D = dofs1D;
       const int Q1D = quad1D;
       const Array<real_t> &B = maps->B;
@@ -320,20 +345,25 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
          // return internal::PAVectorDiffusionApply2D(ne, coeff_vdim,
          //                                           B, G, Bt, Gt, D, x, y,
          //                                           D1D, Q1D, vdim);
-         return internal::SmemPAVectorDiffusionApply2D(ne, coeff_vdim,
-                                                       B, G, Bt, Gt, D, x, y,
-                                                       D1D, Q1D);
+         // return internal::SmemPAVectorDiffusionApply2D(ne, coeff_vdim,
+         //                                               B, G, D, x, y,
+         //                                               D1D, Q1D);
+         return VectorDiffusionAddMultPA::Run(dim, D1D, Q1D,
+                                              ne, coeff_vdim, B, G, D, x, y,
+                                              D1D, Q1D);
       }
 
       if (dim == 3 && sdim == 3)
       {
          dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
          // return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
-         //                                           B, G, Bt, Gt, D, x, y,
-         // D1D, Q1D);
-         return internal::SmemPAVectorDiffusionApply3D(ne, coeff_vdim,
-                                                       B, G, Bt, Gt, D, x, y,
-                                                       D1D, Q1D);
+         //                                           B, G, Bt, Gt, D, x, y, D1D, Q1D);
+         // return internal::SmemPAVectorDiffusionApply3D(ne, coeff_vdim,
+         //                                               B, G, D, x, y,
+         //                                               D1D, Q1D);
+         return VectorDiffusionAddMultPA::Run(dim, D1D, Q1D,
+                                              ne, coeff_vdim,
+                                              B, G, D, x, y, D1D, Q1D);
       }
 
       MFEM_ABORT("Unknown kernel.");

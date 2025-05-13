@@ -3145,6 +3145,16 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   using VectorDiffusionAddMultPAType =
+      void(*)(const int, const int,
+              const Array<real_t>&, const Array<real_t>&,
+              const Vector&, const Vector&, Vector&,
+              const int, const int);
+
+   MFEM_REGISTER_KERNELS(VectorDiffusionAddMultPA,
+                         VectorDiffusionAddMultPAType,
+                         (int, int, int));
 };
 
 /** Integrator for the linear elasticity form:

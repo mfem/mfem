@@ -184,7 +184,6 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       static const auto vector_mass_kernel_specializations =
          (  // 2D
             VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
-            VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,2,2>::Add(),
             VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,3,3>::Add(),
             VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,4,4>::Add(),
             VectorMassIntegrator::VectorMassAddMultPA::Specialization<2,5,5>::Add(),
