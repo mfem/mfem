@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DREFMAT_OP
-#define MFEM_DREFMAT_OP
+#ifndef MFEM_DEREFMAT_OP
+#define MFEM_DEREFMAT_OP
 
 #include "fespace.hpp"
 

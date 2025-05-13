@@ -9,12 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DREFMAT_OP
-#define MFEM_DREFMAT_OP
+#ifndef MFEM_PDEREFMAT_OP
+#define MFEM_PDEREFMAT_OP
 
 #include "pfespace.hpp"
 
 #include "kernel_dispatch.hpp"
+
+#include <vector>
 
 namespace mfem
 {
