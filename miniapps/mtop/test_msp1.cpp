@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    cf->AddDomainIntegrator(new VectorMassIntegrator(damp));
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
-   real_t freq=2.0;
+   real_t freq=6.0;
    ProductCoefficient pc(-freq*freq,rho);
    //ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));
@@ -323,11 +323,11 @@ int main(int argc, char *argv[])
    std::cout<<"Allocate MSP1"<<std::endl;
    //MSP1Prec* prec=new MSP1Prec(pmesh.GetComm());
    MSP3Prec* prec=new MSP3Prec(pmesh.GetComm());
-   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0,512.0);
+   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0,1200);
    //prec->SetOperators(&lorkm,&lorcm,1.0,1.0);
    prec->SetAbsTol(1e-12);
    prec->SetRelTol(1e-6);
-   prec->SetMaxIter(2);
+   prec->SetMaxIter(1);
 
 
    prec->Mult(f,x);
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
    ls->SetRelTol(1e-12);
    ls->SetMaxIter(1000);
    ls->SetPrintLevel(1);
-   ls->SetKDim(100);
+   ls->SetKDim(400);
 
    ls->SetOperator(bop);
    ls->SetPreconditioner(*prec);
