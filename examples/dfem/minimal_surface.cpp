@@ -8,29 +8,44 @@
 //               mpirun -np 4 minimal_surface -der 1
 //               mpirun -np 4 minimal_surface -der 2
 //
+// Device sample runs:
+//               mpirun -np 4 minimal_surface -der 0 -r 2 -o 2 -d cuda
+//               mpirun -np 4 minimal_surface -der 0 -r 2 -o 2 -d hip
+//               mpirun -np 4 minimal_surface -der 1 -r 2 -o 2 -d hip
+//
 // Description:  This example code demonstrates the use of MFEM to solve the minimal
-//              surface problem in 2D:
+//               surface problem in 2D:
 //
-//              min \int sqrt(1 + |\nabla u|^2) dx
+//               $ min \int sqrt(1 + |\nabla u|^2) dx $
 //
-//              with Dirichlet boundary conditions. The nonlinear problem is solved
-//              using Newton's method, where the necessary derivatives are computed
-//              in one of three ways (controlled by -der command line parameter):
-//              0) Automatic differentiation using Enzyme or dual type (default)
-//              1) Hand-coded derivatives
-//              2) Finite differences
+//               with Dirichlet boundary conditions. The nonlinear problem is solved
+//               using Newton's method, where the necessary derivatives are computed
+//               in one of three ways (controlled by -der command line parameter):
+//               0) Automatic differentiation using Enzyme or dual type (default)
+//               1) Hand-coded derivatives
+//               2) Finite differences
 //
-//              The example demonstrates the use of MFEM's nonlinear solvers,
-//              automatic differentiation capabilities, and GLVis/ParaView visualization.
+//               The example demonstrates the use of MFEM's nonlinear solvers,
+//               automatic differentiation capabilities, and GLVis/ParaView visualization.
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace mfem;
+
+// This example code demonstrates the use of new features in MFEM that are in
+// development but exposed through the mfem::future namespace. All features
+// under this namespace might change their interface or behavior in upcoming
+// releases until they have stabilized.
 using namespace mfem::future;
 using mfem::future::tensor;
 
+// Derivative type enum
+// This enum is used to specify the type of derivative computation. Possibilities are
+// AUTODIFF, which uses automatic differentiation (Enzyme or dual type)
+// HANDCODED, which uses a manually implemented derivative and
+// FD (finite difference).
 enum DerivativeType
 {
    AUTODIFF,
@@ -38,6 +53,10 @@ enum DerivativeType
    FD
 };
 
+// Minimal surface operator.
+//
+// This class implements the minimal surface equation, which is a nonlinear
+// operator that provides the residual.
 template <typename dscalar_t, int dim = 2>
 class MinimalSurface : public Operator
 {
@@ -52,8 +71,26 @@ private:
       return real_t(1.0) / sqrt(real_t(1.0) + sqnorm(a));
    }
 
+   // Matrix-Free version of the pointwise residual form for the minimal
+   // surface equation.
    struct MFApply
    {
+      // Using DifferentiableOperator, we can define the residual form as a
+      // matrix-free operation. This allows us to compute the residual without
+      // explicitly forming any matrices or other large, temporary data
+      // structures.
+      //
+      // The inputs are the gradient of the solution in *reference coordinates*,
+      // the Jacobian of the coordinates, and the integration rule weights.
+      //
+      // The output is the residual in *physical coordinates* which also
+      // includes the necessary transformation from reference to physical
+      // coordinates for the gradient of the test function.
+      //
+      // Due to the description of how this pointwise operation is used in
+      // DifferentiableOperator, we know it is applied to the gradient of the
+      // test function in reference coordinates e.g.
+      // $ \int coeff(\nabla_x u) (\nabla u_x) J^{-T} * det(J) * w \nabla_xi v$
       MFEM_HOST_DEVICE inline
       auto operator()(
          const tensor<dscalar_t, dim> &dudxi,
@@ -66,6 +103,10 @@ private:
       }
    };
 
+   // This is the derivative of the residual form with respect to the
+   // solution $u$.
+   //
+   // The inputs and outputs follow the same rules as the MFApply operator.
    struct ManualDerivativeApply
    {
       MFEM_HOST_DEVICE inline
@@ -87,6 +128,9 @@ private:
       }
    };
 
+   // This class implements the Jacobian of the minimal surface operator. It
+   // mostly acts as a wrapper to retrieve the Jacobian and apply essential
+   // boundary conditions appropriately.
    class MinimalSurfaceJacobian : public Operator
    {
    public:
