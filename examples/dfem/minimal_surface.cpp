@@ -4,14 +4,14 @@
 //
 // Sample runs:  mpirun -np 4 minimal_surface -der 0
 //               mpirun -np 4 minimal_surface -der 0 -o 2
-//               mpirun -np 4 minimal_surface -der 0 -r 2
+//               mpirun -np 4 minimal_surface -der 0 -r 1
 //               mpirun -np 4 minimal_surface -der 1
 //               mpirun -np 4 minimal_surface -der 2
 //
 // Device sample runs:
-//               mpirun -np 4 minimal_surface -der 0 -r 2 -o 2 -d cuda
-//               mpirun -np 4 minimal_surface -der 0 -r 2 -o 2 -d hip
-//               mpirun -np 4 minimal_surface -der 1 -r 2 -o 2 -d hip
+//               mpirun -np 4 minimal_surface -der 0 -r 1 -o 2 -d cuda
+//               mpirun -np 4 minimal_surface -der 0 -r 1 -o 2 -d hip
+//               mpirun -np 4 minimal_surface -der 1 -r 1 -o 2 -d hip
 //
 // Description:  This example code demonstrates the use of MFEM to solve the minimal
 //               surface problem in 2D:
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { device.Print(); }
 
    // 4. Create a 2D mesh on the square domain [-π/2,π/2]^2
-   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
    mesh.SetCurvature(order);
 
    auto transform_mesh = [](const Vector &cold, Vector &cnew)
@@ -507,7 +507,7 @@ int main(int argc, char *argv[])
    H1.GetProlongationMatrix()->Mult(X, u);
 
    // 15. Save the solution in parallel using ParaView format
-   ParaViewDataCollection dc("minimal_surface", &pmesh);
+   ParaViewDataCollection dc("minimal_surface_output", &pmesh);
    dc.SetHighOrderOutput(true);
    dc.SetLevelsOfDetail(order);
    dc.RegisterField("solution", &u);
