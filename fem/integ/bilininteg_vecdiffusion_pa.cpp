@@ -97,17 +97,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    assert(!const_coeff);
    dbg("\x1b[33mconst_coeff:{}", const_coeff);
 
-   // MFEM_VERIFY(coeff_vdim == 1 ||
-   //             coeff_vdim == vdim ||
-   //             coeff_vdim == vdim*vdim, "Incorrect coefficient size");
-   // const bool scalar_coeff = coeff_vdim == 1;
-   // const bool vector_coeff = coeff_vdim > 1;
-   // const bool matrix_coeff = vector_coeff && (coeff_vdim == vdim*vdim);
-   // dbg("\x1b[31mscalar_coeff:{} vector_coeff:{} matrix_coeff:{}",
-   //     scalar_coeff, vector_coeff, matrix_coeff);
-   // MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
-   dbg("\x1b[33mcoeff_vdim:{}", coeff_vdim);
    const bool matrix_coeff = coeff_vdim == vdim*vdim;
+   dbg("\x1b[33mcoeff_vdim:{} matrix_coeff:{}", coeff_vdim, matrix_coeff);
 
    if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
    {
@@ -119,8 +110,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-      pa_data.SetSize(vdim*pa_size * nq * ne * (matrix_coeff ?2:1), mt);
-      dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*2🔥)x{}x{}",
+      pa_data.SetSize(vdim*pa_size * nq * ne * (matrix_coeff ? dim : 1), mt);
+      dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*dim)x{}x{}",
           vdim, pa_data.Size(), pa_size, nq, ne);
    }
    // MFEM_VERIFY(vdim == dim, "vdim != dim");
@@ -179,7 +170,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          const auto W = Reshape(w_r, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim*(matrix_coeff?2:1),
+         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size,
+                           vdim * (matrix_coeff ? dim : 1),
                            ne);
 
          mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
@@ -193,16 +185,19 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t J12 = J(qx, qy, 0, 1, e);
                   const real_t J22 = J(qx, qy, 1, 1, e);
                   const real_t w_detJ = W(qx, qy) / ((J11*J22)-(J21*J12));
+                  const real_t D0 =  w_detJ * (J12*J12 + J22*J22);
+                  const real_t D1 = -w_detJ * (J12*J11 + J22*J21);
+                  const real_t D2 =  w_detJ * (J11*J11 + J21*J21);
 
-                  if (coeff_vdim != 2*2)
+                  if (coeff_vdim != dim*dim)
                   {
                      for (int c = 0; c < vdim; ++c)
                      {
                         const real_t Cc = C(coeff_vdim == vdim ? c : 0, qx, qy, e);
-                        DE(qx, qy, 0, c, e) =  w_detJ * Cc * (J12*J12 + J22*J22);
-                        DE(qx, qy, 1, c, e) = -w_detJ * Cc * (J12*J11 + J22*J21);
-                        DE(qx, qy, 2, c, e) = -w_detJ * Cc * (J12*J11 + J22*J21);
-                        DE(qx, qy, 3, c, e) =  w_detJ * Cc * (J11*J11 + J21*J21);
+                        DE(qx, qy, 0, c, e) = D0 * Cc;
+                        DE(qx, qy, 1, c, e) = D1 * Cc;
+                        DE(qx, qy, 2, c, e) = D1 * Cc;
+                        DE(qx, qy, 3, c, e) = D2 * Cc;
                      }
                   }
                   else if (coeff_vdim == 2*2) // Matrix coefficient
@@ -211,38 +206,34 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      const real_t C1 = C(1, qx, qy, e);
                      const real_t C2 = C(2, qx, qy, e);
                      const real_t C3 = C(3, qx, qy, e);
-                     // dbg("C0: {}", C0);
-                     // dbg("C1: {}", C1);
-                     // dbg("C2: {}", C2);
-                     // dbg("C3: {}", C3);
 
                      {
                         // k = 0
-                        DE(qx, qy, 0, 0, e) =  w_detJ * (J12*J12 + J22*J22) * C0;
-                        DE(qx, qy, 1, 0, e) = -w_detJ * (J12*J11 + J22*J21) * C0;
-                        DE(qx, qy, 2, 0, e) = -w_detJ * (J12*J11 + J22*J21) * C0;
-                        DE(qx, qy, 3, 0, e) =  w_detJ * (J11*J11 + J21*J21) * C0;
+                        DE(qx, qy, 0, 0, e) = D0 * C0;
+                        DE(qx, qy, 1, 0, e) = D1 * C0;
+                        DE(qx, qy, 2, 0, e) = D1 * C0;
+                        DE(qx, qy, 3, 0, e) = D2 * C0;
                      }
                      {
                         // k = 1
-                        DE(qx, qy, 0, 1, e) =  w_detJ * (J12*J12 + J22*J22) * C3;
-                        DE(qx, qy, 1, 1, e) = -w_detJ * (J12*J11 + J22*J21) * C3;
-                        DE(qx, qy, 2, 1, e) = -w_detJ * (J12*J11 + J22*J21) * C3;
-                        DE(qx, qy, 3, 1, e) =  w_detJ * (J11*J11 + J21*J21) * C3;
+                        DE(qx, qy, 0, 1, e) = D0 * C3;
+                        DE(qx, qy, 1, 1, e) = D1 * C3;
+                        DE(qx, qy, 2, 1, e) = D1 * C3;
+                        DE(qx, qy, 3, 1, e) = D2 * C3;
                      }
                      {
                         // k = 2
-                        DE(qx, qy, 0, 2, e) =  w_detJ * (J12*J12 + J22*J22) * C1;
-                        DE(qx, qy, 1, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
-                        DE(qx, qy, 2, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
-                        DE(qx, qy, 3, 2, e) =  w_detJ * (J11*J11 + J21*J21) * C1;
+                        DE(qx, qy, 0, 2, e) = D0 * C1;
+                        DE(qx, qy, 1, 2, e) = D1 * C1;
+                        DE(qx, qy, 2, 2, e) = D1 * C1;
+                        DE(qx, qy, 3, 2, e) = D2 * C1;
                      }
                      {
                         // k = 3
-                        DE(qx, qy, 0, 3, e) =  w_detJ * (J12*J12 + J22*J22) * C2;
-                        DE(qx, qy, 1, 3, e) = -w_detJ * (J12*J11 + J22*J21) * C2;
-                        DE(qx, qy, 2, 3, e) = -w_detJ * (J12*J11 + J22*J21) * C2;
-                        DE(qx, qy, 3, 3, e) =  w_detJ * (J11*J11 + J21*J21) * C2;
+                        DE(qx, qy, 0, 3, e) = D0 * C2;
+                        DE(qx, qy, 1, 3, e) = D1 * C2;
+                        DE(qx, qy, 2, 3, e) = D1 * C2;
+                        DE(qx, qy, 3, 3, e) = D2 * C2;
                      }
                   }
                   else { assert(false); }
@@ -253,16 +244,15 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       if (dim == 3)
       {
-         dbg("dim:{}(3) sdim:{}(3) vdim:{}(3)", dim, sdim, vdim);
-         // PAVectorDiffusionSetup3D(q1d, ne, w, j, coeff, pa_data);
-         const auto W = Reshape(w_r, q1d, q1d, q1d);
-         const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, 3, 3, ne);
-         auto y = Reshape(pa_data.Write(), q1d, q1d, q1d, 6, ne);
+         dbg("dim:{}(==3!) sdim:{}(==3!) vdim:{}(3)", dim, sdim, vdim);
+         assert(dim == 3 && sdim == 3);
 
-         const bool const_c = coeff.Size() == 1;
-         const auto C = const_c ?
-                        Reshape(coeff.Read(),  1,    1,   1,  1) :
-                        Reshape(coeff.Read(), q1d, q1d, q1d, ne);
+         const auto W = Reshape(w_r, q1d, q1d, q1d);
+         const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
+         const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
+         auto DE = Reshape(pa_data.Write(), q1d, q1d, q1d, pa_size,
+                           vdim * (matrix_coeff ? dim : 1),
+                           ne);
 
          mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
          {
@@ -284,8 +274,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                                          J21 * (J12 * J33 - J32 * J13) +
                                          J31 * (J12 * J23 - J22 * J13);
-                     const real_t C1 = const_c ? C(0,0,0,0) : C(qx, qy, qz, e);
-                     const real_t c_detJ = W(qx, qy, qz) * C1 / detJ;
+                     const real_t c_detJ = W(qx, qy, qz) / detJ;
                      // adj(J)
                      const real_t A11 = (J22 * J33) - (J23 * J32);
                      const real_t A12 = (J32 * J13) - (J12 * J33);
@@ -297,12 +286,43 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      const real_t A32 = (J31 * J12) - (J11 * J32);
                      const real_t A33 = (J11 * J22) - (J12 * J21);
                      // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-                     y(qx, qy, qz, 0, e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-                     y(qx, qy, qz, 1, e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-                     y(qx, qy, qz, 2, e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-                     y(qx, qy, qz, 3, e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-                     y(qx, qy, qz, 4, e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-                     y(qx, qy, qz, 5, e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                     const real_t D11 = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+                     const real_t D21 = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+                     const real_t D31 = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+                     const real_t D22 = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+                     const real_t D32 = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+                     const real_t D33 = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+
+                     if (coeff_vdim != dim*dim)
+                     {
+                        for (int c = 0; c < vdim; ++c)
+                        {
+                           const real_t Ck = C(coeff_vdim == vdim ? c : 0, qx, qy, qz, e);
+                           DE(qx, qy, qz, 0, c, e) = D11 * Ck;
+                           DE(qx, qy, qz, 1, c, e) = D21 * Ck;
+                           DE(qx, qy, qz, 2, c, e) = D31 * Ck;
+                           DE(qx, qy, qz, 3, c, e) = D22 * Ck;
+                           DE(qx, qy, qz, 4, c, e) = D32 * Ck;
+                           DE(qx, qy, qz, 5, c, e) = D33 * Ck;
+                        }
+                     }
+                     else if (coeff_vdim == dim*dim) // Matrix coefficient
+                     {
+                        for (int k = 0; k < 9; ++k)
+                        {
+                           const real_t Ck = C(k, qx, qy, qz, e);
+                           DE(qx, qy, qz, 0, k, e) = D11 * Ck;
+                           DE(qx, qy, qz, 1, k, e) = D21 * Ck;
+                           DE(qx, qy, qz, 2, k, e) = D31 * Ck;
+                           DE(qx, qy, qz, 3, k, e) = D21 * Ck;
+                           DE(qx, qy, qz, 4, k, e) = D22 * Ck;
+                           DE(qx, qy, qz, 5, k, e) = D32 * Ck;
+                           DE(qx, qy, qz, 6, k, e) = D31 * Ck;
+                           DE(qx, qy, qz, 7, k, e) = D32 * Ck;
+                           DE(qx, qy, qz, 8, k, e) = D33 * Ck;
+                        }
+                     }
+                     else { assert(false); }
                   }
                }
             }
@@ -354,7 +374,11 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 
       if (dim == 3 && sdim == 3)
-      { return internal::PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }
+      {
+         return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
+                                                   B, G, Bt, Gt, D, x, y,
+                                                   D1D, Q1D);
+      }
 
       MFEM_ABORT("Unknown kernel.");
    }

@@ -16,7 +16,6 @@
 #include <algorithm>
 #include <memory>
 
-
 using namespace std;
 
 namespace mfem
@@ -3035,6 +3034,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
+
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -3070,10 +3070,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       }
       else
       {
-         if (Q)
-         {
-            w *= Q->Eval(Trans, ip);
-         }
+         if (Q) { w *= Q->Eval(Trans, ip); }
          Mult_a_AAt(w, dshapedxt, pelmat);
          for (int k = 0; k < vdim; ++k)
          {
