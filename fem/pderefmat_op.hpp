@@ -12,6 +12,10 @@
 #ifndef MFEM_PDEREFMAT_OP
 #define MFEM_PDEREFMAT_OP
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
 #include "pfespace.hpp"
 
 #include "kernel_dispatch.hpp"
@@ -101,4 +105,7 @@ struct ParDerefineMatrixOp : public Operator
 };
 /// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
+
+#endif
+
 #endif
