@@ -15,25 +15,25 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_pol_Hdiv.gf");
+   ifstream temp_log("output/B_pol_Hcurl.gf");
    GridFunction B_pol(&mesh, temp_log);
 
    temp_log.close();                    // Close previous file
-   temp_log.open("output/B_tor_DG.gf"); // Open new file
+   temp_log.open("output/B_tor_CG.gf"); // Open new file
    GridFunction B_tor(&mesh, temp_log);
 
    temp_log.close();                       // Close previous file
-   temp_log.open("output/J_pol_Hcurl.gf"); // Open new file
+   temp_log.open("output/J_pol_Hdiv.gf"); // Open new file
    GridFunction J_pol(&mesh, temp_log);
 
    temp_log.close();                      // Close previous file
-   temp_log.open("output/J_tor_Hdiv.gf"); // Open new file
+   temp_log.open("output/J_tor_Hcurl.gf"); // Open new file
    GridFunction J_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   L2_FECollection fec(0, dim);
-   // H1_FECollection fec(1, dim);
+   // L2_FECollection fec(0, dim);
+   H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    GridFunction JxB_tor(&fespace);
@@ -87,14 +87,14 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB_tor", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_tor_B", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB_tor", &JxB_tor);
+      paraview_dc.RegisterField("JxB_tor_B", &JxB_tor);
       paraview_dc.Save();
    }
 
