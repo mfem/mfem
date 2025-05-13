@@ -120,7 +120,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else
    {
       pa_data.SetSize(vdim*pa_size * nq * ne *2/*🔥 mcoeff*/, mt);
-      dbg("pa_data size:{} = (vdim:{})x(pa_size:{})x{}x{}",
+      dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*2🔥)x{}x{}",
           vdim, pa_data.Size(), pa_size, nq, ne);
    }
    // MFEM_VERIFY(vdim == dim, "vdim != dim");
@@ -182,7 +182,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          const auto W = Reshape(w_r, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim,
+         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size, vdim*2/*🔥*/,
                            ne);
 
          mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
@@ -225,31 +225,33 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
                      // for (int c = 0; c < vdim; ++c)
                      {
-                        // 0
-                        DE(qx, qy, 0, 0, e) =  w_detJ * C0 * (J12*J12 + J22*J22);
-                        DE(qx, qy, 1, 0, e) = -w_detJ * C0 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 2, 0, e) = -w_detJ * C0 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 3, 0, e) =  w_detJ * C0 * (J11*J11 + J21*J21);
+                        // k = 0
+                        DE(qx, qy, 0, 0, e) =  w_detJ * (J12*J12 + J22*J22) * C0;
+                        DE(qx, qy, 1, 0, e) = -w_detJ * (J12*J11 + J22*J21) * C0;
+                        DE(qx, qy, 2, 0, e) = -w_detJ * (J12*J11 + J22*J21) * C0;
+                        DE(qx, qy, 3, 0, e) =  w_detJ * (J11*J11 + J21*J21) * C0;
                      }
                      {
-                        // 3
-                        DE(qx, qy, 0, 1, e) =  w_detJ * C3 * (J12*J12 + J22*J22);
-                        DE(qx, qy, 1, 1, e) = -w_detJ * C3 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 2, 1, e) = -w_detJ * C3 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 3, 1, e) =  w_detJ * C3 * (J11*J11 + J21*J21);
-                     }
-                     /*{
-                        DE(qx, qy, 0, 2, e) =  w_detJ * C2 * (J12*J12 + J22*J22);
-                        DE(qx, qy, 1, 2, e) = -w_detJ * C2 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 2, 2, e) = -w_detJ * C2 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 3, 2, e) =  w_detJ * C2 * (J11*J11 + J21*J21);
+                        // k = 1
+                        DE(qx, qy, 0, 1, e) =  w_detJ * (J12*J12 + J22*J22) * C3;
+                        DE(qx, qy, 1, 1, e) = -w_detJ * (J12*J11 + J22*J21) * C3;
+                        DE(qx, qy, 2, 1, e) = -w_detJ * (J12*J11 + J22*J21) * C3;
+                        DE(qx, qy, 3, 1, e) =  w_detJ * (J11*J11 + J21*J21) * C3;
                      }
                      {
-                        DE(qx, qy, 0, 3, e) =  w_detJ * C1 * (J12*J12 + J22*J22);
-                        DE(qx, qy, 1, 3, e) = -w_detJ * C1 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 2, 3, e) = -w_detJ * C1 * (J12*J11 + J22*J21);
-                        DE(qx, qy, 3, 3, e) =  w_detJ * C1 * (J11*J11 + J21*J21);
-                     }*/
+                        // k = 2
+                        DE(qx, qy, 0, 2, e) =  w_detJ * (J12*J12 + J22*J22) * C1;
+                        DE(qx, qy, 1, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
+                        DE(qx, qy, 2, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
+                        DE(qx, qy, 3, 2, e) =  w_detJ * (J11*J11 + J21*J21) * C1;
+                     }
+                     {
+                        // k = 3
+                        DE(qx, qy, 0, 3, e) =  w_detJ * (J12*J12 + J22*J22) * C2;
+                        DE(qx, qy, 1, 3, e) = -w_detJ * (J12*J11 + J22*J21) * C2;
+                        DE(qx, qy, 2, 3, e) = -w_detJ * (J12*J11 + J22*J21) * C2;
+                        DE(qx, qy, 3, 3, e) =  w_detJ * (J11*J11 + J21*J21) * C2;
+                     }
                   }
                   else { assert(false); }
                }

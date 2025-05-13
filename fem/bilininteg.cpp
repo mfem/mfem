@@ -3059,6 +3059,8 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
+      dbg("dshapedxt:");
+      dshapedxt.Print();
 
       if (VQ)
       {
@@ -3078,10 +3080,15 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
          MQ->Eval(mcoeff, Trans, ip);
          mcoeff.Print();
 #if 1
-         for (int ii = 0; ii < vdim; ++ii)
+         // for (int ii = 0; ii < vdim; ++ii)
+         const int ii = 0, jj = 0; // ✅ k = 0
+         // const int ii = 1, jj = 1; // ✅ k = 1
+         // const int ii = 0, jj = 1; // C1 ??
+         // const int ii = 1, jj = 0; // C2 ?
          {
-            const int jj = ii;
             Mult_a_AAt(w*mcoeff(ii,jj), dshapedxt, pelmat);
+            pelmat.Print();
+            dbg("ii:{} jj:{} {}", ii, jj, mcoeff(ii,jj));
             elmat.AddMatrix(pelmat, dof*ii, dof*jj);
          }
 #else

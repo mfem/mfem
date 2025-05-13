@@ -133,11 +133,32 @@ void PAVectorDiffusionApply2D(const int NE,
                const real_t O12 = D(q,1,c,e);
                const real_t O21 = D(q,2,c,e);
                const real_t O22 = D(q,3,c,e);
+
+               const real_t P11 = D(q,0,c+VDIM,e);
+               const real_t P12 = D(q,1,c+VDIM,e);
+               const real_t P21 = D(q,2,c+VDIM,e);
+               const real_t P22 = D(q,3,c+VDIM,e);
                const real_t gradX = grad[qy][qx][0];
                const real_t gradY = grad[qy][qx][1];
-               dbg("{} {} {} {}", O11, O12, O21, O22);
-               grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-               grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+               const int k = 2; // 🔥 [2,3]:❌
+               if (c == k && (k==0 || k==1)) // [0,1]: ✅
+               {
+                  dbg("{} {} {} {}", O11, O12, O21, O22);
+                  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+                  grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+               }
+               else if (c == k && (k==2 || k==3)) // [2,3]:❌
+               {
+                  dbg("{} {} {} {}", O11, O12, O21, O22);
+                  grad[qy][qx][0] = (O11 * gradY) + (O12 * gradX);
+                  grad[qy][qx][1] = (O21 * gradY) + (O22 * gradX);
+               }
+               else
+               {
+                  dbg("\x1b[31m c={}, setting grad to 0", c);
+                  grad[qy][qx][0] = 0.0;
+                  grad[qy][qx][1] = 0.0;
+               }
                /*{
                   const real_t G11 = D(q,0,c+VDIM,e);
                   const real_t G12 = D(q,1,c+VDIM,e);
