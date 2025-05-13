@@ -378,7 +378,10 @@ private:
    int derivative_type;
 };
 
-
+// Boundary function for the minimal surface problem described by the Scherk
+// surface.
+// 
+// See https://en.wikipedia.org/wiki/Scherk_surface for more details.
 real_t boundary_func(const Vector &coords)
 {
    const real_t x = coords(0);
