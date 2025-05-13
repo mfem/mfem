@@ -97,6 +97,11 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    assert(!const_coeff);
    dbg("\x1b[33mconst_coeff:{}", const_coeff);
 
+   const bool scalar_coeff = coeff_vdim == 1;
+   const bool vector_coeff = coeff_vdim == vdim;
+   const bool matrice_coeff = coeff_vdim == vdim*vdim;
+   MFEM_VERIFY(scalar_coeff + vector_coeff + matrice_coeff == 1, "");
+
    const bool matrix_coeff = coeff_vdim == vdim*vdim;
    dbg("\x1b[33mcoeff_vdim:{} matrix_coeff:{}", coeff_vdim, matrix_coeff);
 
@@ -114,7 +119,6 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*dim)x{}x{}",
           vdim, pa_data.Size(), pa_size, nq, ne);
    }
-   // MFEM_VERIFY(vdim == dim, "vdim != dim");
 
    const auto w_r = ir->GetWeights().Read();
 
@@ -188,31 +192,17 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t D0 =  w_detJ * (J12*J12 + J22*J22);
                   const real_t D1 = -w_detJ * (J12*J11 + J22*J21);
                   const real_t D2 =  w_detJ * (J11*J11 + J21*J21);
+                  const int map[4] = {0, 2, 1, 3};
 
-                  if (coeff_vdim != dim*dim)
+                  for (int i = 0; i < (matrice_coeff ? coeff_vdim : vdim); ++i)
                   {
-                     for (int k = 0; k < vdim; ++k)
-                     {
-                        const real_t Cc = C(coeff_vdim == vdim ? k : 0, qx, qy, e);
-                        DE(qx, qy, 0, k, e) = D0 * Cc;
-                        DE(qx, qy, 1, k, e) = D1 * Cc;
-                        DE(qx, qy, 2, k, e) = D1 * Cc;
-                        DE(qx, qy, 3, k, e) = D2 * Cc;
-                     }
+                     const auto k = matrice_coeff ? map[i] : vector_coeff ? i : 0;
+                     const auto Cc = C(k, qx, qy, e);
+                     DE(qx, qy, 0, i, e) = D0 * Cc;
+                     DE(qx, qy, 1, i, e) = D1 * Cc;
+                     DE(qx, qy, 2, i, e) = D1 * Cc;
+                     DE(qx, qy, 3, i, e) = D2 * Cc;
                   }
-                  else if (coeff_vdim == dim*dim) // Matrix coefficient
-                  {
-                     const size_t map[4] = {0, 2, 1, 3};
-                     for (size_t k = 0; k < 4; ++k)
-                     {
-                        const real_t Ck = C(map[k], qx, qy, e);
-                        DE(qx, qy, 0, k, e) = D0 * Ck;
-                        DE(qx, qy, 1, k, e) = D1 * Ck;
-                        DE(qx, qy, 2, k, e) = D1 * Ck;
-                        DE(qx, qy, 3, k, e) = D2 * Ck;
-                     }
-                  }
-                  else { assert(false); }
                }
             }
          });
@@ -268,36 +258,19 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      const real_t D22 = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
                      const real_t D32 = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
                      const real_t D33 = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                     const int map[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
 
-                     if (coeff_vdim != dim*dim)
+                     for (int i = 0; i < (matrice_coeff ? coeff_vdim : vdim); ++i)
                      {
-                        for (int k = 0; k < vdim; ++k)
-                        {
-                           const real_t Ck = C(coeff_vdim == vdim ? k : 0, qx, qy, qz, e);
-                           DE(qx, qy, qz, 0, k, e) = D11 * Ck;
-                           DE(qx, qy, qz, 1, k, e) = D21 * Ck;
-                           DE(qx, qy, qz, 2, k, e) = D31 * Ck;
-                           DE(qx, qy, qz, 3, k, e) = D22 * Ck;
-                           DE(qx, qy, qz, 4, k, e) = D32 * Ck;
-                           DE(qx, qy, qz, 5, k, e) = D33 * Ck;
-                        }
+                        const auto k = matrice_coeff ? map[i] : vector_coeff ? i : 0;
+                        const auto Ck = C(k, qx, qy, qz, e);
+                        DE(qx, qy, qz, 0, i, e) = D11 * Ck;
+                        DE(qx, qy, qz, 1, i, e) = D21 * Ck;
+                        DE(qx, qy, qz, 2, i, e) = D31 * Ck;
+                        DE(qx, qy, qz, 3, i, e) = D22 * Ck;
+                        DE(qx, qy, qz, 4, i, e) = D32 * Ck;
+                        DE(qx, qy, qz, 5, i, e) = D33 * Ck;
                      }
-                     else if (coeff_vdim == dim*dim) // Matrix coefficient
-                     {
-                        // generate sequence: 0, 3, 6, 1, 4, 7, 2, 5, 8
-                        const auto map = [](size_t n) { return 3 * (n % 3) + (n / 3); };
-                        for (size_t k = 0; k < 9; ++k)
-                        {
-                           const real_t Ck = C(map(k), qx, qy, qz, e);
-                           DE(qx, qy, qz, 0, k, e) = D11 * Ck;
-                           DE(qx, qy, qz, 1, k, e) = D21 * Ck;
-                           DE(qx, qy, qz, 2, k, e) = D31 * Ck;
-                           DE(qx, qy, qz, 3, k, e) = D22 * Ck;
-                           DE(qx, qy, qz, 4, k, e) = D32 * Ck;
-                           DE(qx, qy, qz, 5, k, e) = D33 * Ck;
-                        }
-                     }
-                     else { assert(false); }
                   }
                }
             }
