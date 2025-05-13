@@ -298,6 +298,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
       if (dim == 2 && sdim == 3)
       {
+         assert(false);
          switch ((dofs1D << 4 ) | quad1D)
          {
             case 0x22:
@@ -316,16 +317,23 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       if (dim == 2 && sdim == 2)
       {
          dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
-         return internal::PAVectorDiffusionApply2D(ne, coeff_vdim,
-                                                   B, G, Bt, Gt, D, x, y,
-                                                   D1D, Q1D, vdim);
+         // return internal::PAVectorDiffusionApply2D(ne, coeff_vdim,
+         //                                           B, G, Bt, Gt, D, x, y,
+         //                                           D1D, Q1D, vdim);
+         return internal::SmemPAVectorDiffusionApply2D(ne, coeff_vdim,
+                                                       B, G, Bt, Gt, D, x, y,
+                                                       D1D, Q1D);
       }
 
       if (dim == 3 && sdim == 3)
       {
-         return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
-                                                   B, G, Bt, Gt, D, x, y,
-                                                   D1D, Q1D);
+         dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
+         // return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
+         //                                           B, G, Bt, Gt, D, x, y,
+         // D1D, Q1D);
+         return internal::SmemPAVectorDiffusionApply3D(ne, coeff_vdim,
+                                                       B, G, Bt, Gt, D, x, y,
+                                                       D1D, Q1D);
       }
 
       MFEM_ABORT("Unknown kernel.");

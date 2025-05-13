@@ -28,13 +28,13 @@ namespace internal
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PAVectorMassApply2D(const int NE,
-                                const Array<real_t> &b,
-                                const Vector &d,
-                                const Vector &x,
-                                Vector &y,
-                                const int d1d = 0,
-                                const int q1d = 0)
+void PAVectorMassApply2D(const int NE,
+                         const Array<real_t> &b,
+                         const Vector &d,
+                         const Vector &x,
+                         Vector &y,
+                         const int d1d = 0,
+                         const int q1d = 0)
 {
    constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;

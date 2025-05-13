@@ -17,7 +17,7 @@
 #include "../../linalg/vector.hpp"
 // #include "../bilininteg.hpp"
 
-// #include "kernels_regs.hpp"
+#include "kernels_regs.hpp"
 
 #if __has_include("general/nvtx.hpp")
 #undef NVTX_COLOR
@@ -35,7 +35,80 @@ namespace mfem
 namespace internal
 {
 
-// PA Diffusion Apply 2D kernel
+// Smem PA Diffusion Apply 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
+void SmemPAVectorDiffusionApply2D(const int NE,
+                                  const int coeff_vdim,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
+                                  const Array<real_t> &bt,
+                                  const Array<real_t> &gt,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y,
+                                  const int d1d = 0,
+                                  const int q1d = 0,
+                                  const int vdim = 0)
+{
+   assert(vdim == 0 || T_VDIM == 2);
+   constexpr int DIM = 2, VDIM = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   // const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const bool const_coeff = coeff_vdim == 1;
+   const bool vector_coeff = coeff_vdim == VDIM;
+   const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
+   dbg("coeff_vdim:{} D1D:{} Q1D:{} ", coeff_vdim, D1D, Q1D);
+   dbg("Q:{} VQ:{} MQ:{}", const_coeff, vector_coeff, matrix_coeff);
+   MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
+
+   const int PA_SIZE = DIM*DIM;
+
+   const auto DE = Reshape(d.Read(), Q1D, Q1D,
+                           PA_SIZE, VDIM * (matrix_coeff ? VDIM : 1),
+                           NE);
+   const auto XE = Reshape(x.Read(), D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
+      kernels::internal::regs4d_t<VDIM, DIM, MQ1> r0, r1;
+
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+
+      for (int i = 0; i < VDIM; i++)
+      {
+         for (int j = 0; j < (matrix_coeff ? VDIM : 1); j++)
+         {
+            kernels::internal::LoadDofs2dOneComponent(e, i, D1D, XE, r0);
+            kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               {
+                  const real_t gradX = r1[i][0][qy][qx];
+                  const real_t gradY = r1[i][1][qy][qx];
+                  const int k = matrix_coeff ? (j + i * VDIM) : i;
+                  const real_t O11 = DE(qx, qy, 0, k, e), O12 = DE(qx, qy, 1, k, e);
+                  const real_t O21 = DE(qx, qy, 2, k, e), O22 = DE(qx, qy, 3, k, e);
+                  r0[i][0][qy][qx] = (O11 * gradX) + (O12 * gradY);
+                  r0[i][1][qy][qx] = (O21 * gradX) + (O22 * gradY);
+               } // qx
+            } // qy
+            MFEM_SYNC_THREAD;
+            kernels::internal::GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
+            kernels::internal::WriteDofs2dOneComponent(e, (matrix_coeff?j:i), D1D, r1, YE);
+         } // j
+      } // i
+   });
+}
+
 template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
 void PAVectorDiffusionApply2D(const int NE,
                               const int coeff_vdim,
@@ -43,9 +116,9 @@ void PAVectorDiffusionApply2D(const int NE,
                               const Array<real_t> &g,
                               const Array<real_t> &bt,
                               const Array<real_t> &gt,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
+                              const Vector &d,
+                              const Vector &x,
+                              Vector &y,
                               const int d1d = 0,
                               const int q1d = 0,
                               const int vdim = 0)
@@ -64,12 +137,12 @@ void PAVectorDiffusionApply2D(const int NE,
    const auto G = Reshape(g.Read(), Q1D, D1D);
    const auto Bt = Reshape(bt.Read(), D1D, Q1D);
    const auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   const auto D = Reshape(d_.Read(), Q1D*Q1D,
-                          PA_SIZE,
-                          VDIM * (matrix_coeff?2:1),
-                          NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto DE = Reshape(d.Read(), Q1D*Q1D,
+                           PA_SIZE,
+                           VDIM * (matrix_coeff ? 2 : 1),
+                           NE);
+   const auto XE = Reshape(x.Read(), D1D, D1D, VDIM, NE);
+   auto YE = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -103,7 +176,7 @@ void PAVectorDiffusionApply2D(const int NE,
                }
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const real_t s = x(dx,dy,ii,e);
+                  const real_t s = XE(dx,dy,ii,e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      gradX[qx][0] += s * B(qx,dx);
@@ -130,8 +203,8 @@ void PAVectorDiffusionApply2D(const int NE,
                   const real_t gradX = grad[qy][qx][0];
                   const real_t gradY = grad[qy][qx][1];
                   const int k = matrix_coeff ? jj + ii * VDIM : ii;
-                  const real_t O11 = D(q, 0, k, e), O12 = D(q, 1, k, e);
-                  const real_t O21 = D(q, 2, k, e), O22 = D(q, 3, k, e);
+                  const real_t O11 = DE(q, 0, k, e), O12 = DE(q, 1, k, e);
+                  const real_t O21 = DE(q, 2, k, e), O22 = DE(q, 3, k, e);
                   grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                   grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
                }
@@ -162,7 +235,9 @@ void PAVectorDiffusionApply2D(const int NE,
                   const real_t wDy = Gt(dy,qy);
                   for (int dx = 0; dx < D1D; ++dx)
                   {
-                     y(dx,dy,matrix_coeff?jj:ii,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+                     YE(dx, dy,
+                        matrix_coeff ? jj : ii,
+                        e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
                   }
                }
             }

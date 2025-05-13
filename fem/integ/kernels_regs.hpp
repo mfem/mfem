@@ -67,7 +67,10 @@ void LoadMatrix(const int d1d, const int q1d,
 {
    MFEM_FOREACH_THREAD(dy, y, d1d)
    {
-      MFEM_FOREACH_THREAD(qx, x, q1d) { N[dy][qx] = M[dy * q1d + qx]; }
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         N[dy][qx] = M[dy * q1d + qx];
+      }
    }
    MFEM_SYNC_THREAD;
 }
@@ -85,7 +88,28 @@ void LoadDofs2d(const int e, const int d1d,
       {
          MFEM_FOREACH_THREAD(dx, x, d1d)
          {
-            for (int d = 0; d < DIM; d++) { Y[c][d][dy][dx] = X(dx, dy, c, e); }
+            for (int d = 0; d < DIM; d++)
+            {
+               Y[c][d][dy][dx] = X(dx, dy, c, e);
+            }
+         }
+      }
+   }
+}
+
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE
+void LoadDofs2dOneComponent(const int e, const int c, const int d1d,
+                            const DeviceTensor<4, const real_t> &X,
+                            regs4d_t<VDIM, DIM, MQ1> &Y)
+{
+   MFEM_FOREACH_THREAD(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD(dx, x, d1d)
+      {
+         for (int d = 0; d < DIM; d++)
+         {
+            Y[c][d][dy][dx] = X(dx, dy, c, e);
          }
       }
    }
@@ -122,8 +146,11 @@ void ContractX2d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE
-void ContractY2d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                 const real_t (*B)[MQ1], const regs2d_t<MQ1> &X, regs2d_t<MQ1> &Y)
+void ContractY2d(const int d1d, const int q1d,
+                 real_t (&smem)[MQ1][MQ1],
+                 const real_t (*B)[MQ1],
+                 const regs2d_t<MQ1> &X,
+                 regs2d_t<MQ1> &Y)
 {
    MFEM_FOREACH_THREAD(y, y, (Transpose ? q1d : d1d))
    {
@@ -147,7 +174,8 @@ void ContractY2d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 
 template <int MQ1>
 inline MFEM_HOST_DEVICE void Copy2d(const int d1d, const int q1d,
-                                    const regs2d_t<MQ1> &X, regs2d_t<MQ1> &Y)
+                                    const regs2d_t<MQ1> &X,
+                                    regs2d_t<MQ1> &Y)
 {
    MFEM_FOREACH_THREAD(y, y, q1d)
    {
@@ -157,44 +185,84 @@ inline MFEM_HOST_DEVICE void Copy2d(const int d1d, const int q1d,
 
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE
-void Contract2d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                const real_t (*B)[MQ1], regs2d_t<MQ1> &X, regs2d_t<MQ1> &Y)
+void Contract2d(const int d1d, const int q1d,
+                real_t (&smem)[MQ1][MQ1],
+                const real_t (*Bx)[MQ1],
+                const real_t (*By)[MQ1],
+                regs2d_t<MQ1> &X,
+                regs2d_t<MQ1> &Y)
 {
    if (!Transpose)
    {
-      ContractX2d<false>(d1d, q1d, smem, B, X, Y);
-      ContractY2d<false>(d1d, q1d, smem, B, Y, X);
+      ContractX2d<false>(d1d, q1d, smem, Bx, X, Y);
+      ContractY2d<false>(d1d, q1d, smem, By, Y, X);
       Copy2d(d1d, q1d, X, Y);
    }
    else
    {
       Copy2d(d1d, q1d, X, Y);
-      ContractY2d<true>(d1d, q1d, smem, B, Y, X);
-      ContractX2d<true>(d1d, q1d, smem, B, X, Y);
+      ContractY2d<true>(d1d, q1d, smem, By, Y, X);
+      ContractX2d<true>(d1d, q1d, smem, Bx, X, Y);
    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MD1, int MQ1, bool Transpose = false>
 inline MFEM_HOST_DEVICE
-void Eval2d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-            const real_t (&B)[MD1][MQ1], regs4d_t<VDIM, DIM, MQ1> &X,
+void Eval2d(const int d1d, const int q1d,
+            real_t (&smem)[MQ1][MQ1],
+            const real_t (&B)[MD1][MQ1],
+            regs4d_t<VDIM, DIM, MQ1> &X,
             regs4d_t<VDIM, DIM, MQ1> &Y)
 {
    static_assert(DIM == 1, "DIM must be 1");
    for (int c = 0; c < VDIM; c++)
    {
-      Contract2d<Transpose>(d1d, q1d, smem, B, X[c][0], Y[c][0]);
+      Contract2d<Transpose>(d1d, q1d, smem, B, B, X[c][0], Y[c][0]);
    }
 }
 
 template <int VDIM, int DIM, int MD1, int MQ1>
 inline MFEM_HOST_DEVICE
-void EvalTranspose2d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                     const real_t (&B)[MD1][MQ1], regs4d_t<VDIM, DIM, MQ1> &X,
+void EvalTranspose2d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (&B)[MD1][MQ1],
+                     regs4d_t<VDIM, DIM, MQ1> &X,
                      regs4d_t<VDIM, DIM, MQ1> &Y)
 {
    Eval2d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, X, Y);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <int VDIM, int DIM, int MD1, int MQ1, bool Transpose = false>
+inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (&B)[MD1][MQ1],
+                                    const real_t (&G)[MD1][MQ1],
+                                    regs4d_t<VDIM, DIM, MQ1> &X,
+                                    regs4d_t<VDIM, DIM, MQ1> &Y)
+{
+   for (int c = 0; c < VDIM; c++)
+   {
+      for (int d = 0; d < DIM; d++)
+      {
+         const real_t (*Bx)[MQ1] = (d == 0) ? G : B;
+         const real_t (*By)[MQ1] = (d == 1) ? G : B;
+         Contract2d<Transpose>(d1d, q1d, smem, Bx, By, X[c][d], Y[c][d]);
+      }
+   }
+}
+
+template <int VDIM, int DIM, int MD1, int MQ1> inline MFEM_HOST_DEVICE
+void GradTranspose2d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (&B)[MD1][MQ1],
+                     const real_t (&G)[MD1][MQ1],
+                     regs4d_t<VDIM, DIM, MQ1> &X,
+                     regs4d_t<VDIM, DIM, MQ1> &Y)
+{
+   constexpr bool Transpose = true;
+   Grad2d<VDIM, DIM, MD1, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -211,9 +279,32 @@ void WriteDofs2d(const int e, const int d1d,
          for (int c = 0; c < VDIM; ++c)
          {
             real_t value = 0.0;
-            for (int d = 0; d < DIM; d++) { value += X(c, d, dy, dx); }
+            for (int d = 0; d < DIM; d++)
+            {
+               value += X(c, d, dy, dx);
+            }
             Y(dx, dy, c, e) += value;
          }
+      }
+   }
+
+}
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE
+void WriteDofs2dOneComponent(const int e, const int c, const int d1d,
+                             regs4d_t<VDIM, DIM, MQ1> &X,
+                             const DeviceTensor<4, real_t> &Y)
+{
+   MFEM_FOREACH_THREAD(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD(dx, d, d1d)
+      {
+         real_t value = 0.0;
+         for (int d = 0; d < DIM; d++)
+         {
+            value += X(c, d, dy, dx);
+         }
+         Y(dx, dy, c, e) += value;
       }
    }
 }
@@ -246,8 +337,11 @@ void LoadDofs3d(const int e, const int d1d,
 ///////////////////////////////////////////////////////////////////////////////
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE
-void ContractX3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                 const real_t (*B)[MQ1], const regs3d_t<MQ1> &X, regs3d_t<MQ1> &Y)
+void ContractX3d(const int d1d, const int q1d,
+                 real_t (&smem)[MQ1][MQ1],
+                 const real_t (*B)[MQ1],
+                 const regs3d_t<MQ1> &X,
+                 regs3d_t<MQ1> &Y)
 {
    for (int z = 0; z < d1d; ++z)
    {
@@ -278,8 +372,11 @@ void ContractX3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE
-void ContractY3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                 const real_t (*B)[MQ1], const regs3d_t<MQ1> &X, regs3d_t<MQ1> &Y)
+void ContractY3d(const int d1d, const int q1d,
+                 real_t (&smem)[MQ1][MQ1],
+                 const real_t (*B)[MQ1],
+                 const regs3d_t<MQ1> &X,
+                 regs3d_t<MQ1> &Y)
 {
    for (int z = 0; z < d1d; ++z)
    {
@@ -329,19 +426,23 @@ void ContractZ3d(const int d1d, const int q1d, const real_t (*B)[MQ1],
 
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE
-void Contract3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                const real_t (*Bx)[MQ1], const real_t (*By)[MQ1],
-                const real_t (*Bz)[MQ1], regs3d_t<MQ1> &X, regs3d_t<MQ1> &Y)
+void Contract3d(const int d1d, const int q1d,
+                real_t (&smem)[MQ1][MQ1],
+                const real_t (*Bx)[MQ1],
+                const real_t (*By)[MQ1],
+                const real_t (*Bz)[MQ1],
+                regs3d_t<MQ1> &X,
+                regs3d_t<MQ1> &Y)
 {
    if (!Transpose)
    {
       ContractX3d<false>(d1d, q1d, smem, Bx, X, Y);
       ContractY3d<false>(d1d, q1d, smem, By, Y, X);
-      ContractZ3d<false>(d1d, q1d, Bz, X, Y);
+      ContractZ3d<false>(d1d, q1d,       Bz, X, Y);
    }
    else
    {
-      ContractZ3d<true>(d1d, q1d, Bz, X, Y);
+      ContractZ3d<true>(d1d, q1d,       Bz, X, Y);
       ContractY3d<true>(d1d, q1d, smem, By, Y, X);
       ContractX3d<true>(d1d, q1d, smem, Bx, X, Y);
    }
@@ -350,8 +451,10 @@ void Contract3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MD1, int MQ1, bool Transpose = false>
 inline MFEM_HOST_DEVICE
-void Eval3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-            const real_t (&B)[MD1][MQ1], regs5d_t<VDIM, DIM, MQ1> &X,
+void Eval3d(const int d1d, const int q1d,
+            real_t (&smem)[MQ1][MQ1],
+            const real_t (&B)[MD1][MQ1],
+            regs5d_t<VDIM, DIM, MQ1> &X,
             regs5d_t<VDIM, DIM, MQ1> &Y)
 {
    static_assert(DIM == 1, "DIM must be 1");
@@ -363,8 +466,10 @@ void Eval3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 
 template <int VDIM, int DIM, int MD1, int MQ1>
 inline MFEM_HOST_DEVICE
-void EvalTranspose3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                     const real_t (&B)[MD1][MQ1], regs5d_t<VDIM, DIM, MQ1> &X,
+void EvalTranspose3d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (&B)[MD1][MQ1],
+                     regs5d_t<VDIM, DIM, MQ1> &X,
                      regs5d_t<VDIM, DIM, MQ1> &Y)
 {
    Eval3d<VDIM, DIM, MD1, MQ1, true>(d1d, q1d, smem, B, X, Y);
@@ -372,10 +477,12 @@ void EvalTranspose3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int VDIM, int DIM, int MD1, int MQ1, bool Transpose = false>
-inline MFEM_HOST_DEVICE
-void Grad3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-            const real_t (&B)[MD1][MQ1], const real_t (&G)[MD1][MQ1],
-            regs5d_t<VDIM, DIM, MQ1> &X, regs5d_t<VDIM, DIM, MQ1> &Y)
+inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (&B)[MD1][MQ1],
+                                    const real_t (&G)[MD1][MQ1],
+                                    regs5d_t<VDIM, DIM, MQ1> &X,
+                                    regs5d_t<VDIM, DIM, MQ1> &Y)
 {
    for (int d = 0; d < DIM; d++)
    {
@@ -387,10 +494,12 @@ void Grad3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
 }
 
 template <int VDIM, int DIM, int MD1, int MQ1>
-inline MFEM_HOST_DEVICE void
-GradTranspose3d(const int d1d, const int q1d, real_t (&smem)[MQ1][MQ1],
-                const real_t (&B)[MD1][MQ1], const real_t (&G)[MD1][MQ1],
-                regs5d_t<VDIM, DIM, MQ1> &X, regs5d_t<VDIM, DIM, MQ1> &Y)
+inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
+                                             real_t (&smem)[MQ1][MQ1],
+                                             const real_t (&B)[MD1][MQ1],
+                                             const real_t (&G)[MD1][MQ1],
+                                             regs5d_t<VDIM, DIM, MQ1> &X,
+                                             regs5d_t<VDIM, DIM, MQ1> &Y)
 {
    constexpr bool Transpose = true;
    Grad3d<VDIM, DIM, MD1, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y);
