@@ -129,9 +129,9 @@ void PAVectorDiffusionApply2D(const int NE,
                   const int q = qx + qy * Q1D;
                   const real_t gradX = grad[qy][qx][0];
                   const real_t gradY = grad[qy][qx][1];
-
                   if (matrix_coeff)
                   {
+#if 0
                      if (matrix_coeff && ((ii==0 && jj==0)||(ii==1 && jj==1)))
                      {
                         const real_t O11 = D(q,0,ii,e);
@@ -161,6 +161,15 @@ void PAVectorDiffusionApply2D(const int NE,
                         grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                         grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
                      }
+#else
+                     const int k = jj + ii * VDIM;
+                     const real_t O11 = D(q, 0, k, e);
+                     const real_t O12 = D(q, 1, k, e);
+                     const real_t O21 = D(q, 2, k, e);
+                     const real_t O22 = D(q, 3, k, e);
+                     grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+                     grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+#endif
                   }
                   else
                   {
@@ -341,39 +350,14 @@ void PAVectorDiffusionApply3D(const int NE,
                      const real_t gradY = grad[qz][qy][qx][1];
                      const real_t gradZ = grad[qz][qy][qx][2];
 
-                     if (!matrix_coeff)
-                     {
-                        const real_t O11 = D(q,0,i,e), O12 = D(q,1,i,e), O13 = D(q,2,i,e);
-                        const real_t                   O22 = D(q,3,i,e), O23 = D(q,4,i,e);
-                        const real_t                                     O33 = D(q,5,i,e);
-                        grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
-                        grad[qz][qy][qx][1] = (O12*gradX)+(O22*gradY)+(O23*gradZ);
-                        grad[qz][qy][qx][2] = (O13*gradX)+(O23*gradY)+(O33*gradZ);
-                     }
-                     else
-                     {
-                        int k = j + i * VDIM;
-#if 0
-                        // 0, 3, 6, 1, 4, 7, 2, 5, 8
-                        const real_t O11 = D(q,0,k,e), O12 = D(q,1,k,e), O13 = D(q,2,k,e);
-                        const real_t O21 = D(q,3,k,e), O22 = D(q,4,k,e), O23 = D(q,5,k,e);
-                        const real_t O31 = D(q,6,k,e), O32 = D(q,7,k,e), O33 = D(q,8,k,e);
-                        grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
-                        grad[qz][qy][qx][1] = (O21*gradX)+(O22*gradY)+(O23*gradZ);
-                        grad[qz][qy][qx][2] = (O31*gradX)+(O32*gradY)+(O33*gradZ);
-#else
-                        // 0, 1, 2, 1, 3, 4, 2, 4, 5
-                        const real_t O11 = D(q,0,k,e), O12 = D(q,1,k,e), O13 = D(q,2,k,e);
-                        const real_t /*O21 = D(q,3,k,e),*/ O22 = D(q,/*4*/3,k,e), O23 = D(q,/*5*/4,k,e);
-                        const real_t /*O31 = D(q,6,k,e), O32 = D(q,7,k,e),*/ O33 = D(q,/*8*/5,k,e);
-                        // assert(fabs(O12-O21) < 1e-15);
-                        // assert(fabs(O13-O31) < 1e-15);
-                        // assert(fabs(O23-O32) < 1e-15);
-                        grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
-                        grad[qz][qy][qx][1] = (O12*gradX)+(O22*gradY)+(O23*gradZ);
-                        grad[qz][qy][qx][2] = (O13*gradX)+(O23*gradY)+(O33*gradZ);
-#endif
-                     }
+                     const int k = matrix_coeff ? j + i * VDIM : i;
+                     const real_t O11 = D(q,0,k,e), O12 = D(q,1,k,e), O13 = D(q,2,k,e);
+                     const real_t O22 = D(q,3,k,e), O23 = D(q,4,k,e);
+                     const real_t O33 = D(q,5,k,e);
+
+                     grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
+                     grad[qz][qy][qx][1] = (O12*gradX)+(O22*gradY)+(O23*gradZ);
+                     grad[qz][qy][qx][2] = (O13*gradX)+(O23*gradY)+(O33*gradZ);
                   }
                }
             }
