@@ -218,12 +218,11 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      const real_t C1 = C(1, qx, qy, e);
                      const real_t C2 = C(2, qx, qy, e);
                      const real_t C3 = C(3, qx, qy, e);
-                     dbg("[0,0] {}", C0);
-                     dbg("[0,1] {}", C1);
-                     dbg("[1,0] {}", C2);
-                     dbg("[1,1] {}", C3);
+                     dbg("C0: {}", C0);
+                     dbg("C1: {}", C1);
+                     dbg("C2: {}", C2);
+                     dbg("C3: {}", C3);
 
-                     // for (int c = 0; c < vdim; ++c)
                      {
                         // k = 0
                         DE(qx, qy, 0, 0, e) =  w_detJ * (J12*J12 + J22*J22) * C0;
@@ -240,6 +239,19 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      }
                      {
                         // k = 2
+                        /*const real_t M11 = C0;
+                        const real_t M12 = C1;
+                        const real_t M21 = C2;
+                        const real_t M22 = C3;
+
+                        const real_t R11 = M11*J22 - M12*J12;
+                        const real_t R21 = M21*J22 - M22*J12;
+                        const real_t R12 = -M11*J21 + M12*J11;
+                        const real_t R22 = -M21*J21 + M22*J11;
+                        DE(qx, qy, 0, 2, e) =  w_detJ * ( J22*R11 - J12*R21); // 1,1
+                        DE(qx, qy, 1, 2, e) =  w_detJ * (-J21*R11 + J11*R21); // 2,1
+                        DE(qx, qy, 2, 2, e) =  w_detJ * (J22*R12 - J12*R22); //  1,2
+                        DE(qx, qy, 3, 2, e) =  w_detJ * (-J21*R12 + J11*R22); // 2,2*/
                         DE(qx, qy, 0, 2, e) =  w_detJ * (J12*J12 + J22*J22) * C1;
                         DE(qx, qy, 1, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
                         DE(qx, qy, 2, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;

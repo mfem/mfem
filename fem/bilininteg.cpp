@@ -3081,13 +3081,12 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
          mcoeff.Print();
 #if 1
          // for (int ii = 0; ii < vdim; ++ii)
-         const int ii = 0, jj = 0; // ✅ k = 0
+         // const int ii = 0, jj = 0; // ✅ k = 0
          // const int ii = 1, jj = 1; // ✅ k = 1
-         // const int ii = 0, jj = 1; // C1 ??
+         const int ii = 0, jj = 1; // C1 ??
          // const int ii = 1, jj = 0; // C2 ?
          {
             Mult_a_AAt(w*mcoeff(ii,jj), dshapedxt, pelmat);
-            pelmat.Print();
             dbg("ii:{} jj:{} {}", ii, jj, mcoeff(ii,jj));
             elmat.AddMatrix(pelmat, dof*ii, dof*jj);
          }

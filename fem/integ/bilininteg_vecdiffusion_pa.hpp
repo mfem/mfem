@@ -85,7 +85,10 @@ void PAVectorDiffusionApply2D(const int NE,
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       real_t grad[max_Q1D][max_Q1D][2];
-      for (int c = 0; c < VDIM; c++)
+      // for (int c = 0; c < VDIM; c++)
+      // const int c = 0, d = 0; // ✅
+      // const int c = 1, d = 1; // ✅
+      const int c = 1, d = 0; // ???
       {
          for (int qy = 0; qy < Q1D; ++qy)
          {
@@ -129,43 +132,47 @@ void PAVectorDiffusionApply2D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + qy * Q1D;
-               const real_t O11 = D(q,0,c,e);
-               const real_t O12 = D(q,1,c,e);
-               const real_t O21 = D(q,2,c,e);
-               const real_t O22 = D(q,3,c,e);
-
-               const real_t P11 = D(q,0,c+VDIM,e);
-               const real_t P12 = D(q,1,c+VDIM,e);
-               const real_t P21 = D(q,2,c+VDIM,e);
-               const real_t P22 = D(q,3,c+VDIM,e);
                const real_t gradX = grad[qy][qx][0];
                const real_t gradY = grad[qy][qx][1];
-               const int k = 2; // 🔥 [2,3]:❌
-               if (c == k && (k==0 || k==1)) // [0,1]: ✅
+
+               grad[qy][qx][0] = 0.0;
+               grad[qy][qx][1] = 0.0;
+
+               if ((c==0 && d==0)||(c==1 && d==1))
                {
+                  const real_t O11 = D(q,0,c,e);
+                  const real_t O12 = D(q,1,c,e);
+                  const real_t O21 = D(q,2,c,e);
+                  const real_t O22 = D(q,3,c,e);
                   dbg("{} {} {} {}", O11, O12, O21, O22);
                   grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                   grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
                }
-               else if (c == k && (k==2 || k==3)) // [2,3]:❌
+
+               if (c==1 && d==0)
                {
+                  const real_t O11 = D(q,0,2,e);
+                  const real_t O12 = D(q,1,2,e);
+                  const real_t O21 = D(q,2,2,e);
+                  const real_t O22 = D(q,3,2,e);
                   dbg("{} {} {} {}", O11, O12, O21, O22);
-                  grad[qy][qx][0] = (O11 * gradY) + (O12 * gradX);
-                  grad[qy][qx][1] = (O21 * gradY) + (O22 * gradX);
+                  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+                  grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
                }
-               else
+               /*else
                {
-                  dbg("\x1b[31m c={}, setting grad to 0", c);
                   grad[qy][qx][0] = 0.0;
                   grad[qy][qx][1] = 0.0;
-               }
+               }*/
+
                /*{
-                  const real_t G11 = D(q,0,c+VDIM,e);
-                  const real_t G12 = D(q,1,c+VDIM,e);
-                  const real_t G21 = D(q,2,c+VDIM,e);
-                  const real_t G22 = D(q,3,c+VDIM,e);
-                  grad[qy][qx][0] += (G11 * gradX) + (G12 * gradY);
-                  grad[qy][qx][1] += (G21 * gradX) + (G22 * gradY);
+                  const real_t P11 = D(q,0,VDIM-c-1,e);
+                  const real_t P12 = D(q,1,VDIM-c-1,e);
+                  const real_t P21 = D(q,2,VDIM-c-1,e);
+                  const real_t P22 = D(q,3,VDIM-c-1,e);
+                  dbg("{} {} {} {}", O11, O12, O21, O22);
+                  grad[qy][qx][0] += (P11 * gradX) + (P12 * gradY);
+                  grad[qy][qx][1] += (P21 * gradX) + (P22 * gradY);
                }*/
             }
          }
@@ -195,7 +202,7 @@ void PAVectorDiffusionApply2D(const int NE,
                const real_t wDy = Gt(dy,qy);
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  y(dx,dy,c,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+                  y(dx,dy,d,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
                }
             }
          }
