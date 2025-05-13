@@ -88,7 +88,8 @@ void PAVectorDiffusionApply2D(const int NE,
       // for (int c = 0; c < VDIM; c++)
       // const int c = 0, d = 0; // ✅
       // const int c = 1, d = 1; // ✅
-      const int c = 1, d = 0; // ???
+      // const int c = 1, d = 0; // ✅ with ii = 0, jj = 1
+      const int c = 0, d = 1; // ???
       {
          for (int qy = 0; qy < Q1D; ++qy)
          {
@@ -155,6 +156,17 @@ void PAVectorDiffusionApply2D(const int NE,
                   const real_t O12 = D(q,1,2,e);
                   const real_t O21 = D(q,2,2,e);
                   const real_t O22 = D(q,3,2,e);
+                  dbg("{} {} {} {}", O11, O12, O21, O22);
+                  grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+                  grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
+               }
+
+               if (c==0 && d==1)
+               {
+                  const real_t O11 = D(q,0,3,e);
+                  const real_t O12 = D(q,1,3,e);
+                  const real_t O21 = D(q,2,3,e);
+                  const real_t O22 = D(q,3,3,e);
                   dbg("{} {} {} {}", O11, O12, O21, O22);
                   grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                   grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);

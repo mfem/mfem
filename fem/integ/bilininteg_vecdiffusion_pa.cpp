@@ -239,19 +239,6 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      }
                      {
                         // k = 2
-                        /*const real_t M11 = C0;
-                        const real_t M12 = C1;
-                        const real_t M21 = C2;
-                        const real_t M22 = C3;
-
-                        const real_t R11 = M11*J22 - M12*J12;
-                        const real_t R21 = M21*J22 - M22*J12;
-                        const real_t R12 = -M11*J21 + M12*J11;
-                        const real_t R22 = -M21*J21 + M22*J11;
-                        DE(qx, qy, 0, 2, e) =  w_detJ * ( J22*R11 - J12*R21); // 1,1
-                        DE(qx, qy, 1, 2, e) =  w_detJ * (-J21*R11 + J11*R21); // 2,1
-                        DE(qx, qy, 2, 2, e) =  w_detJ * (J22*R12 - J12*R22); //  1,2
-                        DE(qx, qy, 3, 2, e) =  w_detJ * (-J21*R12 + J11*R22); // 2,2*/
                         DE(qx, qy, 0, 2, e) =  w_detJ * (J12*J12 + J22*J22) * C1;
                         DE(qx, qy, 1, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
                         DE(qx, qy, 2, 2, e) = -w_detJ * (J12*J11 + J22*J21) * C1;
