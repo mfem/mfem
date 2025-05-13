@@ -4581,7 +4581,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    {
       requests.emplace_back();
       MPI_Irecv(v.second.data(), v.second.size(), HYPRE_MPI_BIG_INT, v.first,
-                MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM, MyComm,
+                MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA, MyComm,
                 &requests.back());
    }
    // enqueue sends
@@ -4589,7 +4589,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    {
       requests.emplace_back();
       MPI_Isend(v.second.data(), v.second.size(), HYPRE_MPI_BIG_INT, v.first,
-                MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM, MyComm,
+                MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA, MyComm,
                 &requests.back());
    }
 

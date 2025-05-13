@@ -72,7 +72,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          MPI_Irecv(rcv + op.recv_segments[i] * vdims,
                    (op.recv_segments[i + 1] - op.recv_segments[i]) * vdims,
                    MPITypeMap<real_t>::mpi_type, op.recv_ranks[i],
-                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
+                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA,
                    op.fespace->GetComm(), &op.requests.back());
       }
    }
@@ -88,7 +88,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
          MPI_Isend(dst + op.send_segments[i] * vdims,
                    (op.send_segments[i + 1] - op.send_segments[i]) * vdims,
                    MPITypeMap<real_t>::mpi_type, op.send_ranks[i],
-                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA_VM,
+                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA,
                    op.fespace->GetComm(), &op.requests.back());
       }
    }
