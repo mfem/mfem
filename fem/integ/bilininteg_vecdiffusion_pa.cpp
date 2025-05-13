@@ -67,36 +67,35 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
+   const int q1d = quad1D;
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
 
-   if (Q) { dbg("\x1b[33mQ"); coeff.Project(*Q); }
+   if (Q)
+   {
+      dbg("\x1b[33mQ"); coeff.Project(*Q);
+   }
    else if (VQ)
    {
-      dbg("\x1b[33mVQ");
-      coeff.Project(*VQ);
-      dbg("coeff:");
-      coeff.Print();
+      dbg("\x1b[33mVQ"); coeff.Project(*VQ);
+      MFEM_VERIFY(VQ->GetVDim() == vdim, "VQ dimension vs. vdim error");
    }
    else if (MQ)
    {
       dbg("\x1b[33mMQ");
       coeff.ProjectTranspose(*MQ);
-      MFEM_VERIFY(vdim*vdim * ne*nq == coeff.Size(), "");
-      dbg("coeff:");
-      coeff.Print();
+      MFEM_VERIFY(MQ->GetVDim() == vdim, "MQ dimension vs. vdim error");
+      MFEM_VERIFY(coeff.Size() == (vdim*vdim) * ne * nq, "Coefficient size error");
    }
    else { dbg("\x1b[33m1.0"); coeff.SetConstant(1.0); }
    dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
-   // assert(coeff.GetVDim() == vdim);
 
    const int pa_size = dims*dims;
-   assert(pa_size == 2*2);
    coeff_vdim = coeff.GetVDim();
    const bool const_coeff = coeff.Size() == 1;
    assert(!const_coeff);
-   dbg("const_coeff:{}", const_coeff);
+   dbg("\x1b[33mconst_coeff:{}", const_coeff);
 
    // MFEM_VERIFY(coeff_vdim == 1 ||
    //             coeff_vdim == vdim ||
@@ -107,7 +106,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // dbg("\x1b[31mscalar_coeff:{} vector_coeff:{} matrix_coeff:{}",
    //     scalar_coeff, vector_coeff, matrix_coeff);
    // MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
-   dbg("coeff_vdim:{}", coeff_vdim);
+   dbg("\x1b[33mcoeff_vdim:{}", coeff_vdim);
    const bool matrix_coeff = coeff_vdim == vdim*vdim;
 
    if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
@@ -128,11 +127,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const auto w_r = ir->GetWeights().Read();
 
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAVectorDiffusionSetup"); }
+   if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
 
-   // if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
-
-   const int q1d = quad1D;
 
    if (dim == 2 && sdim == 3)
    {
@@ -188,19 +184,15 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
          mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
          {
-            dbg("e:{}", e);
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  const int q = qx + qy * q1d;
-                  dbg("q:{}", q);
                   const real_t J11 = J(qx, qy, 0, 0, e);
                   const real_t J21 = J(qx, qy, 1, 0, e);
                   const real_t J12 = J(qx, qy, 0, 1, e);
                   const real_t J22 = J(qx, qy, 1, 1, e);
                   const real_t w_detJ = W(qx, qy) / ((J11*J22)-(J21*J12));
-                  dbg("w:{}",w_detJ);
 
                   if (coeff_vdim != 2*2)
                   {
@@ -219,10 +211,10 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      const real_t C1 = C(1, qx, qy, e);
                      const real_t C2 = C(2, qx, qy, e);
                      const real_t C3 = C(3, qx, qy, e);
-                     dbg("C0: {}", C0);
-                     dbg("C1: {}", C1);
-                     dbg("C2: {}", C2);
-                     dbg("C3: {}", C3);
+                     // dbg("C0: {}", C0);
+                     // dbg("C1: {}", C1);
+                     // dbg("C2: {}", C2);
+                     // dbg("C3: {}", C3);
 
                      {
                         // k = 0

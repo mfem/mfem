@@ -16,14 +16,6 @@
 #include <algorithm>
 #include <memory>
 
-#if __has_include("general/nvtx.hpp")
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 
 using namespace std;
 
@@ -3035,8 +3027,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    elmat.SetSize(vdim * dof);
    pelmat.SetSize(dof);
-   dbg("dof:{}", dof);
-   dbg("vdim:{}", vdim);
 
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
    if (ir == NULL)
@@ -3056,14 +3046,10 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
-      dbg("dshapedxt:");
-      dshapedxt.Print();
 
       if (VQ)
       {
-         dbg("VQ");
          VQ->Eval(vcoeff, Trans, ip);
-         vcoeff.Print();
          for (int k = 0; k < vdim; ++k)
          {
             Mult_a_AAt(w*vcoeff(k), dshapedxt, pelmat);
@@ -3072,9 +3058,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       }
       else if (MQ)
       {
-         dbg("MQ");
          MQ->Eval(mcoeff, Trans, ip);
-         mcoeff.Print();
          for (int ii = 0; ii < vdim; ++ii)
          {
             for (int jj = 0; jj < vdim; ++jj)
@@ -3088,7 +3072,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       {
          if (Q)
          {
-            dbg("Q: {}", Q->Eval(Trans, ip));
             w *= Q->Eval(Trans, ip);
          }
          Mult_a_AAt(w, dshapedxt, pelmat);

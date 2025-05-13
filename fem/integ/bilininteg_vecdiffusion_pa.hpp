@@ -50,13 +50,13 @@ void PAVectorDiffusionApply2D(const int NE,
                               const int q1d = 0,
                               const int vdim = 0)
 {
-   dbg("T_D1D: {} T_Q1D: {} T_VDIM: {}", T_D1D, T_Q1D, T_VDIM);
-   dbg("d1d:{} q1d:{} vdim:{} coeff_vdim:{}", d1d, q1d, vdim, coeff_vdim);
+   // dbg("T_D1D: {} T_Q1D: {} T_VDIM: {}", T_D1D, T_Q1D, T_VDIM);
+   // dbg("d1d:{} q1d:{} vdim:{} coeff_vdim:{}", d1d, q1d, vdim, coeff_vdim);
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   dbg("D1D: {} Q1D: {} VDIM: {}", D1D, Q1D, VDIM);
+   // dbg("D1D: {} Q1D: {} VDIM: {}", D1D, Q1D, VDIM);
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
@@ -148,7 +148,7 @@ void PAVectorDiffusionApply2D(const int NE,
                         const real_t O12 = D(q,1,ii,e);
                         const real_t O21 = D(q,2,ii,e);
                         const real_t O22 = D(q,3,ii,e);
-                        dbg("{} {} {} {}", O11, O12, O21, O22);
+                        // dbg("{} {} {} {}", O11, O12, O21, O22);
                         grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                         grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
                      }
@@ -159,7 +159,7 @@ void PAVectorDiffusionApply2D(const int NE,
                         const real_t O12 = D(q,1,2,e);
                         const real_t O21 = D(q,2,2,e);
                         const real_t O22 = D(q,3,2,e);
-                        dbg("{} {} {} {}", O11, O12, O21, O22);
+                        // dbg("{} {} {} {}", O11, O12, O21, O22);
                         grad[qy][qx][0] += (O11 * gradX) + (O12 * gradY);
                         grad[qy][qx][1] += (O21 * gradX) + (O22 * gradY);
                      }
@@ -170,7 +170,7 @@ void PAVectorDiffusionApply2D(const int NE,
                         const real_t O12 = D(q,1,3,e);
                         const real_t O21 = D(q,2,3,e);
                         const real_t O22 = D(q,3,3,e);
-                        dbg("{} {} {} {}", O11, O12, O21, O22);
+                        // dbg("{} {} {} {}", O11, O12, O21, O22);
                         grad[qy][qx][0] += (O11 * gradX) + (O12 * gradY);
                         grad[qy][qx][1] += (O21 * gradX) + (O22 * gradY);
                      }
