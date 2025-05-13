@@ -380,7 +380,6 @@ private:
 
 // Boundary function for the minimal surface problem described by the Scherk
 // surface.
-// 
 // See https://en.wikipedia.org/wiki/Scherk_surface for more details.
 real_t boundary_func(const Vector &coords)
 {
