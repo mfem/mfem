@@ -16,7 +16,7 @@
 // Description:  This example code demonstrates the use of MFEM to solve the minimal
 //               surface problem in 2D:
 //
-//               $ min \int sqrt(1 + |\nabla u|^2) dx $
+//               $ min -nabla \cdot (1 / sqrt(1 + |\nabla u|^2) \nabla u) $
 //
 //               with Dirichlet boundary conditions. The nonlinear problem is solved
 //               using Newton's method, where the necessary derivatives are computed
