@@ -308,19 +308,39 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                      }
                      else if (coeff_vdim == dim*dim) // Matrix coefficient
                      {
-                        for (int k = 0; k < 9; ++k)
+#if 0
+                        // generate: 0, 3, 6, 1, 4, 7, 2, 5, 8
+                        const auto map = [](size_t n) { return 3 * (n % 3) + (n / 3); };
+                        for (size_t i = 0; i < 9; ++i)
                         {
-                           const real_t Ck = C(k, qx, qy, qz, e);
-                           DE(qx, qy, qz, 0, k, e) = D11 * Ck;
-                           DE(qx, qy, qz, 1, k, e) = D21 * Ck;
-                           DE(qx, qy, qz, 2, k, e) = D31 * Ck;
-                           DE(qx, qy, qz, 3, k, e) = D21 * Ck;
-                           DE(qx, qy, qz, 4, k, e) = D22 * Ck;
-                           DE(qx, qy, qz, 5, k, e) = D32 * Ck;
-                           DE(qx, qy, qz, 6, k, e) = D31 * Ck;
-                           DE(qx, qy, qz, 7, k, e) = D32 * Ck;
-                           DE(qx, qy, qz, 8, k, e) = D33 * Ck;
+                           const real_t Ck = C(map(i), qx, qy, qz, e);
+                           DE(qx, qy, qz, 0, i, e) = D11 * Ck;
+                           DE(qx, qy, qz, 1, i, e) = D21 * Ck;
+                           DE(qx, qy, qz, 2, i, e) = D31 * Ck;
+                           DE(qx, qy, qz, 3, i, e) = D21 * Ck;
+                           DE(qx, qy, qz, 4, i, e) = D22 * Ck;
+                           DE(qx, qy, qz, 5, i, e) = D32 * Ck;
+                           DE(qx, qy, qz, 6, i, e) = D31 * Ck;
+                           DE(qx, qy, qz, 7, i, e) = D32 * Ck;
+                           DE(qx, qy, qz, 8, i, e) = D33 * Ck;
                         }
+#else
+                        // generate: 0, 3, 6, 1, 4, 7, 2, 5, 8
+                        const auto map = [](size_t n) { return 3 * (n % 3) + (n / 3); };
+                        for (size_t i = 0; i < 9; ++i)
+                        {
+                           const real_t Ck = C(map(i), qx, qy, qz, e);
+                           DE(qx, qy, qz, 0, i, e) = D11 * Ck;
+                           DE(qx, qy, qz, 1, i, e) = D21 * Ck;
+                           DE(qx, qy, qz, 2, i, e) = D31 * Ck;
+                           // DE(qx, qy, qz, 3, i, e) = D21 * Ck;
+                           DE(qx, qy, qz, /*4*/3, i, e) = D22 * Ck;
+                           DE(qx, qy, qz, /*5*/4, i, e) = D32 * Ck;
+                           // DE(qx, qy, qz, 6, i, e) = D31 * Ck;
+                           // DE(qx, qy, qz, 7, i, e) = D32 * Ck;
+                           DE(qx, qy, qz, /*8*/5, i, e) = D33 * Ck;
+                        }
+#endif
                      }
                      else { assert(false); }
                   }
