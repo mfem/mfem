@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
-      if (done || ti % vis_steps == 0)
+      if ((done || ti % vis_steps == 0) && (Mpi::Root()))
       {
          cout << "Time step: " << ti << ", time: " << t << endl;
       }
@@ -311,18 +311,26 @@ int main(int argc, char *argv[])
 
    // 16. Compute the L1 solution error and discrete solution extrema (at solution nodes)
    //     after one flow interval.
+   real_t error = u.ComputeLpError(1, u0);
+   real_t umin = u.Min();
+   real_t umax = u.Max();
+
+   MPI_Allreduce(MPI_IN_PLACE, &umin, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 pmesh.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &umax, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 pmesh.GetComm());
    if (Mpi::Root())
    {
-      cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
-      cout << "Solution (discrete) minimum: " << u.Min() << endl;
-      cout << "Solution (discrete) maximum: " << u.Max() << endl;
+      cout << "Solution L1 error: " << error << endl;
+      cout << "Solution (discrete) minimum: " << umin << endl;
+      cout << "Solution (discrete) maximum: " << umax << endl;
    }
 
 
    // 17. Brute-force search for the min/max value of u(x) in each element at an array
    //     of integration points
-   real_t umin = numeric_limits<real_t>::max();
-   real_t umax = numeric_limits<real_t>::min();
+   umin = numeric_limits<real_t>::max();
+   umax = numeric_limits<real_t>::min();
    for (int e = 0; e < pmesh.GetNE(); e++)
    {
       IntegrationPoint ip;
