@@ -6209,11 +6209,28 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_pkv) const
 {
    int dim = Dimension();
+   Array<int> v(2); // vertices of an edge
+
+   // 1D case is special: edge index == elemnt index
+   // ukv_to_pkv = Identity , edge_to_ukv = ele_to_pkv
+   if (dim == 1)
+   {
+      edge_to_ukv.SetSize(NumOfElements);
+      ukv_to_pkv.SetSize(NumOfElements);
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         GetElementVertices(i, v);
+         // Sign is based on the edge's vertex indices
+         edge_to_ukv[i] = (v[1] > v[0]) ? i : -1 - i;
+         ukv_to_pkv[i] = i;
+      }
+      return;
+   }
+
    // Local (per-patch) variables
    int kvidx;
    Array<int> kvs(dim); // knotvector indices for a patch
    Array<int> edges, oedges;
-   Array<int> v(2);
    int d; // local dimension
    // Edge index -> signed patch knotvector index (p*dim + d)
    Array<int> edge_to_pkv(NumOfEdges);
