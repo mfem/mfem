@@ -21,6 +21,7 @@
 #include <numeric>
 
 #include "../../general/communication.hpp"
+#include "../../general/forall.hpp"
 #ifdef MFEM_USE_MPI
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
@@ -617,16 +618,18 @@ public:
       x(x),
       fixed_eps(fixed_eps)
    {
+      f.UseDevice(x.UseDevice());
       f.SetSize(Height());
+
+      xpev.UseDevice(x.UseDevice());
       xpev.SetSize(Width());
+
       op.Mult(x, f);
       xnorm = x.Norml2();
    }
 
    void Mult(const Vector &v, Vector &y) const override
    {
-      x.HostRead();
-
       // See [1] for choice of eps.
       //
       // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
@@ -643,18 +646,28 @@ public:
          eps = lambda * (lambda + xnorm / v.Norml2());
       }
 
-      for (int i = 0; i < x.Size(); i++)
+      // x + eps * v
       {
-         xpev(i) = x(i) + eps * v(i);
+         const auto d_v = v.Read();
+         const auto d_x = x.Read();
+         auto d_xpev = xpev.Write();
+         mfem::forall(x.Size(), [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_xpev[i] = d_x[i] + eps * d_v[i];
+         });
       }
 
       // y = f(x + eps * v)
       op.Mult(xpev, y);
 
       // y = (f(x + eps * v) - f(x)) / eps
-      for (int i = 0; i < f.Size(); i++)
       {
-         y(i) = (y(i) - f(i)) / eps;
+         const auto d_f = f.Read();
+         auto d_y = y.ReadWrite();
+         mfem::forall(f.Size(), [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_y[i] = (d_y[i] - d_f[i]) / eps;
+         });
       }
    }
 
