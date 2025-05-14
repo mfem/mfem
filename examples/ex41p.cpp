@@ -182,9 +182,10 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&pmesh, &fec);
+   HYPRE_BigInt glob_size = fes.GlobalTrueVSize();
    if (Mpi::Root())
    {
-      cout << "Number of unknowns: " << fes.GlobalTrueVSize() << endl;
+      cout << "Number of unknowns: " << glob_size << endl;
    }
 
    // 7. Set up and assemble the bilinear and linear forms corresponding to the
