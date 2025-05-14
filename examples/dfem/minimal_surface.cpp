@@ -157,9 +157,11 @@ private:
 
          dres_du->Mult(z, y);
 
+         auto d_y = y.HostReadWrite();
+         const auto d_x = x.HostRead();
          for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
          {
-            y[minsurface->ess_tdofs[i]] = x[minsurface->ess_tdofs[i]];
+            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
          }
       }
 
@@ -184,10 +186,9 @@ private:
                                       const Vector &x) :
          Operator(minsurface->Height()),
          minsurface(minsurface),
-         z(minsurface->Height())
+         z(minsurface->Height(), MemoryType::DEVICE)
       {
-         Array<int> all_domain_attr;
-         all_domain_attr.SetSize(minsurface->H1.GetMesh()->attributes.Max());
+         Array<int> all_domain_attr(minsurface->H1.GetMesh()->attributes.Max());
          all_domain_attr = 1;
 
          auto &mesh_nodes = *static_cast<ParGridFunction *>
@@ -233,9 +234,11 @@ private:
 
          dres_du->Mult(z, y);
 
+         auto d_y = y.HostReadWrite();
+         const auto d_x = x.HostRead();
          for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
          {
-            y[minsurface->ess_tdofs[i]] = x[minsurface->ess_tdofs[i]];
+            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
          }
       }
 
@@ -255,8 +258,7 @@ public:
       u(&H1),
       derivative_type(deriv_type)
    {
-      Array<int> all_domain_attr;
-      all_domain_attr.SetSize(H1.GetMesh()->attributes.Max());
+      Array<int> all_domain_attr(H1.GetMesh()->attributes.Max());
       all_domain_attr = 1;
 
       auto &mesh_nodes = *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes());
