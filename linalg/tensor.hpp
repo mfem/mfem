@@ -31,7 +31,11 @@ namespace future
 #if __CUDAVER__ >= 75000
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma nv_exec_check_disable
 #else
+#ifdef __clang__
+#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
+#else
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma hd_warning_disable
+#endif
 #endif
 #else  //__CUDACC__
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING

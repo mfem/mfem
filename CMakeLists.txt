@@ -133,7 +133,6 @@ if (MFEM_USE_CUDA)
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
       set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
    elseif (NOT CMAKE_CUDA_ARCHITECTURES)
@@ -148,6 +147,18 @@ if (MFEM_USE_CUDA)
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
    enable_language(CUDA)
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+     # backup try to detect if this is clang or nvcc
+     if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+       # nvcc
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda")
+     endif()
+   else()
+     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+       # nvcc
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda")
+     endif()
+   endif()
    set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
       "CUDA standard to use.")
    set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL

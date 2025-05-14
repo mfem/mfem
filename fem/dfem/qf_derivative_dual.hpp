@@ -16,8 +16,8 @@
 namespace mfem::future
 {
 
-MFEM_HOST_DEVICE
 template <typename T0, typename T1, typename T2>
+MFEM_HOST_DEVICE
 void process_qf_arg(const T0 &, const T1 &, T2 &)
 {
    static_assert(dfem::always_false<T0, T1, T2>,
