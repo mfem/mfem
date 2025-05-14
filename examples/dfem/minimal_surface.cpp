@@ -186,7 +186,7 @@ private:
                                       const Vector &x) :
          Operator(minsurface->Height()),
          minsurface(minsurface),
-         z(minsurface->Height(), MemoryType::DEVICE)
+         z(minsurface->Height())
       {
          Array<int> all_domain_attr(minsurface->H1.GetMesh()->attributes.Max());
          all_domain_attr = 1;
