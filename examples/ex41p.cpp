@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
       {
          mesh = mesh.MakeCartesian1D(16);
          mesh = Mesh::MakePeriodic(mesh,mesh.CreatePeriodicVertexMapping(
-         {Vector({1.0, 0.0})}));
+         {Vector({1.0})}));
          break;
       }
       // Periodic 2D quadrilateral mesh
