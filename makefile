@@ -242,11 +242,24 @@ ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
-   MFEM_CXX ?= $(CUDA_CXX)
-   MFEM_HOST_CXX ?= $(HOST_CXX)
-   CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
-   XCOMPILER = $(CUDA_XCOMPILER)
-   XLINKER   = $(CUDA_XLINKER)
+   ifeq ($(shell $(CUDA_CXX) --version | grep "NVIDIA"), )
+      # assume clang
+      MFEM_CXX ?= $(HOST_CXX)
+      CUDA_LIB += $(CLANG_CUDA_LIB)
+	    CXXFLAGS += $(CLANG_CUDA_FLAGS)
+      XCOMPILER = $(CXX_XCOMPILER)
+      XLINKER   = $(CXX_XLINKER)
+   else
+      MFEM_CXX ?= $(CUDA_CXX)
+      MFEM_HOST_CXX ?= $(HOST_CXX)
+      ifeq ($(MFEM_USE_ENZYME), YES)
+         $(error Cannot use nvcc with Enzyme, set CUDA_CXX=clang++)
+      endif
+      CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
+      XCOMPILER = $(CUDA_XCOMPILER)
+      XLINKER   = $(CUDA_XLINKER)
+   endif
+   ALL_LIBS += $(CUDA_LIB)
    # CUDA_OPT and CUDA_LIB are added below
    # Compatibility test against MFEM_USE_HIP
    ifeq ($(MFEM_USE_HIP),YES)
