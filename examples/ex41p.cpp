@@ -297,10 +297,13 @@ int main(int argc, char *argv[])
       }
    }
 
+
    // 15. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -m ex41.mesh -g ex41-final.gf".
    {
-      ofstream osol("ex41-final.gf");
+      ostringstream sol_name;
+      sol_name << "ex41-final." << setfill('0') << setw(6) << myid;
+      ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u.Save(osol);
    }
