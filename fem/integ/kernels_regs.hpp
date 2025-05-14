@@ -240,9 +240,10 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
                                     const real_t (&B)[MD1][MQ1],
                                     const real_t (&G)[MD1][MQ1],
                                     regs4d_t<VDIM, DIM, MQ1> &X,
-                                    regs4d_t<VDIM, DIM, MQ1> &Y)
+                                    regs4d_t<VDIM, DIM, MQ1> &Y,
+                                    const int k = -1)
 {
-   for (int c = 0; c < VDIM; c++)
+   for (int c = (k < 0 ? 0 : k); c < (k < 0 ? VDIM : k + 1); c++)
    {
       for (int d = 0; d < DIM; d++)
       {
@@ -253,16 +254,17 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
    }
 }
 
-template <int VDIM, int DIM, int MD1, int MQ1> inline MFEM_HOST_DEVICE
-void GradTranspose2d(const int d1d, const int q1d,
-                     real_t (&smem)[MQ1][MQ1],
-                     const real_t (&B)[MD1][MQ1],
-                     const real_t (&G)[MD1][MQ1],
-                     regs4d_t<VDIM, DIM, MQ1> &X,
-                     regs4d_t<VDIM, DIM, MQ1> &Y)
+template <int VDIM, int DIM, int MD1, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
+                                             real_t (&smem)[MQ1][MQ1],
+                                             const real_t (&B)[MD1][MQ1],
+                                             const real_t (&G)[MD1][MQ1],
+                                             regs4d_t<VDIM, DIM, MQ1> &X,
+                                             regs4d_t<VDIM, DIM, MQ1> &Y,
+                                             const int k = -1)
 {
    constexpr bool Transpose = true;
-   Grad2d<VDIM, DIM, MD1, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y);
+   Grad2d<VDIM, DIM, MD1, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y, k);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -291,7 +293,8 @@ void WriteDofs2d(const int e, const int d1d,
 }
 template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE
-void WriteDofs2dOneComponent(const int e, const int c, const int d1d,
+void WriteDofs2dOneComponent(const int e, const int i, const int j,
+                             const int d1d,
                              regs4d_t<VDIM, DIM, MQ1> &X,
                              const DeviceTensor<4, real_t> &Y)
 {
@@ -302,9 +305,9 @@ void WriteDofs2dOneComponent(const int e, const int c, const int d1d,
          real_t value = 0.0;
          for (int d = 0; d < DIM; d++)
          {
-            value += X(c, d, dy, dx);
+            value += X(i, d, dy, dx);
          }
-         Y(dx, dy, c, e) += value;
+         Y(dx, dy, j, e) += value;
       }
    }
 }
@@ -503,9 +506,11 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
                                     const real_t (&B)[MD1][MQ1],
                                     const real_t (&G)[MD1][MQ1],
                                     regs5d_t<VDIM, DIM, MQ1> &X,
-                                    regs5d_t<VDIM, DIM, MQ1> &Y)
+                                    regs5d_t<VDIM, DIM, MQ1> &Y,
+                                    const int k = -1)
 {
-   for (int c = 0; c < VDIM; c++)
+   // for (int c = 0; c < VDIM; c++)
+   for (int c = (k < 0 ? 0 : k); c < (k < 0 ? VDIM : k + 1); c++)
    {
       for (int d = 0; d < DIM; d++)
       {
@@ -523,10 +528,11 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
                                              const real_t (&B)[MD1][MQ1],
                                              const real_t (&G)[MD1][MQ1],
                                              regs5d_t<VDIM, DIM, MQ1> &X,
-                                             regs5d_t<VDIM, DIM, MQ1> &Y)
+                                             regs5d_t<VDIM, DIM, MQ1> &Y,
+                                             const int k = -1)
 {
    constexpr bool Transpose = true;
-   Grad3d<VDIM, DIM, MD1, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y);
+   Grad3d<VDIM, DIM, MD1, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y, k);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -554,7 +560,8 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
 
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE
-void WriteDofs3dOneComponent(const int e, const int c, const int d1d,
+void WriteDofs3dOneComponent(const int e, const int i, const int j,
+                             const int d1d,
                              regs5d_t<VDIM, DIM, MQ1> &X,
                              const DeviceTensor<5, real_t> &Y)
 {
@@ -565,8 +572,11 @@ void WriteDofs3dOneComponent(const int e, const int c, const int d1d,
          MFEM_FOREACH_THREAD(dx, x, d1d)
          {
             real_t value = 0.0;
-            for (int d = 0; d < DIM; d++) { value += X(c, d, dz, dy, dx); }
-            Y(dx, dy, dz, c, e) += value;
+            for (int d = 0; d < DIM; d++)
+            {
+               value += X(i, d, dz, dy, dx);
+            }
+            Y(dx, dy, dz, j, e) += value;
          }
       }
    }

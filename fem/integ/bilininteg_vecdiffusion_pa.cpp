@@ -95,6 +95,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    coeff_vdim = coeff.GetVDim();
    const bool const_coeff = coeff.Size() == 1;
    assert(!const_coeff);
+   dbg("\x1b[33mpa_size:{}", pa_size);
    dbg("\x1b[33mconst_coeff:{}", const_coeff);
 
    const bool scalar_coeff = coeff_vdim == 1;
@@ -107,6 +108,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
    {
+      assert(false);
       const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
       dbg("symmDims:{}", symmDims);
       assert(coeff_vdim == 1);
@@ -115,9 +117,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-      pa_data.SetSize(vdim*pa_size * nq * ne * (matrix_coeff ? dim : 1), mt);
+      pa_data.SetSize(nq * pa_size * vdim * (matrix_coeff ? dim : 1) * ne, mt);
       dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*dim)x{}x{}",
-          vdim, pa_data.Size(), pa_size, nq, ne);
+          pa_data.Size(), vdim, pa_size, nq, ne);
    }
 
    const auto w_r = ir->GetWeights().Read();
@@ -171,10 +173,13 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          dbg("dim:{}(==2!) sdim:{}(==2!) vdim:{}", dim, sdim, vdim);
          assert(dim == 2 && sdim == 2);
 
+         assert(vdim == 2);
          const auto W = Reshape(w_r, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size,
+         auto DE = Reshape(pa_data.Write(),
+                           q1d, q1d,
+                           pa_size,
                            vdim * (matrix_coeff ? dim : 1),
                            ne);
 
@@ -196,7 +201,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
                   for (int i = 0; i < (matrice_coeff ? coeff_vdim : vdim); ++i)
                   {
-                     const auto k = matrice_coeff ? map[i] : vector_coeff ? i : 0;
+                     const auto k = matrice_coeff ? map[i] : (vector_coeff ? i : 0);
                      const auto Cc = C(k, qx, qy, e);
                      DE(qx, qy, 0, i, e) = D0 * Cc;
                      DE(qx, qy, 1, i, e) = D1 * Cc;
@@ -216,7 +221,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          const auto W = Reshape(w_r, q1d, q1d, q1d);
          const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
          const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(), q1d, q1d, q1d, pa_size,
+         auto DE = Reshape(pa_data.Write(),
+                           q1d, q1d, q1d,
+                           pa_size,
                            vdim * (matrix_coeff ? dim : 1),
                            ne);
 
@@ -341,7 +348,9 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       if (dim == 2 && sdim == 2)
       {
-         dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
+         dbg("\x1b[37mdim:{} sdim:{} vdim:{} D1D:{} Q1D:{} coeff_vdim:{}",
+             dim, sdim, vdim, D1D, Q1D, coeff_vdim);
+         assert(dim == 2 && sdim == 2 && vdim == 2);
          // return internal::PAVectorDiffusionApply2D(ne, coeff_vdim,
          //                                           B, G, Bt, Gt, D, x, y,
          //                                           D1D, Q1D, vdim);
@@ -356,8 +365,8 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       if (dim == 3 && sdim == 3)
       {
          dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
-         // return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
-         //                                           B, G, Bt, Gt, D, x, y, D1D, Q1D);
+         return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
+                                                   B, G, Bt, Gt, D, x, y, D1D, Q1D);
          // return internal::SmemPAVectorDiffusionApply3D(ne, coeff_vdim,
          //                                               B, G, D, x, y,
          //                                               D1D, Q1D);
@@ -383,12 +392,15 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
+
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto G = Reshape(g.Read(), Q1D, D1D);
    // note the different shape for D, this is a (symmetric) matrix so we only
    // store necessary entries
-   auto D = Reshape(d.Read(), Q1D*Q1D, 3, NE);
+   MFEM_VERIFY(d.Size() == Q1D*Q1D*4*2*NE, "");
+   const auto D = Reshape(d.Read(), Q1D*Q1D, /*3*/4, 2, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, 2, NE);
+
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -409,9 +421,9 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
-               const real_t D0 = D(q,0,e);
-               const real_t D1 = D(q,1,e);
-               const real_t D2 = D(q,2,e);
+               const real_t D0 = D(q,0,0,e);
+               const real_t D1 = D(q,1,0,e);
+               const real_t D2 = D(q,3/*2*/,0,e); // size from 3 (symmetric) to 4 (dims x dims)
                QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D0;
                QD1[qx][dy] += B(qy, dy) * G(qy, dy) * D1;
                QD2[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
@@ -455,7 +467,8 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
    MFEM_VERIFY(Q1D <= max_q1d, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, 6, NE);
+   MFEM_VERIFY(d.Size() == Q1D*Q1D*Q1D*9*3*NE, "");
+   auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, 9/*PA_SIZE:dims*dims*/, 3/*VDIM*/, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, 3, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -483,7 +496,8 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                         const int k = j >= i ?
                                       3 - (3-i)*(2-i)/2 + j:
                                       3 - (3-j)*(2-j)/2 + i;
-                        const real_t O = Q(q,k,e);
+                        // using 6 symmetric values
+                        const real_t O = Q(q,k,0,e);
                         const real_t Bz = B(qz,dz);
                         const real_t Gz = G(qz,dz);
                         const real_t L = i==2 ? Gz : Bz;
@@ -567,6 +581,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
+      MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported.");
       PAVectorDiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                         maps->B, maps->G,
                                         pa_data, diag);
