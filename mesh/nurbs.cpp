@@ -2399,7 +2399,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
 
    CheckPatches(); // This is checking the edge_to_ukv mapping
 
-   // Set number of **unique** knot vectors
+   // Set number of unique (not comprehensive) knot vectors
    NumOfKnotVectors = ukv_to_pkv.Size();
    knotVectors.SetSize(NumOfKnotVectors);
    knotVectors = NULL;
@@ -2421,7 +2421,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    GenerateOffsets();
    CountElements();
    CountBdrElements();
-   // Can this be inferred from inputs?
+
    NumOfActiveElems = NumOfElements;
    activeElem.SetSize(NumOfElements);
    activeElem = true;

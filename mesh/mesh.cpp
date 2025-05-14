@@ -6208,10 +6208,10 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
 
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_pkv) const
 {
-   int dim = Dimension();
+   const int dim = Dimension();
    Array<int> v(2); // vertices of an edge
 
-   // 1D case is special: edge index == elemnt index
+   // 1D case is special: edge index == element index
    // ukv_to_pkv = Identity , edge_to_ukv = ele_to_pkv
    if (dim == 1)
    {
@@ -6228,17 +6228,19 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    }
 
    // Local (per-patch) variables
-   int kvidx;
    Array<int> kvs(dim); // knotvector indices for a patch
    Array<int> edges, oedges;
-   int d; // local dimension
    // Edge index -> signed patch knotvector index (p*dim + d)
    Array<int> edge_to_pkv(NumOfEdges);
    edge_to_pkv.SetSize(NumOfEdges);
    constexpr int notset = -9999999;
    edge_to_pkv = notset;
 
-   auto unsign = [](int i) { return (i < 0) ? -i - 1 : i; };
+   // Sign convention
+   auto sign = [](int i) { return -1 - i; };
+   auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
+   // Edge index -> dimension convention
+   auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
    // Get the edge_to_pkv map
    for (int p = 0; p < NumOfElements; p++)
@@ -6249,13 +6251,13 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
       kvs = notset;
       for (int i = 0; i < edges.Size(); i++)
       {
-         d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
+         const int d = edge_to_dim(i);
          GetEdgeVertices(edges[i], v); // Get the vertices of edge i
          // We've set this edge-to-knot previously
          if (edge_to_pkv[edges[i]] != notset)
          {
             // Old knot vector index (unsigned)
-            kvidx = unsign(edge_to_pkv[edges[i]]);
+            const int kvidx = unsign(edge_to_pkv[edges[i]]);
             // Keep the lowest index
             kvs[d] = std::min({kvidx, p*dim+d, unsign(kvs[d])});
          }
@@ -6264,12 +6266,12 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
       // Second loop sets the edge-to-knot mapping
       for (int i = 0; i < edges.Size(); i++)
       {
-         d = (i<8) ? ((i & 1) ? 1 : 0) : 2;
+         const int d = edge_to_dim(i);
          GetEdgeVertices(edges[i], v); // Get the vertices of edge i
          // Not set yet -> use global index (p*dim+d)
-         kvidx = (kvs[d] == notset) ? p*dim+d : kvs[d];
+         const int kvidx = (kvs[d] == notset) ? p*dim+d : kvs[d];
          // Sign is based on the edge's vertex indices
-         edge_to_pkv[edges[i]] = (v[1] > v[0]) ? kvidx : -1 - kvidx;
+         edge_to_pkv[edges[i]] = (v[1] > v[0]) ? kvidx : sign(kvidx);
       }
    }
 
@@ -6284,16 +6286,15 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
 
    // Get edge_to_ukv = edge_to_pkv o ukv_to_pkv^{-1}
    edge_to_ukv.SetSize(NumOfEdges);
-   bool sign;
-   int ukv, pkv;
+   bool mapping_error = false;
    for (int i = 0; i < NumOfEdges; i++)
    {
-      sign = edge_to_pkv[i] < 0;
-      pkv = unsign(edge_to_pkv[i]);
-      ukv = ukv_to_pkv.Find(pkv);
-      MFEM_VERIFY(ukv >= 0, "Mapping error")
-      edge_to_ukv[i] = sign ? -1 - ukv : ukv;
+      const int pkv = unsign(edge_to_pkv[i]);
+      const int ukv = ukv_to_pkv.Find(pkv); // returns -1 if not found
+      if (ukv == -1) { mapping_error = true; }
+      edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
+   MFEM_ASSERT(!mapping_error, "Edge to unique knotvector mapping error");
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
