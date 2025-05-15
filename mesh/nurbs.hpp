@@ -911,6 +911,12 @@ public:
        Cartesian order. */
    void GetPatchDofs(const int patch, Array<int> &dofs);
 
+   /// Return NURBSPatch object
+   const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
+
+   /// Return patch topology
+   const Mesh* GetPatchTopology() const { return patchTopo; }
+
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
