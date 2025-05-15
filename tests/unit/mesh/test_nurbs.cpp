@@ -84,3 +84,40 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
    const real_t error = d.Norml2();
    REQUIRE(error == MFEM_Approx(0.0));
 }
+
+TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
+{
+   auto mesh_fname = GENERATE("../../data/segment-nurbs.mesh",
+                              "../../data/square-nurbs.mesh",
+                              "../../data/beam-quad-nurbs.mesh",
+                              "../../data/pipe-nurbs.mesh");
+
+   Mesh mesh1(mesh_fname, 1, 1);
+
+   // Reconstruct mesh using patches + topology
+   Array<NURBSPatch*> patches;
+   mesh1.GetNURBSPatches(patches);
+
+   NURBSExtension ne(mesh1.NURBSext->GetPatchTopology(), patches);
+   Mesh mesh2(ne);
+
+   // Meshes should be identical
+   REQUIRE(mesh1.GetNodes()->Size() == mesh2.GetNodes()->Size());
+
+   Vector diff(*mesh1.GetNodes());
+   diff -= *mesh2.GetNodes();
+   const real_t error = diff.Norml2();
+   REQUIRE(error == MFEM_Approx(0.0));
+
+   // Compare weights (these are stored separately from nodes)
+   REQUIRE(mesh1.NURBSext->GetWeights().Size() ==
+           mesh2.NURBSext->GetWeights().Size());
+
+   Vector wdiff = mesh1.NURBSext->GetWeights();
+   wdiff -= mesh2.NURBSext->GetWeights();
+   const real_t werror = wdiff.Norml2();
+   REQUIRE(werror == MFEM_Approx(0.0));
+
+   // Cleanup
+   for (auto *p : patches) { delete p; }
+}
