@@ -3248,6 +3248,24 @@ int Mesh::GetPatchBdrAttribute(int i) const
    return NURBSext->GetPatchBdrAttribute(i);
 }
 
+void Mesh::GetNURBSPatches(Array<NURBSPatch*> &patches)
+{
+   MFEM_VERIFY(NURBSext, "Must be a NURBS mesh");
+   // This sets the data in NURBSPatch(es) from the control points (Nodes)
+   NURBSext->ConvertToPatches(*Nodes);
+
+   // Copy patches
+   const int NP = NURBSext->GetNP();
+   patches.SetSize(NP);
+   for (int p = 0; p < NP; p++)
+   {
+      patches[p] = new NURBSPatch(*NURBSext->GetPatch(p));
+   }
+
+   // Among other things, this deletes patches in NURBSext
+   UpdateNURBS();
+}
+
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 {
    FinalizeCheck();
@@ -6294,7 +6312,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
       if (ukv == -1) { mapping_error = true; }
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
-   MFEM_ASSERT(!mapping_error, "Edge to unique knotvector mapping error");
+   MFEM_VERIFY(!mapping_error, "Edge to unique knotvector mapping error");
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)

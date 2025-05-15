@@ -2405,13 +2405,12 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    knotVectors = NULL;
 
    // Assign the unique knot vectors from patches
-   int pkv, p, d;
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
       // pkv = p*dim + d
-      pkv = ukv_to_pkv[i];
-      p = pkv / Dimension();
-      d = pkv % Dimension();
+      const int pkv = ukv_to_pkv[i];
+      const int p = pkv / Dimension();
+      const int d = pkv % Dimension();
       knotVectors[i] = new KnotVector(*patches[p]->GetKV(d));
    }
 
@@ -2431,10 +2430,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
-
-   // Set from NURBSPatch data?
-   weights.SetSize(GetNDof());
-   weights = 1.0;
 
    ConnectBoundaries();
 }
