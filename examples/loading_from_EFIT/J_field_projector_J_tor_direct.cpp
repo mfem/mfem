@@ -8,21 +8,66 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *new_mesh_file = "mesh/2d_mesh.mesh";
+   const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
+   bool project_mesh = false;
 
-   Mesh mesh(new_mesh_file, 1, 1);
+   Mesh mesh(mesh_file, 1, 1);
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
    ifstream temp_log("input/psi.gf");
-   GridFunction psi(&mesh, temp_log);
+   GridFunction temp_psi(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
+   const char *new_mesh_file = "mesh/2d_mesh.mesh";
+   Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
+
    // make a L2 space with the mesh
    H1_FECollection fec(1, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+   FiniteElementSpace fespace(new_mesh, &fec);
+   GridFunction psi(&fespace);
+
+   if (project_mesh)
+   {
+      GridFunction psi_projected(&fespace);
+
+      // 1. make the linear form
+      LinearForm b(&fespace);
+      PsiGridFunctionCoefficient f_coef(&temp_psi);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f_coef));
+      b.Assemble();
+
+      // 2. make the bilinear form
+      BilinearForm a(&fespace);
+      ConstantCoefficient one(1.0);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.Assemble();
+      a.Finalize();
+
+      // 3. solve the system
+      CGSolver M_solver;
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-24);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(1e5);
+      M_solver.SetPrintLevel(1);
+      M_solver.SetOperator(a.SpMat());
+
+      Vector X(psi_projected.Size());
+      X = 0.0;
+      M_solver.Mult(b, X);
+
+      psi_projected.SetFromTrueDofs(X);
+
+      psi = psi_projected;
+   }
+   else
+   {
+      MFEM_ASSERT(temp_psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
+      psi = temp_psi;
+   }
 
    // make a grid function with the H1 space
    GridFunction J_tor(&fespace);
@@ -93,12 +138,12 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n"
-               << mesh << J_tor << flush;
+               << *new_mesh << J_tor << flush;
    }
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("J_tor_direct", &mesh);
+      ParaViewDataCollection paraview_dc("J_tor_direct", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
