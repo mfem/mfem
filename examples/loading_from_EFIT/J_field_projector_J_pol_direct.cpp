@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
    bool project_mesh = true;
-   bool from_psi = true;
+   bool from_psi = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
