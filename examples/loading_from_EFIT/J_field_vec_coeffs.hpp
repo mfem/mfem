@@ -114,6 +114,36 @@ public:
    }
 };
 
+/// @brief Input $\Psi$ and return $\Psi$
+class PsiGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   PsiGridFunctionCoefficient() = delete;
+
+   PsiGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : Coefficient(), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      return interp_val[0] * (flip_sign ? -1 : 1);
+   }
+};
 
 
 /// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
