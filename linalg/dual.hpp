@@ -41,6 +41,7 @@ struct dual
 
    /** @brief assignment of a real_t to a value of a dual. Promotes a real_t to
     * a dual with a zero gradient value. */
+   MFEM_HOST_DEVICE
    auto operator=(real_t a) -> dual<value_type, gradient_type>&
    {
       value = a;
