@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
    const char *new_mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = true;
+   bool mixed_bilinear_form = false;
 
    Mesh mesh(new_mesh_file, 1, 1);
    int dim = mesh.Dimension();
