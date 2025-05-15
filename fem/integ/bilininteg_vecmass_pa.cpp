@@ -31,9 +31,9 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
-   const int spaceDim = Trans.GetSpaceDim();
+   // const int spaceDim = Trans.GetSpaceDim();
 
-   const int nd = el.GetDof();
+   // const int nd = el.GetDof();
    dbg("nd: {} spaceDim: {}", nd, spaceDim);
    dbg("vdim: {} spaceDim: {}", vdim, spaceDim);
 

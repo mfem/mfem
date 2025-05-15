@@ -48,7 +48,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    sdim = mesh->SpaceDimension();
    const int nq = ir->GetNPoints();
-   const int nd = el.GetDof();
+   // const int nd = el.GetDof();
    const int dims = el.GetDim();
 
    dbg("dim:{} vdim:{} fes.VDim():{} sdim:{} nq:{} nd:{} dims:{}",
@@ -93,7 +93,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int pa_size = dims*dims;
    coeff_vdim = coeff.GetVDim();
-   const bool const_coeff = coeff.Size() == 1;
+   // const bool const_coeff = coeff.Size() == 1;
    assert(!const_coeff);
    dbg("\x1b[33mpa_size:{}", pa_size);
    dbg("\x1b[33mconst_coeff:{}", const_coeff);

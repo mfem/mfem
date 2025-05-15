@@ -58,7 +58,7 @@ void PAVectorMassApply2D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::regs_t<VDIM, 1, MQ1, MQ1> r0, r1;
+      kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs2d(e, D1D, XE, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
@@ -129,7 +129,7 @@ static void PAVectorMassApply3D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::regs_t<VDIM, 1, MQ1, MQ1, MQ1> r0, r1;
+      kernels::internal::vd_regs3d_t<VDIM, 1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs3d(e, D1D, XE, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
@@ -197,8 +197,8 @@ VectorMassIntegrator::VectorMassAddMultPAType
 VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim != 1, "Unsupported 1D kernel");
-   if (dim == 2) { return internal::PAVectorMassApply2D; }
-   else if (dim == 3) { return internal::PAVectorMassApply3D; }
+   if (dim == 2) { return internal::PAVectorMassApply2D<1,1>; }
+   else if (dim == 3) { return internal::PAVectorMassApply3D<1,1>; }
    else { MFEM_ABORT(""); }
 }
 

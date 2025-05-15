@@ -70,7 +70,7 @@ void SmemPAVectorDiffusionApply2D(const int NE,
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
-      kernels::internal::regs_t<VDIM, DIM, MQ1, MQ1> r0, r1;
+      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
@@ -275,7 +275,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
-      kernels::internal::regs_t<VDIM, DIM, MQ1, MQ1, MQ1> r0, r1;
+      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
