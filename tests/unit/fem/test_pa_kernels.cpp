@@ -359,7 +359,7 @@ template <typename INTEGRATOR>
 real_t test_vker_pa(int dim)
 {
    const bool all = launch_all_non_regression_tests;
-   const auto NE = all ? GENERATE(1, 2, 3) : 1;
+   const auto NE = all ? GENERATE(1, 2, 3) : 2;
    const auto p = all ? GENERATE(1, 2, 3): 2;
    dbg("dim:{} NE:{} p:{}", dim, NE, p);
    Mesh mesh = MakeCartesianNonaligned(dim, NE);
@@ -446,7 +446,8 @@ real_t test_vker_pa(int dim)
    return y_fa.Norml2();
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [MassPA], [CUDA]")
+TEST_CASE("PA Vector Mass",
+          "[PartialAssembly][VectorPA][MassPA][CUDA]")
 {
    const auto DIM = GENERATE(2, 3);
    CAPTURE(DIM);

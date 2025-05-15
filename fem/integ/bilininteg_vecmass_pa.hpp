@@ -58,7 +58,7 @@ void PAVectorMassApply2D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::regs4d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::regs_t<VDIM, 1, MQ1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs2d(e, D1D, XE, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
@@ -129,7 +129,7 @@ static void PAVectorMassApply3D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::regs5d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::regs_t<VDIM, 1, MQ1, MQ1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs3d(e, D1D, XE, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);

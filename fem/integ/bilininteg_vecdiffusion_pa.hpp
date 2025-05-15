@@ -70,7 +70,7 @@ void SmemPAVectorDiffusionApply2D(const int NE,
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
-      kernels::internal::regs4d_t<VDIM, DIM, MQ1> r0, r1;
+      kernels::internal::regs_t<VDIM, DIM, MQ1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
@@ -275,7 +275,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
-      kernels::internal::regs5d_t<VDIM, DIM, MQ1> r0, r1;
+      kernels::internal::regs_t<VDIM, DIM, MQ1, MQ1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
@@ -306,7 +306,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
                } // qy
             } // qz
             MFEM_SYNC_THREAD;
-            kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, i);
+            kernels::internal::Grad3dTranspose(D1D, Q1D, smem, sB, sG, r0, r1, i);
             const int ij =  matrix_coeff ? j : i;
             kernels::internal::WriteDofs3dOneComponent(e, i, ij, D1D, r1, YE);
          } // j
