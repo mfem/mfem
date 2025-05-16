@@ -547,7 +547,6 @@ if (MFEM_USE_ENZYME)
     find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
     message(STATUS "Enzyme found in ${ENZYME_DIR}.")
     set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
-    set(ENZYME_FOUND 1)
 endif()
 
 # MFEM_TIMER_TYPE
