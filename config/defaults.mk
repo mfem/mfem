@@ -615,14 +615,9 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
-# This configuration follows the Enzyme build instructions
-ENZYME_DIR = @MFEM_DIR@/../Enzyme/enzyme/build/Enzyme
+ENZYME_DIR = @MFEM_DIR@/../enzyme
 ENZYME_LLVM_VERSION = 19
-# Change this to
-# ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
-# in your user.mk if you installed Enzyme to a different location and use the
-# prefix. Alternatively, you can set ENZYME_DIR to the prefix/lib location.
-ENZYME_OPT = -fplugin=$(ENZYME_DIR)/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
+ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
 ENZYME_LIB = ""
 
 # If YES, enable some informational messages
