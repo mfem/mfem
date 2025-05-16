@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       mesh->DegreeElevate(order, order);
    }
@@ -150,17 +150,16 @@ int main(int argc, char *argv[])
    //    the FiniteElementSpace constructor) which is expected in the systems
    //    version of BoomerAMG preconditioner. For NURBS meshes, we use the
    //    (degree elevated) NURBS space associated with the mesh nodes.
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec = NULL;
    ParFiniteElementSpace *fespace;
-   const bool use_nodal_fespace = pmesh->NURBSext && !amg_elast;
+   const bool use_nodal_fespace = pmesh->IsNURBS() && !amg_elast;
    if (use_nodal_fespace)
    {
-      fec = NULL;
       fespace = (ParFiniteElementSpace *)pmesh->GetNodes()->FESpace();
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec = FECollection::NewH1(order, dim, pmesh->IsNURBS());
       fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
    }
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
