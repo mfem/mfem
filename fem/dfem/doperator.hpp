@@ -445,10 +445,6 @@ void DifferentiableOperator::AddDomainIntegrator(
       inputs_vdim[i] = get<i>(inputs).vdim;
    });
 
-   if ( mesh.GetNE() == 0)
-   {
-      MFEM_ABORT("Mesh with no elements is not yet supported!");
-   }
 
    Array<int> elem_attributes;
    elem_attributes.SetSize(mesh.GetNE());
