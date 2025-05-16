@@ -1514,9 +1514,11 @@ get_shmem_info(
    std::array<int, num_fields> field_sizes;
    for (std::size_t i = 0; i < num_fields; i++)
    {
-      field_sizes[i] = get_restriction<entity_t>(
-                          fields[i],
-                          dof_ordering)->Height() / num_entities;
+      field_sizes[i] =
+         num_entities
+         ? (get_restriction<entity_t>(fields[i], dof_ordering)->Height()
+            / num_entities)
+         : 0;
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
