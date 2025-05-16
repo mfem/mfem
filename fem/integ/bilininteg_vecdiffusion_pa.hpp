@@ -51,8 +51,6 @@ void SmemPAVectorDiffusionApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   dbg("\x1b[37mVDIM:{} D1D:{} Q1D:{} coeff_vdim:{}", VDIM, D1D, Q1D, coeff_vdim);
-
    const int PA_SIZE = VDIM*VDIM;
    const bool const_coeff = coeff_vdim == 1;
    const bool vector_coeff = coeff_vdim == VDIM;
@@ -122,8 +120,6 @@ void PAVectorDiffusionApply2D(const int NE,
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-
-   dbg("\x1b[37mvdim:{} D1D:{} Q1D:{} coeff_vdim:{}", vdim, D1D, Q1D, coeff_vdim);
 
    const int PA_SIZE = 2*2;
    const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
@@ -331,15 +327,12 @@ void PAVectorDiffusionApply3D(const int NE,
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   // dbg("d1d:{} q1d:{} vdim:{} coeff_vdim:{}", d1d, q1d, VDIM, coeff_vdim);
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const int PA_SIZE = 3*3;
    const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
-   dbg("D1D:{} Q1D:{} VDIM:{} coeff_vdim:{} matrix_coeff:{}",
-       D1D, Q1D, VDIM, coeff_vdim, matrix_coeff);
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);

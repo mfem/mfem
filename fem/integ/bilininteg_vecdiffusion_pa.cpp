@@ -48,17 +48,14 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    sdim = mesh->SpaceDimension();
    const int nq = ir->GetNPoints();
-   // const int nd = el.GetDof();
    const int dims = el.GetDim();
 
    dbg("dim:{} vdim:{} fes.VDim():{} sdim:{} nq:{} nd:{} dims:{}",
        dim, vdim, fes.GetVDim(), sdim, nq, nd, dims);
 
    // If vdim is not set, set it to the space dimension
-   dbg("\x1b[31mvdim:{} fes.VDim:{}", vdim, fes.GetVDim());
    if (vdim != -1) { MFEM_VERIFY(vdim == fes.GetVDim(), ""); }
    vdim = (vdim == -1) ? fes.GetVDim() : vdim;
-   dbg("\x1b[33mvdim: {}", vdim);
 
    const MemoryType mt = pa_mt == MemoryType::DEFAULT
                          ? Device::GetDeviceMemoryType()
@@ -93,8 +90,6 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int pa_size = dims*dims;
    coeff_vdim = coeff.GetVDim();
-   // const bool const_coeff = coeff.Size() == 1;
-   assert(!const_coeff);
    dbg("\x1b[33mpa_size:{}", pa_size);
    dbg("\x1b[33mconst_coeff:{}", const_coeff);
 
@@ -108,11 +103,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
    {
-      assert(false);
       const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-      dbg("symmDims:{}", symmDims);
-      assert(coeff_vdim == 1);
-      assert(coeff_vdim == symmDims);
       pa_data.SetSize(symmDims * nq * ne, mt);
    }
    else
@@ -132,7 +123,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       constexpr int DIM = 2;
       constexpr int SDIM = 3;
       const int NQ = quad1D*quad1D;
-      auto J = Reshape(geom->J.Read(), NQ, SDIM, DIM, ne);
+      const auto J = Reshape(geom->J.Read(), NQ, SDIM, DIM, ne);
       auto D = Reshape(pa_data.Write(), NQ, SDIM, ne);
 
       const bool const_c = coeff.Size() == 1;
@@ -350,13 +341,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          dbg("\x1b[37mdim:{} sdim:{} vdim:{} D1D:{} Q1D:{} coeff_vdim:{}",
              dim, sdim, vdim, D1D, Q1D, coeff_vdim);
-         assert(dim == 2 && sdim == 2 && vdim == 2);
-         // return internal::PAVectorDiffusionApply2D(ne, coeff_vdim,
-         //                                           B, G, Bt, Gt, D, x, y,
-         //                                           D1D, Q1D, vdim);
-         // return internal::SmemPAVectorDiffusionApply2D(ne, coeff_vdim,
-         //                                               B, G, D, x, y,
-         //                                               D1D, Q1D);
+         MFEM_VERIFY(dim == 2 && sdim == 2 && vdim == 2, "");
          return VectorDiffusionAddMultPA::Run(dim, D1D, Q1D,
                                               ne, coeff_vdim, B, G, D, x, y,
                                               D1D, Q1D);
@@ -364,12 +349,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
       if (dim == 3 && sdim == 3)
       {
-         dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
-         return internal::PAVectorDiffusionApply3D(ne, coeff_vdim,
-                                                   B, G, Bt, Gt, D, x, y, D1D, Q1D);
-         // return internal::SmemPAVectorDiffusionApply3D(ne, coeff_vdim,
-         //                                               B, G, D, x, y,
-         //                                               D1D, Q1D);
+         // dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
          return VectorDiffusionAddMultPA::Run(dim, D1D, Q1D,
                                               ne, coeff_vdim,
                                               B, G, D, x, y, D1D, Q1D);

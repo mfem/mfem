@@ -31,16 +31,9 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
-   // const int spaceDim = Trans.GetSpaceDim();
-
-   // const int nd = el.GetDof();
-   dbg("nd: {} spaceDim: {}", nd, spaceDim);
-   dbg("vdim: {} spaceDim: {}", vdim, spaceDim);
 
    // If vdim is not set, set it to the space dimension
    vdim = (vdim == -1) ? Trans.GetSpaceDim() : vdim;
-   dbg("vdim: {}", vdim);
-
    MFEM_VERIFY(vdim == fes.GetVDim(), "vdim != fes.GetVDim()");
 
    const MemoryType mt = pa_mt == MemoryType::DEFAULT
@@ -265,7 +258,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
 template <const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal3D(const int NE,
                                            const Array<real_t> &B_,
-                                           const Array<real_t> &Bt_,
+                                           const Array<real_t> &/*Bt*/,
                                            const Vector &op_, Vector &diag_,
                                            const int d1d = 0, const int q1d = 0)
 {
