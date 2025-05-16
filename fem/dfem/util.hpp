@@ -1205,7 +1205,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
          }
          else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
          {
-            return &arg->GetBE(0)->GetDofToQuad(ir, mode);
+            return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
          }
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
