@@ -371,18 +371,18 @@ int main(int argc, char *argv[])
        ls.SetOperator(*kmat);
        ls.SetPreconditioner(amg);
        ls.iterative_mode=false;
-       ls.SetPrintLevel(1);
+       ls.SetPrintLevel(-1);
        ls.SetAbsTol(1e-12);
        ls.SetRelTol(1e-12);
-       ls.SetMaxIter(20);
+       ls.SetMaxIter(500);
 
        //ProductOperator pOp(&ls,mmat.get(),false,false);
        LocProductOperator pOp(&ls,mmat.get());
 
        RandomizedSubspaceIteration ss(pmesh.GetComm());
        ss.SetConstrDOFs(ess_dofs);
-       ss.SetNumModes(10);
-       ss.SetNumIter(2);
+       ss.SetNumModes(30);
+       ss.SetNumIter(4);
        ss.SetOperator(pOp);
        ss.Solve();
 
@@ -394,9 +394,9 @@ int main(int argc, char *argv[])
 
            if(myrank==0){ std::cout<<std::endl;
                           std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    kmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -404,9 +404,9 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -414,7 +414,7 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
@@ -427,8 +427,8 @@ int main(int argc, char *argv[])
 
        AdaptiveRandomizedGenEig ae(pmesh.GetComm());
        ae.SetOperators(*mmat,*kmat,ls);
-       ae.SetNumModes(10);
-       ae.SetNumIter(10);
+       ae.SetNumModes(30);
+       ae.SetNumIter(4);
        ae.SolveNA();
 
        {
@@ -439,9 +439,9 @@ int main(int argc, char *argv[])
 
            if(myrank==0){ std::cout<<std::endl;
                           std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    kmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -449,9 +449,9 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -459,7 +459,7 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ae.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
