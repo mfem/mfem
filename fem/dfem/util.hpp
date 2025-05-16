@@ -1201,7 +1201,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       {
          if constexpr (std::is_same_v<entity_t, Entity::Element>)
          {
-            return &arg->GetFE(0)->GetDofToQuad(ir, mode);
+            return &arg->GetTypicalFE()->GetDofToQuad(ir, mode);
          }
          else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
          {
