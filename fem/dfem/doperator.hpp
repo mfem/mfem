@@ -544,8 +544,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
-   const int num_test_dof = output_e_size / output_fop.vdim /
-                            num_entities;
+   const int num_test_dof =
+      num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
 
    auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
 
