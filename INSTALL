@@ -263,7 +263,7 @@ See the configuration file config/defaults.mk for the default settings.
 Compilers:
    CXX      - C++ compiler, serial build
    MPICXX   - MPI C++ compiler, parallel build
-   CUDA_CXX - The CUDA compiler, 'nvcc'
+   CUDA_CXX - The CUDA compiler, 'nvcc' or 'clang++'
 
 Compiler options:
    OPTIM_FLAGS - Options for optimized build
@@ -835,7 +835,7 @@ The specific libraries and their options are:
 
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
-  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
+  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB, CUDA_DIR (when CUDA_CXX=clang++).
   Versions: CUDA >= 10.1.168.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.

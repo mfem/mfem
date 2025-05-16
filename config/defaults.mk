@@ -24,7 +24,7 @@ EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 CXX = g++
 MPICXX = mpicxx
 
-BASE_FLAGS  = -std=c++11
+BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
 
@@ -43,12 +43,14 @@ SHARED = NO
 
 # CUDA configuration options
 #
-# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
-# clang as its host compiler.
+# If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
-# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
+# flags for clang+cuda
+CLANG_CUDA_FLAGS = -x cuda --cuda-gpu-arch=$(CUDA_ARCH)
+# flags for nvcc
+NVCC_FLAGS = --expt-extended-lambda -arch=$(CUDA_ARCH) -x=cu
+# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
@@ -510,7 +512,10 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
+# base CUDA install directory, only needed if building with clang+cuda
+CUDA_DIR = /usr/local/cuda/
 CUDA_LIB = -lcusparse -lcublas
+CLANG_CUDA_LIB = -lcudart -lcudart_static -ldl -lrt -pthread -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib
 
 # HIP library configuration
 HIP_OPT =
@@ -610,29 +615,10 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
-
-# If you want to enable automatic differentiation at compile time, use the
-# options below, adapted to your configuration. To be more flexible, we
-# recommend using the Enzyme plugin during link time optimization. One option is
-# to add your options to the global compiler/linker flags like
-#
-# BASE_FLAGS += -flto
-# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
-#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
-#
-ENZYME_DIR ?= @MFEM_DIR@/../enzyme
-ENZYME_VERSION ?= 14
-ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
+ENZYME_DIR = @MFEM_DIR@/../enzyme
+ENZYME_LLVM_VERSION = 19
+ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
 ENZYME_LIB = ""
-
-# Google Benchmark, SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
-ifneq ($(filter YES,$(MFEM_USE_BENCHMARK) $(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
-    BASE_FLAGS = -std=c++14
-endif
-# Ginkgo requires C++17:
-ifeq ($(MFEM_USE_GINKGO),YES)
-   BASE_FLAGS = -std=c++17
-endif
 
 # If YES, enable some informational messages
 VERBOSE = NO
