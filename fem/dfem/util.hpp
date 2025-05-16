@@ -1525,9 +1525,12 @@ get_shmem_info(
    int direction_size = 0;
    if (derivative_action_field_idx != -1)
    {
-      direction_size = get_restriction<entity_t>(
-                          fields[derivative_action_field_idx],
-                          dof_ordering)->Height() / num_entities;
+      direction_size =
+         num_entities ? (get_restriction<entity_t>(
+                            fields[derivative_action_field_idx], dof_ordering)
+                         ->Height()
+                         / num_entities)
+         : 0;
       total_size += direction_size;
    }
 
