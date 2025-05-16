@@ -68,7 +68,7 @@ private:
    MFEM_HOST_DEVICE inline
    static auto coeff(const tensor<T, dim> &a)
    {
-      return real_t(1.0) / sqrt(real_t(1.0) + sqnorm(a));
+      return 1_r / sqrt(1_r + sqnorm(a));
    }
 
    // Matrix-Free version of the pointwise residual form for the minimal
