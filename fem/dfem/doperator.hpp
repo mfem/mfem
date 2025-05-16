@@ -461,7 +461,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
 
    bool use_sum_factorization = false;
-   auto entity_element_type =  mesh.GetElement(0)->GetType();
+   auto entity_element_type =
+      Element::TypeFromGeometry(mesh.GetTypicalElementGeometry());
    if ((entity_element_type == Element::QUADRILATERAL ||
         entity_element_type == Element::HEXAHEDRON) &&
        use_tensor_product_structure == true)
