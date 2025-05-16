@@ -1,12 +1,12 @@
 //                       Serial hp-refinement example
 //
-// Compile with: make hpref
+// Compile with: make hpref_serial
 //
-// Sample runs:  hpref -dim 2 -n 1000
-//               hpref -dim 3 -n 500
+// Sample runs:  hpref_serial -dim 2 -n 1000
+//               hpref_serial -dim 3 -n 500
 //
 // Description:  This example demonstrates h- and p-refinement in a serial
-//               finite element discretization of the Poisson problem (cf. ex1)
+//               finite element discretization of the Laplace problem (cf. ex1)
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Refinements are performed iteratively, each iteration having h-
 //               or p-refinements. For simplicity, we randomly choose the
@@ -14,7 +14,7 @@
 //               practice, these choices may be made in a problem-dependent way,
 //               but this example serves only to illustrate the capabilities of
 //               hp-refinement.
-//
+
 //               We recommend viewing Example 1 before viewing this example.
 
 #include "mfem.hpp"
