@@ -90,7 +90,7 @@ private:
       // Due to the description of how this pointwise operation is used in
       // DifferentiableOperator, we know it is applied to the gradient of the
       // test function in reference coordinates e.g.
-      // $ \int coeff(\nabla_x u) (\nabla u_x) J^{-T} * det(J) * w \nabla_xi v$
+      // $ \int coeff(\nabla_x u) (\nabla_x u) J^{-T} \det(J) w \nabla_{\xi} v d\xi$
       MFEM_HOST_DEVICE inline
       auto operator()(
          const tensor<dscalar_t, dim> &dudxi,
