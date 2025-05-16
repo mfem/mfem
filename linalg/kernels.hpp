@@ -157,10 +157,12 @@ real_t Norml2(const int size, const T *data)
 
 /** @brief Matrix vector multiplication: y = A x, where the matrix A is of size
     @a height x @a width with given @a data, while @a x and @a y specify the
-    data of the input and output vectors. */
+    data of the input and output vectors. If @a useAbs is true, the matrix with
+    the absolute values of the entries is used instead: y = |A| x. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, const TA *data, const TX *x, TY *y,
+          bool useAbs = false)
 {
    if (width == 0)
    {
@@ -172,29 +174,56 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
    }
    const TA *d_col = data;
    TX x_col = x[0];
-   for (int row = 0; row < height; row++)
+   if (useAbs)
    {
-      y[row] = x_col*d_col[row];
-   }
-   d_col += height;
-   for (int col = 1; col < width; col++)
-   {
-      x_col = x[col];
       for (int row = 0; row < height; row++)
       {
-         y[row] += x_col*d_col[row];
+         y[row] = x_col*std::fabs(d_col[row]);
       }
-      d_col += height;
+   }
+   else
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = x_col*d_col[row];
+      }
+   }
+   d_col += height;
+   if (useAbs)
+   {
+      for (int col = 1; col < width; col++)
+      {
+         x_col = x[col];
+         for (int row = 0; row < height; row++)
+         {
+            y[row] += x_col*std::fabs(d_col[row]);
+         }
+         d_col += height;
+      }
+   }
+   else
+   {
+      for (int col = 1; col < width; col++)
+      {
+         x_col = x[col];
+         for (int row = 0; row < height; row++)
+         {
+            y[row] += x_col*d_col[row];
+         }
+         d_col += height;
+      }
    }
 }
 
 /** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
     is of size @a height x @a width with given @a data, while @a x and @a y
-    specify the data of the input and output vectors. */
+    specify the data of the input and output vectors. If @a useAbs is true, the
+    matrix with the absolute values of the entries is used instead: y = |At| x.
+*/
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void MultTranspose(const int height, const int width, const TA *data,
-                   const TX *x, TY *y)
+                   const TX *x, TY *y, bool useAbs = false)
 {
    if (height == 0)
    {
@@ -205,15 +234,31 @@ void MultTranspose(const int height, const int width, const TA *data,
       return;
    }
    TY *y_off = y;
-   for (int i = 0; i < width; ++i)
+   if (useAbs)
    {
-      TY val = 0.0;
-      for (int j = 0; j < height; ++j)
+      for (int i = 0; i < width; ++i)
       {
-         val += x[j] * data[i * height + j];
+         TY val = 0.0;
+         for (int j = 0; j < height; ++j)
+         {
+            val += x[j] * std::fabs(data[i * height + j]);
+         }
+         *y_off = val;
+         y_off++;
       }
-      *y_off = val;
-      y_off++;
+   }
+   else
+   {
+      for (int i = 0; i < width; ++i)
+      {
+         TY val = 0.0;
+         for (int j = 0; j < height; ++j)
+         {
+            val += x[j] * data[i * height + j];
+         }
+         *y_off = val;
+         y_off++;
+      }
    }
 }
 
