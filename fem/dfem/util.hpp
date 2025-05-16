@@ -1242,7 +1242,8 @@ void CheckCompatibility(const FieldDescriptor &f)
          }
          else if constexpr (std::is_same_v<field_operator_t, Gradient<>>)
          {
-            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() == FiniteElement::MapType::VALUE,
+            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() ==
+                        FiniteElement::MapType::VALUE,
                         "Gradient not compatible with FE");
          }
          else
