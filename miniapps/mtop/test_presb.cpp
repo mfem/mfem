@@ -314,11 +314,11 @@ int main(int argc, char *argv[])
    ParLORDiscretization lork(*kf,ess_dofs);
    HypreParMatrix& lorkm=lork.GetAssembledMatrix();
 
-   ParFiniteElementSpace& lorfes=lork.GetParFESpace();
-
    ParLORDiscretization lorc(*cf,ess_dofs);
    HypreParMatrix& lorcm=lorc.GetAssembledMatrix();
 
+
+   ParFiniteElementSpace& lorfes=lork.GetParFESpace();
 
    std::cout<<"Allocate PRESB"<<std::endl;
    PRESBPrec* prec=new PRESBPrec(pmesh.GetComm(),1);
@@ -415,10 +415,10 @@ int main(int argc, char *argv[])
 
            if(myrank==0){ std::cout<<std::endl;}
            for(int i=0;i<10;i++){
-                   mmat->Mult(vecs[i],rr);
+                   kmat->Mult(vecs[i],rr);
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
-                   kmat->Mult(vecs[i],rr);
+                   mmat->Mult(vecs[i],rr);
                    real_t kp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
                    if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
