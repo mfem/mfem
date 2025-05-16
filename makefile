@@ -569,13 +569,14 @@ test-print:
 	@for dir in $(ALL_TEST_DIRS); do \
 	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc $(TEST_DIRS))
+ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc $(TEST_DIRS) \
+ tests/benchmarks)
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
 miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
 $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
-clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
+clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS) tests/benchmarks)
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
 	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)

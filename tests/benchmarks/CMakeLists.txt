@@ -61,3 +61,8 @@ add_benchmark(elasticity)
 add_benchmark(tmop)
 add_benchmark(vector)
 add_benchmark(virtuals)
+
+if (MFEM_USE_MPI)
+    mfem_add_executable(pbench_ceed pbench_ceed.cpp)
+    target_link_libraries(pbench_ceed mfem pthread)
+endif()
