@@ -296,10 +296,7 @@ void SurfaceGridExample(int example, int nx, int ny, Array3D<real_t> &vertices,
       const int n = (i == 0) ? nx : ny;
       const real_t h = 1.0 / n;
       uniformGrid[i].SetSize(n + 1);
-      for (int j = 0; j <= n; ++j)
-      {
-         uniformGrid[i][j] = j * h;
-      }
+      for (int j = 0; j <= n; ++j) { uniformGrid[i][j] = j * h; }
    }
 
    SurfaceExample(example, uniformGrid, vertices, jitter);
@@ -635,7 +632,7 @@ void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
       }
    }
 
-   // make mesh2D into a surface mesh with nodes given by nodes2D
+   // Make mesh2D into a surface mesh with nodes given by nodes2D
    mesh2D.NewNodes(nodes2D);
 
    ofstream mesh_ofs(basename + ".mesh");
