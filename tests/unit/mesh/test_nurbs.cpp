@@ -87,10 +87,12 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
 
 TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
 {
-   auto mesh_fname = GENERATE("../../data/segment-nurbs.mesh",
-                              "../../data/square-nurbs.mesh",
-                              "../../data/beam-quad-nurbs.mesh",
-                              "../../data/pipe-nurbs.mesh");
+   auto mesh_fname =
+      GENERATE("../../data/segment-nurbs.mesh",
+               "../../data/square-nurbs.mesh",
+               "../../data/beam-quad-nurbs.mesh",
+               "../../data/pipe-nurbs.mesh",
+               "../../../miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh");
 
    Mesh mesh1(mesh_fname, 1, 1);
 
