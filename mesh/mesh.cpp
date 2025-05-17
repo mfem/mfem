@@ -6224,34 +6224,36 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    }
 }
 
-void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_pkv) const
+void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_rpkv) const
 {
-   const int dim = Dimension();
+   const int dim = Dimension();  // topological (not physical) dimension
+   const int NP = NumOfElements; // number of patches
+   const int NPKV = NP * dim;    // number of patch knotvectors
+   constexpr int notset = -9999999;
+
    Array<int> v(2); // vertices of an edge
 
    // 1D case is special: edge index == element index
-   // ukv_to_pkv = Identity , edge_to_ukv = ele_to_pkv
+   // ukv_to_rpkv = Identity , edge_to_ukv = ele_to_pkv
    if (dim == 1)
    {
-      edge_to_ukv.SetSize(NumOfElements);
-      ukv_to_pkv.SetSize(NumOfElements);
-      for (int i = 0; i < NumOfElements; i++)
+      edge_to_ukv.SetSize(NP);
+      ukv_to_rpkv.SetSize(NP);
+      for (int i = 0; i < NP; i++)
       {
          GetElementVertices(i, v);
          // Sign is based on the edge's vertex indices
          edge_to_ukv[i] = (v[1] > v[0]) ? i : -1 - i;
-         ukv_to_pkv[i] = i;
+         ukv_to_rpkv[i] = i;
       }
       return;
    }
 
    // Local (per-patch) variables
-   Array<int> kvs(dim); // knotvector indices for a patch
    Array<int> edges, oedges;
    // Edge index -> signed patch knotvector index (p*dim + d)
    Array<int> edge_to_pkv(NumOfEdges);
    edge_to_pkv.SetSize(NumOfEdges);
-   constexpr int notset = -9999999;
    edge_to_pkv = notset;
 
    // Sign convention
@@ -6260,55 +6262,66 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    // Edge index -> dimension convention
    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
-   // Get the edge_to_pkv map
-   for (int p = 0; p < NumOfElements; p++)
+   // Initialize as identity - this will later be used to construct the map pkv_to_ukv
+   Array<int> pkv_map(NPKV);
+   for (int i = 0; i < NPKV; i++)
+   {
+      pkv_map[i] = i;
+   }
+
+   // Get edge_to_pkv (one edge can link to multiple pkv) and pkv_map
+   for (int p = 0; p < NP; p++)
    {
       GetElementEdges(p, edges, oedges);
 
       // First loop checks for if edge has already been set
-      kvs = notset;
       for (int i = 0; i < edges.Size(); i++)
       {
+         const int edge = edges[i];
          const int d = edge_to_dim(i);
-         GetEdgeVertices(edges[i], v); // Get the vertices of edge i
-         // We've set this edge-to-knot previously
-         if (edge_to_pkv[edges[i]] != notset)
+         const int pkv = p*dim+d;
+
+         // We've set this edge already - link this index to it
+         if (edge_to_pkv[edge] != notset)
          {
-            // Old knot vector index (unsigned)
-            const int kvidx = unsign(edge_to_pkv[edges[i]]);
-            // Keep the lowest index
-            kvs[d] = std::min({kvidx, p*dim+d, unsign(kvs[d])});
+            const int pkv_other = unsign(edge_to_pkv[edge]);
+            pkv_map[pkv] = pkv_map[pkv_other];
+            // = pkv_other (i think either works, this should save some graph traversals?)
+         }
+         else
+         {
+            GetEdgeVertices(edge, v);
+            // Sign is based on the edge's vertex indices
+            edge_to_pkv[edge] = (v[1] > v[0]) ? pkv : sign(pkv);
          }
       }
-
-      // Second loop sets the edge-to-knot mapping
-      for (int i = 0; i < edges.Size(); i++)
-      {
-         const int d = edge_to_dim(i);
-         GetEdgeVertices(edges[i], v); // Get the vertices of edge i
-         // Not set yet -> use global index (p*dim+d)
-         const int kvidx = (kvs[d] == notset) ? p*dim+d : kvs[d];
-         // Sign is based on the edge's vertex indices
-         edge_to_pkv[edges[i]] = (v[1] > v[0]) ? kvidx : sign(kvidx);
-      }
    }
 
-   // ukv_to_pkv (unsigned) - unique knotvector index -> p*dim+d
-   ukv_to_pkv.SetSize(NumOfEdges);
-   for (int i = 0; i < NumOfEdges; i++)
+   // Construct the pkv_to_rpkv map by finding the lowest/root index
+   std::function<int(int)> get_root;
+   get_root = [pkv_map, &get_root](int i) -> int
    {
-      ukv_to_pkv[i] = unsign(edge_to_pkv[i]);
-   }
-   ukv_to_pkv.Sort();
-   ukv_to_pkv.Unique();
+      return (pkv_map[i] == i) ? i : get_root(pkv_map[i]);
+   };
 
-   // Get edge_to_ukv = edge_to_pkv o ukv_to_pkv^{-1}
+   Array<int> pkv_to_rpkv(NPKV);
+   ukv_to_rpkv.SetSize(NPKV);
+   for (int i = 0; i < NPKV; i++)
+   {
+      pkv_to_rpkv[i] = get_root(pkv_map[i]);
+      ukv_to_rpkv[i] = pkv_to_rpkv[i];
+   }
+   ukv_to_rpkv.Sort(); // ukv is just a renumbering of rpkv
+   ukv_to_rpkv.Unique();
+
+   // Get edge_to_ukv = edge_to_pkv o pkv_to_rpkv o ukv_to_rpkv^{-1}
    edge_to_ukv.SetSize(NumOfEdges);
    bool mapping_error = false;
    for (int i = 0; i < NumOfEdges; i++)
    {
       const int pkv = unsign(edge_to_pkv[i]);
-      const int ukv = ukv_to_pkv.Find(pkv); // returns -1 if not found
+      const int rpkv = pkv_to_rpkv[pkv];
+      const int ukv = ukv_to_rpkv.Find(rpkv); // returns -1 if not found
       if (ukv == -1) { mapping_error = true; }
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }

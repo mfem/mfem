@@ -2393,14 +2393,14 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    }
 
    // GetEdgeToUniqueKnotvector
-   Array<int> ukv_to_pkv;
-   patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_pkv);
+   Array<int> ukv_to_rpkv;
+   patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    own_topo = true;
 
    CheckPatches(); // This is checking the edge_to_ukv mapping
 
    // Set number of unique (not comprehensive) knot vectors
-   NumOfKnotVectors = ukv_to_pkv.Size();
+   NumOfKnotVectors = ukv_to_rpkv.Size();
    knotVectors.SetSize(NumOfKnotVectors);
    knotVectors = NULL;
 
@@ -2408,7 +2408,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
       // pkv = p*dim + d
-      const int pkv = ukv_to_pkv[i];
+      const int pkv = ukv_to_rpkv[i];
       const int p = pkv / Dimension();
       const int d = pkv % Dimension();
       knotVectors[i] = new KnotVector(*patches[p]->GetKV(d));
