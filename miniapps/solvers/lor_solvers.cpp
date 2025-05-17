@@ -56,7 +56,6 @@
 //    lor_solvers -m ../../data/amr-quad.mesh -fe h
 //    lor_solvers -m ../../data/amr-quad.mesh -fe n
 //    lor_solvers -m ../../data/amr-quad.mesh -fe r
-//    lor_solvers -m ../../data/amr-quad.mesh -fe l
 //    lor_solvers -m ../../data/star-surf.mesh -fe h
 //    lor_solvers -m ../../data/star-surf.mesh -fe n
 //    lor_solvers -m ../../data/star-surf.mesh -fe r
