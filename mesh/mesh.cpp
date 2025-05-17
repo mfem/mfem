@@ -6285,8 +6285,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
          if (edge_to_pkv[edge] != notset)
          {
             const int pkv_other = unsign(edge_to_pkv[edge]);
-            pkv_map[pkv] = pkv_map[pkv_other];
-            // = pkv_other (i think either works, this should save some graph traversals?)
+            pkv_map[pkv] = pkv_map[pkv_other]; // condense graph slightly vs = pkv_other
          }
          else
          {
