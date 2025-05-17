@@ -39,6 +39,7 @@ namespace mfem
 class GeometricFactors;
 class FaceGeometricFactors;
 class KnotVector;
+class NURBSPatch;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
@@ -472,7 +473,7 @@ protected:
                          const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
-   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
+   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv);
 
    void UpdateNURBS();
 
@@ -762,6 +763,19 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+   /// Get the edge to unique knotvector map used by NURBS patch topology meshes
+   /** @param[in,out] edge_to_ukv Array<int> Map from edge index to (signed)
+                                  unique knotvector index. Will be resized
+                                  to the number of edges.
+       @param[in,out] ukv_to_pkv  Array<int> Map from (unsigned) unique
+                                  knotvector index to the (unsigned)
+                                  "patch knotvector index", i.e.  p*dim+d.
+                                  Will be resized to the number of unique
+                                  knotvectors.
+   */
+   void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
+                                  Array<int> &ukv_to_rpkv) const;
 
    /// @}
 
@@ -1408,6 +1422,10 @@ public:
 
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
+
+   /// Returns a copy of patches; not const as this first sets the patches
+   /// in NURBSext using control points defined by Nodes
+   void GetNURBSPatches(Array<NURBSPatch*> &patches);
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;

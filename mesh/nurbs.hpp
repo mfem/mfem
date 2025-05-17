@@ -469,7 +469,7 @@ protected:
    /// Orders of all KnotVectors
    Array<int> mOrders;
 
-   /// Number of KnotVectors
+   /// Number of unique (not comprehensive) KnotVectors
    int NumOfKnotVectors;
 
    /// Global entity counts
@@ -490,8 +490,8 @@ protected:
    /// Whether this object owns patchTopo
    bool own_topo;
 
-   /// Map from edge indices to KnotVector indices
-   Array<int> edge_to_knot;
+   /// Map from patchTopo edge indices to unique KnotVector indices
+   Array<int> edge_to_ukv;
 
    /// Set of unique KnotVectors
    Array<KnotVector *> knotVectors;
@@ -911,6 +911,12 @@ public:
        Cartesian order. */
    void GetPatchDofs(const int patch, Array<int> &dofs);
 
+   /// Return NURBSPatch object
+   const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
+
+   /// Return patch topology
+   const Mesh* GetPatchTopology() const { return patchTopo; }
+
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
@@ -1138,7 +1144,7 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   int kv = edge_to_knot[edge];
+   int kv = edge_to_ukv[edge];
    return (kv >= 0) ? kv : (-1-kv);
 }
 
@@ -1155,7 +1161,7 @@ inline const KnotVector *NURBSExtension::KnotVec(int edge) const
 inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
 const
 {
-   int kv = edge_to_knot[edge];
+   int kv = edge_to_ukv[edge];
    if (kv >= 0)
    {
       *okv = oedge;
