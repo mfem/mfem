@@ -92,12 +92,12 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
                "../../data/square-nurbs.mesh",
                "../../data/beam-quad-nurbs.mesh",
                "../../data/pipe-nurbs.mesh",
-               "../../../miniapps/nurbs/meshes/two-squares-nurbs.mesh",
-               "../../../miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh",
-               "../../../miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh",
-               "../../../miniapps/nurbs/meshes/plus-nurbs.mesh",
-               "../../../miniapps/nurbs/meshes/plus-nurbs-permuted.mesh",
-               "../../../miniapps/nurbs/meshes/ijk-hex-nurbs.mesh");
+               "../../miniapps/nurbs/meshes/two-squares-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh",
+               "../../miniapps/nurbs/meshes/plus-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/plus-nurbs-permuted.mesh",
+               "../../miniapps/nurbs/meshes/ijk-hex-nurbs.mesh");
 
    Mesh mesh1(mesh_fname, 1, 1);
 

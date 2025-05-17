@@ -31,7 +31,6 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
-#include <algorithm>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
@@ -6213,28 +6212,32 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    FinalizeTopology();
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 
-   /* Generate edge to knotvector mapping if edges are not specified in the mesh file
-      See data/two-squares-nurbs-autoedge.mesh for an example */
+   /* Generate edge to knotvector mapping if edges are not specified in the
+      mesh file. See data/two-squares-nurbs-autoedge.mesh for an example */
    Array<int> ukv_to_pkv;
    if (edge_to_ukv.Size() == 0)
    {
       GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_pkv);
-      mfem::out << "Generated edge to knot mapping:" << endl;
-      edge_to_ukv.Print(mfem::out);
    }
 }
 
-void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to_rpkv) const
+void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
+                                     Array<int> &ukv_to_rpkv) const
 {
    const int dim = Dimension();  // topological (not physical) dimension
    const int NP = NumOfElements; // number of patches
    const int NPKV = NP * dim;    // number of patch knotvectors
    constexpr int notset = -9999999;
+   // Sign convention
+   auto sign = [](int i) { return -1 - i; };
+   auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
+   // Edge index -> dimension convention
+   auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
    Array<int> v(2); // vertices of an edge
 
-   // 1D case is special: edge index == element index
-   // ukv_to_rpkv = Identity , edge_to_ukv = ele_to_pkv
+   // 1D case is special: edge index = signed element index
+   // ukv_to_rpkv = Identity
    if (dim == 1)
    {
       edge_to_ukv.SetSize(NP);
@@ -6243,7 +6246,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
       {
          GetElementVertices(i, v);
          // Sign is based on the edge's vertex indices
-         edge_to_ukv[i] = (v[1] > v[0]) ? i : -1 - i;
+         edge_to_ukv[i] = (v[1] > v[0]) ? i : sign(i);
          ukv_to_rpkv[i] = i;
       }
       return;
@@ -6255,12 +6258,6 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    Array<int> edge_to_pkv(NumOfEdges);
    edge_to_pkv.SetSize(NumOfEdges);
    edge_to_pkv = notset;
-
-   // Sign convention
-   auto sign = [](int i) { return -1 - i; };
-   auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
-   // Edge index -> dimension convention
-   auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
    // Initialize as identity - this is the storage for the disjoint-set/
    // union-find algorithm which will construct the map pkv_to_ukv
@@ -6274,7 +6271,6 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    {
       return (pkv_map[i] == i) ? i : get_root(pkv_map[i]);
    };
-
    auto unite = [&pkv_map, &get_root](int i, int j)
    {
       const int ri = get_root(i);
@@ -6283,7 +6279,6 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
       // keep the lowest index
       (ri < rj) ? pkv_map[rj] = ri : pkv_map[ri] = rj;
    };
-
 
    // Get edge_to_pkv (one edge can link to multiple pkv) and pkv_map
    for (int p = 0; p < NP; p++)
