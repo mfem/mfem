@@ -6262,12 +6262,28 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    // Edge index -> dimension convention
    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
-   // Initialize as identity - this will later be used to construct the map pkv_to_ukv
+   // Initialize as identity - this is the storage for the disjoint-set/
+   // union-find algorithm which will construct the map pkv_to_ukv
    Array<int> pkv_map(NPKV);
    for (int i = 0; i < NPKV; i++)
    {
       pkv_map[i] = i;
    }
+   std::function<int(int)> get_root;
+   get_root = [&pkv_map, &get_root](int i) -> int
+   {
+      return (pkv_map[i] == i) ? i : get_root(pkv_map[i]);
+   };
+
+   auto unite = [&pkv_map, &get_root](int i, int j)
+   {
+      const int ri = get_root(i);
+      const int rj = get_root(j);
+      if (ri == rj) return;
+      // keep the lowest index
+      (ri < rj) ? pkv_map[rj] = ri : pkv_map[ri] = rj;
+   };
+
 
    // Get edge_to_pkv (one edge can link to multiple pkv) and pkv_map
    for (int p = 0; p < NP; p++)
@@ -6285,7 +6301,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
          if (edge_to_pkv[edge] != notset)
          {
             const int pkv_other = unsign(edge_to_pkv[edge]);
-            pkv_map[pkv] = pkv_map[pkv_other]; // condense graph slightly vs = pkv_other
+            unite(pkv, pkv_other);
          }
          else
          {
@@ -6297,12 +6313,6 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv, Array<int> &ukv_to
    }
 
    // Construct the pkv_to_rpkv map by finding the lowest/root index
-   std::function<int(int)> get_root;
-   get_root = [pkv_map, &get_root](int i) -> int
-   {
-      return (pkv_map[i] == i) ? i : get_root(pkv_map[i]);
-   };
-
    Array<int> pkv_to_rpkv(NPKV);
    ukv_to_rpkv.SetSize(NPKV);
    for (int i = 0; i < NPKV; i++)
