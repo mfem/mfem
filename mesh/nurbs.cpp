@@ -2392,7 +2392,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
       patches[p] = new NURBSPatch(*patches_[p]);
    }
 
-   // GetEdgeToUniqueKnotvector
    Array<int> ukv_to_rpkv;
    patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    own_topo = true;
@@ -2407,7 +2406,8 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    // Assign the unique knot vectors from patches
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
-      // pkv = p*dim + d
+      // pkv = p*dim + d for an arbitrarily chosen patch p,
+      // in its reference direction d
       const int pkv = ukv_to_rpkv[i];
       const int p = pkv / Dimension();
       const int d = pkv % Dimension();
