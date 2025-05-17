@@ -28,23 +28,22 @@ namespace internal
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-void PAVectorMassApply2D(const int NE,
-                         const Array<real_t> &b,
-                         const Vector &d,
-                         const Vector &x,
-                         Vector &y,
-                         const int d1d = 0,
-                         const int q1d = 0)
+void SmemPAVectorMassApply2D(const int NE,
+                             const int coeff_vdim,
+                             const Array<real_t> &b,
+                             const Vector &d,
+                             const Vector &x,
+                             Vector &y,
+                             const int d1d = 0,
+                             const int q1d = 0)
 {
-   constexpr int VDIM = 2;
+   constexpr int DIM = 2, VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const int coeff_vdim = d.Size() / (Q1D*Q1D*NE);
    const bool const_coeff = coeff_vdim == 1;
-   const bool vector_coeff = coeff_vdim == VDIM;
-   const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
-   MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
+   const bool vector_coeff = coeff_vdim == DIM;
+   const bool matrix_coeff = coeff_vdim == DIM*DIM;
 
    const auto DE = Reshape(d.Read(), Q1D, Q1D, coeff_vdim, NE);
    const auto XE = Reshape(x.Read(), D1D, D1D, VDIM, NE);
@@ -55,9 +54,7 @@ void PAVectorMassApply2D(const int NE,
       constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
-      MFEM_SHARED real_t sB[MD1][MQ1];
-      MFEM_SHARED real_t smem[MQ1][MQ1];
-
+      MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs2d(e, D1D, XE, r0);
@@ -73,7 +70,6 @@ void PAVectorMassApply2D(const int NE,
 
             if (const_coeff)
             {
-               // kernels::Mult(2, 1, D, Q, R);
                r0[0][0][qy][qx] = D0 * Qx;
                r0[1][0][qy][qx] = D0 * Qy;
             }
@@ -99,23 +95,22 @@ void PAVectorMassApply2D(const int NE,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PAVectorMassApply3D(const int NE,
-                                const Array<real_t> &b,
-                                const Vector &d,
-                                const Vector &x,
-                                Vector &y,
-                                const int d1d = 0,
-                                const int q1d = 0)
+static void SmemPAVectorMassApply3D(const int NE,
+                                    const int coeff_vdim,
+                                    const Array<real_t> &b,
+                                    const Vector &d,
+                                    const Vector &x,
+                                    Vector &y,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
 {
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const int coeff_vdim = d.Size() / (Q1D*Q1D*Q1D*NE);
    const bool const_coeff = coeff_vdim == 1;
    const bool vector_coeff = coeff_vdim == VDIM;
    const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
-   MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
 
    const auto DE = Reshape(d.Read(), Q1D, Q1D, Q1D, coeff_vdim, NE);
    const auto XE = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
@@ -126,9 +121,7 @@ static void PAVectorMassApply3D(const int NE,
       constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
-      MFEM_SHARED real_t sB[MD1][MQ1];
-      MFEM_SHARED real_t smem[MQ1][MQ1];
-
+      MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs3d_t<VDIM, 1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadDofs3d(e, D1D, XE, r0);
@@ -186,20 +179,31 @@ template<int DIM, int T_D1D, int T_Q1D>
 VectorMassIntegrator::VectorMassAddMultPAType
 VectorMassIntegrator::VectorMassAddMultPA::Kernel()
 {
-   MFEM_VERIFY(DIM != 1, "Unsupported 1D kernel");
-   if (DIM == 2) { return internal::PAVectorMassApply2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::PAVectorMassApply3D<T_D1D, T_Q1D>; }
-   else { MFEM_ABORT(""); }
+   if (DIM == 2)
+   {
+      return internal::SmemPAVectorMassApply2D<T_D1D,T_Q1D>;
+   }
+   else if (DIM == 3)
+   {
+      return internal::SmemPAVectorMassApply3D<T_D1D, T_Q1D>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
 }
 
 inline
 VectorMassIntegrator::VectorMassAddMultPAType
-VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
+VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim,
+                                                    int d1d, int q1d)
 {
-   MFEM_VERIFY(dim != 1, "Unsupported 1D kernel");
-   if (dim == 2) { return internal::PAVectorMassApply2D<1,1>; }
-   else if (dim == 3) { return internal::PAVectorMassApply3D<1,1>; }
-   else { MFEM_ABORT(""); }
+   if (dim == 2)
+   {
+      return internal::SmemPAVectorMassApply2D;
+   }
+   else if (dim == 3)
+   {
+      return internal::SmemPAVectorMassApply3D;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
 }
 
 /// \endcond DO_NOT_DOCUMENT

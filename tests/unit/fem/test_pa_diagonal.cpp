@@ -12,14 +12,6 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
-#if __has_include("general/nvtx.hpp")
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kDeepSkyBlue
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 using namespace mfem;
 
 namespace assemblediagonalpa
@@ -328,7 +320,7 @@ double test_vdiag_pa(int dim, int order)
 }
 
 TEST_CASE("Vector Mass Diagonal PA",
-          "[PartialAssembly][AssembleDiagonal][VectorDiagonalPA][VectorMassPA]")
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA]")
 {
    const auto DIM = GENERATE(2, 3);
    const auto P = GENERATE(1, 2, 3);
@@ -337,7 +329,7 @@ TEST_CASE("Vector Mass Diagonal PA",
 }
 
 TEST_CASE("Vector Diffusion Diagonal PA",
-          "[PartialAssembly][AssembleDiagonal][VectorDiagonalPA][VectorDiffusionPA]")
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorDiffusionPA]")
 {
    const auto DIM = GENERATE(2, 3);
    const auto P = GENERATE(1, 2, 3);

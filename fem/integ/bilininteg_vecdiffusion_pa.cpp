@@ -28,8 +28,6 @@ namespace mfem
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-
-   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    const auto *ir = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
@@ -37,326 +35,256 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
+      const bool mixed =
+         mesh->GetNumGeometries(mesh->Dimension()) > 1 || fes.IsVariableOrder();
       if (mixed) { ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q); }
-      else { ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);      }
+      else { ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q); }
       return;
    }
+
+   // If vdim is not set, set it to the space dimension
+   vdim = (vdim == -1) ? fes.GetVDim() : vdim;
+   MFEM_VERIFY(vdim == fes.GetVDim(), "vdim != fes.GetVDim()");
+
+   const MemoryType mt = pa_mt == MemoryType::DEFAULT
+                         ? Device::GetDeviceMemoryType()
+                         : pa_mt;
 
    ne = fes.GetNE();
    dim = mesh->Dimension();
    sdim = mesh->SpaceDimension();
    const int nq = ir->GetNPoints();
-   const int dims = el.GetDim();
-
-   dbg("dim:{} vdim:{} fes.VDim():{} sdim:{} nq:{} nd:{} dims:{}",
-       dim, vdim, fes.GetVDim(), sdim, nq, nd, dims);
-
-   // If vdim is not set, set it to the space dimension
-   if (vdim != -1) { MFEM_VERIFY(vdim == fes.GetVDim(), ""); }
-   vdim = (vdim == -1) ? fes.GetVDim() : vdim;
-
-   const MemoryType mt = pa_mt == MemoryType::DEFAULT
-                         ? Device::GetDeviceMemoryType()
-                         : pa_mt;
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    const int q1d = quad1D;
 
+   if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
+
+   dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
+
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
 
    if (Q)
    {
-      dbg("\x1b[33mQ"); coeff.Project(*Q);
+      coeff.Project(*Q);
    }
    else if (VQ)
    {
-      dbg("\x1b[33mVQ"); coeff.Project(*VQ);
-      MFEM_VERIFY(VQ->GetVDim() == vdim, "VQ dimension vs. vdim error");
+      coeff.Project(*VQ);
+      MFEM_VERIFY(VQ->GetVDim() == vdim, "VQ vdim vs. vdim error");
    }
    else if (MQ)
    {
-      dbg("\x1b[33mMQ");
       coeff.ProjectTranspose(*MQ);
       MFEM_VERIFY(MQ->GetVDim() == vdim, "MQ dimension vs. vdim error");
-      MFEM_VERIFY(coeff.Size() == (vdim*vdim) * ne * nq, "Coefficient size error");
+      MFEM_VERIFY(coeff.Size() == (vdim*vdim) * ne * nq, "MQ size error");
    }
-   else { dbg("\x1b[33m1.0"); coeff.SetConstant(1.0); }
-   dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
+   else { coeff.SetConstant(1.0); }
 
-   const int pa_size = dims*dims;
    coeff_vdim = coeff.GetVDim();
-   dbg("\x1b[33mpa_size:{}", pa_size);
-   dbg("\x1b[33mconst_coeff:{}", const_coeff);
-
    const bool scalar_coeff = coeff_vdim == 1;
    const bool vector_coeff = coeff_vdim == vdim;
-   const bool matrice_coeff = coeff_vdim == vdim*vdim;
-   MFEM_VERIFY(scalar_coeff + vector_coeff + matrice_coeff == 1, "");
+   const bool matrix_coeff = coeff_vdim == vdim * vdim;
+   MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
 
-   const bool matrix_coeff = coeff_vdim == vdim*vdim;
-   dbg("\x1b[33mcoeff_vdim:{} matrix_coeff:{}", coeff_vdim, matrix_coeff);
+   dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
 
-   if (dim == 2 && sdim == 3) // 🔥🔥🔥 PA data size
-   {
-      const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-      pa_data.SetSize(symmDims * nq * ne, mt);
-   }
-   else
-   {
-      pa_data.SetSize(nq * pa_size * vdim * (matrix_coeff ? dim : 1) * ne, mt);
-      dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*dim)x{}x{}",
-          pa_data.Size(), vdim, pa_size, nq, ne);
-   }
-
-   const auto w_r = ir->GetWeights().Read();
-
-   if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
-
+   const int pa_size = dim * dim;
+   pa_data.SetSize(nq * pa_size * vdim * (matrix_coeff ? dim : 1) * ne, mt);
+   dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*(matrix_coeff:{}){})x{}x{}",
+       pa_data.Size(), vdim, pa_size, matrix_coeff, matrix_coeff ? dim : 1, nq, ne);
 
    if (dim == 2 && sdim == 3)
    {
-      constexpr int DIM = 2;
-      constexpr int SDIM = 3;
-      const int NQ = quad1D*quad1D;
-      const auto J = Reshape(geom->J.Read(), NQ, SDIM, DIM, ne);
-      auto D = Reshape(pa_data.Write(), NQ, SDIM, ne);
+      MFEM_VERIFY(scalar_coeff, "");
+      const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
+      const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
+      auto D = Reshape(pa_data.Write(), q1d, q1d, pa_size,
+                       vdim * (matrix_coeff ? dim : 1), ne);
 
-      const bool const_c = coeff.Size() == 1;
-      const auto C = const_c
-                     ? Reshape(coeff.Read(), 1, 1)
-                     : Reshape(coeff.Read(), NQ, ne);
-
-      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
          {
-            const real_t wq = w_r[q];
-            const real_t J11 = J(q,0,0,e);
-            const real_t J21 = J(q,1,0,e);
-            const real_t J31 = J(q,2,0,e);
-            const real_t J12 = J(q,0,1,e);
-            const real_t J22 = J(q,1,1,e);
-            const real_t J32 = J(q,2,1,e);
-            const real_t E = J11*J11 + J21*J21 + J31*J31;
-            const real_t G = J12*J12 + J22*J22 + J32*J32;
-            const real_t F = J11*J12 + J21*J22 + J31*J32;
-            const real_t iw = 1.0 / sqrt(E*G - F*F);
-            const real_t C1 = const_c ? C(0,0) : C(q,e);
-            const real_t alpha = wq * C1 * iw;
-            D(q,0,e) =  alpha * G; // 1,1
-            D(q,1,e) = -alpha * F; // 1,2
-            D(q,2,e) =  alpha * E; // 2,2
+            MFEM_FOREACH_THREAD(qx, x, q1d)
+            {
+               for (int i = 0; i < vdim; ++i)
+               {
+                  const real_t wq = W(qx, qy);
+                  const real_t J11 = J(qx, qy, 0, 0, e);
+                  const real_t J21 = J(qx, qy, 1, 0, e);
+                  const real_t J31 = J(qx, qy, 2, 0, e);
+                  const real_t J12 = J(qx, qy, 0, 1, e);
+                  const real_t J22 = J(qx, qy, 1, 1, e);
+                  const real_t J32 = J(qx, qy, 2, 1, e);
+                  const real_t E = J11*J11 + J21*J21 + J31*J31;
+                  const real_t G = J12*J12 + J22*J22 + J32*J32;
+                  const real_t F = J11*J12 + J21*J22 + J31*J32;
+                  const real_t iw = 1.0 / sqrt(E*G - F*F);
+                  const auto C0 = C(0, qx, qy, e);
+                  const real_t alpha = wq * C0 * iw;
+                  D(qx, qy, 0, i, e) =  alpha * G; // 1,1
+                  D(qx, qy, 1, i, e) = -alpha * F; // 1,2
+                  D(qx, qy, 2, i, e) = -alpha * F; // 2,1 == 1,2
+                  D(qx, qy, 3, i, e) =  alpha * E; // 2,2
+               }
+            }
          }
       });
    }
-   else
+   else if (dim == 2 && sdim == 2)
    {
-      // PAVectorDiffusionSetup(dim, quad1D, ne, w, j, coeff, d);
-      if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
+      const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
+      const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
+      auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size,
+                        vdim * (matrix_coeff ? dim : 1), ne);
 
-      if (dim == 2)
+      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
-         dbg("dim:{}(==2!) sdim:{}(==2!) vdim:{}", dim, sdim, vdim);
-         assert(dim == 2 && sdim == 2);
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD(qx, x, q1d)
+            {
+               const real_t J11 = J(qx, qy, 0, 0, e);
+               const real_t J21 = J(qx, qy, 1, 0, e);
+               const real_t J12 = J(qx, qy, 0, 1, e);
+               const real_t J22 = J(qx, qy, 1, 1, e);
+               const real_t w_detJ = W(qx, qy) / ((J11*J22)-(J21*J12));
+               const real_t D0 =  w_detJ * (J12*J12 + J22*J22);
+               const real_t D1 = -w_detJ * (J12*J11 + J22*J21);
+               const real_t D2 =  w_detJ * (J11*J11 + J21*J21);
+               const int map[4] = {0, 2, 1, 3};
 
-         assert(vdim == 2);
-         const auto W = Reshape(w_r, q1d, q1d);
-         const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
-         const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(),
-                           q1d, q1d,
-                           pa_size,
-                           vdim * (matrix_coeff ? dim : 1),
-                           ne);
+               for (int i = 0; i < (matrix_coeff ? coeff_vdim : vdim); ++i)
+               {
+                  const auto k = matrix_coeff ? map[i] : (vector_coeff ? i : 0);
+                  const auto Cc = C(k, qx, qy, e);
+                  DE(qx, qy, 0, i, e) = D0 * Cc;
+                  DE(qx, qy, 1, i, e) = D1 * Cc;
+                  DE(qx, qy, 2, i, e) = D1 * Cc;
+                  DE(qx, qy, 3, i, e) = D2 * Cc;
+               }
+            }
+         }
+      });
+   }
+   else if (dim == 3 && sdim == 3)
+   {
+      const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d, q1d);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
+      const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
+      auto DE = Reshape(pa_data.Write(), q1d, q1d, q1d, pa_size,
+                        vdim * (matrix_coeff ? dim : 1), ne);
 
-         mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      {
+         MFEM_FOREACH_THREAD(qz, z, q1d)
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  const real_t J11 = J(qx, qy, 0, 0, e);
-                  const real_t J21 = J(qx, qy, 1, 0, e);
-                  const real_t J12 = J(qx, qy, 0, 1, e);
-                  const real_t J22 = J(qx, qy, 1, 1, e);
-                  const real_t w_detJ = W(qx, qy) / ((J11*J22)-(J21*J12));
-                  const real_t D0 =  w_detJ * (J12*J12 + J22*J22);
-                  const real_t D1 = -w_detJ * (J12*J11 + J22*J21);
-                  const real_t D2 =  w_detJ * (J11*J11 + J21*J21);
-                  const int map[4] = {0, 2, 1, 3};
+                  const real_t J11 = J(qx, qy, qz, 0, 0, e);
+                  const real_t J21 = J(qx, qy, qz, 1, 0, e);
+                  const real_t J31 = J(qx, qy, qz, 2, 0, e);
+                  const real_t J12 = J(qx, qy, qz, 0, 1, e);
+                  const real_t J22 = J(qx, qy, qz, 1, 1, e);
+                  const real_t J32 = J(qx, qy, qz, 2, 1, e);
+                  const real_t J13 = J(qx, qy, qz, 0, 2, e);
+                  const real_t J23 = J(qx, qy, qz, 1, 2, e);
+                  const real_t J33 = J(qx, qy, qz, 2, 2, e);
+                  const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
+                                      J21 * (J12 * J33 - J32 * J13) +
+                                      J31 * (J12 * J23 - J22 * J13);
+                  const real_t c_detJ = W(qx, qy, qz) / detJ;
+                  // adj(J)
+                  const real_t A11 = (J22 * J33) - (J23 * J32);
+                  const real_t A12 = (J32 * J13) - (J12 * J33);
+                  const real_t A13 = (J12 * J23) - (J22 * J13);
+                  const real_t A21 = (J31 * J23) - (J21 * J33);
+                  const real_t A22 = (J11 * J33) - (J13 * J31);
+                  const real_t A23 = (J21 * J13) - (J11 * J23);
+                  const real_t A31 = (J21 * J32) - (J31 * J22);
+                  const real_t A32 = (J31 * J12) - (J11 * J32);
+                  const real_t A33 = (J11 * J22) - (J12 * J21);
+                  // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+                  const real_t D11 = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+                  const real_t D21 = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+                  const real_t D31 = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+                  const real_t D22 = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+                  const real_t D32 = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+                  const real_t D33 = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                  const int map[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
 
-                  for (int i = 0; i < (matrice_coeff ? coeff_vdim : vdim); ++i)
+                  for (int i = 0; i < (matrix_coeff ? coeff_vdim : vdim); ++i)
                   {
-                     const auto k = matrice_coeff ? map[i] : (vector_coeff ? i : 0);
-                     const auto Cc = C(k, qx, qy, e);
-                     DE(qx, qy, 0, i, e) = D0 * Cc;
-                     DE(qx, qy, 1, i, e) = D1 * Cc;
-                     DE(qx, qy, 2, i, e) = D1 * Cc;
-                     DE(qx, qy, 3, i, e) = D2 * Cc;
+                     const auto k = matrix_coeff ? map[i] : vector_coeff ? i : 0;
+                     const auto Ck = C(k, qx, qy, qz, e);
+                     DE(qx, qy, qz, 0, i, e) = D11 * Ck;
+                     DE(qx, qy, qz, 1, i, e) = D21 * Ck;
+                     DE(qx, qy, qz, 2, i, e) = D31 * Ck;
+                     DE(qx, qy, qz, 3, i, e) = D22 * Ck;
+                     DE(qx, qy, qz, 4, i, e) = D32 * Ck;
+                     DE(qx, qy, qz, 5, i, e) = D33 * Ck;
                   }
                }
             }
-         });
-      }
-
-      if (dim == 3)
-      {
-         dbg("dim:{}(==3!) sdim:{}(==3!) vdim:{}(3)", dim, sdim, vdim);
-         assert(dim == 3 && sdim == 3);
-
-         const auto W = Reshape(w_r, q1d, q1d, q1d);
-         const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
-         const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
-         auto DE = Reshape(pa_data.Write(),
-                           q1d, q1d, q1d,
-                           pa_size,
-                           vdim * (matrix_coeff ? dim : 1),
-                           ne);
-
-         mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
-         {
-            MFEM_FOREACH_THREAD(qz, z, q1d)
-            {
-               MFEM_FOREACH_THREAD(qy, y, q1d)
-               {
-                  MFEM_FOREACH_THREAD(qx, x, q1d)
-                  {
-                     const real_t J11 = J(qx, qy, qz, 0, 0, e);
-                     const real_t J21 = J(qx, qy, qz, 1, 0, e);
-                     const real_t J31 = J(qx, qy, qz, 2, 0, e);
-                     const real_t J12 = J(qx, qy, qz, 0, 1, e);
-                     const real_t J22 = J(qx, qy, qz, 1, 1, e);
-                     const real_t J32 = J(qx, qy, qz, 2, 1, e);
-                     const real_t J13 = J(qx, qy, qz, 0, 2, e);
-                     const real_t J23 = J(qx, qy, qz, 1, 2, e);
-                     const real_t J33 = J(qx, qy, qz, 2, 2, e);
-                     const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
-                                         J21 * (J12 * J33 - J32 * J13) +
-                                         J31 * (J12 * J23 - J22 * J13);
-                     const real_t c_detJ = W(qx, qy, qz) / detJ;
-                     // adj(J)
-                     const real_t A11 = (J22 * J33) - (J23 * J32);
-                     const real_t A12 = (J32 * J13) - (J12 * J33);
-                     const real_t A13 = (J12 * J23) - (J22 * J13);
-                     const real_t A21 = (J31 * J23) - (J21 * J33);
-                     const real_t A22 = (J11 * J33) - (J13 * J31);
-                     const real_t A23 = (J21 * J13) - (J11 * J23);
-                     const real_t A31 = (J21 * J32) - (J31 * J22);
-                     const real_t A32 = (J31 * J12) - (J11 * J32);
-                     const real_t A33 = (J11 * J22) - (J12 * J21);
-                     // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-                     const real_t D11 = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-                     const real_t D21 = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-                     const real_t D31 = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-                     const real_t D22 = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-                     const real_t D32 = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-                     const real_t D33 = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
-                     const int map[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
-
-                     for (int i = 0; i < (matrice_coeff ? coeff_vdim : vdim); ++i)
-                     {
-                        const auto k = matrice_coeff ? map[i] : vector_coeff ? i : 0;
-                        const auto Ck = C(k, qx, qy, qz, e);
-                        DE(qx, qy, qz, 0, i, e) = D11 * Ck;
-                        DE(qx, qy, qz, 1, i, e) = D21 * Ck;
-                        DE(qx, qy, qz, 2, i, e) = D31 * Ck;
-                        DE(qx, qy, qz, 3, i, e) = D22 * Ck;
-                        DE(qx, qy, qz, 4, i, e) = D32 * Ck;
-                        DE(qx, qy, qz, 5, i, e) = D33 * Ck;
-                     }
-                  }
-               }
-            }
-         });
-      }
+         }
+      });
+   }
+   else
+   {
+      MFEM_ABORT("Unknown VectorDiffusionIntegrator::AssemblePA kernel for"
+                 << " dim:" << dim << ", vdim:" << vdim << ", sdim:" << sdim);
    }
 }
 
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->AddMult(x, y);
-   }
-   else
-   {
-      // Add the VectorDiffusionIntegrator specializations
-      static const auto vector_diffusion_kernel_specializations =
-         (  // 2D
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2,2>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3,3>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,4,4>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,5,5>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,6,6>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,7,7>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,8,8>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,9,9>::Add(),
-            // 3D
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,2,2>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,2,3>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3,4>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,4,5>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,4,6>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,5,6>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,5,8>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,6,7>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,7,8>::Add(),
-            VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,8,9>::Add(),
-            true);
-      MFEM_CONTRACT_VAR(vector_diffusion_kernel_specializations);
+   // Use CEED backend if available
+   if (DeviceCanUseCeed()) { return ceedOp->AddMult(x, y); }
 
-      const int D1D = dofs1D;
-      const int Q1D = quad1D;
-      const Array<real_t> &B = maps->B;
-      const Array<real_t> &G = maps->G;
-      const Array<real_t> &Bt = maps->Bt;
-      const Array<real_t> &Gt = maps->Gt;
-      const Vector &D = pa_data;
+   // Add the VectorDiffusionAddMultPA specializations
+   static const auto vector_diffusion_kernel_specializations =
+      (
+         // 2D, SDIM = 2
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 2,2>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 3,3>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 4,4>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 5,5>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 6,6>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 7,7>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 8,8>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 9,9>::Add(),
+         // 2D, SDIM = 3
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 2,2>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 3,3>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 4,4>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 5,5>::Add(),
+         // 3D, SDIM = 3
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 2,2>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 2,3>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 3,4>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 4,5>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 4,6>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 5,6>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 5,8>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 6,7>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 7,8>::Add(),
+         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 8,9>::Add(),
+         true);
+   MFEM_CONTRACT_VAR(vector_diffusion_kernel_specializations);
 
-      if (dim == 2 && sdim == 3)
-      {
-         assert(false);
-         switch ((dofs1D << 4 ) | quad1D)
-         {
-            case 0x22:
-               return internal::PAVectorDiffusionApply2D<2,2,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
-            case 0x33:
-               return internal::PAVectorDiffusionApply2D<3,3,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
-            case 0x44:
-               return internal::PAVectorDiffusionApply2D<4,4,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
-            case 0x55:
-               return internal::PAVectorDiffusionApply2D<5,5,3>(ne,coeff_vdim,B,G,Bt,Gt,D,x,y);
-            default:
-               return internal::PAVectorDiffusionApply2D(ne,coeff_vdim,B,G,Bt,Gt,D,x,y,D1D,Q1D,
-                                                         sdim);
-         }
-      }
-      if (dim == 2 && sdim == 2)
-      {
-         dbg("\x1b[37mdim:{} sdim:{} vdim:{} D1D:{} Q1D:{} coeff_vdim:{}",
-             dim, sdim, vdim, D1D, Q1D, coeff_vdim);
-         MFEM_VERIFY(dim == 2 && sdim == 2 && vdim == 2, "");
-         return VectorDiffusionAddMultPA::Run(dim, D1D, Q1D,
-                                              ne, coeff_vdim, B, G, D, x, y,
-                                              D1D, Q1D);
-      }
+   VectorDiffusionAddMultPA::Run(dim, sdim, dofs1D, quad1D,
+                                 ne, coeff_vdim, maps->B, maps->G, pa_data, x, y,
+                                 sdim, dofs1D, quad1D);
 
-      if (dim == 3 && sdim == 3)
-      {
-         // dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
-         return VectorDiffusionAddMultPA::Run(dim, D1D, Q1D,
-                                              ne, coeff_vdim,
-                                              B, G, D, x, y, D1D, Q1D);
-      }
-
-      MFEM_ABORT("Unknown kernel.");
-   }
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>

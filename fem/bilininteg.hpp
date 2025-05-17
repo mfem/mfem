@@ -2557,41 +2557,40 @@ public:
     by scalar FE through standard transformation. */
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
-private:
-   int vdim;
+   int vdim = -1, Q_order = 0;
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
-   int Q_order;
 
 protected:
-   Coefficient *Q;
-   VectorCoefficient *VQ;
-   MatrixCoefficient *MQ;
+   Coefficient *Q = nullptr;
+   VectorCoefficient *VQ = nullptr;
+   MatrixCoefficient *MQ = nullptr;
    // PA extension
-   Vector pa_data;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   int ne, dim, dofs1D, quad1D, coeff_vdim;
+   Vector pa_data;
 
 public:
    /// Construct an integrator with coefficient 1.0
-   VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+   VectorMassIntegrator() = default;
+
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
-   VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q_order(qo), Q(&q), VQ(NULL), MQ(NULL) { }
-   VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(&q), VQ(NULL),
-        MQ(NULL) { }
+   VectorMassIntegrator(Coefficient &q, int qo = 0): Q_order(qo), Q(&q) { }
+
+   VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir):
+      BilinearFormIntegrator(ir), Q(&q) { }
+
    /// Construct an integrator with diagonal coefficient q
-   VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(&q), MQ(NULL) { }
+   VectorMassIntegrator(VectorCoefficient &q, int qo = 0):
+      vdim(q.GetVDim()), Q_order(qo), VQ(&q) { }
+
    /// Construct an integrator with matrix coefficient q
-   VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
+   VectorMassIntegrator(MatrixCoefficient &q, int qo = 0):
+      vdim(q.GetVDim()), Q_order(qo), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
@@ -2603,6 +2602,7 @@ public:
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
@@ -2613,7 +2613,8 @@ public:
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    using VectorMassAddMultPAType =
-      void(*)(const int, const Array<real_t>&, const Vector&,
+      void(*)(const int,  const int,
+              const Array<real_t>&, const Vector&,
               const Vector&, Vector&, const int, const int);
 
    MFEM_REGISTER_KERNELS(VectorMassAddMultPA,
@@ -3061,40 +3062,36 @@ public:
     to be the spatial dimension (i.e. 2-dimension or 3-dimension). */
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
-protected:
-   Coefficient *Q = NULL;
-   VectorCoefficient *VQ = NULL;
-   MatrixCoefficient *MQ = NULL;
-
-   // PA extension
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, sdim, ne, dofs1D, quad1D;
-   int coeff_vdim;
-   Vector pa_data;
-
-private:
-   DenseMatrix dshape, dshapedxt, pelmat;
    int vdim = -1;
+   DenseMatrix dshape, dshapedxt, pelmat;
    DenseMatrix mcoeff;
    Vector vcoeff;
 
+protected:
+   Coefficient *Q = nullptr;
+   VectorCoefficient *VQ = nullptr;
+   MatrixCoefficient *MQ = nullptr;
+   // PA extension
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int ne, dim, sdim, dofs1D, quad1D, coeff_vdim;
+   Vector pa_data;
+
 public:
-   VectorDiffusionIntegrator() { }
+   /// Construct an integrator with coefficient 1.0
+   VectorDiffusionIntegrator() = default;
 
    /** \brief Integrator with unit coefficient for caller-specified vector
        dimension.
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(int vector_dimension)
-      : vdim(vector_dimension) { }
+   VectorDiffusionIntegrator(int vector_dimension): vdim(vector_dimension) { }
 
-   VectorDiffusionIntegrator(Coefficient &q)
-      : Q(&q) { }
+   VectorDiffusionIntegrator(Coefficient &q): Q(&q) { }
 
-   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), Q(&q) { }
+   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir):
+      BilinearFormIntegrator(ir), Q(&q) { }
 
    /** \brief Integrator with scalar coefficient for caller-specified vector
        dimension.
@@ -3104,8 +3101,8 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension)
-      : Q(&q), vdim(vector_dimension) { }
+   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension):
+      vdim(vector_dimension), Q(&q) { }
 
    /** \brief Integrator with \c VectorCoefficient. The vector dimension of the
        \c FiniteElementSpace is assumed to be the same as the dimension of the
@@ -3116,8 +3113,8 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(VectorCoefficient &vq)
-      : VQ(&vq), vdim(vq.GetVDim()) { }
+   VectorDiffusionIntegrator(VectorCoefficient &vq):
+      vdim(vq.GetVDim()), VQ(&vq) { }
 
    /** \brief Integrator with \c MatrixCoefficient. The vector dimension of the
        \c FiniteElementSpace is assumed to be the same as the dimension of the
@@ -3128,8 +3125,8 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(MatrixCoefficient& mq)
-      : MQ(&mq), vdim(mq.GetVDim()) { }
+   VectorDiffusionIntegrator(MatrixCoefficient& mq):
+      vdim(mq.GetVDim()), MQ(&mq) { }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3137,6 +3134,7 @@ public:
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &Tr,
                               const Vector &elfun, Vector &elvect) override;
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
@@ -3150,11 +3148,11 @@ public:
       void(*)(const int, const int,
               const Array<real_t>&, const Array<real_t>&,
               const Vector&, const Vector&, Vector&,
-              const int, const int);
+              const int, const int, const int);
 
    MFEM_REGISTER_KERNELS(VectorDiffusionAddMultPA,
                          VectorDiffusionAddMultPAType,
-                         (int, int, int));
+                         (int, int, int, int));
 };
 
 /** Integrator for the linear elasticity form:

@@ -23,7 +23,7 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
    {
       for (int ne = 1; ne <= 4; ++ne)
       {
-         const int n_elements = std::pow(ne, dim);
+         const int n_elements = static_cast<int>(std::pow(ne, dim));
          CAPTURE(dim, n_elements);
          for (int order = 1; order <= 3; ++order)
          {
