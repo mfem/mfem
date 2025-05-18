@@ -15,6 +15,7 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/kernels.hpp"
+#include "../../linalg/tmatrix.hpp"
 #include "../../linalg/ttensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
@@ -37,6 +38,33 @@ namespace mfem
 
 namespace internal
 {
+
+template <typename A_layout_t, typename A_data_t,
+          typename B_layout_t, typename B_data_t,
+          typename C_layout_t, typename C_data_t>
+MFEM_ALWAYS_INLINE inline
+void MultTranspose(const A_layout_t &A_layout, const A_data_t &A_data,
+                   const B_layout_t &x_layout, const B_data_t &x_data,
+                   const C_layout_t &y_layout, C_data_t &y_data)
+{
+   MFEM_STATIC_ASSERT(A_layout_t::rank == 2 && B_layout_t::rank == 1
+                      && C_layout_t::rank == 1, "invalid ranks");
+   const int A1 = A_layout_t::dim_1;
+   const int A2 = A_layout_t::dim_2;
+   const int B1 = B_layout_t::dim_1;
+   const int C1 = C_layout_t::dim_1;
+   MFEM_STATIC_ASSERT(A2 == B1 && A1 == C1, "invalid dimensions");
+
+   for (int i = 0; i < A1; i++)
+   {
+      typename internal::entry_type<C_data_t>::type Cij = 0.0;
+      for (int j = 0; j < A2; j++)
+      {
+         Cij += A_data[A_layout.ind(j,i)] * x_data[x_layout.ind(j)];
+      }
+      y_data[y_layout.ind(i)] = Cij;
+   }
+}
 
 template <int T_D1D = 0, int T_Q1D = 0>
 void SmemPAVectorMassApply2D(const int NE,
@@ -78,53 +106,49 @@ void SmemPAVectorMassApply2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            const real_t Qx = r1[0][0][qy][qx];
-            const real_t Qy = r1[1][0][qy][qx];
-            const real_t u[2] = { Qx, Qy };
-            real_t v[2];
 
             const real_t D0 = D(0, qx, qy, e);
+            real_t *y0 = &r0(0,0,qy,qx), *y1 = &r1(0,0,qy,qx);
+
+            using s_layout_t = StridedLayout1D<2,1>;
+            using r_layout_t = StridedLayout1D<2, MQ1*MQ1>; // 1 on GPU
 
             if (const_coeff)
             {
-               real_t *y0 = &r0(0,0,qy,qx);
-               using layout_t = StridedLayout1D<2,1>;
-               using r0_layout_t = StridedLayout1D<2,MQ1*MQ1>;
-
-               // TAssignHD<AssignOp::Set>(layout_t{}, v, layout_t{}, u);
-               // TAssignHD<AssignOp::Mult>(layout_t{}, v, D0);
-#if 1
-               // TAssignHD<AssignOp::Set>(r0_layout_t {}, y0, layout_t {}, v);
-               TAssignHD<AssignOp::Set>(r0_layout_t{}, y0, layout_t{}, u);
-               TAssignHD<AssignOp::Mult>(r0_layout_t {}, y0, D0);
-#else
-               r0[0][0][qy][qx] = v[0];
-               r0[1][0][qy][qx] = v[1];
-#endif
+               TAssignHD<AssignOp::Set>( r_layout_t{}, y0, r_layout_t{}, y1);
+               TAssignHD<AssignOp::Mult>(r_layout_t{}, y0, D0);
             }
             if (vector_coeff)
             {
-               using layout_t = StridedLayout1D<2,1>;
-               TAssignHD<AssignOp::Set>( layout_t {}, v, layout_t {}, u);
-               TAssignHD<AssignOp::Mult>(layout_t{}, v, layout_t{}, &D(0, qx, qy, e));
-#if 0
-               using r0_lyt = OffsetStridedLayout1D<2,1>;
-               real_t *y0 = &(r0[0][0][qy][qx]);
-               TAssignHD<AssignOp::Set>(r0_lyt{MQ1*MQ1}, y0, layout_t {}, v);
-#elif 0
-               r0[0][0][qy][qx] = v[0];
-               r0[1][0][qy][qx] = v[1];
-#else
-               const real_t D1 = D(1, qx, qy, e);
-               r0[0][0][qy][qx] = D0 * Qx;
-               r0[1][0][qy][qx] = D1 * Qy;
-#endif
+               TAssignHD<AssignOp::Set>( r_layout_t{}, y0, r_layout_t{}, y1);
+               TAssignHD<AssignOp::Mult>(r_layout_t{}, y0, s_layout_t{}, &D(0, qx, qy, e));
             }
             if (matrix_coeff)
             {
+               const real_t Qx = r1[0][0][qy][qx];
+               const real_t Qy = r1[1][0][qy][qx];
+               const real_t D1 = D(1, qx, qy, e);
+               const real_t D2 = D(2, qx, qy, e);
+               const real_t D3 = D(3, qx, qy, e);
+#if 0
+               const real_t u[2] = { Qx, Qy };
+               real_t v[2];
                kernels::MultTranspose(2, 2, &D(0, qx, qy, e), u, v);
                r0[0][0][qy][qx] = v[0];
                r0[1][0][qy][qx] = v[1];
+#else
+#if 1
+               const real_t *d = &D(0, qx, qy, e);
+               using s2_layout_t = StridedLayout2D<2,1, 2,2>;
+               using r2_layout_t = StridedLayout1D<2,MQ1*MQ1>; // 1 on GPU
+               MultTranspose(s2_layout_t{}, d, r2_layout_t{}, y1, r2_layout_t{}, y0);
+               MFEM_VERIFY(fabs(r0[0][0][qy][qx] - (D0 * Qx + D1 * Qy)) < 1e-15, "r0_00");
+               MFEM_VERIFY(fabs(r0[1][0][qy][qx] - (D2 * Qx + D3 * Qy)) < 1e-15, "r0_10");
+#else
+               r0[0][0][qy][qx] = D0 * Qx + D1 * Qy;
+               r0[1][0][qy][qx] = D2 * Qx + D3 * Qy;
+#endif
+#endif
             }
          }
       }
