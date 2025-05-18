@@ -23,7 +23,7 @@
 #include "bilininteg_kernels.hpp"
 using mfem::kernels::internal::SetMaxOf;
 
-#if __has_include("general/nvtx.hpp") && !defined(MSVC)
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kGold
 #include "general/nvtx.hpp"
