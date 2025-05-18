@@ -15,11 +15,20 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/kernels.hpp"
+#include "../../linalg/ttensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
 #include "bilininteg_kernels.hpp"
 using mfem::kernels::internal::SetMaxOf;
+
+#if __has_include("general/nvtx.hpp") && !defined(MSVC)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kGold
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
 
 namespace mfem
 {
@@ -43,6 +52,8 @@ void SmemPAVectorMassApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   dbg("D1D:{} Q1D:{} NE:{} coeff_vdim:{}", D1D, Q1D, NE, coeff_vdim);
+
    const bool const_coeff = coeff_vdim == 1;
    const bool vector_coeff = coeff_vdim == DIM;
    const bool matrix_coeff = coeff_vdim == DIM*DIM;
@@ -55,6 +66,7 @@ void SmemPAVectorMassApply2D(const int NE,
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
+      dbg("MQ1:{} VDIM:{}", MQ1, VDIM);
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
@@ -68,34 +80,51 @@ void SmemPAVectorMassApply2D(const int NE,
          {
             const real_t Qx = r1[0][0][qy][qx];
             const real_t Qy = r1[1][0][qy][qx];
-            real_t u[2] = { Qx, Qy }, v[2];
+            const real_t u[2] = { Qx, Qy };
+            real_t v[2];
 
             const real_t D0 = D(0, qx, qy, e);
 
             if (const_coeff)
             {
-               r0[0][0][qy][qx] = D0 * Qx;
-               r0[1][0][qy][qx] = D0 * Qy;
+               real_t *y0 = &r0(0,0,qy,qx);
+               using layout_t = StridedLayout1D<2,1>;
+               using r0_layout_t = StridedLayout1D<2,MQ1*MQ1>;
+
+               // TAssignHD<AssignOp::Set>(layout_t{}, v, layout_t{}, u);
+               // TAssignHD<AssignOp::Mult>(layout_t{}, v, D0);
+#if 1
+               // TAssignHD<AssignOp::Set>(r0_layout_t {}, y0, layout_t {}, v);
+               TAssignHD<AssignOp::Set>(r0_layout_t{}, y0, layout_t{}, u);
+               TAssignHD<AssignOp::Mult>(r0_layout_t {}, y0, D0);
+#else
+               r0[0][0][qy][qx] = v[0];
+               r0[1][0][qy][qx] = v[1];
+#endif
             }
             if (vector_coeff)
             {
-               const real_t D1 = D(1, qx, qy, e);
-               r0[0][0][qy][qx] = D0 * Qx;
-               r0[1][0][qy][qx] = D1 * Qy;
-            }
-            if (matrix_coeff)
-            {
-#if 1
-               kernels::MultTranspose(2, 2, &D(0, qx, qy, e), u, v);
+               using layout_t = StridedLayout1D<2,1>;
+               TAssignHD<AssignOp::Set>( layout_t {}, v, layout_t {}, u);
+               TAssignHD<AssignOp::Mult>(layout_t{}, v, layout_t{}, &D(0, qx, qy, e));
+#if 0
+               using r0_lyt = OffsetStridedLayout1D<2,1>;
+               real_t *y0 = &(r0[0][0][qy][qx]);
+               TAssignHD<AssignOp::Set>(r0_lyt{MQ1*MQ1}, y0, layout_t {}, v);
+#elif 0
                r0[0][0][qy][qx] = v[0];
                r0[1][0][qy][qx] = v[1];
 #else
                const real_t D1 = D(1, qx, qy, e);
-               const real_t D2 = D(2, qx, qy, e);
-               const real_t D3 = D(3, qx, qy, e);
-               r0[0][0][qy][qx] = D0 * Qx + D1 * Qy;
-               r0[1][0][qy][qx] = D2 * Qx + D3 * Qy;
+               r0[0][0][qy][qx] = D0 * Qx;
+               r0[1][0][qy][qx] = D1 * Qy;
 #endif
+            }
+            if (matrix_coeff)
+            {
+               kernels::MultTranspose(2, 2, &D(0, qx, qy, e), u, v);
+               r0[0][0][qy][qx] = v[0];
+               r0[1][0][qy][qx] = v[1];
             }
          }
       }
