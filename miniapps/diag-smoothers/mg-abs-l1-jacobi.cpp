@@ -28,12 +28,13 @@
 //
 // Compile with: make mg-abs-l1-jacobi
 //
-// Sample runs: mpirun -np 4 ./mg-abs-l1-jacobi
-//              mpirun -np 4 ./mg-abs-l1-jacobi -s 1 -i 3
-//              mpirun -np 4 ./mg-abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
-//              mpirun -np 4 ./mg-abs-l1-jacobi -rs 2 -rp 1
-//              mpirun -np 4 ./mg-abs-l1-jacobi -t 1e5 -ni 100 -vis
-//              mpirun -np 4 ./mg-abs-l1-jacobi -m ../../data/beam-tet.mesh -Ky 0.5 -Kz 0.5
+// Sample runs:
+//    mpirun -np 4 mg-abs-l1-jacobi
+//    mpirun -np 4 mg-abs-l1-jacobi -s 1 -i 3
+//    mpirun -np 4 mg-abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
+//    mpirun -np 4 mg-abs-l1-jacobi -rs 2 -rp 1
+//    mpirun -np 4 mg-abs-l1-jacobi -t 1e5 -ni 100 -vis
+//    mpirun -np 4 mg-abs-l1-jacobi -m ../../data/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
 #include "ds-common.hpp"
 
