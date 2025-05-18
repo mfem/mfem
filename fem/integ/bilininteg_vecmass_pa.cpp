@@ -15,7 +15,7 @@
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
 
-#if __has_include("general/nvtx.hpp")
+#if __has_include("general/nvtx.hpp") && !defined(MSVC)
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kNvidia
 #include "general/nvtx.hpp"
@@ -92,7 +92,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
 
-   pa_data.SetSize(nq * coeff_vdim * ne, mt);
+   pa_data_.SetSize(coeff_vdim * nq * ne, mt);
 
    const auto w_r = ir->GetWeights().Read();
 
@@ -101,7 +101,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto W = Reshape(w_r, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
-      auto D = Reshape(pa_data.Write(), q1d, q1d, coeff_vdim, ne);
+      auto D = Reshape(pa_data_.Write(), coeff_vdim, q1d, q1d, ne);
 
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -113,13 +113,13 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const real_t J21 = J(qx, qy, 0, 1, e), J22 = J(qx, qy, 1, 1, e);
                const real_t detJ = (J11 * J22) - (J21 * J12);
                const real_t w_det = W(qx, qy) * detJ;
-               D(qx, qy, 0, e) = C(0, qx, qy, e) * w_det;
+               D(0, qx, qy, e) = C(0, qx, qy, e) * w_det;
                if (const_coeff) { continue; }
-               D(qx, qy, 1, e) = C(1, qx, qy, e) * w_det;
+               D(1, qx, qy, e) = C(1, qx, qy, e) * w_det;
                if (vector_coeff) { continue; }
                assert(matrix_coeff);
-               D(qx, qy, 2, e) = C(2, qx, qy, e) * w_det;
-               D(qx, qy, 3, e) = C(3, qx, qy, e) * w_det;
+               D(2, qx, qy, e) = C(2, qx, qy, e) * w_det;
+               D(3, qx, qy, e) = C(3, qx, qy, e) * w_det;
             }
          }
       });
@@ -128,8 +128,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       const auto W = Reshape(w_r, q1d, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
-      const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, dim, dim, ne);
-      auto D = Reshape(pa_data.Write(), q1d, q1d, q1d, coeff_vdim, ne);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
+      auto D = Reshape(pa_data_.Write(), coeff_vdim, q1d, q1d, q1d, ne);
 
       mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -152,17 +152,17 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                       J21 * (J12 * J33 - J32 * J13) +
                                       J31 * (J12 * J23 - J22 * J13);
                   const real_t w_det = W(qx, qy, qz) * detJ;
-                  D(qx, qy, qz, 0, e) = C(0, qx, qy, qz, e) * w_det;
+                  D(0, qx, qy, qz, e) = C(0, qx, qy, qz, e) * w_det;
                   if (const_coeff) { continue; }
-                  D(qx, qy, qz, 1, e) = C(1, qx, qy, qz, e) * w_det;
-                  D(qx, qy, qz, 2, e) = C(2, qx, qy, qz, e) * w_det;
+                  D(1, qx, qy, qz, e) = C(1, qx, qy, qz, e) * w_det;
+                  D(2, qx, qy, qz, e) = C(2, qx, qy, qz, e) * w_det;
                   if (vector_coeff) { continue; }
-                  D(qx, qy, qz, 3, e) = C(3, qx, qy, qz, e) * w_det;
-                  D(qx, qy, qz, 4, e) = C(4, qx, qy, qz, e) * w_det;
-                  D(qx, qy, qz, 5, e) = C(5, qx, qy, qz, e) * w_det;
-                  D(qx, qy, qz, 6, e) = C(6, qx, qy, qz, e) * w_det;
-                  D(qx, qy, qz, 7, e) = C(7, qx, qy, qz, e) * w_det;
-                  D(qx, qy, qz, 8, e) = C(8, qx, qy, qz, e) * w_det;
+                  D(3, qx, qy, qz, e) = C(3, qx, qy, qz, e) * w_det;
+                  D(4, qx, qy, qz, e) = C(4, qx, qy, qz, e) * w_det;
+                  D(5, qx, qy, qz, e) = C(5, qx, qy, qz, e) * w_det;
+                  D(6, qx, qy, qz, e) = C(6, qx, qy, qz, e) * w_det;
+                  D(7, qx, qy, qz, e) = C(7, qx, qy, qz, e) * w_det;
+                  D(8, qx, qy, qz, e) = C(8, qx, qy, qz, e) * w_det;
                }
             }
          }
@@ -210,7 +210,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    MFEM_CONTRACT_VAR(vector_mass_kernel_specializations);
 
    VectorMassAddMultPA::Run(dim, dofs1D, quad1D,
-                            ne, coeff_vdim, maps->B, pa_data, x, y,
+                            ne, coeff_vdim, maps->B, pa_data_, x, y,
                             dofs1D, quad1D);
 
 }
@@ -219,7 +219,7 @@ template <const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal2D(const int NE,
                                            const Array<real_t> &b,
                                            const Array<real_t> &/*bt*/,
-                                           const Vector &d, Vector &diag,
+                                           const Vector &pa_data, Vector &diag,
                                            const int d1d = 0, const int q1d = 0)
 {
    constexpr int VDIM = 2;
@@ -228,8 +228,8 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto DE = Reshape(d.Read(), Q1D, Q1D, NE);
-   auto YE = Reshape(diag.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto Y = Reshape(diag.ReadWrite(), D1D, D1D, VDIM, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -246,7 +246,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
             temp[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               temp[qx][dy] += B(qy, dy) * B(qy, dy) * DE(qx, qy, e);
+               temp[qx][dy] += B(qy, dy) * B(qy, dy) * D(qx, qy, e);
             }
          }
       }
@@ -259,8 +259,8 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
             {
                temp1 += B(qx, dx) * B(qx, dx) * temp[qx][dy];
             }
-            YE(dx, dy, 0, e) = temp1;
-            YE(dx, dy, 1, e) = temp1;
+            Y(dx, dy, 0, e) = temp1;
+            Y(dx, dy, 1, e) = temp1;
          }
       }
    });
@@ -270,7 +270,7 @@ template <const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal3D(const int NE,
                                            const Array<real_t> &B_,
                                            const Array<real_t> &/*Bt*/,
-                                           const Vector &op_, Vector &diag_,
+                                           const Vector &pa_data, Vector &diag,
                                            const int d1d = 0, const int q1d = 0)
 {
    constexpr int VDIM = 3;
@@ -279,8 +279,9 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    const auto B = Reshape(B_.Read(), Q1D, D1D);
-   const auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
-   auto y = Reshape(diag_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   MFEM_VERIFY(pa_data.Size() == Q1D * Q1D * Q1D * NE, "pa_data size error");
+   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -300,7 +301,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   temp[qx][qy][dz] +=
-                     B(qz, dz) * B(qz, dz) * op(qx, qy, qz, e);
+                     B(qz, dz) * B(qz, dz) * D(qx, qy, qz, e);
                }
             }
          }
@@ -332,9 +333,9 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
                {
                   temp3 += B(qx, dx) * B(qx, dx) * temp2[qx][dy][dz];
                }
-               y(dx, dy, dz, 0, e) = temp3;
-               y(dx, dy, dz, 1, e) = temp3;
-               y(dx, dy, dz, 2, e) = temp3;
+               Y(dx, dy, dz, 0, e) = temp3;
+               Y(dx, dy, dz, 1, e) = temp3;
+               Y(dx, dy, dz, 2, e) = temp3;
             }
          }
       }
@@ -345,15 +346,16 @@ static void PAVectorMassAssembleDiagonal(const int dim, const int D1D,
                                          const int Q1D, const int NE,
                                          const Array<real_t> &B,
                                          const Array<real_t> &Bt,
-                                         const Vector &op, Vector &y)
+                                         const Vector &pa_data,
+                                         Vector &diag)
 {
    if (dim == 2)
    {
-      return PAVectorMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
+      return PAVectorMassAssembleDiagonal2D(NE, B, Bt, pa_data, diag, D1D, Q1D);
    }
    else if (dim == 3)
    {
-      return PAVectorMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
+      return PAVectorMassAssembleDiagonal3D(NE, B, Bt, pa_data, diag, D1D, Q1D);
    }
    MFEM_ABORT("Dimension not implemented.");
 }
@@ -363,10 +365,10 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
    if (DeviceCanUseCeed()) { ceedOp->GetDiagonal(diag); }
    else
    {
-      // Should check pa_data size for constant coeff
+      MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");
       MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported");
-      PAVectorMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, maps->Bt,
-                                   pa_data, diag);
+      PAVectorMassAssembleDiagonal(dim, dofs1D, quad1D,
+                                   ne, maps->B, maps->Bt, pa_data_, diag);
    }
 }
 

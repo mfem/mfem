@@ -15,7 +15,7 @@
 
 #include "./bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
-#if __has_include("general/nvtx.hpp")
+#if __has_include("general/nvtx.hpp") && !defined(MSVC)
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kNvidia
 #include "general/nvtx.hpp"

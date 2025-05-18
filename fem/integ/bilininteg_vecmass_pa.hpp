@@ -14,10 +14,12 @@
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
+#include "../../linalg/kernels.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
-#include "kernels_regs.hpp"
+#include "bilininteg_kernels.hpp"
+using mfem::kernels::internal::SetMaxOf;
 
 namespace mfem
 {
@@ -45,19 +47,19 @@ void SmemPAVectorMassApply2D(const int NE,
    const bool vector_coeff = coeff_vdim == DIM;
    const bool matrix_coeff = coeff_vdim == DIM*DIM;
 
-   const auto DE = Reshape(d.Read(), Q1D, Q1D, coeff_vdim, NE);
-   const auto XE = Reshape(x.Read(), D1D, D1D, VDIM, NE);
-   auto YE = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto D = Reshape(d.Read(), coeff_vdim, Q1D, Q1D, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+      constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
-      kernels::internal::LoadDofs2d(e, D1D, XE, r0);
+      kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
       MFEM_FOREACH_THREAD(qy, y, Q1D)
@@ -66,7 +68,9 @@ void SmemPAVectorMassApply2D(const int NE,
          {
             const real_t Qx = r1[0][0][qy][qx];
             const real_t Qy = r1[1][0][qy][qx];
-            const real_t D0 = DE(qx, qy, 0, e);
+            real_t u[2] = { Qx, Qy }, v[2];
+
+            const real_t D0 = D(0, qx, qy, e);
 
             if (const_coeff)
             {
@@ -75,22 +79,28 @@ void SmemPAVectorMassApply2D(const int NE,
             }
             if (vector_coeff)
             {
-               const real_t D1 = DE(qx, qy, 1, e);
+               const real_t D1 = D(1, qx, qy, e);
                r0[0][0][qy][qx] = D0 * Qx;
                r0[1][0][qy][qx] = D1 * Qy;
             }
             if (matrix_coeff)
             {
-               const real_t D1 = DE(qx, qy, 1, e);
-               const real_t D2 = DE(qx, qy, 2, e);
-               const real_t D3 = DE(qx, qy, 3, e);
+#if 1
+               kernels::MultTranspose(2, 2, &D(0, qx, qy, e), u, v);
+               r0[0][0][qy][qx] = v[0];
+               r0[1][0][qy][qx] = v[1];
+#else
+               const real_t D1 = D(1, qx, qy, e);
+               const real_t D2 = D(2, qx, qy, e);
+               const real_t D3 = D(3, qx, qy, e);
                r0[0][0][qy][qx] = D0 * Qx + D1 * Qy;
                r0[1][0][qy][qx] = D2 * Qx + D3 * Qy;
+#endif
             }
          }
       }
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
-      kernels::internal::WriteDofs2d(e, D1D, r1, YE);
+      kernels::internal::WriteDofs2d(e, D1D, r1, Y);
    });
 }
 
@@ -112,19 +122,19 @@ static void SmemPAVectorMassApply3D(const int NE,
    const bool vector_coeff = coeff_vdim == VDIM;
    const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
 
-   const auto DE = Reshape(d.Read(), Q1D, Q1D, Q1D, coeff_vdim, NE);
-   const auto XE = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto YE = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   const auto D = Reshape(d.Read(), coeff_vdim, Q1D, Q1D, Q1D, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+      constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs3d_t<VDIM, 1, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
-      kernels::internal::LoadDofs3d(e, D1D, XE, r0);
+      kernels::internal::LoadDofs3d(e, D1D, X, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
       for (int qz = 0; qz < Q1D; qz++)
@@ -136,7 +146,7 @@ static void SmemPAVectorMassApply3D(const int NE,
                const real_t Qx = r1[0][0][qz][qy][qx];
                const real_t Qy = r1[1][0][qz][qy][qx];
                const real_t Qz = r1[2][0][qz][qy][qx];
-               const real_t D0 = DE(qx, qy, qz, 0, e);
+               const real_t D0 = D(0, qx, qy, qz, e);
                if (const_coeff)
                {
                   r0[0][0][qz][qy][qx] = D0 * Qx;
@@ -145,22 +155,22 @@ static void SmemPAVectorMassApply3D(const int NE,
                }
                if (vector_coeff)
                {
-                  const real_t D1 = DE(qx, qy, qz, 1, e);
-                  const real_t D2 = DE(qx, qy, qz, 2, e);
+                  const real_t D1 = D(1, qx, qy, qz, e);
+                  const real_t D2 = D(2, qx, qy, qz, e);
                   r0[0][0][qz][qy][qx] = D0 * Qx;
                   r0[1][0][qz][qy][qx] = D1 * Qy;
                   r0[2][0][qz][qy][qx] = D2 * Qz;
                }
                if (matrix_coeff)
                {
-                  const real_t D1 = DE(qx, qy, qz, 1, e);
-                  const real_t D2 = DE(qx, qy, qz, 2, e);
-                  const real_t D3 = DE(qx, qy, qz, 3, e);
-                  const real_t D4 = DE(qx, qy, qz, 4, e);
-                  const real_t D5 = DE(qx, qy, qz, 5, e);
-                  const real_t D6 = DE(qx, qy, qz, 6, e);
-                  const real_t D7 = DE(qx, qy, qz, 7, e);
-                  const real_t D8 = DE(qx, qy, qz, 8, e);
+                  const real_t D1 = D(1, qx, qy, qz, e);
+                  const real_t D2 = D(2, qx, qy, qz, e);
+                  const real_t D3 = D(3, qx, qy, qz, e);
+                  const real_t D4 = D(4, qx, qy, qz, e);
+                  const real_t D5 = D(5, qx, qy, qz, e);
+                  const real_t D6 = D(6, qx, qy, qz, e);
+                  const real_t D7 = D(7, qx, qy, qz, e);
+                  const real_t D8 = D(8, qx, qy, qz, e);
                   r0[0][0][qz][qy][qx] = D0 * Qx + D1 * Qy + D2 * Qz;
                   r0[1][0][qz][qy][qx] = D3 * Qx + D4 * Qy + D5 * Qz;
                   r0[2][0][qz][qy][qx] = D6 * Qx + D7 * Qy + D8 * Qz;
@@ -169,7 +179,7 @@ static void SmemPAVectorMassApply3D(const int NE,
          }
       }
       kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
-      kernels::internal::WriteDofs3d(e, D1D, r1, YE);
+      kernels::internal::WriteDofs3d(e, D1D, r1, Y);
    });
 }
 
@@ -190,10 +200,8 @@ VectorMassIntegrator::VectorMassAddMultPA::Kernel()
    else { MFEM_ABORT("Unsupported kernel"); }
 }
 
-inline
-VectorMassIntegrator::VectorMassAddMultPAType
-VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim,
-                                                    int d1d, int q1d)
+inline VectorMassIntegrator::VectorMassAddMultPAType
+VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
 {
    if (dim == 2)
    {

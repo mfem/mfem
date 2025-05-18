@@ -17,7 +17,7 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
-#include "kernels_regs.hpp"
+#include "bilininteg_kernels.hpp"
 
 namespace mfem
 {
