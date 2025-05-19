@@ -17,91 +17,177 @@ using namespace mfem;
 namespace bilininteg_r2d
 {
 
+enum Plane {XY_PLANE = 0, YZ_PLANE = 1, ZX_PLANE = 2};
+
+static int plane_ = XY_PLANE;
+
+class MeshTransformation : public VectorCoefficient
+{
+private:
+   Vector x;
+
+public:
+   MeshTransformation() : VectorCoefficient(3), x(3) {}
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      T.Transform(ip, x);
+
+      switch (plane_)
+      {
+         case XY_PLANE:
+            for (int i=0; i<V.Size(); i++) { V[i] = x[i]; }
+            break;
+         case YZ_PLANE:
+            V[0] = 0.0;
+            V[1] = x[0];
+            V[2] = x[1];
+            break;
+         case ZX_PLANE:
+            V[0] = x[1];
+            V[1] = 0.0;
+            V[2] = x[0];
+            break;
+         default:
+            V = 0.0;
+      }
+   }
+
+   using VectorCoefficient::Eval;
+};
+
 double zero3(const Vector & x) { return 0.0; }
 void Zero3(const Vector & x, Vector & v) { v.SetSize(3); v = 0.0; }
 
 double f3(const Vector & x)
-{ return 1.234 + 2.345 * x[0] + 3.579 * x[1]; }
+{
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+
+   return 1.234 + 2.345 * x[i0] + 3.579 * x[i1];
+}
 void Grad_f3(const Vector & x, Vector & df)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    df.SetSize(3);
-   df[0] = 2.345;
-   df[1] = 3.579;
-   df[2] = 0.0;
+   df[i0] = 2.345;
+   df[i1] = 3.579;
+   df[i2] = 0.0;
 }
 void F3(const Vector & x, Vector & v)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    v.SetSize(3);
-   v[0] = 2.537 + 1.234 * x[0] - 2.357 * x[1];
-   v[1] = 1.763 + 3.572 * x[0] + 4.321 * x[1];
-   v[2] = 3.156 - 2.752 * x[0] + 1.321 * x[1];
+   v[i0] = 2.537 + 1.234 * x[i0] - 2.357 * x[i1];
+   v[i1] = 1.763 + 3.572 * x[i0] + 4.321 * x[i1];
+   v[i2] = 3.156 - 2.752 * x[i0] + 1.321 * x[i1];
 }
 void Grad_F3(const Vector & x, DenseMatrix & df)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    df.SetSize(3);
-   df(0,0) =  1.234; df(0,1) = -2.357; df(0,2) = 0.0;
-   df(1,0) =  3.572; df(1,1) =  4.321; df(1,2) = 0.0;
-   df(2,0) = -2.752; df(2,1) =  1.321; df(2,2) = 0.0;
+   df(i0,i0) =  1.234; df(i0,i1) = -2.357; df(i0,i2) = 0.0;
+   df(i1,i0) =  3.572; df(i1,i1) =  4.321; df(i1,i2) = 0.0;
+   df(i2,i0) = -2.752; df(i2,i1) =  1.321; df(i2,i2) = 0.0;
 }
 void CurlF3(const Vector & x, Vector & df)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    df.SetSize(3);
-   df[0] = 1.321;
-   df[1] = 2.752;
-   df[2] = 3.572 + 2.357;
+   df[i0] = 1.321;
+   df[i1] = 2.752;
+   df[i2] = 3.572 + 2.357;
 }
 double DivF3(const Vector & x)
 { return 1.234 + 4.321; }
 
 double q3(const Vector & x)
-{ return 2.678 + 4.234 * x[0] + 3.357 * x[1]; }
+{
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+
+   return 2.678 + 4.234 * x[i0] + 3.357 * x[i1];
+}
 void Grad_q3(const Vector & x, Vector & dq)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    dq.SetSize(3);
-   dq[0] = 4.234;
-   dq[1] = 3.357;
-   dq[2] = 0.0;
+   dq[i0] = 4.234;
+   dq[i1] = 3.357;
+   dq[i2] = 0.0;
 }
 
 void V3(const Vector & x, Vector & v)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    v.SetSize(3);
-   v[0] = 4.254 + 2.234 * x[0] + 1.357 * x[1];
-   v[1] = 1.789 + 4.572 * x[0] + 3.321 * x[1];
-   v[2] = 2.658 + 1.357 * x[0] + 2.321 * x[1];
+   v[i0] = 4.254 + 2.234 * x[i0] + 1.357 * x[i1];
+   v[i1] = 1.789 + 4.572 * x[i0] + 3.321 * x[i1];
+   v[i2] = 2.658 + 1.357 * x[i0] + 2.321 * x[i1];
 }
 void Grad_V3(const Vector & x, DenseMatrix & dv)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    dv.SetSize(3);
-   dv(0,0) = 2.234; dv(0,1) = 1.357; dv(0,2) = 0.0;
-   dv(1,0) = 4.572; dv(1,1) = 3.321; dv(1,2) = 0.0;
-   dv(2,0) = 1.357; dv(2,1) = 2.321; dv(2,2) = 0.0;
+   dv(i0,i0) = 2.234; dv(i0,i1) = 1.357; dv(i0,i2) = 0.0;
+   dv(i1,i0) = 4.572; dv(i1,i1) = 3.321; dv(i1,i2) = 0.0;
+   dv(i2,i0) = 1.357; dv(i2,i1) = 2.321; dv(i2,i2) = 0.0;
 }
 void CurlV3(const Vector & x, Vector & dV)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    dV.SetSize(3);
-   dV[0] =  2.321;
-   dV[1] = -1.357;
-   dV[2] =  4.572 - 1.357;
+   dV[i0] =  2.321;
+   dV[i1] = -1.357;
+   dV[i2] =  4.572 - 1.357;
 }
 double DivV3(const Vector & x)
 { return 2.234 + 3.321; }
 
 void M3(const Vector & x, DenseMatrix & m)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    m.SetSize(3);
 
-   m(0,0) = 1.792 + 4.234 * x[0] + 3.357 * x[1];
-   m(0,1) = 0.116 + 0.234 * x[0] + 0.357 * x[1];
-   m(0,2) = 0.213 - 0.537 * x[0] + 0.321 * x[1];
+   m(i0,i0) = 1.792 + 4.234 * x[i0] + 3.357 * x[i1];
+   m(i0,i1) = 0.116 + 0.234 * x[i0] + 0.357 * x[i1];
+   m(i0,i2) = 0.213 - 0.537 * x[i0] + 0.321 * x[i1];
 
-   m(1,0) = 0.324 - 0.572 * x[0] - 0.321 * x[1];
-   m(1,1) = 1.234 + 4.537 * x[0] + 1.321 * x[1];
-   m(1,2) = 0.132 + 0.537 * x[0] + 0.321 * x[1];
+   m(i1,i0) = 0.324 - 0.572 * x[i0] - 0.321 * x[i1];
+   m(i1,i1) = 1.234 + 4.537 * x[i0] + 1.321 * x[i1];
+   m(i1,i2) = 0.132 + 0.537 * x[i0] + 0.321 * x[i1];
 
-   m(2,0) = 0.214 + 0.572 * x[0] + 0.321 * x[1];
-   m(2,1) = 0.314 + 0.234 * x[0] - 0.357 * x[1];
-   m(2,2) = 1.431 + 1.572 * x[0] + 2.321 * x[1];
+   m(i2,i0) = 0.214 + 0.572 * x[i0] + 0.321 * x[i1];
+   m(i2,i1) = 0.314 + 0.234 * x[i0] - 0.357 * x[i1];
+   m(i2,i2) = 1.431 + 1.572 * x[i0] + 2.321 * x[i1];
 }
 void MT3(const Vector & x, DenseMatrix & m)
 {
@@ -109,18 +195,22 @@ void MT3(const Vector & x, DenseMatrix & m)
 }
 void Grad_M3(const Vector & x, DenseTensor & dm)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    dm.SetSize(3,3,3);
-   dm(0,0,0) =  4.234; dm(0,0,1) =  3.357; dm(0,0,2) = 0.0;
-   dm(0,1,0) =  0.234; dm(0,1,1) =  0.357; dm(0,1,2) = 0.0;
-   dm(0,2,0) = -0.537; dm(0,2,1) =  0.321; dm(0,2,2) = 0.0;
+   dm(i0,i0,i0) =  4.234; dm(i0,i0,i1) =  3.357; dm(i0,i0,i2) = 0.0;
+   dm(i0,i1,i0) =  0.234; dm(i0,i1,i1) =  0.357; dm(i0,i1,i2) = 0.0;
+   dm(i0,i2,i0) = -0.537; dm(i0,i2,i1) =  0.321; dm(i0,i2,i2) = 0.0;
 
-   dm(1,0,0) = -0.572; dm(1,0,1) = -0.321; dm(1,0,2) = 0.0;
-   dm(1,1,0) =  4.537; dm(1,1,1) =  1.321; dm(1,1,2) = 0.0;
-   dm(1,2,0) =  0.537; dm(1,2,1) =  0.321; dm(1,2,2) = 0.0;
+   dm(i1,i0,i0) = -0.572; dm(i1,i0,i1) = -0.321; dm(i1,i0,i2) = 0.0;
+   dm(i1,i1,i0) =  4.537; dm(i1,i1,i1) =  1.321; dm(i1,i1,i2) = 0.0;
+   dm(i1,i2,i0) =  0.537; dm(i1,i2,i1) =  0.321; dm(i1,i2,i2) = 0.0;
 
-   dm(2,0,0) =  0.572; dm(2,0,1) =  0.321; dm(2,0,2) = 0.0;
-   dm(2,1,0) =  0.234; dm(2,1,1) = -0.357; dm(2,1,2) = 0.0;
-   dm(2,2,0) =  1.572; dm(2,2,1) =  2.321; dm(2,2,2) = 0.0;
+   dm(i2,i0,i0) =  0.572; dm(i2,i0,i1) =  0.321; dm(i2,i0,i2) = 0.0;
+   dm(i2,i1,i0) =  0.234; dm(i2,i1,i1) = -0.357; dm(i2,i1,i2) = 0.0;
+   dm(i2,i2,i0) =  1.572; dm(i2,i2,i1) =  2.321; dm(i2,i2,i2) = 0.0;
 }
 
 double qf3(const Vector & x) { return q3(x) * f3(x); }
@@ -182,12 +272,16 @@ void Vf3(const Vector & x, Vector & vf)
 
 void VcrossF3(const Vector & x, Vector & VF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector V; V3(x, V);
    Vector F; F3(x, F);
    VF.SetSize(3);
-   VF(0) = V(1) * F(2) - V(2) * F(1);
-   VF(1) = V(2) * F(0) - V(0) * F(2);
-   VF(2) = V(0) * F(1) - V(1) * F(0);
+   VF(i0) = V(i1) * F(i2) - V(i2) * F(i1);
+   VF(i1) = V(i2) * F(i0) - V(i0) * F(i2);
+   VF(i2) = V(i0) * F(i1) - V(i1) * F(i0);
 }
 
 double VdotF3(const Vector & x)
@@ -206,22 +300,30 @@ double VdotGrad_f3(const Vector & x)
 
 void VcrossGrad_f3(const Vector & x, Vector & VF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector  V; V3(x, V);
    Vector dF; Grad_f3(x, dF);
    VF.SetSize(3);
-   VF(0) = V(1) * dF(2) - V(2) * dF(1);
-   VF(1) = V(2) * dF(0) - V(0) * dF(2);
-   VF(2) = V(0) * dF(1) - V(1) * dF(0);
+   VF(i0) = V(i1) * dF(i2) - V(i2) * dF(i1);
+   VF(i1) = V(i2) * dF(i0) - V(i0) * dF(i2);
+   VF(i2) = V(i0) * dF(i1) - V(i1) * dF(i0);
 }
 
 void VcrossCurlF3(const Vector & x, Vector & VF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector  V; V3(x, V);
    Vector dF; CurlF3(x, dF);
    VF.SetSize(3);
-   VF(0) = V(1) * dF(2) - V(2) * dF(1);
-   VF(1) = V(2) * dF(0) - V(0) * dF(2);
-   VF(2) = V(0) * dF(1) - V(1) * dF(0);
+   VF(i0) = V(i1) * dF(i2) - V(i2) * dF(i1);
+   VF(i1) = V(i2) * dF(i0) - V(i0) * dF(i2);
+   VF(i2) = V(i0) * dF(i1) - V(i1) * dF(i0);
 }
 
 void VDivF3(const Vector & x, Vector & VF)
@@ -253,13 +355,17 @@ void GradVdotF3(const Vector & x, Vector & dvf)
 
 void Curl_qF3(const Vector & x, Vector & dqF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector dq; Grad_q3(x, dq);
    Vector  F; F3(x, F);
    CurlF3(x, dqF);
    dqF *= q3(x);
-   dqF[0] += dq[1]*F[2] - dq[2]*F[1];
-   dqF[1] += dq[2]*F[0] - dq[0]*F[2];
-   dqF[2] += dq[0]*F[1] - dq[1]*F[0];
+   dqF[i0] += dq[i1]*F[i2] - dq[i2]*F[i1];
+   dqF[i1] += dq[i2]*F[i0] - dq[i0]*F[i2];
+   dqF[i2] += dq[i0]*F[i1] - dq[i1]*F[i0];
 }
 
 double Div_qF3(const Vector & x)
@@ -297,71 +403,99 @@ double Div_DF3(const Vector & x)
 
 double Div_MF3(const Vector & x)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseTensor dM; Grad_M3(x, dM);
    DenseMatrix dF; Grad_F3(x, dF);
    DenseMatrix M; M3(x, M);
    Vector  F; F3(x, F);
    return
-      dM(0,0,0)*F[0] + dM(0,1,0)*F[1] + dM(0,2,0)*F[2] +
-      dM(1,0,1)*F[0] + dM(1,1,1)*F[1] + dM(1,2,1)*F[2] +
-      dM(2,0,2)*F[0] + dM(2,1,2)*F[1] + dM(2,2,2)*F[2] +
-      M(0,0)*dF(0,0) + M(0,1)*dF(1,0) + M(0,2)*dF(2,0) +
-      M(1,0)*dF(0,1) + M(1,1)*dF(1,1) + M(1,2)*dF(2,1) +
-      M(2,0)*dF(0,2) + M(2,1)*dF(1,2) + M(2,2)*dF(2,2);
+      dM(i0,i0,i0)*F[i0] + dM(i0,i1,i0)*F[i1] + dM(i0,i2,i0)*F[i2] +
+      dM(i1,i0,i1)*F[i0] + dM(i1,i1,i1)*F[i1] + dM(i1,i2,i1)*F[i2] +
+      dM(i2,i0,i2)*F[i0] + dM(i2,i1,i2)*F[i1] + dM(i2,i2,i2)*F[i2] +
+      M(i0,i0)*dF(i0,i0) + M(i0,i1)*dF(i1,i0) + M(i0,i2)*dF(i2,i0) +
+      M(i1,i0)*dF(i0,i1) + M(i1,i1)*dF(i1,i1) + M(i1,i2)*dF(i2,i1) +
+      M(i2,i0)*dF(i0,i2) + M(i2,i1)*dF(i1,i2) + M(i2,i2)*dF(i2,i2);
 }
 
 void Curl_VcrossF3(const Vector & x, Vector & dVxF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector V; V3(x, V);
    DenseMatrix dV; Grad_V3(x, dV);
    Vector F; F3(x, F);
    DenseMatrix dF; Grad_F3(x, dF);
    dVxF.SetSize(3);
-   dVxF[0] =
-      dV(0,1)*F[1] - V[1]*dF(0,1) +
-      dV(0,2)*F[2] - V[2]*dF(0,2) -
-      (dV(1,1) + dV(2,2))*F[0] + V[0]*(dF(1,1) + dF(2,2));
-   dVxF[1] =
-      dV(1,2)*F[2] - V[2]*dF(1,2) +
-      dV(1,0)*F[0] - V[0]*dF(1,0) -
-      (dV(2,2) + dV(0,0))*F[1] + V[1]*(dF(2,2) + dF(0,0));
-   dVxF[2] =
-      dV(2,0)*F[0] - V[0]*dF(2,0) +
-      dV(2,1)*F[1] - V[1]*dF(2,1) -
-      (dV(0,0) + dV(1,1))*F[2] + V[2]*(dF(0,0) + dF(1,1));
+   dVxF[i0] =
+      dV(i0,i1)*F[i1] - V[i1]*dF(i0,i1) +
+      dV(i0,i2)*F[i2] - V[i2]*dF(i0,i2) -
+      (dV(i1,i1) + dV(i2,i2))*F[i0] + V[i0]*(dF(i1,i1) + dF(i2,i2));
+   dVxF[i1] =
+      dV(i1,i2)*F[i2] - V[i2]*dF(i1,i2) +
+      dV(i1,i0)*F[i0] - V[i0]*dF(i1,i0) -
+      (dV(i2,i2) + dV(i0,i0))*F[i1] + V[i1]*(dF(i2,i2) + dF(i0,i0));
+   dVxF[i2] =
+      dV(i2,i0)*F[i0] - V[i0]*dF(i2,i0) +
+      dV(i2,i1)*F[i1] - V[i1]*dF(i2,i1) -
+      (dV(i0,i0) + dV(i1,i1))*F[i2] + V[i2]*(dF(i0,i0) + dF(i1,i1));
 }
 
 void Curl_DF3(const Vector & x, Vector & dDF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector D; V3(x, D);
    DenseMatrix dD; Grad_V3(x, dD);
    Vector  F; F3(x, F);
    DenseMatrix dF; Grad_F3(x, dF);
    dDF.SetSize(3);
-   dDF[0] = dD(2,1)*F[2] - dD(1,2)*F[1] + D[2]*dF(2,1) - D[1]*dF(1,2);
-   dDF[1] = dD(0,2)*F[0] - dD(2,0)*F[2] + D[0]*dF(0,2) - D[2]*dF(2,0);
-   dDF[2] = dD(1,0)*F[1] - dD(0,1)*F[0] + D[1]*dF(1,0) - D[0]*dF(0,1);
+   dDF[i0] = dD(i2,i1)*F[i2] - dD(i1,i2)*F[i1] +
+             D[i2]*dF(i2,i1) - D[i1]*dF(i1,i2);
+   dDF[i1] = dD(i0,i2)*F[i0] - dD(i2,i0)*F[i2] +
+             D[i0]*dF(i0,i2) - D[i2]*dF(i2,i0);
+   dDF[i2] = dD(i1,i0)*F[i1] - dD(i0,i1)*F[i0] +
+             D[i1]*dF(i1,i0) - D[i0]*dF(i0,i1);
 }
 
 void Curl_MF3(const Vector & x, Vector & dMF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseMatrix M; M3(x, M);
    DenseTensor dM; Grad_M3(x, dM);
    Vector  F; F3(x, F);
    DenseMatrix dF; Grad_F3(x, dF);
    dMF.SetSize(3);
-   dMF[0] =
-      (dM(2,0,1) - dM(1,0,2))*F[0] + M(2,0)*dF(0,1) - M(1,0)*dF(0,2) +
-      (dM(2,2,1) - dM(1,2,2))*F[2] + M(2,1)*dF(1,1) - M(1,2)*dF(2,2) +
-      (dM(2,1,1) - dM(1,1,2))*F[1] + M(2,2)*dF(2,1) - M(1,1)*dF(1,2);
-   dMF[1] =
-      (dM(0,0,2) - dM(2,0,0))*F[0] + M(0,0)*dF(0,2) - M(2,0)*dF(0,0) +
-      (dM(0,1,2) - dM(2,1,0))*F[1] + M(0,1)*dF(1,2) - M(2,1)*dF(1,0) +
-      (dM(0,2,2) - dM(2,2,0))*F[2] + M(0,2)*dF(2,2) - M(2,2)*dF(2,0);
-   dMF[2] =
-      (dM(1,0,0) - dM(0,0,1))*F[0] + M(1,0)*dF(0,0) - M(0,0)*dF(0,1) +
-      (dM(1,1,0) - dM(0,1,1))*F[1] + M(1,1)*dF(1,0) - M(0,1)*dF(1,1) +
-      (dM(1,2,0) - dM(0,2,1))*F[2] + M(1,2)*dF(2,0) - M(0,2)*dF(2,1);
+   dMF[i0] =
+      (dM(i2,i0,i1) - dM(i1,i0,i2))*F[i0] +
+      M(i2,i0)*dF(i0,i1) - M(i1,i0)*dF(i0,i2) +
+      (dM(i2,i2,i1) - dM(i1,i2,i2))*F[i2] +
+      M(i2,i1)*dF(i1,i1) - M(i1,i2)*dF(i2,i2) +
+      (dM(i2,i1,i1) - dM(i1,i1,i2))*F[i1] +
+      M(i2,i2)*dF(i2,i1) - M(i1,i1)*dF(i1,i2);
+   dMF[i1] =
+      (dM(i0,i0,i2) - dM(i2,i0,i0))*F[i0] +
+      M(i0,i0)*dF(i0,i2) - M(i2,i0)*dF(i0,i0) +
+      (dM(i0,i1,i2) - dM(i2,i1,i0))*F[i1] +
+      M(i0,i1)*dF(i1,i2) - M(i2,i1)*dF(i1,i0) +
+      (dM(i0,i2,i2) - dM(i2,i2,i0))*F[i2] +
+      M(i0,i2)*dF(i2,i2) - M(i2,i2)*dF(i2,i0);
+   dMF[i2] =
+      (dM(i1,i0,i0) - dM(i0,i0,i1))*F[i0] +
+      M(i1,i0)*dF(i0,i0) - M(i0,i0)*dF(i0,i1) +
+      (dM(i1,i1,i0) - dM(i0,i1,i1))*F[i1] +
+      M(i1,i1)*dF(i1,i0) - M(i0,i1)*dF(i1,i1) +
+      (dM(i1,i2,i0) - dM(i0,i2,i1))*F[i2] +
+      M(i1,i2)*dF(i2,i0) - M(i0,i2)*dF(i2,i1);
 }
 
 double Div_qGrad_f3(const Vector & x)
@@ -374,14 +508,18 @@ double Div_qGrad_f3(const Vector & x)
 
 double Div_VcrossGrad_f3(const Vector & x)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseMatrix dv;
    Vector df;
    Grad_V3(x, dv);
    Grad_f3(x, df);
    return
-      (dv(2,1) - dv(1,2))*df[0] +
-      (dv(0,2) - dv(2,0))*df[1] +
-      (dv(1,0) - dv(0,1))*df[2];
+      (dv(i2,i1) - dv(i1,i2))*df[i0] +
+      (dv(i0,i2) - dv(i2,i0))*df[i1] +
+      (dv(i1,i0) - dv(i0,i1))*df[i2];
 }
 
 double Div_DGrad_f3(const Vector & x)
@@ -395,75 +533,99 @@ double Div_DGrad_f3(const Vector & x)
 
 double Div_MGrad_f3(const Vector & x)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseTensor dm;
    Vector df;
    Grad_M3(x, dm);
    Grad_f3(x, df);
    return
-      (dm(0,0,0) + dm(1,0,1) + dm(2,0,2)) * df[0] +
-      (dm(0,1,0) + dm(1,1,1) + dm(2,1,2)) * df[1] +
-      (dm(0,2,0) + dm(1,2,1) + dm(2,2,2)) * df[2];
+      (dm(i0,i0,i0) + dm(i1,i0,i1) + dm(i2,i0,i2)) * df[i0] +
+      (dm(i0,i1,i0) + dm(i1,i1,i1) + dm(i2,i1,i2)) * df[i1] +
+      (dm(i0,i2,i0) + dm(i1,i2,i1) + dm(i2,i2,i2)) * df[i2];
 }
 
 void Curl_qCurlF3(const Vector & x, Vector & ddF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    Vector dq; Grad_q3(x, dq);
    Vector dF; CurlF3(x, dF);
    ddF.SetSize(3);
-   ddF[0] = dq[1]*dF[2] - dq[2]*dF[1];
-   ddF[1] = dq[2]*dF[0] - dq[0]*dF[2];
-   ddF[2] = dq[0]*dF[1] - dq[1]*dF[0];
+   ddF[i0] = dq[i1]*dF[i2] - dq[i2]*dF[i1];
+   ddF[i1] = dq[i2]*dF[i0] - dq[i0]*dF[i2];
+   ddF[i2] = dq[i0]*dF[i1] - dq[i1]*dF[i0];
 }
 
 void Curl_VcrossGrad_f3(const Vector & x, Vector & ddf)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseMatrix dV; Grad_V3(x, dV);
    Vector df;      Grad_f3(x, df);
    ddf.SetSize(3);
-   ddf[0] = dV(0,1)*df[1] + dV(0,2)*df[2] - (dV(1,1)+dV(2,2))*df[0];
-   ddf[1] = dV(1,2)*df[2] + dV(1,0)*df[0] - (dV(2,2)+dV(0,0))*df[1];
-   ddf[2] = dV(2,0)*df[0] + dV(2,1)*df[1] - (dV(0,0)+dV(1,1))*df[2];
+   ddf[i0] = dV(i0,i1)*df[i1] + dV(i0,i2)*df[i2] - (dV(i1,i1)+dV(i2,i2))*df[i0];
+   ddf[i1] = dV(i1,i2)*df[i2] + dV(i1,i0)*df[i0] - (dV(i2,i2)+dV(i0,i0))*df[i1];
+   ddf[i2] = dV(i2,i0)*df[i0] + dV(i2,i1)*df[i1] - (dV(i0,i0)+dV(i1,i1))*df[i2];
 }
 
 void Curl_VcrossCurlF3(const Vector & x, Vector & ddF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseMatrix dv; Grad_V3(x, dv);
    Vector dF; CurlF3(x, dF);
    ddF.SetSize(3);
-   ddF[0] = dv(0,1)*dF[1] + dv(0,2)*dF[2] - (dv(1,1)+dv(2,2))*dF[0];
-   ddF[1] = dv(1,2)*dF[2] + dv(1,0)*dF[0] - (dv(2,2)+dv(0,0))*dF[1];
-   ddF[2] = dv(2,0)*dF[0] + dv(2,1)*dF[1] - (dv(0,0)+dv(1,1))*dF[2];
+   ddF[i0] = dv(i0,i1)*dF[i1] + dv(i0,i2)*dF[i2] - (dv(i1,i1)+dv(i2,i2))*dF[i0];
+   ddF[i1] = dv(i1,i2)*dF[i2] + dv(i1,i0)*dF[i0] - (dv(i2,i2)+dv(i0,i0))*dF[i1];
+   ddF[i2] = dv(i2,i0)*dF[i0] + dv(i2,i1)*dF[i1] - (dv(i0,i0)+dv(i1,i1))*dF[i2];
 }
 
 void Curl_DCurlF3(const Vector & x, Vector & ddF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseMatrix dv;
    Grad_V3(x, dv);
    Vector dF; CurlF3(x, dF);
    ddF.SetSize(3);
-   ddF[0] = dv(2,1)*dF[2] - dv(1,2)*dF[1];
-   ddF[1] = dv(0,2)*dF[0] - dv(2,0)*dF[2];
-   ddF[2] = dv(1,0)*dF[1] - dv(0,1)*dF[0];
+   ddF[i0] = dv(i2,i1)*dF[i2] - dv(i1,i2)*dF[i1];
+   ddF[i1] = dv(i0,i2)*dF[i0] - dv(i2,i0)*dF[i2];
+   ddF[i2] = dv(i1,i0)*dF[i1] - dv(i0,i1)*dF[i0];
 }
 
 void Curl_MCurlF3(const Vector & x, Vector & ddF)
 {
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
    DenseTensor dm;
    Grad_M3(x, dm);
    Vector dF; CurlF3(x, dF);
    ddF.SetSize(3);
-   ddF[0] =
-      (dm(2,0,1)-dm(1,0,2))*dF[0] +
-      (dm(2,1,1)-dm(1,1,2))*dF[1] +
-      (dm(2,2,1)-dm(1,2,2))*dF[2];
-   ddF[1] =
-      (dm(0,0,2)-dm(2,0,0))*dF[0] +
-      (dm(0,1,2)-dm(2,1,0))*dF[1] +
-      (dm(0,2,2)-dm(2,2,0))*dF[2];
-   ddF[2] =
-      (dm(1,0,0)-dm(0,0,1))*dF[0] +
-      (dm(1,1,0)-dm(0,1,1))*dF[1] +
-      (dm(1,2,0)-dm(0,2,1))*dF[2];
+   ddF[i0] =
+      (dm(i2,i0,i1)-dm(i1,i0,i2))*dF[i0] +
+      (dm(i2,i1,i1)-dm(i1,i1,i2))*dF[i1] +
+      (dm(i2,i2,i1)-dm(i1,i2,i2))*dF[i2];
+   ddF[i1] =
+      (dm(i0,i0,i2)-dm(i2,i0,i0))*dF[i0] +
+      (dm(i0,i1,i2)-dm(i2,i1,i0))*dF[i1] +
+      (dm(i0,i2,i2)-dm(i2,i2,i0))*dF[i2];
+   ddF[i2] =
+      (dm(i1,i0,i0)-dm(i0,i0,i1))*dF[i0] +
+      (dm(i1,i1,i0)-dm(i0,i1,i1))*dF[i1] +
+      (dm(i1,i2,i0)-dm(i0,i2,i1))*dF[i2];
 }
 
 void Grad_qDivF3(const Vector & x, Vector & ddF)
@@ -515,11 +677,24 @@ TEST_CASE("R2D Bilinear Vector Mass Integrators",
    VectorFunctionCoefficient DF3_coef(vdim, DF3);
    VectorFunctionCoefficient MF3_coef(vdim, MF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -1596,11 +1771,24 @@ TEST_CASE("R2D Bilinear Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       VectorFunctionCoefficient   F3_coef(vdim, F3);
       FunctionCoefficient         q3_coef(q3);
@@ -1765,11 +1953,24 @@ TEST_CASE("R2D Bilinear Cross Product Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       VectorFunctionCoefficient    F3_coef(vdim, F3);
       VectorFunctionCoefficient    V3_coef(vdim, V3);
@@ -1850,11 +2051,24 @@ TEST_CASE("R2D Bilinear Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       VectorFunctionCoefficient F3_coef(vdim, F3);
       FunctionCoefficient       q3_coef(q3);
@@ -1964,11 +2178,24 @@ TEST_CASE("R2D Bilinear Vector Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL-1; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       VectorFunctionCoefficient   F3_coef(vdim, F3);
       VectorFunctionCoefficient   V3_coef(vdim, V3);
@@ -2068,11 +2295,24 @@ TEST_CASE("R2D Bilinear Vector Product Integrators",
    VectorFunctionCoefficient  V3_coef(vdim, V3);
    VectorFunctionCoefficient Vf3_coef(vdim, Vf3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -2285,11 +2525,24 @@ TEST_CASE("R2D Bilinear Vector Cross Product Integrators",
    VectorFunctionCoefficient   V3_coef(vdim, V3);
    VectorFunctionCoefficient VxF3_coef(vdim, VcrossF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -2504,11 +2757,24 @@ TEST_CASE("R2D Bilinear Vector Dot Product Integrators",
    VectorFunctionCoefficient  V3_coef(vdim, V3);
    FunctionCoefficient       VF3_coef(VdotF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D_ for element type " + std::to_string(type))
       {
@@ -2660,11 +2926,24 @@ TEST_CASE("R2D Bilinear Weak Gradient Integrators",
    VectorFunctionCoefficient  df3_coef(vdim, Grad_f3);
    VectorFunctionCoefficient dqf3_coef(vdim, Grad_qf3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -2869,7 +3148,15 @@ TEST_CASE("R2D Bilinear Weak Divergence Integrators",
    FunctionCoefficient      dDF3_coef(Div_DF3);
    FunctionCoefficient      dMF3_coef(Div_MF3);
 
-   DenseMatrix R23(3, 2); R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
+   DenseMatrix R23(3, (plane_ == XY_PLANE) ? 2:3 );
+   R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   if (plane_ != XY_PLANE) { R23(2,2) = 1.0; }
    MatrixConstantCoefficient R23_coef(R23);
    TransposeMatrixCoefficient R32_coef(R23_coef);
 
@@ -2878,6 +3165,13 @@ TEST_CASE("R2D Bilinear Weak Divergence Integrators",
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3171,11 +3465,24 @@ TEST_CASE("R2D Bilinear Weak Curl Integrators",
    VectorFunctionCoefficient dDF3_coef(vdim, Curl_DF3);
    VectorFunctionCoefficient dMF3_coef(vdim, Curl_MF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3496,7 +3803,15 @@ TEST_CASE("R2D Bilinear Weak Div Cross Integrators",
    VectorFunctionCoefficient  VF3_coef(vdim, VcrossF3);
    FunctionCoefficient       dVF3_coef(Div_VcrossF3);
 
-   DenseMatrix R23(3, 2); R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
+   DenseMatrix R23(3, (plane_ == XY_PLANE) ? 2:3 );
+   R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   if (plane_ != XY_PLANE) { R23(2,2) = 1.0; }
    MatrixConstantCoefficient R23_coef(R23);
    TransposeMatrixCoefficient R32_coef(R23_coef);
 
@@ -3505,6 +3820,13 @@ TEST_CASE("R2D Bilinear Weak Div Cross Integrators",
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3642,11 +3964,24 @@ TEST_CASE("R2D Bilinear Weak Curl Cross Integrators",
    VectorFunctionCoefficient  VxF3_coef(vdim, VcrossF3);
    VectorFunctionCoefficient dVxF3_coef(vdim, Curl_VcrossF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3777,11 +4112,24 @@ TEST_CASE("R2D Bilinear Weak Grad Dot Product Integrators",
    FunctionCoefficient       VdotF3_coef(VdotF3);
    VectorFunctionCoefficient   dVF3_coef(vdim, GradVdotF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3915,7 +4263,15 @@ TEST_CASE("R2D Bilinear Grad Div Integrators",
    VectorFunctionCoefficient dVdf3_coef(vdim, GradVdotGrad_f3);
    FunctionCoefficient       dVdF3_coef(DivVDivF3);
 
-   DenseMatrix R23(3, 2); R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
+   DenseMatrix R23(3, (plane_ == XY_PLANE) ? 2:3 );
+   R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   if (plane_ != XY_PLANE) { R23(2,2) = 1.0; }
    MatrixConstantCoefficient R23_coef(R23);
    TransposeMatrixCoefficient R32_coef(R23_coef);
 
@@ -3924,6 +4280,13 @@ TEST_CASE("R2D Bilinear Grad Div Integrators",
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -4049,7 +4412,15 @@ TEST_CASE("R2D Bilinear Mixed Cross Curl Grad Integrators",
    VectorFunctionCoefficient VxdF3_coef(vdim, VcrossCurlF3);
    FunctionCoefficient      dVxdF3_coef(DivVcrossCurlF3);
 
-   DenseMatrix R23(3, 2); R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
+   DenseMatrix R23(3, (plane_ == XY_PLANE) ? 2:3 );
+   R23 = 0.0; R23(0,0) = 1.0; R23(1,1) = 1.0;
+   if (plane_ != XY_PLANE) { R23(2,2) = 1.0; }
    MatrixConstantCoefficient R23_coef(R23);
    TransposeMatrixCoefficient R32_coef(R23_coef);
 
@@ -4058,6 +4429,13 @@ TEST_CASE("R2D Bilinear Mixed Cross Curl Grad Integrators",
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -4141,11 +4519,24 @@ TEST_CASE("R2D Bilinear Curl Curl Integrators",
    VectorFunctionCoefficient  qdF3_coef(vdim, qCurlF3);
    VectorFunctionCoefficient dqdF3_coef(vdim, Curl_qCurlF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -4248,11 +4639,24 @@ TEST_CASE("R2D Bilinear Mixed Curl Curl Integrators",
    VectorFunctionCoefficient dDdF3_coef(vdim, Curl_DCurlF3);
    VectorFunctionCoefficient dMdF3_coef(vdim, Curl_MCurlF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -4406,11 +4810,24 @@ TEST_CASE("R2D Bilinear Mixed Cross Curl Curl Integrators",
    VectorFunctionCoefficient  VdF3_coef(vdim, VcrossCurlF3);
    VectorFunctionCoefficient dVdF3_coef(vdim, Curl_VcrossCurlF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -4479,11 +4896,24 @@ TEST_CASE("R2D Bilinear Mixed Cross Grad Curl Integrators",
    VectorFunctionCoefficient  Vdf3_coef(vdim, VcrossGrad_f3);
    VectorFunctionCoefficient dVdf3_coef(vdim, Curl_VcrossGrad_f3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -4566,11 +4996,24 @@ TEST_CASE("R2D Bilinear Div Div Integrators",
    FunctionCoefficient         qdF3_coef(qDivF3);
    VectorFunctionCoefficient  dqdF3_coef(vdim, Grad_qDivF3);
 
+   MeshTransformation trans;
+
+   plane_ = GENERATE(0, 1, 2);
+
+   CAPTURE(plane_);
+
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
       Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
                                         1, 2.0, 3.0);
+
+      if (plane_ != XY_PLANE)
+      {
+         mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+         mesh.SetCurvature(-1); // Remove Nodes GridFunction
+         mesh.Transform(trans);
+      }
 
       SECTION("Operators on RT_R2D for element type " + std::to_string(type))
       {
