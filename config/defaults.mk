@@ -43,12 +43,14 @@ SHARED = NO
 
 # CUDA configuration options
 #
-# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
-# clang as its host compiler.
+# If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
-# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
+# flags for clang+cuda
+CLANG_CUDA_FLAGS = -x cuda --cuda-gpu-arch=$(CUDA_ARCH)
+# flags for nvcc
+NVCC_FLAGS = --expt-extended-lambda -arch=$(CUDA_ARCH) -x=cu
+# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
@@ -510,7 +512,10 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
+# base CUDA install directory, only needed if building with clang+cuda
+CUDA_DIR = /usr/local/cuda/
 CUDA_LIB = -lcusparse -lcublas
+CLANG_CUDA_LIB = -lcudart -lcudart_static -ldl -lrt -pthread -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib
 
 # HIP library configuration
 HIP_OPT =

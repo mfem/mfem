@@ -143,9 +143,9 @@ void DFemDiffusion(const char *filename, int p, const int r,
    smesh.Clear();
 
    Array<int> all_domain_attr;
-   if (pmesh.bdr_attributes.Size() > 0)
+   if (pmesh.attributes.Size() > 0)
    {
-      all_domain_attr.SetSize(pmesh.bdr_attributes.Max());
+      all_domain_attr.SetSize(pmesh.attributes.Max());
       all_domain_attr = 1;
    }
 
@@ -202,9 +202,9 @@ void DFemDiffusion(const char *filename, int p, const int r,
    const int rho_local_size = 1;
    const int rho_elem_size(rho_local_size * ir->GetNPoints());
    const int rho_total_size(rho_elem_size * NE);
-   ParametricSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
-                          DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                          DIM == 3 ? q1d : q1d * q1d);
+   ParameterSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
+                         DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
+                         DIM == 3 ? q1d : q1d * q1d);
 
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
@@ -246,7 +246,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
       {
          typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
          dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                    tuple{ Gradient<U>{}, None<Rho>{},
+                                    tuple{ Gradient<U>{}, Identity<Rho>{},
                                            Gradient<Coords>{}, Weight{} },
                                     tuple{ Gradient<U>{} }, *ir,
                                     all_domain_attr);
@@ -275,9 +275,9 @@ void DFemDiffusion(const char *filename, int p, const int r,
       const int qd_local_size = DIM * DIM;
       const int qd_elem_size(qd_local_size * ir->GetNPoints());
       const int qd_total_size(qd_elem_size * NE);
-      ParametricSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
-                            DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                            DIM == 3 ? q1d : q1d * q1d);
+      ParameterSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
+                           DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
+                           DIM == 3 ? q1d : q1d * q1d);
       ParametricFunction qdata(qd_ps);
       qdata.UseDevice(true);
 
@@ -285,8 +285,8 @@ void DFemDiffusion(const char *filename, int p, const int r,
       typename Diffusion<real_t, DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
-         tuple{ Value<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ None<QData>{} }, *ir, all_domain_attr);
+         tuple{ Value<U>{}, Identity<Rho>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ Identity<QData>{} }, *ir, all_domain_attr);
       dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
       pfes.GetRestrictionMatrix()->Mult(x, X);
       dSetup.Mult(X, qdata);
@@ -294,7 +294,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
       typename Diffusion<real_t, DIM>::PAApply pa_apply_qf;
       dop_pa.AddDomainIntegrator(pa_apply_qf,
-                                 tuple{ Gradient<U>{}, None<QData>{} },
+                                 tuple{ Gradient<U>{}, Identity<QData>{} },
                                  tuple{ Gradient<U>{} },
                                  *ir, all_domain_attr);
       dop_pa.SetParameters({ &qdata });
@@ -325,7 +325,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
    #endif
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 tuple{ Gradient<U>{}, None<Rho>{},
+                                 tuple{ Gradient<U>{}, Identity<Rho>{},
                                         Gradient<Coords>{}, Weight{} },
                                  tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr, derivatives);

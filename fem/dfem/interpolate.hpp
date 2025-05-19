@@ -263,7 +263,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       }
       MFEM_SYNC_THREAD;
    }
-   else if constexpr (is_none_fop<std::decay_t<field_operator_t>>::value)
+   else if constexpr (is_identity_fop<std::decay_t<field_operator_t>>::value)
    {
       const int q1d = B.GetShape()[0];
       auto field = Reshape(&field_e[0], input.size_on_qp, q1d * q1d * q1d);
@@ -396,7 +396,7 @@ void map_field_to_quadrature_data_tensor_product_2d(
       }
       MFEM_SYNC_THREAD;
    }
-   else if constexpr (is_none_fop<std::decay_t<field_operator_t>>::value)
+   else if constexpr (is_identity_fop<std::decay_t<field_operator_t>>::value)
    {
       const int q1d = B.GetShape()[0];
       auto field = Reshape(&field_e[0], input.size_on_qp, q1d * q1d);
@@ -472,7 +472,7 @@ void map_field_to_quadrature_data(
          f(qp) = integration_weights(qp);
       }
    }
-   else if constexpr (is_none_fop<field_operator_t>::value)
+   else if constexpr (is_identity_fop<field_operator_t>::value)
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int size_on_qp = input.size_on_qp;

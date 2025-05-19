@@ -15,7 +15,7 @@
 namespace mfem::future
 {
 
-class ParametricSpace
+class ParameterSpace
 {
 
 public:
@@ -23,8 +23,8 @@ public:
    /// local_size is the size of the data on a single quadrature point
    /// element_size is the size of the data on an element divided by vdim
    /// total_size is the size of the data for all elements
-   ParametricSpace(int spatial_dim, int local_size, int element_size,
-                   int total_size) :
+   ParameterSpace(int spatial_dim, int local_size, int element_size,
+                  int total_size) :
       spatial_dim(spatial_dim),
       local_size(local_size),
       element_size(element_size),
@@ -36,7 +36,7 @@ public:
       dtq.nqpt = dtq.ndof;
    }
 
-   ParametricSpace(int local_size) :
+   ParameterSpace(int local_size) :
       local_size(local_size),
       element_size(local_size),
       total_size(local_size),
@@ -46,8 +46,8 @@ public:
       dtq.nqpt = dtq.ndof;
    }
 
-   ParametricSpace(int spatial_dim, int local_size, int element_size,
-                   int total_size, int d1d, int q1d) :
+   ParameterSpace(int spatial_dim, int local_size, int element_size,
+                  int total_size, int d1d, int q1d) :
       spatial_dim(spatial_dim),
       local_size(local_size),
       element_size(element_size),
@@ -112,12 +112,12 @@ private:
 class ParametricFunction : public Vector
 {
 public:
-   ParametricFunction(ParametricSpace &space) :
+   ParametricFunction(ParameterSpace &space) :
       Vector(space.GetTotalSize()),
       space(space)
    {}
 
-   ParametricSpace &space;
+   ParameterSpace &space;
 
    using Vector::operator=;
 

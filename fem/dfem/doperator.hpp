@@ -14,15 +14,15 @@
 #include <type_traits>
 #include <utility>
 
-#include "../fespace.hpp"
+#include "../../config/config.hpp"
+
 #ifdef MFEM_USE_MPI
-#include "../pfespace.hpp"
+#include "../fespace.hpp"
 
 #include "util.hpp"
 #include "interpolate.hpp"
-#include "qf_derivative_enzyme.hpp"
-#include "qf_derivative_dual.hpp"
 #include "integrate.hpp"
+#include "qfunction_apply.hpp"
 
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kAqua
@@ -473,7 +473,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
 
    bool use_sum_factorization = false;
-   auto entity_element_type =  mesh.GetElement(0)->GetType();
+   auto entity_element_type =
+      Element::TypeFromGeometry(mesh.GetTypicalElementGeometry());
    if ((entity_element_type == Element::QUADRILATERAL ||
         entity_element_type == Element::HEXAHEDRON) &&
        use_tensor_product_structure == true)
@@ -523,7 +524,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
 
-   if constexpr (is_one_fop<decltype(output_fop)>::value)
+   if constexpr (is_sum_fop<decltype(output_fop)>::value)
    {
       residual_l.SetSize(1);
       height = 1;
@@ -562,8 +563,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
-   const int num_test_dof = output_e_size / output_fop.vdim /
-                            num_entities;
+   const int num_test_dof =
+      num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
    dbg("[test] vdim:{} dim:{} dofs:{}", test_vdim, test_op_dim, num_test_dof);
 
    auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
