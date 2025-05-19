@@ -29,8 +29,6 @@
 //               automatic differentiation capabilities, and GLVis/ParaView visualization.
 
 #include "mfem.hpp"
-#include <fstream>
-#include <iostream>
 
 using namespace mfem;
 

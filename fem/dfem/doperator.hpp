@@ -20,9 +20,8 @@
 
 #include "util.hpp"
 #include "interpolate.hpp"
-#include "qf_derivative_enzyme.hpp"
-#include "qf_derivative_dual.hpp"
 #include "integrate.hpp"
+#include "qfunction_apply.hpp"
 
 namespace mfem::future
 {
