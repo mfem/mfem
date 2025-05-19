@@ -313,8 +313,8 @@ void print_mpi_root(const std::string& msg)
 inline
 void print_mpi_sync(const std::string& msg)
 {
-   auto myrank = Mpi::WorldRank();
-   auto nranks = Mpi::WorldSize();
+   auto myrank = static_cast<size_t>(Mpi::WorldRank());
+   auto nranks = static_cast<size_t>(Mpi::WorldSize());
 
    if (nranks == 1)
    {
@@ -324,8 +324,8 @@ void print_mpi_sync(const std::string& msg)
    }
 
    // First gather string lengths
-   int msg_len = msg.length();
-   std::vector<int> lengths(nranks);
+   size_t msg_len = msg.length();
+   std::vector<size_t> lengths(nranks);
    MPI_Gather(&msg_len, 1, MPI_INT,
               lengths.data(), 1, MPI_INT,
               0, MPI_COMM_WORLD);
@@ -337,16 +337,16 @@ void print_mpi_sync(const std::string& msg)
       messages[0] = msg; // Store rank 0's message
 
       // Receive messages from other ranks
-      for (int r = 1; r < nranks; r++)
+      for (size_t r = 1; r < nranks; r++)
       {
          std::vector<char> buffer(lengths[r] + 1);
-         MPI_Recv(buffer.data(), lengths[r], MPI_CHAR,
-                  r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-         messages[r] = std::string(buffer.data(), lengths[r]);
+         MPI_Recv(buffer.data(), static_cast<int>(lengths[r]), MPI_CHAR,
+                  static_cast<int>(r), 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+         messages[r] = std::string(buffer.data(), static_cast<size_t>(lengths[r]));
       }
 
       // Print all messages in rank order
-      for (int r = 0; r < nranks; r++)
+      for (size_t r = 0; r < nranks; r++)
       {
          out << "[Rank " << r << "] " << messages[r] << std::endl;
       }
@@ -355,7 +355,7 @@ void print_mpi_sync(const std::string& msg)
    else
    {
       // Other ranks: Send message to rank 0
-      MPI_Send(msg.c_str(), msg_len, MPI_CHAR,
+      MPI_Send(msg.c_str(), static_cast<int>(msg_len), MPI_CHAR,
                0, 0, MPI_COMM_WORLD);
    }
 
