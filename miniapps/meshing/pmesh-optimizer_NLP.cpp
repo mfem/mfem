@@ -1316,6 +1316,7 @@ if (myid == 0) {
     }
   }
   double strain_energy_ref = 0.0;
+  double comp_ref;
   if (physics == 1)
   {
     GridFunction *x_ref = PMesh_ref->GetNodes();
@@ -1348,6 +1349,23 @@ if (myid == 0) {
     visdc->SetTime(0.0);
     visdc->Save();
     // MFEM_ABORT(" ");
+
+
+    QuantityOfInterest QoIEvaluator_ref(PMesh_ref, qoiType, mesh_poly_deg, physics_deg,neumannBdr, physicsdim);
+    QoIEvaluator_ref.setTractionCoeff(&tractionLoad);
+    QoIEvaluator_ref.SetDesignVarFromUpdatedLocations( *x_ref );
+    QoIEvaluator_ref.SetDiscreteSol( discreteSol_ref );
+    QoIEvaluator_ref.SetIntegrationRules(&IntRulesLo, quad_order);
+    comp_ref = QoIEvaluator_ref.EvalQoI();
+    if (max_it == 1)
+    {
+      if (myid == 0)
+      {
+        std::cout << "Reference maximum displacement: " << maxdisp_ref(0) << " " << maxdisp_ref(1) << " " << maxdisp_ref(2) << std::endl;
+        std::cout << "Compliance Ref: " << comp_ref << std::endl;
+      }
+      MFEM_ABORT(" ");
+    }
   }
 
   x.SetTrueVector();
@@ -1372,9 +1390,10 @@ if (myid == 0) {
   visdc->Save();
   int save_freq = 10;
 
+  double comp_init, comp_final;
 
   if (method == 0)
-  {
+  { 
     auto init_l2_error = discreteSol.ComputeL2Error(*trueSolution);
     auto init_grad_error = discreteSol.ComputeGradError(trueSolutionGrad);
     auto init_h1_error = discreteSol.ComputeH1Error(trueSolution, trueSolutionGrad);
@@ -1576,6 +1595,14 @@ if (myid == 0) {
       QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
 
       double ObjVal = QoIEvaluator.EvalQoI();
+      if (i == 1)
+      {
+        comp_init = ObjVal;
+      }
+      else if (i == max_it-1)
+      {
+        comp_final = ObjVal;
+      }
       double meshQualityVal = MeshQualityEvaluator.EvalQoI();
 
       double val = weight_1 * ObjVal+ weight_tmop * meshQualityVal;
@@ -1970,6 +1997,8 @@ if (myid == 0) {
         {
           std::cout << init_strain_energy << " " << final_strain_energy
           << " " << strain_energy_ref << " strain-energy\n";
+          std::cout << "Compliance ref/init/final: " << 
+          comp_ref << " " << comp_init << " " << comp_final << std::endl;
         }
       }
       VisItDataCollection *visdc = new VisItDataCollection("tmop-pde-final"+std::to_string(jobid), PMesh);

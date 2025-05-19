@@ -2065,7 +2065,7 @@ void Elasticity_Solver::FSolve()
   ConstantCoefficient firstLameCoef(0.5769230769);
   ConstantCoefficient secondLameCoef(1.0/2.6);
 
-
+ 
 
   ParBilinearForm a(physics_fes_);
   ParLinearForm b(physics_fes_);
@@ -2090,6 +2090,7 @@ void Elasticity_Solver::FSolve()
   cg.SetRelTol(1e-10);
   cg.SetMaxIter(500);
   cg.SetPreconditioner(amg);
+  cg.SetPrintLevel(0);
   cg.SetOperator(A);
   cg.Mult(B, X);
 
