@@ -123,6 +123,9 @@ TEST_CASE("Positive H1 Bases",
 
          fe->CalcShape(pt, shape);
 
+         // Verify that the basis functions are non-negative
+         REQUIRE(shape.Min() >= -2*std::numeric_limits<real_t>::epsilon());
+
          // Verify that the basis functions sum to one
          REQUIRE(shape * ones == MFEM_Approx(1.0));
 
@@ -185,6 +188,9 @@ TEST_CASE("Positive L2 Bases",
          IntegrationPoint pt = intRule.IntPoint(i);
 
          fe->CalcShape(pt, shape);
+
+         // Verify that the basis functions are non-negative
+         REQUIRE(shape.Min() >= -2*std::numeric_limits<real_t>::epsilon());
 
          // Verify that the basis functions sum to one
          REQUIRE(shape * ones == MFEM_Approx(1.0));
