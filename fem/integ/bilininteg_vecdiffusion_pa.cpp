@@ -100,7 +100,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (dim == 2 && sdim == 3)
    {
       MFEM_VERIFY(scalar_coeff, "");
-      const int vdim = this->vdim;
+      const int nc = vdim;
       const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
@@ -113,7 +113,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             MFEM_FOREACH_THREAD(qx, x, q1d)
             {
-               for (int i = 0; i < vdim; ++i)
+               for (int i = 0; i < nc; ++i)
                {
                   const real_t wq = W(qx, qy);
                   const real_t J11 = J(qx, qy, 0, 0, e);
@@ -139,7 +139,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (dim == 2 && sdim == 2)
    {
-      const int vdim = this->vdim, coeff_vdim = this->coeff_vdim;
+      const int nc = vdim, cvdim = coeff_vdim;
       const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
@@ -161,7 +161,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const real_t D2 =  w_detJ * (J11*J11 + J21*J21);
                const int map[4] = {0, 2, 1, 3};
 
-               for (int i = 0; i < (matrix_coeff ? coeff_vdim : vdim); ++i)
+               for (int i = 0; i < (matrix_coeff ? cvdim : nc); ++i)
                {
                   const auto k = matrix_coeff ? map[i] : (vector_coeff ? i : 0);
                   const auto Cc = C(k, qx, qy, e);
@@ -176,7 +176,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (dim == 3 && sdim == 3)
    {
-      const int vdim = this->vdim, coeff_vdim = this->coeff_vdim;
+      const int nc = vdim, cvdim = coeff_vdim;
       const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d, q1d);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
@@ -223,7 +223,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t D33 = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
                   const int map[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
 
-                  for (int i = 0; i < (matrix_coeff ? coeff_vdim : vdim); ++i)
+                  for (int i = 0; i < (matrix_coeff ? cvdim : nc); ++i)
                   {
                      const auto k = matrix_coeff ? map[i] : vector_coeff ? i : 0;
                      const auto Ck = C(k, qx, qy, qz, e);
