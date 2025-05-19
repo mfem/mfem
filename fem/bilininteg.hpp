@@ -642,7 +642,7 @@ protected:
 
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return std::max(space_dim, test_fe.GetRangeDim()); }
+   { return test_fe.GetPhysRangeDim(space_dim); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -650,7 +650,7 @@ protected:
    { test_fe.CalcVShape(Trans, shape); }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return std::max(space_dim, trial_fe.GetRangeDim()); }
+   { return trial_fe.GetPhysRangeDim(space_dim); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
