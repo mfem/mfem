@@ -147,8 +147,8 @@ private:
    MemoryClass device_mem_class = MemoryClass::HOST;
 
    // Delete copy constructor and copy assignment.
-   Device(Device const &) = delete;
-   void operator=(Device const &) = delete;
+   Device(const Device &) = delete;
+   Device &operator=(const Device &) = delete;
 
    // Access the Device singleton.
    static Device& Get() { return device_singleton; }
@@ -231,7 +231,7 @@ public:
    static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
 
    /// Print the configuration of the MFEM virtual device object.
-   void Print(std::ostream &out = mfem::out);
+   void Print(std::ostream &os = mfem::out);
 
    /// Return true if Configure() has been called previously.
    static inline bool IsConfigured() { return Get().ngpu >= 0; }
@@ -293,20 +293,20 @@ public:
    /// Get the status of GPU-aware MPI flag.
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
-   /** Query the device driver for what memory type a given @a ptr is allocated
-    * with. */
-   static MemoryType QueryMemoryType(void* ptr);
+   /** @brief Query the device driver for what memory type a given @a ptr is
+       allocated with. */
+   static MemoryType QueryMemoryType(void *ptr);
 
    /** @brief The number of hardware compute units/streaming multiprocessors
-    * available on a given compute device @a dev. */
-   static int NumMultiprocessors(int dev);
+       available on a given compute device @a device_id. */
+   static int NumMultiprocessors(int device_id);
 
    /// Same as NumMultiprocessors(int), for the currently active device.
    static int NumMultiprocessors();
 
-   /** @brief The number of threads in a warp on a given compute device @a dev.
-    */
-   static int WarpSize(int dev);
+   /** @brief The number of threads in a warp on a given compute device
+       @a device_id. */
+   static int WarpSize(int device_id);
 
    /// Same as WarpSize(int), for the currently active device.
    static int WarpSize();
