@@ -69,6 +69,19 @@ struct tensor<T, n0>
    T values[n0];
 };
 
+template < typename T >
+struct tensor<T, 0>
+{
+   using type = T;
+   static constexpr int ndim      = 1;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE T& operator[](int /**/) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /**/) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int /**/) const { return values; }
+   T values;
+};
+
 template < typename T, int n0, int n1 >
 struct tensor<T, n0, n1>
 {
@@ -82,6 +95,21 @@ struct tensor<T, n0, n1>
    MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
    tensor < T, n1 > values[n0];
+};
+
+template < typename T, int n1 >
+struct tensor<T, 0, n1>
+{
+   using type = T;
+   static constexpr int ndim      = 2;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /**/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /**/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /**/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /**/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const T& operator()(int /**/, int j) const { return values[j]; }
+   tensor < T, n1 > values;
 };
 
 template < typename T, int n0, int n1, int n2 >
@@ -1344,7 +1372,7 @@ T det(const tensor<T, 3, 3>& A)
  * @return Whether the square rank 2 tensor (matrix) is symmetric
  */
 template <int n> MFEM_HOST_DEVICE
-bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8)
+bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8_r)
 {
    for (int i = 0; i < n; ++i)
    {
@@ -1478,7 +1506,7 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  */
 inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
 {
-   real_t inv_detA(1.0 / det(A));
+   real_t inv_detA(1.0_r / det(A));
 
    tensor<real_t, 2, 2> invA{};
 
@@ -1496,7 +1524,7 @@ inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
  */
 inline MFEM_HOST_DEVICE tensor<real_t, 3, 3> inv(const tensor<real_t, 3, 3>& A)
 {
-   real_t inv_detA(1.0 / det(A));
+   real_t inv_detA(1.0_r / det(A));
 
    tensor<real_t, 3, 3> invA{};
 

@@ -185,7 +185,7 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         const int n_elements = pow(ne, dimension);
+         const int n_elements = static_cast<int>(std::pow(ne, dimension));
          CAPTURE(dimension, n_elements);
 
          for (int order = 1; order < 5; ++order)
@@ -278,7 +278,7 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 }
 
 template <typename INTEGRATOR>
-double test_vdiagpa(int dim, int order)
+double test_vdiag_pa(int dim, int order)
 {
    Mesh mesh;
    if (dim == 2)
@@ -298,64 +298,43 @@ double test_vdiagpa(int dim, int order)
    form.AddDomainIntegrator(new INTEGRATOR);
    form.Assemble();
 
-   Vector diag(fes.GetVSize());
-   form.AssembleDiagonal(diag);
-
    BilinearForm form_full(&fes);
    form_full.AddDomainIntegrator(new INTEGRATOR);
    form_full.Assemble();
    form_full.Finalize();
 
-   Vector diag_full(fes.GetVSize());
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   form_full.Mult(x, y_fa);
+   form.Mult(x, y_pa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+
+   Vector diag(fes.GetVSize()), diag_full(fes.GetVSize());
+   form.AssembleDiagonal(diag);
    form_full.SpMat().GetDiag(diag_full);
 
    diag_full -= diag;
-
    return diag_full.Norml2();
 }
 
-TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
+TEST_CASE("Vector Mass Diagonal PA",
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA]")
 {
-   SECTION("2D")
-   {
-      REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
-                                                 2) == MFEM_Approx(0.0));
-
-      REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
-                                                 3) == MFEM_Approx(0.0));
-   }
-
-   SECTION("3D")
-   {
-      REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
-                                                 2) == MFEM_Approx(0.0));
-
-      REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
-                                                 3) == MFEM_Approx(0.0));
-   }
+   const auto DIM = GENERATE(2, 3);
+   const auto P = GENERATE(1, 2, 3);
+   CAPTURE(DIM, P);
+   REQUIRE(test_vdiag_pa<VectorMassIntegrator>(DIM,P) == MFEM_Approx(0.0));
 }
 
 TEST_CASE("Vector Diffusion Diagonal PA",
-          "[PartialAssembly][AssembleDiagonal]")
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorDiffusionPA]")
 {
-   SECTION("2D")
-   {
-      REQUIRE(
-         test_vdiagpa<VectorDiffusionIntegrator>(2,
-                                                 2) == MFEM_Approx(0.0));
-
-      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(2,
-                                                      3) == MFEM_Approx(0.0));
-   }
-
-   SECTION("3D")
-   {
-      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
-                                                      2) == MFEM_Approx(0.0));
-
-      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
-                                                      3) == MFEM_Approx(0.0));
-   }
+   const auto DIM = GENERATE(2, 3);
+   const auto P = GENERATE(1, 2, 3);
+   CAPTURE(DIM, P);
+   REQUIRE(test_vdiag_pa<VectorDiffusionIntegrator>(DIM,P) == MFEM_Approx(0.0));
 }
 
 TEST_CASE("Hcurl/Hdiv diagonal PA",
@@ -404,7 +383,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
             {
                for (int ne = 1; ne < 3; ++ne)
                {
-                  const int n_elements = std::pow(ne, dimension);
+                  const int n_elements = static_cast<int>(std::pow(ne, dimension));
                   CAPTURE(dimension, spaceType, integrator, coeffType, n_elements);
 
                   int max_order = (dimension == 3) ? 2 : 3;

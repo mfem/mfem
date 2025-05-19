@@ -3037,7 +3037,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
-
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 
