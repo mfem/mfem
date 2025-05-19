@@ -227,7 +227,7 @@ struct tuple_size<tuple<Types...>> :
 template <int i, typename... T>
 MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
 {
-   static_assert(i < sizeof...(T), "");
+   static_assert(i < sizeof...(T));
    if constexpr (i == 0)
    {
       return values.v0;
