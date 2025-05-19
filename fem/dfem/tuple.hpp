@@ -12,7 +12,8 @@
 
 // This is serac's tuple implementation
 
-#include "../../general/backends.hpp"
+#include <ostream>
+#include "../../config/config.hpp"
 #include <utility>
 
 namespace mfem::future
