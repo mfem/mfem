@@ -461,8 +461,8 @@ TEST_CASE("PA Vector Diffusion",
            == MFEM_Approx(0.0));
 }
 
-TEST_CASE("PA Vector Diffusion 2D sdim:3",
-          "[PartialAssembly][VectorPA][VectorDiffusionPA][CUDA][2D3SDIM]")
+TEST_CASE("PA Vector Diffusion 2D/3D",
+          "[PartialAssembly][VectorPA][VectorDiffusionPA][CUDA]")
 {
    const int DIM = 2, SDIM = 3;
    CAPTURE(DIM, SDIM);
