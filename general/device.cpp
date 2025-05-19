@@ -544,6 +544,7 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA) || Allows(Backend::RAJA_HIP))
    { RajaDeviceSetup(dev, ngpu); }
+   // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_MASK))
    {
@@ -555,12 +556,14 @@ void Device::Setup(const std::string &device_option, const int device_id)
 
       // NOTE: libCEED's /gpu/cuda/gen and /gpu/hip/gen backends are non-
       // deterministic!
-      const char *ceed_spec_search = Allows(Backend::CEED_CPU) ? ":/cpu/self" :
-                                     (Allows(Backend::CEED_CUDA) ? ":/gpu/cuda" :
-                                      (Allows(Backend::CEED_HIP) ? ":/gpu/hip" : ""));
-      const char *ceed_spec_default = Allows(Backend::CEED_CPU) ? "/cpu/self" :
-                                      (Allows(Backend::CEED_CUDA) ? "/gpu/cuda/gen" :
-                                       (Allows(Backend::CEED_HIP) ? "/gpu/hip/gen" : ""));
+      const char *ceed_spec_search =
+         Allows(Backend::CEED_CPU) ? ":/cpu/self" :
+         (Allows(Backend::CEED_CUDA) ? ":/gpu/cuda" :
+          (Allows(Backend::CEED_HIP) ? ":/gpu/hip" : ""));
+      const char *ceed_spec_default =
+         Allows(Backend::CEED_CPU) ? "/cpu/self" :
+         (Allows(Backend::CEED_CUDA) ? "/gpu/cuda/gen" :
+          (Allows(Backend::CEED_HIP) ? "/gpu/hip/gen" : ""));
       std::string::size_type beg = device_option.find(ceed_spec_search), end;
       if (beg == std::string::npos)
       {
@@ -576,7 +579,7 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
-MemoryType Device::QueryMemoryType(void* ptr)
+MemoryType Device::QueryMemoryType(void *ptr)
 {
    // from HYPRE's hypre_GetPointerLocation
    MemoryType res = MemoryType::HOST;
@@ -652,6 +655,8 @@ MemoryType Device::QueryMemoryType(void* ptr)
       // host memory
    }
 #endif
+#else
+   MFEM_CONTRACT_VAR(ptr);
 #endif
    return res;
 }
@@ -687,6 +692,7 @@ int Device::NumMultiprocessors(int dev)
    return res;
 #else
    // not compiled with GPU support
+   MFEM_CONTRACT_VAR(dev);
    return 0;
 #endif
 }
@@ -714,6 +720,7 @@ int Device::WarpSize(int dev)
    return res;
 #else
    // not compiled with GPU support
+   MFEM_CONTRACT_VAR(dev);
    return 0;
 #endif
 }
