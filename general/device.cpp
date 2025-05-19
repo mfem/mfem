@@ -389,9 +389,9 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
 int Device::GetDeviceCount()
 {
    if (Get().ngpu >= 0) { return Get().ngpu; }
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
    return CuGetDeviceCount();
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
    int ngpu;
    MFEM_GPU_CHECK(hipGetDeviceCount(&ngpu));
    return ngpu;
