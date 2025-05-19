@@ -13,7 +13,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
