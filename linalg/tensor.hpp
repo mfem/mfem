@@ -31,7 +31,11 @@ namespace future
 #if __CUDAVER__ >= 75000
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma nv_exec_check_disable
 #else
+#ifdef __clang__
+#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
+#else
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma hd_warning_disable
+#endif
 #endif
 #else  //__CUDACC__
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
@@ -178,7 +182,7 @@ struct tensor<T, n0, n1, n2, n3, n4>
  */
 struct zero
 {
-   /** @brief `zero` is implicitly convertible to double with value 0.0 */
+   /** @brief `zero` is implicitly convertible to real_t with value 0.0 */
    MFEM_HOST_DEVICE operator real_t() { return 0.0; }
 
    /** @brief `zero` is implicitly convertible to a tensor of any shape */
@@ -543,7 +547,7 @@ tensor<decltype(S {} + T{}), n...>
 
 /**
  * @brief multiply a tensor by a scalar value
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] scale The scaling factor
@@ -565,7 +569,7 @@ tensor<decltype(S {} * T{}), n...>
 
 /**
  * @brief multiply a tensor by a scalar value
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] A The tensor to be scaled
@@ -587,7 +591,7 @@ tensor<decltype(T {} * S{}), n...>
 
 /**
  * @brief divide a scalar by each element in a tensor
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] scale The numerator
@@ -609,7 +613,7 @@ tensor<decltype(S {} * T{}), n...>
 
 /**
  * @brief divide a tensor by a scalar
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] A The tensor of numerators
@@ -1160,7 +1164,7 @@ decltype(S {} * T{} * U{})
 }
 
 /**
- * @brief double dot product, contracting over the two "middle" indices
+ * @brief real_t dot product, contracting over the two "middle" indices
  * @tparam S the underlying type of the tensor (lefthand) argument
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam m first dimension of A
@@ -1357,7 +1361,7 @@ tensor<T, n, n> dev(const tensor<T, n, n>& A)
  * @return I_dim
  */
 template <int dim>
-MFEM_HOST_DEVICE tensor<real_t, dim, dim> Identity()
+MFEM_HOST_DEVICE tensor<real_t, dim, dim> IdentityMatrix()
 {
    tensor<real_t, dim, dim> I{};
    for (int i = 0; i < dim; i++)
@@ -1425,10 +1429,10 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
    tensor<T, 2> e;
    tensor<T, 2, 2> v;
 
-   double d0 = A(0, 0);
-   double d2 = A(0, 1);
-   double d3 = A(1, 1);
-   double c, s;
+   real_t d0 = A(0, 0);
+   real_t d2 = A(0, 1);
+   real_t d3 = A(1, 1);
+   real_t c, s;
 
    if (d2 == 0.0)
    {
@@ -1437,9 +1441,9 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
    }
    else
    {
-      double t;
-      const double zeta = (d3 - d0) / (2.0 * d2);
-      const double azeta = fabs(zeta);
+      real_t t;
+      const real_t zeta = (d3 - d0) / (2.0 * d2);
+      const real_t azeta = fabs(zeta);
       if (azeta < std::sqrt(1.0/std::numeric_limits<T>::epsilon()))
       {
          t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
@@ -1508,14 +1512,14 @@ T calcsv(const tensor<T, 1, 1> A, const int i)
 template <typename T> MFEM_HOST_DEVICE
 T calcsv(const tensor<T, 2, 2> A, const int i)
 {
-   double mult;
-   double d0, d1, d2, d3;
+   real_t mult;
+   real_t d0, d1, d2, d3;
    d0 = A(0, 0);
    d1 = A(1, 0);
    d2 = A(0, 1);
    d3 = A(1, 1);
 
-   double d_max = fabs(d0);
+   real_t d_max = fabs(d0);
    if (d_max < fabs(d1)) { d_max = fabs(d1); }
    if (d_max < fabs(d2)) { d_max = fabs(d2); }
    if (d_max < fabs(d3)) { d_max = fabs(d3); }
@@ -1527,8 +1531,8 @@ T calcsv(const tensor<T, 2, 2> A, const int i)
    d2 /= mult;
    d3 /= mult;
 
-   double t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
-   double s = d0*d2 + d1*d3;
+   real_t t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   real_t s = d0*d2 + d1*d3;
    s = std::sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + std::sqrt(t*t + s*s));
 
    if (s == 0.0)
@@ -1755,7 +1759,7 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
       y        = tmp;
    };
 
-   tensor<T, n, n> B = Identity<n>();
+   tensor<T, n, n> B = IdentityMatrix<n>();
 
    for (int i = 0; i < n; i++)
    {
@@ -1943,7 +1947,7 @@ template <typename T1, typename T2>
 using outer_product_t = typename detail::outer_prod<T1, T2>::type;
 
 /**
- * @brief Retrieves the gradient component of a double (which is nothing)
+ * @brief Retrieves the gradient component of a real_t (which is nothing)
  * @return The sentinel, @see zero
  */
 inline MFEM_HOST_DEVICE zero get_gradient(real_t /* arg */) { return zero{}; }
@@ -2273,7 +2277,7 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
           const tensor<T, m, m>& A)
 -> tensor<decltype(S {} * T{}), m, m>
 {
-   return I.c1 * tr(A) * Identity<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
+   return I.c1 * tr(A) * IdentityMatrix<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
 }
 
 } // namespace future
