@@ -13,9 +13,10 @@
 #include <type_traits>
 #include <utility>
 
-#include "../fespace.hpp"
+#include "../config/config.hpp"
+
 #ifdef MFEM_USE_MPI
-#include "../pfespace.hpp"
+#include "../fespace.hpp"
 
 #include "util.hpp"
 #include "interpolate.hpp"
