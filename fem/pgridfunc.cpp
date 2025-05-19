@@ -1432,6 +1432,20 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    return pow(glob_error, 1.0/norm_p);
 }
 
+ParGridFunction::PLBound ParGridFunction::GetBounds(Vector &lower,
+                                                    Vector &upper,
+                                                    const int ref_factor,
+                                                    const int vdim)
+{
+   PLBound plb = GridFunction::GetBounds(lower, upper, ref_factor, vdim);
+   int siz = vdim > 0 ? 1 : fes->GetVDim();
+   MPI_Allreduce(MPI_IN_PLACE, lower.GetData(), siz,
+                 MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, upper.GetData(), siz,
+                 MPITypeMap<real_t>::mpi_type, MPI_MAX, pfes->GetComm());
+   return plb;
+}
+
 } // namespace mfem
 
 #endif // MFEM_USE_MPI
