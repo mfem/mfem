@@ -14,9 +14,6 @@
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/tmatrix.hpp"
-#include "../../linalg/ttensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
@@ -39,30 +36,6 @@ namespace mfem
 namespace internal
 {
 
-template <typename A_layout_t, typename A_data_t,
-          typename B_layout_t, typename B_data_t,
-          typename C_layout_t, typename C_data_t>
-MFEM_HOST_DEVICE inline
-void MultTranspose(const A_layout_t &A_layout, const A_data_t &A_data,
-                   const B_layout_t &x_layout, const B_data_t &x_data,
-                   const C_layout_t &y_layout, C_data_t &y_data)
-{
-   MFEM_STATIC_ASSERT(A_layout_t::rank == 2 && B_layout_t::rank == 1
-                      && C_layout_t::rank == 1, "invalid ranks");
-   const int A1 = A_layout_t::dim_1, A2 = A_layout_t::dim_2;
-   const int B1 = B_layout_t::dim_1, C1 = C_layout_t::dim_1;
-   MFEM_STATIC_ASSERT(A2 == B1 && A1 == C1, "invalid dimensions");
-   for (int i = 0; i < A1; i++)
-   {
-      typename internal::entry_type<C_data_t>::type Cij = 0.0;
-      for (int j = 0; j < A2; j++)
-      {
-         Cij += A_data[A_layout.ind(j,i)] * x_data[x_layout.ind(j)];
-      }
-      y_data[y_layout.ind(i)] = Cij;
-   }
-}
-
 template <int T_D1D = 0, int T_Q1D = 0>
 void SmemPAVectorMassApply2D(const int NE,
                              const int coeff_vdim,
@@ -81,7 +54,7 @@ void SmemPAVectorMassApply2D(const int NE,
    const bool vector_coeff = coeff_vdim == DIM;
    const bool matrix_coeff = coeff_vdim == DIM*DIM;
 
-   const auto D = Reshape(d.Read(), coeff_vdim, Q1D, Q1D, NE);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, coeff_vdim, NE);
    const auto X = Reshape(x.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
 
@@ -89,9 +62,6 @@ void SmemPAVectorMassApply2D(const int NE,
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
-      using r_layout_t = StridedLayout1D<2, MQ1*MQ1>;
-      using s2_layout_t = StridedLayout2D<2,1, 2,2>;
-      using s_layout_t = StridedLayout1D<2,1>;
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
@@ -103,12 +73,29 @@ void SmemPAVectorMassApply2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            const real_t *d = &D(0, qx, qy, e);
-            real_t *y0 = &r0(0,0,qy,qx), *y1 = &r1(0,0,qy,qx);
-            if (!matrix_coeff) { TAssignHD<AssignOp::Set>(r_layout_t{}, y0, r_layout_t{}, y1); }
-            if (const_coeff)   { TAssignHD<AssignOp::Mult>(r_layout_t{}, y0, d[0]); }
-            if (vector_coeff)  { TAssignHD<AssignOp::Mult>(r_layout_t{}, y0, s_layout_t{}, d); }
-            if (matrix_coeff)  { MultTranspose(s2_layout_t{}, d, r_layout_t{}, y1, r_layout_t{}, y0); }
+            const real_t Qx = r1[0][0][qy][qx];
+            const real_t Qy = r1[1][0][qy][qx];
+            const real_t D0 = D(qx, qy, 0, e);
+
+            if (const_coeff)
+            {
+               r0[0][0][qy][qx] = D0 * Qx;
+               r0[1][0][qy][qx] = D0 * Qy;
+            }
+            if (vector_coeff)
+            {
+               const real_t D1 = D(qx, qy, 1, e);
+               r0[0][0][qy][qx] = D0 * Qx;
+               r0[1][0][qy][qx] = D1 * Qy;
+            }
+            if (matrix_coeff)
+            {
+               const real_t D1 = D(qx, qy, 1, e);
+               const real_t D2 = D(qx, qy, 2, e);
+               const real_t D3 = D(qx, qy, 3, e);
+               r0[0][0][qy][qx] = D0 * Qx + D1 * Qy;
+               r0[1][0][qy][qx] = D2 * Qx + D3 * Qy;
+            }
          }
       }
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
@@ -134,7 +121,7 @@ static void SmemPAVectorMassApply3D(const int NE,
    const bool vector_coeff = coeff_vdim == VDIM;
    const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
 
-   const auto D = Reshape(d.Read(), coeff_vdim, Q1D, Q1D, Q1D, NE);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, coeff_vdim, NE);
    const auto X = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
@@ -158,7 +145,7 @@ static void SmemPAVectorMassApply3D(const int NE,
                const real_t Qx = r1[0][0][qz][qy][qx];
                const real_t Qy = r1[1][0][qz][qy][qx];
                const real_t Qz = r1[2][0][qz][qy][qx];
-               const real_t D0 = D(0, qx, qy, qz, e);
+               const real_t D0 = D(qx, qy, qz, 0, e);
                if (const_coeff)
                {
                   r0[0][0][qz][qy][qx] = D0 * Qx;
@@ -167,22 +154,22 @@ static void SmemPAVectorMassApply3D(const int NE,
                }
                if (vector_coeff)
                {
-                  const real_t D1 = D(1, qx, qy, qz, e);
-                  const real_t D2 = D(2, qx, qy, qz, e);
+                  const real_t D1 = D(qx, qy, qz, 1, e);
+                  const real_t D2 = D(qx, qy, qz, 2, e);
                   r0[0][0][qz][qy][qx] = D0 * Qx;
                   r0[1][0][qz][qy][qx] = D1 * Qy;
                   r0[2][0][qz][qy][qx] = D2 * Qz;
                }
                if (matrix_coeff)
                {
-                  const real_t D1 = D(1, qx, qy, qz, e);
-                  const real_t D2 = D(2, qx, qy, qz, e);
-                  const real_t D3 = D(3, qx, qy, qz, e);
-                  const real_t D4 = D(4, qx, qy, qz, e);
-                  const real_t D5 = D(5, qx, qy, qz, e);
-                  const real_t D6 = D(6, qx, qy, qz, e);
-                  const real_t D7 = D(7, qx, qy, qz, e);
-                  const real_t D8 = D(8, qx, qy, qz, e);
+                  const real_t D1 = D(qx, qy, qz, 1, e);
+                  const real_t D2 = D(qx, qy, qz, 2, e);
+                  const real_t D3 = D(qx, qy, qz, 3, e);
+                  const real_t D4 = D(qx, qy, qz, 4, e);
+                  const real_t D5 = D(qx, qy, qz, 5, e);
+                  const real_t D6 = D(qx, qy, qz, 6, e);
+                  const real_t D7 = D(qx, qy, qz, 7, e);
+                  const real_t D8 = D(qx, qy, qz, 8, e);
                   r0[0][0][qz][qy][qx] = D0 * Qx + D1 * Qy + D2 * Qz;
                   r0[1][0][qz][qy][qx] = D3 * Qx + D4 * Qy + D5 * Qz;
                   r0[2][0][qz][qy][qx] = D6 * Qx + D7 * Qy + D8 * Qz;

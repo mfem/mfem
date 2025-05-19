@@ -101,7 +101,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto W = Reshape(w_r, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
-      auto D = Reshape(pa_data_.Write(), coeff_vdim, q1d, q1d, ne);
+      auto D = Reshape(pa_data_.Write(), q1d, q1d, coeff_vdim, ne);
 
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -113,13 +113,13 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const real_t J21 = J(qx, qy, 0, 1, e), J22 = J(qx, qy, 1, 1, e);
                const real_t detJ = (J11 * J22) - (J21 * J12);
                const real_t w_det = W(qx, qy) * detJ;
-               D(0, qx, qy, e) = C(0, qx, qy, e) * w_det;
+               D(qx, qy, 0, e) = C(0, qx, qy, e) * w_det;
                if (const_coeff) { continue; }
-               D(1, qx, qy, e) = C(1, qx, qy, e) * w_det;
+               D(qx, qy, 1, e) = C(1, qx, qy, e) * w_det;
                if (vector_coeff) { continue; }
                assert(matrix_coeff);
-               D(2, qx, qy, e) = C(2, qx, qy, e) * w_det;
-               D(3, qx, qy, e) = C(3, qx, qy, e) * w_det;
+               D(qx, qy, 2, e) = C(2, qx, qy, e) * w_det;
+               D(qx, qy, 3, e) = C(3, qx, qy, e) * w_det;
             }
          }
       });
@@ -129,7 +129,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto W = Reshape(w_r, q1d, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
-      auto D = Reshape(pa_data_.Write(), coeff_vdim, q1d, q1d, q1d, ne);
+      auto D = Reshape(pa_data_.Write(), q1d, q1d, q1d, coeff_vdim, ne);
 
       mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -152,17 +152,17 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                       J21 * (J12 * J33 - J32 * J13) +
                                       J31 * (J12 * J23 - J22 * J13);
                   const real_t w_det = W(qx, qy, qz) * detJ;
-                  D(0, qx, qy, qz, e) = C(0, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 0, e) = C(0, qx, qy, qz, e) * w_det;
                   if (const_coeff) { continue; }
-                  D(1, qx, qy, qz, e) = C(1, qx, qy, qz, e) * w_det;
-                  D(2, qx, qy, qz, e) = C(2, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 1, e) = C(1, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 2, e) = C(2, qx, qy, qz, e) * w_det;
                   if (vector_coeff) { continue; }
-                  D(3, qx, qy, qz, e) = C(3, qx, qy, qz, e) * w_det;
-                  D(4, qx, qy, qz, e) = C(4, qx, qy, qz, e) * w_det;
-                  D(5, qx, qy, qz, e) = C(5, qx, qy, qz, e) * w_det;
-                  D(6, qx, qy, qz, e) = C(6, qx, qy, qz, e) * w_det;
-                  D(7, qx, qy, qz, e) = C(7, qx, qy, qz, e) * w_det;
-                  D(8, qx, qy, qz, e) = C(8, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 3, e) = C(3, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 4, e) = C(4, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 5, e) = C(5, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 6, e) = C(6, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 7, e) = C(7, qx, qy, qz, e) * w_det;
+                  D(qx, qy, qz, 8, e) = C(8, qx, qy, qz, e) * w_det;
                }
             }
          }
