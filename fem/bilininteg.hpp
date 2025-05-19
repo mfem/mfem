@@ -2570,7 +2570,7 @@ protected:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int ne, dim, dofs1D, quad1D, coeff_vdim;
-   Vector pa_data_;
+   Vector pa_data;
 
 public:
    /// Construct an integrator with coefficient 1.0

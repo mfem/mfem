@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
+#include "../../general/forall.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
@@ -92,7 +92,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
 
-   pa_data_.SetSize(coeff_vdim * nq * ne, mt);
+   pa_data.SetSize(coeff_vdim * nq * ne, mt);
 
    const auto w_r = ir->GetWeights().Read();
 
@@ -101,7 +101,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto W = Reshape(w_r, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
-      auto D = Reshape(pa_data_.Write(), q1d, q1d, coeff_vdim, ne);
+      auto D = Reshape(pa_data.Write(), q1d, q1d, coeff_vdim, ne);
 
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -129,7 +129,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto W = Reshape(w_r, q1d, q1d, q1d);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
-      auto D = Reshape(pa_data_.Write(), q1d, q1d, q1d, coeff_vdim, ne);
+      auto D = Reshape(pa_data.Write(), q1d, q1d, q1d, coeff_vdim, ne);
 
       mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -210,7 +210,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    MFEM_CONTRACT_VAR(vector_mass_kernel_specializations);
 
    VectorMassAddMultPA::Run(dim, dofs1D, quad1D,
-                            ne, coeff_vdim, maps->B, pa_data_, x, y,
+                            ne, coeff_vdim, maps->B, pa_data, x, y,
                             dofs1D, quad1D);
 
 }
@@ -218,7 +218,6 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 template <const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal2D(const int NE,
                                            const Array<real_t> &b,
-                                           const Array<real_t> &/*bt*/,
                                            const Vector &pa_data, Vector &diag,
                                            const int d1d = 0, const int q1d = 0)
 {
@@ -269,7 +268,6 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
 template <const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal3D(const int NE,
                                            const Array<real_t> &B_,
-                                           const Array<real_t> &/*Bt*/,
                                            const Vector &pa_data, Vector &diag,
                                            const int d1d = 0, const int q1d = 0)
 {
@@ -284,7 +282,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    auto Y = Reshape(diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
@@ -345,17 +343,16 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
 static void PAVectorMassAssembleDiagonal(const int dim, const int D1D,
                                          const int Q1D, const int NE,
                                          const Array<real_t> &B,
-                                         const Array<real_t> &Bt,
                                          const Vector &pa_data,
                                          Vector &diag)
 {
    if (dim == 2)
    {
-      return PAVectorMassAssembleDiagonal2D(NE, B, Bt, pa_data, diag, D1D, Q1D);
+      return PAVectorMassAssembleDiagonal2D(NE, B, pa_data, diag, D1D, Q1D);
    }
    else if (dim == 3)
    {
-      return PAVectorMassAssembleDiagonal3D(NE, B, Bt, pa_data, diag, D1D, Q1D);
+      return PAVectorMassAssembleDiagonal3D(NE, B, pa_data, diag, D1D, Q1D);
    }
    MFEM_ABORT("Dimension not implemented.");
 }
@@ -367,8 +364,7 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");
       MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported");
-      PAVectorMassAssembleDiagonal(dim, dofs1D, quad1D,
-                                   ne, maps->B, maps->Bt, pa_data_, diag);
+      PAVectorMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
    }
 }
 

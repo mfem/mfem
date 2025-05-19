@@ -16,8 +16,8 @@
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
+#include "../kernels.hpp"
 
-#include "bilininteg_kernels.hpp"
 using mfem::kernels::internal::SetMaxOf;
 
 namespace mfem
@@ -69,7 +69,7 @@ void SmemPAVectorDiffusionApply2D(const int NE,
       {
          for (int j = 0; j < (matrix_coeff ? SDIM : 1); j++)
          {
-            kernels::internal::LoadDofs2dOneComponent(e, i, D1D, XE, r0);
+            kernels::internal::LoadDofs2d(e, D1D, i, XE, r0);
             kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1, i);
             MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
@@ -87,7 +87,7 @@ void SmemPAVectorDiffusionApply2D(const int NE,
             MFEM_SYNC_THREAD;
             kernels::internal::GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1, i);
             const int ij =  matrix_coeff ? j : i;
-            kernels::internal::WriteDofs2dOneComponent(e, i, ij, D1D, r1, YE);
+            kernels::internal::WriteDofs2d(e, D1D, i, ij, r1, YE);
          } // j
       } // i
    });
@@ -136,7 +136,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
       {
          for (int j = 0; j < (matrix_coeff ? SDIM : 1); j++)
          {
-            kernels::internal::LoadDofs3dOneComponent(e, i, D1D, XE, r0);
+            kernels::internal::LoadDofs3d(e, D1D, i, XE, r0);
             kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, i);
             for (int qz = 0; qz < Q1D; qz++)
             {
@@ -161,7 +161,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
             MFEM_SYNC_THREAD;
             kernels::internal::Grad3dTranspose(D1D, Q1D, smem, sB, sG, r0, r1, i);
             const int ij =  matrix_coeff ? j : i;
-            kernels::internal::WriteDofs3dOneComponent(e, i, ij, D1D, r1, YE);
+            kernels::internal::WriteDofs3d(e, D1D, i, ij, r1, YE);
          } // j
       } // i
    });

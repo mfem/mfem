@@ -16,17 +16,9 @@
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
+#include "../kernels.hpp"
 
-#include "bilininteg_kernels.hpp"
 using mfem::kernels::internal::SetMaxOf;
-
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
 
 namespace mfem
 {
