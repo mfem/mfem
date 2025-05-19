@@ -29,6 +29,7 @@ using regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
 template <int VDIM, int DIM, int N>
 using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
 
+// on GPU, SetMaxOf is a no-op
 constexpr int SetMaxOf(int n) { return n; }
 #else
 template <int N>
@@ -44,6 +45,7 @@ constexpr int NextMultipleOf(int n)
    return (n + (N - 1)) & ~(N - 1);
 }
 
+// on CPU, get next multiple of 4, allowing better alignements
 constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
 #endif // CUDA/HIP && DEVICE_COMPILE
 

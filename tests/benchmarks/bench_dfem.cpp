@@ -33,12 +33,12 @@ using mfem::future::tuple;
 using mfem::future::tensor;
 
 using future::DifferentiableOperator;
-using future::ParametricSpace;
+using future::ParameterSpace;
 using future::ParametricFunction;
 using future::FieldDescriptor;
 using future::Gradient;
 using future::Weight;
-using future::None;
+using future::Identity;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -257,7 +257,7 @@ struct BakeOff
    ParBilinearForm a;
    std::unique_ptr<DifferentiableOperator> dop;
    const int elem_size, total_size, d1d, q1d;
-   ParametricSpace qdata_space;
+   ParameterSpace qdata_space;
    ParametricFunction qdata;
 
    double mdofs{};
@@ -419,8 +419,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       {
          dbg("PA ∂fem");
          auto w = Weight{};
-         auto q = None<Q> {};
-         auto u = None<U> {};
+         auto q = Identity<Q> {};
+         auto u = Identity<U> {};
          auto Gu = Gradient<U> {};
          auto GΞ = Gradient<Ξ> {};
          tuple Gu_q = {Gu, q};

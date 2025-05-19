@@ -21,6 +21,7 @@
 #include <numeric>
 
 #include "../../general/communication.hpp"
+#include "../../general/forall.hpp"
 #ifdef MFEM_USE_MPI
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
@@ -29,8 +30,12 @@
 #include "../../linalg/dtensor.hpp"
 
 #include "fieldoperator.hpp"
-#include "parametricspace.hpp"
+#include "parameterspace.hpp"
 #include "tuple.hpp"
+
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kGreenYellow
+#include "general/nvtx.hpp"
 
 namespace mfem::future
 {
@@ -144,7 +149,7 @@ auto make_dependency_map(tuple<input_ts...> inputs)
 // Convenient helper function for debugging.
 // Usage example
 // ```c++
-// std::cout << get_type_name<int>() << std::endl;
+// mfem::out << get_type_name<int>() << std::endl;
 // ```
 // prints "int".
 template <typename T>
@@ -312,8 +317,8 @@ void print_mpi_root(const std::string& msg)
 inline
 void print_mpi_sync(const std::string& msg)
 {
-   auto myrank = Mpi::WorldRank();
-   auto nranks = Mpi::WorldSize();
+   auto myrank = static_cast<size_t>(Mpi::WorldRank());
+   auto nranks = static_cast<size_t>(Mpi::WorldSize());
 
    if (nranks == 1)
    {
@@ -323,8 +328,8 @@ void print_mpi_sync(const std::string& msg)
    }
 
    // First gather string lengths
-   int msg_len = msg.length();
-   std::vector<int> lengths(nranks);
+   size_t msg_len = msg.length();
+   std::vector<size_t> lengths(nranks);
    MPI_Gather(&msg_len, 1, MPI_INT,
               lengths.data(), 1, MPI_INT,
               0, MPI_COMM_WORLD);
@@ -336,16 +341,16 @@ void print_mpi_sync(const std::string& msg)
       messages[0] = msg; // Store rank 0's message
 
       // Receive messages from other ranks
-      for (int r = 1; r < nranks; r++)
+      for (size_t r = 1; r < nranks; r++)
       {
          std::vector<char> buffer(lengths[r] + 1);
-         MPI_Recv(buffer.data(), lengths[r], MPI_CHAR,
-                  r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-         messages[r] = std::string(buffer.data(), lengths[r]);
+         MPI_Recv(buffer.data(), static_cast<int>(lengths[r]), MPI_CHAR,
+                  static_cast<int>(r), 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+         messages[r] = std::string(buffer.data(), static_cast<size_t>(lengths[r]));
       }
 
       // Print all messages in rank order
-      for (int r = 0; r < nranks; r++)
+      for (size_t r = 0; r < nranks; r++)
       {
          out << "[Rank " << r << "] " << messages[r] << std::endl;
       }
@@ -354,7 +359,7 @@ void print_mpi_sync(const std::string& msg)
    else
    {
       // Other ranks: Send message to rank 0
-      MPI_Send(msg.c_str(), msg_len, MPI_CHAR,
+      MPI_Send(msg.c_str(), static_cast<int>(msg_len), MPI_CHAR,
                0, 0, MPI_COMM_WORLD);
    }
 
@@ -526,7 +531,7 @@ struct FieldDescriptor
    /// Field variant
    std::variant<const FiniteElementSpace *,
        const ParFiniteElementSpace *,
-       const ParametricSpace *> data;
+       const ParameterSpace *> data;
 };
 
 namespace dfem
@@ -583,11 +588,26 @@ void forall(func_t f,
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
 #if defined(MFEM_USE_CUDA)
+      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
-      MFEM_GPU_CHECK(hipGetLastError());
+      // static int loop = 0;
+      // if (loop++ < 128)
+      // { dbg("N:{} {}x{}x{} smem:{}", N, blocks.x, blocks.y, blocks.z, num_bytes); }
+      if (num_bytes >= 64*1024)
+      {
+         dbg("\x1b[31mNot enough shared memory per block!");
+         assert(false && "Not enough shared memory per block!");
+      }
+      else
+      {
+         MFEM_GPU_CHECK(hipGetLastError());
+         hipLaunchKernelGGL(forall_kernel_shmem, N, block_size, num_bytes, 0, f, N);
+         MFEM_GPU_CHECK(hipGetLastError());
+         MFEM_GPU_CHECK(hipDeviceSynchronize());
+         MFEM_GPU_CHECK(hipGetLastError());
+      }
 #endif
       MFEM_DEVICE_SYNC;
 #endif
@@ -617,16 +637,18 @@ public:
       x(x),
       fixed_eps(fixed_eps)
    {
+      f.UseDevice(x.UseDevice());
       f.SetSize(Height());
+
+      xpev.UseDevice(x.UseDevice());
       xpev.SetSize(Width());
+
       op.Mult(x, f);
       xnorm = x.Norml2();
    }
 
    void Mult(const Vector &v, Vector &y) const override
    {
-      x.HostRead();
-
       // See [1] for choice of eps.
       //
       // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
@@ -643,18 +665,28 @@ public:
          eps = lambda * (lambda + xnorm / v.Norml2());
       }
 
-      for (int i = 0; i < x.Size(); i++)
+      // x + eps * v
       {
-         xpev(i) = x(i) + eps * v(i);
+         const auto d_v = v.Read();
+         const auto d_x = x.Read();
+         auto d_xpev = xpev.Write();
+         mfem::forall(x.Size(), [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_xpev[i] = d_x[i] + eps * d_v[i];
+         });
       }
 
       // y = f(x + eps * v)
       op.Mult(xpev, y);
 
       // y = (f(x + eps * v) - f(x)) / eps
-      for (int i = 0; i < f.Size(); i++)
       {
-         y(i) = (y(i) - f(i)) / eps;
+         const auto d_f = f.Read();
+         auto d_y = y.ReadWrite();
+         mfem::forall(f.Size(), [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_y[i] = (d_y[i] - d_f[i]) / eps;
+         });
       }
    }
 
@@ -712,7 +744,7 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTotalSize();
       }
@@ -725,7 +757,7 @@ int GetVSize(const FieldDescriptor &f)
 
 /// @brief Get the element vdofs of a field descriptor.
 ///
-/// @note Can't be used with ParametricSpace.
+/// @note Can't be used with ParameterSpace.
 ///
 /// @param f the field descriptor.
 /// @param el the element index.
@@ -749,7 +781,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          MFEM_ABORT("internal error");
       }
@@ -783,7 +815,7 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTotalSize();
       }
@@ -812,7 +844,7 @@ int GetVDim(const FieldDescriptor &f)
       {
          return arg->GetVDim();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetLocalSize();
       }
@@ -846,7 +878,7 @@ int GetDimension(const FieldDescriptor &f)
             return arg->GetMesh()->Dimension() - 1;
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->Dimension();
       }
@@ -873,7 +905,7 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       {
          return arg->GetProlongationMatrix();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetProlongation();
       }
@@ -902,7 +934,7 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       {
          return arg->GetElementRestriction(o);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetRestriction();
       }
@@ -937,15 +969,16 @@ const Operator *get_restriction(const FieldDescriptor &f,
 /// @param f the field descriptor.
 /// @param o the element dof ordering.
 /// @param fop the field operator.
-/// @returns a std::function containing the transpose restriction callback and the
+/// @returns a tuple containting a std::function with the transpose
+/// restriction callback and it's height.
 template <typename entity_t, typename fop_t>
-inline std::function<void(const Vector&, Vector&)>
+inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
 get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
    const fop_t &fop)
 {
-   if constexpr (is_one_fop<fop_t>::value)
+   if constexpr (is_sum_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
@@ -1047,7 +1080,7 @@ inline
 auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
                                 MPI_Comm mpi_comm)
 {
-   if constexpr (is_one_fop<fop_t>::value)
+   if constexpr (is_sum_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
@@ -1057,7 +1090,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       };
       return PT;
    }
-   else if constexpr (is_none_fop<fop_t>::value)
+   else if constexpr (is_identity_fop<fop_t>::value)
    {
       auto PT = [](Vector &r_local, Vector &y)
       {
@@ -1187,14 +1220,14 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       {
          if constexpr (std::is_same_v<entity_t, Entity::Element>)
          {
-            return &arg->GetFE(0)->GetDofToQuad(ir, mode);
+            return &arg->GetTypicalFE()->GetDofToQuad(ir, mode);
          }
          else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
          {
-            return &arg->GetBE(0)->GetDofToQuad(ir, mode);
+            return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return &arg->GetDofToQuad();
       }
@@ -1228,7 +1261,8 @@ void CheckCompatibility(const FieldDescriptor &f)
          }
          else if constexpr (std::is_same_v<field_operator_t, Gradient<>>)
          {
-            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::VALUE,
+            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() ==
+                        FiniteElement::MapType::VALUE,
                         "Gradient not compatible with FE");
          }
          else
@@ -1237,16 +1271,16 @@ void CheckCompatibility(const FieldDescriptor &f)
                           "FieldOperator not compatible with FiniteElementSpace");
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         if constexpr (std::is_same_v<field_operator_t, None<>>)
+         if constexpr (std::is_same_v<field_operator_t, Identity<>>)
          {
-            // Only supported field operation for ParametricSpace
+            // Only supported field operation for ParameterSpace
          }
          else
          {
             static_assert(dfem::always_false<T, field_operator_t>,
-                          "FieldOperator not compatible with ParametricSpace");
+                          "FieldOperator not compatible with ParameterSpace");
          }
       }
       else
@@ -1277,11 +1311,11 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       return GetVDim(f) * GetDimension<entity_t>(f);
    }
-   else if constexpr (is_none_fop<field_operator_t>::value)
+   else if constexpr (is_identity_fop<field_operator_t>::value)
    {
       return GetVDim(f);
    }
-   else if constexpr (is_one_fop<field_operator_t>::value)
+   else if constexpr (is_sum_fop<field_operator_t>::value)
    {
       return 1;
    }
@@ -1500,9 +1534,11 @@ get_shmem_info(
    std::array<int, num_fields> field_sizes;
    for (std::size_t i = 0; i < num_fields; i++)
    {
-      field_sizes[i] = get_restriction<entity_t>(
-                          fields[i],
-                          dof_ordering)->Height() / num_entities;
+      field_sizes[i] =
+         num_entities
+         ? (get_restriction<entity_t>(fields[i], dof_ordering)->Height()
+            / num_entities)
+         : 0;
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
@@ -1511,9 +1547,12 @@ get_shmem_info(
    int direction_size = 0;
    if (derivative_action_field_idx != -1)
    {
-      direction_size = get_restriction<entity_t>(
-                          fields[derivative_action_field_idx],
-                          dof_ordering)->Height() / num_entities;
+      direction_size =
+         num_entities ? (get_restriction<entity_t>(
+                            fields[derivative_action_field_idx], dof_ordering)
+                         ->Height()
+                         / num_entities)
+         : 0;
       total_size += direction_size;
    }
 
@@ -2107,7 +2146,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int grad_dim = 1;
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_none_fop<decltype(fop)>::value))
+             (!is_identity_fop<decltype(fop)>::value))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
@@ -2136,8 +2175,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             -1
          };
       }
-      else if constexpr (is_none_fop<decltype(fop)>::value ||
-                         is_one_fop<decltype(fop)>::value)
+      else if constexpr (is_identity_fop<decltype(fop)>::value ||
+                         is_sum_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
@@ -2181,173 +2220,5 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
              std::make_index_sequence<num_fields> {});
 }
 
-/// @brief Call a qfunction with the given parameters.
-///
-/// @param qfunc the qfunction to call.
-/// @param input_shmem the input shared memory.
-/// @param residual_shmem the residual shared memory.
-/// @param rs_qp the size of the residual.
-/// @param num_qp the number of quadrature points.
-/// @param q1d the number of quadrature points in 1D.
-/// @param dimension the spatial dimension.
-/// @param use_sum_factorization whether to use sum factorization.
-/// @tparam qf_param_ts the tuple type of the qfunction parameters.
-template <
-   typename qf_param_ts,
-   typename qfunc_t,
-   std::size_t num_fields>
-MFEM_HOST_DEVICE inline
-void call_qfunction(
-   qfunc_t &qfunc,
-   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
-   DeviceTensor<2> &residual_shmem,
-   const int &rs_qp,
-   const int &num_qp,
-   const int &q1d,
-   const int &dimension,
-   const bool &use_sum_factorization)
-{
-   if (use_sum_factorization)
-   {
-      if (dimension == 2)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               const int q = qx + q1d * qy;
-               auto qf_args = decay_tuple<qf_param_ts> {};
-               auto r = Reshape(&residual_shmem(0, q), rs_qp);
-               apply_kernel(r, qfunc, qf_args, input_shmem, q);
-            }
-         }
-      }
-      else if (dimension == 3)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  const int q = qx + q1d * (qy + q1d * qz);
-                  auto qf_args = decay_tuple<qf_param_ts> {};
-                  auto r = Reshape(&residual_shmem(0, q), rs_qp);
-                  apply_kernel(r, qfunc, qf_args, input_shmem, q);
-               }
-            }
-         }
-      }
-      else
-      {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ABORT("unsupported dimension for sum factorization");
-#endif
-      }
-      MFEM_SYNC_THREAD;
-   }
-   else
-   {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
-      {
-         auto qf_args = decay_tuple<qf_param_ts> {};
-         auto r = Reshape(&residual_shmem(0, q), rs_qp);
-         apply_kernel(r, qfunc, qf_args, input_shmem, q);
-      }
-   }
-}
-
-/// @brief Call a qfunction with the given parameters and
-/// compute it's derivative action.
-///
-/// @param qfunc the qfunction to call.
-/// @param input_shmem the input shared memory.
-/// @param shadow_shmem the shadow shared memory.
-/// @param residual_shmem the residual shared memory.
-/// @param das_qp the size of the derivative action.
-/// @param num_qp the number of quadrature points.
-/// @param q1d the number of quadrature points in 1D.
-/// @param dimension the spatial dimension.
-/// @param use_sum_factorization whether to use sum factorization.
-/// @tparam qf_param_ts the tuple type of the qfunction parameters.
-template <
-   typename qf_param_ts,
-   typename qfunc_t,
-   std::size_t num_fields>
-MFEM_HOST_DEVICE inline
-void call_qfunction_derivative_action(
-   qfunc_t &qfunc,
-   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
-   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
-   DeviceTensor<2> &residual_shmem,
-   const int &das_qp,
-   const int &num_qp,
-   const int &q1d,
-   const int &dimension,
-   const bool &use_sum_factorization)
-{
-   if (use_sum_factorization)
-   {
-      if (dimension == 2)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               const int q = qx + q1d * qy;
-               auto r = Reshape(&residual_shmem(0, q), das_qp);
-               auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-               auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-               apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                           shadow_shmem, q);
-#else
-               apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-            }
-         }
-      }
-      else if (dimension == 3)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  const int q = qx + q1d * (qy + q1d * qz);
-                  auto r = Reshape(&residual_shmem(0, q), das_qp);
-                  auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-                  auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-                  apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                              shadow_shmem, q);
-#else
-                  apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-   }
-   else
-   {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
-      {
-         auto r = Reshape(&residual_shmem(0, q), das_qp);
-         auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-         auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-         apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                     shadow_shmem, q);
-#else
-         apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-      }
-      MFEM_SYNC_THREAD;
-   }
-}
-
-} // namespace mfem
+} // namespace mfem::future
 #endif
