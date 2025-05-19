@@ -140,17 +140,17 @@ void TestBatchedLOR()
    TestSameMatrices(A2, A1);
 }
 
-TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
+TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][GPU]")
 {
    TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
 }
 
-TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
+TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][GPU]")
 {
    TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
-TEST_CASE("LOR Batched RT", "[LOR][BatchedLOR][CUDA]")
+TEST_CASE("LOR Batched RT", "[LOR][BatchedLOR][GPU]")
 {
    TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
 }
@@ -226,22 +226,22 @@ void ParTestBatchedLOR()
    TestSameMatrices(A2, A1);
 }
 
-TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
+TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][GPU]")
 {
    ParTestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
 }
 
-TEST_CASE("Parallel LOR Batched ND", "[LOR][BatchedLOR][Parallel][CUDA]")
+TEST_CASE("Parallel LOR Batched ND", "[LOR][BatchedLOR][Parallel][GPU]")
 {
    ParTestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
-TEST_CASE("Parallel LOR Batched RT", "[LOR][BatchedLOR][Parallel][CUDA]")
+TEST_CASE("Parallel LOR Batched RT", "[LOR][BatchedLOR][Parallel][GPU]")
 {
    ParTestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
 }
 
-TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
+TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][GPU]")
 {
    enum SpaceType { ND, RT };
    auto space_type = GENERATE(ND, RT);
@@ -313,7 +313,7 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    }
 }
 
-TEST_CASE("LOR ADS", "[LOR][BatchedLOR][ADS][Parallel][CUDA]")
+TEST_CASE("LOR ADS", "[LOR][BatchedLOR][ADS][Parallel][GPU]")
 {
    // Only need to test ADS in 3D
    auto mesh_fname = GENERATE("../../data/fichera-q3.mesh");

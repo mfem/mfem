@@ -190,7 +190,7 @@ TEST_CASE("InverseElementTransformation",
 }
 
 TEST_CASE("BatchInverseElementTransformation",
-          "[InverseElementTransformation], [CUDA]")
+          "[InverseElementTransformation], [GPU]")
 {
    const real_t tol = 4e-13;
 
