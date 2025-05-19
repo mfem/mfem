@@ -190,9 +190,23 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
 void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dim = el.GetDim()+1;
+   int dim = el.GetDim();
    int dof = el.GetDof();
-   Vector nor(dim), Qvec;
+   int qdim = Q.GetVDim();
+   int sdim = Tr.GetSpaceDim();
+
+   FaceElementTransformations *FTr = NULL;
+   if (dim == 1 && sdim == 3)
+   {
+      Mesh * mesh = const_cast<Mesh*>(Tr.mesh);
+      FTr = mesh->GetBdrFaceTransformations(Tr.ElementNo);
+
+      MFEM_VERIFY(FTr != NULL, "BoundaryNormalLFIntegrator 1D elements "
+                  "embedded in 3D require a FaceElementTransformations object "
+                  "to determine the normal vector.");
+   }
+
+   Vector nor(sdim), fnor(sdim), ftan, Qvec(qdim);
 
    shape.SetSize(dof);
    elvect.SetSize(dof);
@@ -210,12 +224,32 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint(&ip);
-      if (dim > 1)
+      if (dim == 2)
       {
+         // 2D boundary of 3D domain
          CalcOrtho(Tr.Jacobian(), nor);
+      }
+      else if (dim == 1)
+      {
+         // 1D boundary 2D domain
+         if (sdim == 2)
+         {
+            // Assumes xy-plane with normal perpendicular to J
+            CalcOrtho(Tr.Jacobian(), nor);
+         }
+         else
+         {
+            // Computes boundary normal as tangent x (surface normal)
+            FTr->SetIntPoint(&ip);
+            CalcOrtho(FTr->Elem1->Jacobian(), fnor);
+            ftan.SetDataAndSize(Tr.Jacobian().Data(), 3);
+            ftan.cross3D(fnor, nor);
+            nor *= Tr.Jacobian().Weight() / nor.Norml2();
+         }
       }
       else
       {
+         // 0D boundary of 1D domain
          nor[0] = 1.0;
       }
       Q.Eval(Qvec, Tr, ip);
@@ -691,12 +725,46 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    int dof = el.GetDof();
    int dim = el.GetDim();
    int vdim = el.GetRangeDim();
-   DenseMatrix vshape(dof, vdim);
-   Vector f_loc(3);
-   Vector f_hat(2);
+   int fdim = f.GetVDim();
+   int sdim = Tr.GetSpaceDim();
 
-   MFEM_VERIFY(vdim == 2, "VectorFEBoundaryTangentLFIntegrator "
-               "must be called with vector basis functions of dimension 2.");
+   FaceElementTransformations *FTr = NULL;
+   if (dim == 1)
+   {
+      Mesh * mesh = const_cast<Mesh*>(Tr.mesh);
+      FTr = mesh->GetBdrFaceTransformations(Tr.ElementNo);
+   }
+
+   DenseMatrix vshape(dof, vdim);
+   Vector f_loc(fdim);
+   Vector f_hat(vdim);
+   Vector z_hat(3);
+
+   const int map_type = el.GetMapType();
+   if (map_type == FiniteElement::H_CURL)
+   {
+      MFEM_VERIFY(vdim == 2, "VectorFEBoundaryTangentLFIntegrator "
+                  "must be called with vector basis functions of dimension 2.");
+   }
+   else if (map_type == FiniteElement::H_CURL_R2D)
+   {
+      MFEM_VERIFY(dim == 1,
+                  "VectorFEBoundaryTangentLFIntegrator "
+                  "only supports ND_R2D_SegmentElement "
+                  "with MapType H_CURL_R2D");
+   }
+   else if (map_type == FiniteElement::H_CURL_R1D)
+   {
+      MFEM_VERIFY(dim == 0,
+                  "VectorFEBoundaryTangentLFIntegrator "
+                  "only supports ND_R1D_PointElement "
+                  "with MapType H_CURL_R1D");
+   }
+   else
+   {
+      MFEM_ABORT("VectorFEBoundaryTangentLFIntegrator unsuppoprted MapType: "
+                 << map_type);
+   }
 
    elvect.SetSize(dof);
    elvect = 0.0;
@@ -717,24 +785,54 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint(&ip);
       f.Eval(f_loc, Tr, ip);
 
-      if (dim == 2)
+      if (el.GetMapType() == FiniteElement::H_CURL)
       {
-         Tr.Jacobian().MultTranspose(f_loc, f_hat);
+         if (dim == 2)
+         {
+            Tr.Jacobian().MultTranspose(f_loc, f_hat);
+         }
+         else if (dim == 1)
+         {
+            const DenseMatrix & J = Tr.Jacobian();
+            f_hat(0) = J(0,0) * f_loc(0) + J(1,0) * f_loc(1);
+            f_hat(1) = f_loc(2);
+         }
+         Swap<real_t>(f_hat(0), f_hat(1));
+         f_hat(0) = -f_hat(0);
       }
-      else if (dim == 1)
+      else if (el.GetMapType() == FiniteElement::H_CURL_R2D)
       {
-         const DenseMatrix & J = Tr.Jacobian();
-         f_hat(0) = J(0,0) * f_loc(0) + J(1,0) * f_loc(1);
-         f_hat(1) = f_loc(2);
-      }
-      else
-      {
-         f_hat(0) = f_loc(1);
-         f_hat(1) = f_loc(2);
-      }
+         if (sdim == 2)
+         {
+            const DenseMatrix & J = Tr.Jacobian();
+            f_hat(0) = J(0,0) * f_loc(0) + J(1,0) * f_loc(1);
+            f_hat(1) = 0.0;
+            f_hat(2) = f_loc(2);
 
-      Swap<real_t>(f_hat(0), f_hat(1));
-      f_hat(0) = -f_hat(0);
+            Swap<real_t>(f_hat(0), f_hat(2));
+            f_hat(0) = -f_hat(0);
+         }
+         else
+         {
+            FTr->SetIntPoint(&ip);
+            const DenseMatrix & FJ = FTr->Elem1->Jacobian();
+            const DenseMatrix & J = Tr.Jacobian();
+
+            CalcOrtho(FJ, z_hat);
+            z_hat /= z_hat.Norml2();
+
+            f_hat[0] = -(z_hat * f_loc);
+            f_hat[1] = 0.0;
+            f_hat[2] = J(0,0) * f_loc[0] + J(1, 0) * f_loc[1] +
+                       J(2, 0) * f_loc[2];
+         }
+      }
+      else if (el.GetMapType() == FiniteElement::H_CURL_R1D)
+      {
+         // dim == 0
+         f_hat(0) = -f_loc(2);
+         f_hat(1) = f_loc(1);
+      }
       f_hat *= ip.weight;
 
       vshape.AddMult(f_hat, elvect);
