@@ -1464,9 +1464,32 @@ double QuantityOfInterest::EvalQoI()
   case 3:
     ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field, dim);
     break;
-  case 4:
-      if( trueSolution_ == nullptr ){ mfem_error("force coeff.");}
-      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, trueSolution_, dim);
+  case ENERGY:
+      if( QCoef_ == nullptr ){ mfem_error("force coeff.");}
+      if( QCoefGrad_ == nullptr ){ mfem_error("force grad coeff.");}
+      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, QCoef_, QCoefGrad_, dim);
+
+      {
+      ParLinearForm thermComplianceForm(temp_fes_);
+      LFErrorIntegrator *lfi = new LFErrorIntegrator;
+      lfi->SetQoI(ErrorCoefficient_);
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 12));
+
+      lfi->SetGLLVec(gllvec_);
+      lfi->SetNqptsPerEl(nqptsperel);
+      thermComplianceForm.AddDomainIntegrator(lfi);
+      thermComplianceForm.Assemble();
+ 
+      ParLinearForm loadForm(temp_fes_);
+      ConstantCoefficient wCoef(1e5);
+      ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
+      loadForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
+      loadForm.Assemble();      
+
+      return thermComplianceForm(oneGridFunction) + loadForm(solgf_);
+      }
+
   case 5:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution grad not set.");}
       {
@@ -1571,9 +1594,9 @@ void QuantityOfInterest::EvalQoIGrad()
     case 3:
       ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field, dim);
       break;
-    case 4:
-      if( trueSolution_ == nullptr ){ mfem_error("force coeff.");}
-      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, trueSolution_, dim);
+    case ENERGY:
+      if( QCoef_ == nullptr ){ mfem_error("force coeff.");}
+      ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, QCoef_, QCoefGrad_, dim);
       break;
     case 5:
       if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution grad not set.");}
@@ -1691,6 +1714,55 @@ if(qoiType_ == QoIType::AVG_ERROR)
       ParLinearForm ud_gradForm(coord_fes_);
       ud_gradForm.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*tractionLoad_, solgf_, 12, 12), bdr);
       ud_gradForm.Assemble();
+      *dQdx_ = 0.0;
+      dQdx_->Add(1.0, ud_gradForm);
+    }
+  }
+  else if(qoiType_ == QoIType::ENERGY)
+  {
+
+    ConstantCoefficient wCoef(1e5);
+    ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
+    // evaluate grad wrt temp
+    {
+      ParLinearForm T_gradForm(temp_fes_);
+      LFErrorDerivativeIntegrator *lfi = new LFErrorDerivativeIntegrator;
+      lfi->SetQoI(ErrorCoefficient_);
+
+      lfi->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), quad_order*4));
+      T_gradForm.AddDomainIntegrator(lfi);
+      T_gradForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
+      T_gradForm.Assemble();
+
+      *dQdu_ = 0.0;
+      dQdu_->Add(1.0, T_gradForm);
+
+    }
+
+    // evaluate grad wrt coord
+    {
+      ParLinearForm ud_gradForm(coord_fes_);
+      ThermalHeatSourceShapeSensitivityIntegrator_new *lfi = new ThermalHeatSourceShapeSensitivityIntegrator_new(*QCoef_, solgf_);
+      lfi->SetLoadGrad(QCoefGrad_);
+   
+      MFEM_VERIFY(trueSolutionGrad_, "Set true solution gradient for boundary rhs sensitivity\n" );
+      ud_gradForm.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(*trueSolution_, solgf_, wCoef, trueSolutionGrad_, 12, 12));
+
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
+      ud_gradForm.AddDomainIntegrator(lfi);
+      ud_gradForm.Assemble();
+
+      // LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
+      // lfi->SetQoI(ErrorCoefficient_);
+      // lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 32));
+
+      // lfi->SetGLLVec(gllvec_);
+      // lfi->SetNqptsPerEl(nqptsperel);
+
+      // ParLinearForm ud_gradForm(coord_fes_);
+      // ud_gradForm.AddDomainIntegrator(lfi);
+      // ud_gradForm.Assemble();
       *dQdx_ = 0.0;
       dQdx_->Add(1.0, ud_gradForm);
     }

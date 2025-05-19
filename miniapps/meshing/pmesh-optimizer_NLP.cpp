@@ -1243,6 +1243,8 @@ if (myid == 0) {
     QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
     QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
     QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
+    QoIEvaluator.SetManufacturedSolution(QCoef);
+    QoIEvaluator.SetManufacturedSolutionGrad(loadFuncGrad);
   }
   else if(physics ==1)
   {

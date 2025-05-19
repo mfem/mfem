@@ -526,8 +526,8 @@ private:
 
 class Energy_QoI : public QoIBaseCoefficient {
 public:
-  Energy_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * force, int Dim)
-    : solutionField_(solutionField), force_(force), Dim_(Dim)
+  Energy_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * force, VectorCoefficient * forceGrad, int Dim)
+    : solutionField_(solutionField), force_(force), forceGrad_(forceGrad), Dim_(Dim)
   {};
 
   ~Energy_QoI() {};
@@ -577,10 +577,21 @@ public:
     return dtheta_dX;
   };
 
+  const Vector DerivativeExactWRTX(ElementTransformation &T, const IntegrationPoint &ip) override
+  {
+    Vector trueGrad;
+    forceGrad_->Eval(trueGrad, T, ip);
+
+    double fieldVal = solutionField_->GetValue( T, ip );
+    trueGrad *= fieldVal;
+    return trueGrad;
+  }
+
 private:
 
   mfem::ParGridFunction * solutionField_;
   mfem::Coefficient * force_;
+  VectorCoefficient * forceGrad_ = nullptr;
 
   int Dim_;
 
@@ -854,6 +865,8 @@ public:
     void setTrueSolHessCoeff( MatrixCoefficient * trueSolutionHess ){ trueSolutionHess_ = trueSolutionHess; };
     void setTrueSolHessCoeff( VectorCoefficient * trueSolutionHessV ){ trueSolutionHessV_ = trueSolutionHessV; };
     void setTractionCoeff( VectorCoefficient * tractionLoad ){ tractionLoad_ = tractionLoad; }
+    void SetManufacturedSolution( Coefficient * QCoef ){ QCoef_ = QCoef; }
+    void SetManufacturedSolutionGrad( VectorCoefficient * QCoefGrad ){ QCoefGrad_ = QCoefGrad; }
     void SetDesign( Vector & design){ designVar = design; };
     void SetNodes( Vector & coords){ X0_ = coords; };
     void SetDesignVarFromUpdatedLocations( Vector & design)
@@ -879,6 +892,8 @@ private:
     VectorCoefficient * trueSolutionHessV_ = nullptr;
 
     VectorCoefficient * tractionLoad_ = nullptr;
+    Coefficient       * QCoef_ = nullptr;
+    VectorCoefficient * QCoefGrad_ = nullptr;
 
     ParMesh* pmesh;
     enum QoIType qoiType_;
