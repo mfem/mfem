@@ -2661,8 +2661,9 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
          CalcOrtho(Trans.Jacobian(), zhat);
          zhat /= zhat.Norml2();
 
-         dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk3, n2) +
-                   Trans.Weight() * (vk3 * zhat) * n3(2);
+         dofs(k) =
+            Trans.AdjugateJacobian().InnerProduct(vk3, n2) / Trans.Weight() +
+            Trans.Weight() * (vk3 * zhat) * n3(2);
       }
    }
 }
