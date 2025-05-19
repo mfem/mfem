@@ -12,7 +12,7 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 // #include <utility>
-#include <type_traits>
+// #include <type_traits>
 #include "fem/dfem/doperator.hpp"
 #include "fem/dfem/util.hpp"
 
@@ -225,7 +225,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
             dbg("q1d:{} MQ1:{}", q1d, qf.MQ1);
             MFEM_VERIFY(q1d == qf.MQ1, "q1d and qf.MQ1 have to match");
             dop_mf.AddDomainIntegrator(qf,
-                                       tuple{ Gradient<U>{}, None<Rho>{},
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
                                               Gradient<Coords>{}, Weight{} },
                                        tuple{ Gradient<U>{} }, *ir,
                                        all_domain_attr);
@@ -237,7 +237,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
          typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
          MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
          dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                    tuple{ Gradient<U>{}, None<Rho>{},
+                                    tuple{ Gradient<U>{}, Identity<Rho>{},
                                            Gradient<Coords>{}, Weight{} },
                                     tuple{ Gradient<U>{} }, *ir,
                                     all_domain_attr);
