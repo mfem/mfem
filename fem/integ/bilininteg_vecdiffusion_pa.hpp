@@ -49,6 +49,7 @@ void SmemPAVectorDiffusionApply2D(const int NE,
    const int PA_SIZE = DIM*DIM;
    const bool matrix_coeff = coeff_vdim == DIM*DIM;
 
+   const auto B = b.Read(), G = g.Read();
    const auto DE = Reshape(d.Read(), Q1D, Q1D, PA_SIZE,
                            SDIM * (matrix_coeff ? SDIM : 1), NE);
    const auto XE = Reshape(x.Read(), D1D, D1D, SDIM, NE);
@@ -61,8 +62,8 @@ void SmemPAVectorDiffusionApply2D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs2d_t<3, DIM, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
-      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
 
       for (int i = 0; i < SDIM; i++)
       {
@@ -115,6 +116,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
    const int PA_SIZE = DIM*DIM;
    const bool matrix_coeff = coeff_vdim == DIM*DIM;
 
+   const auto B = b.Read(), G = g.Read();
    const auto DE = Reshape(d.Read(), Q1D, Q1D, Q1D, PA_SIZE,
                            SDIM * (matrix_coeff ? SDIM : 1), NE);
    const auto XE = Reshape(x.Read(), D1D, D1D, D1D, SDIM, NE);
@@ -127,8 +129,8 @@ void SmemPAVectorDiffusionApply3D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs3d_t<3, DIM, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
-      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
 
       for (int i = 0; i < SDIM; i++)
       {

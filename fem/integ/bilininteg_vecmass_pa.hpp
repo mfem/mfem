@@ -54,6 +54,7 @@ void SmemPAVectorMassApply2D(const int NE,
    const bool vector_coeff = coeff_vdim == DIM;
    const bool matrix_coeff = coeff_vdim == DIM*DIM;
 
+   const auto B = b.Read();
    const auto D = Reshape(d.Read(), Q1D, Q1D, coeff_vdim, NE);
    const auto X = Reshape(x.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
@@ -65,7 +66,7 @@ void SmemPAVectorMassApply2D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
@@ -121,6 +122,7 @@ static void SmemPAVectorMassApply3D(const int NE,
    const bool vector_coeff = coeff_vdim == VDIM;
    const bool matrix_coeff = coeff_vdim == VDIM*VDIM;
 
+   const auto B = b.Read();
    const auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, coeff_vdim, NE);
    const auto X = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
@@ -132,7 +134,7 @@ static void SmemPAVectorMassApply3D(const int NE,
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
       kernels::internal::vd_regs3d_t<VDIM, 1, MQ1> r0, r1;
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
       kernels::internal::LoadDofs3d(e, D1D, X, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
 

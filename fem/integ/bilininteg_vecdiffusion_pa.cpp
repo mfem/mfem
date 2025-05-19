@@ -100,6 +100,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (dim == 2 && sdim == 3)
    {
       MFEM_VERIFY(scalar_coeff, "");
+      const int vdim = this->vdim;
       const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
@@ -138,12 +139,12 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (dim == 2 && sdim == 2)
    {
+      const int vdim = this->vdim, coeff_vdim = this->coeff_vdim;
       const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size,
                         vdim * (matrix_coeff ? dim : 1), ne);
-
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
@@ -175,6 +176,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (dim == 3 && sdim == 3)
    {
+      const int vdim = this->vdim, coeff_vdim = this->coeff_vdim;
       const auto W = Reshape(ir->GetWeights().Read(), q1d, q1d, q1d);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);

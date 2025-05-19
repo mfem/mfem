@@ -31,7 +31,7 @@ namespace internal
 template <int MQ>
 using regs2d_t =  mfem::internal::tensor<real_t, 0, 0>;
 
-template <int VDIM, int DIM, int MQ>
+template <int VDIM, int DIM, int MQ = 0>
 using vd_regs2d_t =  mfem::internal::tensor<real_t, VDIM, DIM, 0, 0>;
 
 template <int MQ>
@@ -82,7 +82,7 @@ void LoadMatrix(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int DIM, int MQ1>
+template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<4, const real_t> &X,
                                         vd_regs2d_t<VDIM, DIM, MQ1> &Y)
@@ -102,7 +102,8 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
    }
 }
 
-template <int VDIM, int DIM, int MQ1>
+// template <int VDIM, int DIM, int MQ1>
+template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void LoadDofs2dOneComponent(const int e, const int c,
                                                     const int d1d,
                                                     const DeviceTensor<4, const real_t> &X,
@@ -178,9 +179,9 @@ inline MFEM_HOST_DEVICE void ContractY2d(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
-template <int MQ1>
+template <int MQ1 = 0>
 inline MFEM_HOST_DEVICE void Copy2d(const int q1d,
-                                    const regs2d_t<MQ1> &X,
+                                    regs2d_t<MQ1> &X,
                                     regs2d_t<MQ1> &Y)
 {
    MFEM_FOREACH_THREAD(y, y, q1d)
@@ -281,14 +282,14 @@ inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int VDIM, int DIM, int MQ1>
+template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          vd_regs2d_t<VDIM, DIM, MQ1> &X,
                                          const DeviceTensor<4, real_t> &Y)
 {
    MFEM_FOREACH_THREAD(dy, y, d1d)
    {
-      MFEM_FOREACH_THREAD(dx, d, d1d)
+      MFEM_FOREACH_THREAD(dx, x, d1d)
       {
          for (int c = 0; c < VDIM; ++c)
          {
@@ -300,16 +301,15 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
    }
 
 }
-template <int VDIM, int DIM, int MQ1>
+template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void WriteDofs2dOneComponent(const int e, const int i,
-                                                     const int j,
-                                                     const int d1d,
+                                                     const int j, const int d1d,
                                                      vd_regs2d_t<VDIM, DIM, MQ1> &X,
                                                      const DeviceTensor<4, real_t> &Y)
 {
    MFEM_FOREACH_THREAD(dy, y, d1d)
    {
-      MFEM_FOREACH_THREAD(dx, d, d1d)
+      MFEM_FOREACH_THREAD(dx, x, d1d)
       {
          real_t y = 0.0;
          for (int d = 0; d < DIM; d++) { y += X(i, d, dy, dx); }
