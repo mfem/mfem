@@ -320,7 +320,7 @@ double test_vdiag_pa(int dim, int order)
 }
 
 TEST_CASE("Vector Mass Diagonal PA",
-          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA]")
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA][GPU]")
 {
    const auto DIM = GENERATE(2, 3);
    const auto P = GENERATE(1, 2, 3);
@@ -329,7 +329,7 @@ TEST_CASE("Vector Mass Diagonal PA",
 }
 
 TEST_CASE("Vector Diffusion Diagonal PA",
-          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorDiffusionPA]")
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorDiffusionPA][GPU]")
 {
    const auto DIM = GENERATE(2, 3);
    const auto P = GENERATE(1, 2, 3);

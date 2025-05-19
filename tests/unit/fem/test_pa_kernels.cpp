@@ -462,7 +462,7 @@ TEST_CASE("PA Vector Diffusion",
 }
 
 TEST_CASE("PA Vector Diffusion 2D sdim:3",
-          "[PartialAssembly][VectorPA][VectorDiffusionPA][CUDA][2D3SDIM]")
+          "[PartialAssembly][VectorPA][VectorDiffusionPA][GPU]")
 {
    const int DIM = 2, SDIM = 3;
    CAPTURE(DIM, SDIM);
