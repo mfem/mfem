@@ -1,6 +1,6 @@
 MFEM NURBS mesh v1.0
 
-# 3D mesh with 9 (3x3) patches. Each patch
+# 3D mesh with 8 (2x2x2) patches. Each patch
 # has I*J*K elements where e.g. I is the
 # patch index in the x-dimension. 
 

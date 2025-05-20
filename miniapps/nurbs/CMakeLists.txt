@@ -9,41 +9,78 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+
+set(MESH_FILES
+  cube-nurbs.mesh
+  ijk-hex-nurbs.mesh
+  plus-nurbs-permuted.mesh
+  plus-nurbs.mesh
+  square-nurbs.mesh
+  two-cubes-nurbs-autoedge.mesh
+  two-cubes-nurbs-rot.mesh
+  two-cubes-nurbs.mesh
+  two-squares-nurbs-autoedge.mesh
+  two-squares-nurbs-rot.mesh
+  two-squares-nurbs.mesh
+)
+# Add a target to copy the mesh files from the source directory; used by sample
+# runs.
+set(SRC_MESH_FILES)
+foreach(MESH_FILE ${MESH_FILES})
+  list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/meshes/${MESH_FILE})
+endforeach()
+add_custom_command(OUTPUT data_is_copied
+  COMMAND ${CMAKE_COMMAND} -E make_directory meshes
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} meshes/
+  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+  COMMENT "Copying nurbs miniapps data files ...")
+add_custom_target(copy_miniapps_nurbs_data DEPENDS data_is_copied)
+
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_ex1 copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_ex3 copy_miniapps_multidomain_data)
 
 add_mfem_miniapp(nurbs_ex5
   MAIN nurbs_ex5.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_ex5 copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_ex24
   MAIN nurbs_ex24.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_ex24 copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_curveint
   MAIN nurbs_curveint.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_curveint copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_naca_cmesh
   MAIN nurbs_naca_cmesh.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_naca_cmesh copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_printfunc
   MAIN nurbs_printfunc.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_printfunc copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_patch_ex1
   MAIN nurbs_patch_ex1.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_patch_ex1 copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_solenoidal copy_miniapps_nurbs_data)
+
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
@@ -205,10 +242,12 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN nurbs_ex1p.cpp
     LIBRARIES mfem)
+    add_dependencies(nurbs_ex1p copy_miniapps_nurbs_data)
 
   add_mfem_miniapp(nurbs_ex11p
     MAIN nurbs_ex11p.cpp
     LIBRARIES mfem)
+    add_dependencies(nurbs_ex11p copy_miniapps_nurbs_data)
 
   if (MFEM_ENABLE_TESTING)
     add_test(NAME nurbs_ex1p_np=4
