@@ -555,7 +555,7 @@ protected:
       if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
-   /// Throw an error if any patch has an inconsistent edge-to-knot mapping.
+   /// Throw an error if any patch has an inconsistent edge_to_ukv mapping.
    void CheckPatches();
 
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
