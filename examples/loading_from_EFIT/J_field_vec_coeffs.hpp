@@ -270,7 +270,7 @@ public:
    }
 };
 
-/// @brief Input $B_pol$ and return $B_pol^\perp
+/// @brief Input $B_pol$ and return $rB_pol^\perp$
 class BPolPerpRVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:

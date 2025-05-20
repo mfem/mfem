@@ -336,6 +336,31 @@ public:
    }
 };
 
+/// @brief Input $B_pol$ and return $rB_pol$
+class BPolRVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const bool flip_sign;
+   VectorGridFunctionCoefficient B_pol_coef;
+
+public:
+   BPolRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), flip_sign(flip_sign), B_pol_coef(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x[0];
+      B_pol_coef.Eval(V, T, ip);
+      V *= (1e-10 + r) * (flip_sign ? -1 : 1);
+   }
+};
+
 /// @brief Return $[[0, -1/r], [1/r, 0]]$
 class OneOverRPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
