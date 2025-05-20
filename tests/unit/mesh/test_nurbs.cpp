@@ -104,8 +104,9 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    // Reconstruct mesh using patches + topology
    Array<NURBSPatch*> patches;
    mesh1.GetNURBSPatches(patches);
+   const Mesh patchtopo = mesh1.NURBSext->GetPatchTopology();
 
-   NURBSExtension ne(mesh1.NURBSext->GetPatchTopology(), patches);
+   NURBSExtension ne(&patchtopo, patches);
    Mesh mesh2(ne);
 
    // Meshes should be identical

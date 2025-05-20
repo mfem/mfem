@@ -1431,8 +1431,10 @@ public:
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
 
-   /// Returns a copy of patches; not const as this first sets the patches
-   /// in NURBSext using control points defined by Nodes
+   /** Returns a deep copy of all patches. This method will is not const
+       as it first sets the patches in NURBSext using control points
+       defined by Nodes. Caller gets ownership of the returned object,
+       and is responsible for deletion.*/
    void GetNURBSPatches(Array<NURBSPatch*> &patches);
 
    /// Returns the type of element i.
