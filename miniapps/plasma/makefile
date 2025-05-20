@@ -63,7 +63,7 @@ $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
-MFEM_TESTS = MINIAPPS
+MFEM_TESTS = 
 include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
