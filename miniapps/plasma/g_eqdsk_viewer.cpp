@@ -84,17 +84,17 @@ int main(int argc, char *argv[])
    Mesh mesh;
    if (strcmp(mesh_file, "") == 0)
    {
-     mesh = Mesh::MakeCartesian2D(eqdsk.GetNumPtsR(),
-				  eqdsk.GetNumPtsZ(),
-				  Element::QUADRILATERAL,
-				  false,
-				  eqdsk.GetRExtent(),
-				  eqdsk.GetZExtent());
-       ShiftMesh(eqdsk.GetRMin(), eqdsk.GetZMid() - eqdsk.GetZExtent()/2.0, mesh);
+      mesh = Mesh::MakeCartesian2D(eqdsk.GetNumPtsR(),
+                                   eqdsk.GetNumPtsZ(),
+                                   Element::QUADRILATERAL,
+                                   false,
+                                   eqdsk.GetRExtent(),
+                                   eqdsk.GetZExtent());
+      ShiftMesh(eqdsk.GetRMin(), eqdsk.GetZMid() - eqdsk.GetZExtent()/2.0, mesh);
    }
    else
    {
-     mesh = Mesh(mesh_file);
+      mesh = Mesh(mesh_file);
    }
 
    H1_FECollection fec_h1(order, 2);
