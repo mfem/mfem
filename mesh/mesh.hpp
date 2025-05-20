@@ -765,14 +765,22 @@ public:
    virtual ~Mesh() { DestroyPointers(); }
 
    /// Get the edge to unique knotvector map used by NURBS patch topology meshes
-   /** @param[in,out] edge_to_ukv Array<int> Map from edge index to (signed)
+   /** edge:   Edge index in the patch topology mesh
+       pkv:    Patch knotvector index, equivalent to (p * dim + d) where
+               p is the patch index, dim is the topological dimension of
+               the patch, and d is the local dimension
+       rpkv:   Root patch knotvector index; the lowest index pkv for all
+               equivalent pkv.
+       ukv:    (signed) Unique knotvector index. Equivalent to rpkv reordered
+               from 0 to N-1, where N is the number of unique knotvectors +
+               sign, which indicates the orientation of the edge.
+       @param[in,out] edge_to_ukv Array<int> Map from edge index to (signed)
                                   unique knotvector index. Will be resized
                                   to the number of edges.
-       @param[in,out] ukv_to_pkv  Array<int> Map from (unsigned) unique
-                                  knotvector index to the (unsigned)
-                                  "patch knotvector index", i.e.  p*dim+d.
-                                  Will be resized to the number of unique
-                                  knotvectors.
+       @param[in,out] ukv_to_rpkv Array<int> Map from (unsigned) unique
+                                  knotvector index to the (unsigned) root
+                                  patch knotvector index. Will be resized
+                                  to the number of unique knotvectors.
    */
    void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
                                   Array<int> &ukv_to_rpkv) const;

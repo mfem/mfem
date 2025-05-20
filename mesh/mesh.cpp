@@ -6214,10 +6214,10 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
 
    /* Generate edge to knotvector mapping if edges are not specified in the
       mesh file. See data/two-squares-nurbs-autoedge.mesh for an example */
-   Array<int> ukv_to_pkv;
+   Array<int> ukv_to_rpkv;
    if (edge_to_ukv.Size() == 0)
    {
-      GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_pkv);
+      GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    }
 }
 
