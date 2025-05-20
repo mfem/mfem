@@ -3253,13 +3253,8 @@ void Mesh::GetNURBSPatches(Array<NURBSPatch*> &patches)
    // This sets the data in NURBSPatch(es) from the control points (Nodes)
    NURBSext->ConvertToPatches(*Nodes);
 
-   // Copy patches
-   const int NP = NURBSext->GetNP();
-   patches.SetSize(NP);
-   for (int p = 0; p < NP; p++)
-   {
-      patches[p] = new NURBSPatch(*NURBSext->GetPatch(p));
-   }
+   // Deep copy patches
+   NURBSext->GetPatches(patches);
 
    // Among other things, this deletes patches in NURBSext
    UpdateNURBS();

@@ -4869,6 +4869,16 @@ void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk)
    el_to_IJK.GetRow(elem, ijk);
 }
 
+void NURBSExtension::GetPatches(Array<NURBSPatch*> &patches_copy)
+{
+   const int NP = patches.Size();
+   patches_copy.SetSize(NP);
+   for (int p = 0; p < NP; p++)
+   {
+      patches_copy[p] = new NURBSPatch(*GetPatch(p));
+   }
+}
+
 void NURBSExtension::SetPatchToElements()
 {
    const int np = GetNP();
