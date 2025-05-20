@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
 {
    const char *new_mesh_file = "mesh/2d_mesh.mesh";
    bool visualization = true;
-   bool mixed_bilinear_form = false;
 
    Mesh mesh(new_mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -30,40 +29,21 @@ int main(int argc, char *argv[])
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;
    LinearForm b(&fespace);
-   if (!mixed_bilinear_form)
-   {
-      cout << "Using linear form" << endl;
-      // project the grid function onto the new space
-      // solving (f, J_pol) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
 
-      // 1. make the linear form
-      BTorRVectorGridFunctionCoefficient neg_B_tor_r_coef(&B_tor, true);
-      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(neg_B_tor_r_coef));
+   // 1.a make the RHS bilinear form
+   MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
+   RGridFunctionCoefficient neg_r_coef(true);
+   b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(neg_r_coef));
+   b_bi.Assemble();
 
-      BTorRVectorGridFunctionCoefficient B_tor_r_coef(&B_tor, false);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(B_tor_r_coef));
-      b.Assemble();
-   }
-   else
-   {
-      cout << "Using bilinear form" << endl;
-      // project the grid function onto the new space
-      // solving (f, J_pol) = (curl f, B_tor/R e_φ) + <f, n x B_tor/R e_φ>
+   // 1.b form linear form from bilinear form
+   LinearForm b_li(&fespace);
+   b_bi.Mult(B_tor, b_li);
+   BTorRVectorGridFunctionCoefficient B_tor_r_coef(&B_tor, false);
+   b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(B_tor_r_coef));
+   b.Assemble();
+   b += b_li;
 
-      // 1.a make the RHS bilinear form
-      MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
-      RGridFunctionCoefficient neg_r_coef(true);
-      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(neg_r_coef));
-      b_bi.Assemble();
-
-      // 1.b form linear form from bilinear form
-      LinearForm b_li(&fespace);
-      b_bi.Mult(B_tor, b_li);
-      BTorRVectorGridFunctionCoefficient B_tor_r_coef(&B_tor, false);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(B_tor_r_coef));
-      b.Assemble();
-      b += b_li;
-   }
    // 2. make the bilinear form
    BilinearForm a(&fespace);
    RGridFunctionCoefficient r_coef;
