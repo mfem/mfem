@@ -6318,18 +6318,22 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    ukv_to_rpkv.Sort(); // ukv is just a renumbering of rpkv
    ukv_to_rpkv.Unique();
 
-   // Get edge_to_ukv = edge_to_pkv o pkv_to_rpkv o ukv_to_rpkv^{-1}
+   // Create inverse map
+   std::map<int, int> rpkv_to_ukv;
+   for (int i = 0; i < ukv_to_rpkv.Size(); i++)
+   {
+      rpkv_to_ukv[ukv_to_rpkv[i]] = i;
+   }
+
+   // Get edge_to_ukv = edge_to_pkv o pkv_to_rpkv o rpkv_to_ukv
    edge_to_ukv.SetSize(NumOfEdges);
-   bool mapping_error = false;
    for (int i = 0; i < NumOfEdges; i++)
    {
       const int pkv = unsign(edge_to_pkv[i]);
       const int rpkv = pkv_to_rpkv[pkv];
-      const int ukv = ukv_to_rpkv.Find(rpkv); // returns -1 if not found
-      if (ukv == -1) { mapping_error = true; }
+      const int ukv = rpkv_to_ukv[rpkv];
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
-   MFEM_VERIFY(!mapping_error, "Edge to unique knotvector mapping error");
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
