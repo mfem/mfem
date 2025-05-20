@@ -628,7 +628,7 @@ void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf)
       real_t c1 = std::min(epsilon/volume, (real_t) 1.);
       real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
-      c1_gf.SetSubVector(vdofs,c1);
-      c2_gf.SetSubVector(vdofs,c2);
+      c1_gf.SetSubVectorHost(vdofs,c1);
+      c2_gf.SetSubVectorHost(vdofs,c2);
    }
 }
