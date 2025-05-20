@@ -18,7 +18,7 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::plasma;
 
-void ShiftMesh(double x0, double y0, Mesh &mesh);
+void ShiftMesh(real_t x0, real_t y0, Mesh &mesh);
 
 int main(int argc, char *argv[])
 {
@@ -221,8 +221,8 @@ int main(int argc, char *argv[])
 
    {
       int nbdr = eqdsk.GetNumBoundaryPts();
-      const vector<double> &r = eqdsk.GetBoundaryRVals();
-      const vector<double> &z = eqdsk.GetBoundaryZVals();
+      const vector<real_t> &r = eqdsk.GetBoundaryRVals();
+      const vector<real_t> &z = eqdsk.GetBoundaryZVals();
 
       Mesh bdr(1, nbdr, nbdr-1, 2, 2);
 
@@ -279,8 +279,8 @@ int main(int argc, char *argv[])
 
    {
       int nlim = eqdsk.GetNumLimiterPts();
-      const vector<double> &r = eqdsk.GetLimiterRVals();
-      const vector<double> &z = eqdsk.GetLimiterZVals();
+      const vector<real_t> &r = eqdsk.GetLimiterRVals();
+      const vector<real_t> &z = eqdsk.GetLimiterZVals();
 
       Mesh lim(1, nlim, nlim-1, 2, 2);
 
@@ -336,15 +336,15 @@ int main(int argc, char *argv[])
    }
 }
 
-void ShiftMesh(double x0, double y0, Mesh &mesh)
+void ShiftMesh(real_t x0, real_t y0, Mesh &mesh)
 {
    class ShiftCoef : public VectorCoefficient
    {
    private:
-      double xs_, ys_;
+      real_t xs_, ys_;
 
    public:
-      ShiftCoef(double xs, double ys) : VectorCoefficient(2), xs_(xs), ys_(ys) {}
+      ShiftCoef(real_t xs, real_t ys) : VectorCoefficient(2), xs_(xs), ys_(ys) {}
 
       void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip)
       {

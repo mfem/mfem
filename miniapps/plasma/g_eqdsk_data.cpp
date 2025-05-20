@@ -23,7 +23,7 @@ namespace plasma
 G_EQDSK_Data::G_EQDSK_Data(istream &is)
    : init_flag_(0)
 {
-   double XDUM = 0.0;
+   real_t XDUM = 0.0;
 
    const int buflen = 1024;
    char buf[buflen];
@@ -79,7 +79,7 @@ G_EQDSK_Data::G_EQDSK_Data(istream &is)
    dr_ = RDIM_ / (NW_ - 1);
    dz_ = ZDIM_ / (NH_ - 1);
 
-   double psi_bry = checkPsiBoundary();
+   real_t psi_bry = checkPsiBoundary();
    if ((SIBRY_ - SIMAG_) < 1e-2 * (psi_bry - SIMAG_)) { SIBRY_ = psi_bry; }
 
    dpsi_ = (SIBRY_ - SIMAG_) / (NW_ - 1);
@@ -185,14 +185,14 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
    ofs_inp.close();
 }
 
-double G_EQDSK_Data::checkPsiBoundary()
+real_t G_EQDSK_Data::checkPsiBoundary()
 {
-   double psi_mid = 0.0;
-   double psi_min = std::numeric_limits<double>::max();
-   double psi_max = std::numeric_limits<double>::min();
+   real_t psi_mid = 0.0;
+   real_t psi_min = std::numeric_limits<real_t>::max();
+   real_t psi_max = std::numeric_limits<real_t>::min();
 
    Vector rz(2);
-   double psi = 0.0;
+   real_t psi = 0.0;
    for (int i=0; i<NBBBS_; i++)
    {
       rz[0] = RBBBS_[i];
@@ -217,7 +217,7 @@ double G_EQDSK_Data::checkPsiBoundary()
    return psi_mid;
 }
 /*
-double G_EQDSK_Data::InterpFPol(double r)
+real_t G_EQDSK_Data::InterpFPol(real_t r)
 {
    if (!checkFlag(FPOL))
    {
@@ -226,7 +226,7 @@ double G_EQDSK_Data::InterpFPol(double r)
    }
    return interpR(r, FPOL_, FPOL_t_);
 }
-double G_EQDSK_Data::InterpPres(double r)
+real_t G_EQDSK_Data::InterpPres(real_t r)
 {
    if (!checkFlag(PRES))
    {
@@ -235,7 +235,7 @@ double G_EQDSK_Data::InterpPres(double r)
    }
    return interpR(r, PRES_, PRES_t_);
 }
-double G_EQDSK_Data::InterpFFPrime(double r)
+real_t G_EQDSK_Data::InterpFFPrime(real_t r)
 {
    if (!checkFlag(FFPRIM))
    {
@@ -244,7 +244,7 @@ double G_EQDSK_Data::InterpFFPrime(double r)
    }
    return interpR(r, FFPRIM_, FFPRIM_t_);
 }
-double G_EQDSK_Data::InterpPPrime(double r)
+real_t G_EQDSK_Data::InterpPPrime(real_t r)
 {
    if (!checkFlag(PPRIME))
    {
@@ -253,7 +253,7 @@ double G_EQDSK_Data::InterpPPrime(double r)
    }
    return interpR(r, PPRIME_, PPRIME_t_);
 }
-double G_EQDSK_Data::InterpQPsi(double r)
+real_t G_EQDSK_Data::InterpQPsi(real_t r)
 {
    if (!checkFlag(QPSI))
    {
@@ -262,7 +262,7 @@ double G_EQDSK_Data::InterpQPsi(double r)
    }
    return interpR(r, QPSI_, QPSI_t_);
 }
-double G_EQDSK_Data::InterpBTor(double r)
+real_t G_EQDSK_Data::InterpBTor(real_t r)
 {
    if (!checkFlag(BTOR))
    {
@@ -272,9 +272,9 @@ double G_EQDSK_Data::InterpBTor(double r)
    return interpR(r, BTOR_, BTOR_t_);
 }
 */
-double G_EQDSK_Data::InterpFPolRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpFPolRZ(const Vector &rz)
 {
-   double psi = InterpPsiRZ(rz);
+   real_t psi = InterpPsiRZ(rz);
 
    if (!checkFlag(FPOL))
    {
@@ -285,9 +285,9 @@ double G_EQDSK_Data::InterpFPolRZ(const Vector &rz)
    return interpPsi(psi, FPOL_, FPOL_t_);
 }
 
-double G_EQDSK_Data::InterpPresRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpPresRZ(const Vector &rz)
 {
-   double psi = InterpPsiRZ(rz);
+   real_t psi = InterpPsiRZ(rz);
 
    if (!checkFlag(PRES))
    {
@@ -298,9 +298,9 @@ double G_EQDSK_Data::InterpPresRZ(const Vector &rz)
    return interpPsi(psi, PRES_, PRES_t_);
 }
 
-double G_EQDSK_Data::InterpFFPrimeRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpFFPrimeRZ(const Vector &rz)
 {
-   double psi = InterpPsiRZ(rz);
+   real_t psi = InterpPsiRZ(rz);
 
    if (!checkFlag(FFPRIM))
    {
@@ -310,9 +310,9 @@ double G_EQDSK_Data::InterpFFPrimeRZ(const Vector &rz)
    return interpPsi(psi, FFPRIM_, FFPRIM_t_);
 }
 
-double G_EQDSK_Data::InterpPPrimeRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpPPrimeRZ(const Vector &rz)
 {
-   double psi = InterpPsiRZ(rz);
+   real_t psi = InterpPsiRZ(rz);
 
    if (!checkFlag(PPRIME))
    {
@@ -322,7 +322,7 @@ double G_EQDSK_Data::InterpPPrimeRZ(const Vector &rz)
    return interpPsi(psi, PPRIME_, PPRIME_t_);
 }
 
-double G_EQDSK_Data::InterpPsiRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpPsiRZ(const Vector &rz)
 {
    if (!checkFlag(PSIRZ))
    {
@@ -332,9 +332,9 @@ double G_EQDSK_Data::InterpPsiRZ(const Vector &rz)
    return interpRZ(rz, PSIRZ_, PSIRZ_c_, PSIRZ_d_, PSIRZ_e_);
 }
 
-double G_EQDSK_Data::InterpQRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpQRZ(const Vector &rz)
 {
-   double psi = InterpPsiRZ(rz);
+   real_t psi = InterpPsiRZ(rz);
 
    if (!checkFlag(QPSI))
    {
@@ -361,7 +361,7 @@ void G_EQDSK_Data::InterpBPolRZ(const Vector &rz, Vector &bpol)
    if (rz[0] > 1e-6 * RDIM_) { bpol /= rz[0]; }
 }
 
-double G_EQDSK_Data::InterpBTorRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpBTorRZ(const Vector &rz)
 {
    if (rz[0] > 1e-6 * RDIM_)
    {
@@ -373,7 +373,7 @@ double G_EQDSK_Data::InterpBTorRZ(const Vector &rz)
    }
 }
 
-double G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
+real_t G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
 {
    if (rz[0] > 1e-6 * RDIM_)
    {
@@ -385,8 +385,8 @@ double G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
    }
 }
 
-void G_EQDSK_Data::initInterpR(const std::vector<double> &v,
-                               std::vector<double> &t)
+void G_EQDSK_Data::initInterpR(const std::vector<real_t> &v,
+                               std::vector<real_t> &t)
 {
    // Initialize the divided differences
    ShiftedVector m(NW_-1, 2); m = 0.0;
@@ -425,43 +425,43 @@ void G_EQDSK_Data::initInterpR(const std::vector<double> &v,
    }
 }
 
-double G_EQDSK_Data::interpR(double r, const vector<double> &v,
-                             const vector<double> &t)
+real_t G_EQDSK_Data::interpR(real_t r, const vector<real_t> &v,
+                             const vector<real_t> &t)
 {
-   double rs = (r - RLEFT_) / RDIM_;
+   real_t rs = (r - RLEFT_) / RDIM_;
 
-   int i = std::max(0, std::min((int)floor(double(NW_-1) * rs), NW_-2));
+   int i = std::max(0, std::min((int)floor(real_t(NW_-1) * rs), NW_-2));
 
    // Compute ends of local patch
-   double r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
-   double r1 = r0 + RDIM_ / (NW_ - 1);
+   real_t r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
+   real_t r1 = r0 + RDIM_ / (NW_ - 1);
 
    // Prepare position dependent factors
-   double wra = (r1 - r) / dr_;
-   double wrb = (r - r0) / dr_;
-   double wrc = (1.0 + 2.0 * wra);
-   double wrd = (1.0 + 2.0 * wrb);
-   double wra2 = wra * wra;
-   double wrb2 = wrb * wrb;
+   real_t wra = (r1 - r) / dr_;
+   real_t wrb = (r - r0) / dr_;
+   real_t wrc = (1.0 + 2.0 * wra);
+   real_t wrd = (1.0 + 2.0 * wrb);
+   real_t wra2 = wra * wra;
+   real_t wrb2 = wrb * wrb;
 
    // Extract variable values at ends of local patch
-   const double &p0 = v[i];
-   const double &p1 = v[i+1];
+   const real_t &p0 = v[i];
+   const real_t &p1 = v[i+1];
 
-   double var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
+   real_t var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
 
    // Extract dvar/dx at ends of local patch
-   const double &px0 = t[i];
-   const double &px1 = t[i+1];
+   const real_t &px0 = t[i];
+   const real_t &px1 = t[i+1];
 
-   double varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
+   real_t varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
 
    var += varx * dr_;
 
    return var;
 }
 
-void G_EQDSK_Data::initInterpRZ(const std::vector<double> &v,
+void G_EQDSK_Data::initInterpRZ(const std::vector<real_t> &v,
                                 ShiftedDenseMatrix &c,
                                 ShiftedDenseMatrix &d,
                                 ShiftedDenseMatrix &e)
@@ -516,126 +516,126 @@ void G_EQDSK_Data::initInterpRZ(const std::vector<double> &v,
    }
 }
 
-double G_EQDSK_Data::interpRZ(const Vector &rz,
-                              const std::vector<double> &v,
+real_t G_EQDSK_Data::interpRZ(const Vector &rz,
+                              const std::vector<real_t> &v,
                               const ShiftedDenseMatrix &c,
                               const ShiftedDenseMatrix &d,
                               const ShiftedDenseMatrix &e)
 {
-   double r = rz[0];
-   double z = rz[1];
+   real_t r = rz[0];
+   real_t z = rz[1];
 
-   double rs = (r - RLEFT_) / RDIM_;
-   double zs = (z - ZMID_ + 0.5 * ZDIM_) / ZDIM_;
+   real_t rs = (r - RLEFT_) / RDIM_;
+   real_t zs = (z - ZMID_ + 0.5 * ZDIM_) / ZDIM_;
 
-   int i = std::max(0, std::min((int)floor(double(NW_-1) * rs), NW_-2));
-   int j = std::max(0, std::min((int)floor(double(NH_-1) * zs), NH_-2));
+   int i = std::max(0, std::min((int)floor(real_t(NW_-1) * rs), NW_-2));
+   int j = std::max(0, std::min((int)floor(real_t(NH_-1) * zs), NH_-2));
 
    // Compute corners of local patch
-   double r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
-   double r1 = r0 + RDIM_ / (NW_ - 1);
-   double z0 = ZMID_ - 0.5 * ZDIM_ + ZDIM_ * j / (NH_ - 1);
-   double z1 = z0 + ZDIM_ / (NH_ - 1);
+   real_t r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
+   real_t r1 = r0 + RDIM_ / (NW_ - 1);
+   real_t z0 = ZMID_ - 0.5 * ZDIM_ + ZDIM_ * j / (NH_ - 1);
+   real_t z1 = z0 + ZDIM_ / (NH_ - 1);
 
    // Prepare position dependent factors
-   double wra = (r1 - r) / dr_;
-   double wrb = (r - r0) / dr_;
-   double wrc = (1.0 + 2.0 * wra);
-   double wrd = (1.0 + 2.0 * wrb);
-   double wra2 = wra * wra;
-   double wrb2 = wrb * wrb;
+   real_t wra = (r1 - r) / dr_;
+   real_t wrb = (r - r0) / dr_;
+   real_t wrc = (1.0 + 2.0 * wra);
+   real_t wrd = (1.0 + 2.0 * wrb);
+   real_t wra2 = wra * wra;
+   real_t wrb2 = wrb * wrb;
 
-   double wza = (z1 - z) / dz_;
-   double wzb = (z - z0) / dz_;
-   double wzc = (1.0 + 2.0 * wza);
-   double wzd = (1.0 + 2.0 * wzb);
-   double wza2 = wza * wza;
-   double wzb2 = wzb * wzb;
+   real_t wza = (z1 - z) / dz_;
+   real_t wzb = (z - z0) / dz_;
+   real_t wzc = (1.0 + 2.0 * wza);
+   real_t wzd = (1.0 + 2.0 * wzb);
+   real_t wza2 = wza * wza;
+   real_t wzb2 = wzb * wzb;
 
    // Extract variable values at corners of local patch
-   double p00 = v[NH_ * i + j];
-   double p10 = v[NH_ * (i + 1) + j];
-   double p01 = v[NH_ * i + j + 1];
-   double p11 = v[NH_ * (i + 1) + j + 1];
+   real_t p00 = v[NH_ * i + j];
+   real_t p10 = v[NH_ * (i + 1) + j];
+   real_t p01 = v[NH_ * i + j + 1];
+   real_t p11 = v[NH_ * (i + 1) + j + 1];
 
-   double var = p00 * wra2 * wrd * wza2 * wzd
+   real_t var = p00 * wra2 * wrd * wza2 * wzd
                 + p10 * wrb2 * wrc * wza2 * wzd
                 + p01 * wra2 * wrd * wzb2 * wzc
                 + p11 * wrb2 * wrc * wzb2 * wzc;
 
    // Compute dvar/dx at corners of local patch
-   double wx00a = fabs(c(i-1,j) - c(i-2,j));
-   double wx00b = fabs(c(i+1,j) - c(i,j));
+   real_t wx00a = fabs(c(i-1,j) - c(i-2,j));
+   real_t wx00b = fabs(c(i+1,j) - c(i,j));
 
-   double wx10a = fabs(c(i,j) - c(i-1,j));
-   double wx10b = fabs(c(i+2,j) - c(i+1,j));
+   real_t wx10a = fabs(c(i,j) - c(i-1,j));
+   real_t wx10b = fabs(c(i+2,j) - c(i+1,j));
 
-   double wx01a = fabs(c(i-1,j+1) - c(i-2,j+1));
-   double wx01b = fabs(c(i+1,j+1) - c(i,j+1));
+   real_t wx01a = fabs(c(i-1,j+1) - c(i-2,j+1));
+   real_t wx01b = fabs(c(i+1,j+1) - c(i,j+1));
 
-   double wx11a = fabs(c(i,j+1) - c(i-1,j+1));
-   double wx11b = fabs(c(i+2,j+1) - c(i+1,j+1));
+   real_t wx11a = fabs(c(i,j+1) - c(i-1,j+1));
+   real_t wx11b = fabs(c(i+2,j+1) - c(i+1,j+1));
 
    if (wx00a == 0.0 && wx00b == 0.0) { wx00a = 1.0; wx00b = 1.0; }
    if (wx10a == 0.0 && wx10b == 0.0) { wx10a = 1.0; wx10b = 1.0; }
    if (wx01a == 0.0 && wx01b == 0.0) { wx01a = 1.0; wx01b = 1.0; }
    if (wx11a == 0.0 && wx11b == 0.0) { wx11a = 1.0; wx11b = 1.0; }
 
-   double px00 = (wx00b * c(i-1,j) + wx00a * c(i,j)) / (wx00b + wx00a);
-   double px10 = (wx10b * c(i,j) + wx10a * c(i+1,j)) / (wx10b + wx10a);
-   double px01 = (wx01b * c(i-1,j+1) + wx01a * c(i,j+1)) / (wx01b + wx01a);
-   double px11 = (wx11b * c(i,j+1) + wx11a * c(i+1,j+1)) / (wx11b + wx11a);
+   real_t px00 = (wx00b * c(i-1,j) + wx00a * c(i,j)) / (wx00b + wx00a);
+   real_t px10 = (wx10b * c(i,j) + wx10a * c(i+1,j)) / (wx10b + wx10a);
+   real_t px01 = (wx01b * c(i-1,j+1) + wx01a * c(i,j+1)) / (wx01b + wx01a);
+   real_t px11 = (wx11b * c(i,j+1) + wx11a * c(i+1,j+1)) / (wx11b + wx11a);
 
-   double varx = px00 * wra2 * wrb * wza2 * wzd
+   real_t varx = px00 * wra2 * wrb * wza2 * wzd
                  - px10 * wrb2 * wra * wza2 * wzd
                  + px01 * wrb * wra2 * wzb2 * wzc
                  - px11 * wra * wrb2 * wzb2 * wzc;
    var += varx * dr_;
 
    // Compute dvar/dy at corners of local patch
-   double wy00a = fabs(d(i,j-1) - d(i,j-2));
-   double wy00b = fabs(d(i,j+1) - d(i,j));
+   real_t wy00a = fabs(d(i,j-1) - d(i,j-2));
+   real_t wy00b = fabs(d(i,j+1) - d(i,j));
 
-   double wy10a = fabs(d(i+1,j-1) - d(i+1,j-2));
-   double wy10b = fabs(d(i+1,j+1) - d(i+1,j));
+   real_t wy10a = fabs(d(i+1,j-1) - d(i+1,j-2));
+   real_t wy10b = fabs(d(i+1,j+1) - d(i+1,j));
 
-   double wy01a = fabs(d(i,j) - d(i,j-1));
-   double wy01b = fabs(d(i,j+2) - d(i,j+1));
+   real_t wy01a = fabs(d(i,j) - d(i,j-1));
+   real_t wy01b = fabs(d(i,j+2) - d(i,j+1));
 
-   double wy11a = fabs(d(i+1,j) - d(i+1,j-1));
-   double wy11b = fabs(d(i+1,j+2) - d(i+1,j+1));
+   real_t wy11a = fabs(d(i+1,j) - d(i+1,j-1));
+   real_t wy11b = fabs(d(i+1,j+2) - d(i+1,j+1));
 
    if (wy00a == 0.0 && wy00b == 0.0) { wy00a = 1.0; wy00b = 1.0; }
    if (wy10a == 0.0 && wy10b == 0.0) { wy10a = 1.0; wy10b = 1.0; }
    if (wy01a == 0.0 && wy01b == 0.0) { wy01a = 1.0; wy01b = 1.0; }
    if (wy11a == 0.0 && wy11b == 0.0) { wy11a = 1.0; wy11b = 1.0; }
 
-   double py00 = (wy00b * d(i,j-1) + wy00a * d(i,j)) / (wy00b + wy00a);
-   double py10 = (wy10b * d(i+1,j-1) + wy10a * d(i+1,j)) / (wy10b + wy10a);
-   double py01 = (wy01b * d(i,j) + wy01a * d(i,j+1)) / (wy01b + wy01a);
-   double py11 = (wy11b * d(i+1,j) + wy11a * d(i+1,j)) / (wy11b + wy11a);
+   real_t py00 = (wy00b * d(i,j-1) + wy00a * d(i,j)) / (wy00b + wy00a);
+   real_t py10 = (wy10b * d(i+1,j-1) + wy10a * d(i+1,j)) / (wy10b + wy10a);
+   real_t py01 = (wy01b * d(i,j) + wy01a * d(i,j+1)) / (wy01b + wy01a);
+   real_t py11 = (wy11b * d(i+1,j) + wy11a * d(i+1,j)) / (wy11b + wy11a);
 
-   double vary = py00 * wra2 * wrd * wza2 * wzb
+   real_t vary = py00 * wra2 * wrd * wza2 * wzb
                  + py10 * wrb2 * wrc * wza2 * wzb
                  - py01 * wra2 * wrd * wza * wzb2
                  - py11 * wrb2 * wrc * wza * wzb2;
    var += vary * dz_;
 
    // Compute d^2var/dxdy at corners of local patch
-   double pxy00 = (wx00b * (wy00b * e(i-1,j-1) + wy00a * e(i-1,j)) +
+   real_t pxy00 = (wx00b * (wy00b * e(i-1,j-1) + wy00a * e(i-1,j)) +
                    wx00a * (wy00b * e(i,j-1) + wy00a * e(i,j))) /
                   ((wx00b + wx00a) * (wy00b + wy00a));
-   double pxy10 = (wx10b * (wy10b * e(i,j-1) + wy10a * e(i,j)) +
+   real_t pxy10 = (wx10b * (wy10b * e(i,j-1) + wy10a * e(i,j)) +
                    wx10a * (wy10b * e(i+1,j-1) + wy10a * e(i+1,j))) /
                   ((wx10b + wx10a) * (wy10b + wy10a));
-   double pxy01 = (wx01b * (wy01b * e(i-1,j) + wy01a * e(i-1,j+1)) +
+   real_t pxy01 = (wx01b * (wy01b * e(i-1,j) + wy01a * e(i-1,j+1)) +
                    wx01a * (wy01b * e(i,j) + wy01a * e(i,j+1))) /
                   ((wx01b + wx01a) * (wy01b + wy01a));
-   double pxy11 = (wx11b * (wy11b * e(i,j) + wy11a * e(i,j+1)) +
+   real_t pxy11 = (wx11b * (wy11b * e(i,j) + wy11a * e(i,j+1)) +
                    wx11a * (wy11b * e(i+1,j) + wy11a * e(i+1,j+1))) /
                   ((wx11b + wx11a) * (wy11b + wy11a));
 
-   double varxy = pxy00 * wra2 * wrb * wza2 * wzb
+   real_t varxy = pxy00 * wra2 * wrb * wza2 * wzb
                   - pxy10 * wra * wrb2 * wza2 * wzb
                   - pxy01 * wra2 * wrb * wza * wzb2
                   + pxy11 * wra * wrb2 * wza * wzb2;
@@ -646,7 +646,7 @@ double G_EQDSK_Data::interpRZ(const Vector &rz,
 }
 
 void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
-                                  const std::vector<double> &v,
+                                  const std::vector<real_t> &v,
                                   const ShiftedDenseMatrix &c,
                                   const ShiftedDenseMatrix &d,
                                   const ShiftedDenseMatrix &e,
@@ -655,41 +655,41 @@ void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
    b.SetSize(2);
    b = 0.0;
 
-   double r = rz[0];
-   double z = rz[1];
+   real_t r = rz[0];
+   real_t z = rz[1];
 
-   double rs = (r - RLEFT_) / RDIM_;
-   double zs = (z - ZMID_ + 0.5 * ZDIM_) / ZDIM_;
+   real_t rs = (r - RLEFT_) / RDIM_;
+   real_t zs = (z - ZMID_ + 0.5 * ZDIM_) / ZDIM_;
 
-   int i = std::max(0, std::min((int)floor(double(NW_-1) * rs), NW_-2));
-   int j = std::max(0, std::min((int)floor(double(NH_-1) * zs), NH_-2));
+   int i = std::max(0, std::min((int)floor(real_t(NW_-1) * rs), NW_-2));
+   int j = std::max(0, std::min((int)floor(real_t(NH_-1) * zs), NH_-2));
 
    // Compute corners of local patch
-   double r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
-   double r1 = r0 + RDIM_ / (NW_ - 1);
-   double z0 = ZMID_ - 0.5 * ZDIM_ + ZDIM_ * j / (NH_ - 1);
-   double z1 = z0 + ZDIM_ / (NH_ - 1);
+   real_t r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
+   real_t r1 = r0 + RDIM_ / (NW_ - 1);
+   real_t z0 = ZMID_ - 0.5 * ZDIM_ + ZDIM_ * j / (NH_ - 1);
+   real_t z1 = z0 + ZDIM_ / (NH_ - 1);
 
    // Prepare position dependent factors
-   double wra = (r1 - r) / dr_, dwra = -1.0 / dr_;
-   double wrb = (r - r0) / dr_, dwrb = 1.0 / dr_;
-   double wrc = (1.0 + 2.0 * wra), dwrc = 2.0 * dwra;
-   double wrd = (1.0 + 2.0 * wrb), dwrd = 2.0 * dwrb;
-   double wra2 = wra * wra, dwra2 = 2.0 * wra * dwra;
-   double wrb2 = wrb * wrb, dwrb2 = 2.0 * wrb * dwrb;
+   real_t wra = (r1 - r) / dr_, dwra = -1.0 / dr_;
+   real_t wrb = (r - r0) / dr_, dwrb = 1.0 / dr_;
+   real_t wrc = (1.0 + 2.0 * wra), dwrc = 2.0 * dwra;
+   real_t wrd = (1.0 + 2.0 * wrb), dwrd = 2.0 * dwrb;
+   real_t wra2 = wra * wra, dwra2 = 2.0 * wra * dwra;
+   real_t wrb2 = wrb * wrb, dwrb2 = 2.0 * wrb * dwrb;
 
-   double wza = (z1 - z) / dz_, dwza = -1.0 / dz_;
-   double wzb = (z - z0) / dz_, dwzb = 1.0 / dz_;
-   double wzc = (1.0 + 2.0 * wza), dwzc = 2.0 * dwza;
-   double wzd = (1.0 + 2.0 * wzb), dwzd = 2.0 * dwzb;
-   double wza2 = wza * wza, dwza2 = 2.0 * wza * dwza;
-   double wzb2 = wzb * wzb, dwzb2 = 2.0 * wzb * dwzb;
+   real_t wza = (z1 - z) / dz_, dwza = -1.0 / dz_;
+   real_t wzb = (z - z0) / dz_, dwzb = 1.0 / dz_;
+   real_t wzc = (1.0 + 2.0 * wza), dwzc = 2.0 * dwza;
+   real_t wzd = (1.0 + 2.0 * wzb), dwzd = 2.0 * dwzb;
+   real_t wza2 = wza * wza, dwza2 = 2.0 * wza * dwza;
+   real_t wzb2 = wzb * wzb, dwzb2 = 2.0 * wzb * dwzb;
 
    // Extract var values at corners of local patch
-   double p00 = v[NH_ * i + j];
-   double p10 = v[NH_ * (i + 1) + j];
-   double p01 = v[NH_ * i + j + 1];
-   double p11 = v[NH_ * (i + 1) + j + 1];
+   real_t p00 = v[NH_ * i + j];
+   real_t p10 = v[NH_ * (i + 1) + j];
+   real_t p01 = v[NH_ * i + j + 1];
+   real_t p11 = v[NH_ * (i + 1) + j + 1];
 
    b[0] -=
       (p00 * wra2 * wrd + p10 * wrb2 * wrc ) * (dwza2 * wzd + wza2 * dwzd)
@@ -699,27 +699,27 @@ void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
       + (p10 * wza2 * wzd + p11 * wzb2 * wzc) * (dwrb2 * wrc + wrb2 * dwrc);
 
    // Compute dvar/dx at corners of local patch
-   double wx00a = fabs(c(i-1,j) - c(i-2,j));
-   double wx00b = fabs(c(i+1,j) - c(i,j));
+   real_t wx00a = fabs(c(i-1,j) - c(i-2,j));
+   real_t wx00b = fabs(c(i+1,j) - c(i,j));
 
-   double wx10a = fabs(c(i,j) - c(i-1,j));
-   double wx10b = fabs(c(i+2,j) - c(i+1,j));
+   real_t wx10a = fabs(c(i,j) - c(i-1,j));
+   real_t wx10b = fabs(c(i+2,j) - c(i+1,j));
 
-   double wx01a = fabs(c(i-1,j+1) - c(i-2,j+1));
-   double wx01b = fabs(c(i+1,j+1) - c(i,j+1));
+   real_t wx01a = fabs(c(i-1,j+1) - c(i-2,j+1));
+   real_t wx01b = fabs(c(i+1,j+1) - c(i,j+1));
 
-   double wx11a = fabs(c(i,j+1) - c(i-1,j+1));
-   double wx11b = fabs(c(i+2,j+1) - c(i+1,j+1));
+   real_t wx11a = fabs(c(i,j+1) - c(i-1,j+1));
+   real_t wx11b = fabs(c(i+2,j+1) - c(i+1,j+1));
 
    if (wx00a == 0.0 && wx00b == 0.0) { wx00a = 1.0; wx00b = 1.0; }
    if (wx10a == 0.0 && wx10b == 0.0) { wx10a = 1.0; wx10b = 1.0; }
    if (wx01a == 0.0 && wx01b == 0.0) { wx01a = 1.0; wx01b = 1.0; }
    if (wx11a == 0.0 && wx11b == 0.0) { wx11a = 1.0; wx11b = 1.0; }
 
-   double px00 = (wx00b * c(i-1,j) + wx00a * c(i,j)) / (wx00b + wx00a);
-   double px10 = (wx10b * c(i,j) + wx10a * c(i+1,j)) / (wx10b + wx10a);
-   double px01 = (wx01b * c(i-1,j+1) + wx01a * c(i,j+1)) / (wx01b + wx01a);
-   double px11 = (wx11b * c(i,j+1) + wx11a * c(i+1,j+1)) / (wx11b + wx11a);
+   real_t px00 = (wx00b * c(i-1,j) + wx00a * c(i,j)) / (wx00b + wx00a);
+   real_t px10 = (wx10b * c(i,j) + wx10a * c(i+1,j)) / (wx10b + wx10a);
+   real_t px01 = (wx01b * c(i-1,j+1) + wx01a * c(i,j+1)) / (wx01b + wx01a);
+   real_t px11 = (wx11b * c(i,j+1) + wx11a * c(i+1,j+1)) / (wx11b + wx11a);
 
    b[0] -= dr_ *
            ((px00 * wra2 * wrb - px10 * wrb2 * wra) *
@@ -734,27 +734,27 @@ void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
             (dwra * wrb2 + wra * dwrb2));
 
    // Compute dvar/dy at corners of local patch
-   double wy00a = fabs(d(i,j-1) - d(i,j-2));
-   double wy00b = fabs(d(i,j+1) - d(i,j));
+   real_t wy00a = fabs(d(i,j-1) - d(i,j-2));
+   real_t wy00b = fabs(d(i,j+1) - d(i,j));
 
-   double wy10a = fabs(d(i+1,j-1) - d(i+1,j-2));
-   double wy10b = fabs(d(i+1,j+1) - d(i+1,j));
+   real_t wy10a = fabs(d(i+1,j-1) - d(i+1,j-2));
+   real_t wy10b = fabs(d(i+1,j+1) - d(i+1,j));
 
-   double wy01a = fabs(d(i,j) - d(i,j-1));
-   double wy01b = fabs(d(i,j+2) - d(i,j+1));
+   real_t wy01a = fabs(d(i,j) - d(i,j-1));
+   real_t wy01b = fabs(d(i,j+2) - d(i,j+1));
 
-   double wy11a = fabs(d(i+1,j) - d(i+1,j-1));
-   double wy11b = fabs(d(i+1,j+2) - d(i+1,j+1));
+   real_t wy11a = fabs(d(i+1,j) - d(i+1,j-1));
+   real_t wy11b = fabs(d(i+1,j+2) - d(i+1,j+1));
 
    if (wy00a == 0.0 && wy00b == 0.0) { wy00a = 1.0; wy00b = 1.0; }
    if (wy10a == 0.0 && wy10b == 0.0) { wy10a = 1.0; wy10b = 1.0; }
    if (wy01a == 0.0 && wy01b == 0.0) { wy01a = 1.0; wy01b = 1.0; }
    if (wy11a == 0.0 && wy11b == 0.0) { wy11a = 1.0; wy11b = 1.0; }
 
-   double py00 = (wy00b * d(i,j-1) + wy00a * d(i,j)) / (wy00b + wy00a);
-   double py10 = (wy10b * d(i+1,j-1) + wy10a * d(i+1,j)) / (wy10b + wy10a);
-   double py01 = (wy01b * d(i,j) + wy01a * d(i,j+1)) / (wy01b + wy01a);
-   double py11 = (wy11b * d(i+1,j) + wy11a * d(i+1,j)) / (wy11b + wy11a);
+   real_t py00 = (wy00b * d(i,j-1) + wy00a * d(i,j)) / (wy00b + wy00a);
+   real_t py10 = (wy10b * d(i+1,j-1) + wy10a * d(i+1,j)) / (wy10b + wy10a);
+   real_t py01 = (wy01b * d(i,j) + wy01a * d(i,j+1)) / (wy01b + wy01a);
+   real_t py11 = (wy11b * d(i+1,j) + wy11a * d(i+1,j)) / (wy11b + wy11a);
 
    b[0] -= dz_ *
            ((py00 * wra2 * wrd + py10 * wrb2 * wrc) *
@@ -768,16 +768,16 @@ void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
             (dwrb2 * wrc + wrb2 * dwrc));
 
    // Compute d^2var/dxdy at corners of local patch
-   double pxy00 = (wx00b * (wy00b * e(i-1,j-1) + wy00a * e(i-1,j)) +
+   real_t pxy00 = (wx00b * (wy00b * e(i-1,j-1) + wy00a * e(i-1,j)) +
                    wx00a * (wy00b * e(i,j-1) + wy00a * e(i,j))) /
                   ((wx00b + wx00a) * (wy00b + wy00a));
-   double pxy10 = (wx10b * (wy10b * e(i,j-1) + wy10a * e(i,j)) +
+   real_t pxy10 = (wx10b * (wy10b * e(i,j-1) + wy10a * e(i,j)) +
                    wx10a * (wy10b * e(i+1,j-1) + wy10a * e(i+1,j))) /
                   ((wx10b + wx10a) * (wy10b + wy10a));
-   double pxy01 = (wx01b * (wy01b * e(i-1,j) + wy01a * e(i-1,j+1)) +
+   real_t pxy01 = (wx01b * (wy01b * e(i-1,j) + wy01a * e(i-1,j+1)) +
                    wx01a * (wy01b * e(i,j) + wy01a * e(i,j+1))) /
                   ((wx01b + wx01a) * (wy01b + wy01a));
-   double pxy11 = (wx11b * (wy11b * e(i,j) + wy11a * e(i,j+1)) +
+   real_t pxy11 = (wx11b * (wy11b * e(i,j) + wy11a * e(i,j+1)) +
                    wx11a * (wy11b * e(i+1,j) + wy11a * e(i+1,j+1))) /
                   ((wx11b + wx11a) * (wy11b + wy11a));
 
@@ -791,8 +791,8 @@ void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
                         * (dwra * wrb2 + wra * dwrb2));
 }
 
-void G_EQDSK_Data::initInterpPsi(const std::vector<double> &v,
-                                 std::vector<double> &t)
+void G_EQDSK_Data::initInterpPsi(const std::vector<real_t> &v,
+                                 std::vector<real_t> &t)
 {
    // Initialize the divided differences
    ShiftedVector m(NW_-1, 2); m = 0.0;
@@ -831,38 +831,38 @@ void G_EQDSK_Data::initInterpPsi(const std::vector<double> &v,
    }
 }
 
-double G_EQDSK_Data::interpPsi(double psi, const vector<double> &v,
-                               const vector<double> &t)
+real_t G_EQDSK_Data::interpPsi(real_t psi, const vector<real_t> &v,
+                               const vector<real_t> &t)
 {
-   double psic = std::max(SIMAG_, std::min(psi, SIBRY_));
+   real_t psic = std::max(SIMAG_, std::min(psi, SIBRY_));
 
-   double psis = (psic - SIMAG_) / (SIBRY_ - SIMAG_);
+   real_t psis = (psic - SIMAG_) / (SIBRY_ - SIMAG_);
 
-   int i = std::max(0, std::min((int)floor(double(NW_-1) * psis), NW_-2));
+   int i = std::max(0, std::min((int)floor(real_t(NW_-1) * psis), NW_-2));
 
    // Compute ends of local patch
-   double psi0 = SIMAG_ + (SIBRY_ - SIMAG_) * i / (NW_ - 1);
-   double psi1 = psi0 + (SIBRY_ - SIMAG_) / (NW_ - 1);
+   real_t psi0 = SIMAG_ + (SIBRY_ - SIMAG_) * i / (NW_ - 1);
+   real_t psi1 = psi0 + (SIBRY_ - SIMAG_) / (NW_ - 1);
 
    // Prepare position dependent factors
-   double wra = (psi1 - psic) / dpsi_;
-   double wrb = (psic - psi0) / dpsi_;
-   double wrc = (1.0 + 2.0 * wra);
-   double wrd = (1.0 + 2.0 * wrb);
-   double wra2 = wra * wra;
-   double wrb2 = wrb * wrb;
+   real_t wra = (psi1 - psic) / dpsi_;
+   real_t wrb = (psic - psi0) / dpsi_;
+   real_t wrc = (1.0 + 2.0 * wra);
+   real_t wrd = (1.0 + 2.0 * wrb);
+   real_t wra2 = wra * wra;
+   real_t wrb2 = wrb * wrb;
 
    // Extract variable values at ends of local patch
-   const double &p0 = v[i];
-   const double &p1 = v[i+1];
+   const real_t &p0 = v[i];
+   const real_t &p1 = v[i+1];
 
-   double var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
+   real_t var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
 
    // Extract dvar/dx at ends of local patch
-   const double &px0 = t[i];
-   const double &px1 = t[i+1];
+   const real_t &px0 = t[i];
+   const real_t &px1 = t[i+1];
 
-   double varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
+   real_t varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
 
    var += varx * dpsi_;
 
