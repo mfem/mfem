@@ -319,6 +319,11 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniapps/plasma/g_eqdsk_viewer
+miniapps/plasma/gnuplot_eqdsk.*
+miniapps/plasma/G_EQDSK_Viewer*
+miniapps/plasma/ParaView
+
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
 miniapps/shifted/ParaViewLSF
