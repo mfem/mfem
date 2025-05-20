@@ -1205,7 +1205,7 @@ brew install enzyme
 A simple way to ensure the correct compiler choice for the MFEM makefile build
 is to set
 ```
-CXX = $(brew --prefix llvm@19)/bin/clang++
+CXX = $(shell brew --prefix llvm@19)/bin/clang++
 ```
 in your user.mk (adapted from defaults.mk). If you intend to use MPI, it is
 convenient to set
