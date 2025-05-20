@@ -59,8 +59,8 @@ template <typename dscalar_t, int dim = 2>
 class MinimalSurface : public Operator
 {
 private:
-   static constexpr unsigned int SOLUTION_U = 1;
-   static constexpr unsigned int MESH_NODES = 2;
+   static constexpr int SOLUTION_U = 1;
+   static constexpr int MESH_NODES = 2;
 
    template <typename T>
    MFEM_HOST_DEVICE inline
@@ -179,7 +179,7 @@ private:
    {
       // For the Jacobian action we need another field ID for the direction
       // of u, called du, in dR/du = J * du.
-      static constexpr unsigned int DIRECTION_U = 3;
+      static constexpr int DIRECTION_U = 3;
 
    public:
       MinimalSurfaceHandcodedJacobian(const MinimalSurface *minsurface,

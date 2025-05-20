@@ -119,7 +119,7 @@ auto make_dependency_map_impl(
       };
    };
 
-   std::unordered_map<unsigned int, std::array<bool, sizeof...(input_ts)>> map;
+   std::unordered_map<int, std::array<bool, sizeof...(input_ts)>> map;
    for_constexpr<sizeof...(input_ts)>([&](auto i)
    {
       map[get<i>(inputs).GetFieldId()] =
