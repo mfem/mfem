@@ -20,15 +20,14 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   // make a H1 space with the mesh
-   H1_FECollection fec(1, dim);
+   // make a L2 space with the mesh
+   L2_FECollection fec(0, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // make a grid function with the H1 space
+   // make a grid function with the L2 space
    GridFunction div_B_pol(&fespace);
    cout << div_B_pol.FESpace()->GetTrueVSize() << endl;
    div_B_pol = 0.0;
-   LinearForm b(&fespace);
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
@@ -42,12 +41,8 @@ int main(int argc, char *argv[])
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
-   LinearForm b_li(&fespace);
-   b_bi.Mult(B_pol, b_li);
-   BPolRVectorGridFunctionCoefficient B_pol_r(&B_pol);
-   b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(B_pol_r));
-   b.Assemble();
-   b += b_li;
+   LinearForm b(&fespace);
+   b_bi.Mult(B_pol, b);
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
