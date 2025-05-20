@@ -405,6 +405,15 @@ public:
        the -value. */
    void SetSubVector(const Array<int> &dofs, const real_t value);
 
+   /// Set the entries listed in @a dofs to the given @a value (always on host).
+   /** Negative dof values cause the -dof-1 position in this Vector to receive
+       the -value.
+
+       As opposed to SetSubVector(const Array<int>&, const real_t), this
+       function will execute only on host, even if the vector or the @a dofs
+       array have the device flag set. */
+   void SetSubVectorHost(const Array<int> &dofs, const real_t value);
+
    /** @brief Set the entries listed in @a dofs to the values given in the @a
        elemvect Vector. Negative dof values cause the -dof-1 position in this
        Vector to receive the -val from @a elemvect. */
