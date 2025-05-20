@@ -764,8 +764,10 @@ public:
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
 
-   /// Get the edge to unique knotvector map used by NURBS patch topology meshes
-   /** edge:   Edge index in the patch topology mesh
+   /** Get the edge to unique knotvector map used by NURBS patch topology meshes
+       Various index maps are defined using the following indices:
+
+       edge:   Edge index in the patch topology mesh
        pkv:    Patch knotvector index, equivalent to (p * dim + d) where
                p is the patch index, dim is the topological dimension of
                the patch, and d is the local dimension
