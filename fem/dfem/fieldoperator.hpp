@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <climits>
+
 namespace mfem::future
 {
 
@@ -18,7 +20,7 @@ namespace mfem::future
 /// This class serves as a base for different FieldOperator types which can be
 /// applied to fields that are used with inputs to a quadrature point function.
 /// See DifferentialOperator.
-template <int FIELD_ID = -1>
+template <unsigned int FIELD_ID = UINT_MAX>
 class FieldOperator
 {
 public:
@@ -41,7 +43,7 @@ public:
       size_on_qp(size_on_qp) {};
 
    /// @brief Get the field id this FieldOperator is attached to.
-   static constexpr int GetFieldId() { return FIELD_ID; }
+   static constexpr unsigned int GetFieldId() { return FIELD_ID; }
 
    /// @brief Get the size on quadrature point for this FieldOperator.
    int size_on_qp = -1;
@@ -59,7 +61,7 @@ public:
 /// This FieldOperator does nothing to the field. The field (usually a
 /// ParametricFunction) transfers the values to the quadrature point data and
 /// Identity can be viewed as an identity operation.
-template <int FIELD_ID = -1>
+template <unsigned int FIELD_ID = UINT_MAX>
 class Identity : public FieldOperator<FIELD_ID>
 {
 public:
@@ -82,10 +84,10 @@ struct is_identity_fop<Identity<FIELD_ID>>
 ///
 /// This FieldOperator is used to signal that this field contains the quadrature
 /// point weights.
-class Weight : public FieldOperator<-1>
+class Weight : public FieldOperator<UINT_MAX>
 {
 public:
-   constexpr Weight() : FieldOperator<-1>() {};
+   constexpr Weight() : FieldOperator<UINT_MAX>() {};
 };
 
 template< typename T >
@@ -104,7 +106,7 @@ struct is_weight_fop<Weight>
 ///
 /// This FieldOperator is used to signal that the field contains the
 /// interpolated values of the degrees of freedom at the quadrature points.
-template <int FIELD_ID = -1>
+template <unsigned int FIELD_ID = UINT_MAX>
 class Value : public FieldOperator<FIELD_ID>
 {
 public:
@@ -127,7 +129,7 @@ struct is_value_fop<Value<FIELD_ID>>
 ///
 /// This FieldOperator is used to signal that the field contains the
 /// interpolated gradients of the degrees of freedom at the quadrature points.
-template <int FIELD_ID = -1>
+template <unsigned int FIELD_ID = UINT_MAX>
 class Gradient : public FieldOperator<FIELD_ID>
 {
 public:
@@ -150,7 +152,7 @@ struct is_gradient_fop<Gradient<FIELD_ID>>
 ///
 /// This FieldOperator is commonly used to signal that an output of a quadrature
 /// function should be summed.
-template <int FIELD_ID = -1>
+template <unsigned int FIELD_ID = UINT_MAX>
 class Sum : public FieldOperator<FIELD_ID>
 {
 public:
