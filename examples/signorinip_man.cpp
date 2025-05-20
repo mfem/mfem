@@ -231,7 +231,6 @@ int main(int argc, char *argv[])
 
    // 16. Initialize ParaView output.
    ParaViewDataCollection paraview_dc("signorini", &pmesh);
-
    if (paraview_output)
    {
       paraview_dc.SetPrefixPath("ParaView");
@@ -250,7 +249,8 @@ int main(int argc, char *argv[])
    std::ofstream file = getFileStream(filename);
    file << "iter_error,l2_error,alpha,ref_levels,order\n";
 
-   real_t iter_error, l2_error;
+   real_t iter_error = 0;
+   real_t l2_error = 0;
 
    // 17. Iterate:
    for (int iter = 1; iter <= max_iterations; iter++)
