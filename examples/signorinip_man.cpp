@@ -288,6 +288,10 @@ int main(int argc, char *argv[])
       pcg->SetPreconditioner(*amg);
       pcg->Mult(B, X);
 
+      // Free used memory.
+      delete amg;
+      delete pcg;
+
       // Recover the solution.
       a->RecoverFEMSolution(X, b, u_current);
 
