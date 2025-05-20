@@ -349,9 +349,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
 
-   Hypre::Finalize();
-   Mpi::Finalize();
-
    return 0;
 }
 
