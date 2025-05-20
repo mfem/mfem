@@ -125,11 +125,11 @@ ParMesh MakeParMesh(int p)
    {
       std::cout
             << '\n'
-            << "order: " << p << '\n'
-            << "nx: " << nx << ", ny: " << ny << ", nz: " << nz << '\n'
-            << "px: " << proc_grid[0] << ", py: " << proc_grid[1]
+            << "   order: " << p << '\n'
+            << "   nx: " << nx << ", ny: " << ny << ", nz: " << nz << '\n'
+            << "   px: " << proc_grid[0] << ", py: " << proc_grid[1]
             << ", pz: " << proc_grid[2] << '\n'
-            << "par_ref: " << par_ref << '\n'
+            << "   par_ref: " << par_ref << '\n'
             << std::endl;
    }
 
@@ -512,6 +512,11 @@ int main(int argc, char *argv[])
       if (ctx_proc_grid != global_context->end())
       {
          proc_grid_str = ctx_proc_grid->second;
+      }
+      const auto ctx_verbose = global_context->find("verbose");
+      if (ctx_verbose != global_context->end())
+      {
+         verbose = std::atoi(ctx_verbose->second.c_str());
       }
    }
    const int num_procs = Mpi::WorldSize();

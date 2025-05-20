@@ -145,7 +145,7 @@ MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
+   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS) tests/benchmarks
    CONFIG_FILE_DEF = -DMFEM_CONFIG_FILE='"$(BUILD_REAL_DIR)/config/_config.hpp"'
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -679,7 +679,8 @@ local-config:
 .PHONY: build-config
 build-config:
 	for d in $(BUILD_SUBDIRS); do mkdir -p $(BLD)$${d}; done
-	for dir in "" $(addsuffix /,config $(EM_DIRS) doc $(TEST_DIRS)); do \
+	for dir in "" $(addsuffix /,config $(EM_DIRS) doc $(TEST_DIRS) \
+                        tests/benchmarks); do \
 	   printf "# Auto-generated file.\n%s\n%s\n" \
 	      "MFEM_DIR = $(MFEM_REAL_DIR)" \
 	      "include \$$(MFEM_DIR)/$${dir}makefile" \
