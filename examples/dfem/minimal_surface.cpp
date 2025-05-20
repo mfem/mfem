@@ -177,6 +177,8 @@ private:
    // manually computed derivatives.
    class MinimalSurfaceHandcodedJacobian : public Operator
    {
+      // For the Jacobian action we need another field ID for the direction
+      // of u, called du, in dR/du = J * du.
       static constexpr int DIRECTION_U = 3;
 
    public:
