@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <limits>
 #include "g_eqdsk_data.hpp"
 
 using namespace std;
@@ -187,8 +188,8 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
 double G_EQDSK_Data::checkPsiBoundary()
 {
    double psi_mid = 0.0;
-   double psi_min = DBL_MAX;
-   double psi_max = DBL_MIN;
+   double psi_min = std::numeric_limits<double>::max();
+   double psi_max = std::numeric_limits<double>::min();
 
    Vector rz(2);
    double psi = 0.0;
