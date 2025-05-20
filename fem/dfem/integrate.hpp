@@ -438,7 +438,8 @@ void map_quadrature_data_to_fields(
       {
          map_quadrature_data_to_fields_tensor_impl_3d(y, f, output, dtq, scratch_mem);
       }
-   }
+    else { MFEM_ABORT_KERNEL("dimension not supported"); }
+  }
    else
    {
       map_quadrature_data_to_fields_impl(y, f, output, dtq);
