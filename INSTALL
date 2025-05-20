@@ -1220,7 +1220,7 @@ for MPICH.
 
 Additionally, you set
 ```
-ENZYME_DIR = $(brew --prefix enzyme)
-ENZYME_LLVM_VERSION = $(${CXX} --version | sed -n 's/.*version \([0-9]*\).*/\1/p')
+ENZYME_DIR = $(shell brew --prefix enzyme)
+ENZYME_LLVM_VERSION = $(shell eval $(CXX) --version | sed -n 's/.*version \([0-9]*\).*/\1/p')
 ```
 in your user.mk to set the Enzyme directory and LLVM version.
