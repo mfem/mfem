@@ -297,6 +297,8 @@ public:
       test_pfes  = test_fes;
    }
 
+   ParFiniteElementSpace *TestParFESpace() const { return test_pfes; }
+
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    HypreParMatrix *ParallelAssemble();
 
