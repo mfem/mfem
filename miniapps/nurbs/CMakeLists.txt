@@ -9,7 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-
 set(MESH_FILES
   cube-nurbs.mesh
   ijk-hex-nurbs.mesh
@@ -80,7 +79,6 @@ add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp
   LIBRARIES mfem)
   add_dependencies(nurbs_solenoidal copy_miniapps_nurbs_data)
-
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser

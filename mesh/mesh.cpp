@@ -6254,8 +6254,9 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    edge_to_pkv.SetSize(NumOfEdges);
    edge_to_pkv = notset;
 
-   // Initialize as identity - this is the storage for the disjoint-set/
-   // union-find algorithm which will construct the map pkv_to_ukv
+   // Initialize pkv_map as identity - this is the storage for the
+   // disjoint-set/union-find algorithm which will later be used
+   // to get the map pkv_to_rpkv
    Array<int> pkv_map(NPKV);
    for (int i = 0; i < NPKV; i++)
    {
