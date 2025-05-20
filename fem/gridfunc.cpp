@@ -1037,7 +1037,7 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      int vdim = std::max(spaceDim, FElem->GetRangeDim());
+      int vdim = FElem->GetPhysRangeDim(spaceDim);
       DenseMatrix vshape(dof, vdim);
 
       vals.SetSize(vdim, nip);

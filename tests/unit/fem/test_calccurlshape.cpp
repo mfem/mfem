@@ -53,24 +53,56 @@ void test_curl_func(const Vector &x, Vector &v)
    }
 }
 
+enum Plane {XY_PLANE = 0, YZ_PLANE = 1, ZX_PLANE = 2};
+
+static int plane_ = XY_PLANE;
+
+void test_r2d_curl_func(const Vector &x, Vector &v)
+{
+   v.SetSize(3);
+
+   int i0 = (0 + plane_) % 3;
+   int i1 = (1 + plane_) % 3;
+   int i2 = (2 + plane_) % 3;
+
+   v[i0] = 4.0 * x[i1];
+   v[i1] = 5.0 * x[i0];
+   v[i2] = 1.0 * (x[i1] - x[i0]);
+}
+
+enum TraceDir {X_DIR = 1, Y_DIR = 2, Z_DIR = 4};
+
 /**
  * Tests fe->CalcCurlShape() over a grid of IntegrationPoints
  * of resolution res. Also tests at integration points
  * that are outside the element.
  */
-void TestCalcCurlShape(FiniteElement* fe, ElementTransformation * T, int res)
+void TestCalcCurlShape(FiniteElement* fe, ElementTransformation * T, int res,
+                       int mask = 7)
 {
+   CAPTURE(plane_);
+   CAPTURE(mask);
+
    int  dof = fe->GetDof();
    int  dim = fe->GetDim();
-   int cdim = 2 * dim - 3;
+   int rdim = fe->GetRangeDim();
+   int cdim = fe->GetCurlDim();
 
    Vector dofs(dof);
    Vector v(cdim);
    DenseMatrix weights( dof, cdim );
 
    VectorFunctionCoefficient vCoef(dim, test_curl_func);
+   VectorFunctionCoefficient vR2DCoef(dim, test_r2d_curl_func);
 
-   fe->Project(vCoef, *T, dofs);
+   if (rdim == dim)
+   {
+      fe->Project(vCoef, *T, dofs);
+   }
+   else
+   {
+      fe->Project(vR2DCoef, *T, dofs);
+   }
 
    // Get a uniform grid of integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
@@ -102,14 +134,24 @@ void TestCalcCurlShape(FiniteElement* fe, ElementTransformation * T, int res)
 
          CAPTURE(ip.x, ip.y, ip.z);
 
-         fe->CalcCurlShape(ip, weights);
+         T->SetIntPoint(&ip);
+         fe->CalcPhysCurlShape(*T, weights);
 
          weights.MultTranspose(dofs, v);
-         REQUIRE( v[0] == Approx(1.) );
-         if (dim == 3)
+         if (mask & X_DIR)
          {
-            REQUIRE( v[1] == Approx(1.) );
-            REQUIRE( v[2] == Approx(1.) );
+            REQUIRE( v[0] == Approx(1.) );
+         }
+         if (rdim == 3)
+         {
+            if (mask & Y_DIR)
+            {
+               REQUIRE( v[1] == Approx(1.) );
+            }
+            if (mask & Z_DIR)
+            {
+               REQUIRE( v[2] == Approx(1.) );
+            }
          }
       }
    }
@@ -121,7 +163,10 @@ TEST_CASE("CalcCurlShape ND",
           "[ND_TetrahedronElement]"
           "[ND_WedgeElement]"
           "[ND_FuentesPyramidElement]"
-          "[ND_HexahedronElement]")
+          "[ND_HexahedronElement]"
+          "[ND_R2D_SegmentElement]"
+          "[ND_R2D_TriangleElement]"
+          "[ND_R2D_QuadrilateralElement]")
 {
    const int maxOrder = 5;
    const int resolution = 10;
@@ -182,6 +227,160 @@ TEST_CASE("CalcCurlShape ND",
       ND_HexahedronElement fe(order);
       TestCalcCurlShape(&fe, &T, resolution);
    }
+
+   SECTION("ND_R2D_SegmentElement")
+   {
+      ND_R2D_SegmentElement fe(order);
+
+      real_t v0[3];
+      real_t v1[3];
+      real_t v2[3];
+      real_t v3[3];
+
+      // xy-plane
+      plane_ = XY_PLANE;
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+      for (int f=0; f<4; f++)
+      {
+         CAPTURE(f);
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcCurlShape(&fe, TS, resolution, (f % 2) ? X_DIR : Y_DIR);
+      }
+
+      // yz-plane
+      plane_ = YZ_PLANE;
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 1.0; v1[2] = 0.0;
+      v2[0] = 0.0; v2[1] = 0.0; v2[2] = 1.0;
+      v3[0] = 0.0; v3[1] = 1.0; v3[2] = 1.0;
+
+      mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+      mesh.SetCurvature(-1); // Remove Nodes GridFunction
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         CAPTURE(f);
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcCurlShape(&fe, TS, resolution, (f % 2) ? Y_DIR : Z_DIR);
+      }
+
+      // zx-plane
+      plane_ = ZX_PLANE;
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 0.0; v1[2] = 1.0;
+      v2[0] = 1.0; v2[1] = 0.0; v2[2] = 0.0;
+      v3[0] = 1.0; v3[1] = 0.0; v3[2] = 1.0;
+
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         CAPTURE(f);
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcCurlShape(&fe, TS, resolution, (f % 2) ? Z_DIR : X_DIR);
+      }
+
+      plane_ = XY_PLANE;
+   }
+
+   SECTION("ND_R2D_TriangleElement")
+   {
+      ND_R2D_TriangleElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      plane_ = XY_PLANE;
+      GetReferenceTransformation(Element::TRIANGLE, T);
+      TestCalcCurlShape(&fe, &T, resolution);
+
+      // yz-plane
+      plane_ = YZ_PLANE;
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.SetFE(&TriangleFE);
+      TestCalcCurlShape(&fe, &T, resolution);
+
+      // zx-plane
+      plane_ = ZX_PLANE;
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 0.0;
+      T.SetFE(&TriangleFE);
+      TestCalcCurlShape(&fe, &T, resolution);
+
+      plane_ = XY_PLANE;
+   }
+
+   SECTION("ND_R2D_QuadrilateralElement")
+   {
+      ND_R2D_QuadrilateralElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      plane_ = XY_PLANE;
+      GetReferenceTransformation(Element::QUADRILATERAL, T);
+      TestCalcCurlShape(&fe, &T, resolution);
+
+      // yz-plane
+      plane_ = YZ_PLANE;
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 1.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 0.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 1.0;
+      T.SetFE(&QuadrilateralFE);
+      TestCalcCurlShape(&fe, &T, resolution);
+
+      // zx-plane
+      plane_ = ZX_PLANE;
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 1.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 0.0;
+      T.SetFE(&QuadrilateralFE);
+      TestCalcCurlShape(&fe, &T, resolution);
+
+      plane_ = XY_PLANE;
+   }
 }
 
 /**
@@ -190,14 +389,15 @@ TEST_CASE("CalcCurlShape ND",
  * approximate derivatives computed using the secant method.
  */
 void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
-                         int order)
+                         int order, int mask = 7)
 {
    int  dof = fe->GetDof();
    int  dim = fe->GetDim();
+   int rdim = fe->GetRangeDim();
    int cdim = fe->GetCurlDim();
 
-   DenseMatrix pshape(dof, dim);
-   DenseMatrix mshape(dof, dim);
+   DenseMatrix pshape(dof, rdim);
+   DenseMatrix mshape(dof, rdim);
    Vector pcomp;
    Vector mcomp;
    Vector fdcomp(dof);
@@ -234,7 +434,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
       CAPTURE(pt.x, pt.y, pt.z);
 
       fdshape = 0.0;
-      for (int d=0; d<dim; d++)
+      for (int d=0; d<rdim; d++)
       {
          const int d1 = (d + 1) % 3;
          const int d2 = (d + 2) % 3;
@@ -263,7 +463,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
          fe->CalcVShape(ptm, mshape);
          fe->CalcVShape(ptp, pshape);
 
-         if (dim == 2 && d1 < 2)
+         if (rdim == 2 && d1 < 2)
          {
             // Extract the component to be differentiated
             mshape.GetColumnReference(d1, mcomp);
@@ -275,7 +475,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
             fdshape.GetColumnReference(0, fdshapecol);
             fdshapecol += fdcomp;
          }
-         if (dim == 2 && d2 < 2)
+         if (rdim == 2 && d2 < 2)
          {
             // Extract the component to be differentiated
             mshape.GetColumnReference(d2, mcomp);
@@ -287,7 +487,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
             fdshape.GetColumnReference(0, fdshapecol);
             fdshapecol -= fdcomp;
          }
-         if (dim == 3)
+         if (rdim == 3)
          {
             // Extract the component to be differentiated
             mshape.GetColumnReference(d1, mcomp);
@@ -344,7 +544,10 @@ TEST_CASE("CalcCurlShape vs FD ND",
           "[ND_TetrahedronElement]"
           "[ND_WedgeElement]"
           "[ND_FuentesPyramidElement]"
-          "[ND_HexahedronElement]")
+          "[ND_HexahedronElement]"
+          "[ND_R2D_SegmentElement]"
+          "[ND_R2D_TriangleElement]"
+          "[ND_R2D_QuadrilateralElement]")
 {
    const int maxOrder = 5;
    auto order = GENERATE_COPY(range(1, maxOrder + 1));
@@ -399,6 +602,145 @@ TEST_CASE("CalcCurlShape vs FD ND",
       GetReferenceTransformation(Element::HEXAHEDRON, T);
 
       ND_HexahedronElement fe(order);
+      TestFDCalcCurlShape(&fe, &T, order);
+   }
+
+   SECTION("ND_R2D_SegmentElement")
+   {
+      ND_R2D_SegmentElement fe(order);
+
+      real_t v0[3];
+      real_t v1[3];
+      real_t v2[3];
+      real_t v3[3];
+
+      // xy-plane
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS =
+            mesh.GetFaceElementTransformations(f);
+         TestFDCalcCurlShape(&fe, TS, order, ((f % 2) ? Y_DIR : X_DIR) | Z_DIR);
+      }
+
+      // yz-plane
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 1.0; v1[2] = 0.0;
+      v2[0] = 0.0; v2[1] = 0.0; v2[2] = 1.0;
+      v3[0] = 0.0; v3[1] = 1.0; v3[2] = 1.0;
+
+      mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+      mesh.SetCurvature(-1); // Remove Nodes GridFunction
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS =
+            mesh.GetFaceElementTransformations(f);
+         TestFDCalcCurlShape(&fe, TS, order, ((f % 2) ? Z_DIR : Y_DIR) | X_DIR);
+      }
+
+      // zx-plane
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 0.0; v1[2] = 1.0;
+      v2[0] = 1.0; v2[1] = 0.0; v2[2] = 0.0;
+      v3[0] = 1.0; v3[1] = 0.0; v3[2] = 1.0;
+
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS =
+            mesh.GetFaceElementTransformations(f);
+         TestFDCalcCurlShape(&fe, TS, order, ((f % 2) ? X_DIR : Z_DIR) | Y_DIR);
+      }
+   }
+
+   SECTION("ND_R2D_TriangleElement")
+   {
+      ND_R2D_TriangleElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      GetReferenceTransformation(Element::TRIANGLE, T);
+      TestFDCalcCurlShape(&fe, &T, order);
+
+      // yz-plane
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.SetFE(&TriangleFE);
+      TestFDCalcCurlShape(&fe, &T, order);
+
+      // zx-plane
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 0.0;
+      T.SetFE(&TriangleFE);
+      TestFDCalcCurlShape(&fe, &T, order);
+   }
+
+   SECTION("ND_R2D_QuadrilateralElement")
+   {
+      ND_R2D_QuadrilateralElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      GetReferenceTransformation(Element::QUADRILATERAL, T);
+      TestFDCalcCurlShape(&fe, &T, order);
+
+      // yz-plane
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 1.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 0.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 1.0;
+      T.SetFE(&QuadrilateralFE);
+      TestFDCalcCurlShape(&fe, &T, order);
+
+      // zx-plane
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 1.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 0.0;
+      T.SetFE(&QuadrilateralFE);
       TestFDCalcCurlShape(&fe, &T, order);
    }
 }
