@@ -46,8 +46,7 @@ int main(int argc, char *argv[])
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   ConstantCoefficient one(1.0);
-   a.AddDomainIntegrator(new MassIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(r_coef));
    a.Assemble();
    a.Finalize();
 
