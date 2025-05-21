@@ -242,19 +242,21 @@ ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
-   ifeq ($(shell $(CUDA_CXX) --version | grep "NVIDIA"), )
+   ifeq ($(shell $(CUDA_CXX) --version 2>&1 | grep "NVIDIA"),)
       # assume clang
-      MFEM_CXX ?= $(HOST_CXX)
-      CUDA_LIB += $(CLANG_CUDA_LIB)
-	    CXXFLAGS += $(CLANG_CUDA_FLAGS)
+      MFEM_CXX ?= $(CUDA_CXX)
+      MFEM_HOST_CXX ?= $(MFEM_CXX)
+      CUDA_LIB := $(CLANG_CUDA_LIB) $(CUDA_LIB)
+      CXXFLAGS += $(CLANG_CUDA_FLAGS)
       XCOMPILER = $(CXX_XCOMPILER)
       XLINKER   = $(CXX_XLINKER)
    else
+      ifeq ($(MFEM_USE_ENZYME),YES)
+         $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
+                 clang++ or an MPI wrapper of that)
+      endif
       MFEM_CXX ?= $(CUDA_CXX)
       MFEM_HOST_CXX ?= $(HOST_CXX)
-      ifeq ($(MFEM_USE_ENZYME), YES)
-         $(error Cannot use nvcc with Enzyme, set CUDA_CXX=clang++)
-      endif
       CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
       XCOMPILER = $(CUDA_XCOMPILER)
       XLINKER   = $(CUDA_XLINKER)

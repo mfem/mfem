@@ -46,11 +46,19 @@ SHARED = NO
 # If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
+# Base CUDA install directory, only needed if building with clang+cuda:
+# The default setting is:
+# 1. If CUDA_HOME is defined and non-empty, use that.
+# 2. If nvcc is in the path, use the directory two levels up from that.
+# 3. Use /usr/local/cuda
+CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
+ $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
 # flags for clang+cuda
-CLANG_CUDA_FLAGS = -x cuda --cuda-gpu-arch=$(CUDA_ARCH)
+CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
 # flags for nvcc
-NVCC_FLAGS = --expt-extended-lambda -arch=$(CUDA_ARCH) -x=cu
-# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX=nvcc
+NVCC_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
+# Prefixes for passing flags to the host compiler and linker when using
+# CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
@@ -512,10 +520,9 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
-# base CUDA install directory, only needed if building with clang+cuda
-CUDA_DIR = /usr/local/cuda/
 CUDA_LIB = -lcusparse -lcublas
-CLANG_CUDA_LIB = -lcudart -lcudart_static -ldl -lrt -pthread -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib
+CLANG_CUDA_LIB = -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib \
+ -lcudart -lcudart_static -ldl -lrt -pthread
 
 # HIP library configuration
 HIP_OPT =
