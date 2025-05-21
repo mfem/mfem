@@ -75,8 +75,8 @@ int main (int argc, char *argv[])
                   "Enable or disable VisIt output.");
    args.AddOption(&b_type, "-bt", "--basis-type",
                   "Project input function to a different bases. "
-                  "0 = GL nodes. "
-                  "1 = GLL nodes. "
+                  "0 = Gauss-Legendre nodes. "
+                  "1 = Gauss-Lobatto nodes. "
                   "2 = uniformly spaced nodes. ");
    args.AddOption(&continuous, "-h1", "--h1", "-l2", "--l2",
                   "Use continuous or discontinuous space.");
