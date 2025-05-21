@@ -6321,7 +6321,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       rpkv_to_ukv[ukv_to_rpkv[i]] = i;
    }
 
-   // Get edge_to_ukv = edge_to_pkv o pkv_to_rpkv o rpkv_to_ukv
+   // Get edge_to_ukv = edge_to_pkv -> pkv_to_rpkv -> rpkv_to_ukv
    edge_to_ukv.SetSize(NumOfEdges);
    for (int i = 0; i < NumOfEdges; i++)
    {
