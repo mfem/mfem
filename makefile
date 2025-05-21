@@ -246,10 +246,10 @@ ifeq ($(MFEM_USE_CUDA),YES)
       # assume clang
       MFEM_CXX ?= $(CUDA_CXX)
       MFEM_HOST_CXX ?= $(MFEM_CXX)
-      CUDA_LIB := $(CLANG_CUDA_LIB) $(CUDA_LIB)
       CXXFLAGS += $(CLANG_CUDA_FLAGS)
       XCOMPILER = $(CXX_XCOMPILER)
       XLINKER   = $(CXX_XLINKER)
+      CUDA_LIB := $(CLANG_CUDA_LIB) $(CUDA_LIB)
    else
       ifeq ($(MFEM_USE_ENZYME),YES)
          $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
@@ -261,7 +261,6 @@ ifeq ($(MFEM_USE_CUDA),YES)
       XCOMPILER = $(CUDA_XCOMPILER)
       XLINKER   = $(CUDA_XLINKER)
    endif
-   ALL_LIBS += $(CUDA_LIB)
    # CUDA_OPT and CUDA_LIB are added below
    # Compatibility test against MFEM_USE_HIP
    ifeq ($(MFEM_USE_HIP),YES)

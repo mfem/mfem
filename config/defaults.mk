@@ -522,7 +522,8 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 CUDA_OPT =
 CUDA_LIB = -lcusparse -lcublas
 CLANG_CUDA_LIB = -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib \
- -lcudart -lcudart_static -ldl -lrt -pthread
+ $(XLINKER)-rpath,$(CUDA_DIR)/lib64,-rpath,$(CUDA_DIR)/lib \
+ -lcudart -ldl -lrt -pthread
 
 # HIP library configuration
 HIP_OPT =
