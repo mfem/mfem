@@ -10,8 +10,10 @@
 
 Version 4.8.1 (development)
 ===========================
-- Added support for variational resampling of H1 vector fields to ParMoonolith 
+- Added support for variational resampling of H1 vector fields to ParMoonolith
   integration.
+- Added support for higher order meshes in Mesh::MakeSimplicial and ParMesh::MakeSimplicial.
+
 
 Version 4.8, released on Apr 9, 2025
 ====================================
