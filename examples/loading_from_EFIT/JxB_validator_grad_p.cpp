@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 
    // load JxB_pol on the new mesh
    temp_log.close(); // close the file
-   temp_log.open("output/JxB_pol.gf");
+   temp_log.open("output/JxB_pol_B.gf");
    GridFunction JxB_pol(new_mesh, temp_log);
 
    cout << grad_p.FESpace()->GetTrueVSize() << endl;
