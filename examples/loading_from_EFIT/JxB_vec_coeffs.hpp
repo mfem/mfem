@@ -34,12 +34,12 @@ public:
 };
 
 /// @brief Input $J_pol$ and return $J_pol*r$
-class JPerpRVectorGridFunctionCoefficient : public VectorGridFunctionCoefficient
+class JPolRVectorGridFunctionCoefficient : public VectorGridFunctionCoefficient
 {
 public:
-   JPerpRVectorGridFunctionCoefficient() : VectorGridFunctionCoefficient() {}
+   JPolRVectorGridFunctionCoefficient() : VectorGridFunctionCoefficient() {}
 
-   JPerpRVectorGridFunctionCoefficient(const GridFunction *gf) : VectorGridFunctionCoefficient(gf)
+   JPolRVectorGridFunctionCoefficient(const GridFunction *gf) : VectorGridFunctionCoefficient(gf)
    {
    }
 

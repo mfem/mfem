@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form for B_pol
    MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
-   VectorGridFunctionCoefficient J_pol_coeff(&J_pol);
-   b_bi.AddDomainIntegrator(new MixedScalarCrossProductIntegrator(J_pol_coeff));
+   JPolRVectorGridFunctionCoefficient J_pol_r_coeff(&J_pol);
+   b_bi.AddDomainIntegrator(new MixedScalarCrossProductIntegrator(J_pol_r_coeff));
    b_bi.Assemble();
 
    // 1.b form linear form from bilinear form
@@ -56,8 +56,8 @@ int main(int argc, char *argv[])
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   ConstantCoefficient one(1.0);
-   a.AddDomainIntegrator(new MassIntegrator(one));
+   RGridFunctionCoefficient r_coeff;
+   a.AddDomainIntegrator(new MassIntegrator(r_coeff));
    a.Assemble();
    a.Finalize();
 
