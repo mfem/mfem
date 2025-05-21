@@ -57,7 +57,6 @@ public:
    }
 };
 
-
 /// @brief Input $f$ and return $f$
 class FGridFunctionCoefficient : public Coefficient
 {
@@ -144,7 +143,6 @@ public:
       return interp_val[0] * (flip_sign ? -1 : 1);
    }
 };
-
 
 /// @brief Input $B_tor$ and return $B_tor n^\perp$ if v is 2D and $B_tor$ if v is 1D
 class BTorVectorGridFunctionCoefficient : public VectorCoefficient
@@ -296,7 +294,28 @@ public:
       V *= (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
-   
+
+class CurlBPolGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *gf;
+   bool flip_sign;
+
+public:
+   int counter = 0;
+   CurlBPolGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : Coefficient(), gf(gf), flip_sign(flip_sign)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      Vector x;
+      gf->GetCurl(T, x);
+      return x[0] * (flip_sign ? -1 : 1);
+   }
+};
 
 /// @brief Return $r$
 class RGridFunctionCoefficient : public Coefficient
@@ -337,7 +356,7 @@ public:
    }
    using MatrixCoefficient::Eval;
    void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+             const IntegrationPoint &ip)
    {
       // get r, z coordinates
       Vector x;

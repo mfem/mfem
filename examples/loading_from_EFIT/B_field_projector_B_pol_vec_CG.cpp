@@ -79,12 +79,9 @@ int main(int argc, char *argv[])
    cout << B_pol.FESpace()->GetTrueVSize() << endl;
    B_pol = 0.0;
 
-   LinearForm b(&fespace);
-
-   // project the grid function onto the new space
-   // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
-
+   
    // 1. make the linear form
+   LinearForm b(&fespace);
    CurlPsiGridFunctionVectorCoefficient neg_curl_psi_coef(&psi, true);
    b.AddDomainIntegrator(new VectorDomainLFIntegrator(neg_curl_psi_coef));
    b.Assemble();
