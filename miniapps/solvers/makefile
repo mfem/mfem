@@ -20,7 +20,8 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_SOLVERS_SRC = block-solvers.cpp darcy_solver.cpp bramble_pasciak.cpp div_free_solver.cpp
+BLOCK_SOLVERS_SRC = block-solvers.cpp darcy_solver.cpp bramble_pasciak.cpp \
+                    div_free_solver.cpp block_hybridization.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp

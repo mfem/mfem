@@ -1,0 +1,167 @@
+#include "block_hybridization.hpp"
+
+using namespace std;
+
+namespace mfem
+{
+namespace blocksolvers
+{
+
+/// Block hybridization solver
+BlockHybridizationSolver::BlockHybridizationSolver(
+   ParBilinearForm *mVarf,
+   ParMixedBilinearForm *bVarf,
+   IterSolveParameters param)
+   : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
+                 bVarf->TestParFESpace()->GetTrueVSize()),
+     hdiv_space(mVarf->ParFESpace()),
+     l2_space(bVarf->TestParFESpace()),
+     solver_(hdiv_space->GetComm())
+{
+   ParMesh *mesh(hdiv_space->GetParMesh());
+   mesh->ExchangeFaceNbrData();
+   const int dim = mesh->Dimension();
+   const int num_elements(mesh->GetNE());
+   const real_t eps = 1e-12;
+
+   DG_Interface_FECollection fec(hdiv_space->FEColl()->GetOrder()-1,
+                                 mesh->Dimension());
+   multiplier_space = new ParFiniteElementSpace(mesh, &fec);
+   SparseMatrix reduced_matrix(multiplier_space->GetNDofs());
+
+   FaceElementTransformations *trans(nullptr);
+   NormalTraceIntegrator integ;
+   const FiniteElement *element(nullptr);
+
+   saved_hdiv_matrices = new DenseMatrix[num_elements];
+   saved_mixed_matrices = new DenseMatrix[num_elements];
+   saved_l2_matrices = new DenseMatrix[num_elements];
+   interior_indices = new Array<int>[num_elements];
+
+   Table element_to_facet_table;
+   if (2 == dim)
+   {
+      element_to_facet_table = mesh->ElementToEdgeTable();
+   }
+   else
+   {
+      element_to_facet_table = mesh->ElementToFaceTable();
+   }
+
+   for (int element_index = 0; element_index < num_elements; ++element_index)
+   {
+      mVarf->ComputeElementMatrix(element_index, saved_hdiv_matrices[element_index]);
+      saved_hdiv_matrices[element_index].Threshold(eps *
+                                                   saved_hdiv_matrices[element_index].MaxMaxNorm());
+      saved_hdiv_matrices[element_index].Invert(); // overwrite saved_hdiv_matrices[element_index]
+
+      bVarf->ComputeElementMatrix(element_index, saved_mixed_matrices[element_index]);
+      saved_mixed_matrices[element_index].Threshold(eps *
+                                                    saved_mixed_matrices[element_index].MaxMaxNorm());
+
+      DenseMatrix product_matrix(saved_mixed_matrices[element_index].Height(),
+                                 saved_hdiv_matrices[element_index].Width());
+      mfem::Mult(saved_mixed_matrices[element_index],
+                 saved_hdiv_matrices[element_index], product_matrix);
+
+      saved_l2_matrices[element_index].SetSize(product_matrix.Height(),
+                                               saved_mixed_matrices[element_index].Height());
+      MultABt(product_matrix, saved_mixed_matrices[element_index],
+              saved_l2_matrices[element_index]);
+      saved_l2_matrices[element_index].Invert();
+      saved_l2_matrices[element_index].Neg();
+
+      mfem::Mult(saved_l2_matrices[element_index], product_matrix,
+                 saved_mixed_matrices[element_index]); // overwrite saved_mixed_matrices[element_index]
+      DenseMatrix temp_matrix(product_matrix.Width(),
+                              saved_mixed_matrices[element_index].Width());
+      MultAtB(product_matrix, saved_mixed_matrices[element_index], temp_matrix);
+      saved_hdiv_matrices[element_index] += temp_matrix;
+
+      saved_mixed_matrices[element_index].Neg();
+
+      element = hdiv_space->GetFE(element_index);
+      // Array<int> face_indices_array(*element_to_facet_table.GetRow(element_index));
+      Array<int> face_indices_array;
+      element_to_facet_table.GetRow(element_index, face_indices_array);
+      const FiniteElement *face(nullptr);
+      DenseMatrix *face_matrices = new DenseMatrix[face_indices_array.Size()];
+      Array<int> *face_dofs = new Array<int>[face_indices_array.Size()];
+
+      for (int local_index = 0; local_index < face_indices_array.Size();
+           ++local_index)
+      {
+         const int face_index(face_indices_array[local_index]);
+         trans = mesh->GetFaceElementTransformations(face_index);
+         if (!mesh->FaceIsTrueInterior(face_index))
+         {
+            continue;
+         }
+         interior_indices[element_index].Append(local_index);
+         multiplier_space->GetFaceVDofs(face_index, face_dofs[local_index]);
+         face = multiplier_space->GetFaceElement(face_index);
+         integ.AssembleTraceFaceMatrix(element_index, *face, *element, *trans,
+                                       face_matrices[local_index]);
+      }
+      for (int column_index : interior_indices[element_index])
+      {
+         DenseMatrix temp_matrix(saved_hdiv_matrices[element_index].Height(),
+                                 face_matrices[column_index].Width());
+         mfem::Mult(saved_hdiv_matrices[element_index], face_matrices[column_index],
+                    temp_matrix);
+         for (int row_index : interior_indices[element_index])
+         {
+            DenseMatrix product_matrix(face_matrices[row_index].Width(),
+                                       temp_matrix.Width());
+            MultAtB(face_matrices[row_index], temp_matrix, product_matrix);
+            reduced_matrix.AddSubMatrix(face_dofs[row_index], face_dofs[column_index],
+                                        product_matrix);
+         }
+      }
+      delete []face_dofs;
+      delete []face_matrices;
+   }
+   reduced_matrix.Finalize(1, true);
+   // if (Mpi::Root())
+   //    reduced_matrix.Print();
+
+   HypreParMatrix *P(multiplier_space->Dof_TrueDof_Matrix());
+   HypreParMatrix *dH = new HypreParMatrix(multiplier_space->GetComm(),
+                                           multiplier_space->GlobalVSize(),
+                                           multiplier_space->GetDofOffsets(), &reduced_matrix);
+   HypreParMatrix *dHP = ParMult(dH, P);
+   HypreParMatrix *Pt(P->Transpose());
+   pH = ParMult(Pt, dHP, true);
+
+   delete dH;
+   /*
+      OperatorPtr pP(Operator::Hypre_ParCSR);
+      pP.ConvertFrom(multiplier_space->Dof_TrueDof_Matrix());
+      OperatorPtr dH(pP.Type());
+      dH.MakeSquareBlockDiag(multiplier_space->GetComm(), multiplier_space->GlobalVSize(),
+                             multiplier_space->GetDofOffsets(), &reduced_matrix);
+      OperatorPtr AP(ParMult(dH.As<HypreParMatrix>(), pP.As<HypreParMatrix>()));
+      OperatorPtr R(pP.As<HypreParMatrix>()->Transpose());
+      pH = ParMult(R.As<HypreParMatrix>(), AP.As<HypreParMatrix>(), true);
+   */
+   preconditioner = new HypreBoomerAMG(*pH);
+   preconditioner->SetPrintLevel(0);
+
+   SetOptions(solver_, param);
+   solver_.SetPreconditioner(*preconditioner);
+   solver_.SetOperator(*pH);
+}
+
+BlockHybridizationSolver::~BlockHybridizationSolver()
+{
+   delete pH;
+   delete []saved_hdiv_matrices;
+   delete []saved_mixed_matrices;
+   delete []saved_l2_matrices;
+   delete []interior_indices;
+   delete preconditioner;
+   delete multiplier_space;
+}
+
+} // namespace blocksolvers
+} // namespace mfem

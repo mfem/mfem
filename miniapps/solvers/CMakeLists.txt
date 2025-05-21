@@ -12,8 +12,10 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(block-solvers
     MAIN block-solvers.cpp
-    EXTRA_SOURCES darcy_solver.cpp div_free_solver.cpp bramble_pasciak.cpp
-    EXTRA_HEADERS darcy_solver.hpp div_free_solver.hpp bramble_pasciak.hpp
+    EXTRA_SOURCES darcy_solver.cpp div_free_solver.cpp
+                  bramble_pasciak.cpp block_hybridization.cpp
+    EXTRA_HEADERS darcy_solver.hpp div_free_solver.hpp
+                  bramble_pasciak.hpp block_hybridization.hpp
     LIBRARIES mfem)
 
   add_mfem_miniapp(plor_solvers

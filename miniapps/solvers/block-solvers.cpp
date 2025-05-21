@@ -53,6 +53,7 @@
 //        imposed on the part of the boundary with the i-th attribute.
 
 #include "mfem.hpp"
+#include "block_hybridization.hpp"
 #include "bramble_pasciak.hpp"
 #include "div_free_solver.hpp"
 #include <fstream>
@@ -361,6 +362,9 @@ int main(int argc, char *argv[])
 
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, real_t> setup_time;
+   chrono.Restart();
+   BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param);
+   setup_time[&bh] = chrono.RealTime();
 
    chrono.Restart();
    BDPMinresSolver bdp(M, B, param);
@@ -386,6 +390,7 @@ int main(int argc, char *argv[])
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
+   solver_to_name[&bh] = "Block hybridization";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
