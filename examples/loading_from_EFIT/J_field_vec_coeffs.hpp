@@ -303,7 +303,7 @@ private:
 
 public:
    int counter = 0;
-   CurlBPolGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+   CurlBPolRGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : Coefficient(), gf(gf), flip_sign(flip_sign)
    {
    }
@@ -311,9 +311,12 @@ public:
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override
    {
-      Vector x;
-      gf->GetCurl(T, x);
-      return x[0] * (flip_sign ? -1 : 1);
+      Vector x1;
+      T.Transform(ip, x1);
+      real_t r = x1[0];
+      Vector x2;
+      gf->GetCurl(T, x2);
+      return x2[0] * r * (flip_sign ? -1 : 1);
    }
 };
 

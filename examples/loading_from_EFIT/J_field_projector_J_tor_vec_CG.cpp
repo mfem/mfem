@@ -31,8 +31,8 @@ int main(int argc, char *argv[])
 
    // 1. make the linear form
    LinearForm b(&fespace);
-   CurlBPolGridFunctionCoefficient neg_curl_B_pol_coef(&B_pol, true);
-   b.AddDomainIntegrator(new DomainLFIntegrator(neg_curl_B_pol_coef));
+   CurlBPolRGridFunctionCoefficient neg_curl_B_pol_r_coef(&B_pol, true);
+   b.AddDomainIntegrator(new DomainLFIntegrator(neg_curl_B_pol_r_coef));
    b.Assemble();
 
    // 2. make the bilinear form
