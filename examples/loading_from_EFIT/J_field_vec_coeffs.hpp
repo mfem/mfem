@@ -51,7 +51,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       grad_psi_coef.Eval(V, T, ip);
       V /= (1e-10 + r) * (flip_sign ? -1 : 1);
    }
@@ -108,8 +108,8 @@ public:
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
       if (from_psi)
-         interp_val[0] = fFun(interp_val[0], z, r);
-      return interp_val[0] * (flip_sign ? -1 : 1);
+         interp_val(0) = fFun(interp_val(0), z, r);
+      return interp_val(0) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -140,7 +140,7 @@ public:
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      return interp_val[0] * (flip_sign ? -1 : 1);
+      return interp_val(0) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -182,10 +182,10 @@ public:
          V(0) = -normal(1);
          V(1) = normal(0);
 
-         V *= interp_val[0] * (flip_sign ? -1 : 1);
+         V *= interp_val(0) * (flip_sign ? -1 : 1);
       }
       else
-         V(0) = interp_val[0] * (flip_sign ? -1 : 1);
+         V(0) = interp_val(0) * (flip_sign ? -1 : 1);
    }
 };
 /// @brief Input $B_tor$ and return $B_tor/r$
@@ -212,13 +212,13 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
 
       V(0) = 0;
-      V(1) = interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
+      V(1) = interp_val(0) / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -246,7 +246,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
@@ -261,10 +261,10 @@ public:
          V(0) = -normal(1);
          V(1) = normal(0);
 
-         V *= interp_val[0] * (1e-10 + r) * (flip_sign ? -1 : 1);
+         V *= interp_val(0) * (1e-10 + r) * (flip_sign ? -1 : 1);
       }
       else
-         V(0) = interp_val[0] * (1e-10 + r) * (flip_sign ? -1 : 1);
+         V(0) = interp_val(0) * (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -287,7 +287,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       B_pol_coef.Eval(V, T, ip);
       swap(V(0), V(1));
       V(0) = -V(0);
@@ -295,7 +295,8 @@ public:
    }
 };
 
-class CurlBPolGridFunctionCoefficient : public Coefficient
+// @brief Input $B_pol$ and return $r Curl B_pol$
+class CurlBPolRGridFunctionCoefficient : public Coefficient
 {
 private:
    const GridFunction *gf;
@@ -313,10 +314,49 @@ public:
    {
       Vector x1;
       T.Transform(ip, x1);
-      real_t r = x1[0];
+      real_t r = x1(0);
       Vector x2;
       gf->GetCurl(T, x2);
-      return x2[0] * r * (flip_sign ? -1 : 1);
+      return x2(0) * r * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Input $B_tor$ and return $Curl rB_tor$
+class CurlRBTorGridFunctionVectorCoefficient : public VectorCoefficient
+{
+private:
+const bool flip_sign;
+GradientGridFunctionCoefficient grad_psi_coef;
+GridFunctionCoefficient B_tor_coef;
+public:
+   int counter = 0;
+
+   CurlRBTorGridFunctionVectorCoefficient() = delete;
+
+   CurlRBTorGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), flip_sign(flip_sign), grad_psi_coef(gf), B_tor_coef(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // Curl rB_tor = r Curl B_tor + (0, 1) B_tor
+
+      // get r, z coordinates
+      Vector x1;
+      T.Transform(ip, x1);
+      real_t r = x1(0);
+
+      grad_psi_coef.Eval(V, T, ip);
+      swap(V(0), V(1));
+      V(0) = -V(0);
+      V *= r;
+      // now, V = r * Curl B_tor
+
+      V(1) += B_tor_coef.Eval(T, ip);
+
+      V *= (flip_sign ? -1 : 1);
    }
 };
 
@@ -339,7 +379,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       return (1e-10 + r) * (flip_sign ? -1 : 1);
    }
@@ -364,7 +404,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       M(0, 0) = 0;
       M(0, 1) = -r * (flip_sign ? -1 : 1);
@@ -392,7 +432,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       return 1 / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
@@ -416,7 +456,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       V(0) = 1 / (1e-10 + r) * (flip_sign ? -1 : 1);
       V(1) = 0;
@@ -447,7 +487,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0], z = x[1];
+      real_t r = x(0), z = x(1);
       switch (type)
       {
       case POLYNOMIAL:

@@ -58,11 +58,11 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      return interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
+      return interp_val(0) / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -117,8 +117,8 @@ public:
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
       if (from_psi)
-         interp_val[0] = fFun(interp_val[0], z, r);
-      return interp_val[0] * (flip_sign ? -1 : 1);
+         interp_val(0) = fFun(interp_val(0), z, r);
+      return interp_val(0) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -161,10 +161,10 @@ public:
          V(0) = -normal(1);
          V(1) = normal(0);
 
-         V *= interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
+         V *= interp_val(0) / (1e-10 + r) * (flip_sign ? -1 : 1);
       }
       else
-         V(0) = interp_val[0] / (1e-10 + r) * (flip_sign ? -1 : 1);
+         V(0) = interp_val(0) / (1e-10 + r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -192,13 +192,13 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
 
       V(0) = 0;
-      V(1) = interp_val[0] / (1e-10 + r * r) * (flip_sign ? -1 : 1);
+      V(1) = interp_val(0) / (1e-10 + r * r) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -229,7 +229,7 @@ public:
       counter++;
       Vector interp_val(1);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      return interp_val[0] * (flip_sign ? -1 : 1);
+      return interp_val(0) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -271,10 +271,10 @@ public:
          V(0) = -normal(1);
          V(1) = normal(0);
 
-         V *= interp_val[0] * (flip_sign ? -1 : 1);
+         V *= interp_val(0) * (flip_sign ? -1 : 1);
       }
       else
-         V(0) = interp_val[0] * (flip_sign ? -1 : 1);
+         V(0) = interp_val(0) * (flip_sign ? -1 : 1);
    }
 };
 
@@ -299,8 +299,6 @@ public:
              const IntegrationPoint &ip) override
    {
       // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
       grad_psi_coef.Eval(V, T, ip);
       swap(V(0), V(1));
       V(0) = -V(0);
@@ -327,7 +325,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       return r * (flip_sign ? -1 : 1);
    }
@@ -360,8 +358,8 @@ public:
       counter++;
       Vector interp_val(2);
       finder.InterpolateOneByOne(x, *gf, interp_val, 0);
-      V(0) = -interp_val[1];
-      V(1) = interp_val[0];
+      V(0) = -interp_val(1);
+      V(1) = interp_val(0);
       V *= (flip_sign ? -1 : 1);
    }
 };
@@ -385,7 +383,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       B_pol_coef.Eval(V, T, ip);
       V *= (1e-10 + r) * (flip_sign ? -1 : 1);
    }
@@ -410,7 +408,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       M(0, 0) = 0;
       M(0, 1) = -1.0 / (1e-10 + r) * (flip_sign ? -1 : 1);
@@ -438,7 +436,7 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x[0];
+      real_t r = x(0);
       counter++;
       M(0, 0) = 1e10;
       M(0, 1) = -r * (flip_sign ? -1 : 1);
