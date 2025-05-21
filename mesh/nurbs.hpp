@@ -918,7 +918,7 @@ public:
    Mesh GetPatchTopology() const { return Mesh(*patchTopo); }
 
    /** Returns a deep copy of all instantiated patches. To ensure that patches
-       are instantaited, use Mesh::GetNURBSPatches() instead. Caller gets
+       are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets
        ownership of the returned object, and is responsible for deletion.*/
    void GetPatches(Array<NURBSPatch*> &patches);
 
