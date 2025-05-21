@@ -282,8 +282,8 @@ public:
 class CurlPsiGridFunctionVectorCoefficient : public VectorCoefficient
 {
 private:
-const bool flip_sign;
-GradientGridFunctionCoefficient grad_psi_coef;
+   const bool flip_sign;
+   GradientGridFunctionCoefficient grad_psi_coef;
 
 public:
    int counter = 0;
@@ -389,6 +389,37 @@ public:
    }
 };
 
+/// @brief Input $B_tor$ and return $Div rB_pol$
+class DivRBPolGridFunctionVectorCoefficient : public Coefficient
+{
+private:
+   const bool flip_sign;
+   DivergenceGridFunctionCoefficient div_B_pol_coef;
+   VectorGridFunctionCoefficient B_pol_coef;
+
+public:
+   DivRBPolGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : Coefficient(), flip_sign(flip_sign), div_B_pol_coef(gf), B_pol_coef(gf)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x1;
+      T.Transform(ip, x1);
+      real_t r = x1(0);
+
+      real_t div_B_pol = div_B_pol_coef.Eval(T, ip);
+
+      Vector x2;
+      B_pol_coef.Eval(x2, T, ip);
+
+      return (r * div_B_pol + x2(0)) * (flip_sign ? -1 : 1);
+   }
+};
+
 /// @brief Return $[[0, -1/r], [1/r, 0]]$
 class OneOverRPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
@@ -403,7 +434,7 @@ public:
    }
    using MatrixCoefficient::Eval;
    void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+             const IntegrationPoint &ip)
    {
       // get r, z coordinates
       Vector x;
@@ -431,7 +462,7 @@ public:
    }
    using MatrixCoefficient::Eval;
    void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+             const IntegrationPoint &ip)
    {
       // get r, z coordinates
       Vector x;

@@ -326,7 +326,7 @@ class CurlRBTorGridFunctionVectorCoefficient : public VectorCoefficient
 {
 private:
 const bool flip_sign;
-GradientGridFunctionCoefficient grad_psi_coef;
+GradientGridFunctionCoefficient grad_B_tor_coef;
 GridFunctionCoefficient B_tor_coef;
 public:
    int counter = 0;
@@ -334,7 +334,7 @@ public:
    CurlRBTorGridFunctionVectorCoefficient() = delete;
 
    CurlRBTorGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(2), flip_sign(flip_sign), grad_psi_coef(gf), B_tor_coef(gf)
+       : VectorCoefficient(2), flip_sign(flip_sign), grad_B_tor_coef(gf), B_tor_coef(gf)
    {
    }
 
@@ -348,7 +348,7 @@ public:
       T.Transform(ip, x1);
       real_t r = x1(0);
 
-      grad_psi_coef.Eval(V, T, ip);
+      grad_B_tor_coef.Eval(V, T, ip);
       swap(V(0), V(1));
       V(0) = -V(0);
       V *= r;
