@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include <limits>
+#include "plasma.hpp"
 #include "g_eqdsk_data.hpp"
 
 using namespace std;
@@ -377,7 +378,7 @@ real_t G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
 {
    if (rz[0] > 1e-6 * RDIM_)
    {
-      return InterpPPrimeRZ(rz) * rz[0] + InterpFFPrimeRZ(rz) / rz[0];
+      return InterpPPrimeRZ(rz) * rz[0] + InterpFFPrimeRZ(rz) / rz[0] / mu0_;
    }
    else
    {
