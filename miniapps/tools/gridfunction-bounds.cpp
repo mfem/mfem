@@ -83,13 +83,7 @@ int main (int argc, char *argv[])
    args.AddOption(&nbrute, "-nb", "--nbrute",
                   "Brute force search for minimum in an array of nxnxn points "
                   "in each element.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (myid == 0) { args.PrintOptions(cout); }
+   args.ParseCheck();
 
    // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);
