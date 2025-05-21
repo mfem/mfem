@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
 
    // 13. Define the solution vector u as a parallel finite element grid
    //     function corresponding to fespace. Initialize u with initial guess of
-   //     u(x) = (0,0,-0.1), which satisfies the boundary conditions.
+   //     u(x) = (0,...,0,-0.1*x_d), which satisfies the boundary conditions.
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
    GridFunctionCoefficient u_previous_coeff(&u_previous);
