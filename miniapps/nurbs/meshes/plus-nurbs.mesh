@@ -1,6 +1,15 @@
 MFEM NURBS mesh v1.0
 
-# 5 2D patches arranged in a + sign configuration.
+# 5 2D patches arranged in a "+" sign configuration.
+# Patches are ordered using cartesian indexing:
+#
+#        +-----+
+#        |  4  |
+#  +-----+-----+-----+
+#  |  1  |  2  |  3  |
+#  +-----+-----+-----+
+#        |  0  |
+#        +-----+
 
 dimension
 2
@@ -24,7 +33,6 @@ vertices
 
 patches
 
-# bot
 knotvectors
 2
 1 2 0 0 1 1
@@ -39,7 +47,6 @@ controlpoints
 0 1 1
 1 1 1
 
-# left
 knotvectors
 2
 1 2 0 0 1 1
@@ -54,7 +61,6 @@ controlpoints
 -1 2 1
 0 2 1
 
-# middle
 knotvectors
 2
 1 2 0 0 1 1
@@ -69,7 +75,6 @@ controlpoints
 0 2 1
 1 2 1
 
-# right
 knotvectors
 2
 1 2 0 0 1 1
@@ -84,7 +89,6 @@ controlpoints
 1 2 1
 2 2 1
 
-# top
 knotvectors
 2
 1 2 0 0 1 1

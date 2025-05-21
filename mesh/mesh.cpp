@@ -6208,10 +6208,11 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 
    /* Generate edge to knotvector mapping if edges are not specified in the
-      mesh file. See data/two-squares-nurbs-autoedge.mesh for an example */
-   Array<int> ukv_to_rpkv;
+      mesh file. See miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh
+      for an example */
    if (edge_to_ukv.Size() == 0)
    {
+      Array<int> ukv_to_rpkv;
       GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    }
 }

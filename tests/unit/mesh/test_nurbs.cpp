@@ -110,7 +110,8 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    Mesh mesh2(ne);
 
    // Meshes should be identical
-   REQUIRE(mesh1.GetNodes()->Size() == mesh2.GetNodes()->Size());
+   REQUIRE((mesh1.GetNodes()->Size() ==
+            mesh2.GetNodes()->Size() != 0));
 
    Vector diff(*mesh1.GetNodes());
    diff -= *mesh2.GetNodes();
@@ -118,8 +119,8 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    REQUIRE(error == MFEM_Approx(0.0));
 
    // Compare weights (these are stored separately from nodes)
-   REQUIRE(mesh1.NURBSext->GetWeights().Size() ==
-           mesh2.NURBSext->GetWeights().Size());
+   REQUIRE((mesh1.NURBSext->GetWeights().Size() ==
+            mesh2.NURBSext->GetWeights().Size() != 0));
 
    Vector wdiff = mesh1.NURBSext->GetWeights();
    wdiff -= mesh2.NURBSext->GetWeights();
