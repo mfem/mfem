@@ -281,6 +281,7 @@ miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
 miniapps/navier/navier_cht
+miniapps/navier/navier_windtunnel
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
