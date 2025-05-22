@@ -625,9 +625,13 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
 # Enzyme configuration
 ENZYME_DIR = @MFEM_DIR@/../enzyme
 ENZYME_PLUGIN = $(wildcard $(ENZYME_DIR)/lib/ClangEnzyme-*.$(SO_EXT))
-ifeq ($(MFEM_USE_ENZYME),YES)
+ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
    ifeq ($(ENZYME_PLUGIN),)
-      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR.)
+      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+   endif
+   ifneq ($(words $(ENZYME_PLUGIN)),1)
+      $(error Multiple versions of the Enzyme pluging found! \
+              Please set ENZYME_PLUGIN directly)
    endif
 endif
 ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
