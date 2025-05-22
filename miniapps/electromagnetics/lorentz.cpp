@@ -79,6 +79,10 @@ using namespace mfem::electromagnetics;
 
 typedef DataCollection::FieldMapType fields_t;
 
+/// This class implements the Boris algorithm as described in the
+/// article `Why is Boris algorithm so good?` by H. Qin et al in
+/// Physics of Plasmas, Volume 20 Issue 8, August 2013,
+/// https://doi.org/10.1063/1.4818428.
 class BorisAlgorithm
 {
 private:
