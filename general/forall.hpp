@@ -162,7 +162,11 @@ private:
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#ifdef __NVCC__
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#else // Assuming Clang CUDA
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#endif
 #else
 #define MFEM_UNROLL(N)
 #endif
