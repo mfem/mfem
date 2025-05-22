@@ -12,8 +12,10 @@ make all -j 8
 ./JxB_validator_JxB_pol_A &
 ./JxB_validator_JxB_tor_B &
 ./JxB_validator_JxB_pol_B &
+./JxB_validator_JxB_tor_C &
+./JxB_validator_JxB_pol_C
+# third group
 ./B_field_projector_div_B_pol_vec_CG &
 ./B_field_projector_div_B_pol_Hcurl &
-./B_field_projector_div_B_pol_Hdiv
-# third group
+./B_field_projector_div_B_pol_Hdiv &
 ./JxB_validator_grad_p
