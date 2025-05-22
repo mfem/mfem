@@ -25,6 +25,14 @@
 using namespace mfem;
 using mfem::internal::tensor;
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 constexpr int VELOCITY = 0;
 constexpr int DENSITY0 = 1;
 constexpr int COORDINATES0 = 2;
@@ -87,6 +95,7 @@ void ComputeMaterialProperties(const real_t &gamma, const real_t &rho,
 using vecd = tensor<real_t, DIMENSION>;
 using matd = tensor<real_t, DIMENSION, DIMENSION>;
 
+///////////////////////////////////////////////////////////////////////////////
 struct TaylorSourceQFunction
 {
    TaylorSourceQFunction() = default;
@@ -104,22 +113,22 @@ struct TaylorSourceQFunction
    }
 };
 
-
+///////////////////////////////////////////////////////////////////////////////
 template <bool compute_dtest = false>
 MFEM_HOST_DEVICE inline
-mfem::tuple<matd, real_t> qdata_setup(
-   const matd &dvdxi,
-   const real_t &rho0,
-   const matd &J0,
-   const matd &J,
-   const real_t &gamma,
-   const real_t &E,
-   const real_t &w,
-   const real_t &h0,
-   const real_t &order_v,
-   const real_t &cfl,
-   const bool &use_viscosity)
+mfem::tuple<matd, real_t> qdata_setup(const matd &dvdxi,
+                                      const real_t &rho0,
+                                      const matd &J0,
+                                      const matd &J,
+                                      const real_t &gamma,
+                                      const real_t &E,
+                                      const real_t &w,
+                                      const real_t &h0,
+                                      const real_t &order_v,
+                                      const real_t &cfl,
+                                      const bool &use_viscosity)
 {
+   // dbg();
    constexpr real_t eps = 1e-12;
    constexpr real_t vorticity_coeff = 1.0;
    real_t p, cs;
@@ -180,10 +189,14 @@ mfem::tuple<matd, real_t> qdata_setup(
    return mfem::tuple{stressJiT, dt_est};
 }
 
+///////////////////////////////////////////////////////////////////////////////
 struct TimeStepEstimateQFunction
 {
    TimeStepEstimateQFunction(const real_t *external_data) :
-      external_data(external_data) {}
+      external_data(external_data)
+   {
+      dbg();
+   }
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -195,6 +208,7 @@ struct TimeStepEstimateQFunction
       const real_t &E,
       const real_t &w) const
    {
+      // dbg();
       real_t dt_est = mfem::get<1>(
                          qdata_setup<true>(
                             dvdxi, rho0, J0, J, gamma, E, w,
@@ -208,10 +222,14 @@ struct TimeStepEstimateQFunction
    const real_t *external_data;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 struct UpdateQuadratureDataQFunction
 {
    UpdateQuadratureDataQFunction(const real_t *external_data) :
-      external_data(external_data) {}
+      external_data(external_data)
+   {
+      dbg();
+   }
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -236,21 +254,21 @@ struct UpdateQuadratureDataQFunction
    const real_t *external_data;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class MomentumQFunction
 {
 public:
    MomentumQFunction(const real_t *external_data) :
-      external_data(external_data) {}
+      external_data(external_data) { dbg(); }
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const matd &dvdxi,
-      const real_t &rho0,
-      const matd &J0,
-      const matd &J,
-      const real_t &gamma,
-      const real_t &E,
-      const real_t &w) const
+   auto operator()(const matd &dvdxi,
+                   const real_t &rho0,
+                   const matd &J0,
+                   const matd &J,
+                   const real_t &gamma,
+                   const real_t &E,
+                   const real_t &w) const
    {
       auto stressJiT = mfem::get<0>(
                           qdata_setup(
@@ -265,10 +283,11 @@ public:
    const real_t *external_data;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class MomentumPAQFunction
 {
 public:
-   MomentumPAQFunction() = default;
+   MomentumPAQFunction() { dbg(); }
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -278,11 +297,12 @@ public:
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class EnergyConservationQFunction
 {
 public:
    EnergyConservationQFunction(const real_t *external_data) :
-      external_data(external_data) {}
+      external_data(external_data) { dbg(); }
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -308,10 +328,11 @@ public:
    const real_t *external_data;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class EnergyConservationPAQFunction
 {
 public:
-   EnergyConservationPAQFunction() = default;
+   EnergyConservationPAQFunction() { dbg(); }
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -322,53 +343,54 @@ public:
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class TotalInternalEnergyQFunction
 {
 public:
-   TotalInternalEnergyQFunction() = default;
+   TotalInternalEnergyQFunction() { dbg(); }
 
    MFEM_HOST_DEVICE inline
-   auto operator() (
-      const real_t &E,
-      const real_t &rho0,
-      const matd &J0,
-      const real_t &w) const
+   auto operator() (const real_t &E,
+                    const real_t &rho0,
+                    const matd &J0,
+                    const real_t &w) const
    {
       return mfem::tuple{rho0 * E * det(J0) * w};
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class TotalKineticEnergyQFunction
 {
 public:
-   TotalKineticEnergyQFunction() = default;
+   TotalKineticEnergyQFunction() { dbg(); }
 
    MFEM_HOST_DEVICE inline
-   auto operator() (
-      const vecd &v,
-      const real_t &rho0,
-      const matd &J0,
-      const real_t &w) const
+   auto operator() (const vecd &v,
+                    const real_t &rho0,
+                    const matd &J0,
+                    const real_t &w) const
    {
       return mfem::tuple{rho0 * 0.5 * v * v * det(J0) * w};
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class DensityQFunction
 {
 public:
    DensityQFunction() = default;
 
    MFEM_HOST_DEVICE inline
-   auto operator() (
-      const real_t &rho0,
-      const matd &J0,
-      const real_t &w) const
+   auto operator() (const real_t &rho0,
+                    const matd &J0,
+                    const real_t &w) const
    {
       return mfem::tuple{rho0 * det(J0) * w};
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////
 struct QuadratureData
 {
    static constexpr int aux_dim = 1;
@@ -394,6 +416,7 @@ struct QuadratureData
    ParametricFunction dt_est;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class MassPAOperator : public Operator
 {
 public:
@@ -439,12 +462,14 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
+      MFEM_PERF_SCOPE("MassPAOperator::Mult");
       mass->Mult(x, y);
       if (ess_tdofs_count > 0) { y.SetSubVector(ess_tdofs, 0.0); }
    }
 
    void FullAddMult(const Vector &x, Vector &y) const
    {
+      MFEM_PERF_SCOPE("MassPAOperator::FullAddMult");
       mass->AddMult(x, y);
    }
 
@@ -458,14 +483,22 @@ public:
    OperatorPtr mass;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class LagrangianHydroJacobianOperator : public Operator
 {
 public:
    LagrangianHydroJacobianOperator(real_t h, int H1tsize, int L2tsize) :
-      Operator(2*H1tsize + L2tsize), h(h), H1tsize(H1tsize), L2tsize(L2tsize)  {}
+      Operator(2*H1tsize + L2tsize),
+      h(h),
+      H1tsize(H1tsize),
+      L2tsize(L2tsize)
+   {
+      dbg();
+   }
 
    void Mult(const Vector &k, Vector &y) const override
    {
+      MFEM_PERF_SCOPE("LagrangianHydroJacobianOperator::Mult");
       jvp(k, y);
       // assembled_jvp(k, y);
    }
@@ -480,6 +513,8 @@ public:
              std::shared_ptr<DerivativeOperator> dRede,
              std::shared_ptr<DerivativeOperator> dTaylorSourcedx)
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroJacobianOperator::Setup");
       PetscCall(PetscLogEventBegin(jacobian_assemble_event, 0, 0, 0, 0));
 
       out << "assemble\n";
@@ -657,6 +692,7 @@ public:
       {
          PetscErrorCode ierr;
          ierr = PetscLogEventBegin(dfem_jvp_event, 0, 0, 0, 0);
+         assert(ierr == PETSC_SUCCESS);
 
          w = u;
          Vector wx, wv, we;
@@ -735,6 +771,7 @@ public:
          ye.SyncAliasMemory(y);
 
          ierr = PetscLogEventEnd(dfem_jvp_event, 0, 0, 0, 0);
+         assert(ierr == PETSC_SUCCESS);
 
          return PETSC_SUCCESS;
       };
@@ -742,13 +779,14 @@ public:
       return 0;
    }
 
-   virtual MemoryClass GetMemoryClass() const override
+   MemoryClass GetMemoryClass() const override
    {
       return Device::GetDeviceMemoryClass();
    }
 
    ~LagrangianHydroJacobianOperator()
    {
+      dbg();
       delete block_petsc;
       delete w_petsc;
       delete y_petsc;
@@ -763,13 +801,16 @@ public:
    PetscParVector *w_petsc = nullptr, *y_petsc = nullptr;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 template <typename hydro_t>
 class LagrangianHydroResidualOperator : public Operator
 {
 public:
-   LagrangianHydroResidualOperator(hydro_t &hydro, const real_t dt,
-                                   const Vector &x, bool fd_gradient) :
-      Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
+   LagrangianHydroResidualOperator(hydro_t &hydro,
+                                   const real_t dt,
+                                   const Vector &x,
+                                   bool fd_gradient) :
+      Operator(2*hydro.H1.GetTrueVSize() + hydro.L2.GetTrueVSize()),
       hydro(hydro),
       dt(dt),
       H1tsize(hydro.H1.GetTrueVSize()),
@@ -780,12 +821,18 @@ public:
       u(x.Size()),
       u_l(2*H1vsize + L2vsize),
       e_source_t(hydro.L2.GetTrueVSize()),
-      fd_gradient(fd_gradient) {}
+      fd_gradient(fd_gradient)
+   {
+      dbg();
+   }
 
    void Mult(const Vector &k, Vector &R) const override
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroResidualOperator::Setup");
       PetscErrorCode ierr;
       ierr = PetscLogEventBegin(residual_eval_event, 0, 0, 0, 0);
+      assert(ierr == PETSC_SUCCESS);
 
       u = k;
       u *= dt;
@@ -861,14 +908,17 @@ public:
       Re.SyncAliasMemory(R);
 
       ierr = PetscLogEventEnd(residual_eval_event, 0, 0, 0, 0);
+      assert(ierr == PETSC_SUCCESS);
    }
 
    Operator& GetGradient(const Vector &k) const override
    {
+      dbg();
+      MFEM_PERF_FUNCTION;
       // tic();
-      jacobian = std::make_shared<LagrangianHydroJacobianOperator>(dt, H1tsize,
-                                                                   L2tsize);
-
+      jacobian =
+         std::make_shared<LagrangianHydroJacobianOperator>(dt, H1tsize,
+                                                           L2tsize);
       u = k;
       u *= dt;
       u += x;
@@ -946,33 +996,33 @@ public:
    bool fd_gradient;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class LagrangianHydroOperator : public TimeDependentOperator
 {
 public:
-   LagrangianHydroOperator(
-      ParFiniteElementSpace &H1,
-      ParFiniteElementSpace &L2,
-      const Array<int> &ess_tdof,
-      const IntegrationRule &ir,
-      FunctionCoefficient &rho0_coeff,
-      ParGridFunction &x0_gf,
-      ParGridFunction &rho0_gf,
-      ParGridFunction &material_gf,
-      std::shared_ptr<DifferentiableOperator> update_qdata,
-      std::shared_ptr<DifferentiableOperator> dtest_mf,
-      std::shared_ptr<DifferentiableOperator> momentum_mf,
-      std::shared_ptr<DifferentiableOperator> momentum_pa,
-      std::shared_ptr<DifferentiableOperator> energy_conservation_mf,
-      std::shared_ptr<DifferentiableOperator> energy_conservation_pa,
-      std::shared_ptr<DifferentiableOperator> total_internal_energy_mf,
-      std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf,
-      std::shared_ptr<DifferentiableOperator> density_mf,
-      std::shared_ptr<DifferentiableOperator> taylor_source_mf,
-      std::shared_ptr<QuadratureData> qdata,
-      bool fd_gradient,
-      const int nonlinear_maximum_iterations,
-      const real_t nonlinear_relative_tolerance) :
-      TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
+   LagrangianHydroOperator(ParFiniteElementSpace &H1,
+                           ParFiniteElementSpace &L2,
+                           const Array<int> &ess_tdof,
+                           const IntegrationRule &ir,
+                           FunctionCoefficient &rho0_coeff,
+                           ParGridFunction &x0_gf,
+                           ParGridFunction &rho0_gf,
+                           ParGridFunction &material_gf,
+                           std::shared_ptr<DifferentiableOperator> update_qdata,
+                           std::shared_ptr<DifferentiableOperator> dtest_mf,
+                           std::shared_ptr<DifferentiableOperator> momentum_mf,
+                           std::shared_ptr<DifferentiableOperator> momentum_pa,
+                           std::shared_ptr<DifferentiableOperator> energy_conservation_mf,
+                           std::shared_ptr<DifferentiableOperator> energy_conservation_pa,
+                           std::shared_ptr<DifferentiableOperator> total_internal_energy_mf,
+                           std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf,
+                           std::shared_ptr<DifferentiableOperator> density_mf,
+                           std::shared_ptr<DifferentiableOperator> taylor_source_mf,
+                           std::shared_ptr<QuadratureData> qdata,
+                           bool fd_gradient,
+                           const int nonlinear_maximum_iterations,
+                           const real_t nonlinear_relative_tolerance) :
+      TimeDependentOperator(2*H1.GetVSize() + L2.GetVSize()),
       H1(H1),
       L2(L2),
       H1c(H1.GetParMesh(), H1.FEColl(), 1),
@@ -1011,6 +1061,7 @@ public:
       nonlinear_maximum_iterations(nonlinear_maximum_iterations),
       nonlinear_relative_tolerance(nonlinear_relative_tolerance)
    {
+      dbg();
       Mv = new MassPAOperator(H1c, ir, rho0_coeff);
       Array<int> empty_tdofs;
       Mv_Jprec = new OperatorJacobiSmoother(Mv->GetBF(), empty_tdofs);
@@ -1037,6 +1088,8 @@ public:
 
    void Mult(const Vector &S, Vector &dSdt) const override
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::Mult");
       UpdateMesh(S);
       UpdateQuadratureData(S);
 
@@ -1124,7 +1177,7 @@ public:
             LinearForm e_source(&L2);
             L2.GetMesh()->DeleteGeometricFactors();
             FunctionCoefficient coeff(taylor_source);
-            DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &ir);
+            auto *d = new DomainLFIntegrator(coeff, &ir);
             e_source.AddDomainIntegrator(d);
             e_source.UseFastAssembly(true);
             e_source.Assemble();
@@ -1146,6 +1199,8 @@ public:
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::ImplicitSolve");
       // tic();
 
       auto xptr = const_cast<Vector*>(&x);
@@ -1228,13 +1283,17 @@ public:
 
    void UpdateMesh(const Vector &S) const
    {
-      Vector* sptr = const_cast<Vector*>(&S);
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::UpdateMesh");
+      auto* sptr = const_cast<Vector*>(&S);
       mesh_nodes.MakeRef(&H1, *sptr, 0);
       H1.GetParMesh()->NewNodes(mesh_nodes, false);
    }
 
    real_t GetTimeStepEstimate(const Vector &S)
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::GetTimeStepEstimate");
       UpdateMesh(S);
 
       auto sptr = const_cast<Vector*>(&S);
@@ -1266,6 +1325,8 @@ public:
 
    real_t InternalEnergy(ParGridFunction &e)
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::InternalEnergy");
       const auto mt = Device::GetDeviceMemoryType();
       Vector E(L2.GetTrueVSize(), mt), Y(L2.GetTrueVSize(), mt);
       total_internal_energy_mf->SetParameters({&rho0, &x0});
@@ -1280,6 +1341,8 @@ public:
 
    real_t KineticEnergy(ParGridFunction &v)
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::KineticEnergy");
       const auto mt = Device::GetDeviceMemoryType();
       Vector V(H1.GetTrueVSize(), mt), Y(L2.GetTrueVSize(), mt);
       total_kinetic_energy_mf->SetParameters({&rho0, &x0});
@@ -1294,6 +1357,8 @@ public:
 
    void ComputeDensity(ParGridFunction &rho)
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::ComputeDensity");
       rho.SetSpace(&L2);
 
       ParGridFunction rhs_l(&L2);
@@ -1329,6 +1394,8 @@ public:
 
    void UpdateQuadratureData(const Vector &S) const
    {
+      dbg();
+      MFEM_PERF_SCOPE("LagrangianHydroOperator::UpdateQuadratureData");
       auto sptr = const_cast<Vector*>(&S);
       const int H1vsize = H1.GetVSize();
       ParGridFunction x, v, e;
@@ -1339,13 +1406,14 @@ public:
       update_qdata->Mult(qdata->stressp, qdata->stressp);
    }
 
-   virtual MemoryClass GetMemoryClass() const override
+   MemoryClass GetMemoryClass() const override
    {
       return Device::GetDeviceMemoryClass();
    }
 
    ~LagrangianHydroOperator()
    {
+      dbg();
       delete snes;
       delete Mv;
       delete Mv_Jprec;
@@ -1390,20 +1458,22 @@ public:
    const real_t nonlinear_relative_tolerance;
 };
 
-static auto CreateLagrangianHydroOperator(
-   ParFiniteElementSpace &H1,
-   ParFiniteElementSpace &L2,
-   const Array<int> &ess_tdof,
-   FunctionCoefficient &rho0_coeff,
-   ParGridFunction &x0_gf,
-   ParGridFunction &rho0_gf,
-   ParGridFunction &material_gf,
-   Vector &external_data,
-   const IntegrationRule &ir,
-   bool fd_gradient,
-   const int nonlinear_maximum_iterations,
-   const real_t nonlinear_relative_tolerance)
+///////////////////////////////////////////////////////////////////////////////
+static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
+                                          ParFiniteElementSpace &L2,
+                                          const Array<int> &ess_tdof,
+                                          FunctionCoefficient &rho0_coeff,
+                                          ParGridFunction &x0_gf,
+                                          ParGridFunction &rho0_gf,
+                                          ParGridFunction &material_gf,
+                                          Vector &external_data,
+                                          const IntegrationRule &ir,
+                                          bool fd_gradient,
+                                          const int nonlinear_maximum_iterations,
+                                          const real_t nonlinear_relative_tolerance)
 {
+   dbg();
+   MFEM_PERF_SCOPE("CreateLagrangianHydroOperator");
    ParMesh &mesh = *H1.GetParMesh();
 
    auto qdata = std::make_shared<QuadratureData>(mesh, ir);
@@ -1806,15 +1876,19 @@ static auto CreateLagrangianHydroOperator(
              nonlinear_relative_tolerance);
 }
 
+/////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
+   cali::ConfigManager caliper;
+   MFEM_PERF_FUNCTION;
 
    const char *device_config = "cpu";
+   const char *caliper_config = "runtime-report";
 
    const char *mesh_file =
-      "/Users/andrej1/repos/Laghos/data/rectangle01_quad.mesh";
+      "/Users/camierjs/home/mfem/laghos/data/rectangle01_quad.mesh";
 
    int refinements = 0;
    int order_v = 2;
@@ -1843,6 +1917,7 @@ int main(int argc, char *argv[])
    args.AddOption(&cfl, "-cfl", "--cfl", "");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&caliper_config, "-p", "--caliper", "Caliper options.");
    args.AddOption(&use_viscosity, "-av", "--av", "-no-av", "--no-av", "");
    args.AddOption(&fd_gradient, "-fd", "--fd", "-no-fd", "--no-fd", "");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -1863,6 +1938,8 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
+   caliper.add(caliper_config), caliper.start();
+
    std::vector<char*> petsc_argv;
    petsc_argv.push_back(argv[0]); // Program name as first arg
 
@@ -1879,7 +1956,7 @@ int main(int argc, char *argv[])
       petsc_argv.push_back(arg_copy);
    }
 
-   int petsc_argc = petsc_argv.size();
+   int petsc_argc = static_cast<int>(petsc_argv.size());
    char** petsc_args = petsc_argv.data();
 
    MFEMInitializePetsc(&petsc_argc, &petsc_args);
@@ -1895,7 +1972,7 @@ int main(int argc, char *argv[])
 
    out << std::setprecision(6);
 
-   Mesh serial_mesh = Mesh(mesh_file, true, true);
+   Mesh serial_mesh;
 
    if (problem == 0 || problem == 1)
    {
@@ -1910,12 +1987,15 @@ int main(int argc, char *argv[])
          bel->SetAttribute(attr);
       }
    }
-
-   if (problem == 2)
+   else if (problem == 2)
    {
       serial_mesh = Mesh(Mesh::MakeCartesian1D(1));
       serial_mesh.GetBdrElement(0)->SetAttribute(1);
       serial_mesh.GetBdrElement(1)->SetAttribute(1);
+   }
+   else
+   {
+      serial_mesh = Mesh(mesh_file, true, true);
    }
 
    for (int i = 0; i < refinements; i++)
@@ -2201,6 +2281,7 @@ int main(int argc, char *argv[])
 
    for (int ti = 1; !last_step; ti++)
    {
+      dbg("ti: #{}", ti);
       if (t + dt >= t_final)
       {
          dt = t_final - t;
@@ -2293,6 +2374,7 @@ int main(int argc, char *argv[])
 
    delete hydro;
 
+   caliper.flush();
    MFEMFinalizePetsc();
    return 0;
 }

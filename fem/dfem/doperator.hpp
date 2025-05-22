@@ -18,6 +18,14 @@
 #include "qfunction.hpp"
 #include "integrate.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kGold
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 namespace mfem
 {
 
@@ -65,6 +73,7 @@ public:
       assemble_derivative_hypreparmatrix_callbacks(
          assemble_derivative_hypreparmatrix_callbacks)
    {
+      dbg();
       std::vector<Vector> s_l(solutions_l.size());
       for (size_t i = 0; i < s_l.size(); i++)
       {
@@ -83,6 +92,7 @@ public:
 
    void Mult(const Vector &direction_t, Vector &y) const override
    {
+      dbg();
       daction_l.SetSize(daction_l_size);
       daction_l = 0.0;
 
@@ -96,6 +106,7 @@ public:
 
    void MultTranspose(const Vector &direction_t, Vector &y) const override
    {
+      dbg();
       daction_l.SetSize(width);
       daction_l = 0.0;
 
@@ -109,6 +120,7 @@ public:
 
    void Assemble(HypreParMatrix &A)
    {
+      dbg();
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a matrix");
 
@@ -183,6 +195,7 @@ public:
       std::vector<Vector *> solutions_l,
       std::vector<Vector *> parameters_l)
    {
+      dbg();
       MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                   derivative_action_callbacks.end(),
                   "no derivative action has been found for ID " << derivative_id);
@@ -266,6 +279,7 @@ DifferentiableOperator::DifferentiableOperator(
    solutions(solutions),
    parameters(parameters)
 {
+   dbg();
    fields.resize(solutions.size() + parameters.size());
    fields_e.resize(fields.size());
    solutions_l.resize(solutions.size());
@@ -295,6 +309,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> domain_attributes,
    derivative_ids_t derivative_ids)
 {
+   dbg();
    using entity_t = Entity::Element;
 
    static constexpr size_t num_inputs =
@@ -403,6 +418,7 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &parameters_l,
        std::vector<Vector> &fields_e)
    {
+      dbg("restriction_callback");
       restriction<entity_t>(solutions, solutions_l, fields_e,
                             element_dof_ordering);
       restriction<entity_t>(parameters, parameters_l, fields_e,
@@ -442,6 +458,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(pow(num_qp, 1.0/dimension) + 0.5);
+   dbg("q1d:{}", q1d);
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
@@ -495,6 +512,7 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &parameters_l,
        Vector &residual_l) mutable
    {
+      dbg("action_callbacks");
       restriction_callback(solutions_l, parameters_l, fields_e);
 
       residual_e = 0.0;
@@ -537,6 +555,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    // Create the action of the derivatives
    for_constexpr([&](auto derivative_id)
    {
+      dbg("derivative id:{}", derivative_id.value);
       const size_t d_field_idx = FindIdx(derivative_id, fields);
       const auto direction = fields[d_field_idx];
       const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
@@ -562,6 +581,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             std::vector<Vector> &fields_e, const Vector &direction_l,
             Vector &derivative_action_l) mutable
       {
+         dbg("derivative_action_callbacks id:{}", derivative_id.value);
          restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
          auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
          auto wrapped_fields_e = wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
@@ -601,11 +621,13 @@ void DifferentiableOperator::AddDomainIntegrator(
       });
    }, derivative_ids);
 
-   // Create the transpose action of the derivatives
+   dbg("Create the transpose action of the derivatives");
    if (!use_sum_factorization)
    {
+      dbg("!use_sum_factorization");
       for_constexpr([&](auto derivative_id)
       {
+         dbg("derivative_id:{}", derivative_id.value);
          const size_t d_field_idx = FindIdx(derivative_id, fields);
          const auto direction = fields[test_space_field_idx];
          const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
@@ -651,6 +673,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                std::vector<Vector> &fields_e, const Vector &direction_l,
                Vector &daction_l) mutable
          {
+            dbg("daction_transpose_callbacks id:{}", derivative_id.value);
             auto shmem = shmem_cache.ReadWrite();
 
             restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
@@ -668,6 +691,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             daction_transpose_e = 0.0;
             for (int e = 0; e < num_entities; e++)
             {
+               dbg("e: {}/{}", e+1, num_entities);
                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                       input_shmem_, shadow_shmem_, residual_shmem_, scratch_shmem] =
                unpack_shmem(shmem, shmem_info, input_dtq_maps,
@@ -777,7 +801,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       }, derivative_ids);
    }
 
-   // Create assembly callbacks for derivatives
+   dbg("Create assembly callbacks for derivatives");
    // TODO: Host only for now
    for_constexpr([&](auto derivative_id)
    {
@@ -836,6 +860,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          [=, fields = this->fields]
          (std::vector<Vector> &fields_e, HypreParMatrix &A) mutable
       {
+         dbg("assemble_derivative_hypreparmatrix_callbacks id:{}", derivative_id.value);
          Vector direction_e(get_restriction<entity_t>(fields[d_field_idx],
                                                       element_dof_ordering)->Height());
 

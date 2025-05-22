@@ -28,6 +28,14 @@
 #include "parametricspace.hpp"
 #include "tuple.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kCyan
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 using std::size_t;
 
 namespace mfem
@@ -986,6 +994,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
 {
+   dbg();
    int data_offset = 0;
    for (int i = 0; i < N; i++)
    {
@@ -1004,6 +1013,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
+   dbg();
    int data_offset = 0;
    for (size_t i = 0; i < fields.size(); i++)
    {
@@ -1025,6 +1035,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         dbg("[prolongation_transpose] ONE");
          double local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
@@ -1035,6 +1046,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [](Vector &r_local, Vector &y)
       {
+         dbg("[prolongation_transpose] NONE");
          y = r_local;
       };
       return PT;
@@ -1044,6 +1056,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       const Operator *P = get_prolongation(f);
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         dbg("[prolongation_transpose] MultTranspose");
          P->MultTranspose(r_local, y);
       };
       return PT;
@@ -1056,6 +1069,7 @@ void restriction(const FieldDescriptor u,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
+   dbg("[restriction] Mult");
    const auto R = get_restriction<entity_t>(u, ordering);
    MFEM_ASSERT(R->Width() == u_l.Size(),
                "restriction not applicable to given data size");
@@ -1071,6 +1085,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
+   dbg("[restriction]");
    for (size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
@@ -1090,6 +1105,7 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
                          ElementDofOrdering ordering,
                          const int offset = 0)
 {
+   dbg("[element_restriction]");
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);
