@@ -2382,7 +2382,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    // Basic topology checks
    MFEM_VERIFY(patches_.Size() > 0, "Must have at least one patch");
    MFEM_VERIFY(patches_.Size() == patch_topology->GetNE(),
-               "Number of patches must equal number elements in patch_topology");
+               "Number of patches must equal number of elements in patch_topology");
 
    // Copy patch_topology mesh and NURBSPatch(es)
    patchTopo = new Mesh( *patch_topology );
