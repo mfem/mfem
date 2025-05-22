@@ -43,7 +43,7 @@ add_mfem_miniapp(nurbs_ex1
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
   LIBRARIES mfem)
-  add_dependencies(nurbs_ex3 copy_miniapps_multidomain_data)
+  add_dependencies(nurbs_ex3 copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_ex5
   MAIN nurbs_ex5.cpp
