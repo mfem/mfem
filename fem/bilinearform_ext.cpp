@@ -78,7 +78,7 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
          dynamic_cast<const ElementRestriction*>(elem_restrict);
       if (H1elem_restrict)
       {
-         H1elem_restrict->MultTransposeUnsigned(localY, y);
+         H1elem_restrict->AbsMultTranspose(localY, y);
       }
       else
       {
@@ -456,7 +456,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
             dynamic_cast<const ElementRestriction*>(elem_restrict);
          if (H1elem_restrict)
          {
-            H1elem_restrict->MultTransposeUnsigned(localY, y);
+            H1elem_restrict->AbsMultTranspose(localY, y);
          }
          else
          {
@@ -491,7 +491,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          assemble_diagonal_with_markers(*bdr_integs[i], bdr_markers[i],
                                         bdr_attributes, bdr_face_Y);
       }
-      bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_Y, y);
+      bdr_face_restrict_lex->AddAbsMultTranspose(bdr_face_Y, y);
    }
 }
 
@@ -1951,7 +1951,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
          dynamic_cast<const ElementRestriction*>(elem_restrict_trial);
       if (H1elem_restrict_trial)
       {
-         H1elem_restrict_trial->MultUnsigned(D, localTrial);
+         H1elem_restrict_trial->AbsMult(D, localTrial);
       }
       else
       {
@@ -1977,7 +1977,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
          dynamic_cast<const ElementRestriction*>(elem_restrict_test);
       if (H1elem_restrict_test)
       {
-         H1elem_restrict_test->MultTransposeUnsigned(localTest, diag);
+         H1elem_restrict_test->AbsMultTranspose(localTest, diag);
       }
       else
       {
@@ -2033,7 +2033,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
    if (elem_restrict)
    {
-      elem_restrict->MultTransposeUnsigned(ones, test_multiplicity);
+      elem_restrict->AbsMultTranspose(ones, test_multiplicity);
    }
    else
    {

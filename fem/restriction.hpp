@@ -59,15 +59,18 @@ public:
                          const real_t a = 1.0) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
-   void MultUnsigned(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    /// Compute MultTranspose without applying signs based on DOF orientations.
-   void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
-   void AbsMult(const Vector &x, Vector &y) const override
-   { MultUnsigned(x, y); }
+   /// Deprecated, using AbsMult instead.
+   MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
+   { AbsMult(x, y); }
 
-   void AbsMultTranspose(const Vector &x, Vector &y) const override
-   { MultTransposeUnsigned(x, y); }
+   /// Deprecated, using AbsMultTranspose instead.
+   MFEM_DEPRECATED void MultTransposeUnsigned(const Vector &x, Vector &y) const
+   { AbsMultTranspose(x, y); }
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
@@ -177,14 +180,6 @@ public:
    */
    void Mult(const Vector &x, Vector &y) const override = 0;
 
-   virtual void MultUnsigned(const Vector &x, Vector &y) const
-   {
-      MFEM_ABORT("MultUnsigned not implemented yet!");
-   }
-
-   void AbsMult(const Vector &x, Vector &y) const override
-   { MultUnsigned(x, y); }
-
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y.
 
@@ -198,10 +193,17 @@ public:
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y ignoring the signs from DOF orientation. */
-   virtual void AddMultTransposeUnsigned(const Vector &x, Vector &y,
-                                         const real_t a = 1.0) const
+   virtual void AddAbsMultTranspose(const Vector &x, Vector &y,
+                                    const real_t a = 1.0) const
    {
       AddMultTranspose(x, y, a);
+   }
+
+   /// Deprecated. Use AddAbsMultTranspose instead.
+   MFEM_DEPRECATED void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                                 const real_t a = 1.0) const
+   {
+      AddAbsMultTranspose(x, y, a);
    }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
@@ -236,7 +238,7 @@ public:
    void AbsMultTranspose(const Vector &x, Vector &y) const override
    {
       y = 0.0;
-      AddMultTransposeUnsigned(x, y);
+      AddAbsMultTranspose(x, y);
    }
 
    /** @brief For each face, sets @a y to the partial derivative of @a x with
@@ -342,8 +344,13 @@ public:
    void Mult(const Vector &x, Vector &y) const override
    { MultInternal(x, y); }
 
-   void MultUnsigned(const Vector &x, Vector &y) const override
+   /// Compute Mult without applying signs based on DOF orientations.
+   void AbsMult(const Vector &x, Vector &y) const override
    { MultInternal(x, y, true); }
+
+   /// Deprecated. Use AbsMult instead.
+   MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
+   { AbsMult(x, y); }
 
    using FaceRestriction::AddMultTransposeInPlace;
 
@@ -365,18 +372,19 @@ public:
        L-Vector @b not taking into account signs from DOF orientations.
 
        @sa AddMultTranspose(). */
-   void AddMultTransposeUnsigned(const Vector &x, Vector &y,
-                                 const real_t a = 1.0) const override;
+   void AddAbsMultTranspose(const Vector &x, Vector &y,
+                            const real_t a = 1.0) const override;
 
-   void AddAbsMultTranspose(const Vector &x, Vector &y) const
+   /// Deprecated. Use AddAbsMultTranspose instead.
+   MFEM_DEPRECATED void AddMultTransposeUnsigned(const Vector &x, Vector &y) const
    {
-      AddMultTransposeUnsigned(x, y);
+      AddAbsMultTranspose(x, y);
    }
 
    void AbsMultTranspose(const Vector &x, Vector &y) const override
    {
       y = 0.0;
-      AddMultTransposeUnsigned(x, y);
+      AddAbsMultTranspose(x, y);
    }
 
 private:
