@@ -21,8 +21,8 @@ namespace mfem
 namespace plasma
 {
 
-G_EQDSK_Data::G_EQDSK_Data(istream &is)
-   : init_flag_(0)
+G_EQDSK_Data::G_EQDSK_Data(istream &is, int logging)
+   : logging_(logging), init_flag_(0)
 {
    real_t XDUM = 0.0;
 
@@ -77,11 +77,10 @@ G_EQDSK_Data::G_EQDSK_Data(istream &is)
    for (int i=0; i<NBBBS_; i++) { is >> RBBBS_[i] >> ZBBBS_[i]; }
    for (int i=0; i<LIMITR_; i++) { is >> RLIM_[i] >> ZLIM_[i]; }
 
+   if (logging_ > 0) { checkPsiBoundary(); }
+
    dr_ = RDIM_ / (NW_ - 1);
    dz_ = ZDIM_ / (NH_ - 1);
-
-   real_t psi_bry = checkPsiBoundary();
-   if ((SIBRY_ - SIMAG_) < 1e-2 * (psi_bry - SIMAG_)) { SIBRY_ = psi_bry; }
 
    dpsi_ = (SIBRY_ - SIMAG_) / (NW_ - 1);
 }
@@ -186,9 +185,10 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
    ofs_inp.close();
 }
 
-real_t G_EQDSK_Data::checkPsiBoundary()
+void G_EQDSK_Data::checkPsiBoundary()
 {
-   real_t psi_mid = 0.0;
+   real_t psi_avg = 0.0;
+   real_t psi_dif = 0.0;
    real_t psi_min = std::numeric_limits<real_t>::max();
    real_t psi_max = std::numeric_limits<real_t>::min();
 
@@ -203,24 +203,17 @@ real_t G_EQDSK_Data::checkPsiBoundary()
       psi_min = std::min(psi, psi_min);
       psi_max = std::max(psi, psi_max);
 
-      if (NBBBS_ % 2 == 1)
-      {
-         if (i == (NBBBS_ - 1) / 2) { psi_mid = psi; }
-      }
-      else
-      {
-         if (i == NBBBS_ / 2 || i + 1 == NBBBS_ / 2) { psi_mid += 0.5 * psi; }
-      }
+      psi_avg += psi;
+      psi_dif += abs(psi - SIBRY_);
    }
-   //cout << psi_min << " <= psi <= " << psi_max << endl;
-   //cout << "psi_mid = " << psi_mid << endl;
+   psi_avg /= NBBBS_;
+   psi_dif /= NBBBS_;
 
-   return psi_mid;
-}
 /*
 real_t G_EQDSK_Data::InterpFPol(real_t r)
 {
    if (!checkFlag(FPOL))
+   if (logging_ > 1)
    {
       initInterpR(FPOL_, FPOL_t_);
       setFlag(FPOL);
@@ -233,6 +226,11 @@ real_t G_EQDSK_Data::InterpPres(real_t r)
    {
       initInterpR(PRES_, PRES_t_);
       setFlag(PRES);
+      mfem::out << psi_min << " <= (Psi on plasma boundary) <= "
+                << psi_max << endl;
+      mfem::out << "Average of Psi on plasma boundary: " << psi_avg << endl;
+      mfem::out << "Average of |Psi - SIBRY| on plasma boundary: "
+                << psi_dif << endl;
    }
    return interpR(r, PRES_, PRES_t_);
 }
@@ -271,6 +269,9 @@ real_t G_EQDSK_Data::InterpBTor(real_t r)
       setFlag(BTOR);
    }
    return interpR(r, BTOR_, BTOR_t_);
+
+   MFEM_VERIFY(psi_dif < 1e-2 * abs(SIMAG_), "Psi differs from its imposed "
+               "boundary value more than expected.");
 }
 */
 real_t G_EQDSK_Data::InterpFPolRZ(const Vector &rz)

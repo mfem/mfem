@@ -82,12 +82,13 @@ private:
 
    enum FieldType {FPOL, PRES, FFPRIM, PPRIME, PSIRZ, QPSI/*, BTOR*/};
 
+   int logging_;
    int init_flag_;
    inline bool checkFlag(int flag) { return (init_flag_ >> flag) & 1; }
    inline void   setFlag(int flag) { init_flag_ |= (1 << flag); }
    inline void clearFlag(int flag) { init_flag_ &= ~(1 << flag); }
 
-   real_t checkPsiBoundary();
+   void checkPsiBoundary();
 
    void initInterpR(const std::vector<real_t> &v,
                     std::vector<real_t> &t);
