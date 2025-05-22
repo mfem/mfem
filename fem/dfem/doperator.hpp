@@ -161,12 +161,17 @@ public:
 
    void Mult(const Vector &solutions_t, Vector &y) const override
    {
+      dbg("[prefix] prolongation");
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
+
+      dbg("[forall] action");
       for (auto &action : action_callbacks)
       {
          action(solutions_l, parameters_l, residual_l);
       }
+
+      dbg("[postfix] prolongation_transpose");
       prolongation_transpose(residual_l, y);
    }
 
@@ -309,7 +314,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> domain_attributes,
    derivative_ids_t derivative_ids)
 {
-   dbg();
+   dbg("derivative_ids: #{}", derivative_ids.size());
    using entity_t = Entity::Element;
 
    static constexpr size_t num_inputs =
@@ -392,6 +397,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       use_sum_factorization = true;
    }
+   dbg("use_sum_factorization: {}", use_sum_factorization ? "✅" : "❌");
 
    ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
    DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
@@ -418,9 +424,10 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &parameters_l,
        std::vector<Vector> &fields_e)
    {
-      dbg("restriction_callback");
+      dbg("\x1b[31m[restriction] solutions L => E");
       restriction<entity_t>(solutions, solutions_l, fields_e,
                             element_dof_ordering);
+      dbg("\x1b[31m[restriction] parameters L => E");
       restriction<entity_t>(parameters, parameters_l, fields_e,
                             element_dof_ordering,
                             solutions.size());
@@ -505,14 +512,15 @@ void DifferentiableOperator::AddDomainIntegrator(
          thread_blocks.z = 1;
       }
    }
-
+   ////////////////////////////////////////////////////////////////////////////
+   // Create the action
    action_callbacks.push_back(
       [=, restriction_callback = this->restriction_callback]
       (std::vector<Vector> &solutions_l,
        const std::vector<Vector> &parameters_l,
        Vector &residual_l) mutable
    {
-      dbg("action_callbacks");
+      dbg("\x1b[32m[action][callback] prefix");
       restriction_callback(solutions_l, parameters_l, fields_e);
 
       residual_e = 0.0;
@@ -526,6 +534,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       const auto d_domain_attr = domain_attributes.Read();
       const auto d_elem_attr = elem_attributes.Read();
 
+      dbg("\x1b[32m[action][callback] forall");
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
@@ -549,13 +558,15 @@ void DifferentiableOperator::AddDomainIntegrator(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
       }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
+      dbg("\x1b[32m[action][callback] postfix");
       output_restriction_transpose(residual_e, residual_l);
    });
 
+   ////////////////////////////////////////////////////////////////////////////
    // Create the action of the derivatives
    for_constexpr([&](auto derivative_id)
    {
-      dbg("derivative id:{}", derivative_id.value);
+      dbg("[derivatives][action] id: {}", derivative_id.value);
       const size_t d_field_idx = FindIdx(derivative_id, fields);
       const auto direction = fields[d_field_idx];
       const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
@@ -581,7 +592,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             std::vector<Vector> &fields_e, const Vector &direction_l,
             Vector &derivative_action_l) mutable
       {
-         dbg("derivative_action_callbacks id:{}", derivative_id.value);
+         dbg("\x1b[33m[derivative][action][callback] id:{}", derivative_id.value);
          restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
          auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
          auto wrapped_fields_e = wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
@@ -621,13 +632,15 @@ void DifferentiableOperator::AddDomainIntegrator(
       });
    }, derivative_ids);
 
-   dbg("Create the transpose action of the derivatives");
+   ////////////////////////////////////////////////////////////////////////////
    if (!use_sum_factorization)
    {
+      dbg("Create the transpose action of the derivatives");
+      assert(false && "❌❌ NOT USED ❌❌");
       dbg("!use_sum_factorization");
-      for_constexpr([&](auto derivative_id)
+      /*for_constexpr([&](auto derivative_id)
       {
-         dbg("derivative_id:{}", derivative_id.value);
+         dbg("[MultTranspose] derivative_id:{}", derivative_id.value);
          const size_t d_field_idx = FindIdx(derivative_id, fields);
          const auto direction = fields[test_space_field_idx];
          const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
@@ -673,7 +686,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                std::vector<Vector> &fields_e, const Vector &direction_l,
                Vector &daction_l) mutable
          {
-            dbg("daction_transpose_callbacks id:{}", derivative_id.value);
+            dbg("\x1b[34m[derivative_action_transpose_callback] id:{}", derivative_id.value);
             auto shmem = shmem_cache.ReadWrite();
 
             restriction<entity_t>(direction, direction_l, direction_e, element_dof_ordering);
@@ -691,7 +704,8 @@ void DifferentiableOperator::AddDomainIntegrator(
             daction_transpose_e = 0.0;
             for (int e = 0; e < num_entities; e++)
             {
-               dbg("e: {}/{}", e+1, num_entities);
+               dbg("\x1b[34m[derivative_action_transpose_callback] e: {}/{}", e+1,
+                   num_entities);
                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                       input_shmem_, shadow_shmem_, residual_shmem_, scratch_shmem] =
                unpack_shmem(shmem, shmem_info, input_dtq_maps,
@@ -741,14 +755,14 @@ void DifferentiableOperator::AddDomainIntegrator(
 
                            auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
                            auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
+      #ifdef MFEM_USE_ENZYME
                            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
                            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
                                                        shadow_shmem, q);
-#else
+      #else
                            MFEM_ABORT("Native dual support is not enabled!");
                            // apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
+      #endif
                            d_qp(j, m, q) = 0.0;
 
                            auto f = Reshape(&r(0), test_vdim, test_op_dim);
@@ -798,14 +812,15 @@ void DifferentiableOperator::AddDomainIntegrator(
             }
             restriction_transpose(daction_transpose_e, daction_l);
          });
-      }, derivative_ids);
+      }, derivative_ids);*/
    }
 
-   dbg("Create assembly callbacks for derivatives");
+   ////////////////////////////////////////////////////////////////////////////
+   // dbg("Create assembly callbacks for derivatives");
    // TODO: Host only for now
    for_constexpr([&](auto derivative_id)
    {
-      dbg("callback for derivative_id:{}", derivative_id.value);
+      dbg("[derivative][assembly] id: {}", derivative_id.value);
       // Field index of the derivative
       const size_t d_field_idx = FindIdx(derivative_id, fields);
 
@@ -821,7 +836,8 @@ void DifferentiableOperator::AddDomainIntegrator(
          }
          return size_t(SIZE_MAX);
       }();
-      dbg("d_field_idx:{} d_input_idx:{}", d_field_idx, d_input_idx);
+      dbg("[derivative][assembly] d_field_idx:{} d_input_idx:{}", d_field_idx,
+          d_input_idx);
 
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
@@ -843,7 +859,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       const int num_trial_dof =
          get_restriction<entity_t>(fields[d_field_idx], element_dof_ordering)->Height() /
          inputs_vdim[d_input_idx] / num_entities;
-      dbg("trial_vdim:{} num_trial_dof_1d:{} num_trial_dof:{}",
+      dbg("[derivative][assembly] trial_vdim:{} num_trial_dof_1d:{} num_trial_dof:{}",
           trial_vdim, num_trial_dof_1d, num_trial_dof);
 
       int total_trial_op_dim = 0;
@@ -858,13 +874,13 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       const int da_size_on_qp =
          GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
-      dbg("da_size_on_qp:{}", da_size_on_qp);
+      dbg("[derivative][assembly] da_size_on_qp:{}", da_size_on_qp);
 
       assemble_derivative_hypreparmatrix_callbacks[derivative_id].push_back(
          [=, fields = this->fields]
          (std::vector<Vector> &fields_e, HypreParMatrix &A) mutable
       {
-         dbg("assemble_derivative_hypreparmatrix_callbacks id:{}", derivative_id.value);
+         dbg("\x1b[35m[derivative][assembly][callback] id:{}", derivative_id.value);
          Vector direction_e(get_restriction<entity_t>(fields[d_field_idx],
                                                       element_dof_ordering)->Height());
 
@@ -886,7 +902,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          auto A_e = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim, num_trial_dof,
                             trial_vdim, num_elements);
 
-         dbg("For E-loop:{}", num_elements);
+         dbg("\x1b[35m[derivative][assembly][callback] For E-loop:{}", num_elements);
          for (int e = 0; e < num_elements; e++)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,

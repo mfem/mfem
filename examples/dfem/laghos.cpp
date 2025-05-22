@@ -98,7 +98,7 @@ using matd = tensor<real_t, DIMENSION, DIMENSION>;
 ///////////////////////////////////////////////////////////////////////////////
 struct TaylorSourceQFunction
 {
-   TaylorSourceQFunction() = default;
+   TaylorSourceQFunction() { dbg();}
 
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -1228,8 +1228,21 @@ public:
          lag = 0;
 
          // out << "creating new residual\n";
+         dbg("creating new residual");
          current_dt = dt;
-         residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
+         auto hydro_residual =
+            new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient);
+         residual.reset(hydro_residual);
+
+         {
+            Vector ux_l(hydro_residual->H1vsize), ue_l(hydro_residual->L2vsize);
+            assert(taylor_source_mf);
+            auto dTaylorSourcedx =
+               taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
+            HypreParMatrix dTaylorSourcedx_mat;
+            dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+            dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
+         }
 
          delete snes;
          snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
@@ -1629,7 +1642,8 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
       auto derivatives =
          std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
       momentum_mf->AddDomainIntegrator(momentum_qf, momentum_mf_kernel_ao,
-                                       momentum_mf_kernel_oo, ir, all_domain_attr, derivatives);
+                                       momentum_mf_kernel_oo, ir, all_domain_attr,
+                                       derivatives);
    }
 
    std::shared_ptr<DifferentiableOperator> momentum_pa;
@@ -1690,7 +1704,8 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
       energy_conservation_mf->AddDomainIntegrator(
          energy_conservation_qf, energy_conservation_mf_kernel_ao,
-         energy_conservation_mf_kernel_oo, ir, all_domain_attr, derivatives);
+         energy_conservation_mf_kernel_oo, ir, all_domain_attr,
+         derivatives);
    }
 
    std::shared_ptr<DifferentiableOperator> energy_conservation_pa;
@@ -2009,7 +2024,7 @@ int main(int argc, char *argv[])
    ParMesh mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
    const int dim = mesh.Dimension();
 
-   MFEM_ASSERT(dim == DIMENSION, "mesh dimension inconsistency");
+   MFEM_VERIFY(dim == DIMENSION, "mesh dimension inconsistency");
 
    // Define the parallel finite element spaces. We use:
    // - H1 (Gauss-Lobatto, continuous) for position and velocity.
@@ -2229,23 +2244,35 @@ int main(int argc, char *argv[])
    }
    ode_solver->Init(*hydro);
 
+   dbg("Starting using 'hydro'");
    hydro->ComputeDensity(rho_gf);
-   const real_t energy_init = hydro->InternalEnergy(e_gf) +
-                              hydro->KineticEnergy(v_gf);
+
+   const real_t energy_init =
+      hydro->InternalEnergy(e_gf) + hydro->KineticEnergy(v_gf);
+   dbg("energy_init:{}", energy_init);
 
    // out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
    //     << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
+   /*{
+      using hydro_t = decltype(*hydro);
+      using residual_t = LagrangianHydroResidualOperator<hydro_t>;
+      auto residual = std::dynamic_pointer_cast<residual_t>(hydro->residual);
+      assert(residual);
+      Vector ux_l(residual->H1vsize), ue_l(residual->L2vsize);
+      // hydro->UpdateMesh(ux_l);
+      assert(hydro->taylor_source_mf);
+      auto dTaylorSourcedx = hydro->taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
+   }*/
+
    real_t t = 0.0;
    real_t dt = hydro->GetTimeStepEstimate(S);
-
 
    if (Mpi::Root())
    {
       out << "energy initial: " << energy_init << "\n";
       out << "time step estimate: " << dt << "\n";
    }
-
 
    real_t t_old;
    bool last_step = false;
@@ -2262,6 +2289,8 @@ int main(int argc, char *argv[])
       verr_gf(i) = abs(verr_gf(i) - std::as_const(v_gf)(i));
    }
 
+#undef MFEM_USE_PARAVIEW
+#ifdef MFEM_USE_PARAVIEW
    ParaViewDataCollection paraview_dc("dfem", &mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order_v);
@@ -2278,6 +2307,7 @@ int main(int argc, char *argv[])
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0);
    paraview_dc.Save();
+#endif
 
    for (int ti = 1; !last_step; ti++)
    {
@@ -2293,6 +2323,7 @@ int main(int argc, char *argv[])
       // S is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
       ode_solver->Step(S, t, dt);
+      dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
       steps++;
 
       // Adaptive time step control.
@@ -2352,9 +2383,11 @@ int main(int argc, char *argv[])
 
       hydro->ComputeDensity(rho_gf);
 
+#ifdef MFEM_USE_PARAVIEW
       paraview_dc.SetCycle(ti);
       paraview_dc.SetTime(t);
       paraview_dc.Save();
+#endif
    }
 
    const real_t energy_final = hydro->InternalEnergy(e_gf)

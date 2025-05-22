@@ -873,6 +873,7 @@ int GetDimension(const FieldDescriptor &f)
 
 const Operator *get_prolongation(const FieldDescriptor &f)
 {
+   // dbg("\x1b[37m[get_prolongation]");
    return std::visit([](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
@@ -943,6 +944,7 @@ inline
 const Operator *get_restriction(const FieldDescriptor &f,
                                 const ElementDofOrdering &o)
 {
+   // dbg("\x1b[31m[get_restriction]");
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
       return get_element_restriction(f, o);
@@ -963,10 +965,12 @@ auto get_restriction_transpose(
    const ElementDofOrdering &o,
    const fop_t &fop)
 {
+   // dbg("\x1b[31m[get_restriction_transpose]");
    if constexpr (is_one_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
+         dbg("\x1b[31m[restriction][transpose] =");
          v_l = v_e;
       };
       return std::tuple{RT, 1};
@@ -976,6 +980,7 @@ auto get_restriction_transpose(
       const Operator *R = get_restriction<entity_t>(f, o);
       auto RT = [=](const Vector &x, Vector &y)
       {
+         dbg("\x1b[31m[restriction][transpose] R MultTranspose");
          R->MultTranspose(x, y);
       };
       return std::tuple{RT, R->Height()};
@@ -984,6 +989,7 @@ auto get_restriction_transpose(
 
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
+   dbg("\x1b[37m[prolongation]");
    const auto P = get_prolongation(field);
    field_l.SetSize(P->Height());
    P->Mult(x, field_l);
@@ -994,7 +1000,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
 {
-   dbg();
+   dbg("\x1b[37m[prolongation]");
    int data_offset = 0;
    for (int i = 0; i < N; i++)
    {
@@ -1013,7 +1019,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
-   dbg();
+   dbg("\x1b[37m[prolongation]");
    int data_offset = 0;
    for (size_t i = 0; i < fields.size(); i++)
    {
@@ -1035,7 +1041,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
-         dbg("[prolongation_transpose] ONE");
+         dbg("\x1b[37m[prolongation][transpose] ONE");
          double local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
@@ -1046,7 +1052,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
    {
       auto PT = [](Vector &r_local, Vector &y)
       {
-         dbg("[prolongation_transpose] NONE");
+         dbg("\x1b[37m[prolongation][transpose] NONE");
          y = r_local;
       };
       return PT;
@@ -1056,7 +1062,7 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       const Operator *P = get_prolongation(f);
       auto PT = [=](const Vector &r_local, Vector &y)
       {
-         dbg("[prolongation_transpose] MultTranspose");
+         dbg("\x1b[37m[prolongation][transpose] MultTranspose");
          P->MultTranspose(r_local, y);
       };
       return PT;
@@ -1069,7 +1075,7 @@ void restriction(const FieldDescriptor u,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
-   dbg("[restriction] Mult");
+   dbg("\x1b[31m[restriction] L => E");
    const auto R = get_restriction<entity_t>(u, ordering);
    MFEM_ASSERT(R->Width() == u_l.Size(),
                "restriction not applicable to given data size");
@@ -1085,7 +1091,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
-   dbg("[restriction]");
+   dbg("\x1b[31m[restriction] L => E");
    for (size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
@@ -1105,7 +1111,7 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
                          ElementDofOrdering ordering,
                          const int offset = 0)
 {
-   dbg("[element_restriction]");
+   dbg("\x1b[31m[element][restriction]");
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);
