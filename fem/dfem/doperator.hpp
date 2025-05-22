@@ -805,6 +805,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    // TODO: Host only for now
    for_constexpr([&](auto derivative_id)
    {
+      dbg("callback for derivative_id:{}", derivative_id.value);
       // Field index of the derivative
       const size_t d_field_idx = FindIdx(derivative_id, fields);
 
@@ -820,6 +821,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          }
          return size_t(SIZE_MAX);
       }();
+      dbg("d_field_idx:{} d_input_idx:{}", d_field_idx, d_input_idx);
 
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
@@ -841,6 +843,8 @@ void DifferentiableOperator::AddDomainIntegrator(
       const int num_trial_dof =
          get_restriction<entity_t>(fields[d_field_idx], element_dof_ordering)->Height() /
          inputs_vdim[d_input_idx] / num_entities;
+      dbg("trial_vdim:{} num_trial_dof_1d:{} num_trial_dof:{}",
+          trial_vdim, num_trial_dof_1d, num_trial_dof);
 
       int total_trial_op_dim = 0;
       for_constexpr<num_inputs>([&](auto s)
@@ -854,7 +858,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       const int da_size_on_qp =
          GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
-
+      dbg("da_size_on_qp:{}", da_size_on_qp);
 
       assemble_derivative_hypreparmatrix_callbacks[derivative_id].push_back(
          [=, fields = this->fields]
@@ -882,6 +886,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          auto A_e = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim, num_trial_dof,
                             trial_vdim, num_elements);
 
+         dbg("For E-loop:{}", num_elements);
          for (int e = 0; e < num_elements; e++)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,

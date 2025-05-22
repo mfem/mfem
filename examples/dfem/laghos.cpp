@@ -914,7 +914,7 @@ public:
    Operator& GetGradient(const Vector &k) const override
    {
       dbg();
-      MFEM_PERF_FUNCTION;
+      MFEM_PERF_SCOPE("LagrangianHydroResidualOperator::GetGradient");
       // tic();
       jacobian =
          std::make_shared<LagrangianHydroJacobianOperator>(dt, H1tsize,
@@ -1284,7 +1284,7 @@ public:
    void UpdateMesh(const Vector &S) const
    {
       dbg();
-      MFEM_PERF_SCOPE("LagrangianHydroOperator::UpdateMesh");
+      // MFEM_PERF_SCOPE("LagrangianHydroOperator::UpdateMesh");
       auto* sptr = const_cast<Vector*>(&S);
       mesh_nodes.MakeRef(&H1, *sptr, 0);
       H1.GetParMesh()->NewNodes(mesh_nodes, false);
