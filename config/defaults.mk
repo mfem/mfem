@@ -624,9 +624,14 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
 
 # Enzyme configuration
 ENZYME_DIR = @MFEM_DIR@/../enzyme
-ENZYME_LLVM_VERSION = 19
-ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
-ENZYME_LIB = ""
+ENZYME_PLUGIN = $(wildcard $(ENZYME_DIR)/lib/ClangEnzyme-*.$(SO_EXT))
+ifeq ($(MFEM_USE_ENZYME),YES)
+   ifeq ($(ENZYME_PLUGIN),)
+      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR.)
+   endif
+endif
+ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
+ENZYME_LIB =
 
 # If YES, enable some informational messages
 VERBOSE = NO

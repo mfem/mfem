@@ -242,9 +242,9 @@ ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
-   ifeq ($(shell $(CUDA_CXX) --version 2>&1 | grep "NVIDIA"),)
+   MFEM_CXX ?= $(CUDA_CXX)
+   ifeq ($(shell $(MFEM_CXX) --version 2>&1 | grep "NVIDIA"),)
       # assume clang
-      MFEM_CXX ?= $(CUDA_CXX)
       MFEM_HOST_CXX ?= $(MFEM_CXX)
       CXXFLAGS += $(CLANG_CUDA_FLAGS)
       XCOMPILER = $(CXX_XCOMPILER)
@@ -255,7 +255,6 @@ ifeq ($(MFEM_USE_CUDA),YES)
          $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
                  clang++ or an MPI wrapper of that)
       endif
-      MFEM_CXX ?= $(CUDA_CXX)
       MFEM_HOST_CXX ?= $(HOST_CXX)
       CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
       XCOMPILER = $(CUDA_XCOMPILER)
@@ -299,7 +298,7 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
  TRIBOL BENCHMARK MOONOLITH ALGOIM
@@ -321,7 +320,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = ENZYME $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
