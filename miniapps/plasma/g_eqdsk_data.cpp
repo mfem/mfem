@@ -24,6 +24,8 @@ namespace plasma
 G_EQDSK_Data::G_EQDSK_Data(istream &is, int logging)
    : logging_(logging), init_flag_(0)
 {
+   /// The following file format is taken from the C-Mod Wiki at
+   /// https://cmodwiki.psfc.mit.edu/index.php/G_EQDSK
    real_t XDUM = 0.0;
 
    const int buflen = 1024;
@@ -209,71 +211,19 @@ void G_EQDSK_Data::checkPsiBoundary()
    psi_avg /= NBBBS_;
    psi_dif /= NBBBS_;
 
-/*
-real_t G_EQDSK_Data::InterpFPol(real_t r)
-{
-   if (!checkFlag(FPOL))
    if (logging_ > 1)
    {
-      initInterpR(FPOL_, FPOL_t_);
-      setFlag(FPOL);
-   }
-   return interpR(r, FPOL_, FPOL_t_);
-}
-real_t G_EQDSK_Data::InterpPres(real_t r)
-{
-   if (!checkFlag(PRES))
-   {
-      initInterpR(PRES_, PRES_t_);
-      setFlag(PRES);
       mfem::out << psi_min << " <= (Psi on plasma boundary) <= "
                 << psi_max << endl;
       mfem::out << "Average of Psi on plasma boundary: " << psi_avg << endl;
       mfem::out << "Average of |Psi - SIBRY| on plasma boundary: "
                 << psi_dif << endl;
    }
-   return interpR(r, PRES_, PRES_t_);
-}
-real_t G_EQDSK_Data::InterpFFPrime(real_t r)
-{
-   if (!checkFlag(FFPRIM))
-   {
-      initInterpR(FFPRIM_, FFPRIM_t_);
-      setFlag(FFPRIM);
-   }
-   return interpR(r, FFPRIM_, FFPRIM_t_);
-}
-real_t G_EQDSK_Data::InterpPPrime(real_t r)
-{
-   if (!checkFlag(PPRIME))
-   {
-      initInterpR(PPRIME_, PPRIME_t_);
-      setFlag(PPRIME);
-   }
-   return interpR(r, PPRIME_, PPRIME_t_);
-}
-real_t G_EQDSK_Data::InterpQPsi(real_t r)
-{
-   if (!checkFlag(QPSI))
-   {
-      initInterpR(QPSI_, QPSI_t_);
-      setFlag(QPSI);
-   }
-   return interpR(r, QPSI_, QPSI_t_);
-}
-real_t G_EQDSK_Data::InterpBTor(real_t r)
-{
-   if (!checkFlag(BTOR))
-   {
-      initInterpR(BTOR_, BTOR_t_);
-      setFlag(BTOR);
-   }
-   return interpR(r, BTOR_, BTOR_t_);
 
    MFEM_VERIFY(psi_dif < 1e-2 * abs(SIMAG_), "Psi differs from its imposed "
                "boundary value more than expected.");
 }
-*/
+
 real_t G_EQDSK_Data::InterpFPolRZ(const Vector &rz)
 {
    real_t psi = InterpPsiRZ(rz);
@@ -379,7 +329,8 @@ real_t G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
 {
    if (rz[0] > 1e-6 * RDIM_)
    {
-      return InterpPPrimeRZ(rz) * rz[0] + InterpFFPrimeRZ(rz) / rz[0] / mu0_;
+      return InterpPPrimeRZ(rz) * rz[0] +
+             InterpFFPrimeRZ(rz) / rz[0] / mu0_;
    }
    else
    {

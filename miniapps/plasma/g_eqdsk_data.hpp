@@ -29,43 +29,93 @@ namespace plasma
 class G_EQDSK_Data
 {
 public:
-   G_EQDSK_Data(std::istream &is);
+   G_EQDSK_Data(std::istream &is, int logging = 0);
 
+   // Number of points in radial direction
    int GetNumPtsR() const { return NW_; }
+
+   // Number of points in z direction
    int GetNumPtsZ() const { return NH_; }
 
+   // Width of domain in radial dimension (in meters)
    real_t GetRExtent() const { return RDIM_; }
+
+   // Height of domain in z dimension (in meters)
    real_t GetZExtent() const { return ZDIM_; }
 
+   // Radial coordinate at innermost edge of domain (in meters)
    real_t GetRMin() const { return RLEFT_; }
+
+   // Z coordinate of the middle of the domain (in meters)
    real_t GetZMid() const { return ZMID_; }
 
+   // Value of poloidal flux at the magnetic axis (in Weber / rad)
    real_t GetPsiCenter() const {return SIMAG_; }
+
+   // Value of poloidal flux at the plasma boundary (in Weber / rad)
    real_t GetPsiBdry() const {return SIBRY_; }
 
+   // Values of poloidal flux (in Weber / rad) on the full grid in a
+   // flattened array with z-direction cycling the fastest
    std::vector<real_t> & GetPsi() { return PSIRZ_ ;}
-   // std::vector<real_t> & GetBTor() { return BTOR_; }
 
+   // Print a text block to the output stream containing basic
+   // information about the domain and the fields defined in the eqdsk
+   // file.
    void PrintInfo(std::ostream &out = std::cout) const;
+
+   // Create a GnuPlot input file and associated data file for
+   // visualizing the fields stored in the eqdsk file.
    void DumpGnuPlotData(const std::string &file) const;
 
-   // real_t InterpFPol(real_t r);
-   // real_t InterpPres(real_t r);
-   // real_t InterpFFPrime(real_t r);
-   // real_t InterpPPrime(real_t r);
-   // real_t InterpQPsi(real_t r);
+   // In the following interpolation functions the Vector argument rz
+   // is a two component vector containing first the radial coordinate
+   // and nex the z coordinate both expressed in meters.
+
+   // Interpolate the toroidal field function, F(Psi(rz) / SIMAG)
+   // (in Tesla meters), at the point rz
    real_t InterpFPolRZ(const Vector &rz);
+
+   // Interpolate the pressure, P(Psi(rz) / SIMAG) (in N / m^2), at the
+   // point rz
    real_t InterpPresRZ(const Vector &rz);
+
+   // Interpolate the function, F(Psi(rz) / SIMAG) * F'(Psi / SIMAG)
+   // (in (m T)^2 / (Weber / rad)), at the point rz
    real_t InterpFFPrimeRZ(const Vector &rz);
+
+   // Interpolate the function, P'(Psi(rz) / SIMAG)
+   // (in (N / m^2) / (Weber / rad)), at the point rz
    real_t InterpPPrimeRZ(const Vector &rz);
+
+   // Interpolate the poloidal flux function, Psi(rz) (in Weber / rad), at
+   // the point rz
    real_t InterpPsiRZ(const Vector &rz);
+
+   // Interpolate the safety factor, q(Psi(rz) / SIMAG), at the point rz
    real_t InterpQRZ(const Vector &rz);
+
+   // Interpolate the toroidal magnetic fleid (in Tesla) at the
+   // point rz
+   //    B_T = F(Psi(rz) / SIMAG) / r
    real_t InterpBTorRZ(const Vector &rz);
+
+   // Interpolate the toroidal current density (in Ampere / m^2) at
+   // the point rz
+   //    J_T = r P'((Psi(rz) / SIMAG) + FF'(Psi(rz) / SIMAG) / (r mu0)
    real_t InterpJTorRZ(const Vector &rz);
 
+   // Interpolate the rotated gradient of Psi (in Tesla) at the
+   // point rz
+   //    nxdp = (n x Grad Psi(rz))
+   // where n is the unit vector in the toroidal direction
    void InterpNxGradPsiRZ(const Vector &rz, Vector &nxdp);
+
+   // Interpolate the poloidal magnetic field (in Tesla) at the
+   // point rz
+   //    B_P = (n x Grad Psi(rz)) / r
+   // where n is the unit vector in the toroidal direction
    void InterpBPolRZ(const Vector &rz, Vector &b);
-   // real_t InterpBTor(real_t r);
 
    int GetNumBoundaryPts() const { return NBBBS_; }
    const std::vector<real_t> & GetBoundaryRVals() const { return RBBBS_; }
@@ -115,6 +165,9 @@ private:
    real_t interpPsi(real_t psi, const std::vector<real_t> &v,
                     const std::vector<real_t> &t);
 
+   /// The following variable names are taken from the C-Mod Wiki at
+   /// https://cmodwiki.psfc.mit.edu/index.php/G_EQDSK
+
    std::vector<std::string> CASE_; // Identification character string
 
    int NW_; // Number of horizontal R grid points
@@ -138,10 +191,10 @@ private:
    // Plasma pressure in nt / m^2 on uniform flux grid
    std::vector<real_t> PRES_;
 
-   // FF’(ψ) in (mT)2 / (Weber /rad) on uniform flux grid
+   // FF’(ψ) in (mT)^2 / (Weber /rad) on uniform flux grid
    std::vector<real_t> FFPRIM_;
 
-   // P’(ψ) in (nt /m2) / (Weber /rad) on uniform flux grid
+   // P’(ψ) in (nt /m^2) / (Weber /rad) on uniform flux grid
    std::vector<real_t> PPRIME_;
 
    // Poloidal flux in Weber / rad on the rectangular grid points
@@ -149,9 +202,6 @@ private:
 
    // q values on uniform flux grid from axis to boundary
    std::vector<real_t> QPSI_;
-
-   // Toroidal B field dervided from FPOL_
-   // std::vector<real_t> BTOR_;
 
    int                 NBBBS_;  // Number of boundary points
    std::vector<real_t> RBBBS_;  // R of boundary points in meter
