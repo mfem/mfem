@@ -24,11 +24,6 @@ int main(int argc, char *argv[])
    const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
-   // refine the mesh
-   // new_mesh->UniformRefinement();
-
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
    RT_FECollection fec(0, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
    H1_FECollection scalar_fec(1, dim);
@@ -75,7 +70,7 @@ int main(int argc, char *argv[])
       gg = temp_gg;
    }
 
-   // make a grid function with the H1 space
+   
    GridFunction J_pol(&fespace);
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;

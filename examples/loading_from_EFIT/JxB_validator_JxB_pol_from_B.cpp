@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
 
    // A. compute B_tor_r
-   // make a grid function with the H1 space
+   
    GridFunction B_tor_r(B_tor.FESpace());
    cout << B_tor_r.FESpace()->GetTrueVSize() << endl;
    B_tor_r = 0.0;
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    }
 
    // C. compute r Curl B_pol
-   // make a grid function with the H1 space
+   
    GridFunction R_Curl_B_pol(B_tor.FESpace());
    cout << R_Curl_B_pol.FESpace()->GetTrueVSize() << endl;
    R_Curl_B_pol = 0.0;

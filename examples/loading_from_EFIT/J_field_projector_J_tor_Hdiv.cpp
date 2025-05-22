@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // make a grid function with the H1 space
+   
    GridFunction J_tor(&fespace);
    cout << J_tor.FESpace()->GetTrueVSize() << endl;
    J_tor = 0.0;

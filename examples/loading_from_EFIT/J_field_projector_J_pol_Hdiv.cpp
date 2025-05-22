@@ -18,20 +18,15 @@ int main(int argc, char *argv[])
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
-
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
    RT_FECollection fec(0, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // make a grid function with the H1 space
    GridFunction J_pol(&fespace);
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;
    LinearForm b(&fespace);
 
    // project the grid function onto the new space
-   // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(B_tor.FESpace(), &fespace);
@@ -82,7 +77,7 @@ int main(int argc, char *argv[])
                << mesh << J_pol << flush;
    }
 
-   // // paraview
+   // paraview
    {
       ParaViewDataCollection paraview_dc("J_pol_Hdiv", &mesh);
       paraview_dc.SetPrefixPath("ParaView");

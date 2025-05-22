@@ -123,7 +123,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi / r n^\perp$ if v is 2D and $\Psi / r$ if v is 1D
-class PsiOverRGridFunctionVectorCoefficient : public VectorCoefficient
+class PsiOverRVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -133,9 +133,9 @@ private:
 public:
    int counter = 0;
 
-   PsiOverRGridFunctionVectorCoefficient() = delete;
+   PsiOverRVectorGridFunctionCoefficient() = delete;
 
-   PsiOverRGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+   PsiOverRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -169,7 +169,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi / r^2$
-class PsiOverRSquareGridFunctionVectorCoefficient : public VectorCoefficient
+class PsiOverRSquareVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -179,9 +179,9 @@ private:
 public:
    int counter = 0;
 
-   PsiOverRSquareGridFunctionVectorCoefficient() = delete;
+   PsiOverRSquareVectorGridFunctionCoefficient() = delete;
 
-   PsiOverRSquareGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+   PsiOverRSquareVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -234,7 +234,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $\Psi$
-class PsiGridFunctionVectorCoefficient : public VectorCoefficient
+class PsiVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
@@ -244,9 +244,9 @@ private:
 public:
    int counter = 0;
 
-   PsiGridFunctionVectorCoefficient() = delete;
+   PsiVectorGridFunctionCoefficient() = delete;
 
-   PsiGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+   PsiVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
    {
    }
@@ -279,7 +279,7 @@ public:
 };
 
 /// @brief Input $\Psi$ and return $curl \Psi$
-class CurlPsiGridFunctionVectorCoefficient : public VectorCoefficient
+class CurlPsiVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const bool flip_sign;
@@ -288,9 +288,9 @@ private:
 public:
    int counter = 0;
 
-   CurlPsiGridFunctionVectorCoefficient() = delete;
+   CurlPsiVectorGridFunctionCoefficient() = delete;
 
-   CurlPsiGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+   CurlPsiVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(2), flip_sign(flip_sign), grad_psi_coef(gf)
    {
    }
@@ -390,7 +390,7 @@ public:
 };
 
 /// @brief Input $B_tor$ and return $Div rB_pol$
-class DivRBPolGridFunctionVectorCoefficient : public Coefficient
+class DivRBPolGridFunctionCoefficient : public Coefficient
 {
 private:
    const bool flip_sign;
@@ -398,7 +398,7 @@ private:
    VectorGridFunctionCoefficient B_pol_coef;
 
 public:
-   DivRBPolGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+   DivRBPolGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : Coefficient(), flip_sign(flip_sign), div_B_pol_coef(gf), B_pol_coef(gf)
    {
    }

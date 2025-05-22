@@ -18,19 +18,16 @@ int main(int argc, char *argv[])
    ifstream temp_log("output/B_pol_Hcurl.gf");
    GridFunction B_pol(&mesh, temp_log);
 
-   temp_log.close();            // Close previous file
+   temp_log.close();                    // Close previous file
    temp_log.open("output/B_tor_CG.gf"); // Open new file
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
-
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
    H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    // A. compute B_tor_r
-   // make a grid function with the H1 space
+
    GridFunction B_tor_r(B_tor.FESpace());
    cout << B_tor_r.FESpace()->GetTrueVSize() << endl;
    B_tor_r = 0.0;
@@ -69,7 +66,7 @@ int main(int argc, char *argv[])
    }
 
    // B. compute JxB
-   // make a grid function with the H1 space
+
    GridFunction JxB_tor(&fespace);
    cout << JxB_tor.FESpace()->GetTrueVSize() << endl;
    JxB_tor = 0.0;

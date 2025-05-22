@@ -18,13 +18,9 @@ int main(int argc, char *argv[])
    GridFunction B_tor(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
-
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
    ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // make a grid function with the H1 space
    GridFunction J_pol(&fespace);
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;
@@ -76,7 +72,7 @@ int main(int argc, char *argv[])
                << mesh << J_pol << flush;
    }
 
-   // // paraview
+   // paraview
    {
       ParaViewDataCollection paraview_dc("J_pol_Hcurl", &mesh);
       paraview_dc.SetPrefixPath("ParaView");

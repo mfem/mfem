@@ -15,64 +15,36 @@ int main(int argc, char *argv[])
    // mesh.UniformRefinement();
    int dim = mesh.Dimension();
 
-   ifstream temp_log("output/B_pol_Hcurl.gf");
+   ifstream temp_log("output/B_pol_vec_CG.gf");
    GridFunction B_pol(&mesh, temp_log);
 
    temp_log.close();                    // Close previous file
    temp_log.open("output/B_tor_CG.gf"); // Open new file
    GridFunction B_tor(&mesh, temp_log);
 
-   temp_log.close();                      // Close previous file
-   temp_log.open("output/J_pol_Hdiv.gf"); // Open new file
-   GridFunction J_pol(&mesh, temp_log);
-
-   temp_log.close();                       // Close previous file
-   temp_log.open("output/J_tor_Hcurl.gf"); // Open new file
-   GridFunction J_tor(&mesh, temp_log);
-
    cout << "Mesh loaded" << endl;
 
-   // make a ND space with the mesh
-   ND_FECollection fec(1, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+   // make a H1 space with the mesh
+   H1_FECollection fec(1, dim);
+   FiniteElementSpace fespace(&mesh, &fec, 2);
 
+   
    GridFunction JxB_pol(&fespace);
    cout << JxB_pol.FESpace()->GetTrueVSize() << endl;
    JxB_pol = 0.0;
+
+   // 1. make the linear form
    LinearForm b(&fespace);
+   BTorGradRBTorVectorGridFunctionCoefficient B_tor_grad_r_B_tor_coef(&B_tor);
+   b.AddDomainIntegrator(new VectorDomainLFIntegrator(B_tor_grad_r_B_tor_coef));
+   CurlBPolBPolPerpRGridFunctionCoefficient neg_curl_B_pol_B_pol_perp_r_coef(&B_pol, true);
+   b.AddDomainIntegrator(new VectorDomainLFIntegrator(neg_curl_B_pol_B_pol_perp_r_coef));
    b.Assemble();
-   // project the grid function onto the new space
-
-   // 1.1.a make the RHS bilinear form for J_pol
-   {
-      MixedBilinearForm b_bi(J_pol.FESpace(), &fespace);
-      BTorRPerpMatrixGridFunctionCoefficient B_tor_r_perp_coef(&B_tor, true);
-      b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(B_tor_r_perp_coef));
-      b_bi.Assemble();
-
-      // 1.1.b form linear form from bilinear form
-      LinearForm b_li(&fespace);
-      b_bi.Mult(J_pol, b_li);
-      b += b_li;
-   }
-
-   // 1.2.a make the RHS bilinear form for B_pol
-   {
-      MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
-      JTorRPerpMatrixGridFunctionCoefficient J_tor_r_perp_coef(&J_tor, false);
-      b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(J_tor_r_perp_coef));
-      b_bi.Assemble();
-
-      // 1.1.b form linear form from bilinear form
-      LinearForm b_li(&fespace);
-      b_bi.Mult(B_pol, b_li);
-      b += b_li;
-   }
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
    RGridFunctionCoefficient r_coeff;
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coeff));
+   a.AddDomainIntegrator(new VectorMassIntegrator(r_coeff));
    a.Assemble();
    a.Finalize();
 
@@ -103,18 +75,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("JxB_pol_B", &mesh);
+      ParaViewDataCollection paraview_dc("JxB_pol_C", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("JxB_pol_B", &JxB_pol);
+      paraview_dc.RegisterField("JxB_pol_C", &JxB_pol);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/JxB_pol_B.gf");
+   ofstream sol_ofs("output/JxB_pol_C.gf");
    sol_ofs.precision(8);
    JxB_pol.Save(sol_ofs);
 

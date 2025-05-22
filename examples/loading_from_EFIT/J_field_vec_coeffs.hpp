@@ -299,13 +299,13 @@ public:
 class CurlBPolRGridFunctionCoefficient : public Coefficient
 {
 private:
-   const GridFunction *gf;
    bool flip_sign;
+   const GridFunction *gf;
 
 public:
    int counter = 0;
    CurlBPolRGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
-       : Coefficient(), gf(gf), flip_sign(flip_sign)
+       : Coefficient(), flip_sign(flip_sign), gf(gf)
    {
    }
 
@@ -322,18 +322,19 @@ public:
 };
 
 /// @brief Input $B_tor$ and return $Curl rB_tor$
-class CurlRBTorGridFunctionVectorCoefficient : public VectorCoefficient
+class CurlRBTorVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
-const bool flip_sign;
-GradientGridFunctionCoefficient grad_B_tor_coef;
-GridFunctionCoefficient B_tor_coef;
+   const bool flip_sign;
+   GradientGridFunctionCoefficient grad_B_tor_coef;
+   GridFunctionCoefficient B_tor_coef;
+
 public:
    int counter = 0;
 
-   CurlRBTorGridFunctionVectorCoefficient() = delete;
+   CurlRBTorVectorGridFunctionCoefficient() = delete;
 
-   CurlRBTorGridFunctionVectorCoefficient(const GridFunction *gf, bool flip_sign = false)
+   CurlRBTorVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
        : VectorCoefficient(2), flip_sign(flip_sign), grad_B_tor_coef(gf), B_tor_coef(gf)
    {
    }
@@ -344,15 +345,16 @@ public:
       // Curl rB_tor = r Curl B_tor + (0, 1) B_tor
 
       // get r, z coordinates
-      Vector x1;
-      T.Transform(ip, x1);
-      real_t r = x1(0);
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0);
 
       grad_B_tor_coef.Eval(V, T, ip);
       swap(V(0), V(1));
       V(0) = -V(0);
       V *= r;
       // now, V = r * Curl B_tor
+      cout << B_tor_coef.Eval(T, ip) << endl;
 
       V(1) += B_tor_coef.Eval(T, ip);
 

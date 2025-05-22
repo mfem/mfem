@@ -36,20 +36,18 @@ int main(int argc, char *argv[])
    RT_FECollection fec(0, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // make a grid function with the H1 space
    GridFunction JxB_pol(&fespace);
    cout << JxB_pol.FESpace()->GetTrueVSize() << endl;
    JxB_pol = 0.0;
    LinearForm b(&fespace);
    b.Assemble();
    // project the grid function onto the new space
-   // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
 
    // 1.1.a make the RHS bilinear form for J_pol
    {
       MixedBilinearForm b_bi(J_pol.FESpace(), &fespace);
-      BTorPerpMatrixGridFunctionCoefficient B_tor_perp_coef(&B_tor, true);
-      b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(B_tor_perp_coef));
+      BTorRPerpMatrixGridFunctionCoefficient B_tor_r_perp_coef(&B_tor, true);
+      b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(B_tor_r_perp_coef));
       b_bi.Assemble();
 
       // 1.1.b form linear form from bilinear form
@@ -61,8 +59,8 @@ int main(int argc, char *argv[])
    // 1.2.a make the RHS bilinear form for B_pol
    {
       MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
-      JTorPerpMatrixGridFunctionCoefficient J_tor_perp_coef(&J_tor, false);
-      b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(J_tor_perp_coef));
+      JTorRPerpMatrixGridFunctionCoefficient J_tor_r_perp_coef(&J_tor, false);
+      b_bi.AddDomainIntegrator(new MixedVectorMassIntegrator(J_tor_r_perp_coef));
       b_bi.Assemble();
 
       // 1.1.b form linear form from bilinear form
@@ -73,8 +71,8 @@ int main(int argc, char *argv[])
 
    // 2. make the bilinear form
    BilinearForm a(&fespace);
-   ConstantCoefficient one(1.0);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+   RGridFunctionCoefficient r_coeff;
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(r_coeff));
    a.Assemble();
    a.Finalize();
 
@@ -103,7 +101,7 @@ int main(int argc, char *argv[])
                << mesh << JxB_pol << flush;
    }
 
-   // // paraview
+   // paraview
    {
       ParaViewDataCollection paraview_dc("JxB_pol_A", &mesh);
       paraview_dc.SetPrefixPath("ParaView");

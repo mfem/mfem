@@ -23,11 +23,6 @@ int main(int argc, char *argv[])
    const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
-   // refine the mesh
-   // new_mesh->UniformRefinement();
-
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
    RT_FECollection fec(0, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
    H1_FECollection scalar_fec(1, dim);
@@ -74,7 +69,7 @@ int main(int argc, char *argv[])
       psi = temp_psi;
    }
 
-   // make a grid function with the H1 space
+   
    GridFunction B_pol(&fespace);
    cout << B_pol.FESpace()->GetTrueVSize() << endl;
    B_pol = 0.0;
@@ -82,7 +77,7 @@ int main(int argc, char *argv[])
    LinearForm b(&fespace);
 
    // project the grid function onto the new space
-   // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+   
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(psi.FESpace(), &fespace);

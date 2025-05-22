@@ -23,15 +23,10 @@ int main(int argc, char *argv[])
    const char *new_mesh_file = "mesh/2d_mesh.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
-   // refine the mesh
-   // new_mesh->UniformRefinement();
-
-   // make a Hcurl space with the mesh
-   // L2_FECollection fec(0, dim);
    ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
 
-   // make a grid function with the H1 space
+   
    GridFunction B_pol(&fespace);
    cout << B_pol.FESpace()->GetTrueVSize() << endl;
    B_pol = 0.0;
@@ -40,13 +35,13 @@ int main(int argc, char *argv[])
    {
       cout << "Using linear form" << endl;
       // project the grid function onto the new space
-      // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+      
 
       // 1. make the linear form
-      PsiGridFunctionVectorCoefficient psi_coef(&psi, false);
+      PsiVectorGridFunctionCoefficient psi_coef(&psi, false);
       b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
 
-      PsiGridFunctionVectorCoefficient neg_psi_coef(&psi, true);
+      PsiVectorGridFunctionCoefficient neg_psi_coef(&psi, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
       b.Assemble();
    }
@@ -54,7 +49,7 @@ int main(int argc, char *argv[])
    {
       cout << "Using bilinear form" << endl;
       // project the grid function onto the new space
-      // solving (f, B_pol) = (curl f, psi/R e_φ) + <f, n x psi/R e_φ>
+      
 
       // 1.a make the RHS bilinear form
       // Assert that the two spaces are on the same mesh
@@ -67,7 +62,7 @@ int main(int argc, char *argv[])
       // 1.b form linear form from bilinear form
       LinearForm b_li(&fespace);
       b_bi.Mult(psi, b_li);
-      PsiGridFunctionVectorCoefficient neg_psi_coef(&psi, true);
+      PsiVectorGridFunctionCoefficient neg_psi_coef(&psi, true);
       b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
       b.Assemble();
       b += b_li;

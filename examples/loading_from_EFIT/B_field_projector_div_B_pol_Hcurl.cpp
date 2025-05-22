@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // make a grid function with the H1 space
+   
    GridFunction div_B_pol(&fespace);
    cout << div_B_pol.FESpace()->GetTrueVSize() << endl;
    div_B_pol = 0.0;

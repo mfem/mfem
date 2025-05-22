@@ -24,14 +24,13 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec, 2);
 
-   // make a grid function with the H1 space
    GridFunction J_pol(&fespace);
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;
-   
+
    // 1. make the linear form
    LinearForm b(&fespace);
-   CurlRBTorGridFunctionVectorCoefficient curl_r_B_tor_coef(&B_tor, true);
+   CurlRBTorVectorGridFunctionCoefficient curl_r_B_tor_coef(&B_tor, true);
    b.AddDomainIntegrator(new VectorDomainLFIntegrator(curl_r_B_tor_coef));
    b.Assemble();
 
