@@ -20,6 +20,16 @@ namespace mfem
 
 using namespace std;
 
+DofToQuad DofToQuad::Abs() const
+{
+   DofToQuad d2q(*this);
+   d2q.B.Abs();
+   d2q.Bt.Abs();
+   d2q.G.Abs();
+   d2q.Gt.Abs();
+   return d2q;
+}
+
 FiniteElement::FiniteElement(int D, Geometry::Type G,
                              int Do, int O, int F)
    : Nodes(Do)
