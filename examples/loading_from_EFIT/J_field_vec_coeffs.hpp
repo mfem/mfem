@@ -354,10 +354,8 @@ public:
       V(0) = -V(0);
       V *= r;
       // now, V = r * Curl B_tor
-      cout << B_tor_coef.Eval(T, ip) << endl;
 
       V(1) += B_tor_coef.Eval(T, ip);
-
       V *= (flip_sign ? -1 : 1);
    }
 };
