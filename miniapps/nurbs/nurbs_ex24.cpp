@@ -16,9 +16,9 @@
 //               nurbs_ex24 -m ../../data/amr-hex.mesh
 //
 // Device sample runs -- do not work for NURBS:
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d cuda
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-cuda
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-omp
+//             * nurbs_ex24 -m ../../data/escher.mesh -pa -d cuda
+//             * nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-cuda
+//             * nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-omp
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces, with three variants:
