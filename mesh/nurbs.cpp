@@ -5888,6 +5888,7 @@ void NURBSPatchMap::SetBdrPatchVertexMap(int p, const KnotVector *kv[],
    {
       I = kv[0]->GetNE() - 1;
       pOffset = Ext->e_meshOffsets[edges[0]];
+      SetMasterEdges(false);
    }
    else if (Ext->Dimension() == 3)
    {
@@ -5922,6 +5923,8 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
    {
       I = kv[0]->GetNCP() - 2;
       pOffset = Ext->e_spaceOffsets[edges[0]];
+
+      SetMasterEdges(true);
    }
    else if (Ext->Dimension() == 3)
    {
