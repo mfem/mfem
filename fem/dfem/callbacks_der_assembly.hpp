@@ -22,16 +22,30 @@
 namespace mfem
 {
 
+///////////////////////////////////////////////////////////////////////////////
+template <class T>
+inline std::enable_if_t<!std::numeric_limits<T>::is_integer, bool>
+AlmostEq(T x, T y, T tolerance = 15.0 * std::numeric_limits<T>::epsilon())
+{
+   const T neg = std::abs(x - y);
+   constexpr T min = std::numeric_limits<T>::min();
+   constexpr T eps = std::numeric_limits<T>::epsilon();
+   const T min_abs = std::min(std::abs(x), std::abs(y));
+   if (std::abs(min_abs) == 0.0) { return neg < eps; }
+   return (neg / (1.0 + std::max(min, min_abs))) < tolerance;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 using da_hypre_parmatrix_callback_t =
    std::function<void(std::vector<Vector> &, HypreParMatrix &)>;
 
 using da_callback_t =
    std::map<size_t, std::vector<da_hypre_parmatrix_callback_t>>;
 
-template<typename entity_t,
-         int num_fields,
-         int num_inputs,
-         int num_outputs,
+///////////////////////////////////////////////////////////////////////////////
+template<size_t num_fields,
+         size_t num_inputs,
+         size_t num_outputs,
          typename qfunc_t,
          typename... input_ts,
          typename... output_ts,
@@ -63,6 +77,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                                    const derivative_ids_t derivative_ids,
                                    da_callback_t &assemble_derivative_hypreparmatrix_callbacks)
 {
+   using entity_t = Entity::Element;
    using qf_param_ts =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type::parameter_ts;
    const auto output_fop = mfem::get<0>(outputs);

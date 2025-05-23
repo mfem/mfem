@@ -821,37 +821,33 @@ void DifferentiableOperator::AddDomainIntegrator(
    static const bool use_da_callbacks = std::getenv("MFEM_USE_DA_CALLBACKS");
    if (use_da_callbacks)
    {
-      callback_derivatives_assembly<entity_t,
-                                    num_fields,
-                                    num_inputs,
-                                    num_outputs>(qfunc, inputs, outputs, fields,
-                                                 input_to_field, output_to_field,
-                                                 input_dtq_maps, output_dtq_maps,
-                                                 use_sum_factorization,
-                                                 num_entities,
-                                                 num_elements,
-                                                 num_qp,
-                                                 test_vdim,
-                                                 test_op_dim,
-                                                 num_test_dof,
-                                                 dimension,
-                                                 q1d,
-                                                 input_size_on_qp,
-                                                 residual_size_on_qp,
-                                                 element_dof_ordering,
-                                                 dependency_map,
-                                                 inputs_vdim,
-                                                 test_space_field_idx,
-                                                 ir_weights,
-                                                 derivative_ids,
-                                                 assemble_derivative_hypreparmatrix_callbacks);
+      callback_derivatives_assembly<num_fields>(qfunc, inputs, outputs, fields,
+                                                input_to_field, output_to_field,
+                                                input_dtq_maps, output_dtq_maps,
+                                                use_sum_factorization,
+                                                num_entities,
+                                                num_elements,
+                                                num_qp,
+                                                test_vdim,
+                                                test_op_dim,
+                                                num_test_dof,
+                                                dimension,
+                                                q1d,
+                                                input_size_on_qp,
+                                                residual_size_on_qp,
+                                                element_dof_ordering,
+                                                dependency_map,
+                                                inputs_vdim,
+                                                test_space_field_idx,
+                                                ir_weights,
+                                                derivative_ids,
+                                                assemble_derivative_hypreparmatrix_callbacks);
       return;
    }
 
    // TODO: Host only for now
    for_constexpr([&](auto derivative_id)
    {
-      dbg("[derivative][assembly] id: {}", derivative_id.value);
       // Field index of the derivative
       const size_t d_field_idx = FindIdx(derivative_id, fields);
 
@@ -867,8 +863,6 @@ void DifferentiableOperator::AddDomainIntegrator(
          }
          return size_t(SIZE_MAX);
       }();
-      dbg("[derivative][assembly] d_field_idx:{} d_input_idx:{}", d_field_idx,
-          d_input_idx);
 
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
@@ -890,8 +884,6 @@ void DifferentiableOperator::AddDomainIntegrator(
       const int num_trial_dof =
          get_restriction<entity_t>(fields[d_field_idx], element_dof_ordering)->Height() /
          inputs_vdim[d_input_idx] / num_entities;
-      dbg("[derivative][assembly] trial_vdim:{} num_trial_dof_1d:{} num_trial_dof:{}",
-          trial_vdim, num_trial_dof_1d, num_trial_dof);
 
       int total_trial_op_dim = 0;
       for_constexpr<num_inputs>([&](auto s)
@@ -905,13 +897,11 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       const int da_size_on_qp =
          GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
-      dbg("[derivative][assembly] da_size_on_qp:{}", da_size_on_qp);
 
       assemble_derivative_hypreparmatrix_callbacks[derivative_id].push_back(
          [=, fields = this->fields]
          (std::vector<Vector> &fields_e, HypreParMatrix &A) mutable
       {
-         dbg("\x1b[35m[derivative][assembly][callback] id:{}", derivative_id.value);
          Vector direction_e(get_restriction<entity_t>(fields[d_field_idx],
                                                       element_dof_ordering)->Height());
 
@@ -933,7 +923,6 @@ void DifferentiableOperator::AddDomainIntegrator(
          auto A_e = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim, num_trial_dof,
                             trial_vdim, num_elements);
 
-         dbg("\x1b[35m[derivative][assembly][callback] For E-loop:{}", num_elements);
          for (int e = 0; e < num_elements; e++)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,

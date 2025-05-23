@@ -2392,6 +2392,19 @@ int main(int argc, char *argv[])
 
    const real_t energy_final = hydro->InternalEnergy(e_gf)
                                + hydro->KineticEnergy(v_gf);
+
+   const bool check = (problem == 0) && (t_final == 0.1) &&
+                      (order_v == 4) && (order_e == 3) &&
+                      (ode_solver_type == 14) && (cfl == 0.5) &&
+                      (!use_viscosity) && (order_q == -1) && (blast_energy == 0.25) &&
+                      (nonlinear_relative_tolerance == 1e-5) &&
+                      (refinements == 1);
+   if (check)
+   {
+      constexpr real_t expected_energy = 1.7499923575037237;
+      const auto c = mfem::AlmostEq(energy_final, expected_energy) ? "✅" : "❌";
+      dbg("Final energy: {} {}{}{}{}", energy_final, c,c,c,c);
+   }
    const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
    const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);
    const real_t v_err_l2 = v_gf.ComputeL2Error(v_coeff);
