@@ -26,6 +26,33 @@ namespace mfem
 namespace plasma
 {
 
+/// Class for reading and interpolating data stored in ASCII files
+/// following the G_EQDSK format as described in the C-Mod Wiki at
+/// https://cmodwiki.psfc.mit.edu/index.php/G_EQDSK
+///
+/// G_EQDSK files contain four types of data:
+///
+///    1) A poloidal flux function, Psi, stored as a uniform 2D grid
+///       of data values along with information describing the grid
+///       and values of the flux at the magnetic axis (SIMAG) and the
+///       plasma boundary (SIBRY).
+///
+///    2) Five 1D fields which are functions of Psi. These fields are
+///       defined on a uniform grid of points ranging from Psi = 0 to
+///       Psi = SIMAG.
+///
+///    3) Curve data describing the location of the plasma boundary
+///       and location of the limiter.
+///
+///    4) A handful of individual data values specifiying things like
+///       the total plasma current and the location of the magnetic
+///       axis.
+///
+/// The interpolation scheme is described in "A Method of Bivariate
+/// Interpolation and Smooth Surface Fitting Based on Local
+/// Procedures" by Hiroshi Akima and published in the Communications
+/// of the ACM, Numerical Mathematics, Volume 17, Number 1, January
+/// 1974.
 class G_EQDSK_Data
 {
 public:
