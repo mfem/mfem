@@ -49,11 +49,20 @@ public:
    // Z coordinate of the middle of the domain (in meters)
    real_t GetZMid() const { return ZMID_; }
 
+   // R coordinate of the magnetic axis (in meters)
+   real_t GetRMagAxis() const { return RMAXIS_; }
+
+   // Z coordinate of the magnetic axis (in meters)
+   real_t GetZMagAxis() const { return ZMAXIS_; }
+
    // Value of poloidal flux at the magnetic axis (in Weber / rad)
-   real_t GetPsiCenter() const {return SIMAG_; }
+   real_t GetPsiMagAxis() const {return SIMAG_; }
 
    // Value of poloidal flux at the plasma boundary (in Weber / rad)
    real_t GetPsiBdry() const {return SIBRY_; }
+
+   // Value of plasma current (in Ampere)
+   real_t GetPlasmaCurrent() const {return CURRENT_; }
 
    // Values of poloidal flux (in Weber / rad) on the full grid in a
    // flattened array with z-direction cycling the fastest
