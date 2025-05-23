@@ -14,6 +14,7 @@
 
 #include "../linalg/hypre.hpp"
 
+
 #include "interpolate.hpp"
 #include "integrate.hpp"
 #include "qfunction.hpp"
@@ -142,7 +143,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
          Vector direction_e(get_restriction<entity_t>(fields[d_field_idx],
                                                       element_dof_ordering)->Height());
 
-         auto shmem = shmem_cache.ReadWrite();
+         auto shmem_rw = shmem_cache.ReadWrite();
          auto wrapped_fields_e = wrap_fields(fields_e, shmem_info.field_sizes,
                                              num_entities);
          auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
@@ -160,12 +161,15 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                             trial_vdim, num_elements);
 
          dbg("\x1b[35m[derivative][assembly][callback] For E-loop:{}", num_elements);
-         for (int e = 0; e < num_elements; e++)
+
+         ThreadBlocks thread_blocks{32, 32, 1};
+
+         forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                    input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
-            unpack_shmem(shmem, shmem_info, input_dtq_maps,
-                         output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
+                     unpack_shmem(shmem, shmem_info, input_dtq_maps,
+                                  output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
 
             // interpolate
             map_fields_to_quadrature_data(input_shmem,
@@ -184,7 +188,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
             {
                for (int j = 0; j < trial_vdim; j++)
                {
-                  size_t m_offset = 0;
+                  int m_offset = 0;
                   for_constexpr_with_arg([&](auto s, auto&& input_fop)
                   {
                      if (input_is_dependent[s] == false) { return; }
@@ -242,7 +246,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                            {
                               if (input_is_dependent[s] == false) { return; }
 
-                              int trial_op_dim = input_size_on_qp[s] / mfem::get<s>(inputs).vdim;
+                              int trial_op_dim = input_size_on_qp[s] / inputs_vdim[s];
 
                               auto &B = input_dtq_maps[s].B;
                               auto &G = input_dtq_maps[s].G;
@@ -327,7 +331,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
             {
                assert(false && "❌❌ Sum factorization required ❌❌");
             }
-         }
+         }, num_entities, thread_blocks, shmem_info.total_size, shmem_rw);
 
          bool same_test_and_trial = false;
          for (int s = 0; s < num_inputs; s++)
@@ -351,8 +355,10 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
             }
          }
 
-         auto trial_fes = *std::get_if<const ParFiniteElementSpace *>(&trial_field->data);
-         auto test_fes = *std::get_if<const ParFiniteElementSpace *>(&fields[output_to_field[0]].data);
+         auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
+                          (&trial_field->data);
+         auto test_fes = *std::get_if<const ParFiniteElementSpace *>
+                         (&fields[output_to_field[0]].data);
          assert(trial_fes && test_fes);
          SparseMatrix mat(test_fes->GetVSize(), trial_fes->GetVSize());
 

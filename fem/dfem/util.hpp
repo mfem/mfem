@@ -103,7 +103,7 @@ template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
-      std::make_index_sequence<mfem::tuple_size<std::remove_reference_t<arg_t>>::value>;
+      std::make_index_sequence<mfem::tuple_size<std::remove_cv_t<std::remove_reference_t<arg_t>>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
 }
