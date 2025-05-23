@@ -44,7 +44,6 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
    int nranks = Mpi::WorldSize();
    Hypre::Init();
 
@@ -85,7 +84,6 @@ int main (int argc, char *argv[])
                   "in each element.");
    args.ParseCheck();
 
-   // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);
    const int dim = mesh.Dimension();
    if (continuous)
@@ -128,19 +126,19 @@ int main (int argc, char *argv[])
       pfunc_proj = new ParGridFunction(fes);
       pfunc_proj->MakeOwner(fec);
       pfunc_proj->ProjectGridFunction(pfunc);
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         std::cout << "fec name orig: " << pfunc.FESpace()->FEColl()->Name() <<
-                   std::endl;
-         std::cout << "fec name: " << fec->Name() << std::endl;
+         cout << "fec name orig: " << pfunc.FESpace()->FEColl()->Name() <<
+              endl;
+         cout << "fec name: " << fec->Name() << endl;
       }
    }
    else
    {
       pfunc_proj = &pfunc;
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         std::cout << "fec name: " << pfunc.FESpace()->FEColl()->Name() << std::endl;
+         cout << "fec name: " << pfunc.FESpace()->FEColl()->Name() << endl;
       }
    }
 
@@ -230,7 +228,7 @@ int main (int argc, char *argv[])
                     MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh.GetComm());
       MPI_Allreduce(MPI_IN_PLACE, global_max.GetData(), vdim,
                     MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
-      if (myid == 0)
+      if (Mpi::Root())
       {
          for (int d = 0; d < vdim; d++)
          {
@@ -249,7 +247,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   if (nbrute == 0 && myid == 0)
+   if (nbrute == 0 && Mpi::Root())
    {
       for (int d = 0; d < vdim; d++)
       {

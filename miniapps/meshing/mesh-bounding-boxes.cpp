@@ -50,7 +50,6 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // Set the method's default parameters.
@@ -118,14 +117,14 @@ int main (int argc, char *argv[])
    Mesh meshbb = MakeBoundingBoxMesh(pmesh_ser, nodal_bb_ser);
 
    // Output in GLVis and VisIt
-   if (visualization && myid == 0)
+   if (visualization && Mpi::Root())
    {
       char title1[] = "Input mesh";
       VisualizeBB(pmesh_ser, title1, 0, 0);
       char title2[] = "Bounding box mesh";
       VisualizeBB(meshbb, title2, 400, 0);
    }
-   if (visit && myid == 0)
+   if (visit && Mpi::Root())
    {
       VisItDataCollection visit_dc("bounding-box-input", &pmesh_ser);
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
@@ -185,7 +184,7 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
 {
    int nelem = mesh.GetNE();
    int sdim = mesh.SpaceDimension();
-   int nverts = std::pow(2,sdim)*nelem;
+   int nverts = pow(2,sdim)*nelem;
    Mesh meshbb(sdim, nverts, nelem, 0, sdim);
    int eidx = 0;
    int vidx = 0;
@@ -193,10 +192,6 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
    {
       Vector xyzminmax_el;
       nodal_bb_gf.GetElementDofValues(e, xyzminmax_el);
-      if (e == 15)
-      {
-         // xyzminmax_el.Print();
-      }
       if (sdim == 2)
       {
          Vector xyz(2);
