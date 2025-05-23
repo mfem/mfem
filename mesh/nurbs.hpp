@@ -1327,8 +1327,9 @@ inline int NURBSPatchMap::operator()(const int i) const
    switch (F(i1, I))
    {
       case 0: return verts[0];
-      case 1: return !edgeMaster[0] ? pOffset + Or1D(i1, I, opatch) :
-                        GetMasterEdgeDof(0, Or1D(i1, I, opatch));
+      case 1: return edgeMaster.Size() > 0 && edgeMaster[0] ?
+                        GetMasterEdgeDof(0, Or1D(i1, I, opatch)) :
+                        pOffset + Or1D(i1, I, opatch);
       case 2: return verts[1];
    }
 #ifdef MFEM_DEBUG
