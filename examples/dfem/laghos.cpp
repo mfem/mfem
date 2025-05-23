@@ -1241,7 +1241,7 @@ public:
                taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
             HypreParMatrix dTaylorSourcedx_mat;
             dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
-            dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
+            // dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
          }
 
          delete snes;
@@ -2323,7 +2323,7 @@ int main(int argc, char *argv[])
       // S is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
       ode_solver->Step(S, t, dt);
-      dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
+      // dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
       steps++;
 
       // Adaptive time step control.
