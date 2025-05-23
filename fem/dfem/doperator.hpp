@@ -620,78 +620,96 @@ void DifferentiableOperator::AddDomainIntegrator(
       output_restriction_transpose(residual_e, res);
    });
 
-   // Create the action of the derivatives
-   for_constexpr([&](const std::size_t derivative_id)
+   // Without this compile-time check, some valid instantiations of this method
+   // will fail.
+   if constexpr (derivative_ids_t::size() != 0)
    {
-      const size_t d_field_idx = FindIdx(derivative_id, fields);
-      const auto direction = fields[d_field_idx];
-      const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
-                                                      fields[test_space_field_idx]);
-
-      auto shmem_info =
-         get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-         (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
-          input_size_on_qp, residual_size_on_qp, element_dof_ordering, d_field_idx);
-
-      Vector shmem_cache(shmem_info.total_size);
-
-      // print_shared_memory_info(shmem_info);
-
-      Vector direction_e;
-      Vector derivative_action_e(output_e_size);
-      derivative_action_e = 0.0;
-
-      // Lookup the derivative_id key in the dependency map
-      auto it = dependency_map.find(derivative_id);
-      if (it == dependency_map.end())
+      // Create the action of the derivatives
+      for_constexpr([&](const std::size_t derivative_id)
       {
-         MFEM_ABORT("Derivative ID not found in dependency map");
-      }
-      const auto input_is_dependent = it->second;
+         const size_t d_field_idx = FindIdx(derivative_id, fields);
+         const auto direction = fields[d_field_idx];
+         const int da_size_on_qp =
+            GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
 
-      derivative_action_callbacks[derivative_id].push_back(
-         [=, output_restriction_transpose = this->output_restriction_transpose](
-            std::vector<Vector> &f_e, const Vector &dir_l,
-            Vector &der_action_l) mutable
-      {
-         restriction<entity_t>(direction, dir_l, direction_e, element_dof_ordering);
-         auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
-         auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, num_entities);
-         auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
+         auto shmem_info =
+            get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>(
+               input_dtq_maps, output_dtq_maps, fields, num_entities, inputs,
+               num_qp, input_size_on_qp, residual_size_on_qp,
+               element_dof_ordering, d_field_idx);
 
+         Vector shmem_cache(shmem_info.total_size);
+
+         // print_shared_memory_info(shmem_info);
+
+         Vector direction_e;
+         Vector derivative_action_e(output_e_size);
          derivative_action_e = 0.0;
-         forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+
+         // Lookup the derivative_id key in the dependency map
+         auto it = dependency_map.find(derivative_id);
+         if (it == dependency_map.end())
          {
-            auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
-                                   input_shmem, shadow_shmem_, residual_shmem, scratch_shmem] =
-            unpack_shmem(shmem, shmem_info, input_dtq_maps,
-                         output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
-            auto &shadow_shmem = shadow_shmem_;
+            MFEM_ABORT("Derivative ID not found in dependency map");
+         }
+         const auto input_is_dependent = it->second;
 
-            map_fields_to_quadrature_data(
-               input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-               scratch_shmem, dimension, use_sum_factorization);
+         derivative_action_callbacks[derivative_id].push_back(
+            [=, output_restriction_transpose =
+                this->output_restriction_transpose](
+               std::vector<Vector> &f_e, const Vector &dir_l,
+               Vector &der_action_l) mutable
+         {
+            restriction<entity_t>(direction, dir_l, direction_e,
+                                  element_dof_ordering);
+            auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
+                              test_vdim, num_entities);
+            auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
+                                                num_entities);
+            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
+                                               shmem_info.direction_size,
+                                               num_entities);
 
-            // TODO: Probably redundant
-            set_zero(shadow_shmem);
+            derivative_action_e = 0.0;
+            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+            {
+               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
+                                      direction_shmem, input_shmem,
+                                      shadow_shmem_, residual_shmem,
+                                      scratch_shmem] =
+               unpack_shmem(shmem, shmem_info, input_dtq_maps, output_dtq_maps,
+                            wrapped_fields_e, wrapped_direction_e, num_qp, e);
+               auto &shadow_shmem = shadow_shmem_;
 
-            map_direction_to_quadrature_data_conditional(
-               shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
-               scratch_shmem, input_is_dependent, dimension, use_sum_factorization);
+               map_fields_to_quadrature_data(
+                  input_shmem, fields_shmem, input_dtq_shmem, input_to_field,
+                  inputs, ir_weights, scratch_shmem, dimension,
+                  use_sum_factorization);
 
-            call_qfunction_derivative_action<qf_param_ts>(
-               qfunc, input_shmem, shadow_shmem, residual_shmem,
-               da_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
+               // TODO: Probably redundant
+               set_zero(shadow_shmem);
 
-            auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-            auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-            map_quadrature_data_to_fields(
-               y, fhat, output_fop, output_dtq_shmem[0],
-               scratch_shmem, dimension, use_sum_factorization);
-         }, num_entities, thread_blocks, shmem_info.total_size, shmem_cache.ReadWrite());
-         output_restriction_transpose(derivative_action_e, der_action_l);
-      });
-   }, derivative_ids);
+               map_direction_to_quadrature_data_conditional(
+                  shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
+                  ir_weights, scratch_shmem, input_is_dependent, dimension,
+                  use_sum_factorization);
+
+               call_qfunction_derivative_action<qf_param_ts>(
+                  qfunc, input_shmem, shadow_shmem, residual_shmem,
+                  da_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
+
+               auto fhat = Reshape(&residual_shmem(0, 0), test_vdim,
+                                   test_op_dim, num_qp);
+               auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+               map_quadrature_data_to_fields(
+                  y, fhat, output_fop, output_dtq_shmem[0],
+                  scratch_shmem, dimension, use_sum_factorization);
+            }, num_entities, thread_blocks, shmem_info.total_size,
+            shmem_cache.ReadWrite());
+            output_restriction_transpose(derivative_action_e, der_action_l);
+         });
+      }, derivative_ids);
+   }
 }
 
 } // namespace mfem::future
