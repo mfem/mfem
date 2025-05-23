@@ -4656,7 +4656,7 @@ void GridFunction::SetupPLBounds(const int nb, const int ncp,
       }
       return outVec;
    };
-   MFEM_VERIFY(ncp >= 2,"Atleast 2 control points are required.");
+   MFEM_VERIFY(ncp >= 2,"At least 2 control points are required.");
 
    if (cp_type == 0) // GL + End Point
    {
