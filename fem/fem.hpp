@@ -49,6 +49,7 @@
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
+#include "bounds.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
