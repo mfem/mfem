@@ -562,6 +562,7 @@ void forall(func_t f,
    }
    else if (Device::Allows(Backend::CPU_MASK))
    {
+      dbg("CPU_MASK");
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)
