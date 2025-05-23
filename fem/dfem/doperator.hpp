@@ -125,7 +125,7 @@ public:
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a matrix");
 
-      for (int i = 0; i < assemble_derivative_hypreparmatrix_callbacks.size(); i++)
+      for (size_t i = 0; i < assemble_derivative_hypreparmatrix_callbacks.size(); i++)
       {
          assemble_derivative_hypreparmatrix_callbacks[i](fields_e, A);
       }
@@ -997,7 +997,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                         for (int j = 0; j < trial_vdim; j++)
                         {
                            fhat_mem = 0.0;
-                           size_t m_offset = 0;
+                           int m_offset = 0;
                            for_constexpr_with_arg([&](auto s, auto&& input_fop)
                            {
                               if (input_is_dependent[s] == false)
@@ -1088,7 +1088,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                   for (int j = 0; j < trial_vdim; j++)
                   {
                      fhat_mem = 0.0;
-                     size_t m_offset = 0;
+                     int m_offset = 0;
                      for_constexpr_with_arg([&](auto s, auto&& input_fop)
                      {
                         if (input_is_dependent[s] == false)
@@ -1173,8 +1173,8 @@ void DifferentiableOperator::AddDomainIntegrator(
             {
                auto tmp = Reshape(Ae_mem.ReadWrite(), num_test_dof * test_vdim,
                                   num_trial_dof * trial_vdim, num_elements);
-               DenseMatrix A_e(&tmp(0, 0, e), num_test_dof * test_vdim,
-                               num_trial_dof * trial_vdim);
+               DenseMatrix Ae(&tmp(0, 0, e), num_test_dof * test_vdim,
+                              num_trial_dof * trial_vdim);
 
                Array<int> test_vdofs, trial_vdofs;
                test_fes->GetElementVDofs(e, test_vdofs);
@@ -1231,11 +1231,11 @@ void DifferentiableOperator::AddDomainIntegrator(
                      }
                   }
 
-                  mat.AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, A_e, 1);
+                  mat.AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, Ae, 1);
                }
                else
                {
-                  mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 1);
+                  mat.AddSubMatrix(test_vdofs, trial_vdofs, Ae, 1);
                }
             }
          }

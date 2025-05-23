@@ -405,3 +405,20 @@ mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
 target_link_libraries(debug_device_tests mfem)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)
+
+#-----------------------------------------------------------
+# SERIAL DFEM-DEBUG-DEVICE TESTS:
+#   dfem_debug_device_tests
+#-----------------------------------------------------------
+set(DEBUG_DEVICE_DFEM_SRCS dfem/debug_device.cpp)
+if (MFEM_USE_CUDA)
+   set_property(SOURCE ${DEBUG_DEVICE_DFEM_SRCS} PROPERTY LANGUAGE CUDA)
+endif()
+if (MFEM_USE_HIP)
+   set_property(SOURCE ${DEBUG_DEVICE_DFEM_SRCS}
+                PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+endif()
+mfem_add_executable(dfem_debug_device_tests ${DEBUG_DEVICE_DFEM_SRCS})
+target_link_libraries(dfem_debug_device_tests mfem)
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} dfem_debug_device_tests)
+add_test(NAME dfem_debug_device_tests COMMAND dfem_debug_device_tests)

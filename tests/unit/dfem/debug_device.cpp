@@ -9,13 +9,19 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "mfem.hpp"
+using namespace mfem;
+
+#define CATCH_CONFIG_RUNNER
+#include "run_unit_tests.hpp"
+
 #include "test_assembly.hpp"
 
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && !defined(_WIN32)
 
 #if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
 #undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
+#define NVTX_COLOR ::nvtx::kFuchsia
 #include "general/nvtx.hpp"
 #else
 #define dbg(...)
@@ -24,11 +30,11 @@
 namespace dfem_derivative_assembly
 {
 
-TEST_CASE("DFEM Derivative Assembly", "[Parallel][DFEM][Assembly]")
+TEST_CASE("dfem/debug_device", "[Parallel][DFEM][DebugDevice]")
 {
    dbg();
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const int p = !all_tests ? 2 : GENERATE(1, 2, 3);
    static_assert(std::tuple_size<results_t>::value == 3);
 
    SECTION("2D p=" + std::to_string(p))
@@ -59,4 +65,15 @@ TEST_CASE("DFEM Derivative Assembly", "[Parallel][DFEM][Assembly]")
 
 } // namespace dfem_derivative_assembly
 
-#endif // MFEM_USE_MPI
+#endif // MFEM_USE_MPI && !_WIN32
+
+int main(int argc, char *argv[])
+{
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+
+   dbg();
+   Device device("debug");
+   device.Print();
+   return RunCatchSession(argc, argv, {"[Parallel][DFEM][DebugDevice]"}, Root());
+}
