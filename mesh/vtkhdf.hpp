@@ -188,7 +188,7 @@ private:
    /// its data type is given by @a type.
    ///
    /// The dataset will initially have zero size and unlimited maximum size.
-   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, int ndims);
+   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, Dims dims);
 
    /// @brief Ensure the named group is open, creating it if needed. Set @a
    /// group to the ID.
