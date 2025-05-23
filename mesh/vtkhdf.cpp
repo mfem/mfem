@@ -722,8 +722,8 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          int e_ref = 0;
          for (hsize_t e = 0; e < ne_0; ++e)
          {
-            const int ne_ref = get_ne_ref(e, ref_0);
-            for (int i = 0; i < ne_ref; ++i, ++e_ref)
+            const int ne_ref_e = get_ne_ref(e, ref_0);
+            for (int i = 0; i < ne_ref_e; ++i, ++e_ref)
             {
                cell_types[e_ref] = vtk_geom_map[mesh.GetElementGeometry(e)];
             }
@@ -741,8 +741,8 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          for (hsize_t e = 0; e < ne_0; ++e)
          {
             const int attr = mesh.GetAttribute(e);
-            const int ne_ref = get_ne_ref(e, ref_0);
-            for (int i = 0; i < ne_ref; ++i, ++e_ref)
+            const int ne_ref_e = get_ne_ref(e, ref_0);
+            for (int i = 0; i < ne_ref_e; ++i, ++e_ref)
             {
                attributes[e_ref] = attr;
             }
