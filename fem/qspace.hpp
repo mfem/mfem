@@ -72,6 +72,8 @@ protected:
    void ConstructWeights() const;
 
 public:
+
+   [[nodiscard]] const mfem::Array<int>& getOffsets() const { return offsets; }
    /// Return the total number of quadrature points.
    [[nodiscard]] int GetSize() const { return size; }
 
