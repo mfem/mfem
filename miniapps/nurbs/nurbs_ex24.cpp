@@ -4,9 +4,9 @@
 //
 // Sample runs:  nurbs_ex24 -m ../../data/pipe-nurbs-2d.mesh -o 2
 //               nurbs_ex24 -m ../../data/pipe-nurbs-2d.mesh -p 2
-//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2
-//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 1
-//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 2
+//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -r 3
+//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 1 -r 3
+//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 2 -r 3
 //               nurbs_ex24 -m ../../data/escher.mesh
 //               nurbs_ex24 -m ../../data/escher.mesh -o 2
 //               nurbs_ex24 -m ../../data/fichera.mesh
@@ -14,11 +14,6 @@
 //               nurbs_ex24 -m ../../data/fichera-q3.mesh
 //               nurbs_ex24 -m ../../data/amr-quad.mesh -o 2
 //               nurbs_ex24 -m ../../data/amr-hex.mesh
-//
-// Device sample runs -- do not work for NURBS:
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d cuda
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-cuda
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-omp
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces, with three variants:
