@@ -1235,13 +1235,21 @@ public:
          residual.reset(hydro_residual);
 
          {
+            dbg("H1vsize:{}", hydro_residual->H1vsize);
+            dbg("L2vsize:{}", hydro_residual->L2vsize);
             Vector ux_l(hydro_residual->H1vsize), ue_l(hydro_residual->L2vsize);
+            ux_l.Randomize();
+            ue_l.Randomize();
             assert(taylor_source_mf);
             auto dTaylorSourcedx =
                taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
             HypreParMatrix dTaylorSourcedx_mat;
+            dbg("dTaylorSourcedx->Assemble");
             dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
-            // dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
+            dbg("dTaylorSourcedx->PrintMatlab");
+            // dTaylorSourcedx->PrintMatlab(std::cout);
+            dbg("dTaylorSourcedx_mat:{}", dTaylorSourcedx_mat.FNorm());
+            dbg("🔥🔥🔥🔥"), std::exit(EXIT_SUCCESS);
          }
 
          delete snes;
@@ -2403,7 +2411,7 @@ int main(int argc, char *argv[])
    {
       constexpr real_t expected_energy = 1.7499923575037237;
       const auto c = mfem::AlmostEq(energy_final, expected_energy) ? "✅" : "❌";
-      dbg("Final energy: {} {}{}{}{}", energy_final, c,c,c,c);
+      dbg("🔥🔥🔥🔥 Final energy: {} {}{}{}{}", energy_final, c,c,c,c);
    }
    const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
    const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);

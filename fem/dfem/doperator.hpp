@@ -266,7 +266,7 @@ private:
    size_t test_space_field_idx = SIZE_MAX;
 };
 
-void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
+inline void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
 {
    MFEM_ASSERT(parameters.size() == p.size(),
                "number of parameters doesn't match descriptors");
@@ -277,7 +277,7 @@ void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
    }
 }
 
-DifferentiableOperator::DifferentiableOperator(
+inline DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &solutions,
    const std::vector<FieldDescriptor> &parameters,
    const ParMesh &mesh) :
@@ -846,6 +846,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
 
    // TODO: Host only for now
+   dbg();
    for_constexpr([&](auto derivative_id)
    {
       // Field index of the derivative

@@ -204,7 +204,7 @@ void print_tuple(const std::tuple<Args...>& t)
 /// which is compatible with numpy syntax.
 ///
 /// @param m mfem::DenseMatrix to print
-void pretty_print(const mfem::DenseMatrix& m)
+inline void pretty_print(const mfem::DenseMatrix& m)
 {
    std::cout << "[";
    for (int i = 0; i < m.NumRows(); i++)
@@ -231,7 +231,7 @@ void pretty_print(const mfem::DenseMatrix& m)
 /// is compatible with numpy syntax.
 ///
 /// @param v Vector of vectors to print
-void pretty_print(const mfem::Vector& v)
+inline void pretty_print(const mfem::Vector& v)
 {
    std::cout << "[";
    for (int i = 0; i < v.Size(); i++)
@@ -298,7 +298,7 @@ void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
    std::cout << "}\n";
 }
 
-void print_mpi_root(const std::string& msg)
+inline void print_mpi_root(const std::string& msg)
 {
    auto myrank = Mpi::WorldRank();
    if (myrank == 0)
@@ -311,7 +311,7 @@ void print_mpi_root(const std::string& msg)
 /// @brief print with MPI rank synchronization
 ///
 /// @param msg Message to print
-void print_mpi_sync(const std::string& msg)
+inline void print_mpi_sync(const std::string& msg)
 {
    auto myrank = Mpi::WorldRank();
    auto nranks = Mpi::WorldSize();
@@ -368,7 +368,7 @@ void print_mpi_sync(const std::string& msg)
 /// @param v Vector to print
 /// @param myrank MPI rank
 /// @param comm MPI communicator
-void pretty_print_mpi(const mfem::Vector& v)
+inline void pretty_print_mpi(const mfem::Vector& v)
 {
    std::stringstream ss;
    ss << "[";
@@ -677,6 +677,7 @@ GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
    return GeometricFactorMaps{DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)};
 }
 
+inline
 int GetVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
@@ -703,7 +704,7 @@ int GetVSize(const FieldDescriptor &f)
    }, f.data);
 }
 
-void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
+inline void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
 {
    return std::visit([&](auto arg)
    {
@@ -732,7 +733,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
    }, f.data);
 }
 
-int GetTrueVSize(const FieldDescriptor &f)
+inline int GetTrueVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
    {
@@ -761,7 +762,7 @@ int GetTrueVSize(const FieldDescriptor &f)
    }, f.data);
 }
 
-int GetVDim(const FieldDescriptor &f)
+inline int GetVDim(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
    {
@@ -785,7 +786,7 @@ int GetVDim(const FieldDescriptor &f)
    }, f.data);
 }
 
-int GetVectorFEDim(const FieldDescriptor &f)
+inline int GetVectorFEDim(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
    {
@@ -814,6 +815,7 @@ int GetVectorFEDim(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
 int GetVectorFECurlDim(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
@@ -871,7 +873,7 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
-const Operator *get_prolongation(const FieldDescriptor &f)
+inline const Operator *get_prolongation(const FieldDescriptor &f)
 {
    // dbg("\x1b[37m[get_prolongation]");
    return std::visit([](auto&& arg) -> const Operator*
@@ -893,8 +895,8 @@ const Operator *get_prolongation(const FieldDescriptor &f)
    }, f.data);
 }
 
-const Operator *get_element_restriction(const FieldDescriptor &f,
-                                        ElementDofOrdering o)
+inline const Operator *get_element_restriction(const FieldDescriptor &f,
+                                               ElementDofOrdering o)
 {
    return std::visit([&o](auto&& arg) -> const Operator*
    {
@@ -915,6 +917,7 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
    }, f.data);
 }
 
+inline
 const Operator *get_face_restriction(const FieldDescriptor &f,
                                      ElementDofOrdering o,
                                      FaceType ft,
@@ -987,7 +990,8 @@ auto get_restriction_transpose(
    }
 }
 
-void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
+inline void prolongation(const FieldDescriptor field, const Vector &x,
+                         Vector &field_l)
 {
    dbg("\x1b[37m[prolongation]");
    const auto P = get_prolongation(field);
@@ -1015,9 +1019,9 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    }
 }
 
-void prolongation(const std::vector<FieldDescriptor> fields,
-                  const Vector &x,
-                  std::vector<Vector> &fields_l)
+inline void prolongation(const std::vector<FieldDescriptor> fields,
+                         const Vector &x,
+                         std::vector<Vector> &fields_l)
 {
    dbg("\x1b[37m[prolongation]");
    int data_offset = 0;
