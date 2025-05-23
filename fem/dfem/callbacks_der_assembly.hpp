@@ -22,8 +22,11 @@
 namespace mfem
 {
 
-using assemble_derivative_hypreparmatrix_callback_t =
+using da_hypre_parmatrix_callback_t =
    std::function<void(std::vector<Vector> &, HypreParMatrix &)>;
+
+using da_callback_t =
+   std::map<size_t, std::vector<da_hypre_parmatrix_callback_t>>;
 
 template<typename entity_t,
          int num_fields,
@@ -53,14 +56,12 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                                    const std::vector<int> &input_size_on_qp,
                                    const int residual_size_on_qp,
                                    const ElementDofOrdering element_dof_ordering,
-                                   std::unordered_map<int, std::array<bool, num_inputs>> &dependency_map,
+                                   const std::unordered_map<int, std::array<bool, num_inputs>> &dependency_map,
                                    const std::vector<int> &inputs_vdim,
-                                   const size_t &test_space_field_idx,
+                                   const size_t test_space_field_idx,
                                    const DeviceTensor<1, const double> &ir_weights,
                                    const derivative_ids_t derivative_ids,
-                                   std::map<size_t,
-                                   std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-                                   assemble_derivative_hypreparmatrix_callbacks)
+                                   da_callback_t &assemble_derivative_hypreparmatrix_callbacks)
 {
    using qf_param_ts =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type::parameter_ts;

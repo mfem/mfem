@@ -818,32 +818,37 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    ////////////////////////////////////////////////////////////////////////////
    // dbg("Create assembly callbacks for derivatives");
-   // TODO: Host only for now
-   callback_derivatives_assembly<entity_t,
-                                 num_fields,
-                                 num_inputs,
-                                 num_outputs>(qfunc, inputs, outputs, fields,
-                                              input_to_field, output_to_field,
-                                              input_dtq_maps, output_dtq_maps,
-                                              use_sum_factorization,
-                                              num_entities,
-                                              num_elements,
-                                              num_qp,
-                                              test_vdim,
-                                              test_op_dim,
-                                              num_test_dof,
-                                              dimension,
-                                              q1d,
-                                              input_size_on_qp,
-                                              residual_size_on_qp,
-                                              element_dof_ordering,
-                                              dependency_map,
-                                              inputs_vdim,
-                                              test_space_field_idx,
-                                              ir_weights,
-                                              derivative_ids,
-                                              assemble_derivative_hypreparmatrix_callbacks);
+   static const bool use_da_callbacks = std::getenv("MFEM_USE_DA_CALLBACKS");
+   if (use_da_callbacks)
+   {
+      callback_derivatives_assembly<entity_t,
+                                    num_fields,
+                                    num_inputs,
+                                    num_outputs>(qfunc, inputs, outputs, fields,
+                                                 input_to_field, output_to_field,
+                                                 input_dtq_maps, output_dtq_maps,
+                                                 use_sum_factorization,
+                                                 num_entities,
+                                                 num_elements,
+                                                 num_qp,
+                                                 test_vdim,
+                                                 test_op_dim,
+                                                 num_test_dof,
+                                                 dimension,
+                                                 q1d,
+                                                 input_size_on_qp,
+                                                 residual_size_on_qp,
+                                                 element_dof_ordering,
+                                                 dependency_map,
+                                                 inputs_vdim,
+                                                 test_space_field_idx,
+                                                 ir_weights,
+                                                 derivative_ids,
+                                                 assemble_derivative_hypreparmatrix_callbacks);
+      return;
+   }
 
+   // TODO: Host only for now
    for_constexpr([&](auto derivative_id)
    {
       dbg("[derivative][assembly] id: {}", derivative_id.value);
