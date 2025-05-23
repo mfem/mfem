@@ -44,7 +44,6 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int nranks = Mpi::WorldSize();
    Hypre::Init();
 
    // Set the method's default parameters.
@@ -74,6 +73,7 @@ int main (int argc, char *argv[])
                   "Enable or disable VisIt output.");
    args.AddOption(&b_type, "-bt", "--basis-type",
                   "Project input function to a different bases. "
+                  "-1 = don't project (default)."
                   "0 = Gauss-Legendre nodes. "
                   "1 = Gauss-Lobatto nodes. "
                   "2 = uniformly spaced nodes. ");
@@ -86,14 +86,14 @@ int main (int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1, false);
    const int dim = mesh.Dimension();
-   if (continuous)
+   if (continuous && b_type != -1)
    {
-      MFEM_VERIFY(b_type, "Continuous space do not support GL nodes. "
+      MFEM_VERIFY(b_type > 0, "Continuous space do not support GL nodes. "
                   "Please use basis type: 1 for Lagrange interpolants on GLL "
                   " nodes 2 for positive bases on uniformly spaced nodes.");
    }
 
-   int *partition = mesh.GeneratePartitioning(nranks);
+   int *partition = mesh.GeneratePartitioning(Mpi::WorldSize());
 
    ifstream mat_stream_1(sltn_file);
    GridFunction *func = new GridFunction(&mesh, mat_stream_1);
