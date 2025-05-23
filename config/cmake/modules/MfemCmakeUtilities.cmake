@@ -125,7 +125,9 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   if (MFEM_USE_CUDA)
     set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST}
       PROPERTIES LANGUAGE CUDA)
-    list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+    endif()
   endif()
 
   # Actually add the executable

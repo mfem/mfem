@@ -200,7 +200,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
             const real_t E = J11*J11 + J21*J21 + J31*J31;
             const real_t G = J12*J12 + J22*J22 + J32*J32;
             const real_t F = J11*J12 + J21*J22 + J31*J32;
-            const real_t iw = 1.0 / sqrt(E*G - F*F);
+            const real_t iw = 1.0 / std::sqrt(E*G - F*F);
             const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
             const real_t alpha = wq * coeff * iw;
             D(qx,qy,0,e) =  alpha * G; // 1,1

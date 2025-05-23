@@ -22,9 +22,9 @@ namespace mfem
 /* AD related definitions below ========================================*/
 
 /// MFEM native AD-type for first derivatives
-using AD1Type = internal::dual<real_t, real_t>;
+using AD1Type = future::dual<real_t, real_t>;
 /// MFEM native AD-type for second derivatives
-using AD2Type = internal::dual<AD1Type, AD1Type>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /*
 Functions for 2x2 DenseMatrix cast as std::vector<type>, assuming column-major storage
