@@ -140,8 +140,6 @@ private:
 
    void checkPsiBoundary();
 
-   void initInterpR(const std::vector<real_t> &v,
-                    std::vector<real_t> &t);
    void initInterpPsi(const std::vector<real_t> &v,
                       std::vector<real_t> &t);
    void initInterpRZ(const std::vector<real_t> &v,
@@ -149,8 +147,6 @@ private:
                      ShiftedDenseMatrix &d,
                      ShiftedDenseMatrix &e);
 
-   real_t interpR(real_t r, const std::vector<real_t> &v,
-                  const std::vector<real_t> &t);
    real_t interpRZ(const Vector &rz,
                    const std::vector<real_t> &v,
                    const ShiftedDenseMatrix &c,
@@ -337,8 +333,6 @@ private:
    ShiftedDenseMatrix  PSIRZ_d_;
    ShiftedDenseMatrix  PSIRZ_e_;
    std::vector<real_t> QPSI_t_;
-
-   // std::vector<real_t> BTOR_t_;
 };
 
 class G_EQDSK_Psi_Coefficient : public Coefficient
