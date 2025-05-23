@@ -112,9 +112,6 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
 
       const auto input_is_dependent = dependency_map.at(derivative_id);
 
-      // auto dependent_input_dtq_maps =
-      //    get_marked_entries(input_dtq_maps, input_is_dependent);
-
       const int trial_vdim = GetVDim(fields[d_field_idx]);
 
       const int num_trial_dof_1d =
@@ -328,51 +325,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
             }
             else // use_sum_factorization
             {
-               assert(false);
-               /*for (int J = 0; J < num_trial_dof; J++)
-               {
-                  for (int j = 0; j < trial_vdim; j++)
-                  {
-                     fhat_mem = 0.0;
-                     int m_offset = 0;
-                     for_constexpr_with_arg([&](auto s, auto&& input_fop)
-                     {
-                        if (input_is_dependent[s] == false)
-                        {
-                           return;
-                        }
-
-                        int trial_op_dim = input_size_on_qp[s] / mfem::get<s>(inputs).vdim;
-
-                        auto B = is_value_fop<std::decay_t<decltype(input_fop)>>::value ?
-                                 input_dtq_maps[s].B : input_dtq_maps[s].G;
-                        for (int q = 0; q < num_qp; q++)
-                        {
-                           for (int m = 0; m < trial_op_dim; m++)
-                           {
-                              for (int i = 0; i < test_vdim; i++)
-                              {
-                                 for (int k = 0; k < test_op_dim; k++)
-                                 {
-                                    const real_t f = a_qp(i, k, j, m + m_offset, q, e);
-                                    fhat(i, k, q) += f * B(q, m, J);
-                                 }
-                              }
-                           }
-                        }
-                        m_offset += trial_op_dim;
-                     }, inputs);
-
-                     auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
-                     map_quadrature_data_to_fields(bvtfhat,
-                                                   fhat,
-                                                   output_fop,
-                                                   output_dtq_shmem[0],
-                                                   scratch_shmem,
-                                                   dimension,
-                                                   use_sum_factorization);
-                  }
-               }*/
+               assert(false && "❌❌ Sum factorization required ❌❌");
             }
          }
 
