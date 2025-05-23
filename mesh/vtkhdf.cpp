@@ -84,7 +84,7 @@ void VTKHDF::EnsureSteps()
 }
 
 hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
-                            int ndims)
+                            Dims dims)
 {
    const char *name_c = name.c_str();
 
@@ -94,20 +94,26 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
    if (status == 0)
    {
       // Dataset does not exist, create it.
-      Dims dims(ndims);
-      Dims maxdims(ndims, H5S_UNLIMITED);
-      const hid_t fspace = H5Screate_simple(ndims, dims, maxdims);
+      const int ndims = dims.ndims;
+      // The dataset is allowed to grow in the first dimension, but is fixed
+      // in size in all other dimesions; the maximum dataset size is same as
+      // dims, but unlimited in first dimension. The initial dataset size is
+      // zero in the first dimension; it will be resized later.
+      Dims init_dims = dims;
+      init_dims[0] = 0;
+      Dims max_dims = dims;
+      max_dims[0] = H5S_UNLIMITED;
+      const hid_t fspace = H5Screate_simple(ndims, init_dims, max_dims);
 
       Dims chunk(ndims);
       size_t chunk_size_bytes = 1024 * 1024 / 2; // 0.5 MB
       const size_t t_bytes = H5Tget_size(type);
       for (int i = 1; i < ndims; ++i)
       {
-         chunk[i] = 16;
-         chunk_size_bytes /= 16;
+         chunk[i] = dims[i];
+         chunk_size_bytes /= dims[i];
       }
       chunk[0] = chunk_size_bytes / t_bytes;
-      for (int i = 1; i < ndims; ++i) { chunk[i] = 16; }
       const hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
       H5Pset_chunk(dcpl, ndims, chunk);
       if (compression_level >= 0)
@@ -159,10 +165,10 @@ template <typename T>
 void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
                            hsize_t offset, Dims globsize, T *data)
 {
-   const int ndims = globsize.ndims;
-   const hid_t d = EnsureDataset(f, name, GetTypeID<T>(), ndims);
+   const hid_t d = EnsureDataset(f, name, GetTypeID<T>(), globsize);
 
    // Resize the dataset, set dims to its new size.
+   const int ndims = globsize.ndims;
    hsize_t old_size;
    Dims dims(ndims);
    {
