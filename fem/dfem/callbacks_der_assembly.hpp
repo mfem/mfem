@@ -169,8 +169,8 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
          MFEM_VERIFY(input_size_on_qp.size() == num_inputs, "");
          MFEM_VERIFY(inputs_vdim.size() == num_inputs, "");
 
-         Vector input_size_on_qp_v(num_inputs), inputs_vdim_v(num_inputs);
-         for (int i = 0; i< num_inputs; ++i)
+         Array<int> input_size_on_qp_v(num_inputs), inputs_vdim_v(num_inputs);
+         for (size_t i = 0; i < num_inputs; ++i)
          {
             input_size_on_qp_v[i] = input_size_on_qp[i];
             inputs_vdim_v[i] = inputs_vdim[i];
@@ -216,8 +216,8 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                   for_constexpr_with_arg([&](auto s, auto&& input_fop)
                   {
                      if (input_is_dependent[s] == false) { return; }
-                     const auto trial_op_dim = input_size_on_qp_r[s.value] / mfem::get<s>
-                                               (inputs).vdim;
+                     const int trial_op_dim = input_size_on_qp_r[s.value] / mfem::get<s>
+                                              (inputs).vdim;
                      auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                      for (int m = 0; m < trial_op_dim; m++)
                      {
