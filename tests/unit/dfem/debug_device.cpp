@@ -73,7 +73,12 @@ int main(int argc, char *argv[])
    mfem::Hypre::Init();
 
    dbg();
+#ifdef MFEM_USE_HIP
+   // Device device("hip");
+   Device device("cpu");
+#else
    Device device("debug");
+#endif
    device.Print();
    return RunCatchSession(argc, argv, {"[Parallel][DFEM][DebugDevice]"}, Root());
 }

@@ -548,6 +548,7 @@ void forall(func_t f,
        Device::Allows(Backend::HIP_MASK))
    {
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+      dbg("\x1b[32m[GPU]");
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
@@ -562,7 +563,7 @@ void forall(func_t f,
    }
    else if (Device::Allows(Backend::CPU_MASK))
    {
-      dbg("CPU_MASK");
+      dbg("\x1b[31m[CPU]");
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)

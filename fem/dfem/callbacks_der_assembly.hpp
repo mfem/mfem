@@ -114,6 +114,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
       const auto input_is_dependent = dependency_map.at(derivative_id);
 
       const int trial_vdim = GetVDim(fields[d_field_idx]);
+      dbg("trial_vdim:{}", trial_vdim);
 
       const int num_trial_dof_1d =
          input_dtq_maps[d_input_idx].B.GetShape()[DofToQuadMap::Index::DOF];
@@ -165,11 +166,29 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
          Vector fhat_mem(test_vdim * test_op_dim * num_qp * num_elements);
          auto fhat_e = Reshape(fhat_mem.ReadWrite(), test_vdim, test_op_dim, num_qp, num_elements);
 
+         MFEM_VERIFY(input_size_on_qp.size() == num_inputs, "");
+         MFEM_VERIFY(inputs_vdim.size() == num_inputs, "");
+
+         Vector input_size_on_qp_v(num_inputs), inputs_vdim_v(num_inputs);
+         for (int i = 0; i< num_inputs; ++i)
+         {
+            input_size_on_qp_v[i] = input_size_on_qp[i];
+            inputs_vdim_v[i] = inputs_vdim[i];
+         }
+
+         const auto input_size_on_qp_r = input_size_on_qp_v.Read();
+         const auto inputs_vdim_r = inputs_vdim_v.Read();
          ThreadBlocks thread_blocks{1, 1, 1};
-         dbg("num_qp: {}", num_qp);
+
+         dbg("num_qp:{}", num_qp);
+         dbg("trial_vdim:{}", trial_vdim);
+         dbg("test_vdim:{} test_op_dim:{}", test_vdim, test_op_dim);
+         dbg("num_trial_dof_1d:{}", num_trial_dof_1d);
 
          // 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢 ∀ @ DEVICE 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
-         forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
+         forall([=]
+                // MFEM_HOST_DEVICE
+                (int e, void *shmem)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                    input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
@@ -197,7 +216,8 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                   for_constexpr_with_arg([&](auto s, auto&& input_fop)
                   {
                      if (input_is_dependent[s] == false) { return; }
-                     const auto trial_op_dim = input_size_on_qp[s] / mfem::get<s>(inputs).vdim;
+                     const auto trial_op_dim = input_size_on_qp_r[s.value] / mfem::get<s>
+                                               (inputs).vdim;
                      auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                      for (int m = 0; m < trial_op_dim; m++)
                      {
@@ -261,7 +281,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                            for_constexpr_with_arg([&](auto s, auto&& input_fop)
                            {
                               if (input_is_dependent[s] == false) { return; }
-                              int trial_op_dim = input_size_on_qp[s] / inputs_vdim[s];
+                              int trial_op_dim = input_size_on_qp_r[s] / inputs_vdim_r[s];
                               auto &B = input_dtq_maps[s].B;
                               auto &G = input_dtq_maps[s].G;
                               if constexpr (is_value_fop<std::decay_t<decltype(input_fop)>>::value)
@@ -315,7 +335,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                               }
                               else
                               {
-                                 MFEM_ABORT("sum factorized sparse matrix assemble type error");
+                                 MFEM_ABORT_KERNEL("sum factorized sparse matrix assemble type error");
                               }
                               m_offset += trial_op_dim;
                            }, inputs);
@@ -334,8 +354,8 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
                }
                else
                {
-                  MFEM_ABORT("sum factorized sparse matrix assemble routine "
-                             "not implemented for 3D");
+                  MFEM_ABORT_KERNEL("sum factorized sparse matrix assemble routine "
+                                    "not implemented for 3D");
                }
             }
             else // use_sum_factorization

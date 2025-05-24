@@ -76,8 +76,7 @@ void DFemDerivativeAssembly(const char *filename, int p,
 
    const auto expected_fnorm = expected_fnorms[static_cast<size_t>(p)-1];
    dbg("A FNorm: {} ({})", fnorm, expected_fnorm);
-   constexpr auto tol = 1e-15;
-   REQUIRE(fabs(fnorm - expected_fnorm) == MFEM_Approx(0.0, tol, tol));
+   REQUIRE(fabs(fnorm - expected_fnorm) == MFEM_Approx(0.0));
 }
 
 } // namespace dfem_derivative_assembly
