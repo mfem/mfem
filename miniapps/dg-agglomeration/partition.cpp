@@ -3,7 +3,7 @@
 #ifdef MFEM_USE_METIS
 #include "metis.h"
 #else
-#error "METIS is required
+#error "METIS is required"
 #endif
 
 namespace mfem
@@ -12,9 +12,16 @@ namespace mfem
 Array<idx_t> PartitionMesh(Mesh &mesh, const int npart,
                            OptRef<Array<int>> subset)
 {
-   const int part_method = 1;
+   const int part_method = 0;
 
    const int ne = subset ? subset->Size() : mesh.GetNE();
+
+   // if (subset){
+   //    for (int l = 0; l < 5; l++){
+   //       std::cout << "sub[l]: " << (*subset)[l] << std::endl;
+   //    }
+   // }
+
    idx_t mpart = npart;
    Array<idx_t> p(ne);
 
@@ -39,15 +46,31 @@ Array<idx_t> PartitionMesh(Mesh &mesh, const int npart,
 
    const Table &e2e = mesh.ElementToElementTable();
    Array<idx_t> I, J;
-
    {
       const int *iI = e2e.HostReadI();
       const int *iJ = e2e.HostReadJ();
       const int m = iI[ne];
       I.SetSize(ne+1);
-      J.SetSize(m);
-      for (int k = 0; k < ne + 1; k++) { I[k] = iI[k]; }
-      for (int k = 0; k < m; k++) { J[k] = iJ[k]; }
+      if (subset){
+         I[0] = 0;
+         for (int r=0; r<ne; r++){
+            I[r+1] = I[r];
+            for (int c=0; c<ne; c++){
+               bool non_zero = false; 
+               for (int i=iI[(*subset)[r]]; i < iI[(*subset)[r]+1]; i++){
+                  non_zero = (iJ[i] == (*subset)[c] ? true : non_zero);
+               }
+               if (non_zero){I[r+1] += 1; J.Append(c);}
+            }
+         }
+      //for (int k = 0; k < ne+1; k++){std::cout << "k: " << k << std::endl; std::cout << "I[k]: " << I[k] << std::endl;}
+      //for (int k = 0; k < J.Size(); k++){std::cout << "k: " << k << std::endl; std::cout << "J[k]: " << J[k] << std::endl;}
+      }
+      else{
+         J.SetSize(m);
+         for (int k = 0; k < ne + 1; k++) { I[k] = iI[k];}
+         for (int k = 0; k < m; k++) { J[k] = iJ[k];}
+      }
    }
 
    idx_t options[40];
@@ -70,13 +93,12 @@ Array<idx_t> PartitionMesh(Mesh &mesh, const int npart,
       for (int i = 0; i < ne; i++)
       {
          // Sort in increasing order.
-         // std::sort(J+I[i], J+I[i+1]);
+         //std::sort(J+I[i], J+I[i+1]);
 
          // Sort in decreasing order, as in previous versions of MFEM.
          std::sort(J+I[i], J+I[i+1], std::greater<idx_t>());
       }
    }
-
    // This function should be used to partition a graph into a small
    // number of partitions (less than 8).
    if (part_method == 0 || part_method == 3)
