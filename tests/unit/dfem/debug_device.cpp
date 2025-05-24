@@ -75,7 +75,8 @@ int main(int argc, char *argv[])
    dbg();
 #ifdef MFEM_USE_HIP
    // Device device("hip");
-   Device device("cpu");
+   static const bool hip = std::getenv("MFEM_HIP");
+   Device device(hip ? "hip" : "cpu");
 #else
    Device device("debug");
 #endif

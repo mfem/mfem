@@ -186,9 +186,7 @@ void callback_derivatives_assembly(qfunc_t &qfunc,
          dbg("num_trial_dof_1d:{}", num_trial_dof_1d);
 
          // 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢 ∀ @ DEVICE 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
-         forall([=]
-                // MFEM_HOST_DEVICE
-                (int e, void *shmem)
+         forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
          {
             auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                    input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =

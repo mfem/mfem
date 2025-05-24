@@ -846,6 +846,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
 
    // TODO: Host only for now
+   MFEM_VERIFY(!Device::IsEnabled(), "❌ Cannot mix GPU and host code! ❌");
    dbg();
    for_constexpr([&](auto derivative_id)
    {
