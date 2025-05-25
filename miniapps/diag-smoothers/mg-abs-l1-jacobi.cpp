@@ -19,8 +19,8 @@
 // We use a multigrid approach (cf. ex26(p)). The global solver and the coarse
 // level solver are user-selected. The current options are SLI and PCG. The
 // intermediate levels are directy smoothed with the absolute value L(1)-Jacobi
-// preconditioner. The systems to solve correspond to a mass matrix, a difussion
-// system, and a definite Maxwell system.
+// preconditioner. The systems to solve correspond to a mass matrix, and a
+// difussion system.
 //
 // The preconditioner can be defined at run-time. Similarly, the mesh can be
 // modified by a Kershaw transformation at run-time. Relative tolerance and
@@ -91,8 +91,7 @@ int main(int argc, char *argv[])
    args.AddOption((int*)&integrator_type, "-i", "--integrator",
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
-                  "\n\t1: DiffusionIntegrator"
-                  "\n\t2: CurlCurlIntegrator + VectorFEMassIntegrator");
+                  "\n\t1: DiffusionIntegrator");
    args.AddOption(&assembly_type_int, "-a", "--assembly",
                   "Assembly level to be considered:"
                   "\n\t0: LEGACY"
@@ -220,7 +219,6 @@ int main(int argc, char *argv[])
    //    collections for different systems.
    //    - H1-conforming Lagrange elements for the H1-mass matrix and the
    //      diffusion problem.
-   //    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *coarse_fes;
    switch (integrator_type)
@@ -231,9 +229,7 @@ int main(int argc, char *argv[])
          coarse_fes = new ParFiniteElementSpace(mesh, fec);
          break;
       case maxwell:
-         fec = new ND_FECollection(order, dim);
-         coarse_fes= new ParFiniteElementSpace(mesh, fec);
-         break;
+         mfem_error("Maxwell integrator not supported in this miniapp!");
       default:
          mfem_error("Invalid integrator type! Check FiniteElementCollection");
    }
@@ -269,9 +265,6 @@ int main(int argc, char *argv[])
          case diffusion:
             fec_array.Append(new H1_FECollection(std::pow(2, lo + 1), dim));
             break;
-         case maxwell:
-            fec_array.Append(new ND_FECollection(std::pow(2, lo + 1), dim));
-            break;
          default:
             mfem_error("Invalid integrator type! Check "
                        "FiniteElementCollection for order refinements...");
@@ -294,16 +287,12 @@ int main(int argc, char *argv[])
 
    // 8. Define the linear system. Set up the linear form b(.) which has the
    //    standard form (f,v).
-   //    Also, define the matrices and vectors associated with the forms, and
-   //    project the required boundary data into the GridFunction solution.
    ParLinearForm *b = new ParLinearForm(&fes_hierarchy->GetFinestFESpace());
    LinearFormIntegrator *lfi = nullptr;
 
    // These pointers are not owned by the integrators
    FunctionCoefficient *scalar_u = nullptr;
    FunctionCoefficient *scalar_f = nullptr;
-   VectorFunctionCoefficient *vector_u = nullptr;
-   VectorFunctionCoefficient *vector_f = nullptr;
 
    ConstantCoefficient one(1.0);
 
@@ -326,12 +315,6 @@ int main(int argc, char *argv[])
          scalar_f = new FunctionCoefficient(diffusion_source);
          lfi = new DomainLFIntegrator(*scalar_f);
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
-         break;
-      case maxwell:
-         vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
-         vector_f = new VectorFunctionCoefficient(space_dim, maxwell_source);
-         lfi = new VectorFEDomainLFIntegrator(*vector_f);
-         x.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
          break;
       default:
          mfem_error("Invalid integrator type! Check ParLinearForm");
@@ -410,9 +393,6 @@ int main(int argc, char *argv[])
          case diffusion:
             error = x.ComputeL2Error(*scalar_u);
             break;
-         case maxwell:
-            error = x.ComputeL2Error(*vector_u);
-            break;
          default:
             mfem_error("Invalid integrator type! Check ComputeL2Error");
       }
@@ -429,8 +409,6 @@ int main(int argc, char *argv[])
    if (monitor) { delete monitor; }
    if (scalar_u) { delete scalar_u; }
    if (scalar_f) { delete scalar_f; }
-   if (vector_u) { delete vector_u; }
-   if (vector_f) { delete vector_f; }
    for (int level = 0; level < fec_array.Size(); ++level)
    {
       delete fec_array[level];
