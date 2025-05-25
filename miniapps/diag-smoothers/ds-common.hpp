@@ -50,12 +50,12 @@ enum IntegratorType
 };
 
 // Enumerator for the different types of preconditioners
-enum LpqType
+enum PCType
 {
    none,
-   global,
-   element,
-   num_lpq_pc,  // last
+   abs_global,
+   pq_element,
+   num_pc,  // last
 };
 
 /// @brief Custom monitor that prints a csv-formatted file

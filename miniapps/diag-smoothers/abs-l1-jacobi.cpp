@@ -51,13 +51,13 @@ int main(int argc, char *argv[])
    int order = 1;
    SolverType solver_type = cg;
    IntegratorType integrator_type = diffusion;
-   LpqType pc_type = global;
+   PCType pc_type = abs_global;
    int assembly_type_int = 3;  // Default is PARTIAL
    AssemblyLevel assembly_type;
    // Number of refinements
    int refine_serial = 4;
    int refine_parallel = 0;
-   // Preconditioner parameters
+   // Preconditioner parameters, only for L(p,q)-Jacobi
    real_t p_order = 1.0;
    real_t q_order = 0.0;
    // Solver parameters
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    args.AddOption((int*)&pc_type, "-pc", "--preconditioner",
                   "Preconditioners to be considered:"
                   "\n\t0: No preconditioner"
-                  "\n\t1: L(p,q)-Jacobi preconditioner"
+                  "\n\t1: Absolute L(1)-Jacobi preconditioner"
                   "\n\t2: Element L(p,q)-Jacobi preconditioner");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
@@ -131,9 +131,9 @@ int main(int argc, char *argv[])
                "invalid solver type: " << solver_type);
    MFEM_VERIFY((0 <= integrator_type) && (integrator_type < num_integrators),
                "invalid integrator type: " << integrator_type);
-   MFEM_VERIFY((0 <= assembly_type_int) && (assembly_type_int < 6),
+   MFEM_VERIFY((0 <= assembly_type_int) && (assembly_type_int < 5),
                "invalid assembly type: " << assembly_type_int);
-   MFEM_VERIFY((0 <= pc_type) && (pc_type < num_lpq_pc),
+   MFEM_VERIFY((0 <= pc_type) && (pc_type < num_pc),
                "invalid preconditioner type: " << pc_type);
    MFEM_VERIFY((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y must be in [0,1]");
    MFEM_VERIFY((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z must be in [0,1]");
@@ -324,18 +324,12 @@ int main(int argc, char *argv[])
    {
       case none:
          break;
-      case global:
-         if (Mpi::Root())
-         {
-            mfem::out << "WARNING: p_order and q_order are "
-                      << "ignored for Abs-Value L1-Jacobi!"
-                      << endl;
-         }
+      case abs_global:
          ones = 1.0;
          A->AbsMult(ones, diag);
          jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
          break;
-      case element:
+      case pq_element:
          AssembleElementLpqJacobiDiag(*a, p_order, q_order, diag);
          jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
          break;
