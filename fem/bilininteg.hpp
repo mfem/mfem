@@ -3213,11 +3213,7 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
-   void AddAbsMultPA(const Vector &x, Vector &y) const override;
-
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
-
-   void AddAbsMultTransposePA(const Vector &x, Vector &y) const override;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
