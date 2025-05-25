@@ -45,7 +45,6 @@ enum IntegratorType
 {
    mass,
    diffusion,
-   elasticity,
    maxwell,
    num_integrators,  // last
 };
@@ -116,9 +115,6 @@ void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
 
 real_t diffusion_solution(const Vector &x);
 real_t diffusion_source(const Vector &x);
-
-void elasticity_solution(const Vector &x, Vector &u);
-void elasticity_source(const Vector &x, Vector &f);
 
 void maxwell_solution(const Vector &x, Vector &u);
 void maxwell_source(const Vector &x, Vector &f);

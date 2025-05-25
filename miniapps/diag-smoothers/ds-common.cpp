@@ -158,9 +158,6 @@ void AbsL1GeometricMultigrid::ConstructBilinearForm(
       case diffusion:
          form->AddDomainIntegrator(new DiffusionIntegrator(one));
          break;
-      case elasticity:
-         form->AddDomainIntegrator(new ElasticityIntegrator(one, one));
-         break;
       case maxwell:
          form->AddDomainIntegrator(new CurlCurlIntegrator(one));
          form->AddDomainIntegrator(new VectorFEMassIntegrator(one));
@@ -236,38 +233,6 @@ real_t diffusion_source(const Vector &x)
    else
    {
       return dim * kappa * kappa * sin(kappa * x(0)) * sin(kappa * x(1));
-   }
-}
-
-void elasticity_solution(const Vector &x, Vector &u)
-{
-   if (dim == 3)
-   {
-      u(0) = sin(kappa * x(0));
-      u(1) = sin(kappa * x(1));
-      u(2) = sin(kappa * x(2));
-   }
-   else
-   {
-      u(0) = sin(kappa * x(0));
-      u(1) = sin(kappa * x(1));
-      if (x.Size() == 3) { u(2) = 0.0; }
-   }
-}
-
-void elasticity_source(const Vector &x, Vector &f)
-{
-   if (dim == 3)
-   {
-      f(0) = 3.0 * kappa * kappa * sin(kappa * x(0));
-      f(1) = 3.0 * kappa * kappa * sin(kappa * x(1));
-      f(2) = 3.0 * kappa * kappa * sin(kappa * x(2));
-   }
-   else
-   {
-      f(0) = 3.0 * kappa * kappa * sin(kappa * x(0));
-      f(1) = 3.0 * kappa * kappa * sin(kappa * x(1));
-      if (x.Size() == 3) { f(2) = 0.0; }
    }
 }
 

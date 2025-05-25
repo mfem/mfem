@@ -20,7 +20,7 @@
 // level solver are user-selected. The current options are SLI and PCG. The
 // intermediate levels are directy smoothed with the absolute value L(1)-Jacobi
 // preconditioner. The systems to solve correspond to a mass matrix, a difussion
-// system, an elasticity system, and a definite Maxwell system.
+// system, and a definite Maxwell system.
 //
 // The preconditioner can be defined at run-time. Similarly, the mesh can be
 // modified by a Kershaw transformation at run-time. Relative tolerance and
@@ -30,7 +30,7 @@
 //
 // Sample runs:
 //    mpirun -np 4 mg-abs-l1-jacobi
-//    mpirun -np 4 mg-abs-l1-jacobi -s 1 -i 3
+//    mpirun -np 4 mg-abs-l1-jacobi -s 1 -i 2
 //    mpirun -np 4 mg-abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
 //    mpirun -np 4 mg-abs-l1-jacobi -rs 2 -rp 1
 //    mpirun -np 4 mg-abs-l1-jacobi -t 1e5 -ni 100 -vis
@@ -92,8 +92,7 @@ int main(int argc, char *argv[])
                   "Integrators to be considered:"
                   "\n\t0: MassIntegrator"
                   "\n\t1: DiffusionIntegrator"
-                  "\n\t2: ElasticityIntegrator"
-                  "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator");
+                  "\n\t2: CurlCurlIntegrator + VectorFEMassIntegrator");
    args.AddOption(&assembly_type_int, "-a", "--assembly",
                   "Assembly level to be considered:"
                   "\n\t0: LEGACY"
@@ -221,7 +220,6 @@ int main(int argc, char *argv[])
    //    collections for different systems.
    //    - H1-conforming Lagrange elements for the H1-mass matrix and the
    //      diffusion problem.
-   //    - Vector H1-conforming Lagrange elements for the elasticity problem.
    //    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *coarse_fes;
@@ -231,10 +229,6 @@ int main(int argc, char *argv[])
       case diffusion:
          fec = new H1_FECollection(order, dim);
          coarse_fes = new ParFiniteElementSpace(mesh, fec);
-         break;
-      case elasticity:
-         fec = new H1_FECollection(order, dim);
-         coarse_fes= new ParFiniteElementSpace(mesh, fec, dim);
          break;
       case maxwell:
          fec = new ND_FECollection(order, dim);
@@ -273,7 +267,6 @@ int main(int argc, char *argv[])
       {
          case mass:
          case diffusion:
-         case elasticity:
             fec_array.Append(new H1_FECollection(std::pow(2, lo + 1), dim));
             break;
          case maxwell:
@@ -333,13 +326,6 @@ int main(int argc, char *argv[])
          scalar_f = new FunctionCoefficient(diffusion_source);
          lfi = new DomainLFIntegrator(*scalar_f);
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
-         break;
-      case elasticity:
-         vector_u = new VectorFunctionCoefficient(space_dim,
-                                                  elasticity_solution);
-         vector_f = new VectorFunctionCoefficient(space_dim, elasticity_source);
-         lfi = new VectorDomainLFIntegrator(*vector_f);
-         x.ProjectBdrCoefficient(*vector_u, ess_bdr);
          break;
       case maxwell:
          vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
@@ -424,7 +410,6 @@ int main(int argc, char *argv[])
          case diffusion:
             error = x.ComputeL2Error(*scalar_u);
             break;
-         case elasticity:
          case maxwell:
             error = x.ComputeL2Error(*vector_u);
             break;
