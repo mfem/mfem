@@ -38,11 +38,21 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, real_t kin_vis)
    // Check if fully periodic mesh
    if (!(pmesh->bdr_attributes.Size() == 0))
    {
-      vel_ess_attr.SetSize(pmesh->bdr_attributes.Max());
+      vel_ess_attr.SetSize(pmesh->Dimension(), pmesh->bdr_attributes.Max());
       vel_ess_attr = 0;
+
+      vel_ess_attr_combined.SetSize(pmesh->bdr_attributes.Max());
+      vel_ess_attr_combined = 0;
 
       pres_ess_attr.SetSize(pmesh->bdr_attributes.Max());
       pres_ess_attr = 0;
+   }
+
+   // vel_ess_tdof_comp is Array<Array<int>*> shaped dim x N_tdofs
+   vel_ess_tdof_comp.SetSize(pmesh->Dimension());
+   for (int i = 0; i < pmesh->Dimension(); ++i)
+   {
+      vel_ess_tdof_comp[i] = new Array<int>;
    }
 
    int vfes_truevsize = vfes->GetTrueVSize();
@@ -114,7 +124,32 @@ void NavierSolver::Setup(real_t dt)
 
    sw_setup.Start();
 
-   vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
+   // Get essential true DOFs for each component
+   for (int comp = 0; comp < pmesh->Dimension(); ++comp)
+   {
+      Array<int> comp_ess_attr(pmesh->bdr_attributes.Max());
+      for (int attr = 0; attr < pmesh->bdr_attributes.Max(); ++attr)
+      {
+         comp_ess_attr[attr] = vel_ess_attr(comp, attr);
+      }
+      vfes->GetEssentialTrueDofs(comp_ess_attr, *vel_ess_tdof_comp[comp], comp);
+   }
+
+   // Combine all component essential DOFs into vel_ess_tdof
+   Array<int> vel_ess_tdof_marker(vfes->GetTrueVSize());
+   vel_ess_tdof_marker = 0;
+
+   for (int comp = 0; comp < pmesh->Dimension(); ++comp)
+   {
+      for (int i = 0; i < vel_ess_tdof_comp[comp]->Size(); ++i)
+      {
+         vel_ess_tdof_marker[(*vel_ess_tdof_comp[comp])[i]] = 1;
+      }
+   }
+
+   // Convert marker to list
+   vfes->MarkerToList(vel_ess_tdof_marker, vel_ess_tdof);
+
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
@@ -219,7 +254,22 @@ void NavierSolver::Setup(real_t dt)
    {
       ftext_bnlfi->SetIntRule(&ir_ni);
    }
-   FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
+
+   Array<int> vel_ess_attr_combined(pmesh->bdr_attributes.Max());
+   vel_ess_attr_combined = 0;
+   for (int comp = 0; comp < pmesh->Dimension(); ++comp)
+   {
+      for (int attr = 0; attr < pmesh->bdr_attributes.Max(); ++attr)
+      {
+         if (vel_ess_attr(comp, attr))
+         {
+            vel_ess_attr_combined[attr] = 1;
+            break;
+         }
+      }
+   }
+
+   FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr_combined);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
@@ -375,6 +425,11 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    for (auto &vel_dbc : vel_dbcs)
    {
       vel_dbc.coeff->SetTime(time + dt);
+   }
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      vel_comp_dbc.coeff->SetTime(time + dt);
    }
 
    // Set current time for pressure Dirichlet boundary conditions.
@@ -561,6 +616,13 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    for (auto &vel_dbc : vel_dbcs)
    {
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
+   }
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      Coefficient* coeff_array[3] = {nullptr, nullptr, nullptr};
+      coeff_array[vel_comp_dbc.comp] = vel_comp_dbc.coeff;
+      un_next_gf.ProjectBdrCoefficient(coeff_array, vel_comp_dbc.attr);
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
@@ -990,11 +1052,26 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 
    for (int i = 0; i < attr.Size(); ++i)
    {
-      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
-                  "Duplicate boundary definition deteceted.");
       if (attr[i] == 1)
       {
-         vel_ess_attr[i] = 1;
+         bool duplicate = false;
+         for (int d = 0; d < pmesh->Dimension(); ++d)
+         {
+            if (vel_ess_attr(d, i) == 1)
+            {
+               duplicate = true;
+               break;
+            }
+         }
+         MFEM_ASSERT(!duplicate, "Duplicate boundary definition detected.");
+         
+         // Set all components of the velocity to be essential for vector DBC's
+         for (int d = 0; d < pmesh->Dimension(); ++d)
+         {
+            vel_ess_attr(d, i) = 1;
+         }
+         
+         vel_ess_attr_combined[i] = 1;
       }
    }
 }
@@ -1002,6 +1079,37 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
    AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
+}
+
+void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component){
+   vel_comp_dbcs.emplace_back(attr, coeff, component);
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      mfem::out << "Adding Velocity Dirichlet BC to component " << component 
+                << " on attributes ";
+      for (int i = 0; i < attr.Size(); ++i)
+      {
+         if (attr[i] == 1)
+         {
+            mfem::out << i+1 << " ";  // Attributes are 1-based
+         }
+      }
+      mfem::out << std::endl;
+   }
+
+   // Update the component-wise essential attribute array
+   for (int i = 0; i < attr.Size(); ++i)
+   {
+      MFEM_ASSERT((vel_ess_attr(component, i) && attr[i]) == 0,
+                  "Duplicate boundary definition detected for component " 
+                  << component << " on attribute " << i+1);
+      if (attr[i] == 1)
+      {
+         vel_ess_attr(component, i) = 1;
+         vel_ess_attr_combined[i] = 1;
+      }
+   }
 }
 
 void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
@@ -1166,6 +1274,15 @@ void NavierSolver::PrintInfo()
 
 NavierSolver::~NavierSolver()
 {
+   for (int i = 0; i < vel_ess_tdof_comp.Size(); ++i)
+   {
+      if (vel_ess_tdof_comp[i] != nullptr)
+      {
+         delete vel_ess_tdof_comp[i];
+         vel_ess_tdof_comp[i] = nullptr;
+      }
+   }
+
    delete FText_gfcoeff;
    delete g_bdr_form;
    delete FText_bdr_form;

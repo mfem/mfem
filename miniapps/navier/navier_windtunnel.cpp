@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 //
 
-
-// TODO: Update description
 // Navier Wind Tunnel
 //
 // Solve for the steady Kovasznay flow at Re = 40 defined by
@@ -23,7 +21,7 @@
 //
 // with L = Re/2 - sqrt(Re^2/4 + 4 * pi^2).
 //
-// The problem domain is set up like this
+// The problem domain is set up like this:
 //
 //            +-------------+
 //            |             |
@@ -38,8 +36,11 @@
 //            |             |
 //            +-------------+
 //
-// and Dirichlet boundary conditions are applied for the velocity on every
-// boundary. The problem, although steady state, is time integrated up to the
+// Boundary conditions:
+// - Left/Right (attr 2,4): Kovasznay velocity Dirichlet BC
+// - Top/Bottom walls (attr 1,3): No-penetration BC (zero normal velocity)
+//
+// The problem, although steady state, is time integrated up to the
 // final time and the solution is compared with the known exact solution.
 
 #include "navier_solver.hpp"
@@ -172,16 +173,21 @@ int main(int argc, char *argv[])
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
-   Array<int> attr(pmesh->bdr_attributes.Max());
-   attr = 1;
-   flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
+   Array<int> attr_inflow_outflow(pmesh->bdr_attributes.Max());
+   attr_inflow_outflow = 0;
+   attr_inflow_outflow[1] = 1;  // attr 2 = left boundary (inflow)
+   attr_inflow_outflow[3] = 1;  // attr 4 = right boundary (outflow)
+   flowsolver.AddVelDirichletBC(vel_kovasznay, attr_inflow_outflow);
 
-   // TODO: Swap 1 and 3 to no-penetration BC
-   Array<int> attr_no_pen(pmesh->bdr_attributes.Max());
-   attr_no_pen[0] = 1; // attr 1 = bottom wall
-   attr_no_pen[2] = 1; // attr 3 = top wall
-   // TODO:
-   // flowsolver.AddVelDirichletBC(, attr_no_pen);
+   // Add no-penetration boundary conditions on walls
+   Array<int> attr_walls(pmesh->bdr_attributes.Max());
+   attr_walls = 0;
+   attr_walls[0] = 1;  // attr 1 = bottom wall
+   attr_walls[2] = 1;  // attr 3 = top wall
+   
+   // TODO: 10.0 is arbitrarily chosen, since Kovasznay solution's u_y is 0 at walls too
+   ConstantCoefficient no_penetration_coeff(10.0);
+   flowsolver.AddVelDirichletBC(&no_penetration_coeff, attr_walls, 1);
 
    real_t t = 0.0;
    real_t dt = ctx.dt;
@@ -197,6 +203,18 @@ int main(int argc, char *argv[])
 
    ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
+
+   // Print header for output
+   if (Mpi::Root())
+   {
+      printf("%5s %8s %8s %8s %11s %11s\n",
+             "Order",
+             "CFL",
+             "Time",
+             "dt",
+             "err_u",
+             "err_p");
+   }
 
    for (int step = 0; !last_step; ++step)
    {
@@ -225,14 +243,7 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         printf("%5s %8s %8s %8s %11s %11s\n",
-                "Order",
-                "CFL",
-                "Time",
-                "dt",
-                "err_u",
-                "err_p");
-         printf("%5.2d %8.2E %.2E %.2E %.5E %.5E err\n",
+         printf("%5.2d %8.2E %.2E %.2E %.5E %.5E\n",
                 ctx.order,
                 cfl,
                 t,

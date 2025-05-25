@@ -47,6 +47,33 @@ public:
    VectorCoefficient *coeff;
 };
 
+/// Container for a component-wise Dirichlet boundary condition of the velocity field.
+class VelComponentDirichletBC_T
+{
+public:
+   VelComponentDirichletBC_T(Array<int> attr, Coefficient *coeff, int comp)
+      : attr(attr), coeff(coeff), comp(comp) {}
+
+   VelComponentDirichletBC_T(VelComponentDirichletBC_T &&obj) noexcept
+   {
+      this->attr = obj.attr;
+      this->coeff = obj.coeff;
+      this->comp = obj.comp;
+      obj.coeff = nullptr;
+   }
+
+   ~VelComponentDirichletBC_T() { delete coeff; }
+
+   // TODO: Likely not needed
+   // Delete copy constructor and assignment operator
+   VelComponentDirichletBC_T(const VelComponentDirichletBC_T&) = delete;
+   VelComponentDirichletBC_T& operator=(const VelComponentDirichletBC_T&) = delete;
+
+   Array<int> attr;
+   Coefficient *coeff;
+   int comp;
+};
+
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
 {
@@ -195,6 +222,8 @@ public:
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
+
+   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component);
 
    /// Add a Dirichlet boundary condition to the pressure field.
    void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
@@ -399,16 +428,23 @@ protected:
 
    ParGridFunction pn_gf, resp_gf;
 
-   // All essential attributes.
-   Array<int> vel_ess_attr;
+   // Stores essential attributes per component (dim x max_bdr_attr)
+   Array2D<int> vel_ess_attr; 
+   // Stores 1 at attribute if any component is essential there.
+   Array<int> vel_ess_attr_combined; 
+   // All pressure essential attributes
    Array<int> pres_ess_attr;
 
    // All essential true dofs.
+   Array<Array<int>*> vel_ess_tdof_comp; // One Array per component
    Array<int> vel_ess_tdof;
    Array<int> pres_ess_tdof;
 
    // Bookkeeping for velocity Dirichlet BCs.
    std::vector<VelDirichletBC_T> vel_dbcs;
+
+   // Bookkeeping for velocity component Dirichlet BCs.
+   std::vector<VelComponentDirichletBC_T> vel_comp_dbcs;
 
    // Bookkeeping for pressure Dirichlet BCs.
    std::vector<PresDirichletBC_T> pres_dbcs;
