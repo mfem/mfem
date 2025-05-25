@@ -675,7 +675,7 @@ void Vector::GetSubVector(const Array<int> &dofs, real_t *elem_data) const
 
 void Vector::SetSubVector(const Array<int> &dofs, const real_t value)
 {
-   const bool use_dev = dofs.UseDevice();
+   const bool use_dev = UseDevice() || dofs.UseDevice();
    const int n = dofs.Size();
    // Use read+write access for *this - we only modify some of its entries
    auto d_X = ReadWrite(use_dev);
@@ -692,6 +692,23 @@ void Vector::SetSubVector(const Array<int> &dofs, const real_t value)
          d_X[-1-j] = -value;
       }
    });
+}
+
+void Vector::SetSubVectorHost(const Array<int> &dofs, const real_t value)
+{
+   HostReadWrite();
+   for (int i = 0; i < dofs.Size(); ++i)
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+      {
+         (*this)[j] = value;
+      }
+      else
+      {
+         (*this)[-1-j] = -value;
+      }
+   }
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
