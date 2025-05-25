@@ -130,12 +130,7 @@ public:
        layout; otherwise -- ElementDofOrdering::NATIVE layout. See
        FiniteElementSpace::GetElementRestriction(). */
    void Mult(const Vector &e_vec, unsigned eval_flags,
-             Vector &q_val, Vector &q_der, Vector &q_det) const
-   { MultInternal(e_vec, eval_flags, q_val, q_der, q_det); }
-
-   void AbsMult(const Vector &e_vec, unsigned eval_flags,
-                Vector &q_val, Vector &q_der, Vector &q_det) const
-   { MultInternal(e_vec, eval_flags, q_val, q_der, q_det, true); }
+             Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
@@ -151,10 +146,6 @@ public:
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
-
-   /** @brief Interpolate the absolute values of the derivatives in physical
-       space of the E-vector @a e_vec at quadrature points. */
-   void AbsPhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Compute the determinants of the derivatives (with respect to
        reference coordinates) of the E-vector @a e_vec at quadrature points. */
@@ -195,12 +186,6 @@ public:
                          (int, QVectorLayout, bool, int, int), (int));
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
-
-protected:
-   void MultInternal(const Vector &e_vec, unsigned eval_flags,
-                     Vector &q_val, Vector &q_der, Vector &q_det,
-                     const bool useAbs = false) const;
-
 };
 
 }
