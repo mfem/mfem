@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
    int order = 1;
    SolverType solver_type = cg;
    IntegratorType integrator_type = diffusion;
-   int assembly_type_int = 4;
+   int assembly_type_int = 3;  // Default is PARTIAL
    AssemblyLevel assembly_type;
    // Number of refinements
    int refine_serial = 3;
@@ -95,11 +95,10 @@ int main(int argc, char *argv[])
    args.AddOption(&assembly_type_int, "-a", "--assembly",
                   "Assembly level to be considered:"
                   "\n\t0: LEGACY"
-                  "\n\t1: LEGACYFULL (Deprecated)"
-                  "\n\t2: FULL"
-                  "\n\t3: ELEMENT"
-                  "\n\t4: PARTIAL"
-                  "\n\t5: NONE");
+                  "\n\t1: FULL"
+                  "\n\t2: ELEMENT"
+                  "\n\t3: PARTIAL"
+                  "\n\t4: NONE");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
    args.AddOption(&refine_parallel, "-rp", "--refine-parallel",
@@ -159,23 +158,18 @@ int main(int argc, char *argv[])
          assembly_description = "Using Legacy type of assembly level...";
          break;
       case 1:
-         assembly_type = AssemblyLevel::LEGACYFULL;
-         assembly_description =
-            "Using Legacy Full type of assembly level... (Deprecated)";
-         break;
-      case 2:
          assembly_type = AssemblyLevel::FULL;
          assembly_description = "Using Full type of assembly level...";
          break;
-      case 3:
+      case 2:
          assembly_type = AssemblyLevel::ELEMENT;
          assembly_description = "Using Element type of assembly level...";
          break;
-      case 4:
+      case 3:
          assembly_type = AssemblyLevel::PARTIAL;
          assembly_description = "Using Partial type of assembly level...";
          break;
-      case 5:
+      case 4:
          assembly_type = AssemblyLevel::NONE;
          assembly_description = "Using matrix-free type of assembly level...";
          break;
