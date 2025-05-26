@@ -124,7 +124,7 @@ private:
 
    /// Setup matrix used to compute values at given 1D locations in [0,1]
    /// for Bernstein bases.
-   void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes);
+   void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern);
 
    void Setup(const int nb_i, const int ncp_i, const int b_type_i,
               const int cp_type_i, const real_t tol_i);
