@@ -76,14 +76,14 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    {
       auto GetChebyshevNodes = [](int n) -> Vector
       {
-         Vector nodes(n);
-         nodes(0) = -1.0;
-         nodes(n - 1) = 1.0;
+         Vector cheb(n);
+         cheb(0) = -1.0;
+         cheb(n - 1) = 1.0;
          for (int i = 1; i < n-1; ++i)
          {
-            nodes(i) = -cos(M_PI * (static_cast<real_t>(i) / (n - 1)));
+            cheb(i) = -cos(M_PI * (static_cast<real_t>(i) / (n - 1)));
          }
-         return nodes;
+         return cheb;
       };
       control_points = GetChebyshevNodes(ncp);
    }
@@ -179,13 +179,13 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    {
       nodes_int.SetSize(nb);
       weights_int.SetSize(nb);
-      IntegrationRule irule(nb);
+      IntegrationRule irule_int(nb);
       {
-         QuadratureFunctions1D::GaussLobatto(nb, &irule);
+         QuadratureFunctions1D::GaussLobatto(nb, &irule_int);
          for (int i = 0; i < nb; i++)
          {
-            weights_int(i) = irule.IntPoint(i).weight;
-            nodes_int(i) = irule.IntPoint(i).x;
+            weights_int(i) = irule_int.IntPoint(i).weight;
+            nodes_int(i) = irule_int.IntPoint(i).x;
          }
       }
 
@@ -645,9 +645,9 @@ void PLBound::GetnDBounds(int rdim, Vector &coeff,
    }
 }
 
-void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes)
+void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern)
 {
-   const int nb = nodes.Size();
+   const int nb = nodesBern.Size();
    L2_SegmentElement el(nb-1, 2); // we use L2 to leverage lexicographic order
    Array<int> ordering = el.GetLexicographicOrdering();
    basisMat.SetSize(nb, nb);
@@ -655,7 +655,7 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes)
    IntegrationPoint ip;
    for (int i = 0; i < nb; i++)
    {
-      ip.x = nodes(i);
+      ip.x = nodesBern(i);
       el.CalcShape(ip, shape);
       basisMat.SetRow(i, shape);
    }
