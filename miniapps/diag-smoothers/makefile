@@ -68,7 +68,7 @@ abs-l1-jacobi-test-par: abs-l1-jacobi
 	@$(call mfem-test,$<, $(RUN_MPI), Abs-value-L1-Jqcobi miniapp, \
 		-m ../../data/ref-cube.mesh \
 		-rs 2 -rp 2 \
-		-s 1 -i 1 -a 4 \
+		-s 1 -i 1 -a 3 \
 		-pc 1 \
 		-no-mon)
 
@@ -77,7 +77,7 @@ mg-abs-l1-jacobi-test-par: mg-abs-l1-jacobi
 		-m ../../data/ref-cube.mesh \
 		-rs 2 -rp 1\
 		-ol 1 -gl 1 \
-		-s 1 -i 1 -a 4 \
+		-s 1 -i 1 -a 3 \
 		-no-mon)
 
 # Clean targets

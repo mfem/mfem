@@ -39,14 +39,14 @@ if(MFEM_USE_MPI)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:abs-l1-jacobi> -m ../../data/ref-cube.mesh -rs 2 -rp 2
-      -s 1 -i 1 -a 4 -pc 1 -no-mon -no-vis
+      -s 1 -i 1 -a 3 -pc 1 -no-mon -no-vis
       ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME mg-abs-l1-jacobi_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:mg-abs-l1-jacobi> -m ../../data/ref-cube.mesh -rs 2 -rp 1
-      -ol 1 -gl 1 -s 1 -i 1 -a 4 -no-mon -no-vis
+      -ol 1 -gl 1 -s 1 -i 1 -a 3 -no-mon -no-vis
       ${MPIEXEC_POSTFLAGS})
   endif()
 
