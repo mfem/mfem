@@ -47,7 +47,7 @@ public:
    int                  GetPatch   ()         const { return patch; }
    /// Set which patch should be evaluated
    void                 SetPatch   (int p)    const { patch = p; }
-   /// Set which elemenet should be evaluated
+   /// Set which element should be evaluated
    int                  GetElement ()         const { return elem; }
    /// Get which element is currently considered
    void                 SetElement (int e)    const { elem = e; }

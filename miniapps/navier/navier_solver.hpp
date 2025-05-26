@@ -407,10 +407,10 @@ protected:
    Array<int> vel_ess_tdof;
    Array<int> pres_ess_tdof;
 
-   // Bookkeeping for velocity dirichlet bcs.
+   // Bookkeeping for velocity Dirichlet BCs.
    std::vector<VelDirichletBC_T> vel_dbcs;
 
-   // Bookkeeping for pressure dirichlet bcs.
+   // Bookkeeping for pressure Dirichlet BCs.
    std::vector<PresDirichletBC_T> pres_dbcs;
 
    // Bookkeeping for acceleration (forcing) terms.

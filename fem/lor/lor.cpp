@@ -43,14 +43,14 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
                                        const IntegrationRule *ir)
 {
    Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
-   Array<Array<int>*> *markers = (a_from.*get_markers)();
+   Array<Array<int>*> &markers = *(a_from.*get_markers)();
 
    for (int i=0; i<integrators->Size(); ++i)
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
       if (*markers[i])
       {
-         (a_to.*add_integrator_marker)(integrator, *(*markers[i]));
+         (a_to.*add_integrator_marker)(integrator, *markers[i]);
       }
       else
       {

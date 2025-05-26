@@ -779,7 +779,8 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
 }
 
 real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                              int numSteps, real_t tolerance, int seed)
+                                              int numSteps, real_t tolerance,
+                                              int seed)
 {
    v1.SetSize(v0.Size());
    if (seed != 0)
