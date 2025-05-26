@@ -661,6 +661,10 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodes)
    }
 }
 
+constexpr int PLBound::min_ncp_gl_x[2][11];
+constexpr int PLBound::min_ncp_gll_x[2][11];
+constexpr int PLBound::min_ncp_pos_x[2][11];
+
 int PLBound::GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
                                            int cp_type_i)
 {
