@@ -13,11 +13,10 @@
 
 #ifdef MFEM_USE_HDF5
 
-#include "../general/binaryio.hpp"
-
 #include <algorithm>
 #include <numeric>
 #include <hdf5_hl.h>
+#include <type_traits>
 
 namespace mfem
 {
@@ -32,13 +31,14 @@ template <> struct TypeID<float> { static hid_t Get() { return H5T_NATIVE_FLOAT;
 template <> struct TypeID<double> { static hid_t Get() { return H5T_NATIVE_DOUBLE; } };
 template <> struct TypeID<int32_t> { static hid_t Get() { return H5T_NATIVE_INT32; } };
 template <> struct TypeID<uint64_t> { static hid_t Get() { return H5T_NATIVE_UINT64; } };
+template <> struct TypeID<unsigned long> { static hid_t Get() { return H5T_NATIVE_ULONG; } };
 template <> struct TypeID<unsigned char> { static hid_t Get() { return H5T_NATIVE_UCHAR; } };
 
 }
 
 hsize_t VTKHDF::Dims::TotalSize() const
 {
-   return std::accumulate(data.begin(), data.begin() + ndims, 1,
+   return std::accumulate(data.begin(), data.begin() + ndims, hsize_t(1),
                           std::multiplies<hsize_t>());
 }
 
@@ -119,7 +119,7 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       if (compression_level >= 0)
       {
          H5Pset_shuffle(dcpl);
-         H5Pset_deflate(dcpl, compression_level);
+         H5Pset_deflate(dcpl, static_cast<unsigned>(compression_level));
       }
 
       const hid_t d = H5Dcreate2(f, name_c, type, fspace, H5P_DEFAULT,
@@ -175,7 +175,7 @@ void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
       const hid_t dspace = H5Dget_space(d);
       const int ndims_dset = H5Sget_simple_extent_ndims(dspace);
       MFEM_VERIFY(ndims_dset == ndims, "");
-      H5Sget_simple_extent_dims(dspace, dims, NULL);
+      H5Sget_simple_extent_dims(dspace, dims, nullptr);
       H5Sclose(dspace);
       old_size = dims[0];
       dims[0] += globsize[0];
@@ -191,7 +191,7 @@ void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
    count[0] = locsize;
    for (int i = 1; i < ndims; ++i) { count[i] = globsize[i]; }
 
-   H5Sselect_hyperslab(dspace, H5S_SELECT_SET, start, NULL, count, NULL);
+   H5Sselect_hyperslab(dspace, H5S_SELECT_SET, start, nullptr, count, nullptr);
    H5Dwrite(d, GetTypeID<T>(), H5S_BLOCK, dspace, dxpl, data);
    H5Sclose(dspace);
 
@@ -221,12 +221,12 @@ VTKHDF::OffsetTotal VTKHDF::GetOffsetAndTotal(const size_t loc) const
    const auto all = AllGather(uint64_t(loc));
 
    size_t offset = 0;
-   for (int i = 0; i < mpi_rank; ++i)
+   for (size_t i = 0; i < mpi_rank; ++i)
    {
       offset += all[i];
    }
    size_t total = offset;
-   for (int i = mpi_rank; i < mpi_size; ++i)
+   for (size_t i = mpi_rank; i < mpi_size; ++i)
    {
       total += all[i];
    }
@@ -298,7 +298,7 @@ T VTKHDF::ReadValue(const std::string &name, hsize_t index) const
    Dims count(ndims);
    for (int i = 0; i < ndims; ++i) { count[i] = 1; }
 
-   H5Sselect_hyperslab(dspace, H5S_SELECT_SET, start, NULL, count, NULL);
+   H5Sselect_hyperslab(dspace, H5S_SELECT_SET, start, nullptr, count, nullptr);
    const hid_t memspace = H5Screate_simple(ndims, count, count);
 
    T value;
@@ -317,7 +317,7 @@ void VTKHDF::TruncateDataset(const std::string &name, hsize_t size)
    const hid_t dspace = H5Dget_space(d);
    const int ndims = H5Sget_simple_extent_ndims(dspace);
    Dims dims(ndims);
-   H5Sget_simple_extent_dims(dspace, dims, NULL);
+   H5Sget_simple_extent_dims(dspace, dims, nullptr);
    H5Sclose(dspace);
    dims[0] = size;
    H5Dset_extent(d, dims);
@@ -340,14 +340,14 @@ void VTKHDF::Truncate(const real_t t)
    }
 
    // Index of found time index (may be 'one-past-the-end' if not found)
-   const int i = std::distance(tvals.begin(), it);
+   const size_t i = static_cast<size_t>(std::distance(tvals.begin(), it));
 
    // Only truncate if needed
    const bool truncate = it != tvals.end();
 
    // Number of steps we are keeping
-   nsteps = i;
-   H5LTset_attribute_int(vtk, "Steps", "NSteps", &nsteps, 1);
+   nsteps = static_cast<hsize_t>(i);
+   H5LTset_attribute_ullong(vtk, "Steps", "NSteps", &nsteps, 1);
 
    // We want to continue writing immediately after step 'i - 1'. If i = 0,
    // then this is at the beginning of the file, and the offsets do not need
@@ -360,9 +360,9 @@ void VTKHDF::Truncate(const real_t t)
       connectivity_offsets.next =
          ReadValue<hsize_t>("Steps/ConnectivityIdOffsets", i - 1);
 
-      for (int part = 0; part < mpi_size; ++part)
+      for (size_t part = 0; part < mpi_size; ++part)
       {
-         const hsize_t p_i = ReadValue<hsize_t>("Steps/PartOffsets", i - 1 + part);
+         const auto p_i = ReadValue<hsize_t>("Steps/PartOffsets", i - 1 + part);
          npoints += ReadValue<hsize_t>("NumberOfPoints", p_i);
          cell_offsets.next += ReadValue<hsize_t>("NumberOfCells", p_i);
          connectivity_offsets.next +=
@@ -486,8 +486,8 @@ static int MpiCommRank(MPI_Comm comm)
 
 VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_, Restart restart)
    : comm(comm_),
-     mpi_size(MpiCommSize(comm)),
-     mpi_rank(MpiCommRank(comm))
+     mpi_size(static_cast<size_t>(MpiCommSize(comm))),
+     mpi_rank(static_cast<size_t>(MpiCommRank(comm)))
 {
    // Create file access property list, needed for parallel I/O
    fapl = H5Pcreate(H5P_FILE_ACCESS);
@@ -515,7 +515,7 @@ void VTKHDF::UpdateSteps(real_t t)
 
    // Set the NSteps attribute
    ++nsteps;
-   H5LTset_attribute_int(steps, ".", "NSteps", &nsteps, 1);
+   H5LTset_attribute_ullong(steps, ".", "NSteps", &nsteps, 1);
 
    AppendValue(steps, "Values", t);
    AppendValue(steps, "PartOffsets", part_offset);
@@ -601,8 +601,8 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
    // Count the points (and number of refined elements, needed if high_order is
    // false).
    std::vector<FP_T> points;
-   hsize_t ne_ref = 0;
-   hsize_t np = 0;
+   int ne_ref = 0;
+   int np = 0;
    {
       const int ne = mesh.GetNE();
       for (int e = 0; e < ne; e++)
@@ -612,7 +612,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          ne_ref += ref_geom.RefGeoms.Size() / get_nv(e);
       }
 
-      points.reserve(np * 3);
+      points.reserve(static_cast<std::size_t>(np) * 3);
 
       IsoparametricTransformation Tr;
       DenseMatrix pmat;
@@ -624,17 +624,18 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 
          for (int i = 0; i < pmat.Width(); i++)
          {
-            points.push_back(pmat(0,i));
-            if (pmat.Height() > 1) { points.push_back(pmat(1,i)); }
+            points.push_back(static_cast<FP_T>(pmat(0,i)));
+            if (pmat.Height() > 1) { points.push_back(static_cast<FP_T>(pmat(1,i))); }
             else { points.push_back(0.0); }
-            if (pmat.Height() > 2) { points.push_back(pmat(2,i)); }
+            if (pmat.Height() > 2) { points.push_back(static_cast<FP_T>(pmat(2,i))); }
             else { points.push_back(0.0); }
          }
       }
    }
 
-   const hsize_t ne_0 = mesh.GetNE();
-   const hsize_t ne = high_order ? ne_0 : ne_ref;
+   // const auto ne_0 = static_cast<size_t>(mesh.GetNE());
+   const int ne_0 = mesh.GetNE();
+   const auto ne = static_cast<size_t>(high_order ? ne_0 : ne_ref);
 
    AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &np);
    AppendParData(vtk, "NumberOfCells", 1, mpi_rank, mpi_dims, &ne);
@@ -663,10 +664,10 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          if (high_order)
          {
             Array<int> local_connectivity;
-            for (size_t e = 0; e < ne; ++e)
+            for (hsize_t e = 0; e < ne; ++e)
             {
                offsets[e] = off;
-               const Geometry::Type geom = mesh.GetElementGeometry(e);
+               const Geometry::Type geom = mesh.GetElementGeometry((int)e);
                CreateVTKElementConnectivity(local_connectivity, geom, ref);
                const int nnodes = local_connectivity.Size();
                for (int i = 0; i < nnodes; ++i)
@@ -680,8 +681,8 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          else
          {
             int off_0 = 0;
-            int e_ref = 0;
-            for (hsize_t e = 0; e < ne_0; ++e)
+            size_t e_ref = 0;
+            for (int e = 0; e < ne_0; ++e)
             {
                const Geometry::Type geom = mesh.GetElementGeometry(e);
                const int nv = get_nv(e);
@@ -719,13 +720,14 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          std::vector<unsigned char> cell_types(ne);
          const int *vtk_geom_map =
             high_order ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
-         int e_ref = 0;
-         for (hsize_t e = 0; e < ne_0; ++e)
+         size_t e_ref = 0;
+         for (int e = 0; e < ne_0; ++e)
          {
             const int ne_ref_e = get_ne_ref(e, ref_0);
             for (int i = 0; i < ne_ref_e; ++i, ++e_ref)
             {
-               cell_types[e_ref] = vtk_geom_map[mesh.GetElementGeometry(e)];
+               const auto type = vtk_geom_map[mesh.GetElementGeometry(e)];
+               cell_types[e_ref] = static_cast<unsigned char>(type);
             }
          }
          AppendParData(vtk, "Types", ne, e_offset, Dims({ne_total}),
@@ -738,10 +740,10 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          EnsureGroup("CellData", cell_data);
          std::vector<int> attributes(ne);
          hsize_t e_ref = 0;
-         for (hsize_t e = 0; e < ne_0; ++e)
+         for (int e = 0; e < ne_0; ++e)
          {
-            const int attr = mesh.GetAttribute(e);
-            const int ne_ref_e = get_ne_ref(e, ref_0);
+            const int attr = mesh.GetAttribute((int)e);
+            const int ne_ref_e = get_ne_ref((int)e, ref_0);
             for (int i = 0; i < ne_ref_e; ++i, ++e_ref)
             {
                attributes[e_ref] = attr;
@@ -766,9 +768,9 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
 
    const int vdim = gf.VectorDim();
 
-   std::vector<FP_T> point_values(vdim * last_np);
+   std::vector<FP_T> point_values(static_cast<size_t>(vdim * last_np));
    DenseMatrix vec_val, pmat;
-   int off = 0;
+   size_t off = 0;
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       RefinedGeometry &ref_geom = *GlobGeometryRefiner.Refine(
@@ -778,14 +780,14 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
       {
          for (int vd = 0; vd < vdim; ++vd)
          {
-            point_values[off] = vec_val(vd, i);
+            point_values[off] = static_cast<FP_T>(vec_val(vd, i));
             ++off;
          }
       }
    }
 
    Dims dims(vdim == 1 ? 1 : 2);
-   if (vdim > 1) { dims[1] = vdim; }
+   if (vdim > 1) { dims[1] = (hsize_t) vdim; }
    auto offset_total = AppendParVector(point_data, name, point_values, dims);
    point_data_offsets[name].Update(offset_total.total);
 }
