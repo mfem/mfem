@@ -4635,7 +4635,7 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
 }
 
 void GridFunction::GetElementBoundsAtControlPoints(const int elem,
-                                                   PLBound &plb,
+                                                   const PLBound &plb,
                                                    Vector &lower, Vector &upper,
                                                    const int vdim)
 {
@@ -4683,7 +4683,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    }
 }
 
-void GridFunction::GetElementBounds(const int elem, PLBound &plb,
+void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
                                     Vector &lower, Vector &upper,
                                     const int vdim)
 {
@@ -4706,7 +4706,7 @@ void GridFunction::GetElementBounds(const int elem, PLBound &plb,
    }
 }
 
-void GridFunction::GetElementBounds(PLBound &plb,
+void GridFunction::GetElementBounds(const PLBound &plb,
                                     Vector &lower, Vector &upper,
                                     const int vdim)
 {
