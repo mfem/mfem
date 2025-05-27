@@ -1064,13 +1064,13 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
             }
          }
          MFEM_ASSERT(!duplicate, "Duplicate boundary definition detected.");
-         
+
          // Set all components of the velocity to be essential for vector DBC's
          for (int d = 0; d < pmesh->Dimension(); ++d)
          {
             vel_ess_attr(d, i) = 1;
          }
-         
+
          vel_ess_attr_combined[i] = 1;
       }
    }
@@ -1081,12 +1081,14 @@ void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
    AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
-void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component){
+void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
+                                     int component)
+{
    vel_comp_dbcs.emplace_back(attr, coeff, component);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      mfem::out << "Adding Velocity Dirichlet BC to component " << component 
+      mfem::out << "Adding Velocity Dirichlet BC to component " << component
                 << " on attributes ";
       for (int i = 0; i < attr.Size(); ++i)
       {
@@ -1102,7 +1104,7 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int c
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((vel_ess_attr(component, i) && attr[i]) == 0,
-                  "Duplicate boundary definition detected for component " 
+                  "Duplicate boundary definition detected for component "
                   << component << " on attribute " << i+1);
       if (attr[i] == 1)
       {

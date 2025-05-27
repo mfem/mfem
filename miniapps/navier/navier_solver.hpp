@@ -429,9 +429,9 @@ protected:
    ParGridFunction pn_gf, resp_gf;
 
    // Stores essential attributes per component (dim x max_bdr_attr)
-   Array2D<int> vel_ess_attr; 
+   Array2D<int> vel_ess_attr;
    // Stores 1 at attribute if any component is essential there.
-   Array<int> vel_ess_attr_combined; 
+   Array<int> vel_ess_attr_combined;
    // All pressure essential attributes
    Array<int> pres_ess_attr;
 

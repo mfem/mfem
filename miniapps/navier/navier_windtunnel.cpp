@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    attr_walls = 0;
    attr_walls[0] = 1;  // attr 1 = bottom wall
    attr_walls[2] = 1;  // attr 3 = top wall
-   
+
    // TODO: 10.0 is arbitrarily chosen, since Kovasznay solution's u_y is 0 at walls too
    ConstantCoefficient no_penetration_coeff(10.0);
    flowsolver.AddVelDirichletBC(&no_penetration_coeff, attr_walls, 1);
