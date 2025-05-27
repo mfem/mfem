@@ -135,6 +135,17 @@ int main (int argc, char *argv[])
       visit_dc_bb.Save();
    }
 
+   // Print min and max bound of nodal gridfunction
+   int ref_factor = 4;
+   nodes->GetBounds(lower, upper, ref_factor);
+   if (Mpi::Root())
+   {
+      out << "Nodal position minimum bounds:" << endl;
+      lower.Print();
+      out << "Nodal position maximum bounds:" << endl;
+      upper.Print();
+   }
+
    if (!jacobian) { return 0; }
 
    // Setup gridfunction for the determinant of the Jacobian.
@@ -153,7 +164,6 @@ int main (int argc, char *argv[])
    ParGridFunction bounds_detgf_upper(&fes_det_pc);
 
    // Compute bounds
-   int ref_factor = 4;
    detgf.GetElementBounds(bounds_detgf_lower, bounds_detgf_upper, ref_factor);
 
    // GLVis Visualization
@@ -175,6 +185,14 @@ int main (int argc, char *argv[])
       visit_dc.RegisterField("det-lower-bound", &bounds_detgf_lower);
       visit_dc.RegisterField("det-upper-bound", &bounds_detgf_upper);
       visit_dc.Save();
+   }
+
+   // Print min and max bound of determinant gridfunction
+   detgf.GetBounds(lower, upper, ref_factor);
+   if (Mpi::Root())
+   {
+      out << "Jacobian determinant minimum bound: " << lower(0) << endl;
+      out << "Jacobian determinant maximum bound: " << upper(0) << endl;
    }
 
    return 0;
