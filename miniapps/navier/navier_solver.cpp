@@ -255,7 +255,7 @@ void NavierSolver::Setup(real_t dt)
       ftext_bnlfi->SetIntRule(&ir_ni);
    }
 
-   Array<int> vel_ess_attr_combined(pmesh->bdr_attributes.Max());
+   vel_ess_attr_combined.SetSize(pmesh->bdr_attributes.Max());
    vel_ess_attr_combined = 0;
    for (int comp = 0; comp < pmesh->Dimension(); ++comp)
    {
@@ -1054,16 +1054,10 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
    {
       if (attr[i] == 1)
       {
-         bool duplicate = false;
          for (int d = 0; d < pmesh->Dimension(); ++d)
          {
-            if (vel_ess_attr(d, i) == 1)
-            {
-               duplicate = true;
-               break;
-            }
+            MFEM_ASSERT(vel_ess_attr(d,i) == 0, "Duplicate boundary definition detected.");
          }
-         MFEM_ASSERT(!duplicate, "Duplicate boundary definition detected.");
 
          // Set all components of the velocity to be essential for vector DBC's
          for (int d = 0; d < pmesh->Dimension(); ++d)
