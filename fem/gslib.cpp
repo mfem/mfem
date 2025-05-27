@@ -1139,7 +1139,7 @@ void FindPointsGSLIB::FreeData()
    gsl_mesh.Destroy();
    gsl_ref.Destroy();
    gsl_dist.Destroy();
-   for (int i = 0; i < 6; i++)
+   for (int i = 0; i < 4; i++)
    {
       if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = NULL; }
       if (ir_split[i]) { delete ir_split[i]; ir_split[i] = NULL; }
