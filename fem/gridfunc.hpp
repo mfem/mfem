@@ -1590,13 +1590,13 @@ public:
    /// Compute piecewise linear bounds on the given element at the grid of
    /// [plb.ncp x plb.ncp x plb.ncp] control points for each of the vdim
    /// components of the gridfunction.
-   void GetElementBoundsAtControlPoints(const int elem, PLBound &plb,
+   void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
                                         Vector &lower, Vector &upper,
                                         const int vdim = -1);
 
    /// Compute bounds on the grid function for the given element.
    /// The bounds are stored in @b lower and @b upper.
-   void GetElementBounds(const int elem, PLBound &plb,
+   void GetElementBounds(const int elem, const PLBound &plb,
                          Vector &lower, Vector &upper,
                          const int vdim = -1);
 
@@ -1604,7 +1604,7 @@ public:
    /// are returned in @b lower and @b upper, ordered byVDim:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
-   void GetElementBounds(PLBound &plb, Vector &lower, Vector &upper,
+   void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
                          const int vdim=-1);
    ///@}
 
