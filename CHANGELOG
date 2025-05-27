@@ -15,6 +15,12 @@ Version 4.8.1 (development)
 - Added support for higher order meshes in Mesh::MakeSimplicial and ParMesh::MakeSimplicial.
 
 
+- The function Vector::SetSubVector(const Array<int> &, const real_t) now
+  executes on device if either the vector or the array have the device flag
+  set. This is most often used for setting constant essential boundary
+  conditions. A new function Vector::SetSubVectorHost has been added in cases
+  where host execution is always needed (e.g. when the DOFs array is small).
+
 Version 4.8, released on Apr 9, 2025
 ====================================
 
