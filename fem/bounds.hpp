@@ -93,10 +93,11 @@ public:
    PLBound(FiniteElementSpace *fes, int ncp_i = -1, int cp_type_i = 0);
 
    // Get minimum number of control points needed to bound the given bases
-   int GetMinimumPointsForGivenBases(int nb_i, int b_type_i, int cp_type_i);
+   int GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
+                                     int cp_type_i) const;
 
    // Print information about the bounds
-   void Print(std::ostream &outp = mfem::out);
+   void Print(std::ostream &outp = mfem::out) const;
 
    // Enable (default) or disable linear projection before bounding.
    // This projection increases the computational cost but results in tighter
@@ -105,26 +106,27 @@ public:
 
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 1D/2D/3D.
-   void GetnDBounds(int rdim, Vector &coeff, Vector &intmin, Vector &intmax);
+   void GetNDBounds(int rdim, Vector &coeff,
+                    Vector &intmin, Vector &intmax) const;
 
    /// Get number of control points used to compute the bounds.
-   int GetNCP() { return ncp; }
+   int GetNControlPoints() const { return ncp; }
 private:
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 1D.
-   void Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax);
+   void Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const;
 
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 2D.
-   void Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax);
+   void Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const;
 
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 3D.
-   void Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax);
+   void Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const;
 
    /// Setup matrix used to compute values at given 1D locations in [0,1]
    /// for Bernstein bases.
-   void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern);
+   void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern) const;
 
    void Setup(const int nb_i, const int ncp_i, const int b_type_i,
               const int cp_type_i, const real_t tol_i);

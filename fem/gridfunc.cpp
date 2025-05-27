@@ -4653,7 +4653,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    fes->GetElementDofs(elem, dof_idx);
    int ndofs = dof_idx.Size();
 
-   int n_c_pts = std::pow(plb.GetNCP(), rdim);
+   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
    lower.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
    upper.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
 
@@ -4662,8 +4662,8 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
       if (vdim > 0 && d != vdim-1) { continue; }
       const int d_off = vdim > 0 ? 0 : d;
       Array<int> dof_idx_c = dof_idx;
-      Vector lowerT(lower.GetData() + d_off*n_c_pts, n_c_pts);
-      Vector upperT(upper.GetData() + d_off*n_c_pts, n_c_pts);
+      Vector lowerT(lower, d_off*n_c_pts, n_c_pts);
+      Vector upperT(upper, d_off*n_c_pts, n_c_pts);
       fes->DofsToVDofs(vdim > 0 ? vdim-1 : d, dof_idx_c);
       GetSubVector(dof_idx_c, loc_data);
       Vector nodal_data;
@@ -4679,7 +4679,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
             nodal_data(j) = loc_data(dof_map[j]);
          }
       }
-      plb.GetnDBounds(rdim, nodal_data, lowerT, upperT);
+      plb.GetNDBounds(rdim, nodal_data, lowerT, upperT);
    }
 }
 
@@ -4691,7 +4691,7 @@ void GridFunction::GetElementBounds(const int elem, PLBound &plb,
    GetElementBoundsAtControlPoints(elem, plb, lowerC, upperC, vdim);
    const FiniteElement *fe = fes->GetFE(elem);
    int rdim  = fe->GetDim();
-   int n_c_pts = std::pow(plb.GetNCP(), rdim);
+   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
    int fes_dim  = fes->GetVDim();
    lower.SetSize((vdim > 0 ? 1 :fes_dim));
    upper.SetSize((vdim > 0 ? 1 :fes_dim));
@@ -4699,8 +4699,8 @@ void GridFunction::GetElementBounds(const int elem, PLBound &plb,
    {
       if (vdim > 0 && d != vdim-1) { continue; }
       const int d_off = vdim > 0 ? 0 : d;
-      Vector lowerT(lowerC.GetData() + d_off*n_c_pts, n_c_pts);
-      Vector upperT(upperC.GetData() + d_off*n_c_pts, n_c_pts);
+      Vector lowerT(lowerC, d_off*n_c_pts, n_c_pts);
+      Vector upperT(upperC, d_off*n_c_pts, n_c_pts);
       lower(d_off) = lowerT.Min();
       upper(d_off) = upperT.Max();
    }
@@ -4755,8 +4755,8 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
    {
       if (vdim > 0 && d != vdim-1) { continue; }
       const int d_off = vdim > 0 ? 0 : d;
-      Vector lelt(lel.GetData() + d_off*nel, nel);
-      Vector uelt(uel.GetData() + d_off*nel, nel);
+      Vector lelt(lel, d_off*nel, nel);
+      Vector uelt(uel, d_off*nel, nel);
       lower(d_off) = lelt.Min();
       upper(d_off) = uelt.Max();
    }

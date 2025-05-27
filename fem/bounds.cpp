@@ -267,7 +267,7 @@ PLBound::PLBound(FiniteElementSpace *fes, int ncp_i, int cp_type_i)
    Setup(nb, ncp, b_type, cp_type, tol);
 }
 
-void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax)
+void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
 {
    real_t x,w;
    intmin.SetSize(ncp);
@@ -348,7 +348,7 @@ void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax)
    }
 }
 
-void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax)
+void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
 {
    intmin.SetSize(ncp*ncp);
    intmax.SetSize(ncp*ncp);
@@ -483,7 +483,7 @@ void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax)
    }
 }
 
-void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax)
+void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
 {
    int nb2 = nb*nb,
        ncp2 = ncp*ncp,
@@ -624,8 +624,8 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax)
    }
 }
 
-void PLBound::GetnDBounds(int rdim, Vector &coeff,
-                          Vector &intmin, Vector &intmax)
+void PLBound::GetNDBounds(int rdim, Vector &coeff,
+                          Vector &intmin, Vector &intmax) const
 {
    if (rdim == 1)
    {
@@ -645,7 +645,8 @@ void PLBound::GetnDBounds(int rdim, Vector &coeff,
    }
 }
 
-void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern)
+void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
+                                     Vector &nodesBern) const
 {
    const int nbern = nodesBern.Size();
    L2_SegmentElement el(nbern-1, 2); // we use L2 to leverage lexicographic order
@@ -666,7 +667,7 @@ constexpr int PLBound::min_ncp_gll_x[2][11];
 constexpr int PLBound::min_ncp_pos_x[2][11];
 
 int PLBound::GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
-                                           int cp_type_i)
+                                           int cp_type_i) const
 {
    MFEM_VERIFY(b_type_i >= 0 && b_type_i <= 2, "Invalid node type. Specify 0 "
                "for GL, 1 for GLL, and 2 for positive " "bases.");
@@ -693,5 +694,22 @@ int PLBound::GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
    return 0;
 }
 
+void PLBound::Print(std::ostream &outp) const
+{
+   outp << "PLBound nb: " << nb << std::endl;
+   outp << "PLBound ncp: " << ncp << std::endl;
+   outp << "PLBound b_type: " << b_type << std::endl;
+   outp << "PLBound cp_type: " << cp_type << std::endl;
+   outp << "Print nodes: " << std::endl;
+   nodes.Print(outp);
+   outp << "Print weights: " << std::endl;
+   weights.Print(outp);
+   outp << "Print control_points: " << std::endl;
+   control_points.Print(outp);
+   outp << "Print lower bounds: " << std::endl;
+   lbound.Print(outp);
+   outp << "Print upper bounds: " << std::endl;
+   ubound.Print(outp);
+}
 
 }
