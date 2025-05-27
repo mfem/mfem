@@ -647,13 +647,13 @@ void PLBound::GetnDBounds(int rdim, Vector &coeff,
 
 void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern)
 {
-   const int nb = nodesBern.Size();
-   L2_SegmentElement el(nb-1, 2); // we use L2 to leverage lexicographic order
+   const int nbern = nodesBern.Size();
+   L2_SegmentElement el(nbern-1, 2); // we use L2 to leverage lexicographic order
    Array<int> ordering = el.GetLexicographicOrdering();
-   basisMat.SetSize(nb, nb);
-   Vector shape(nb);
+   basisMat.SetSize(nbern, nbern);
+   Vector shape(nbern);
    IntegrationPoint ip;
-   for (int i = 0; i < nb; i++)
+   for (int i = 0; i < nbern; i++)
    {
       ip.x = nodesBern(i);
       el.CalcShape(ip, shape);
