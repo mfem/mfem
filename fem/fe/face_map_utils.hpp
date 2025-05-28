@@ -259,6 +259,30 @@ inline void FaceIdxToVolIdx3D(const int index, const int size1d,
    i = yz_plane ? level : _i;
 }
 
+MFEM_HOST_DEVICE
+inline int FaceIdxToVolIdx(int dim, int i, int size1d, int face0, int face1,
+                           int side, int orientation)
+{
+   if (dim == 2)
+   {
+      int ix, iy;
+      internal::FaceIdxToVolIdx2D(i, size1d, face0, face1, side, ix, iy);
+      return ix + iy*size1d;
+   }
+   else if (dim == 3)
+   {
+      int ix, iy, iz;
+      internal::FaceIdxToVolIdx3D(i, size1d, face0, face1, side, orientation,
+                                  ix, iy, iz);
+      return ix + size1d*iy + size1d*size1d*iz;
+   }
+   else
+   {
+      MFEM_ABORT_KERNEL("Invalid dimension");
+      return -1;
+   }
+};
+
 } // namespace internal
 
 } // namespace mfem

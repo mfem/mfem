@@ -56,7 +56,6 @@
 //    lor_solvers -m ../../data/amr-quad.mesh -fe h
 //    lor_solvers -m ../../data/amr-quad.mesh -fe n
 //    lor_solvers -m ../../data/amr-quad.mesh -fe r
-//    lor_solvers -m ../../data/amr-quad.mesh -fe l
 //    lor_solvers -m ../../data/star-surf.mesh -fe h
 //    lor_solvers -m ../../data/star-surf.mesh -fe n
 //    lor_solvers -m ../../data/star-surf.mesh -fe r
@@ -110,7 +109,7 @@ int main(int argc, char *argv[])
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
-   real_t kappa = (order+1)*(order+1); // Penalty used for DG discretizations
+   real_t kappa = 10*(order+1)*(order+1); // Penalty used for DG discretizations
 
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
@@ -157,7 +156,7 @@ int main(int argc, char *argv[])
    }
    // Partial assembly not currently supported for DG or for surface meshes with
    // vector finite elements (ND or RT).
-   if (!L2 && (H1 || sdim == dim)) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (H1 || sdim == dim) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
 
    LinearForm b(&fes);
@@ -168,6 +167,7 @@ int main(int argc, char *argv[])
       // DG boundary conditions are enforced weakly with this integrator.
       b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
    }
+   if (H1) { b.UseFastAssembly(true); }
    b.Assemble();
 
    GridFunction x(&fes);

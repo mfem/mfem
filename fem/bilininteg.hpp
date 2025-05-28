@@ -3441,6 +3441,8 @@ public:
 
    const IntegrationRule &GetRule(int order, Geometry::Type geom);
 
+   real_t GetPenaltyParameter() const { return kappa; }
+
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
