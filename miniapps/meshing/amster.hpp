@@ -664,7 +664,7 @@ void MeshOptimizer::Setup(ParGridFunction &x,
    // Nonlinear solver.
    const IntegrationRule &ir =
       IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
-   solver = new TMOPNewtonSolver(pfes.GetComm(), ir);
+   solver = new TMOPNewtonSolver(pfes.GetComm(), ir, 1);
    solver->SetIntegrationRules(IntRulesLo, quad_order);
    solver->SetOperator(*nlf);
    solver->SetPreconditioner(*lin_solver);

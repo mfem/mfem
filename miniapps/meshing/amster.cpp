@@ -35,7 +35,7 @@
 // make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -visit -no-final
 
 // make amster -j4 && ./amster -m blade.mesh -o 4 -qo 12 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 3 -bdropt -1
-// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -umid 66 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 50 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -umid 66 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
 
 // Ale tangled 
 // make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
@@ -92,9 +92,10 @@ int main (int argc, char *argv[])
    int wc_metric_id      = 4;
    int wc_target_id      = 1;
    int bdr_opt_case      = 0;
-   bool visit            = false;
+   bool visit            = false; 
    bool move_bnd         = false;
    bool final_pass       = true;
+   bool bound            = true;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -143,6 +144,9 @@ int main (int argc, char *argv[])
    args.AddOption(&final_pass, "-final", "--final", "-no-final",
                   "--no-final",
                   "Enable final mesh optimization pass.");
+   args.AddOption(&bound, "-bound", "--bound", "-no-bound",
+                  "--no-bound",
+                  "Enable bounds.");
    args.Parse();
    if (!args.Good())
    {
@@ -278,7 +282,9 @@ int main (int argc, char *argv[])
    GridFunction::PLBound *plb = nullptr;
    GridFunction::PLBound plbt = detgf.GetBounds(detgf_lower, detgf_upper,
                                                 ref_factor);
-   plb = &plbt;
+   if (bound) {
+      plb = &plbt;
+   }
 
    double min_detA0, volume0, min_det_cur;
    GetMinDet(pmesh, x0, quad_order, min_detA0, volume0);
@@ -344,7 +350,7 @@ int main (int argc, char *argv[])
       min_det_cur = min_detA_u;
 
       GetDeterminantJacobianGF(pmesh, &detgf);
-      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
       double min_det_bound = detgf_lower.Min();
       if (myid == 0)
       {
@@ -432,7 +438,7 @@ int main (int argc, char *argv[])
       min_det_cur = min_detA_wc;
 
       GetDeterminantJacobianGF(pmesh, &detgf);
-      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
       double min_det_bound = detgf_lower.Min();
       if (myid == 0)
       {
@@ -469,7 +475,7 @@ int main (int argc, char *argv[])
    // Do regular mesh optimization
    if (min_det_cur > 0.0 && final_pass)
    {
-      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
       real_t min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0;
       real_t min_detA_m, min_muT_m, max_muT_m, avg_muT_m, volume_m;
       GetMeshStats(pmesh, x0, metric, target_c, quad_order,
@@ -501,11 +507,11 @@ int main (int argc, char *argv[])
                                                     finder,
                                                     surf_mesh_arr[0]->GetNodes());
          meshopt.EnableTangentialRelaxation(); 
-      } 
+      }  
       else if (bdr_opt_case == 2) 
       { 
          for (int i = 0; i < surf_mesh_attr.Size(); i++)
-         {
+         { 
             FindPointsGSLIB *finder = new FindPointsGSLIB();
             finder_arr.Append(finder); 
             finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
@@ -518,11 +524,11 @@ int main (int argc, char *argv[])
       }
       if (visit)
       {
-         int vis_frequency = 100;
-         if (bdr_opt_case == 1)
-         {
-            vis_frequency = 100;
-         }
+         int vis_frequency = 5;
+         // if (bdr_opt_case == 1)
+         // { 
+         //    vis_frequency = 1;
+         // }
          meshopt.EnableVisualization(&dc, vis_count, vis_frequency);
       }
       meshopt.OptimizeNodes(x);
@@ -556,7 +562,7 @@ int main (int argc, char *argv[])
                    min_detA_m, min_muT_m, max_muT_m, avg_muT_m, volume_m);
 
       GetDeterminantJacobianGF(pmesh, &detgf);
-      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
+      detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
       double min_det_bound = detgf_lower.Min();
       if (myid == 0)
       {
