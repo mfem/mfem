@@ -340,14 +340,14 @@ void VTKHDF::Truncate(const real_t t)
    }
 
    // Index of found time index (may be 'one-past-the-end' if not found)
-   const int i = std::distance(tvals.begin(), it);
+   const ptrdiff_t i = std::distance(tvals.begin(), it);
 
    // Only truncate if needed
    const bool truncate = it != tvals.end();
 
    // Number of steps we are keeping
    nsteps = i;
-   H5LTset_attribute_int(vtk, "Steps", "NSteps", &nsteps, 1);
+   H5LTset_attribute_ulong(vtk, "Steps", "NSteps", &nsteps, 1);
 
    // We want to continue writing immediately after step 'i - 1'. If i = 0,
    // then this is at the beginning of the file, and the offsets do not need
@@ -515,7 +515,7 @@ void VTKHDF::UpdateSteps(real_t t)
 
    // Set the NSteps attribute
    ++nsteps;
-   H5LTset_attribute_int(steps, ".", "NSteps", &nsteps, 1);
+   H5LTset_attribute_ulong(steps, ".", "NSteps", &nsteps, 1);
 
    AppendValue(steps, "Values", t);
    AppendValue(steps, "PartOffsets", part_offset);
@@ -624,16 +624,16 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
 
          for (int i = 0; i < pmat.Width(); i++)
          {
-            points.push_back(pmat(0,i));
-            if (pmat.Height() > 1) { points.push_back(pmat(1,i)); }
+            points.push_back(FP_T(pmat(0,i)));
+            if (pmat.Height() > 1) { points.push_back(FP_T(pmat(1,i))); }
             else { points.push_back(0.0); }
-            if (pmat.Height() > 2) { points.push_back(pmat(2,i)); }
+            if (pmat.Height() > 2) { points.push_back(FP_T(pmat(2,i))); }
             else { points.push_back(0.0); }
          }
       }
    }
 
-   const hsize_t ne_0 = mesh.GetNE();
+   const int ne_0 = mesh.GetNE();
    const hsize_t ne = high_order ? ne_0 : ne_ref;
 
    AppendParData(vtk, "NumberOfPoints", 1, mpi_rank, mpi_dims, &np);
@@ -663,7 +663,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          if (high_order)
          {
             Array<int> local_connectivity;
-            for (size_t e = 0; e < ne; ++e)
+            for (int e = 0; e < int(ne); ++e)
             {
                offsets[e] = off;
                const Geometry::Type geom = mesh.GetElementGeometry(e);
@@ -681,7 +681,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          {
             int off_0 = 0;
             int e_ref = 0;
-            for (hsize_t e = 0; e < ne_0; ++e)
+            for (int e = 0; e < ne_0; ++e)
             {
                const Geometry::Type geom = mesh.GetElementGeometry(e);
                const int nv = get_nv(e);
@@ -720,12 +720,13 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          const int *vtk_geom_map =
             high_order ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
          int e_ref = 0;
-         for (hsize_t e = 0; e < ne_0; ++e)
+         for (int e = 0; e < ne_0; ++e)
          {
             const int ne_ref_e = get_ne_ref(e, ref_0);
             for (int i = 0; i < ne_ref_e; ++i, ++e_ref)
             {
-               cell_types[e_ref] = vtk_geom_map[mesh.GetElementGeometry(e)];
+               cell_types[e_ref] = static_cast<unsigned char>(
+                                      vtk_geom_map[mesh.GetElementGeometry(e)]);
             }
          }
          AppendParData(vtk, "Types", ne, e_offset, Dims({ne_total}),
@@ -738,7 +739,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          EnsureGroup("CellData", cell_data);
          std::vector<int> attributes(ne);
          hsize_t e_ref = 0;
-         for (hsize_t e = 0; e < ne_0; ++e)
+         for (int e = 0; e < ne_0; ++e)
          {
             const int attr = mesh.GetAttribute(e);
             const int ne_ref_e = get_ne_ref(e, ref_0);
@@ -778,7 +779,7 @@ void VTKHDF::SaveGridFunction(const GridFunction &gf, const std::string &name)
       {
          for (int vd = 0; vd < vdim; ++vd)
          {
-            point_values[off] = vec_val(vd, i);
+            point_values[off] = FP_T(vec_val(vd, i));
             ++off;
          }
       }
