@@ -35,14 +35,17 @@
 // make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -visit -no-final
 
 // make amster -j4 && ./amster -m blade.mesh -o 4 -qo 12 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 3 -bdropt -1
-// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -umid 66 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 50 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -no-wc -mid 50 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
 
-// Ale tangled 
+// Ale tangled
 // make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
+// Ale tangled square
+// make amster -j4 && mpirun -np 3 amster -m Laghos_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 1000 -bnd
+
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
-#include <iostream> 
+#include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
 #include "amster.hpp"
@@ -174,6 +177,16 @@ int main (int argc, char *argv[])
       surf_mesh_arr.SetSize(2);
       surf_mesh_attr[0] = 3;
       surf_mesh_attr[1] = 4;
+   }
+   else if (bdr_opt_case == 3)
+   {
+      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
+      surf_mesh_attr.SetSize(4);
+      surf_mesh_arr.SetSize(4);
+      surf_mesh_attr[0] = 3;
+      surf_mesh_attr[1] = 4;
+      surf_mesh_attr[2] = 5;
+      surf_mesh_attr[3] = 6;
    }
    int bbox_fac = 2.0;
    if (bdr_opt_case >= 1)
@@ -472,7 +485,7 @@ int main (int argc, char *argv[])
       *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
       real_t min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0;
       real_t min_detA_m, min_muT_m, max_muT_m, avg_muT_m, volume_m;
-      GetMeshStats(pmesh, x0, metric, target_c, quad_order,
+      GetMeshStats(pmesh, x, metric, target_c, quad_order,
                    min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0);
       double min_det_bound0 = detgf_lower.Min();
       if (vis && min_detA0 > 0.0 && worst_case)
@@ -491,8 +504,8 @@ int main (int argc, char *argv[])
                     plb, &detgf, solver_iter, move_bnd, surf_mesh_attr,
                     aux_ess_dofs);
       Array<FindPointsGSLIB *> finder_arr;
-      if (bdr_opt_case == 1) 
-      { 
+      if (bdr_opt_case == 1)
+      {
          FindPointsGSLIB *finder = new FindPointsGSLIB();
          finder_arr.Append(finder);
          finder->SetupSurf(*surf_mesh_arr[0], bbox_fac);
@@ -500,14 +513,14 @@ int main (int argc, char *argv[])
          meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[0],
                                                     finder,
                                                     surf_mesh_arr[0]->GetNodes());
-         meshopt.EnableTangentialRelaxation(); 
-      } 
-      else if (bdr_opt_case == 2) 
-      { 
+         meshopt.EnableTangentialRelaxation();
+      }
+      else if (bdr_opt_case == 2 || bdr_opt_case == 3)
+      {
          for (int i = 0; i < surf_mesh_attr.Size(); i++)
          {
             FindPointsGSLIB *finder = new FindPointsGSLIB();
-            finder_arr.Append(finder); 
+            finder_arr.Append(finder);
             finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
             finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
             meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[i],
@@ -521,11 +534,19 @@ int main (int argc, char *argv[])
          int vis_frequency = 100;
          if (bdr_opt_case == 1)
          {
-            vis_frequency = 100;
+            vis_frequency = 10;
          }
          meshopt.EnableVisualization(&dc, vis_count, vis_frequency);
       }
       meshopt.OptimizeNodes(x);
+
+      {
+         ostringstream mesh_name;
+         mesh_name << "amster_final_out.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsOne(mesh_ofs);
+      }
 
       if (visit)
       {
@@ -615,6 +636,7 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order,
       tmop_integ->SetPLBoundsForDeterminant(plb, detgf);
    }
    tmop_integ->ComputeUntangleMetricQuantiles(x, pfes);
+   // tmop_integ->EnableFiniteDifferences(x);
 
    // Nonlinear form.
    ParNonlinearForm nlf(&pfes);

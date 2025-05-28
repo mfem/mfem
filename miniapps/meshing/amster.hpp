@@ -700,8 +700,11 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
    x.SetFromTrueVector();
 
    double final_energy = nlf->GetParGridFunctionEnergy(x);
-   std::cout << "Initial energy: " << init_energy << endl
-             << "Final energy:   " << final_energy << endl;
+   if (x.ParFESpace()->GetMyRank() == 0)
+   {
+      std::cout << "Initial energy: " << init_energy << endl
+                << "Final energy:   " << final_energy << endl;
+   }
 }
 
 void GetMinDet(ParMesh *pmesh, ParGridFunction &x,
