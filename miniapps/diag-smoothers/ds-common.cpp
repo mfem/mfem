@@ -173,7 +173,6 @@ void AbsL1GeometricMultigrid::ConstructBilinearForm(
 void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
                                   Vector& diag)
 {
-   MFEM_ABORT("FIXME");
    ParBilinearForm temp_form(form.ParFESpace());
    temp_form.AllocateMatrix();
    for (int i = 0; i < form.ParFESpace()->GetNE(); ++i)
@@ -184,24 +183,40 @@ void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
       Vector temp(emat_i.Height());
       Vector left(emat_i.Height());
 
-      right = 1.0;
+      DenseMatrix temp_emat_i = emat_i;
+      for(int j = 0; j < emat_i.Height(); ++j)
+      {
+         for (int k = 0; k < emat_i.Width(); ++k)
+         {
+            temp_emat_i(j, k) = std::pow(std::abs(emat_i(j, k)), p);
+         }
+      }
+
       if (q!=0.0)
       {
          emat_i.GetDiag(right);
-         // right.PowerAbs(-q);  // FIXME
+         right.Abs();
+         right.Pow(q);
+      }
+      else
+      {
+         right = 1.0;
       }
 
-      // emat_i.PowAbsMult(p, right, temp);  // FIXME
+      temp_emat_i.Mult(right, temp);
 
-      left = temp;
       if (1.0 + q - p!= 0.0)
       {
          emat_i.GetDiag(left);
-         // left.PowerAbs(1.0 + q - p);  // FIXME
+         left.Abs();
+         left.Pow(1.0 + q - p);
          left *= temp;
       }
+      else {
+          left = temp;
+      }
 
-      DenseMatrix temp_emat_i;
+      temp_emat_i.Clear();
       temp_emat_i.Diag(left.GetData(), left.Size());
       temp_form.AssembleElementMatrix(i, temp_emat_i, 1);
    }

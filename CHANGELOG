@@ -14,7 +14,7 @@ Version 4.8.1 (development)
   integration.
 
 - API addition: in class `Operator`, added virtual functions: `AbsMult`, and
-  `AbsMultTranspose`.
+  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
 
 - Added miniapps to demonstrate an implementation of the absolute-value
   L(1)-Jacobi preconditioners in partially assembled operators. This includes
