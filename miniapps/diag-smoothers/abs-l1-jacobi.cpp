@@ -31,7 +31,8 @@
 //    mpirun -np 4 abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
 //    mpirun -np 4 abs-l1-jacobi -rs 3 -rp 1
 //    mpirun -np 4 abs-l1-jacobi -t 1e5 -ni 100 -vis
-//    mpirun -np 4 abs-l1-jacobi -m ../../data/beam-tet.mesh -Ky 0.5 -Kz 0.5
+//    mpirun -np 4 abs-l1-jacobi -m ../../data/beam-tet.mesh -a 1 -Ky 0.5 -Kz 0.5
+//    mpirun -np 4 abs-l1-jacobi --device cuda
 
 #include "ds-common.hpp"
 
