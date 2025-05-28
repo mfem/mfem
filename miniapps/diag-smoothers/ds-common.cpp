@@ -184,7 +184,7 @@ void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
       Vector left(emat_i.Height());
 
       DenseMatrix temp_emat_i = emat_i;
-      for(int j = 0; j < emat_i.Height(); ++j)
+      for (int j = 0; j < emat_i.Height(); ++j)
       {
          for (int k = 0; k < emat_i.Width(); ++k)
          {
@@ -212,8 +212,9 @@ void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
          left.Pow(1.0 + q - p);
          left *= temp;
       }
-      else {
-          left = temp;
+      else
+      {
+         left = temp;
       }
 
       temp_emat_i.Clear();
