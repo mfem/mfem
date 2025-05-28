@@ -340,13 +340,14 @@ void VTKHDF::Truncate(const real_t t)
    }
 
    // Index of found time index (may be 'one-past-the-end' if not found)
-   const size_t i = static_cast<size_t>(std::distance(tvals.begin(), it));
+   const auto i = static_cast<hsize_t>(std::distance(tvals.begin(), it));
+   // const int i = std::distance(tvals.begin(), it);
 
    // Only truncate if needed
    const bool truncate = it != tvals.end();
 
    // Number of steps we are keeping
-   nsteps = static_cast<hsize_t>(i);
+   nsteps = i;
    H5LTset_attribute_ullong(vtk, "Steps", "NSteps", &nsteps, 1);
 
    // We want to continue writing immediately after step 'i - 1'. If i = 0,
@@ -470,24 +471,24 @@ VTKHDF::VTKHDF(const std::string &filename, Restart restart)
 
 #ifdef MFEM_PARALLEL_HDF5
 
-static int MpiCommSize(MPI_Comm comm)
+static size_t MpiCommSize(MPI_Comm comm)
 {
    int comm_size;
    MPI_Comm_size(comm, &comm_size);
-   return comm_size;
+   return static_cast<size_t>(comm_size);
 }
 
-static int MpiCommRank(MPI_Comm comm)
+static size_t MpiCommRank(MPI_Comm comm)
 {
    int rank;
    MPI_Comm_rank(comm, &rank);
-   return rank;
+   return static_cast<size_t>(rank);
 }
 
 VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_, Restart restart)
    : comm(comm_),
-     mpi_size(static_cast<size_t>(MpiCommSize(comm))),
-     mpi_rank(static_cast<size_t>(MpiCommRank(comm)))
+     mpi_size(MpiCommSize(comm)),
+     mpi_rank(MpiCommRank(comm))
 {
    // Create file access property list, needed for parallel I/O
    fapl = H5Pcreate(H5P_FILE_ACCESS);
@@ -633,7 +634,6 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
       }
    }
 
-   // const auto ne_0 = static_cast<size_t>(mesh.GetNE());
    const int ne_0 = mesh.GetNE();
    const auto ne = static_cast<size_t>(high_order ? ne_0 : ne_ref);
 
@@ -664,7 +664,7 @@ void VTKHDF::SaveMesh(const Mesh &mesh, bool high_order, int ref)
          if (high_order)
          {
             Array<int> local_connectivity;
-            for (hsize_t e = 0; e < ne; ++e)
+            for (size_t e = 0; e < ne; ++e)
             {
                offsets[e] = off;
                const Geometry::Type geom = mesh.GetElementGeometry((int)e);

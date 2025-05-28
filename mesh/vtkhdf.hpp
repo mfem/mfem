@@ -51,9 +51,9 @@ private:
    MPI_Comm comm = MPI_COMM_NULL;
 #endif
    /// Size of the MPI communicator (1 if MPI is not enabled).
-   const size_t mpi_size = 1;
+   const hsize_t mpi_size = 1;
    /// Rank within MPI communicator (0 if MPI is not enabled).
-   const size_t mpi_rank = 0;
+   const hsize_t mpi_rank = 0;
 
    /// File access property list (needed for MPI I/O).
    hid_t fapl = H5I_INVALID_HID;
@@ -77,29 +77,14 @@ private:
       static constexpr int MAX_NDIMS = 2;
       std::array<hsize_t, MAX_NDIMS> data = { }; // Zero initialized
       int ndims = 0;
-
       Dims() = default;
-
-      Dims(int ndims_) : ndims(ndims_)
-      {
-         MFEM_ASSERT(ndims <= MAX_NDIMS, "ndims <= MAX_NDIMS error");
-      }
-
+      Dims(int ndims_) : ndims(ndims_) { MFEM_ASSERT(ndims <= MAX_NDIMS, ""); }
       Dims(int ndims_, hsize_t val) : Dims(ndims_) { data.fill(val); }
-
       template <typename T>
       Dims(std::initializer_list<T> data_) : Dims(data_.size())
-      {
-         std::copy(data_.begin(), data_.end(), data.begin());
-      }
-
+      { std::copy(data_.begin(), data_.end(), data.begin()); }
       operator hsize_t*() { return data.data(); }
-
-      hsize_t &operator[](int i)
-      {
-         return data[static_cast<hsize_t>(i)];
-      }
-
+      hsize_t &operator[](int i) { return data[static_cast<hsize_t>(i)]; }
       hsize_t TotalSize() const;
    };
 
