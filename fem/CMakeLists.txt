@@ -157,13 +157,13 @@ set(SRCS
   tmop/mult/mult3_coef.cpp
   tmop/mult/mult3.cpp
   tmop/tools/det2_jpr.cpp
+  tmop/tools/det3_jpr.cpp
+  tmop/tools/discrete.cpp
   tmop/tools/energy2_coef.cpp
   tmop/tools/energy2.cpp
-  tmop/tools/target2.cpp
-  tmop/tools/det3_jpr.cpp
   tmop/tools/energy3_coef.cpp
   tmop/tools/energy3.cpp
-  tmop/tools/discrete3.cpp
+  tmop/tools/target2.cpp
   tmop/tools/target3.cpp
   tmop_tools.cpp
   tmop_amr.cpp
