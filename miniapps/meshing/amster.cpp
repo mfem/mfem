@@ -44,7 +44,9 @@
 // Ale tangled - curvilinear right and top boundaries
 // make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
 // Ale tangled - rotated square hole
-// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_square_hole_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 1000 -bnd
+// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_square_hole_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 200 -bnd
+// Ale tangled - rotated square hole
+// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_circular_hole_650_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 4 -visit -ni 200 -bnd
 
 
 #include "mfem.hpp"
@@ -82,6 +84,7 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "jagged.mesh";
+   const char *surf_mesh_file = "null.mesh";
    int rs_levels         = 0;
    int mesh_poly_deg     = 2;
    bool worst_case       = true;
@@ -107,6 +110,7 @@ int main (int argc, char *argv[])
    // Parse command-line input file.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&surf_mesh_file, "-sm", "--surfmesh", "Mesh file to use.");
    args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
@@ -165,6 +169,16 @@ int main (int argc, char *argv[])
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   Mesh *smesh = nullptr;
+   if (strcmp(surf_mesh_file, "null.mesh") != 0)
+   {
+      smesh = new Mesh(surf_mesh_file, 1, 1, false);
+      for (int lev = 0; lev < rs_levels; lev++) { smesh->UniformRefinement(); }
+   }
+   else
+   {
+      smesh = mesh;
+   }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
 
@@ -196,6 +210,13 @@ int main (int argc, char *argv[])
       surf_mesh_attr[2] = 5;
       surf_mesh_attr[3] = 6;
    }
+   else if (bdr_opt_case == 4)
+   {
+      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
+      surf_mesh_attr.SetSize(1);
+      surf_mesh_arr.SetSize(1);
+      surf_mesh_attr[0] = 4;
+   }
    int bbox_fac = 2.0;
    if (bdr_opt_case >= 1)
    {
@@ -205,7 +226,8 @@ int main (int argc, char *argv[])
       }
       for (int i = 0; i < surf_mesh_attr.Size(); i++)
       {
-         Mesh *meshsurf = SetupEdgeMesh(mesh, surf_mesh_attr[i]);
+         std::cout << smesh->GetNE() << " elements in the mesh." << std::endl;
+         Mesh *meshsurf = SetupEdgeMesh(smesh, surf_mesh_attr[i]);
          surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
          delete meshsurf;
          {
@@ -525,7 +547,7 @@ int main (int argc, char *argv[])
                                                     surf_mesh_arr[0]->GetNodes());
          meshopt.EnableTangentialRelaxation();
       }
-      else if (bdr_opt_case == 2 || bdr_opt_case == 3)
+      else if (bdr_opt_case >= 2)
       {
          for (int i = 0; i < surf_mesh_attr.Size(); i++)
          {
