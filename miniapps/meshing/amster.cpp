@@ -44,7 +44,7 @@
 // Ale tangled - curvilinear right and top boundaries
 // make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
 // Ale tangled - rotated square hole
-// make amster -j4 && mpirun -np 3 amster -m Laghos_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 1000 -bnd
+// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_square_hole_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 1000 -bnd
 
 
 #include "mfem.hpp"
