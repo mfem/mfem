@@ -754,7 +754,7 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
    {
       return EvalW_AD1(T,W);
    };
-   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||tmop_metric.Id() == 66)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 || tmop_metric.Id() == 66)
    {
       ADGrad(mu_ad_fn, P, Jpt);
       return;
