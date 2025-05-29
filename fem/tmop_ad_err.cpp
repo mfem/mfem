@@ -1480,12 +1480,12 @@ double QuantityOfInterest::EvalQoI()
       lfi->SetNqptsPerEl(nqptsperel);
       thermComplianceForm.AddDomainIntegrator(lfi);
       thermComplianceForm.Assemble();
- 
+
       ParLinearForm loadForm(temp_fes_);
       ConstantCoefficient wCoef(1e5);
       ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
       loadForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
-      loadForm.Assemble();      
+      loadForm.Assemble();
 
       return thermComplianceForm(oneGridFunction) + loadForm(solgf_);
       }
@@ -1496,7 +1496,7 @@ double QuantityOfInterest::EvalQoI()
         std::vector<std::pair<int, int>> essentialBC(0);
         double mesh_poly_deg = pmesh->GetNodalFESpace()->GetOrder(0);
         VectorHelmholtz filterSolver(pmesh, essentialBC, 0.0,  mesh_poly_deg, temp_fes_->GetMaxElementOrder());
-        gradGF= new GradientGridFunctionCoefficient(&solgf_);
+        gradGF = new GradientGridFunctionCoefficient(&solgf_);
         filterSolver.setLoadCoeff(gradGF);
         filterSolver.FSolve();
         fiteredGradField = filterSolver.GetSolution();
@@ -1744,7 +1744,7 @@ if(qoiType_ == QoIType::AVG_ERROR)
       ParLinearForm ud_gradForm(coord_fes_);
       ThermalHeatSourceShapeSensitivityIntegrator_new *lfi = new ThermalHeatSourceShapeSensitivityIntegrator_new(*QCoef_, solgf_);
       lfi->SetLoadGrad(QCoefGrad_);
-   
+
       MFEM_VERIFY(trueSolutionGrad_, "Set true solution gradient for boundary rhs sensitivity\n" );
       ud_gradForm.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(*trueSolution_, solgf_, wCoef, trueSolutionGrad_, 12, 12));
 
@@ -1812,7 +1812,7 @@ void Diffusion_Solver::FSolve()
 
   // assemble LHS matrix
   ConstantCoefficient kCoef(1.0);
-  ConstantCoefficient wCoef(1e5);
+  ConstantCoefficient wCoef(1e7);
   ProductCoefficient  truesolWCoef(wCoef,*trueSolCoeff);
 
   ParBilinearForm kForm(physics_fes_);
@@ -1915,7 +1915,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
 
     // assemble LHS matrix
     ConstantCoefficient kCoef(1.0);
-    ConstantCoefficient wCoef(1e5);
+    ConstantCoefficient wCoef(1e7);
     ProductCoefficient  truesolWCoef(wCoef,*trueSolCoeff);
 
     ParBilinearForm kForm(physics_fes_);
@@ -2137,7 +2137,7 @@ void Elasticity_Solver::FSolve()
   ConstantCoefficient firstLameCoef(0.5769230769);
   ConstantCoefficient secondLameCoef(1.0/2.6);
 
- 
+
 
   ParBilinearForm a(physics_fes_);
   ParLinearForm b(physics_fes_);

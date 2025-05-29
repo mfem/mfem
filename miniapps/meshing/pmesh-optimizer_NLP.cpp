@@ -22,11 +22,13 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 200 -w1 -1e4 -w2 1e-1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.1 -ph 1
 
 // Square hole
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10  pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e5 -w2 1e-1 -rs 3 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.1 -ph 1 -m SquareFrame.mesh -jid 111
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10  pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e5 -w2 1e-1 -rs 3 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 9 -vis -filter -frad 0.1 -ph 1 -m SquareFrame.mesh -jid 151
 
 // beam
-// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 5e-1 -rs 0 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam -jid 102
-// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 5e-1 -rs 0 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam -jid 101
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 1 -rs 0 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam -jid 142
+// make pmesh-optimizer_NLP -j4 && mpirun -np 1 pmesh-optimizer_NLP -met 1 -ch 3e-3 -ni 300 -w1 -1e6 -w2 1 -rs 0 -o 1 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam -jid 141
+// Reference:
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 3e-3 -w1 -1e6 -w2 1 -rs 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 7 -ft 10 -vis -filter -frad 0.001 -ph 1 -beam -jid 143 -ni 0 -o 4
 /*******************************/
 ///// Convergence results - Poisson - 2nd order - shock wave - zz
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300  -w1 1e4 -w2 1e-2  -rs 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -jid 11
@@ -40,30 +42,47 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 1000 -w1 1e5 -w2 10e-1 -rs 4 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad -0.1 -jid 24
 ////// simplices
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1e-2 -rs 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -m square01-tri.mesh -jid 25
+/// Poisson - 3rd order
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 600  -w1 1e6 -w2 1e-2  -rs 1 -o 3 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.1 -jid 31
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300  -w1 1e7 -w2 1e-2  -rs 2 -o 3 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.025 -jid 32
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300  -w1 1e8 -w2 1e-2  -rs 3 -o 3 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.025 -jid 33
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300  -w1 1e9 -w2 1e-2  -rs 4 -o 3 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.1 -jid 34
 
 
 // average error - 2nd order - shock wave around corner - convergence
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e2 -w2 1e-2 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 31
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 32
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e4 -w2 1e-2 -rs 3 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 33
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1e-2 -rs 4 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 34
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e2 -w2 1e-2 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 61
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 62
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e4 -w2 1e-2 -rs 3 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 63
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1e-2 -rs 4 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -jid 64
 // 1st order
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 2e3 -rs 1 -jid 41
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 4e4 -rs 2 -jid 42
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 8e5 -rs 3 -jid 43
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 16e6 -rs 4 -jid 44
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 2e3 -rs 1 -jid 71
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 4e4 -rs 2 -jid 72
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 8e5 -rs 3 -jid 73
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 16e6 -rs 4 -jid 74
+// 3rd order
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e2 -w2 1e-2 -rs 1 -o 3 -lsn 10.01 -lse 10.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.05 -jid 81
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -w1 4e3 -w2 1e-2 -rs 2 -o 3 -lsn 10.01 -lse 10.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.1 -jid 82
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 16e4 -w2 1e-2 -rs 3 -o 3 -lsn 10.01 -lse 10.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.2 -jid 83
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -w1 32e5 -w2 1e-2 -rs 4 -o 3 -lsn 10.01 -lse 10.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.4 -jid 84
 
 // solution for vis only
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 0 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 2e3 -rs 5 -jid 49
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 0 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 2e3 -rs 5 -jid 79
 
 // same but with simplices
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -m square01-tri.mesh -jid 51
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -m square01-tri.mesh -jid 111
 // 3D with avg error - o1
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303 -jid 52
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 2 -m cube.mesh -mid 303 -jid 53
-// 3D with avg error - o2
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e7 -w2 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.05 -rs 0 -m cube-tet.mesh -mid 303 -jid 54
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 250 -w1 1e6 -w2 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -rs 2 -m cube.mesh -mid 303 -jid 55
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303 -jid 112
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 2 -m cube.mesh -mid 303 -jid 113
+// 3D with avg error - o2 (note tet case ran on dane with -jid 542)
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e5 -w2 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303 -jid 114
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 250 -w1 1e6 -w2 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -rs 2 -m cube.mesh -mid 303 -jid 115
+
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300  -w1 1e4 -w2 1e-2  -rs 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -jid 116 -m amr-quad-q2-opt.mesh
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 250  -w1 1e4 -w2 1e-2  -rs 2 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndr -qt 5 -ft 2 -vis -weakbc -filter -frad 0.2 -jid 117 -m ../../data/star.mesh
+
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -w1 1e4 -w2 1e-1 -rs 2 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.08 -jid 118 -m 5quad.mesh
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 400 -w1 1e3 -w2 1e-1 -rs 2 -o 1 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.2 -jid 117 -m 5quad.mesh -so 2
+
 
 // l2 with wave around center - linear
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 400 -ft 1 --qtype 0 -w1 2e4 -w2 1e-1 -m square01.mesh -rs 2 -o 1 -lsn 1.01 -lse 1.01 -alpha 10 -bndrfree
@@ -74,8 +93,10 @@
 //  make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 1e3 -w2 1e-2 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005
 
 // avg error - inclined wave + analytic orientation
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 4e3 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 71
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 4e4 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 72
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 4e3 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 141
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 4e4 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 142
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 4e2 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 143
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 4e6 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 144
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -218,9 +239,9 @@ template <typename type>
 auto func_2( std::vector<type>& x ) -> type
 {
     double theta = 0.0;
-    auto xv = 1.0-x[0];
-    auto yv = 1.0-x[1];
-    auto zv = 1.0-x[1];
+    auto xv = x[0];
+    auto yv = x[1];
+    auto zv = x[1];
     if (x.size() == 3) {
       zv = 1.0-x[2];
     }
@@ -1146,12 +1167,21 @@ int main (int argc, char *argv[])
   else
   {
     essentialBCfilter[0] = {1, 0};
-    essentialBCfilter[1] = {2, 1};
-    if (dim == 3)
+    if (nbattr > 1)
     {
-      essentialBCfilter[2] = {3, 2};
+      essentialBCfilter[1] = {2, 1};
+      if (dim == 3 && nbattr > 2)
+      {
+        essentialBCfilter[2] = {3, 2};
+      }
+    }
+    if (bndr_fix)
+    {
+      essentialBCfilter.resize(2);
+      essentialBCfilter[1] = {1,1};
     }
   }
+  // MFEM_ABORT(" ");
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -1395,7 +1425,7 @@ if (myid == 0) {
   double comp_init, comp_final;
 
   if (method == 0)
-  { 
+  {
     auto init_l2_error = discreteSol.ComputeL2Error(*trueSolution);
     auto init_grad_error = discreteSol.ComputeGradError(trueSolutionGrad);
     auto init_h1_error = discreteSol.ComputeH1Error(trueSolution, trueSolutionGrad);
@@ -1999,7 +2029,7 @@ if (myid == 0) {
         {
           std::cout << init_strain_energy << " " << final_strain_energy
           << " " << strain_energy_ref << " strain-energy\n";
-          std::cout << "Compliance ref/init/final: " << 
+          std::cout << "Compliance ref/init/final: " <<
           comp_ref << " " << comp_init << " " << comp_final << std::endl;
         }
       }
@@ -2018,9 +2048,9 @@ if (myid == 0) {
         GetMaxDisplacement(&solver->GetSolution(), maxdisp_opt);
         if (myid == 0)
         {
-          std::cout << "Reference maximum displacement: " << maxdisp_ref(0) << " " << maxdisp_ref(1) << " " << maxdisp_ref(2) << std::endl;
-          std::cout << "Initial maximum displacement: " << maxdisp_init(0) << " " << maxdisp_init(1) << " " << maxdisp_init(2) << std::endl;
-          std::cout << "Final maximum displacement: " << maxdisp_opt(0) << " " << maxdisp_opt(1) << " " << maxdisp_opt(2) << std::endl;
+          std::cout << std::setprecision(12) << "Reference maximum displacement: " << maxdisp_ref(0) << " " << maxdisp_ref(1) << " " << maxdisp_ref(2) << std::endl;
+          std::cout << std::setprecision(12) << "Initial maximum displacement: " << maxdisp_init(0) << " " << maxdisp_init(1) << " " << maxdisp_init(2) << std::endl;
+          std::cout << std::setprecision(12) << "Final maximum displacement: " << maxdisp_opt(0) << " " << maxdisp_opt(1) << " " << maxdisp_opt(2) << std::endl;
         }
       }
     }
