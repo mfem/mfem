@@ -229,6 +229,7 @@ miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/ref321
+miniapps/meshing/mesh-bounding-boxes
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/pmesh-fitting
@@ -259,6 +260,8 @@ miniapps/meshing/mesh.*
 miniapps/meshing/order.*
 miniapps/meshing/sol.*
 miniapps/meshing/refined.mesh
+miniapps/meshing/bounding-box*
+miniapps/meshing/jacobian-determinant*
 
 miniapps/mtop/parheat
 miniapps/mtop/ParHeat*
@@ -333,6 +336,7 @@ miniapps/shifted/lsf_integral
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
+miniapps/tools/gridfunction-bounds
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
 miniapps/tools/get-values
