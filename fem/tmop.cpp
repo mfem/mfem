@@ -760,7 +760,8 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
       return;
    }
    MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
-              "TMOP_WorstCaseUntangleOptimizer_Metric. Please use metric4.");
+              "TMOP_WorstCaseUntangleOptimizer_Metric. "
+              "Please use metric 4/14/66.");
 }
 
 void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
@@ -782,8 +783,9 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
       this->DefaultAssembleH(H,DS,weight,A);
       return;
    }
-   MFEM_ABORT("EvalW_AD2 not implemented with this metric for "
-              "TMOP_WorstCaseUntangleOptimizer_Metric. Please use metric4.");
+   MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
+              "TMOP_WorstCaseUntangleOptimizer_Metric. "
+              "Please use metric 4/14/66.");
 }
 
 real_t TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
