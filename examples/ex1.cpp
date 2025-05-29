@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
    bool delete_fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      fec = FECollection::NewH1(order, dim, mesh.IsNURBS());
       delete_fec = true;
    }
    else if (mesh.GetNodes())
