@@ -574,11 +574,16 @@ public:
       // dRedx = -h * dF^T/dx
       HypreParMatrix dRedx_mat;
       dRedx->Assemble(dRedx_mat);
-      HypreParMatrix dTaylorSourcedx_mat;
-      dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
       PetscParMatrix dRedx_petsc(&dRedx_mat);
-      PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
-      dRedx_petsc += dTaylorSourcedx_petsc;
+
+      if (problem == 0)
+      {
+         HypreParMatrix dTaylorSourcedx_mat;
+         dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+         PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
+         dRedx_petsc += dTaylorSourcedx_petsc;
+      }
+
       dRedx_petsc *= -h;
 
       // dRedv = -h * dF^T/dv
