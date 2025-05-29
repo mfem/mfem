@@ -856,7 +856,7 @@ int main(int argc, char *argv[])
    {
       Vector bal_weights;
       auto ir = irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, &ir);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, &ir);
       metric_combo->SetWeights(bal_weights);
    }
 
@@ -902,10 +902,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Has to be after the enabling of the limiting / alignment, as it computes
-   // normalization factors for these terms as well.
-   if (normalization) { tmop_integ->EnableNormalization(x0); }
-
    //
    // Setup the NonlinearForm which defines the integral of interest, its
    // first and second derivatives.
@@ -922,6 +918,7 @@ int main(int argc, char *argv[])
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient metric_coeff2(weight_fun);
+   TMOPComboIntegrator *combo = nullptr;
    if (combomet > 0)
    {
       // First metric.
@@ -947,10 +944,9 @@ int main(int argc, char *argv[])
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
 
-      TMOPComboIntegrator *combo = new TMOPComboIntegrator;
+      combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(tmop_integ);
       combo->AddTMOPIntegrator(tmop_integ2);
-      if (normalization) { combo->EnableNormalization(x0); }
       if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
 
       a.AddDomainIntegrator(combo);
@@ -958,6 +954,14 @@ int main(int argc, char *argv[])
    else { a.AddDomainIntegrator(tmop_integ); }
    // The PA setup must be performed after all integrators have been added.
    if (pa) { a.Setup(); }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization)
+   {
+      tmop_integ->EnableNormalization(x0);
+      if (combomet) { combo->EnableNormalization(x0); }
+   }
 
    // Compute the minimum det(J) of the starting mesh.
    min_detJ = infinity();
