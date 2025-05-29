@@ -100,6 +100,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_GSLIB
       "MFEM_USE_GSLIB\n"
 #endif
+#ifdef MFEM_USE_HDF5
+      "MFEM_USE_HDF5\n"
+#endif
 #ifdef MFEM_USE_HIOP
       "MFEM_USE_HIOP\n"
 #endif

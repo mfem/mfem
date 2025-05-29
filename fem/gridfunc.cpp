@@ -17,6 +17,7 @@
 #include "quadinterpolator.hpp"
 #include "transfer.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../mesh/vtkhdf.hpp"
 #include "../general/text.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -3815,6 +3816,32 @@ void GridFunction::SaveVTK(std::ostream &os, const std::string &field_name,
    }
    os.flush();
 }
+
+#ifdef MFEM_USE_HDF5
+
+void GridFunction::SaveVTKHDF(const std::string &fname, const std::string &name,
+                              bool high_order, int ref)
+{
+   if (ref == -1) { ref = high_order ? fes->GetMaxElementOrder() : 1; }
+#ifdef MFEM_USE_MPI
+   if (ParFiniteElementSpace* pfes = dynamic_cast<ParFiniteElementSpace*>(fes))
+   {
+#ifdef MFEM_PARALLEL_HDF5
+      VTKHDF vtkhdf(fname, pfes->GetComm());
+      vtkhdf.SaveMesh(*fes->GetMesh(), high_order, ref);
+      vtkhdf.SaveGridFunction(*this, name);
+      return;
+#else
+      MFEM_ABORT("Requires HDF5 library with parallel support enabled");
+#endif
+   }
+#endif
+   VTKHDF vtkhdf(fname);
+   vtkhdf.SaveMesh(*fes->GetMesh(), high_order, ref);
+   vtkhdf.SaveGridFunction(*this, name);
+}
+
+#endif
 
 void GridFunction::SaveSTLTri(std::ostream &os, real_t p1[], real_t p2[],
                               real_t p3[])
