@@ -129,6 +129,25 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
                << "1 0 1" << endl
                << "0 1 1" << endl;
          break;
+      case Element::PYRAMID:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 7 0 1 2 3 4" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 3 3 2 1 0" << endl
+               << "1 2 0 1 4" << endl
+               << "1 2 1 2 4" << endl
+               << "1 2 3 4 2" << endl
+               << "1 2 0 4 3" << endl
+               << "vertices" << endl
+               << "5" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "1 1 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl;
+         break;
       default:
          mfem_error("Invalid element type!");
          break;

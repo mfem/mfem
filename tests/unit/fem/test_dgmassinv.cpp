@@ -17,6 +17,7 @@ using namespace mfem;
 TEST_CASE("DG Mass Inverse", "[CUDA]")
 {
    auto mesh_filename = GENERATE(
+                           "../../data/inline-segment.mesh",
                            "../../data/star.mesh",
                            "../../data/star-q3.mesh",
                            "../../data/fichera.mesh"
