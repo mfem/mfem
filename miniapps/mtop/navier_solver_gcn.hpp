@@ -28,7 +28,7 @@ public:
     real_t GetTimeStep(){return time_step;}
 
     /// Compute the solution at next time step t+dt
-    void Step(real_t &time, real_t dt, int cur_step);
+    void Step(real_t time, int cur_step);
 
 
     //velocity boundary conditions
@@ -63,37 +63,74 @@ public:
     /// Set current velocity using true dofs
     void SetCVelocity(Vector& vvel)
     {
-        cvel->SetFromTrueDofs(vvel);
+        cvel.SetFromTrueDofs(vvel);
     }
 
     /// Set previous velocity using true dofs
     void SetPVelocity(Vector& vvel)
     {
-        pvel->SetFromTrueDofs(vvel);
+        pvel.SetFromTrueDofs(vvel);
     }
 
     /// Set current velocity using vector coefficient
     void SetCVelocity(VectorCoefficient& vc)
     {
-        cvel->ProjectCoefficient(vc);
+        cvel.ProjectCoefficient(vc);
     }
 
     /// Set current pressure using true dofs
     void SetCPressure(Vector& vpres)
     {
-        cpres->SetFromTrueDofs(vpres);
+        cpres.SetFromTrueDofs(vpres);
     }
 
     /// Set previous pressure using true dofs
     void SetPPressure(Vector& vpress)
     {
-        ppres->SetFromTrueDofs(vpress);
+        ppres.SetFromTrueDofs(vpress);
     }
 
     /// Set current pressure using coefficient
     void SetCPressure(Coefficient& pc)
     {
-        cpres->ProjectCoefficient(pc);
+        cpres.ProjectCoefficient(pc);
+    }
+
+    ParGridFunction& GetNVelocity(){
+        return nvel;
+    }
+
+    ParGridFunction& GetPVelocity(){
+        return pvel;
+    }
+
+    ParGridFunction& GetCVelocity(){
+        return cvel;
+    }
+
+    ParGridFunction& GetCPressure(){
+        return cpres;
+    }
+
+    ParGridFunction& GetNPressure(){
+        return npres;
+    }
+
+    ParGridFunction& GetPPressure(){
+        return ppres;
+    }
+
+
+
+
+    /// copy cvel->pvel, nvel->cvel, cpres->ppres, npres->cpres
+    void UpdateHistory()
+    {
+        std::swap(cvel,pvel);
+        std::swap(cvel,nvel);
+
+        std::swap(cpres,ppres);
+        std::swap(cpres,npres);
     }
 
 private:
@@ -128,13 +165,13 @@ private:
    std::unique_ptr<ProductCoefficient> nbrink; //next brinkman
    std::unique_ptr<ProductCoefficient> nvisc;  //next viscosity
 
-   std::unique_ptr<ParGridFunction> nvel; //next velocity
-   std::unique_ptr<ParGridFunction> pvel; //previous velocity
-   std::unique_ptr<ParGridFunction> cvel; //current velocity
+   ParGridFunction nvel; //next velocity
+   ParGridFunction pvel; //previous velocity
+   ParGridFunction cvel; //current velocity
 
-   std::unique_ptr<ParGridFunction> ppres; //next pressure
-   std::unique_ptr<ParGridFunction> npres; //previous pressure
-   std::unique_ptr<ParGridFunction> cpres; //current pressure
+   ParGridFunction ppres; //next pressure
+   ParGridFunction npres; //previous pressure
+   ParGridFunction cpres; //current pressure
 
    VectorGridFunctionCoefficient nvelc;
    VectorGridFunctionCoefficient pvelc;
@@ -149,6 +186,9 @@ private:
    H1_FECollection* pfec; //pressure collecation
    ParFiniteElementSpace* vfes;
    ParFiniteElementSpace* pfes;
+
+   /// bilinear from for the viscous part of the restoring forces
+   std::unique_ptr<ParBilinearForm> vbf;
 
    std::unique_ptr<ParBilinearForm> A11;
    std::unique_ptr<ParMixedBilinearForm> A12;
@@ -167,6 +207,8 @@ private:
    std::unique_ptr<Solver> prec;
 
    std::unique_ptr<BlockOperator> bop;
+   BlockVector bvs; //block vector used for solving the mized system
+   BlockVector brh; //block rhs
    Array<int> block_true_offsets;
 
    //boundary conditions
@@ -178,8 +220,6 @@ private:
    // holds the pressure constrained DOFs
    mfem::Array<int> ess_tdofp;
 
-   // RHS
-   Vector rhs;
    Vector tmp;
 
    // Volume force coefficient
@@ -193,16 +233,6 @@ private:
 
    ConstantCoefficient onecoeff;
    ConstantCoefficient zerocoef;
-
-   /// copy cvel->pvel, nvel->cvel, cpres->ppres, npres->cpres
-   void UpdateHistory()
-   {
-       std::swap(cvel,pvel);
-       std::swap(cvel,nvel);
-
-       std::swap(cpres,ppres);
-       std::swap(cpres,npres);
-   }
 
 };
 

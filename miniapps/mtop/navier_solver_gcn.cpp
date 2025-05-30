@@ -26,22 +26,22 @@ NavierSolverFT::NavierSolverFT(ParMesh* mesh, int order_, std::shared_ptr<Coeffi
     HYPRE_BigInt gpd=pfes->GlobalTrueVSize();
 
     //velocity
-    cvel.reset(new ParGridFunction(vfes)); *cvel=real_t(0.0);
-    nvel.reset(new ParGridFunction(vfes)); *nvel=real_t(0.0);
-    pvel.reset(new ParGridFunction(vfes)); *pvel=real_t(0.0);
+    cvel.SetSpace(vfes); cvel=real_t(0.0);
+    nvel.SetSpace(vfes); nvel=real_t(0.0);
+    pvel.SetSpace(vfes); pvel=real_t(0.0);
     //pressure
-    ppres.reset(new ParGridFunction(pfes)); *ppres=real_t(0.0);
-    npres.reset(new ParGridFunction(pfes)); *npres=real_t(0.0);
-    cpres.reset(new ParGridFunction(pfes)); *cpres=real_t(0.0);
+    ppres.SetSpace(pfes); ppres=real_t(0.0);
+    npres.SetSpace(pfes); npres=real_t(0.0);
+    cpres.SetSpace(pfes); cpres=real_t(0.0);
 
 
-    nvelc.SetGridFunction(nvel.get());
-    pvelc.SetGridFunction(pvel.get());
-    cvelc.SetGridFunction(cvel.get());
+    nvelc.SetGridFunction(&nvel);
+    pvelc.SetGridFunction(&pvel);
+    cvelc.SetGridFunction(&cvel);
 
-    ppresc.SetGridFunction(ppres.get());
-    npresc.SetGridFunction(npres.get());
-    cpresc.SetGridFunction(cpres.get());
+    ppresc.SetGridFunction(&ppres);
+    npresc.SetGridFunction(&npres);
+    cpresc.SetGridFunction(&cpres);
 
     brink.reset();
     if (visc_ != nullptr)
@@ -61,6 +61,9 @@ NavierSolverFT::NavierSolverFT(ParMesh* mesh, int order_, std::shared_ptr<Coeffi
     block_true_offsets[1] = vfes->TrueVSize();
     block_true_offsets[2] = pfes->TrueVSize();
     block_true_offsets.PartialSum();
+
+    bvs.Update(block_true_offsets);
+    brh.Update(block_true_offsets);
 
     ess_tdofp.SetSize(0);
     ess_tdofv.SetSize(0);
@@ -157,16 +160,6 @@ void NavierSolverFT::SetupOperator(real_t dt)
     // Extract boundary dofs
     SetEssVTDofs(ess_tdofv);
 
-    // Set up the velocity coefficients
-    nvelc.SetGridFunction(nvel.get());
-    pvelc.SetGridFunction(pvel.get());
-    cvelc.SetGridFunction(cvel.get());
-
-    // Set the pressure coefficients
-    npresc.SetGridFunction(npres.get());
-    ppresc.SetGridFunction(ppres.get());
-    cpresc.SetGridFunction(cpres.get());
-
     // Set up the bilinear form for A11
     A11.reset(new ParBilinearForm(vfes));
     if(partial_assembly)
@@ -262,26 +255,25 @@ void NavierSolverFT::SetupOperator(real_t dt)
     }//end set up MUMPS as preconditioner
 
     ls->SetPreconditioner(*prec);
+
+    //remove the following code once the viscous fources are implemented properly
+    {
+        vbf.reset(new ParBilinearForm(vfes));
+        vbf->AddDomainIntegrator(new ElasticityIntegrator(zerocoef,*visc));
+        vbf->SetAssemblyLevel(AssemblyLevel::LEGACY);
+        vbf->Assemble();
+        vbf->Finalize();
+    }
 }
 
 void NavierSolverFT::SetupRHS(real_t t)
 {
-    // Set up the velocity coefficients
-    nvelc.SetGridFunction(nvel.get());
-    pvelc.SetGridFunction(pvel.get());
-    cvelc.SetGridFunction(cvel.get());
-
-    // Set the pressure coefficients
-    npresc.SetGridFunction(npres.get());
-    ppresc.SetGridFunction(ppres.get());
-    cpresc.SetGridFunction(cpres.get());
-
     //the RHS should be set up after the operator is set up
     //the ess_tdofv array should be set up before assembling the RHS
 
-    rhs.SetSize(vfes->TrueVSize());
+    brh=0.0;
+    Vector& rhs=brh.GetBlock(0);
     tmp.SetSize(vfes->TrueVSize());
-    rhs = 0.0;
     std::unique_ptr<ParLinearForm> lfc;
 
     if(vol_force.get()!=nullptr){
@@ -326,7 +318,7 @@ void NavierSolverFT::SetupRHS(real_t t)
 
     //add pressure term
     {
-        GradientGridFunctionCoefficient gr(cpres.get());
+        GradientGridFunctionCoefficient gr(&cpres);
         lfc=std::unique_ptr<ParLinearForm>(new ParLinearForm(vfes));
         lfc->AddDomainIntegrator(new VectorDomainLFIntegrator(gr));
         lfc->Assemble();
@@ -336,8 +328,34 @@ void NavierSolverFT::SetupRHS(real_t t)
 
     //add viscous term
     {
-
+        cvel.SetTrueVector();
+        vbf->TrueAddMult(cvel.GetTrueVector(),rhs,-0.5*time_step);
     }
+}
+
+
+void NavierSolverFT::Step(real_t time,int cur_step)
+{
+
+    SetupRHS(time); //set up the block vector brh
+    // modify the rhs for BC
+    // set BC to next velocity field
+    SetEssVTDofs(time+time_step,nvel);
+    nvel.SetTrueVector();
+    // set next pressure to 0.0
+    npres=0.0;
+    {
+        Vector& ntvel=nvel.GetTrueVector();
+        Vector& rhs=brh.GetBlock(0);
+        for(size_t i=0;i<ess_tdofv.Size();i++){
+            rhs[ess_tdofv[i]]=ntvel[ess_tdofv[i]];
+        }
+    }
+
+    ls->Mult(brh,bvs);
+
+    nvel.SetFromTrueDofs(bvs.GetBlock(0));
+    npres.SetFromTrueDofs(bvs.GetBlock(1));
 }
 
 

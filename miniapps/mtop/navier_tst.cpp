@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
    std::cout<<"My rank="<<pmesh.GetMyRank()<<std::endl;
 
    mfem::ConstantCoefficient* visc=new mfem::ConstantCoefficient(0.01);
-   mfem::NavierSolverGCN* solver=new mfem::NavierSolverGCN(&pmesh,2,std::shared_ptr<mfem::Coefficient>(visc));
+   mfem::NavierSolverFT* solver=new mfem::NavierSolverFT(&pmesh,2,std::shared_ptr<mfem::Coefficient>(visc));
 
 
    mfem::Vector bcz(dim); bcz=0.0;
@@ -173,10 +173,14 @@ int main(int argc, char *argv[])
    solver->AddVelocityBC(2,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
    solver->AddVelocityBC(4,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
 
+
+
    real_t dt=0.01;
    real_t time=0.0;
+   solver->SetupOperator(dt);
    for(int i=0;i<3;i++){
-       solver->Step(time,dt,i);
+       solver->Step(time,i); time=time+dt;
+       solver->UpdateHistory();
    }
 
 
