@@ -141,12 +141,10 @@ mfem::tuple<matd, real_t> qdata_setup(
    if (use_viscosity)
    {
       auto symdvdx = sym(dvdxi * invJ);
-      auto [eigvals, eigvecs] = eig(symdvdx);
-      vecd compr_dir = get_col(eigvecs, 0);
+      auto [mu, compr_dir] = power_method(symdvdx, 10, 1e-8);
       auto ph_dir = (J * inv(J0)) * compr_dir;
       const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
       // Measure of maximal compression.
-      const real_t mu = eigvals(0);
       visc_coeff = 2.0 * rho * h * h * fabs(mu);
       visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                     (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
