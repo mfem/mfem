@@ -307,7 +307,6 @@ int main(int argc, char *argv[])
    }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
    FilterSolver->SetupFEM();
-   FilterSolver->AssembleBoundary();
    FilterSolver->AssembleDiffusionBilinear();
 
    ParBilinearForm mass(&control_fes);

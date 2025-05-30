@@ -276,7 +276,7 @@ public:
    void SetupFEM();
 
    void AssembleBoundary();
-   void AssembleDiffusionBilinear();
+   void AssembleDiffusionBilinear(bool update_bc);
    void Solve();
    GridFunction * GetFEMSolution();
    LinearForm * GetLinearForm() {return b;}
@@ -552,8 +552,12 @@ void DiffusionSolver::AssembleBoundary()
 #endif
 }
 
-void DiffusionSolver::AssembleDiffusionBilinear()
+void DiffusionSolver::AssembleDiffusionBilinear(bool update_bc=true)
 {
+   if (update_bc)
+   {
+      AssembleBoundary();
+   }
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
