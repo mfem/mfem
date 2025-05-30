@@ -201,7 +201,7 @@ examples/superlu/sol.*
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
 
-miniapps/dfem/minimal_surface
+miniapps/dfem/dfem-minimal-surface
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla

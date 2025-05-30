@@ -1223,35 +1223,41 @@ Specifically, a full build on a Mac can be tested by adding the following
 user.mk file in the config/ directory
 
    MFEM_USE_ENZYME = YES
-   LLVM_DIR = $(shell brew --prefix llvm@19)
    ENZYME_DIR = $(shell brew --prefix enzyme)
-   MFEM_USE_MPI = YES
+   LLVM_DIR = $(shell brew --prefix llvm@19)
    CXX = $(LLVM_DIR)/bin/clang++
+   MFEM_USE_MPI = YES
    MPICXX = OMPI_CXX=$(CXX) mpicxx
 
 and running
 
-   brew install enzyme
    make config
    make -j
    cd miniapps/dfem
    make
    ./minimal_surface
 
-On Ubuntu 24.04 you can use the package manager to install Enzyme
-dependencies like this
+On Linux systems, for example Ubuntu 24.04, use the package manager to install
+the Enzyme dependencies
 
    sudo apt install libclang-dev libzstd-dev llvm-dev clang
 
-Then, we clone Enzyme and build
+and then clone and build Enzyme
 
-   cd $HOME && git clone https://github.com/EnzymeAD/Enzyme.git
+   cd $HOME
+   git clone https://github.com/EnzymeAD/Enzyme.git
    cd Enzyme/enzyme && mkdir build && cd build
-   cmake .. -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake
-   make -j && make install
+   CC=clang CXX=clang++ cmake .. -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake -DCMAKE_INSTALL_PREFIX=$HOME/Enzyme/enzyme/build
+   make -j
+   make install
 
-You can use
+From here, one can proceed in the same way using the following user.mk settings
 
+   MFEM_USE_ENZYME = YES
    ENZYME_DIR = $(HOME)/Enzyme/enzyme/build
+   CXX = clang++
+   MFEM_USE_MPI = YES
+   MPICXX = OMPI_CXX=$(CXX) mpicxx
 
-in your user.mk as described above.
+On other Linux systems the LLVM packages may have different names, for example
+on RHEL9, one needs to "sudo yum install llvm-devel libzstd clang-devel".
