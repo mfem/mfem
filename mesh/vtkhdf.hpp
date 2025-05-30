@@ -187,8 +187,10 @@ private:
    /// The rank (number of dimensions) of the dataset is given by @a ndims and
    /// its data type is given by @a type.
    ///
-   /// The dataset will initially have zero size and unlimited maximum size.
-   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, Dims dims);
+   /// If the dataset does not exist, it will initially have size @a dims.
+   /// Otherwise, it will be resized to append data of size @a dims, and @a dims
+   /// will be set to the new total size.
+   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, Dims &dims);
 
    /// @brief Ensure the named group is open, creating it if needed. Set @a
    /// group to the ID.
