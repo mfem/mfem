@@ -7,6 +7,204 @@
 
 namespace mfem {
 
+/// Navier-Stokes solver with fixed time step
+class NavierSolverFT
+{
+public:
+    NavierSolverFT(ParMesh* mesh, int order_, std::shared_ptr<Coefficient> visc_,
+                    bool partial_assembly_=false, bool verbose_=true);
+
+    ~NavierSolverFT();
+
+    /// Initialize forms, solvers and preconditioners.
+    void SetupOperator(real_t dt);
+
+    /// SetUp the RHS at the current time t in order
+    /// to advance the solution at time t+dt. The time
+    /// step is set up at a previous call to SetupOperator.
+    void SetupRHS(real_t t);
+
+    /// Get the time step
+    real_t GetTimeStep(){return time_step;}
+
+    /// Compute the solution at next time step t+dt
+    void Step(real_t &time, real_t dt, int cur_step);
+
+
+    //velocity boundary conditions
+    void AddVelocityBC(int id, std::shared_ptr<VectorCoefficient> val)
+    {
+        vel_bcs[id]=val;
+    }
+
+
+    /// Set the Dirichlet BC on a given ParGridFunction.
+    void SetEssVTDofs(real_t t, ParGridFunction& pgf);
+
+
+    /// Set Brinkman coefficient
+    void SetBrinkman(std::shared_ptr<Coefficient> brink_)
+    {
+       brink = brink_;
+    }
+
+    /// Set Viscosity coefficient
+    void SetViscosity(std::shared_ptr<Coefficient> visc_)
+    {
+       visc = visc_;
+    }
+
+    /// Set volumetric force
+    void SetVolForce(std::shared_ptr<VectorCoefficient> force_)
+    {
+        vol_force=force_;
+    }
+
+    /// Set current velocity using true dofs
+    void SetCVelocity(Vector& vvel)
+    {
+        cvel->SetFromTrueDofs(vvel);
+    }
+
+    /// Set previous velocity using true dofs
+    void SetPVelocity(Vector& vvel)
+    {
+        pvel->SetFromTrueDofs(vvel);
+    }
+
+    /// Set current velocity using vector coefficient
+    void SetCVelocity(VectorCoefficient& vc)
+    {
+        cvel->ProjectCoefficient(vc);
+    }
+
+    /// Set current pressure using true dofs
+    void SetCPressure(Vector& vpres)
+    {
+        cpres->SetFromTrueDofs(vpres);
+    }
+
+    /// Set previous pressure using true dofs
+    void SetPPressure(Vector& vpress)
+    {
+        ppres->SetFromTrueDofs(vpress);
+    }
+
+    /// Set current pressure using coefficient
+    void SetCPressure(Coefficient& pc)
+    {
+        cpres->ProjectCoefficient(pc);
+    }
+
+private:
+    /// Enable/disable debug output.
+   bool debug = false;
+
+    /// Enable/disable verbose output.
+   bool verbose = true;
+
+    /// Enable/disable partial assembly of forms.
+   bool partial_assembly = false;
+
+
+
+    /// The parallel mesh.
+   ParMesh *pmesh = nullptr;
+
+    /// The order of the velocity and pressure space.
+   int order;
+
+   /// Time step
+   real_t time_step;
+
+   /// linear system solvers parameters
+   real_t linear_atol;
+   real_t linear_rtol;
+   int  linear_iter;
+
+   std::shared_ptr<Coefficient> visc; //viscosity
+   std::shared_ptr<Coefficient> brink; //Brinkman penalization
+
+   std::unique_ptr<ProductCoefficient> nbrink; //next brinkman
+   std::unique_ptr<ProductCoefficient> nvisc;  //next viscosity
+
+   std::unique_ptr<ParGridFunction> nvel; //next velocity
+   std::unique_ptr<ParGridFunction> pvel; //previous velocity
+   std::unique_ptr<ParGridFunction> cvel; //current velocity
+
+   std::unique_ptr<ParGridFunction> ppres; //next pressure
+   std::unique_ptr<ParGridFunction> npres; //previous pressure
+   std::unique_ptr<ParGridFunction> cpres; //current pressure
+
+   VectorGridFunctionCoefficient nvelc;
+   VectorGridFunctionCoefficient pvelc;
+   VectorGridFunctionCoefficient cvelc;
+
+   GridFunctionCoefficient ppresc;
+   GridFunctionCoefficient npresc;
+   GridFunctionCoefficient cpresc;
+
+
+   H1_FECollection* vfec; //velocity collections
+   H1_FECollection* pfec; //pressure collecation
+   ParFiniteElementSpace* vfes;
+   ParFiniteElementSpace* pfes;
+
+   std::unique_ptr<ParBilinearForm> A11;
+   std::unique_ptr<ParMixedBilinearForm> A12;
+   std::unique_ptr<ParMixedBilinearForm> A21;
+
+   std::unique_ptr<mfem::HypreParMatrix> M11;
+   std::unique_ptr<mfem::HypreParMatrix> M12;
+   std::unique_ptr<mfem::HypreParMatrix> M21;
+
+   std::unique_ptr<mfem::HypreParMatrix> M11e;
+   std::unique_ptr<mfem::HypreParMatrix> M12e;
+   std::unique_ptr<mfem::HypreParMatrix> M21e;
+
+
+   std::unique_ptr<IterativeSolver> ls;
+   std::unique_ptr<Solver> prec;
+
+   std::unique_ptr<BlockOperator> bop;
+   Array<int> block_true_offsets;
+
+   //boundary conditions
+   std::map<int, std::shared_ptr<VectorCoefficient>> vel_bcs;
+
+   // holds the velocity constrained DOFs
+   mfem::Array<int> ess_tdofv;
+
+   // holds the pressure constrained DOFs
+   mfem::Array<int> ess_tdofp;
+
+   // RHS
+   Vector rhs;
+   Vector tmp;
+
+   // Volume force coefficient
+   std::shared_ptr<VectorCoefficient> vol_force;
+
+
+   /// Set BC and return the true DOFs
+   void SetEssVTDofs(real_t t, ParGridFunction& pgf, mfem::Array<int>& ess_dofs);
+   /// Return the true DOFs associated with the BC
+   void SetEssVTDofs(mfem::Array<int>& ess_dofs);
+
+   ConstantCoefficient onecoeff;
+   ConstantCoefficient zerocoef;
+
+   /// copy cvel->pvel, nvel->cvel, cpres->ppres, npres->cpres
+   void UpdateHistory()
+   {
+       std::swap(cvel,pvel);
+       std::swap(cvel,nvel);
+
+       std::swap(cpres,ppres);
+       std::swap(cpres,npres);
+   }
+
+};
 
 class NavierSolverGCN
 {
@@ -105,13 +303,15 @@ private:
     /// The order of the velocity and pressure space.
    int order;
 
+   /// linear system solvers parameters
    real_t linear_atol;
    real_t linear_rtol;
    int  linear_iter;
 
 
-   std::shared_ptr<Coefficient> visc;
-   std::shared_ptr<Coefficient> brink;
+
+   std::shared_ptr<Coefficient> visc; //viscosity
+   std::shared_ptr<Coefficient> brink; //Brinkman penalization
 
    std::unique_ptr<ParGridFunction> nvel; //next velocity
    std::unique_ptr<ParGridFunction> pvel; //previous velocity
@@ -121,8 +321,8 @@ private:
    std::unique_ptr<ParGridFunction> npres; //previous pressure
    std::unique_ptr<ParGridFunction> cpres; //current pressure
 
-   H1_FECollection* vfec;
-   H1_FECollection* pfec;
+   H1_FECollection* vfec; //velocity collections
+   H1_FECollection* pfec; //pressure collecation
    ParFiniteElementSpace* vfes;
    ParFiniteElementSpace* pfes;
 
