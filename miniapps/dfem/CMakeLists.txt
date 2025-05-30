@@ -9,49 +9,16 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-set(DFEM_MINIAPPS_SRCS)
-
 if (MFEM_USE_MPI)
-    list(APPEND DFEM_MINIAPPS_SRCS minimal_surface.cpp)
-endif()
+    add_mfem_miniapp(dfem_minimal_surface
+        MAIN minimal_surface.cpp
+        LIBRARIES mfem)
 
-# Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
-
-# Add "test_dfem" target, see below.
-add_custom_target(test_dfem
-  ${CMAKE_CTEST_COMMAND} -R dfem USES_TERMINAL)
-
-# Add one executable per cpp file, adding "dfem_" as prefix. Sets
-# "test_dfem" as a target that depends on the given miniapps.
-set(PFX dfem_)
-add_mfem_miniapps(DFEM_MINIAPPS_SRCS ${PFX} "" test_dfem)
-
-# Testing.
-# The DFEM tests can be run separately using the target "test_dfem"
-# which builds the miniapps and runs:
-#   ctest -R dfem
-
-if (MFEM_ENABLE_TESTING)
-    set(MINIMAL_SURFACE_COMMON_OPTS -o 1 -r 2)
-    set(MINIMAL_SURFACE_TEST_OPTS ${MINIMAL_SURFACE_COMMON_OPTS})
-    set(MINIMAL_SURFACEP_TEST_OPTS ${MINIMAL_SURFACE_COMMON_OPTS})
-
-    # Add the tests: one test per source file.
-    foreach(SRC_FILE ${DFEM_MINIAPPS_SRCS})
-        get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
-        string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
-        string(TOUPPER ${TEST_NAME} UP_TEST_NAME)
-        set(TEST_NAME ${PFX}${TEST_NAME})
-
-        set(THIS_TEST_OPTIONS "-no-vis")
-        list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_TEST_OPTS})
-        # message(STATUS "Test ${TEST_NAME} options: ${THIS_TEST_OPTIONS}")
-
-        add_test(NAME ${TEST_NAME}_np=4
-        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
-        ${MPIEXEC_PREFLAGS}
-        $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
+    # Add parallel tests.
+    if (MFEM_ENABLE_TESTING)
+        add_test(NAME dfem_minimal_surface=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:hooke> -der 0 -o 1 -r 2 -no-vis
         ${MPIEXEC_POSTFLAGS})
-    endforeach()
+    endif()
 endif()
