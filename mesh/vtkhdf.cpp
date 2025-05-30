@@ -84,7 +84,7 @@ void VTKHDF::EnsureSteps()
 }
 
 hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
-                            Dims dims)
+                            Dims &dims)
 {
    const char *name_c = name.c_str();
 
@@ -97,13 +97,10 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       const int ndims = dims.ndims;
       // The dataset is allowed to grow in the first dimension, but is fixed
       // in size in all other dimesions; the maximum dataset size is same as
-      // dims, but unlimited in first dimension. The initial dataset size is
-      // zero in the first dimension; it will be resized later.
-      Dims init_dims = dims;
-      init_dims[0] = 0;
+      // dims, but unlimited in first dimension.
       Dims max_dims = dims;
       max_dims[0] = H5S_UNLIMITED;
-      const hid_t fspace = H5Screate_simple(ndims, init_dims, max_dims);
+      const hid_t fspace = H5Screate_simple(ndims, dims, max_dims);
 
       Dims chunk(ndims);
       size_t chunk_size_bytes = 1024 * 1024 / 2; // 0.5 MB
@@ -130,7 +127,19 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
    else if (status > 0)
    {
       // Dataset exists, open it.
-      return H5Dopen2(f, name_c, H5P_DEFAULT);
+      const hid_t d = H5Dopen2(f, name_c, H5P_DEFAULT);
+
+      // Resize the dataset, set dims to its new size.
+      Dims old_dims(dims.ndims);
+      const hid_t dspace = H5Dget_space(d);
+      const int ndims_dset = H5Sget_simple_extent_ndims(dspace);
+      MFEM_VERIFY(ndims_dset == dims.ndims, "");
+      H5Sget_simple_extent_dims(dspace, old_dims, NULL);
+      H5Sclose(dspace);
+      dims[0] += old_dims[0];
+      H5Dset_extent(d, dims);
+
+      return d;
    }
    else
    {
@@ -165,28 +174,14 @@ template <typename T>
 void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
                            hsize_t offset, Dims globsize, T *data)
 {
-   const hid_t d = EnsureDataset(f, name, GetTypeID<T>(), globsize);
-
-   // Resize the dataset, set dims to its new size.
    const int ndims = globsize.ndims;
-   hsize_t old_size;
-   Dims dims(ndims);
-   {
-      const hid_t dspace = H5Dget_space(d);
-      const int ndims_dset = H5Sget_simple_extent_ndims(dspace);
-      MFEM_VERIFY(ndims_dset == ndims, "");
-      H5Sget_simple_extent_dims(dspace, dims, NULL);
-      H5Sclose(dspace);
-      old_size = dims[0];
-      dims[0] += globsize[0];
-      for (int i = 1; i < ndims; ++i) { dims[i] = globsize[i]; }
-      H5Dset_extent(d, dims);
-   }
+   Dims dims = globsize;
+   const hid_t d = EnsureDataset(f, name, GetTypeID<T>(), dims);
 
    // Write the new entry.
    const hid_t dspace = H5Dget_space(d);
    Dims start(ndims);
-   start[0] = old_size + offset;
+   start[0] = dims[0] - globsize[0] + offset;
    Dims count(ndims);
    count[0] = locsize;
    for (int i = 1; i < ndims; ++i) { count[i] = globsize[i]; }
