@@ -36,7 +36,7 @@ endif
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-dfem_%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES)
