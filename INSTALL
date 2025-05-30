@@ -1238,3 +1238,20 @@ and running
    make
    ./minimal_surface
 
+On Ubuntu 24.04 you can use the package manager to install Enzyme
+dependencies like this
+
+   sudo apt install libclang-dev libzstd-dev llvm-dev clang
+
+Then, we clone Enzyme and build
+
+   cd $HOME && git clone https://github.com/EnzymeAD/Enzyme.git
+   cd Enzyme/enzyme && mkdir build && cd build
+   cmake .. -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake
+   make -j && make install
+
+You can use
+
+   ENZYME_DIR = $(HOME)/Enzyme/enzyme/build
+
+in your user.mk as described above.
