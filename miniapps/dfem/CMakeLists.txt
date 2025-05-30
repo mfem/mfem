@@ -9,10 +9,10 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-set(DFEM_EXAMPLES_SRCS)
+set(DFEM_MINIAPPS_SRCS)
 
 if (MFEM_USE_MPI)
-    list(APPEND DFEM_EXAMPLES_SRCS minimal_surface.cpp)
+    list(APPEND DFEM_MINIAPPS_SRCS minimal_surface.cpp)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
@@ -23,13 +23,13 @@ add_custom_target(test_dfem
   ${CMAKE_CTEST_COMMAND} -R dfem USES_TERMINAL)
 
 # Add one executable per cpp file, adding "dfem_" as prefix. Sets
-# "test_dfem" as a target that depends on the given examples.
+# "test_dfem" as a target that depends on the given miniapps.
 set(PFX dfem_)
-add_mfem_examples(DFEM_EXAMPLES_SRCS ${PFX} "" test_dfem)
+add_mfem_miniapps(DFEM_MINIAPPS_SRCS ${PFX} "" test_dfem)
 
 # Testing.
 # The DFEM tests can be run separately using the target "test_dfem"
-# which builds the examples and runs:
+# which builds the miniapps and runs:
 #   ctest -R dfem
 
 if (MFEM_ENABLE_TESTING)
@@ -38,7 +38,7 @@ if (MFEM_ENABLE_TESTING)
     set(MINIMAL_SURFACEP_TEST_OPTS ${MINIMAL_SURFACE_COMMON_OPTS})
 
     # Add the tests: one test per source file.
-    foreach(SRC_FILE ${DFEM_EXAMPLES_SRCS})
+    foreach(SRC_FILE ${DFEM_MINIAPPS_SRCS})
         get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
         string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
         string(TOUPPER ${TEST_NAME} UP_TEST_NAME)

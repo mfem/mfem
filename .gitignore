@@ -133,8 +133,6 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
-examples/dfem/minimal_surface
-
 examples/caliper/ex1
 examples/caliper/ex1p
 examples/caliper/refined.mesh
@@ -202,6 +200,8 @@ examples/superlu/sol.*
 
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
+
+miniapps/dfem/minimal_surface
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla

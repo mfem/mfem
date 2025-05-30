@@ -138,6 +138,7 @@ The MFEM source code has the following structure:
   │   ├── adjoint
   │   ├── autodiff
   │   ├── common
+  │   ├── dfem
   │   ├── dpg
   │   ├── electromagnetics
   │   ├── gslib

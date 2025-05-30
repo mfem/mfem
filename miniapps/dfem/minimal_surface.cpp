@@ -1,4 +1,17 @@
-//                       MFEM Example - Minimal Surface
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//                   -------------------------------------
+//                   Minimal Surface 2D Problem with dFEM
+//                   -------------------------------------
 //
 // Compile with: make minimal_surface
 //
@@ -21,9 +34,10 @@
 //               with Dirichlet boundary conditions. The nonlinear problem is solved
 //               using Newton's method, where the necessary derivatives are computed
 //               in one of three ways (controlled by -der command line parameter):
-//               0) Automatic differentiation using Enzyme or dual type (default)
-//               1) Hand-coded derivatives
-//               2) Finite differences
+//
+//               -der 0 = Automatic differentiation using Enzyme or dual type (default)
+//               -der 1 = Hand-coded derivatives
+//               -der 2 = Finite differences
 //
 //               The example demonstrates the use of MFEM's nonlinear solvers,
 //               automatic differentiation capabilities, and GLVis/ParaView visualization.
@@ -511,7 +525,19 @@ int main(int argc, char *argv[])
    newton.Mult(zero, X);
    H1.GetProlongationMatrix()->Mult(X, u);
 
-   // 15. Save the solution in parallel using ParaView format
+   // 15. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel "
+               << Mpi::WorldSize() << " " <<  Mpi::WorldRank() << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << u << std::flush;
+   }
+
+   // 16. Save the solution in parallel using ParaView format
    ParaViewDataCollection dc("minimal_surface_output", &pmesh);
    dc.SetHighOrderOutput(true);
    dc.SetLevelsOfDetail(order);
