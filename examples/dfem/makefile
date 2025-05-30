@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES =
-PAR_EXAMPLES = minimal_surface
+PAR_EXAMPLES = dfem_minimal_surface
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -36,7 +36,7 @@ endif
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+dfem_%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES)
