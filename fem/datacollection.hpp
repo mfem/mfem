@@ -537,13 +537,6 @@ public:
    /// Any nonzero compression level will enable compression.
    void SetCompressionLevel(int compression_level_);
 
-   /// @brief Enable or disable zlib compression.
-   ///
-   /// If the input is true, use the default zlib compression level (unless the
-   /// compression level has previously been set by calling
-   /// SetCompressionLevel()).
-   void SetCompression(bool compression_) override;
-
    /// @brief Sets whether or not to output the data as high-order elements
    /// (false by default).
    ///
@@ -632,6 +625,12 @@ public:
    /// be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc.
    ParaViewHDFDataCollection(const std::string& collection_name,
                              Mesh *mesh_ = nullptr);
+
+   /// @brief Enable or disable compression.
+   ///
+   /// The compression level can be set with SetCompressionLevel()). VTKHDF
+   /// compression does not require MFEM to be compiled with zlib support.
+   void SetCompression(bool compression_) override;
 
    /// Save the collection.
    void Save() override;
