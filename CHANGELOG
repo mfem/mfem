@@ -15,11 +15,14 @@ Starting with this version, MFEM requires a C++17 compiler.
 
 Discretization improvements
 ---------------------------
-- Introduced dFEM: a major new capability for Automatic Differentiation (AD) of
+- Introduced dFEM: a new MFEM capability for Automatic Differentiation (AD) of
   nonlinear finite element operators, based on Enzyme or dual numbers AD at
   quadrature points. These features are part of the new mfem::future namespace
-  and some of the API can change in the future. Using Enzyme for AD in MFEM is
-  tested with clang v19 and requires clang/LLVM built with plugin support.
+  and some of the API can change in the future. See the new minimal surface
+  miniapp in the miniapps/dfem/ directory for illustration of the dFEM use.
+
+- Using Enzyme for AD in MFEM is tested with clang v19 and requires clang/LLVM
+  built with plugin support. See INSTALL for more details.
 
 - In the ParMoonolith integration, added support for variational resampling of
   H1 vector fields.
