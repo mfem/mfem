@@ -10,15 +10,15 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-    add_mfem_miniapp(dfem_minimal_surface
+    add_mfem_miniapp(dfem-minimal-surface
         MAIN minimal_surface.cpp
         LIBRARIES mfem)
 
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
-        add_test(NAME dfem_minimal_surface=${MFEM_MPI_NP}
+        add_test(NAME dfem-minimal-surface=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:hooke> -der 0 -o 1 -r 2 -no-vis
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-minimal-surface> -der 0 -o 1 -r 2 -no-vis
         ${MPIEXEC_POSTFLAGS})
     endif()
 endif()
