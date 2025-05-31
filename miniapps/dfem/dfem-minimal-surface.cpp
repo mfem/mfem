@@ -538,7 +538,7 @@ int main(int argc, char *argv[])
    }
 
    // 16. Save the solution in parallel using ParaView format
-   ParaViewDataCollection dc("minimal_surface_output", &pmesh);
+   ParaViewDataCollection dc("dfem-minimal-surface-output", &pmesh);
    dc.SetHighOrderOutput(true);
    dc.SetLevelsOfDetail(order);
    dc.RegisterField("solution", &u);

@@ -11,7 +11,7 @@
 
 if (MFEM_USE_MPI)
     add_mfem_miniapp(dfem-minimal-surface
-        MAIN minimal_surface.cpp
+        MAIN dfem-minimal-surface.cpp
         LIBRARIES mfem)
 
     # Add parallel tests.

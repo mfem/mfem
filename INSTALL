@@ -1235,7 +1235,7 @@ and running
    make -j
    cd miniapps/dfem
    make
-   ./minimal_surface
+   ./dfem-minimal-surface
 
 On Linux systems, for example Ubuntu 24.04, use the package manager to install
 the Enzyme dependencies
