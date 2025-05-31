@@ -120,6 +120,7 @@ The MFEM source code has the following structure:
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── dfem
   │   ├── eltrans
   │   ├── fe
   │   ├── gslib
