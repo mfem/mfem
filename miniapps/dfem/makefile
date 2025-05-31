@@ -64,4 +64,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf minimal_surface_output
+	@rm -rf dfem-minimal-surface-output
