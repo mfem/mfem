@@ -162,7 +162,11 @@ private:
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#ifdef __NVCC__
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#else // Assuming Clang CUDA
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#endif
 #else
 #define MFEM_UNROLL(N)
 #endif
@@ -876,7 +880,7 @@ template<class B, class R> struct reduction_kernel
    /// helper for computing the reduction block size
    static int block_log2(unsigned N)
    {
-#if defined(__GNUC__) or defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
       return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
 #elif defined(_MSC_VER)
       return sizeof(unsigned) * 8 - __lzclz(N);

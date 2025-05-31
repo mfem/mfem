@@ -200,7 +200,7 @@ static void Det2DSurface(const int NE,
             const real_t E = J(0,0)*J(0,0) + J(1,0)*J(1,0) + J(2,0)*J(2,0);
             const real_t F = J(0,0)*J(0,1) + J(1,0)*J(1,1) + J(2,0)*J(2,1);
             const real_t G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
-            Y(qx,qy,e) = sqrt(E*G - F*F);
+            Y(qx,qy,e) = std::sqrt(E*G - F*F);
          }
       }
    });

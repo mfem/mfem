@@ -972,6 +972,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/adjoint \
                          @MFEM_SOURCE_DIR@/miniapps/autodiff \
                          @MFEM_SOURCE_DIR@/miniapps/common \
+                         @MFEM_SOURCE_DIR@/miniapps/dfem \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
