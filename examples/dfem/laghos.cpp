@@ -1154,7 +1154,6 @@ public:
             e_source.UseFastAssembly(true);
             e_source.Assemble();
             rhse += e_source;
-            delete d;
          }
 
          CGSolver cg(L2.GetParMesh()->GetComm());
