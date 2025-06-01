@@ -18,11 +18,11 @@
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
-using mfem::future::dual;
 
 #ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
 #else
+using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
