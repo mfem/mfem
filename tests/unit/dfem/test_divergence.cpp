@@ -17,11 +17,11 @@
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
-using mfem::future::dual;
 
 #ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
 #else
+using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
@@ -53,7 +53,7 @@ void dFemVectorDivergence(const char *filename, int p)
    ParFiniteElementSpace psfes(&pmesh, &fec);
    ParFiniteElementSpace pvfes(&pmesh, &fec, DIM);
 
-   const int d1d(p + 1), q = 2 * p + 1;
+   const int d1d(p + 1), q = 3 * p + 1;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
@@ -83,11 +83,18 @@ void dFemVectorDivergence(const char *filename, int p)
    MPI_Barrier(MPI_COMM_WORLD);
 
    {
-      static constexpr int U = 0, V = 1, Coords = 2;
-      const auto solutions = std::vector{ FieldDescriptor{ U, &pvfes },
-                                          FieldDescriptor{ V, &psfes } };
+      static constexpr int P = 0, V = 1, Coords = 2;
       ParFiniteElementSpace *mfes = nodes->ParFESpace();
-      DifferentiableOperator dop_mf(solutions, {{Coords, mfes}}, pmesh);
+
+      const auto solutions = std::vector{ FieldDescriptor{ P, &psfes } };
+      const auto parameters = std::vector
+      {
+         FieldDescriptor{ V, &pvfes },
+         FieldDescriptor{ Coords, mfes }
+      };
+
+      DifferentiableOperator dop_mf(solutions, parameters, pmesh);
+
       const auto mf_vector_divergence_qf =
          [](const tensor<dscalar_t, DIM, DIM> &dudxi,
             const tensor<mfem::real_t, DIM, DIM> &J,
@@ -95,17 +102,16 @@ void dFemVectorDivergence(const char *filename, int p)
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
-         return tuple{ -1.0 * tr(dudx * invJ) * det(J) * w };
+         return tuple{ tr(dudx) * det(J) * w };
       };
-      dop_mf.AddDomainIntegrator(mf_vector_divergence_qf,
-                                 tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
-                                 tuple{ Value<V>{} },
-                                 *ir, all_domain_attr);
-      dop_mf.SetParameters({ nodes });
 
-      pvfes.GetRestrictionMatrix()->Mult(vx, vX);
-      // Assertion failed: (offset + size <= base.capacity) is false
-      // dop_mf.Mult(vX, sZ);
+      dop_mf.AddDomainIntegrator(mf_vector_divergence_qf,
+                                 tuple{ Gradient<V>{}, Gradient<Coords>{}, Weight{} },
+                                 tuple{ Value<P>{} },
+                                 *ir, all_domain_attr);
+
+      dop_mf.SetParameters({ &vx, nodes });
+      dop_mf.Mult(sX, sZ);
 
       mblf_fa.Mult(vx, sy);
       psfes.GetProlongationMatrix()->MultTranspose(sy, sY);
@@ -114,7 +120,7 @@ void dFemVectorDivergence(const char *filename, int p)
       real_t norm_global = M_PI, norm_local = sY.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
-      // REQUIRE(norm_global == MFEM_Approx(0.0));
+      REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 }
