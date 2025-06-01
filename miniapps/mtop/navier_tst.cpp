@@ -26,13 +26,14 @@ public:
 
     virtual
     void Eval(Vector &V, ElementTransformation &T,
-                  const IntegrationPoint &ip)
+                  const IntegrationPoint &ip) override
     {
-        V.SetSize(vc->GetVDim());
+        vc->SetTime(GetTime());
+        vc->Eval(V,T,ip);
         real_t t=GetTime();
 
         if(t<t0){
-            V=0.0;
+            V*=0.0;
             return;
         }
 
@@ -40,8 +41,6 @@ public:
         if(t<tc){
             sc=t/(tc-t0);
         }
-
-        vc->Eval(V,T,ip);
         V*=sc;
     }
 
@@ -163,32 +162,56 @@ int main(int argc, char *argv[])
 
 
    mfem::Vector bcz(dim); bcz=0.0;
-   mfem::Vector bci(dim); bci(0)=1.0;
+   mfem::Vector bci(dim); bci=0.0; bci(0)=1.0;
    mfem::VectorConstantCoefficient vcz(bcz);
-   mfem::VectorConstantCoefficient vci(bci);
+   mfem::VectorConstantCoefficient vci(bcz);
 
 
    // set the BCs
-   solver->AddVelocityBC(1,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vcz,0.0,1.0)));
-   solver->AddVelocityBC(2,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
-   solver->AddVelocityBC(4,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
+   solver->AddVelocityBC(1,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
+   //solver->AddVelocityBC(2,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
+   solver->AddVelocityBC(4,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vcz,0.0,1.0)));
 
 
+   mfem::Vector vforce(dim); vforce=0.0; vforce(0)=1.0;
+   solver->SetVolForce(std::shared_ptr<mfem::VectorCoefficient>(new VectorConstantCoefficient(vforce)));
+
+   //initialize everyhting to zero
+   solver->GetCPressure()=0.0;
+   solver->GetNPressure()=0.0;
+   solver->GetPPressure()=0.0;
+
+   solver->GetCVelocity()=0.0;
+   solver->GetNVelocity()=0.0;
+   solver->GetPVelocity()=0.0;
 
    real_t dt=0.01;
    real_t time=0.0;
    solver->SetupOperator(dt);
-   for(int i=0;i<3;i++){
-       solver->Step(time,i); time=time+dt;
-       solver->UpdateHistory();
+
+
+   {
+       ParaViewDataCollection dacol("ParaViewExtrapolate", &pmesh);
+       dacol.SetLevelsOfDetail(order);
+       dacol.RegisterField("pres",&(solver->GetCPressure()));
+       dacol.RegisterField("velo",&(solver->GetCVelocity()));
+       dacol.SetTime(0.0);
+       dacol.SetCycle(1);
+       dacol.Save();
+
+       for(int i=0;i<3;i++){
+           solver->Step(time,i); time=time+dt;
+           solver->UpdateHistory();
+           dacol.SetTime(time);
+           dacol.SetCycle(2+i);
+           dacol.Save();
+       }
    }
 
-
-
-
-
-
    delete solver;
+
+
+   MPI::Finalize();
 
    return 0;
 }

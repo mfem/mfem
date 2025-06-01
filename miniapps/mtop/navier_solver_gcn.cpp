@@ -103,7 +103,6 @@ void NavierSolverFT::SetEssVTDofs(real_t t, ParGridFunction& pgf, Array<int>& es
 
 void NavierSolverFT::SetEssVTDofs(real_t t, ParGridFunction& pgf)
 {
-    Array<int> ess_tdofv_temp;
 
     for(auto it=vel_bcs.begin(); it!=vel_bcs.end(); ++it)
     {
@@ -113,9 +112,6 @@ void NavierSolverFT::SetEssVTDofs(real_t t, ParGridFunction& pgf)
        Array<int> ess_bdr(pmesh->bdr_attributes.Max());
        ess_bdr=0;
        ess_bdr[attr-1] = 1;
-       ess_tdofv_temp.DeleteAll();
-       vfes->GetEssentialTrueDofs(ess_bdr,ess_tdofv_temp);
-
        pgf.ProjectBdrCoefficient(*coeff,ess_bdr);
     }
 }
@@ -352,7 +348,11 @@ void NavierSolverFT::Step(real_t time,int cur_step)
         }
     }
 
-    ls->Mult(brh,bvs);
+    //brh=0.0;
+    //bvs=0.0;
+
+    //ls->Mult(brh,bvs);
+    prec->Mult(brh,bvs);
 
     nvel.SetFromTrueDofs(bvs.GetBlock(0));
     npres.SetFromTrueDofs(bvs.GetBlock(1));

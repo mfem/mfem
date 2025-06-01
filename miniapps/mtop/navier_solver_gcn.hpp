@@ -126,11 +126,11 @@ public:
     /// copy cvel->pvel, nvel->cvel, cpres->ppres, npres->cpres
     void UpdateHistory()
     {
-        std::swap(cvel,pvel);
-        std::swap(cvel,nvel);
+        pvel=cvel;
+        cvel=nvel;
 
-        std::swap(cpres,ppres);
-        std::swap(cpres,npres);
+        ppres=cpres;
+        cpres=npres;
     }
 
 private:
