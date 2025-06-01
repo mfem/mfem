@@ -20,12 +20,18 @@ using namespace mfem::future;
 using mfem::future::tensor;
 using mfem::future::dual;
 
+#ifdef MFEM_USE_ENZYME
+using dscalar_t = real_t;
+#else
+using dscalar_t = dual<real_t, real_t>;
+#endif
+
 using DOperator = DifferentiableOperator;
 
 namespace dfem_pa_kernels
 {
 
-template <typename dscalar_t, int DIM> struct Diffusion
+template <int DIM> struct Diffusion
 {
    using dvecd_t = tensor<dscalar_t, DIM>;
    using matd_t = tensor<real_t, DIM, DIM>;
@@ -92,7 +98,6 @@ void DFemDiffusion(const char *filename, int p, const int r)
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
-   MFEM_VERIFY(NE > 0, "Mesh with no elements is not yet supported!");
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
@@ -115,7 +120,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   SECTION("Partial assembly")
+   SECTION("[Partial assembly] Diffusion")
    {
       ParBilinearForm blf_pa(&pfes);
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
@@ -129,7 +134,6 @@ void DFemDiffusion(const char *filename, int p, const int r)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-
    QuadratureSpace qs(pmesh, *ir);
    CoefficientVector rho_coeff_cv(rho_coeff, qs);
    MFEM_VERIFY(rho_coeff_cv.GetVDim() == 1, "Coefficient should be scalar");
@@ -140,10 +144,10 @@ void DFemDiffusion(const char *filename, int p, const int r)
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   SECTION("DFEM Matrix free")
+   SECTION("[dFEM Matrix free] Diffusion")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-      typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  tuple{ Gradient<U>{}, Identity<Rho>{},
                                         Gradient<Coords>{}, Weight{} },
@@ -167,7 +171,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("DFEM Partial assembly")
+   SECTION("[dFEM Partial assembly] Diffusion")
    {
       static constexpr int QData = 2;
       UniformParameterSpace qd_ps(pmesh, *ir, DIM * DIM);
@@ -175,7 +179,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       qdata.UseDevice(true);
 
       DOperator dSetup(sol, {{Rho, &rho_ps}, {Coords, mfes}, {QData, &qd_ps}}, pmesh);
-      typename Diffusion<real_t, DIM>::PASetup pa_setup_qf;
+      typename Diffusion<DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
          tuple{ Value<U>{}, Identity<Rho>{}, Gradient<Coords>{}, Weight{} },
@@ -185,7 +189,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       dSetup.Mult(X, qdata);
 
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
-      typename Diffusion<real_t, DIM>::PAApply pa_apply_qf;
+      typename Diffusion<DIM>::PAApply pa_apply_qf;
       dop_pa.AddDomainIntegrator(pa_apply_qf,
                                  tuple{ Gradient<U>{}, Identity<QData>{} },
                                  tuple{ Gradient<U>{} },
@@ -208,14 +212,10 @@ void DFemDiffusion(const char *filename, int p, const int r)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("DFEM Linearization", "[Parallel][DFEM]")
+   SECTION("[dFEM Linearization] Diffusion")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-#ifdef MFEM_USE_ENZYME
-      typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
-#else
-      typename Diffusion<dual<real_t, real_t>, DIM>::MFApply mf_apply_qf;
-#endif
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  tuple{ Gradient<U>{}, Identity<Rho>{},
@@ -237,6 +237,48 @@ void DFemDiffusion(const char *filename, int p, const int r)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
+   SECTION("[dFEM Matrix free] vector diffusion")
+   {
+      ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
+      ParGridFunction vx(&vpfes), vy(&vpfes);
+      Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
+             vZ(vpfes.GetTrueVSize());
+
+      vX.Randomize(1), vx.SetFromTrueDofs(vX);
+
+      {
+         const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
+         DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
+         const auto mf_vector_diffusion_qf =
+            [](const tensor<dscalar_t, DIM, DIM> &dudxi,
+               const tensor<real_t, DIM, DIM> &J,
+               const real_t &w)
+         {
+            const auto invJ = inv(J), TinJ = transpose(invJ);
+            return tuple{ (dudxi * invJ) * TinJ * det(J) * w };
+         };
+         dop_mf.AddDomainIntegrator(mf_vector_diffusion_qf,
+                                    tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+                                    tuple{ Gradient<U>{} },
+                                    *ir, all_domain_attr);
+         dop_mf.SetParameters({ nodes });
+         vpfes.GetRestrictionMatrix()->Mult(vx, vX), dop_mf.Mult(vX, vZ);
+      }
+      {
+         ConstantCoefficient one(1.0);
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(one, ir));
+         vblf_fa.Assemble(), vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+      }
+      vY -= vZ;
+      real_t norm_global = M_PI, norm_local = vY.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
@@ -274,4 +316,4 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 
 } // namespace dfem_pa_kernels
 
-#endif
+#endif // MFEM_USE_MPI

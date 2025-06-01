@@ -277,6 +277,15 @@ void process_qf_result(
 template <typename T>
 MFEM_HOST_DEVICE inline
 void process_qf_result(
+   DeviceTensor<1> &r,
+   const dual<T, T> &x)
+{
+   r(0) = x.value;
+}
+
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_qf_result(
    DeviceTensor<1, T> &r,
    const tensor<T> &x)
 {
