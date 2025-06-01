@@ -276,7 +276,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
          vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
       }
       vY -= vZ;
-      real_t norm_global = M_PI, norm_local = vY.Normlinf();
+      real_t norm_global = 0.0, norm_local = vY.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
