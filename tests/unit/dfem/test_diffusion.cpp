@@ -94,7 +94,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p + r;
+   const int NE = pfes.GetNE(), d1d(p + 1), q = 3 * p + r;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
