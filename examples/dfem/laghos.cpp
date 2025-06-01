@@ -9,14 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include <mfem.hpp>
-#include "petscmat.h"
-#include <petsc/private/pcimpl.h>
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
 #include "../fem/dfem/doperator.hpp"
 #include "../linalg/tensor.hpp"
-#include "petscsnes.h"
-#include "petscsystypes.h"
 
 #include <limits>
 #include <memory>
@@ -43,8 +39,6 @@ enum EXT_DATA_IDX
    VISCOSITY_FLAG,
    H0
 };
-
-PetscLogEvent jacobian_assemble_event, residual_eval_event, dfem_jvp_event;
 
 int problem = 0;
 
@@ -500,8 +494,6 @@ public:
              std::shared_ptr<DerivativeOperator> dRede,
              std::shared_ptr<DerivativeOperator> dTaylorSourcedx)
    {
-      PetscCall(PetscLogEventBegin(jacobian_assemble_event, 0, 0, 0, 0));
-
       // out << "assemble\n";
 
       w.SetSize(this->height);
@@ -540,8 +532,8 @@ public:
          dRxdx_diag.Set(i, i, 1.0);
       }
       dRxdx_diag.Finalize();
-      PetscParMatrix dRxdx_petsc(MPI_COMM_WORLD, hydro.H1.GlobalTrueVSize(),
-                                 tdof_offsets, &dRxdx_diag, PETSC_MATAIJ);
+      HypreParMatrix dRxdx_mat(comm, hydro.H1.GlobalTrueVSize(),
+                               tdof_offsets, &dRxdx_diag);
 
       // dRxdv = -h * I
       SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
@@ -555,8 +547,9 @@ public:
          dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
       }
       dRxdv_diag.Finalize();
-      PetscParMatrix dRxdv_petsc(MPI_COMM_WORLD, hydro.H1.GlobalTrueVSize(),
-                                 tdof_offsets, &dRxdv_diag, PETSC_MATAIJ);
+
+      HypreParMatrix dRxdv_mat(comm, hydro.H1.GlobalTrueVSize(),
+                               tdof_offsets, &dRxdv_diag);
 
       // Second row
       // Rv = Mv * v + F * I
@@ -566,26 +559,22 @@ public:
       HypreParMatrix dRvdx_mat;
       dRvdx->Assemble(dRvdx_mat);
       dRvdx_mat.EliminateRows(hydro.ess_tdof);
-      PetscParMatrix dRvdx_petsc(&dRvdx_mat);
-      dRvdx_petsc *= h;
+      dRvdx_mat *= h;
 
       // dRvdv = (Mv + h dF/dv)
       HypreParMatrix dRvdv_mat;
       dRvdv->Assemble(dRvdv_mat);
-      PetscParMatrix dRvdv_petsc(&dRvdv_mat);
-      PetscParMatrix Mv_petsc(&Mv_mat);
-      PetscCall(MatAYPX(dRvdv_petsc, h, Mv_petsc,
-                        MatStructure::DIFFERENT_NONZERO_PATTERN));
 
-      auto tmp0 = dRvdv_petsc.EliminateRowsCols(hydro.ess_tdof);
-      delete tmp0;
+      HypreParMatrix *Mv_hdRvdv_mat = Add(1.0, Mv_mat, h, dRvdv_mat);
+      Mv_hdRvdv_mat->EliminateRows(hydro.ess_tdof);
+      auto tmp2 = Mv_hdRvdv_mat->EliminateRowsCols(hydro.ess_tdof);
+      delete tmp2;
 
       // dRvde = h * dF/de
       HypreParMatrix dRvde_mat;
       dRvde->Assemble(dRvde_mat);
       dRvde_mat.EliminateRows(hydro.ess_tdof);
-      PetscParMatrix dRvde_petsc(&dRvde_mat);
-      dRvde_petsc *= h;
+      dRvde_mat *= h;
 
       // Third row
       // Re = Me * e - F^T
@@ -594,95 +583,49 @@ public:
       // dRedx = -h * dF^T/dx
       HypreParMatrix dRedx_mat;
       dRedx->Assemble(dRedx_mat);
-      PetscParMatrix dRedx_petsc(&dRedx_mat);
 
       if (problem == 0)
       {
          HypreParMatrix dTaylorSourcedx_mat;
          dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
-         PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
-         dRedx_petsc += dTaylorSourcedx_petsc;
+         dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
       }
 
-      dRedx_petsc *= -h;
+      dRedx_mat *= -h;
 
       // dRedv = -h * dF^T/dv
       HypreParMatrix dRedv_mat;
       dRedv->Assemble(dRedv_mat);
       auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
       delete tmp1;
-      PetscParMatrix dRedv_petsc(&dRedv_mat);
-      dRedv_petsc *= -h;
+      dRedv_mat *= -h;
 
       // dRede = Me - h * dF^T/de
       HypreParMatrix dRede_mat;
       dRede->Assemble(dRede_mat);
-      PetscParMatrix dRede_petsc(&dRede_mat);
+      HypreParMatrix *Me_hdRede_mat = Add(1.0, Me_mat, -h, dRede_mat);
 
-      PetscParMatrix Me_petsc(&Me_mat);
-      PetscCall(MatAYPX(dRede_petsc, -h, Me_petsc,
-                        MatStructure::DIFFERENT_NONZERO_PATTERN));
+      Array2D<const HypreParMatrix*> blocks(3, 3);
+      blocks(0, 0) = &dRxdx_mat;
+      blocks(0, 1) = &dRxdv_mat;
+      blocks(1, 0) = &dRvdx_mat;
+      blocks(1, 1) = Mv_hdRvdv_mat;
+      blocks(1, 2) = &dRvde_mat;
+      blocks(2, 0) = &dRedx_mat;
+      blocks(2, 1) = &dRedv_mat;
+      blocks(2, 2) = Me_hdRede_mat;
 
-      Array<int> offsets(4);
-      offsets[0] = 0;
-      offsets[1] = H1tsize;
-      offsets[2] = H1tsize;
-      offsets[3] = L2tsize;
-      offsets.PartialSum();
+      // delete block_hypre;
+      HypreParMatrix *block_hypre = HypreParMatrixFromBlocks(blocks, nullptr);
 
-      BlockOperator block_op(offsets);
-      block_op.SetBlock(0, 0, &dRxdx_petsc);
-      block_op.SetBlock(0, 1, &dRxdv_petsc);
-      block_op.SetBlock(1, 0, &dRvdx_petsc);
-      block_op.SetBlock(1, 1, &dRvdv_petsc);
-      block_op.SetBlock(1, 2, &dRvde_petsc);
-      block_op.SetBlock(2, 0, &dRedx_petsc);
-      block_op.SetBlock(2, 1, &dRedv_petsc);
-      block_op.SetBlock(2, 2, &dRede_petsc);
 
-      delete block_petsc;
-      block_petsc = new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ);
 
-      // delete w_petsc;
-      // w_petsc = new PetscParVector(hydro.H1.GetComm(), *this, true, false);
-      // delete y_petsc;
-      // y_petsc = new PetscParVector(hydro.H1.GetComm(), *this, false, false);
 
-      PetscCall(PetscLogEventEnd(jacobian_assemble_event, 0, 0, 0, 0));
-
-      // assembled_jvp = [&](const Vector &u, Vector &y)
-      // {
-      //    w = u;
-      //    // Vector wx, wv, we;
-      //    // wx.MakeRef(w, 0, H1tsize);
-      //    // wv.MakeRef(w, H1tsize, H1tsize);
-      //    // we.MakeRef(w, 2*H1tsize, L2tsize);
-
-      //    // Vector zx, zv, ze;
-      //    // zx.MakeRef(z, 0, H1tsize);
-      //    // zv.MakeRef(z, H1tsize, H1tsize);
-      //    // ze.MakeRef(z, 2*H1tsize, L2tsize);
-
-      //    // Vector yx, yv, ye;
-      //    // yx.MakeRef(y, 0, H1tsize);
-      //    // yv.MakeRef(y, H1tsize, H1tsize);
-      //    // ye.MakeRef(y, 2*H1tsize, L2tsize);
-
-      //    w_petsc->PlaceMemory(w.GetMemory(), true);
-      //    y_petsc->PlaceMemory(y.GetMemory(), true);
-      //    PetscCall(MatMult(*block_petsc, *w_petsc, *y_petsc));
-      //    w_petsc->ResetMemory();
-      //    y_petsc->ResetMemory();
-
-      //    return PETSC_SUCCESS;
       // };
 
       jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro]
             (const Vector &u, Vector &y)
       {
-         PetscErrorCode ierr;
-         ierr = PetscLogEventBegin(dfem_jvp_event, 0, 0, 0, 0);
-
          w = u;
          Vector wx, wv, we;
          wx.MakeRef(w, 0, H1tsize);
@@ -758,10 +701,6 @@ public:
          yx.SyncAliasMemory(y);
          yv.SyncAliasMemory(y);
          ye.SyncAliasMemory(y);
-
-         ierr = PetscLogEventEnd(dfem_jvp_event, 0, 0, 0, 0);
-
-         return PETSC_SUCCESS;
       };
 
       return 0;
@@ -772,20 +711,11 @@ public:
       return Device::GetDeviceMemoryClass();
    }
 
-   ~LagrangianHydroJacobianOperator()
-   {
-      delete block_petsc;
-      delete w_petsc;
-      delete y_petsc;
-   }
-
    real_t h;
-   std::function<int(const Vector &, Vector &)> jvp, assembled_jvp;
+   std::function<void(const Vector &, Vector &)> jvp, assembled_jvp;
    const int H1tsize;
    const int L2tsize;
    Vector w, z;
-   PetscParMatrix *block_petsc = nullptr;
-   PetscParVector *w_petsc = nullptr, *y_petsc = nullptr;
 };
 
 template <typename hydro_t>
@@ -809,9 +739,6 @@ public:
 
    void Mult(const Vector &k, Vector &R) const override
    {
-      PetscErrorCode ierr;
-      ierr = PetscLogEventBegin(residual_eval_event, 0, 0, 0, 0);
-
       u = k;
       u *= dt;
       u += x;
@@ -884,8 +811,6 @@ public:
       Rx.SyncAliasMemory(R);
       Rv.SyncAliasMemory(R);
       Re.SyncAliasMemory(R);
-
-      ierr = PetscLogEventEnd(residual_eval_event, 0, 0, 0, 0);
    }
 
    Operator& GetGradient(const Vector &k) const override
@@ -953,8 +878,7 @@ public:
                          dTaylorSourcedx);
 
          // out << "jacobian assemble: " << toc() << "\n";
-         return *jacobian->block_petsc;
-         // return *jacobian;
+         return *jacobian;
       }
    }
 
@@ -1179,7 +1103,6 @@ public:
       xv.MakeRef(*xptr, H1.GetVSize(), H1.GetVSize());
       xe.MakeRef(*xptr, 2*H1.GetVSize(), L2.GetVSize());
 
-      Vector Xx, Xv, Xe;
       Xx.MakeRef(X, 0, H1.GetTrueVSize());
       Xv.MakeRef(X, H1.GetTrueVSize(), H1.GetTrueVSize());
       Xe.MakeRef(X, 2*H1.GetTrueVSize(), L2.GetTrueVSize());
@@ -1192,46 +1115,28 @@ public:
       Xv.SyncAliasMemory(X);
       Xe.SyncAliasMemory(X);
 
-      if (current_dt != dt || residual == nullptr || lag >= 3)
-      {
-         lag = 0;
+      current_dt = dt;
+      residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
 
-         // out << "creating new residual\n";
-         current_dt = dt;
-         residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetMaxIter(500);
+      gmres.SetKDim(500);
+      gmres.SetRelTol(1e-8);
+      gmres.SetAbsTol(1e-12);
+      gmres.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
 
-         delete snes;
-         snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
-         snes->SetOperator(*residual);
-         snes->SetRelTol(nonlinear_relative_tolerance);
-         // ATTENTION:
-         // If we use global LU, this should be `Operator::PETSC_MATAIJ` !!!
-         snes->SetJacobianType(Operator::PETSC_MATAIJ);
-      }
-
-      lag++;
-
-      // GMRESSolver gmres(MPI_COMM_WORLD);
-      // gmres.SetMaxIter(500);
-      // gmres.SetKDim(500);
-      // gmres.SetRelTol(1e-8);
-      // gmres.SetAbsTol(1e-12);
-      // gmres.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
-
-      // NewtonSolver newton(MPI_COMM_WORLD);
-      // newton.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-      // newton.SetOperator(*residual);
-      // newton.SetSolver(gmres);
-      // newton.SetMaxIter(nonlinear_maximum_iterations);
-      // newton.SetRelTol(nonlinear_relative_tolerance);
-      // newton.SetAbsTol(0.0);
+      NewtonSolver newton(MPI_COMM_WORLD);
+      newton.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      newton.SetOperator(*residual);
+      newton.SetSolver(gmres);
+      newton.SetMaxIter(nonlinear_maximum_iterations);
+      newton.SetRelTol(nonlinear_relative_tolerance);
+      newton.SetAbsTol(0.0);
 
       Vector zero;
       K = X;
-      snes->Mult(zero, K);
-      // newton.Mult(zero, K);
+      newton.Mult(zero, K);
 
-      Vector Kx, Kv, Ke;
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
       Kv.MakeRef(K, H1.GetTrueVSize(), H1.GetTrueVSize());
       Ke.MakeRef(K, 2*H1.GetTrueVSize(), L2.GetTrueVSize());
@@ -1244,10 +1149,6 @@ public:
       H1.GetProlongationMatrix()->Mult(Kx, kx);
       H1.GetProlongationMatrix()->Mult(Kv, kv);
       L2.GetProlongationMatrix()->Mult(Ke, ke);
-      // kx.SyncAliasMemory(k);
-      // kv.SyncAliasMemory(k);
-      // ke.SyncAliasMemory(k);
-      // out << "implicit solve: " << toc() << "\n";
    }
 
    void UpdateMesh(const Vector &S) const
@@ -1370,7 +1271,6 @@ public:
 
    ~LagrangianHydroOperator()
    {
-      delete snes;
       delete Mv;
       delete Mv_Jprec;
       delete Me;
@@ -1402,8 +1302,6 @@ public:
    std::shared_ptr<Operator> residual;
    real_t current_dt = 0.0;
    int lag = 0;
-
-   PetscNonlinearSolver *snes = nullptr;
 
    mutable FunctionCoefficient rho0_coeff;
    OperatorJacobiSmoother *Mv_Jprec = nullptr;
@@ -1853,7 +1751,6 @@ int main(int argc, char *argv[])
    real_t cfl = 0.5;
    real_t nonlinear_relative_tolerance = 1e-5;
    int nonlinear_maximum_iterations = 10;
-   const char *petsc_opts = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -1880,42 +1777,10 @@ int main(int argc, char *argv[])
                   "Maximum number of nonlinear iterations.");
    args.AddOption(&nonlinear_relative_tolerance, "-nrt", "--nrt",
                   "Nonlinear relative tolerance.");
-   args.AddOption(&petsc_opts, "-petsc-opts", "--petsc-opts",
-                  "PETSc options.");
    args.ParseCheck();
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
-
-   std::vector<char*> petsc_argv;
-   petsc_argv.push_back(argv[0]); // Program name as first arg
-
-   // Split petsc_opts string into individual arguments
-   std::string opts_str(petsc_opts);
-   std::istringstream iss(opts_str);
-   std::string arg;
-
-   // Store each argument
-   while (iss >> arg)
-   {
-      char* arg_copy = new char[arg.length() + 1];
-      strcpy(arg_copy, arg.c_str());
-      petsc_argv.push_back(arg_copy);
-   }
-
-   int petsc_argc = petsc_argv.size();
-   char** petsc_args = petsc_argv.data();
-
-   MFEMInitializePetsc(&petsc_argc, &petsc_args);
-
-   PetscClassId hydro_class_id;
-   PetscCall(PetscClassIdRegister("hydro",&hydro_class_id));
-   PetscCall(PetscLogEventRegister("ResidualEval", hydro_class_id,
-                                   &residual_eval_event));
-   PetscCall(PetscLogEventRegister("dFEMJVP", hydro_class_id,
-                                   &dfem_jvp_event));
-   PetscCall(PetscLogEventRegister("JacobianAssemble", hydro_class_id,
-                                   &jacobian_assemble_event));
 
    out << std::setprecision(6);
 
@@ -2317,6 +2182,5 @@ int main(int argc, char *argv[])
 
    delete hydro;
 
-   MFEMFinalizePetsc();
    return 0;
 }
