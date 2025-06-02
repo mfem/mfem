@@ -194,8 +194,7 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       basisMatLU = basisMatNodes;
       lu_ip.SetSize(nb);
       // Compute lu factors
-      lu.data = basisMatLU.GetData();
-      lu.ipiv = lu_ip.GetData();
+      LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
       bool factor = lu.Factor(nb);
       MFEM_VERIFY(factor,"Failure in LU factorization in PLBound.");
 
@@ -321,6 +320,7 @@ void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
       // compute coefficients for Bernstein
       if (b_type == 2)
       {
+         LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
          lu.Solve(nb, 1, coeffm.GetData());
       }
 
@@ -414,6 +414,7 @@ void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
                maxvalsM(i,j) -= a0V(j) + a1V(j)*x;
             }
             // Compute Bernstein coefficients
+            LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
             lu.Solve(nb, 1, minvalsM.GetColumn(j));
             lu.Solve(nb, 1, maxvalsM.GetColumn(j));
             for (int i = 0; i < nb; i++)
@@ -554,6 +555,7 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
                maxBounds(i) -= a0V(j) + a1V(j)*x;
             }
             // Compute Bernstein coefficients
+            LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
             lu.Solve(nb, 1, minBounds.GetData());
             lu.Solve(nb, 1, maxBounds.GetData());
             for (int i = 0; i < nb; i++)
