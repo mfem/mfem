@@ -289,7 +289,7 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
    const bool all_tests = launch_all_non_regression_tests;
 
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
+   const auto r = !all_tests ? 2 : GENERATE(0, 1, 2, 3);
 
    SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
