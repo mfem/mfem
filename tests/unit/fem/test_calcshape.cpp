@@ -77,6 +77,8 @@ void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
  */
 void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 {
+   CAPTURE(tol);
+
    int dim = fe->GetDim();
 
    Vector weights( fe->GetDof() );
@@ -101,6 +103,14 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
       for (int j=0; j < ipArr.Size(); ++j)
       {
          IntegrationPoint& ip = ipArr[j];
+
+         // Pyramid basis functions are poorly behaved outside the
+         // reference pyramid
+         if (fe->GetGeomType() == Geometry::PYRAMID &&
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+
+         CAPTURE(ip.x, ip.y, ip.z);
+
          fe->CalcShape(ip, weights);
          REQUIRE(weights.Sum() == MFEM_Approx(1., tol, tol));
       }
@@ -154,7 +164,10 @@ TEST_CASE("CalcShape H1",
           "[H1_QuadrilateralElement]"
           "[H1_TetrahedronElement]"
           "[H1_HexahedronElement]"
-          "[H1_WedgeElement]")
+          "[H1_WedgeElement]"
+          "[H1_FuentesPyramidElement]"
+          "[H1_BergotPyramidElement]"
+          "[H1_PyramidElement]")
 {
    const int maxOrder = 5;
    const int resolution = 10;
@@ -195,6 +208,18 @@ TEST_CASE("CalcShape H1",
    SECTION("H1_WedgeElement")
    {
       H1_WedgeElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
+   }
+
+   SECTION("H1_FuentesPyramidElement")
+   {
+      H1_FuentesPyramidElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-6*std::pow(10, order));
+   }
+
+   SECTION("H1_BergotPyramidElement")
+   {
+      H1_BergotPyramidElement fe(order);
       TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 

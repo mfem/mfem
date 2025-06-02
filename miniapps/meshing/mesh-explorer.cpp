@@ -576,7 +576,8 @@ int main (int argc, char *argv[])
          char type;
          cout << "Choose a transformation:\n"
               "u) User-defined transform through mesh-explorer::transformation()\n"
-              "k) Kershaw transform\n"<< "---> " << flush;
+              "k) Kershaw transform\n"
+              "s) Spiral transform\n"<< "---> " << flush;
          cin >> type;
          if (type == 'u')
          {
@@ -599,6 +600,30 @@ int main (int argc, char *argv[])
             }
             common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
             mesh->Transform(kershawT);
+         }
+         else if (type == 's')
+         {
+            MFEM_VERIFY(mesh->SpaceDimension() >= 2,
+                        "Mesh space dimension must be at least 2 "
+                        "for spiral transformation.\n");
+            cout << "Note: For Spiral transformation, the input mesh is "
+                 "assumed to be in [0,1]^D.\n" << flush;
+            real_t turns, width, gap, height = 1.0;
+            cout << "Number of turns: ---> " << flush;
+            cin >> turns;
+            cout << "Width of spiral arm (e.g. 0.1) ---> " << flush;
+            cin >> width;
+            cout << "Gap between adjacent spiral arms at the end of each turn (e.g. 0.05) ---> "
+                 << flush;
+            cin >> gap;
+            if (mesh->SpaceDimension() == 3)
+            {
+               cout << "Maximum spiral height ---> " << flush;
+               cin >> height;
+            }
+            common::SpiralTransformation spiralT(mesh->SpaceDimension(), turns,
+                                                 width, gap, height);
+            mesh->Transform(spiralT);
          }
          else
          {

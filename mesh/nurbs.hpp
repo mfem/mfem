@@ -562,8 +562,8 @@ protected:
    void CheckBdrPatches();
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
-       based on the the patch edge orientations. Each entry of @a kvdir is -1 if
-       the KnotVector direction is flipped, +1 otherwise. */
+       based on the patch edge orientations. Each entry of @a kvdir is -1 if the
+       KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
    /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
