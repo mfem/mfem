@@ -7,7 +7,7 @@
 //               ex0 -m ../data/square-disc.mesh -o 2
 //
 // Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Laplace
+//              define a simple finite element discretization of the Poisson
 //              problem -Delta u = 1 with zero Dirichlet boundary conditions.
 //              General 2D/3D mesh files and finite element polynomial degrees
 //              can be specified by command line options.

@@ -1791,23 +1791,38 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
 {
    // This is a simple integration rule adapted from an integration
-   // rule for a cube which seems to be adequate for now. When we
-   // implement high order finite elements for pyramids we should
-   // revisit this and see if we can improve upon it.
+   // rule for a cube which seems to be adequate for now. We should continue
+   // to search for a more appropriate integration rule designed specifically
+   // for pyramid elements.
    const IntegrationRule &irc = Get(Geometry::CUBE, Order);
    int npts = irc.GetNPoints();
    AllocIntRule(PyramidIntRules, Order);
    PyramidIntRules[Order] = new IntegrationRule(npts);
-   PyramidIntRules[Order]->SetOrder(Order); // FIXME: see comment above
+   PyramidIntRules[Order]->SetOrder(Order);
 
-   for (int k=0; k<npts; k++)
+   if (npts == 1)
    {
-      const IntegrationPoint &ipc = irc.IntPoint(k);
-      IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(k);
-      ipp.x = ipc.x * (1.0 - ipc.z);
-      ipp.y = ipc.y * (1.0 - ipc.z);
-      ipp.z = ipc.z;
-      ipp.weight = ipc.weight / 3.0;
+      // We handle this as a special case because with only one integration
+      // point we cannot accurately integrate the quadratic factor
+      // pow(1.0 - ipc.z, 2) and the resulting weight does not match the volume
+      // of the reference element.
+      IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(0);
+      ipp.x = 0.375;
+      ipp.y = 0.375;
+      ipp.z = 0.25;
+      ipp.weight = 1.0 / 3.0;
+   }
+   else
+   {
+      for (int k=0; k<npts; k++)
+      {
+         const IntegrationPoint &ipc = irc.IntPoint(k);
+         IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(k);
+         ipp.x = ipc.x * (1.0 - ipc.z);
+         ipp.y = ipc.y * (1.0 - ipc.z);
+         ipp.z = ipc.z;
+         ipp.weight = ipc.weight * pow(1.0 - ipc.z, 2);
+      }
    }
    return PyramidIntRules[Order];
 }

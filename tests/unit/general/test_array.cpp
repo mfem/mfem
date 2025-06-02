@@ -17,7 +17,7 @@ using namespace mfem;
 TEST_CASE("Array init-list and C-style array constructors", "[Array]")
 {
    int ContigData[6] = {6, 5, 4, 3, 2, 1};
-   // Pointer and size construcor
+   // Pointer and size constructor
    Array<int> a(ContigData, 6);
    // Braced-list constructor
    Array<int> b({6, 5, 4, 3, 2, 1});
