@@ -60,8 +60,7 @@ private:
    DenseMatrix basisMatInt;   // Bernstein bases at GLL nodes
    Vector nodes_int, weights_int; // Integration nodes and weights
    DenseMatrix basisMatLU;    // Used to compute LU factors for Bernstein
-   LUFactors lu;
-   Array<int> lu_ip;
+   mutable Array<int> lu_ip;
 
    // stores min_ncp for nb = 2..12 for Lagrange interpolants on GL nodes
    // with GL+end points and Chebyshev points as control points
