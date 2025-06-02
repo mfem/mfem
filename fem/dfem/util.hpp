@@ -732,8 +732,8 @@ int GetVSize(const FieldDescriptor &f)
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetVSize on type");
-         return 0; // Unreachable, but avoids compiler warning
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -770,7 +770,6 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetElementVdofs on type");
-         return 0; // Unreachable, but avoids compiler warning
       }
    }, f.data);
 }
@@ -805,8 +804,8 @@ int GetTrueVSize(const FieldDescriptor &f)
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetTrueVSize on type");
-         return 0; // Unreachable, but avoids compiler warning
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -835,8 +834,8 @@ int GetVDim(const FieldDescriptor &f)
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetVDim on type");
-         return 0; // Unreachable, but avoids compiler warning
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -870,8 +869,8 @@ int GetDimension(const FieldDescriptor &f)
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetDimension on type");
-         return 0; // Unreachable, but avoids compiler warning
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -898,8 +897,8 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetProlongation on type");
-         return nullptr; // Unreachable, but avoids compiler warning
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -928,8 +927,8 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetElementRestriction on type");
-         return nullptr; // Unreachable, but avoids compiler warning
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -1222,8 +1221,8 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
-         return nullptr; // Unreachable, but avoids compiler warning
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
