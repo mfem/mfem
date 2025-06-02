@@ -58,14 +58,11 @@ void dFemVectorDivergence(const char *filename, int p)
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
 
-   ParGridFunction sx(&psfes), sy(&psfes), sz(&psfes);
-   ParGridFunction vx(&pvfes), vy(&pvfes);
-   Vector sX(psfes.GetTrueVSize()), sY(psfes.GetTrueVSize()),
-          sZ(psfes.GetTrueVSize());
-   Vector vX(pvfes.GetTrueVSize()), vY(pvfes.GetTrueVSize()),
-          vZ(pvfes.GetTrueVSize());
+   ParGridFunction vx(&pvfes);
+   ParGridFunction sy(&psfes), sz(&psfes);
+   Vector vX(pvfes.GetTrueVSize());
+   Vector sY(psfes.GetTrueVSize()), sZ(psfes.GetTrueVSize());
 
-   sX.Randomize(1), sx.SetFromTrueDofs(sX);
    vX.Randomize(1), vx.SetFromTrueDofs(vX);
 
    MixedBilinearForm mblf_fa(&pvfes, &psfes);
@@ -111,7 +108,8 @@ void dFemVectorDivergence(const char *filename, int p)
                                  *ir, all_domain_attr);
 
       dop_mf.SetParameters({ &vx, nodes });
-      dop_mf.Mult(sX, sZ);
+      Vector unused(pvfes.GetTrueVSize());
+      dop_mf.Mult(unused, sZ);
 
       mblf_fa.Mult(vx, sy);
       psfes.GetProlongationMatrix()->MultTranspose(sy, sY);
