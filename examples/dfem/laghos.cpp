@@ -472,159 +472,39 @@ public:
    OperatorPtr mass;
 };
 
-class LagrangianHydroJacobianOperator : public Operator
+class LagrangianHydroOperator : public TimeDependentOperator
 {
 public:
-   LagrangianHydroJacobianOperator(real_t h, int H1tsize, int L2tsize) :
-      Operator(2*H1tsize + L2tsize), h(h), H1tsize(H1tsize), L2tsize(L2tsize)  {}
-
-   void Mult(const Vector &k, Vector &y) const override
+   class LagrangianHydroJacobianOperator : public Operator
    {
-      jvp(k, y);
-      // assembled_jvp(k, y);
-   }
+   public:
+      LagrangianHydroJacobianOperator(
+         LagrangianHydroOperator &hydro,
+         std::shared_ptr<DerivativeOperator> dRvdx,
+         std::shared_ptr<DerivativeOperator> dRvdv,
+         std::shared_ptr<DerivativeOperator> dRvde,
+         std::shared_ptr<DerivativeOperator> dRedx,
+         std::shared_ptr<DerivativeOperator> dRedv,
+         std::shared_ptr<DerivativeOperator> dRede,
+         std::shared_ptr<DerivativeOperator> dTaylorSourcedx,
+         real_t h) :
+         Operator(2*hydro.H1.GetTrueVSize() + hydro.L2.GetTrueVSize()),
+         h(h),
+         H1tsize(hydro.H1.GetTrueVSize()),
+         L2tsize(hydro.L2.GetTrueVSize()),
+         w(height),
+         z(height),
+         hydro(hydro),
+         dRvdx(dRvdx),
+         dRvdv(dRvdv),
+         dRvde(dRvde),
+         dRedx(dRedx),
+         dRedv(dRedv),
+         dRede(dRede),
+         dTaylorSourcedx(dTaylorSourcedx)
+      {}
 
-   template <typename hydro_t>
-   int Setup(hydro_t &hydro,
-             std::shared_ptr<DerivativeOperator> dRvdx,
-             std::shared_ptr<DerivativeOperator> dRvdv,
-             std::shared_ptr<DerivativeOperator> dRvde,
-             std::shared_ptr<DerivativeOperator> dRedx,
-             std::shared_ptr<DerivativeOperator> dRedv,
-             std::shared_ptr<DerivativeOperator> dRede,
-             std::shared_ptr<DerivativeOperator> dTaylorSourcedx)
-   {
-      // out << "assemble\n";
-
-      w.SetSize(this->height);
-      z.SetSize(this->height);
-
-      ParBilinearForm Mv(&hydro.H1);
-      Mv.AddDomainIntegrator(new VectorMassIntegrator(hydro.rho0_coeff, &hydro.ir));
-      Mv.Assemble();
-      Mv.Finalize();
-      HypreParMatrix Mv_mat;
-      Mv.FormSystemMatrix(mfem::Array<int>(), Mv_mat);
-
-      ParBilinearForm Me(&hydro.L2);
-      Me.AddDomainIntegrator(new MassIntegrator(hydro.rho0_coeff, &hydro.ir));
-      Me.Assemble();
-      Me.Finalize();
-      HypreParMatrix Me_mat;
-      Me.FormSystemMatrix(mfem::Array<int>(), Me_mat);
-
-      auto comm = hydro.H1.GetComm();
-
-      HYPRE_BigInt *tdof_offsets = hydro.H1.GetTrueDofOffsets();
-
-      // First row
-      // Rx = x - h * v
-      // yx = I * wx - h I * wv
-      // where I is identity
-      // PetscParVector dRxdx_diag(comm, hydro.H1.GlobalTrueVSize(), tdof_offsets);
-      // dRxdx_diag = 1.0;
-      // Mat dRxdx_petsc_mat;
-      // PetscCall(MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat));
-      // PetscParMatrix dRxdx_petsc(dRxdx_petsc_mat);
-      SparseMatrix dRxdx_diag(hydro.H1.GetTrueVSize());
-      for (int i = 0; i < dRxdx_diag.Height(); i++)
-      {
-         dRxdx_diag.Set(i, i, 1.0);
-      }
-      dRxdx_diag.Finalize();
-      HypreParMatrix dRxdx_mat(comm, hydro.H1.GlobalTrueVSize(),
-                               tdof_offsets, &dRxdx_diag);
-
-      // dRxdv = -h * I
-      SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
-      for (int i = 0; i < dRxdv_diag.Height(); i++)
-      {
-         dRxdv_diag.Set(i, i, -h);
-      }
-
-      for (int i = 0; i < hydro.ess_tdof.Size(); i++)
-      {
-         dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
-      }
-      dRxdv_diag.Finalize();
-
-      HypreParMatrix dRxdv_mat(comm, hydro.H1.GlobalTrueVSize(),
-                               tdof_offsets, &dRxdv_diag);
-
-      // Second row
-      // Rv = Mv * v + F * I
-      // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
-
-      // dRvdx = h * dF/dx
-      HypreParMatrix dRvdx_mat;
-      dRvdx->Assemble(dRvdx_mat);
-      dRvdx_mat.EliminateRows(hydro.ess_tdof);
-      dRvdx_mat *= h;
-
-      // dRvdv = (Mv + h dF/dv)
-      HypreParMatrix dRvdv_mat;
-      dRvdv->Assemble(dRvdv_mat);
-
-      HypreParMatrix *Mv_hdRvdv_mat = Add(1.0, Mv_mat, h, dRvdv_mat);
-      Mv_hdRvdv_mat->EliminateRows(hydro.ess_tdof);
-      auto tmp2 = Mv_hdRvdv_mat->EliminateRowsCols(hydro.ess_tdof);
-      delete tmp2;
-
-      // dRvde = h * dF/de
-      HypreParMatrix dRvde_mat;
-      dRvde->Assemble(dRvde_mat);
-      dRvde_mat.EliminateRows(hydro.ess_tdof);
-      dRvde_mat *= h;
-
-      // Third row
-      // Re = Me * e - F^T
-      // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
-
-      // dRedx = -h * dF^T/dx
-      HypreParMatrix dRedx_mat;
-      dRedx->Assemble(dRedx_mat);
-
-      if (problem == 0)
-      {
-         HypreParMatrix dTaylorSourcedx_mat;
-         dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
-         dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
-      }
-
-      dRedx_mat *= -h;
-
-      // dRedv = -h * dF^T/dv
-      HypreParMatrix dRedv_mat;
-      dRedv->Assemble(dRedv_mat);
-      auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
-      delete tmp1;
-      dRedv_mat *= -h;
-
-      // dRede = Me - h * dF^T/de
-      HypreParMatrix dRede_mat;
-      dRede->Assemble(dRede_mat);
-      HypreParMatrix *Me_hdRede_mat = Add(1.0, Me_mat, -h, dRede_mat);
-
-      Array2D<const HypreParMatrix*> blocks(3, 3);
-      blocks(0, 0) = &dRxdx_mat;
-      blocks(0, 1) = &dRxdv_mat;
-      blocks(1, 0) = &dRvdx_mat;
-      blocks(1, 1) = Mv_hdRvdv_mat;
-      blocks(1, 2) = &dRvde_mat;
-      blocks(2, 0) = &dRedx_mat;
-      blocks(2, 1) = &dRedv_mat;
-      blocks(2, 2) = Me_hdRede_mat;
-
-      // delete block_hypre;
-      HypreParMatrix *block_hypre = HypreParMatrixFromBlocks(blocks, nullptr);
-
-
-
-
-      // };
-
-      jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro]
-            (const Vector &u, Vector &y)
+      void Mult(const Vector &u, Vector &y) const override
       {
          w = u;
          Vector wx, wv, we;
@@ -670,6 +550,7 @@ public:
          zv *= h;
          yv += zv;
          yv.SetSubVector(hydro.ess_tdof, 0.0);
+
          // for (int i = 0; i < hydro.ess_tdof.Size(); i++)
          // {
          //    // yv(hydro.ess_tdof[i]) = uv(hydro.ess_tdof[i]);
@@ -684,6 +565,10 @@ public:
          //
 
          dRedx->Mult(wx, ze);
+         if (problem == 0)
+         {
+            // dTaylorSourcedx->AddMult(we, ze);
+         }
          ze *= -h;
          ye = ze;
 
@@ -693,7 +578,7 @@ public:
 
          dRede->Mult(we, ze);
          ze *= -h;
-         // hydro.Me.TrueAddMult(we, ze);
+         // OLD hydro.Me.TrueAddMult(we, ze);
          hydro.Me->FullAddMult(we, ze);
 
          ye += ze;
@@ -701,203 +586,373 @@ public:
          yx.SyncAliasMemory(y);
          yv.SyncAliasMemory(y);
          ye.SyncAliasMemory(y);
-      };
+      }
 
-      return 0;
-   }
+      virtual MemoryClass GetMemoryClass() const override
+      {
+         return Device::GetDeviceMemoryClass();
+      }
 
-   virtual MemoryClass GetMemoryClass() const override
+      real_t h;
+      std::function<void(const Vector &, Vector &)> jvp, assembled_jvp;
+      const int H1tsize;
+      const int L2tsize;
+      mutable Vector w, z;
+
+      LagrangianHydroOperator &hydro;
+      std::shared_ptr<DerivativeOperator> dRvdx;
+      std::shared_ptr<DerivativeOperator> dRvdv;
+      std::shared_ptr<DerivativeOperator> dRvde;
+      std::shared_ptr<DerivativeOperator> dRedx;
+      std::shared_ptr<DerivativeOperator> dRedv;
+      std::shared_ptr<DerivativeOperator> dRede;
+      std::shared_ptr<DerivativeOperator> dTaylorSourcedx;
+   };
+
+   class Preconditioner : public Solver
    {
-      return Device::GetDeviceMemoryClass();
-   }
+   public:
+      Preconditioner(LagrangianHydroOperator &hydro)
+         : Solver(hydro.Height())
+      {};
 
-   real_t h;
-   std::function<void(const Vector &, Vector &)> jvp, assembled_jvp;
-   const int H1tsize;
-   const int L2tsize;
-   Vector w, z;
-};
+      void SetRebuildFlag(bool flag)
+      {
+         rebuild = flag;
+      }
 
-template <typename hydro_t>
-class LagrangianHydroResidualOperator : public Operator
-{
-public:
-   LagrangianHydroResidualOperator(hydro_t &hydro, const real_t dt,
-                                   const Vector &x, bool fd_gradient) :
-      Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
-      hydro(hydro),
-      dt(dt),
-      H1tsize(hydro.H1.GetTrueVSize()),
-      H1vsize(hydro.H1.GetVSize()),
-      L2tsize(hydro.L2.GetTrueVSize()),
-      L2vsize(hydro.L2.GetVSize()),
-      x(x),
-      u(x.Size()),
-      u_l(2*H1vsize + L2vsize),
-      e_source_t(hydro.L2.GetTrueVSize()),
-      fd_gradient(fd_gradient) {}
+      void SetOperator(const Operator &op) override
+      {
+         if (!rebuild)
+         {
+            return;
+         }
 
-   void Mult(const Vector &k, Vector &R) const override
+         out << "Preconditioner: Rebuilding" << std::endl;
+
+         jacobian = dynamic_cast<const LagrangianHydroJacobianOperator*>(&op);
+         MFEM_ASSERT(jacobian != nullptr,
+                     "Preconditioner can only be set with LagrangianHydroJacobianOperator");
+
+         auto &hydro = jacobian->hydro;
+         auto comm = hydro.H1.GetComm();
+         const real_t h = jacobian->h;
+
+         HYPRE_BigInt *tdof_offsets = hydro.H1.GetTrueDofOffsets();
+
+         // First row
+         // Rx = x - h * v
+         // yx = I * wx - h I * wv
+         // where I is identity
+         // PetscParVector dRxdx_diag(comm, hydro.H1.GlobalTrueVSize(), tdof_offsets);
+         // dRxdx_diag = 1.0;
+         // Mat dRxdx_petsc_mat;
+         // PetscCall(MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat));
+         // PetscParMatrix dRxdx_petsc(dRxdx_petsc_mat);
+         SparseMatrix dRxdx_diag(hydro.H1.GetTrueVSize());
+         for (int i = 0; i < dRxdx_diag.Height(); i++)
+         {
+            dRxdx_diag.Set(i, i, 1.0);
+         }
+         dRxdx_diag.Finalize();
+         HypreParMatrix dRxdx_mat(comm, hydro.H1.GlobalTrueVSize(),
+                                  tdof_offsets, &dRxdx_diag);
+
+         // dRxdv = -h * I
+         SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
+         for (int i = 0; i < dRxdv_diag.Height(); i++)
+         {
+            dRxdv_diag.Set(i, i, -h);
+         }
+
+         for (int i = 0; i < hydro.ess_tdof.Size(); i++)
+         {
+            dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
+         }
+         dRxdv_diag.Finalize();
+
+         HypreParMatrix dRxdv_mat(comm, hydro.H1.GlobalTrueVSize(),
+                                  tdof_offsets, &dRxdv_diag);
+
+         // Second row
+         // Rv = Mv * v + F * I
+         // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
+
+         // dRvdx = h * dF/dx
+         HypreParMatrix dRvdx_mat;
+         jacobian->dRvdx->Assemble(dRvdx_mat);
+         dRvdx_mat.EliminateRows(hydro.ess_tdof);
+         dRvdx_mat *= h;
+
+         // dRvdv = (Mv + h dF/dv)
+         HypreParMatrix dRvdv_mat;
+         jacobian->dRvdv->Assemble(dRvdv_mat);
+         HypreParMatrix *Mv_hdRvdv_mat = Add(1.0, hydro.Mv_mat, h, dRvdv_mat);
+         auto tmp2 = Mv_hdRvdv_mat->EliminateRowsCols(hydro.ess_tdof);
+         delete tmp2;
+
+         // dRvde = h * dF/de
+         HypreParMatrix dRvde_mat;
+         jacobian->dRvde->Assemble(dRvde_mat);
+         dRvde_mat.EliminateRows(hydro.ess_tdof);
+         dRvde_mat *= h;
+
+         // Third row
+         // Re = Me * e - F^T
+         // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
+
+         // dRedx = -h * dF^T/dx
+         HypreParMatrix dRedx_mat;
+         jacobian->dRedx->Assemble(dRedx_mat);
+
+         if (problem == 0)
+         {
+            // HypreParMatrix dTaylorSourcedx_mat;
+            // jacobian->dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+            // dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
+         }
+
+         dRedx_mat *= -h;
+
+         // dRedv = -h * dF^T/dv
+         HypreParMatrix dRedv_mat;
+         jacobian->dRedv->Assemble(dRedv_mat);
+         auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
+         delete tmp1;
+         dRedv_mat *= -h;
+
+         // dRede = Me - h * dF^T/de
+         HypreParMatrix dRede_mat;
+         jacobian->dRede->Assemble(dRede_mat);
+         HypreParMatrix *Me_hdRede_mat = Add(1.0, hydro.Me_mat, -h, dRede_mat);
+
+         Array2D<const HypreParMatrix*> blocks(3, 3);
+         blocks(0, 0) = &dRxdx_mat;
+         blocks(0, 1) = &dRxdv_mat;
+         blocks(0, 2) = nullptr;
+         blocks(1, 0) = &dRvdx_mat;
+         blocks(1, 1) = Mv_hdRvdv_mat;
+         blocks(1, 2) = &dRvde_mat;
+         blocks(2, 0) = &dRedx_mat;
+         blocks(2, 1) = &dRedv_mat;
+         blocks(2, 2) = Me_hdRede_mat;
+
+         superlu_solver.reset(new SuperLUSolver(MPI_COMM_WORLD, 1));
+         block_hypre.reset(HypreParMatrixFromBlocks(blocks, nullptr));
+         superlu_mat.reset(new SuperLURowLocMatrix(*block_hypre));
+
+         superlu_solver->SetSymmetricPattern(false);
+         // superlu_solver->SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+         // superlu_solver->SetRowPermutation(superlu::LargeDiag_MC64);
+         // superlu_solver->SetIterativeRefine(superlu::SLU_DOUBLE);
+         superlu_solver->SetOperator(*superlu_mat);
+         superlu_solver->SetPrintStatistics(false);
+
+         rebuild = false;
+
+         delete Mv_hdRvdv_mat;
+         delete Me_hdRede_mat;
+      }
+
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         superlu_solver->Mult(x, y);
+      }
+
+      bool rebuild = true;
+      const LagrangianHydroJacobianOperator *jacobian = nullptr;
+      std::shared_ptr<HypreParMatrix> block_hypre;
+      std::shared_ptr<SuperLURowLocMatrix> superlu_mat;
+      std::shared_ptr<SuperLUSolver> superlu_solver;
+   };
+
+   class LagrangianHydroResidualOperator : public Operator
    {
-      u = k;
-      u *= dt;
-      u += x;
+   public:
+      LagrangianHydroResidualOperator(LagrangianHydroOperator &hydro,
+                                      const Vector &x, bool fd_gradient) :
+         Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
+         hydro(hydro),
+         H1tsize(hydro.H1.GetTrueVSize()),
+         H1vsize(hydro.H1.GetVSize()),
+         L2tsize(hydro.L2.GetTrueVSize()),
+         L2vsize(hydro.L2.GetVSize()),
+         x(x),
+         u(x.Size()),
+         u_l(2*H1vsize + L2vsize),
+         e_source_t(hydro.L2.GetTrueVSize()),
+         fd_gradient(fd_gradient) {}
 
-      auto kptr = const_cast<Vector*>(&k);
-      Vector kx, kv, ke;
-      kx.MakeRef(*kptr, 0, H1tsize);
-      kv.MakeRef(*kptr, H1tsize, H1tsize);
-      ke.MakeRef(*kptr, 2*H1tsize, L2tsize);
+      void SetTimeStep(const real_t &time_step) { this->dt = time_step; }
 
-      Vector ux, uv, ue;
-      ux.MakeRef(u, 0, H1tsize);
-      uv.MakeRef(u, H1tsize, H1tsize);
-      ue.MakeRef(u, 2*H1tsize, L2tsize);
-
-      Vector Rx, Rv, Re;
-      Rx.MakeRef(R, 0, H1tsize);
-      Rv.MakeRef(R, H1tsize, H1tsize);
-      Re.MakeRef(R, 2*H1tsize, L2tsize);
-
-      Vector ux_l, uv_l, ue_l;
-      ux_l.MakeRef(u_l, 0, H1vsize);
-      uv_l.MakeRef(u_l, H1vsize, H1vsize);
-      ue_l.MakeRef(u_l, 2*H1vsize, L2vsize);
-
-      hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
-      hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
-      hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
-
-      hydro.UpdateMesh(ux_l);
-      hydro.mesh_nodes.SyncMemory(ux_l);
-
-      Rx = kx;
-      Rx -= uv;
-
-      hydro.UpdateQuadratureData(u_l);
-
-      hydro.momentum_pa->SetParameters({&hydro.qdata->stressp});
-      hydro.momentum_pa->Mult(uv, Rv);
-
-      // hydro.Mv.TrueAddMult(kv, Rv);
-      Vector kvc, Rvc;
-      for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
+      void Mult(const Vector &k, Vector &R) const override
       {
-         kvc.MakeRef(kv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
-         Rvc.MakeRef(Rv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
-         hydro.Mv->FullAddMult(kvc, Rvc);
-         Rvc.SyncAliasMemory(Rv);
+         u = k;
+         u *= dt;
+         u += x;
+
+         auto kptr = const_cast<Vector*>(&k);
+         Vector kx, kv, ke;
+         kx.MakeRef(*kptr, 0, H1tsize);
+         kv.MakeRef(*kptr, H1tsize, H1tsize);
+         ke.MakeRef(*kptr, 2*H1tsize, L2tsize);
+
+         Vector ux, uv, ue;
+         ux.MakeRef(u, 0, H1tsize);
+         uv.MakeRef(u, H1tsize, H1tsize);
+         ue.MakeRef(u, 2*H1tsize, L2tsize);
+
+         Vector Rx, Rv, Re;
+         Rx.MakeRef(R, 0, H1tsize);
+         Rv.MakeRef(R, H1tsize, H1tsize);
+         Re.MakeRef(R, 2*H1tsize, L2tsize);
+
+         Vector ux_l, uv_l, ue_l;
+         ux_l.MakeRef(u_l, 0, H1vsize);
+         uv_l.MakeRef(u_l, H1vsize, H1vsize);
+         ue_l.MakeRef(u_l, 2*H1vsize, L2vsize);
+
+         hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
+         hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
+         hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
+
+         hydro.UpdateMesh(ux_l);
+         hydro.mesh_nodes.SyncMemory(ux_l);
+
+         Rx = kx;
+         Rx -= uv;
+
+         hydro.UpdateQuadratureData(u_l);
+
+         hydro.momentum_pa->SetParameters({&hydro.qdata->stressp});
+         hydro.momentum_pa->Mult(uv, Rv);
+
+         // hydro.Mv.TrueAddMult(kv, Rv);
+         Vector kvc, Rvc;
+         for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
+         {
+            kvc.MakeRef(kv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
+            Rvc.MakeRef(Rv, c*hydro.H1c.GetTrueVSize(), hydro.H1c.GetTrueVSize());
+            hydro.Mv->FullAddMult(kvc, Rvc);
+            Rvc.SyncAliasMemory(Rv);
+         }
+         Rv.SyncAliasMemory(R);
+
+         Rv.SetSubVector(hydro.ess_tdof, 0.0);
+         // Rv = 0.0;
+
+         hydro.energy_conservation_pa->SetParameters({&uv_l, &hydro.qdata->stressp});
+         hydro.energy_conservation_pa->Mult(ue, Re);
+
+         Re.Neg();
+
+         if (problem == 0)
+         {
+            // hydro.taylor_source_mf->SetParameters({&ux_l});
+            // hydro.taylor_source_mf->Mult(e_source_t, e_source_t);
+            // Re -= e_source_t;
+         }
+
+         // hydro.Me.TrueAddMult(ke, Re);
+         hydro.Me->FullAddMult(ke, Re);
+
+         Rx.SyncAliasMemory(R);
+         Rv.SyncAliasMemory(R);
+         Re.SyncAliasMemory(R);
       }
-      Rv.SyncAliasMemory(R);
 
-      Rv.SetSubVector(hydro.ess_tdof, 0.0);
-      // Rv = 0.0;
-
-      hydro.energy_conservation_pa->SetParameters({&uv_l, &hydro.qdata->stressp});
-      hydro.energy_conservation_pa->Mult(ue, Re);
-
-      Re.Neg();
-
-      if (problem == 0)
+      Operator& GetGradient(const Vector &k) const override
       {
-         hydro.taylor_source_mf->SetParameters({&ux_l});
-         hydro.taylor_source_mf->Mult(e_source_t, e_source_t);
-         Re -= e_source_t;
+         u = k;
+         u *= dt;
+         u += x;
+
+         auto kptr = const_cast<Vector*>(&k);
+         Vector kx, kv, ke;
+         kx.MakeRef(*kptr, 0, H1tsize);
+         kv.MakeRef(*kptr, H1tsize, H1tsize);
+         ke.MakeRef(*kptr, 2*H1tsize, L2tsize);
+
+         Vector ux, uv, ue;
+         ux.MakeRef(u, 0, H1tsize);
+         uv.MakeRef(u, H1tsize, H1tsize);
+         ue.MakeRef(u, 2*H1tsize, L2tsize);
+
+         Vector ux_l, uv_l, ue_l;
+         ux_l.MakeRef(u_l, 0, H1vsize);
+         uv_l.MakeRef(u_l, H1vsize, H1vsize);
+         ue_l.MakeRef(u_l, 2*H1vsize, L2vsize);
+
+         hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
+         hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
+         hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
+
+         if (fd_gradient)
+         {
+            fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
+            return *fd_jacobian;
+         }
+         else
+         {
+            auto dRvdx = hydro.momentum_mf->GetDerivative(COORDINATES, {&uv_l},
+            {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
+
+            auto dRvdv = hydro.momentum_mf->GetDerivative(VELOCITY, {&uv_l},
+            {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
+
+            auto dRvde = hydro.momentum_mf->GetDerivative(SPECIFIC_INTERNAL_ENERGY, {&uv_l},
+            {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
+
+            auto dRedx = hydro.energy_conservation_mf->GetDerivative(COORDINATES, {&ue_l},
+            {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
+
+            auto dRedv = hydro.energy_conservation_mf->GetDerivative(VELOCITY, {&ue_l},
+            {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
+
+            auto dRede = hydro.energy_conservation_mf->GetDerivative(
+            SPECIFIC_INTERNAL_ENERGY, {&ue_l},
+            {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
+
+            auto dTaylorSourcedx = hydro.taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
+
+            jacobian = std::make_shared<LagrangianHydroJacobianOperator>(
+                          hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, dTaylorSourcedx, dt);
+
+            // {
+            //    std::ofstream jvpmat("jvpmat.m");
+            //    jacobian->PrintMatlab(jvpmat);
+            //    jvpmat.close();
+
+            //    fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
+            //    std::ofstream fdjacmat("fdjacmat.m");
+            //    fd_jacobian->PrintMatlab(fdjacmat);
+            //    fdjacmat.close();
+
+            //    hydro.preconditioner->SetOperator(*jacobian);
+            //    std::ofstream jprecmat("jprecmat.m");
+            //    hydro.preconditioner->block_hypre->PrintMatlab(jprecmat);
+            //    jprecmat.close();
+
+            //    exit(0);
+            // }
+
+            return *jacobian;
+         }
       }
 
-      // hydro.Me.TrueAddMult(ke, Re);
-      hydro.Me->FullAddMult(ke, Re);
+      LagrangianHydroOperator &hydro;
+      real_t dt;
+      const int H1tsize;
+      const int H1vsize;
+      const int L2tsize;
+      const int L2vsize;
+      const Vector &x;
+      mutable Vector u, u_l, e_source_t;
+      mutable std::shared_ptr<FDJacobian> fd_jacobian;
+      mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
+      bool fd_gradient;
+   };
 
-      Rx.SyncAliasMemory(R);
-      Rv.SyncAliasMemory(R);
-      Re.SyncAliasMemory(R);
-   }
-
-   Operator& GetGradient(const Vector &k) const override
-   {
-      // tic();
-      jacobian = std::make_shared<LagrangianHydroJacobianOperator>(dt, H1tsize,
-                                                                   L2tsize);
-
-      u = k;
-      u *= dt;
-      u += x;
-
-      auto kptr = const_cast<Vector*>(&k);
-      Vector kx, kv, ke;
-      kx.MakeRef(*kptr, 0, H1tsize);
-      kv.MakeRef(*kptr, H1tsize, H1tsize);
-      ke.MakeRef(*kptr, 2*H1tsize, L2tsize);
-
-      Vector ux, uv, ue;
-      ux.MakeRef(u, 0, H1tsize);
-      uv.MakeRef(u, H1tsize, H1tsize);
-      ue.MakeRef(u, 2*H1tsize, L2tsize);
-
-      Vector ux_l, uv_l, ue_l;
-      ux_l.MakeRef(u_l, 0, H1vsize);
-      uv_l.MakeRef(u_l, H1vsize, H1vsize);
-      ue_l.MakeRef(u_l, 2*H1vsize, L2vsize);
-
-      hydro.H1.GetProlongationMatrix()->Mult(ux, ux_l);
-      hydro.H1.GetProlongationMatrix()->Mult(uv, uv_l);
-      hydro.L2.GetProlongationMatrix()->Mult(ue, ue_l);
-
-      if (fd_gradient)
-      {
-         fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
-         // std::ofstream fd_out("fd_blockmat.dat");
-         // fd_jacobian->PrintMatlab(fd_out);
-         // fd_out.close();
-         return *fd_jacobian;
-      }
-      else
-      {
-         auto dRvdx = hydro.momentum_mf->GetDerivative(COORDINATES, {&uv_l},
-         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
-
-         auto dRvdv = hydro.momentum_mf->GetDerivative(VELOCITY, {&uv_l},
-         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
-
-         auto dRvde = hydro.momentum_mf->GetDerivative(SPECIFIC_INTERNAL_ENERGY, {&uv_l},
-         {&hydro.rho0, &hydro.x0, &ux_l, &hydro.material, &ue_l});
-
-         auto dRedx = hydro.energy_conservation_mf->GetDerivative(COORDINATES, {&ue_l},
-         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
-
-         auto dRedv = hydro.energy_conservation_mf->GetDerivative(VELOCITY, {&ue_l},
-         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
-
-         auto dRede = hydro.energy_conservation_mf->GetDerivative(
-         SPECIFIC_INTERNAL_ENERGY, {&ue_l},
-         {&uv_l, &hydro.rho0, &hydro.x0, &ux_l, &hydro.material});
-
-         auto dTaylorSourcedx = hydro.taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
-
-         jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede,
-                         dTaylorSourcedx);
-
-         // out << "jacobian assemble: " << toc() << "\n";
-         return *jacobian;
-      }
-   }
-
-   hydro_t &hydro;
-   const real_t dt;
-   const int H1tsize;
-   const int H1vsize;
-   const int L2tsize;
-   const int L2vsize;
-   const Vector &x;
-   mutable Vector u, u_l, e_source_t;
-   mutable std::shared_ptr<FDJacobian> fd_jacobian;
-   mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
-   bool fd_gradient;
-};
-
-class LagrangianHydroOperator : public TimeDependentOperator
-{
-public:
    LagrangianHydroOperator(
       ParFiniteElementSpace &H1,
       ParFiniteElementSpace &L2,
@@ -944,6 +999,8 @@ public:
       mesh_nodes(&H1),
       rhsvc(&H1c),
       dvc(&H1c),
+      Mv_blf(&H1),
+      Me_blf(&L2),
       rho0_coeff(rho0_coeff),
       RHSv(H1.GetTrueVSize()),
       rhsv(H1.GetVSize()),
@@ -982,6 +1039,34 @@ public:
          H1c.GetEssentialTrueDofs(ess_bdr, c_tdofs[c]);
          c_tdofs[c].Read();
       }
+
+      Mv_blf.AddDomainIntegrator(new VectorMassIntegrator(rho0_coeff, &ir));
+      Mv_blf.Assemble();
+      Mv_blf.FormSystemMatrix(mfem::Array<int>(), Mv_mat);
+
+      Me_blf.AddDomainIntegrator(new MassIntegrator(rho0_coeff, &ir));
+      Me_blf.Assemble();
+      Me_blf.FormSystemMatrix(mfem::Array<int>(), Me_mat);
+
+      residual.reset(new LagrangianHydroResidualOperator(*this, X, fd_gradient));
+      preconditioner.reset(new Preconditioner(*this));
+
+      auto gmres = new GMRESSolver(MPI_COMM_WORLD);
+      gmres->SetMaxIter(500);
+      gmres->SetKDim(500);
+      gmres->SetRelTol(1e-12);
+      gmres->SetAbsTol(0.0);
+      gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      gmres->SetPreconditioner(*preconditioner);
+      krylov.reset(gmres);
+
+      newton.reset(new NewtonSolver(MPI_COMM_WORLD));
+      newton->SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
+      newton->SetOperator(*residual);
+      newton->SetSolver(*krylov);
+      newton->SetMaxIter(nonlinear_maximum_iterations);
+      newton->SetRelTol(nonlinear_relative_tolerance);
+      newton->SetAbsTol(0.0);
    }
 
    void Mult(const Vector &S, Vector &dSdt) const override
@@ -1094,8 +1179,6 @@ public:
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
-      // tic();
-
       auto xptr = const_cast<Vector*>(&x);
 
       Vector xx, xv, xe;
@@ -1115,27 +1198,18 @@ public:
       Xv.SyncAliasMemory(X);
       Xe.SyncAliasMemory(X);
 
-      current_dt = dt;
-      residual.reset(new LagrangianHydroResidualOperator(*this, dt, X, fd_gradient));
-
-      GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetMaxIter(500);
-      gmres.SetKDim(500);
-      gmres.SetRelTol(1e-8);
-      gmres.SetAbsTol(1e-12);
-      gmres.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
-
-      NewtonSolver newton(MPI_COMM_WORLD);
-      newton.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-      newton.SetOperator(*residual);
-      newton.SetSolver(gmres);
-      newton.SetMaxIter(nonlinear_maximum_iterations);
-      newton.SetRelTol(nonlinear_relative_tolerance);
-      newton.SetAbsTol(0.0);
+      // if (current_dt != dt || lag >= 3)
+      {
+         lag = 0;
+         current_dt = dt;
+         residual->SetTimeStep(dt);
+         preconditioner->SetRebuildFlag(true);
+      }
+      // lag++;
 
       Vector zero;
       K = X;
-      newton.Mult(zero, K);
+      newton->Mult(zero, K);
 
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
       Kv.MakeRef(K, H1.GetTrueVSize(), H1.GetTrueVSize());
@@ -1298,8 +1372,13 @@ public:
    std::shared_ptr<QuadratureData> qdata;
    mutable ParGridFunction mesh_nodes, rhsvc, dvc;
    mutable MassPAOperator *Mv = nullptr, *Me = nullptr;
+   ParBilinearForm Mv_blf, Me_blf;
+   HypreParMatrix Mv_mat, Me_mat;
 
-   std::shared_ptr<Operator> residual;
+   std::shared_ptr<LagrangianHydroResidualOperator> residual;
+   std::shared_ptr<Preconditioner> preconditioner;
+   std::shared_ptr<Solver> krylov;
+   std::shared_ptr<NewtonSolver> newton;
    real_t current_dt = 0.0;
    int lag = 0;
 
@@ -1790,7 +1869,6 @@ int main(int argc, char *argv[])
    {
       serial_mesh = Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
                                                true));
-
       const int NBE = serial_mesh.GetNBE();
       for (int b = 0; b < NBE; b++)
       {
