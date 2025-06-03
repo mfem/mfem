@@ -166,7 +166,7 @@ int main (int argc, char *argv[])
    {
       randomization = 0;
    }
-  
+
    if (myid == 0)
    {
       cout << "Mesh curvature of the original mesh: ";
