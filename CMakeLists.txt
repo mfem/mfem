@@ -152,13 +152,13 @@ if (MFEM_USE_CUDA)
      if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
        # nvcc
        set(MFEM_CUDA_COMPILER_IS_NVCC ON)
-       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda")
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
      endif()
    else()
      if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
        # nvcc
        set(MFEM_CUDA_COMPILER_IS_NVCC ON)
-       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda")
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
      endif()
    endif()
    set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
