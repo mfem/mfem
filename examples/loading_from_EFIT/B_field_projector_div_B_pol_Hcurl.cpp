@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
-   RGridFunctionCoefficient r_coef(false);
+   RGridFunctionCoefficient r_coef;
    b_bi.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(r_coef));
    b_bi.Assemble();
 
