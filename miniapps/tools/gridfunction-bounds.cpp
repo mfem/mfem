@@ -31,6 +31,7 @@
 // mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
 
 #include "mfem.hpp"
+#include <memory>
 #include <iostream>
 #include <fstream>
 
@@ -93,25 +94,28 @@ int main (int argc, char *argv[])
                   " nodes 2 for positive bases on uniformly spaced nodes.");
    }
 
-   int *partition = mesh.GeneratePartitioning(Mpi::WorldSize());
+   std::unique_ptr<int[]> partition(
+      mesh.GeneratePartitioning(Mpi::WorldSize())
+   );
 
    ifstream mat_stream_1(sltn_file);
-   GridFunction *func = new GridFunction(&mesh, mat_stream_1);
+   std::unique_ptr<GridFunction> func(new GridFunction(&mesh, mat_stream_1));
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition);
-   ParGridFunction pfunc(&pmesh, func, partition);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition.get());
+   ParGridFunction pfunc(&pmesh, func.get(), partition.get());
    int func_order = func->FESpace()->GetMaxElementOrder();
    int vdim     = pfunc.FESpace()->GetVDim();
    int nel      = pmesh.GetNE();
 
+   func.reset();
    mesh.Clear();
-   delete func;
+   partition.reset();
 
    // Project input function based on user input
-   FiniteElementCollection *fec = NULL;
    ParGridFunction *pfunc_proj = NULL;
    if (b_type >= 0)
    {
+      FiniteElementCollection *fec = NULL;
       if (continuous)
       {
          fec = new H1_FECollection(func_order, dim, b_type);
