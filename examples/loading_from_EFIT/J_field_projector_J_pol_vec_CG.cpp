@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
    // 1. make the linear form
    LinearForm b(&fespace);
-   CurlRBTorVectorGridFunctionCoefficient curl_r_B_tor_coef(&B_tor, true);
+   CurlRBTorVectorGridFunctionCoefficient curl_r_B_tor_coef(&B_tor, false);
    b.AddDomainIntegrator(new VectorDomainLFIntegrator(curl_r_B_tor_coef));
    b.Assemble();
 

@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(B_pol.FESpace(), &fespace);
-   RGridFunctionCoefficient neg_r_coef(true);
+   RGridFunctionCoefficient neg_r_coef(1.0, true);
    b_bi.AddDomainIntegrator(new MixedScalarCurlIntegrator(neg_r_coef));
    b_bi.Assemble();
 
