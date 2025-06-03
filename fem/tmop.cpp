@@ -4138,6 +4138,7 @@ bool TMOP_Integrator::PreprocessTangentialRelaxation(const Vector &d_loc,
       Array<int> facedofs = *(fdofs_arr[ii]);
 
       Vector fnodes(facedofs.Size()*dim);
+      Vector fnodes0(facedofs.Size()*dim);
       int n_f_nodes = facedofs.Size();
       for (int i = 0; i < facedofs.Size(); i++)
       {
@@ -4148,6 +4149,7 @@ bool TMOP_Integrator::PreprocessTangentialRelaxation(const Vector &d_loc,
                             (dof_index + d*n_m_nodes) :
                             (dof_index*dim + d);
             fnodes(i+n_f_nodes*d) = pos(offset_in);
+            fnodes0(i+n_f_nodes*d) = (*x_0)(offset_in);
          }
       }
 
@@ -4224,7 +4226,7 @@ void TMOP_Integrator::BlendDisplacement(ParFiniteElementSpace *pfes,
       amg->SetPrintLevel(0);
       HyprePCG pcg(MPI_COMM_WORLD);
       pcg.SetTol(1e-12);
-      pcg.SetMaxIter(200);
+      pcg.SetMaxIter(2000);
       pcg.SetPrintLevel(-1);
       pcg.SetPreconditioner(*amg);
       pcg.SetOperator(*A);

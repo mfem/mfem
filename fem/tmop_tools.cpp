@@ -16,7 +16,7 @@
 
 namespace mfem
 {
- 
+
 using namespace mfem;
 
 void AdvectorCG::SetInitialField(const Vector &init_nodes,
@@ -519,7 +519,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
       MFEM_VERIFY(!tangential_relaxation, "Tangential relaxation not currently "
-                                          "supported for inverted meshes.");
+                  "supported for inverted meshes.");
    }
 
 
@@ -558,7 +558,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       avg_fit_err = 0.0;
       max_fit_err = 0.0;
 
-      /** Update the mesh and get the L-vector in x_out_loc.  */ 
+      /** Update the mesh and get the L-vector in x_out_loc.  */
       // Form limited (line-search) displacement d_out = d_in - scale * c,
       // and the corresponding mesh positions x_out = x_0 + d_out.
       add(d_in, -scale, c, d_out);
@@ -620,7 +620,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
          {
             if (print_options.iterations)
             {
-               mfem::out << "Scale = " << scale << " Tangential relaxation requires rescaling.\n";
+               mfem::out << "Scale = " << scale <<
+                         " Tangential relaxation requires rescaling.\n";
             }
             scale *= 0.5; continue;
          }
@@ -646,17 +647,19 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
             ComputeMinDetBound(d_loc, *fes, min_det_bound_out);
          }
          if (untangling == false &&
-            ((!det_bound && min_detT_out <= min_detJ_limit) ||
-             (det_bound && min_det_bound_out <= min_detJ_limit)))
+             ((!det_bound && min_detT_out <= min_detJ_limit) ||
+              (det_bound && min_det_bound_out <= min_detJ_limit)))
          {
             // No untangling, and detJ got negative (or small) -- no good.
             if (print_options.iterations)
             {
-               mfem::out << "Scale = " << scale << " Neg det(J) found post tangential relaxation.\n";
+               mfem::out << "Scale = " << scale <<
+                         " Neg det(J) found post tangential relaxation.\n";
             }
             if (print_options.iterations && det_bound)
             {
-               mfem::out << "Minimum determinant bound post tangential relaxation is =" << min_det_bound_out << "\n";
+               mfem::out << "Minimum determinant bound post tangential relaxation is =" <<
+                         min_det_bound_out << "\n";
             }
             scale *= detJ_factor; continue;
          }
@@ -755,7 +758,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 
    if (x_out_ok && (print_options.summary || print_options.iterations ||
-       print_options.first_and_last))
+                    print_options.first_and_last))
    {
       if (untangling)
       {
@@ -768,7 +771,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
          mfem::out << "Max mu(T) change:  "
                    << max_muT_in << " -> " << max_muT_out
                    << " with " << scale << " scaling.\n";
-      } 
+      }
       if (det_bound)
       {
          mfem::out << "Minimum determinant bound output: " << min_det_bound_out << "\n";
@@ -785,12 +788,12 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    {
       mfem::out << "Line search step failed. Exiting TMOP Solver.\n";
    }
- 
+
    if (x_out_ok == false) { scale = 0.0; }
 
    if (surf_fit_scale_factor > 0.0) { surf_fit_coeff_update = true; }
    compute_metric_quantile_flag = true;
-   vis_flag = true; 
+   vis_flag = true;
 
    if (tangential_relaxation && x_out_ok)
    {
@@ -1124,7 +1127,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
 }
 
 bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
-                                                  Vector &d_loc_out) const
+                                            Vector &d_loc_out) const
 {
    MFEM_VERIFY(tangential_relaxation,
                "Tangential relaxation is not enabled.");
@@ -1139,7 +1142,7 @@ bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-        flag = ti->PreprocessTangentialRelaxation(d_loc_in, nlf->FESpace());
+         flag = ti->PreprocessTangentialRelaxation(d_loc_in, nlf->FESpace());
       }
       else
       {
@@ -1166,7 +1169,8 @@ bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
    return true;
 }
 
-void TMOPNewtonSolver::Visualize(const Vector &d_loc, const FiniteElementSpace *d_fes) const
+void TMOPNewtonSolver::Visualize(const Vector &d_loc,
+                                 const FiniteElementSpace *d_fes) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
@@ -1177,7 +1181,7 @@ void TMOPNewtonSolver::Visualize(const Vector &d_loc, const FiniteElementSpace *
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-        ti->Visualize(d_loc, d_fes);
+         ti->Visualize(d_loc, d_fes);
       }
       else
       {

@@ -292,7 +292,8 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                                     DEV.local_hash_size,
                                     mesh_points_cnt,
                                     npt_max,
-                                    newt_tol );
+                                    newt_tol,
+                                    dim );
    }
    else if (spacedim==3)
    {
@@ -313,7 +314,8 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                                     DEV.local_hash_size,
                                     mesh_points_cnt,
                                     npt_max,
-                                    newt_tol );
+                                    newt_tol,
+                                    dim );
    }
    setupflag = true;
 }
@@ -983,14 +985,29 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
    }
    else
    {
-      FindPointsSurfLocal32(point_pos,
-                            point_pos_ordering,
-                            gsl_code,
-                            gsl_elem,
-                            gsl_ref,
-                            gsl_dist,
-                            gsl_newton,
-                            points_cnt);
+      if (dim == 1)
+      {
+         FindPointsEdgeLocal32(point_pos,
+                               point_pos_ordering,
+                               gsl_code,
+                               gsl_elem,
+                               gsl_ref,
+                               gsl_dist,
+                               gsl_newton,
+                               points_cnt);
+      }
+      else if (dim == 2)
+      {
+         FindPointsSurfLocal32(point_pos,
+                               point_pos_ordering,
+                               gsl_code,
+                               gsl_elem,
+                               gsl_ref,
+                               gsl_dist,
+                               gsl_newton,
+                               points_cnt);
+
+      }
    }
 
    gsl_ref.HostReadWrite();
@@ -1220,14 +1237,29 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
       }
       else
       {
-         FindPointsSurfLocal32(point_pos_l,
-                               point_pos_ordering,
-                               gsl_code_l,
-                               gsl_elem_l,
-                               gsl_ref_l,
-                               gsl_dist_l,
-                               gsl_newton_l,
-                               n);
+         if (dim == 1)
+         {
+            FindPointsEdgeLocal32(point_pos_l,
+                                  point_pos_ordering,
+                                  gsl_code_l,
+                                  gsl_elem_l,
+                                  gsl_ref_l,
+                                  gsl_dist_l,
+                                  gsl_newton_l,
+                                  n);
+
+         }
+         else
+         {
+            FindPointsSurfLocal32(point_pos_l,
+                                  point_pos_ordering,
+                                  gsl_code_l,
+                                  gsl_elem_l,
+                                  gsl_ref_l,
+                                  gsl_dist_l,
+                                  gsl_newton_l,
+                                  n);
+         }
       }
 
       gsl_ref_l   .HostRead();
@@ -1793,7 +1825,14 @@ void FindPointsGSLIB::FreeData()
    if (dim == 1)
    {
       MFEM_VERIFY(spacedim != dim, "Line meshes not supported in findpts.");
-      findptssurf_free_2((gslib::findpts_data_2 *)this->fdataD);
+      if (spacedim == 2)
+      {
+         findptssurf_free_2((gslib::findpts_data_2 *)this->fdataD);
+      }
+      else
+      {
+         findptssurf_free_3((gslib::findpts_data_3 *)this->fdataD);
+      }
    }
    else if (dim == 2)
    {
@@ -2229,8 +2268,7 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
    const int pts_cnt  = NE * pts_el;
 
    // nodes are vdim ordered, i.e., all dim 0 dofs, then all dim 1 dofs, etc.
-   node_vals.SetSize(
-      vdim*pts_cnt);   // node_vals need to store all vdofs in mesh object
+   node_vals.SetSize(vdim*pts_cnt); // node_vals need to store all vdofs
    node_vals = 0.0;
    if (node_vals.UseDevice()) { node_vals.HostWrite(); }
 
@@ -3006,14 +3044,28 @@ void FindPointsGSLIB::InterpolateSurfOnDevice(const Vector &field_in,
       }
       else
       {
-         InterpolateSurfLocal3(field_in,
-                               gsl_elem_temp,
-                               gsl_ref_temp,
-                               interp_vals,
-                               nlocal,
-                               ncomp,
-                               nel,
-                               dof1Dsol);
+         if (dim == 1)
+         {
+            InterpolateEdgeLocal3(field_in,
+                                  gsl_elem_temp,
+                                  gsl_ref_temp,
+                                  interp_vals,
+                                  nlocal,
+                                  ncomp,
+                                  nel,
+                                  dof1Dsol);
+         }
+         else
+         {
+            InterpolateSurfLocal3(field_in,
+                                  gsl_elem_temp,
+                                  gsl_ref_temp,
+                                  interp_vals,
+                                  nlocal,
+                                  ncomp,
+                                  nel,
+                                  dof1Dsol);
+         }
 
       }
       MPI_Barrier(gsl_comm->c);
@@ -3071,14 +3123,29 @@ void FindPointsGSLIB::InterpolateSurfOnDevice(const Vector &field_in,
       interp_vals.UseDevice(true);
       if (spacedim==3)
       {
-         InterpolateSurfLocal3( field_in,
-                                gsl_elem_temp,
-                                gsl_ref_temp,
-                                interp_vals,
-                                n,
-                                ncomp,
-                                nel,
-                                dof1Dsol );
+         if (dim == 1)
+         {
+            InterpolateEdgeLocal3( field_in,
+                                   gsl_elem_temp,
+                                   gsl_ref_temp,
+                                   interp_vals,
+                                   n,
+                                   ncomp,
+                                   nel,
+                                   dof1Dsol );
+
+         }
+         else
+         {
+            InterpolateSurfLocal3( field_in,
+                                   gsl_elem_temp,
+                                   gsl_ref_temp,
+                                   interp_vals,
+                                   n,
+                                   ncomp,
+                                   nel,
+                                   dof1Dsol );
+         }
       }
       else
       {

@@ -16,6 +16,49 @@
 using namespace std;
 using namespace mfem;
 
+void rotationTransformation(const Vector &p, Vector &v)
+{
+   double alpha = 30.0*M_PI/180.0;
+   double beta   = 45.0*M_PI/180.0;
+   double gamma   = 15.0*M_PI/180.0;
+
+   DenseMatrix R(3);
+   double ca = cos(alpha), sa = sin(alpha);
+   double cb = cos(beta), sb = sin(beta);
+   double cg = cos(gamma), sg = sin(gamma);
+
+   R(0,0) = ca * cb;
+   R(0,1) = ca * sb * sg - sa * cg;
+   R(0,2) = ca * sb * cg + sa * sg;
+
+   R(1,0) = sa * cb;
+   R(1,1) = sa * sb * sg + ca * cg;
+   R(1,2) = sa * sb * cg - ca * sg;
+
+   R(2,0) = -sb;
+   R(2,1) = cb * sg;
+   R(2,2) = cb * cg;
+
+   R.Mult(p, v);
+}
+
+void warpingTransformation(const Vector &p, Vector &v)
+{
+   double a = 0.2;   // interior warping
+   double b = 0.5;   // diagonal stretching
+   double c = 1.5;   // boundary curvature control
+   double d = 1.25;
+   double x = p(0),
+          y = p(1),
+          z = p(2);
+
+   v(0) = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   +
+          b * x * y - 0.1*sin(d*M_PI*z*x*y);
+   v(1) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) +
+          b * x * y - 0.1*sin(d*M_PI*z*x*y);
+   v(2) = z;
+}
+
 TargetConstructor *GetTargetConstructor(int target_id, ParGridFunction &x0)
 {
    TargetConstructor *target_c = NULL;
@@ -51,6 +94,9 @@ TMOP_QualityMetric *GetMetric(int metric_id)
       case 58: metric = new TMOP_Metric_058; break;
       case 66: metric = new TMOP_Metric_066(0.1); break;
       case 80: metric = new TMOP_Metric_080(0.25); break;
+      case 301: metric = new TMOP_Metric_301; break;
+      case 302: metric = new TMOP_Metric_302; break;
+      case 303: metric = new TMOP_Metric_303; break;
       case 360: metric = new TMOP_Metric_360; break;
       default:
          MFEM_ABORT("Unknown metric_id"); break;
@@ -425,7 +471,7 @@ public:
               GridFunction::PLBound *plb,
               ParGridFunction *detgf, int solver_iter,
               bool move_bnd, Array<int> surf_mesh_attr,
-              Array<int> aux_ess_dofs);
+              Array<int> aux_ess_dofs, int solver_type);
 
    // Optimizes the node positions given in x.
    // When we enter, x contains the initial node positions.
@@ -436,6 +482,11 @@ public:
 #ifdef MFEM_USE_GSLIB
    void SetupTangentialRelaxationFor2DEdge(ParFiniteElementSpace *pfespace,
                                            int bdr_attr,
+                                           FindPointsGSLIB *finder,
+                                           GridFunction *nodes0);
+
+   void SetupTangentialRelaxationForFacEdg(ParFiniteElementSpace *pfespace,
+                                           Array<int> *fdofs,
                                            FindPointsGSLIB *finder,
                                            GridFunction *nodes0);
    void EnableTangentialRelaxation()
@@ -453,6 +504,349 @@ public:
 
    TMOP_Integrator *GetTMOPIntegrator() { return tmop_integ; }
 };
+
+void SetupDofAttributes(ParGridFunction &attr_count, Array<int> &attr_marker)
+{
+   ParFiniteElementSpace *pfesmarker = attr_count.ParFESpace();
+   ParMesh *pmesh = pfesmarker->GetParMesh();
+   attr_marker.SetSize(attr_count.Size());
+   attr_marker = 0;
+   Array<int> dofs;
+   int nbdr_faces = pmesh->GetNFbyType(FaceType::Boundary);
+   for (int f = 0; f < nbdr_faces; f++)
+   {
+      int attrib = pmesh->GetBdrAttribute(f);
+      pfesmarker->GetBdrElementVDofs(f, dofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         int val = attr_marker[dofs[i]];
+         attr_marker[dofs[i]] = val | (1 << (attrib-1));
+      }
+   }
+
+   GroupCommunicator &gcomm = attr_count.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(attr_marker, GroupCommunicator::BitOR);
+   gcomm.Bcast(attr_marker);
+
+   auto countBits = [](int val)
+   {
+      int count = 0;
+      while (val)
+      {
+         count += val & 1;
+         val >>= 1;
+      }
+      return count;
+   };
+
+   for (int i = 0; i < attr_count.Size(); i++)
+   {
+      attr_count(i) = countBits(attr_marker[i]);
+   }
+}
+
+Array<int> *GetBdrFaceDofsForAttr(ParGridFunction &attr_count,
+                                  Array<int> &attr_marker,
+                                  int attr, bool scalar)
+{
+   ParFiniteElementSpace *pfesmarker = attr_count.ParFESpace();
+   ParMesh *pmesh = pfesmarker->GetParMesh();
+   int nbdr_faces = pmesh->GetNFbyType(FaceType::Boundary);
+   Array<int> *facedofs = new Array<int>;
+
+   // check if jth bit is set
+   auto hasBitSet = [](int val, int j)
+   {
+      int mask = (1 << (j-1));
+      return (val & mask) == mask;
+   };
+   Array<int> dofs;
+
+   for (int f = 0; f < nbdr_faces; f++)
+   {
+      if (scalar)
+      {
+         pfesmarker->GetBdrElementDofs(f, dofs);
+      }
+      else
+      {
+         pfesmarker->GetBdrElementVDofs(f, dofs);
+      }
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         int val = attr_marker[dofs[i]];
+         if (hasBitSet(val, attr))
+         {
+            facedofs->Append(dofs[i]);
+         }
+      }
+   }
+   facedofs->Sort();
+   facedofs->Unique();
+   return facedofs;
+}
+
+Array<int> *GetBdrEdgeDofsForAttr(ParGridFunction &attr_count,
+                                  Array<int> &attr_marker,
+                                  int attr1, int attr2, bool scalar)
+{
+   ParFiniteElementSpace *pfesmarker = attr_count.ParFESpace();
+   ParMesh *pmesh = pfesmarker->GetParMesh();
+   Array<int> *edgedofs = new Array<int>;
+
+   // check if jth and kth bits are set
+   auto hasAtLeastTwoBitsSet = [](int val, int j, int k)
+   {
+      int mask = (1 << (j-1)) | (1 << (k-1));
+      return (val & mask) == mask;
+   };
+   int nedges = pmesh->GetNEdges();
+
+   Array<int> dofs;
+   for (int ei = 0; ei < nedges; ei++)
+   {
+      if (scalar)
+      {
+         pfesmarker->GetEdgeDofs(ei, dofs);
+      }
+      else
+      {
+         pfesmarker->GetEdgeVDofs(ei, dofs);
+      }
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         int val = attr_marker[dofs[i]];
+         bool dof1_mask2 = hasAtLeastTwoBitsSet(val, attr1, attr2);
+         bool dof2_mask2 = hasAtLeastTwoBitsSet(val, attr1, attr2);
+         if ( (dof1_mask2 && dof2_mask2))
+         {
+            edgedofs->Append(dofs[i]);
+         }
+      }
+   }
+   edgedofs->Sort();
+   edgedofs->Unique();
+   return edgedofs;
+}
+
+void RemoveDofsFromBdrFaceDofs(Array<int> &bdr_face_dofs,
+                               Array<int> &bdr_edge_dofs)
+{
+   // Remove the edge dofs from the face dofs.
+   for (int i = 0; i < bdr_face_dofs.Size(); i++)
+   {
+      int dof = bdr_face_dofs[i];
+      if (bdr_edge_dofs.Find(dof) != -1)
+      {
+         bdr_face_dofs[i] = -1; // mark for removal
+      }
+   }
+   bdr_face_dofs.Sort();
+   bdr_face_dofs.Unique(); // remove duplicates
+   // Remove the marked dof
+   bdr_face_dofs.DeleteFirst(-1);
+}
+
+Array<int> IdentifyAuxiliaryEssentialDofs2(ParGridFunction &attr_count)
+{
+   ParFiniteElementSpace *pfespace = attr_count.ParFESpace();
+   Array<int> aux_dofs;
+   int dim = pfespace->GetParMesh()->SpaceDimension();
+   for (int i = 0; i < attr_count.Size(); i++)
+   {
+      if (attr_count[i] >= dim)
+      {
+         aux_dofs.Append(i);
+      }
+   }
+   return aux_dofs;
+}
+
+void SetupSerialDofAttributes(GridFunction &attr_count, Array<int> &attr_marker)
+{
+   FiniteElementSpace *fesmarker = attr_count.FESpace();
+   Mesh *mesh = fesmarker->GetMesh();
+   attr_marker.SetSize(attr_count.Size());
+   attr_marker = 0;
+   Array<int> dofs;
+   int nbdr_faces = mesh->GetNFbyType(FaceType::Boundary);
+   for (int f = 0; f < nbdr_faces; f++)
+   {
+      int attrib = mesh->GetBdrAttribute(f);
+      fesmarker->GetBdrElementVDofs(f, dofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         int val = attr_marker[dofs[i]];
+         attr_marker[dofs[i]] = val | (1 << (attrib-1));
+      }
+   }
+
+   auto countBits = [](int val)
+   {
+      int count = 0;
+      while (val)
+      {
+         count += val & 1;
+         val >>= 1;
+      }
+      return count;
+   };
+
+   for (int i = 0; i < attr_count.Size(); i++)
+   {
+      attr_count(i) = countBits(attr_marker[i]);
+   }
+}
+
+Mesh *SetupEdgeMesh3D(Mesh *mesh, GridFunction &attr_count_ser,
+                      Array<int> &attr_marker_ser,
+                      int attr1, int attr2)
+{
+   Array<int> facedofs(0);
+   int spaceDim = mesh->SpaceDimension();
+   MFEM_VERIFY(spaceDim == 3, "Only 2D meshes supported right now.");
+   Array<int> fdofs;
+   GridFunction *x = mesh->GetNodes();
+   MFEM_VERIFY(x, "Mesh nodal space not set\n");
+   const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+   int mesh_poly_deg = fes->GetMaxElementOrder();
+   int nedges = mesh->GetNEdges();
+
+   FiniteElementSpace *fespace_attr = attr_count_ser.FESpace();
+
+   Array<int> ev, dofs;
+   int attr_marker_dofs[2], attr_count_dofs[2];
+   Array<int> edge_to_include;
+   for (int ei = 0; ei < nedges; ei++)
+   {
+      mesh->GetEdgeVertices(ei, ev);
+      MFEM_VERIFY(ev.Size(), "Could not get edge vertices.");
+      for (int j = 0; j < 2; j++)
+      {
+         int v_id = ev[j];
+         fespace_attr->GetVertexDofs(v_id, dofs);
+         attr_marker_dofs[j] = attr_marker_ser[dofs[0]];
+         attr_count_dofs[j] = attr_count_ser[dofs[0]];
+      }
+      auto hasAtLeastTwoBitsSet = [](int val, int j, int k)
+      {
+         int mask = (1 << (j-1)) | (1 << (k-1));
+         return (val & mask) == mask;
+      };
+      bool dof1_mask2 = hasAtLeastTwoBitsSet(attr_marker_dofs[0], attr1, attr2);
+      bool dof2_mask2 = hasAtLeastTwoBitsSet(attr_marker_dofs[1], attr1, attr2);
+      if ( (dof1_mask2 && dof2_mask2))
+      {
+         edge_to_include.Append(ei);
+      }
+   }
+
+   // Setup a mesh with dummy vertices
+   int nel = edge_to_include.Size();
+   Vector vals;
+   Mesh *intmesh = new Mesh(1, nel*2, nel, 0, spaceDim);
+   {
+      for (int i = 0; i < nel; i++)
+      {
+         for (int j = 0; j < 2; j++) // 2 vertices per element
+         {
+            Vector vert(spaceDim);
+            vert = 0.5;
+            intmesh->AddVertex(vert.GetData());
+         }
+         Array<int> verts(2);
+         for (int d = 0; d < 2; d++)
+         {
+            verts[d] = i*2+d;
+         }
+         intmesh->AddSegment(verts, 1);
+      }
+      intmesh->Finalize(true, true);
+      intmesh->FinalizeTopology(false);
+      intmesh->SetCurvature(mesh_poly_deg, false, -1, 0);
+   }
+
+   const FiniteElementSpace *intnodespace = intmesh->GetNodalFESpace();
+   GridFunction *intnodes = intmesh->GetNodes();
+
+   for (int i = 0; i < nel; i++)
+   {
+      int ei = edge_to_include[i];
+      fes->GetEdgeVDofs(ei, dofs);
+      x->GetSubVector(dofs, vals);
+      // vals.Print();
+      Array<int> edofs;
+      intnodespace->GetElementVDofs(i, edofs);
+      // edofs.Print();
+      // vals.Print();
+      intnodes->SetSubVector(edofs, vals);
+   }
+   // intnodes->Print();
+
+   return intmesh;
+}
+
+Mesh *SetupFaceMesh3D(Mesh *mesh, int attr)
+{
+   Array<int> facedofs(0);
+   int spaceDim = mesh->SpaceDimension();
+   MFEM_VERIFY(spaceDim == 3, "Only 2D meshes supported right now.");
+   Array<int> fdofs;
+   GridFunction *x = mesh->GetNodes();
+   MFEM_VERIFY(x, "Mesh nodal space not set\n");
+   const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+   int mesh_poly_deg = fes->GetMaxElementOrder();
+
+   int nbdr_faces = mesh->GetNFbyType(FaceType::Boundary);
+   Array<int> faces_to_include;
+   for (int f = 0; f < nbdr_faces; f++)
+   {
+      int attrib = mesh->GetBdrAttribute(f);
+      if (attrib == attr)
+      {
+         faces_to_include.Append(mesh->GetBdrElementFaceIndex(f));
+      }
+   }
+
+   // Setup a mesh with dummy vertices
+   int nel = faces_to_include.Size();
+   Vector vals;
+   Mesh *intmesh = new Mesh(2, nel*4, nel, 0, spaceDim);
+   {
+      for (int i = 0; i < nel; i++)
+      {
+         for (int j = 0; j < 4; j++) // 4 vertices per element
+         {
+            Vector vert(spaceDim);
+            vert = 0.5;
+            intmesh->AddVertex(vert.GetData());
+         }
+         Array<int> verts(4);
+         for (int d = 0; d < 4; d++)
+         {
+            verts[d] = i*4+d;
+         }
+         intmesh->AddQuad(verts, 1);
+      }
+      intmesh->Finalize(true, true);
+      intmesh->FinalizeTopology(false);
+      intmesh->SetCurvature(mesh_poly_deg, false, -1, 0);
+   }
+
+   const FiniteElementSpace *intnodespace = intmesh->GetNodalFESpace();
+   GridFunction *intnodes = intmesh->GetNodes();
+
+   for (int i = 0; i < nel; i++)
+   {
+      int fi = faces_to_include[i];
+      fes->GetFaceVDofs(fi, fdofs);
+      x->GetSubVector(fdofs, vals);
+      intnodespace->GetElementVDofs(i, fdofs);
+      intnodes->SetSubVector(fdofs, vals);
+   }
+
+   return intmesh;
+}
 
 #ifdef MFEM_USE_GSLIB
 void MeshOptimizer::SetupTangentialRelaxationFor2DEdge(ParFiniteElementSpace
@@ -479,6 +873,19 @@ void MeshOptimizer::SetupTangentialRelaxationFor2DEdge(ParFiniteElementSpace
    }
    fdofs->Sort();
    fdofs->Unique();
+   // std::cout << "Found " << fdofs->Size() << " dofs for bdr attr "
+   //  << bdr_attr << std::endl;
+   finder_arr.Append(finder);
+   tang_dofs_arr.Append(fdofs);
+   nodes0_arr.Append(nodes0);
+}
+
+void MeshOptimizer::SetupTangentialRelaxationForFacEdg(ParFiniteElementSpace
+                                                       *pfespace,
+                                                       Array<int> *fdofs,
+                                                       FindPointsGSLIB *finder,
+                                                       GridFunction *nodes0)
+{
    finder_arr.Append(finder);
    tang_dofs_arr.Append(fdofs);
    nodes0_arr.Append(nodes0);
@@ -561,7 +968,7 @@ void MeshOptimizer::Setup(ParGridFunction &x,
                           GridFunction::PLBound *plb,
                           ParGridFunction *detgf, int solver_iter,
                           bool move_bnd, Array<int> surf_mesh_attr,
-                          Array<int> aux_ess_dofs)
+                          Array<int> aux_ess_dofs, int solver_type)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    x_nodes = &x;
@@ -587,6 +994,7 @@ void MeshOptimizer::Setup(ParGridFunction &x,
 
    // Boundary.
    Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+   int n = 0;
    if (!move_bnd)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -595,7 +1003,6 @@ void MeshOptimizer::Setup(ParGridFunction &x,
    }
    else
    {
-      int n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
          const int nd = pfes.GetBE(i)->GetDof();
@@ -644,9 +1051,11 @@ void MeshOptimizer::Setup(ParGridFunction &x,
       }
       nlf->SetEssentialVDofs(ess_vdofs);
    }
+   // std::cout << "ess dofs size: " << aux_ess_dofs.Size() << " " << n << " " << std::endl;
+   // aux_ess_dofs.Print();
 
    // Linear solver.
-   Solver *S_prec = NULL;
+   // Solver *S_prec = NULL;
    lin_solver = new MINRESSolver(pfes.GetComm());
    lin_solver->SetMaxIter(100);
    lin_solver->SetRelTol(1e-12);
@@ -664,7 +1073,7 @@ void MeshOptimizer::Setup(ParGridFunction &x,
    // Nonlinear solver.
    const IntegrationRule &ir =
       IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
-   solver = new TMOPNewtonSolver(pfes.GetComm(), ir, 1);
+   solver = new TMOPNewtonSolver(pfes.GetComm(), ir, solver_type);
    solver->SetIntegrationRules(IntRulesLo, quad_order);
    solver->SetOperator(*nlf);
    solver->SetPreconditioner(*lin_solver);
@@ -683,14 +1092,6 @@ void MeshOptimizer::Setup(ParGridFunction &x,
 void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
 {
    MFEM_VERIFY(solver, "Setup() has not been called.");
-
-   ParFiniteElementSpace &pfes = *x.ParFESpace();
-   ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
-   int myid = pmesh.GetMyRank();
-
-   const int quad_order =
-      solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
-   const int order = pfes.GetFE(0)->GetOrder();
    double init_energy = nlf->GetParGridFunctionEnergy(x);
 
    // Optimize.
@@ -809,30 +1210,27 @@ void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
    avg_muT = integral_mu / volume;
 }
 
-Mesh *SetupEdgeMesh(Mesh *mesh, int attr)
+Mesh *SetupEdgeMesh2D(Mesh *mesh, int attr)
 {
    Array<int> facedofs(0);
    int spaceDim = mesh->SpaceDimension();
    MFEM_VERIFY(spaceDim == 2, "Only 2D meshes supported right now.");
-   Array<int> fdofs;
+   Array<int> edofs;
    GridFunction *x = mesh->GetNodes();
    MFEM_VERIFY(x, "Mesh nodal space not set\n");
    const FiniteElementSpace *fes = mesh->GetNodalFESpace();
    int mesh_poly_deg = fes->GetMaxElementOrder();
-   int nfaces = 0;
+   Array<int> edge_to_include;
    for (int f = 0; f < mesh->GetNBE(); f++)
    {
       int attrib = mesh->GetBdrAttribute(f);
       if (attrib == attr)
       {
-         nfaces += 1;
-         fes->GetBdrElementDofs(f, fdofs);
-         facedofs.Append(fdofs);
+         edge_to_include.Append(mesh->GetBdrElementFaceIndex(f));
       }
    }
-   facedofs.Sort();
-   facedofs.Unique();
 
+   int nfaces = edge_to_include.Size();
    Mesh *intmesh = new Mesh(1, nfaces*2, nfaces, 0, spaceDim);
    {
       for (int i = 0; i < nfaces; i++)
@@ -852,43 +1250,54 @@ Mesh *SetupEdgeMesh(Mesh *mesh, int attr)
       }
       intmesh->Finalize(true, true);
       intmesh->FinalizeTopology();
-      intmesh->SetCurvature(mesh_poly_deg, false);
+      intmesh->SetCurvature(mesh_poly_deg, false, -1, 0);
    }
 
    const FiniteElementSpace *intnodespace = intmesh->GetNodalFESpace();
    GridFunction *intnodes = intmesh->GetNodes();
 
-   FaceElementTransformations *face_elem_transf;
-   int count = 0;
-   Vector vect;
-   Vector nodeval(spaceDim);
-   for (int f = 0; f < mesh->GetNBE(); f++)
+   Vector vals;
+   for (int i = 0; i < nfaces; i++)
    {
-      int attrib = mesh->GetBdrAttribute(f);
-      int fnum = mesh->GetBdrElementFaceIndex(f);
-      if (attrib == attr)
-      {
-         intnodespace->GetElementVDofs(count, fdofs);
-         const FiniteElement *fe = intnodespace->GetFE(count);
-         face_elem_transf = mesh->GetFaceElementTransformations(fnum);
-         IntegrationRule irule = fe->GetNodes();
-         int npts = irule.GetNPoints();
-         vect.SetSize(npts*spaceDim);
-         for (int q = 0; q < npts; q++)
-         {
-            IntegrationPoint &ip = irule.IntPoint(q);
-            IntegrationPoint eip;
-            face_elem_transf->Loc1.Transform(ip, eip);
-            x->GetVectorValue(face_elem_transf->Elem1No, eip, nodeval);
-            for (int d = 0; d < spaceDim; d++)
-            {
-               vect(q + npts*d) = nodeval(d);
-            }
-         }
-         intnodes->SetSubVector(fdofs, vect);
-         count++;
-      }
+      int ei = edge_to_include[i];
+      fes->GetEdgeVDofs(ei, edofs);
+      x->GetSubVector(edofs, vals);
+      intnodespace->GetElementVDofs(i, edofs);
+      intnodes->SetSubVector(edofs, vals);
    }
+
+   // FaceElementTransformations *face_elem_transf;
+   // int count = 0;
+   // Vector vect;
+   // Vector nodeval(spaceDim);
+   // for (int f = 0; f < mesh->GetNBE(); f++)
+   // {
+   //    int attrib = mesh->GetBdrAttribute(f);
+   //    int fnum = mesh->GetBdrElementFaceIndex(f);
+   //    if (attrib == attr)
+   //    {
+   //       intnodespace->GetElementVDofs(count, edofs);
+   //       const FiniteElement *fe = intnodespace->GetFE(count);
+   //       face_elem_transf = mesh->GetFaceElementTransformations(fnum);
+   //       IntegrationRule irule = fe->GetNodes();
+   //       int npts = irule.GetNPoints();
+   //       vect.SetSize(npts*spaceDim);
+   //       for (int q = 0; q < npts; q++)
+   //       {
+   //          IntegrationPoint &ip = irule.IntPoint(q);
+   //          IntegrationPoint eip;
+   //          face_elem_transf->Loc1.Transform(ip, eip);
+   //          x->GetVectorValue(face_elem_transf->Elem1No, eip, nodeval);
+   //          for (int d = 0; d < spaceDim; d++)
+   //          {
+   //             vect(q + npts*d) = nodeval(d);
+   //          }
+   //       }
+   //       intnodes->SetSubVector(edofs, vect);
+   //       count++;
+   //    }
+   // }
+   // MFEM_ABORT(" ");
 
    return intmesh;
 }

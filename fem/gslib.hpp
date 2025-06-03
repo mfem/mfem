@@ -167,6 +167,15 @@ protected:
                               Array<int> &gsl_newton_dev_l,
                               int npt);
 
+   void FindPointsEdgeLocal32(const Vector &point_pos,
+                              int point_pos_ordering,
+                              Array<unsigned int> &gsl_code_dev_l,
+                              Array<unsigned int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l,
+                              Vector &gsl_dist_l,
+                              Array<int> &gsl_newton_dev_l,
+                              int npt);
+
    void FindPointsLocal2(const Vector &point_pos,
                          int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
@@ -208,6 +217,14 @@ protected:
                                int nel,
                                int dof1dsol );
    void InterpolateSurfLocal3( const Vector &field_in,
+                               Array<int> &gsl_elem_dev_l,
+                               Vector &gsl_ref_l,
+                               Vector &field_out,
+                               int npt,
+                               int ncomp,
+                               int nel,
+                               int dof1dsol );
+   void InterpolateEdgeLocal3( const Vector &field_in,
                                Array<int> &gsl_elem_dev_l,
                                Vector &gsl_ref_l,
                                Vector &field_out,

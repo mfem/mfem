@@ -46,14 +46,16 @@
 // Ale tangled - rotated square hole
 // make amster -j4 && mpirun -np 3 amster -m Laghos_2D_square_hole_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 200 -bnd
 // Ale tangled - rotated square hole
-// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_circular_hole_650_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 4 -visit -ni 200 -bnd
+// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_circular_hole_650_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 4 -visit -ni 200 -bnd -sm square-disc-q4.mesh
+
+// 3D
+// make amster -j4 && mpirun -np 10 amster -m hex6.mesh -o 2 -qo 8 -vis -rs 0 -mid 301 -tid 1 -bdropt 5 -visit -ni 200 -bnd -no-bound
 
 
 #include "mfem.hpp"
-#include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
-#include "mesh-optimizer.hpp"
+#include "mesh-fitting.hpp"
 #include "amster.hpp"
 
 using namespace mfem;
@@ -80,6 +82,7 @@ int main (int argc, char *argv[])
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    const int myid = Mpi::WorldRank();
+   const int nranks = Mpi::WorldSize();
    Hypre::Init();
 
    // Set the method's default parameters.
@@ -87,7 +90,7 @@ int main (int argc, char *argv[])
    const char *surf_mesh_file = "null.mesh";
    int rs_levels         = 0;
    int mesh_poly_deg     = 2;
-   bool worst_case       = true;
+   bool worst_case       = false;
    int solver_iter       = 50;
    int quad_order        = 8;
    int bg_amr_steps      = 6;
@@ -106,6 +109,7 @@ int main (int argc, char *argv[])
    bool move_bnd         = false;
    bool final_pass       = true;
    bool bound            = true;
+   int solver_type        = 1;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -158,6 +162,8 @@ int main (int argc, char *argv[])
    args.AddOption(&bound, "-bound", "--bound", "-no-bound",
                   "--no-bound",
                   "Enable bounds.");
+   args.AddOption(&solver_type, "-st", "--solver-type",
+                  "0 - Newton, 1 - LBFGS:\n\t");
    args.Parse();
    if (!args.Good())
    {
@@ -179,12 +185,38 @@ int main (int argc, char *argv[])
    {
       smesh = mesh;
    }
+
+   if (bdr_opt_case == 5)
+   {
+      if (mesh->GetNodes() == NULL)
+      {
+         mesh->SetCurvature(mesh_poly_deg);
+      }
+      ModifyBoundaryAttributesForNodeMovement(mesh, *(mesh->GetNodes()));
+      mesh->SetAttributes();
+
+      // Kershaw transformation
+      common::KershawTransformation kershawT(mesh->Dimension(), 0.3, 0.3, 3);
+      mesh->Transform(kershawT);
+
+      VectorFunctionCoefficient fcw(3, warpingTransformation);
+      // mesh->Transform(fcw);
+      // Do a rotation in 3D
+      VectorFunctionCoefficient fcr(3, rotationTransformation);
+      mesh->Transform(fcr);
+   }
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
 
+   auto setTwoBits = [](int j, int k)
+   {
+      return (1 << (j-1)) | (1 << (k-1));
+   };
+
    // Setup edge-mesh for tangential relaxation
    Array<ParMesh *> surf_mesh_arr;
-   Array<int> surf_mesh_attr;
+   Array<int> surf_mesh_attr, surf_mesh_edge_attr;
    if (bdr_opt_case == 1)
    {
       MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
@@ -217,22 +249,95 @@ int main (int argc, char *argv[])
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   int bbox_fac = 2.0;
+   else if (bdr_opt_case == 5)
+   {
+      MFEM_VERIFY(dim == 3,"3D case");
+      surf_mesh_attr.SetSize(3);
+      surf_mesh_attr[0] = 1;
+      surf_mesh_attr[1] = 2;
+      surf_mesh_attr[2] = 3;
+      surf_mesh_edge_attr.SetSize(3);
+      surf_mesh_edge_attr[0] = setTwoBits(1,2);
+      surf_mesh_edge_attr[1] = setTwoBits(2,3);
+      surf_mesh_edge_attr[2] = setTwoBits(1,3);
+
+      surf_mesh_arr.SetSize(surf_mesh_attr.Size()+surf_mesh_edge_attr.Size());
+   }
+   double bbox_fac = 2.0; //2.0;
+
+
+   auto getTwoSetBits = [](int val) -> std::pair<int, int>
+   {
+      std::pair<int, int> result = {-1, -1};
+      int bitIndex = 1, count = 0;
+
+      while (val && count < 2)
+      {
+         if (val & 1)
+         {
+            if (count == 0) { result.first = bitIndex; }
+            else { result.second = bitIndex; }
+            count++;
+         }
+         val >>= 1;
+         bitIndex++;
+      }
+
+      // Optional: handle cases where not exactly two bits are set
+      return result;
+   };
+
    if (bdr_opt_case >= 1)
    {
       if (!mesh->GetNodes())
       {
          mesh->SetCurvature(mesh_poly_deg, -1, -1, 0);
       }
-      for (int i = 0; i < surf_mesh_attr.Size(); i++)
+      if (!smesh->GetNodes())
+      {
+         smesh->SetCurvature(mesh_poly_deg, -1, -1, 0);
+      }
+      if (myid == 0)
       {
          std::cout << smesh->GetNE() << " elements in the mesh." << std::endl;
-         Mesh *meshsurf = SetupEdgeMesh(smesh, surf_mesh_attr[i]);
-         surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
+      }
+      for (int i = 0; i < surf_mesh_attr.Size(); i++)
+      {
+         if (dim == 2)
+         {
+            Mesh *meshsurf = SetupEdgeMesh2D(smesh, surf_mesh_attr[i]);
+            surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
+            delete meshsurf;
+         }
+         else if (dim == 3)
+         {
+            Mesh *meshsurf = SetupFaceMesh3D(smesh, surf_mesh_attr[i]);
+            int *part = meshsurf->GeneratePartitioning(nranks, 0);
+            surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf, part);
+            delete meshsurf;
+         }
+      }
+      int smesh_deg = smesh->GetNodalFESpace()->GetMaxElementOrder();
+      H1_FECollection fec_temp(smesh_deg, dim);
+      FiniteElementSpace fes_temp(smesh, &fec_temp);
+      GridFunction attr_count_ser(&fes_temp);
+      Array<int> attr_marker_ser;
+      SetupSerialDofAttributes(attr_count_ser, attr_marker_ser);
+      for (int i = 0; i < surf_mesh_edge_attr.Size(); i++)
+      {
+         auto result = getTwoSetBits(surf_mesh_edge_attr[i]);
+         int eattr1 = result.first;
+         int eattr2 = result.second;
+         Mesh *meshsurf = SetupEdgeMesh3D(smesh, attr_count_ser, attr_marker_ser, eattr1,
+                                          eattr2);
+         surf_mesh_arr[i+surf_mesh_attr.Size()] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
          delete meshsurf;
+      }
+      for (int i = 0; i < surf_mesh_arr.Size(); i++)
+      {
          {
             ostringstream mesh_name;
-            mesh_name << "edge_extracted" + std::to_string(i) + ".mesh";
+            mesh_name << "3D-face-edge-extracted" + std::to_string(i) + ".mesh";
             ofstream mesh_ofs(mesh_name.str().c_str());
             mesh_ofs.precision(8);
             surf_mesh_arr[i]->PrintAsOne(mesh_ofs);
@@ -264,6 +369,13 @@ int main (int argc, char *argv[])
          dc.SetFormat(DataCollection::SERIAL_FORMAT);
          dc.Save();
       }
+      {
+         ostringstream mesh_name;
+         mesh_name << "amster-input.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsSerial(mesh_ofs);
+      }
    }
 
    delete mesh;
@@ -271,6 +383,7 @@ int main (int argc, char *argv[])
    // Define a finite element space on the mesh.
    H1_FECollection fec(mesh_poly_deg, dim);
    ParFiniteElementSpace pfes(pmesh, &fec, dim);
+   ParFiniteElementSpace spfes(pmesh, &fec);
    pmesh->SetNodalFESpace(&pfes);
 
    // Get the mesh nodes as a finite element grid function in fespace.
@@ -283,7 +396,7 @@ int main (int argc, char *argv[])
       mesh_name << "amster_in.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Store the starting (prior to the optimization) positions.
@@ -317,11 +430,12 @@ int main (int argc, char *argv[])
    GetDeterminantJacobianGF(pmesh, &detgf);
 
    Vector detgf_lower, detgf_upper;
-   int ref_factor = 5;
+   int ref_factor = dim == 2 ? 5 : 8;
    GridFunction::PLBound *plb = nullptr;
    GridFunction::PLBound plbt = detgf.GetBounds(detgf_lower, detgf_upper,
                                                 ref_factor);
-   if (bound) {
+   if (bound)
+   {
       plb = &plbt;
    }
 
@@ -529,25 +643,42 @@ int main (int argc, char *argv[])
       }
 
       MeshOptimizer meshopt(pmesh);
-      Array<int> ess_vdofs_aux;
-      Array<int> aux_ess_dofs = IdentifyAuxiliaryEssentialDofs(&pfes);
+      ParGridFunction attr_count(&pfes);
+      ParGridFunction attr_count_s(&spfes);
+      Array<int> attr_marker;
+      SetupDofAttributes(attr_count, attr_marker);
+      SetupDofAttributes(attr_count_s, attr_marker);
+      // Array<int> aux_ess_dofs = IdentifyAuxiliaryEssentialDofs(&pfes);
+      Array<int> aux_ess_dofs = IdentifyAuxiliaryEssentialDofs2(attr_count);
+      Array<int> aux_ess_dofs_s = IdentifyAuxiliaryEssentialDofs2(attr_count_s);
+      // Get Dofs for all faces/edges
+      Array<Array<int> *> bdr_face_dofs(surf_mesh_attr.Size());
+      for (int i = 0; i < bdr_face_dofs.Size(); i++)
+      {
+         bdr_face_dofs[i] = GetBdrFaceDofsForAttr(attr_count_s, attr_marker,
+                                                  surf_mesh_attr[i], true);
+      }
+
+      Array<Array<int> *> bdr_edge_dofs(surf_mesh_edge_attr.Size());
+      for (int i = 0; i < bdr_edge_dofs.Size(); i++)
+      {
+         auto result = getTwoSetBits(surf_mesh_edge_attr[i]);
+         int eattr1 = result.first;
+         int eattr2 = result.second;
+         bdr_edge_dofs[i] = GetBdrEdgeDofsForAttr(attr_count_s, attr_marker,
+                                                  eattr1, eattr2, true);
+         for (int j = 0; j < bdr_face_dofs.Size(); j++)
+         {
+            RemoveDofsFromBdrFaceDofs(*bdr_face_dofs[j], *bdr_edge_dofs[i]);
+         }
+         RemoveDofsFromBdrFaceDofs(*bdr_edge_dofs[i], aux_ess_dofs_s);
+      }
 
       meshopt.Setup(x, &min_detA0, quad_order, metric_id, target_id,
                     plb, &detgf, solver_iter, move_bnd, surf_mesh_attr,
-                    aux_ess_dofs);
+                    aux_ess_dofs, solver_type);
       Array<FindPointsGSLIB *> finder_arr;
-      if (bdr_opt_case == 1)
-      {
-         FindPointsGSLIB *finder = new FindPointsGSLIB();
-         finder_arr.Append(finder);
-         finder->SetupSurf(*surf_mesh_arr[0], bbox_fac);
-         finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
-         meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[0],
-                                                    finder,
-                                                    surf_mesh_arr[0]->GetNodes());
-         meshopt.EnableTangentialRelaxation();
-      }
-      else if (bdr_opt_case >= 2)
+      if (bdr_opt_case >= 1)
       {
          for (int i = 0; i < surf_mesh_attr.Size(); i++)
          {
@@ -555,9 +686,22 @@ int main (int argc, char *argv[])
             finder_arr.Append(finder);
             finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
             finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
-            meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[i],
+            // meshopt.SetupTangentialRelaxationFor2DEdge(&pfes, surf_mesh_attr[i],
+            //                                            finder,
+            //                                           surf_mesh_arr[i]->GetNodes());
+            meshopt.SetupTangentialRelaxationForFacEdg(&pfes, bdr_face_dofs[i],
                                                        finder,
                                                        surf_mesh_arr[i]->GetNodes());
+         }
+         int noff = surf_mesh_attr.Size();
+         for (int i = 0; i < surf_mesh_edge_attr.Size(); i++)
+         {
+            FindPointsGSLIB *finder = new FindPointsGSLIB();
+            finder_arr.Append(finder);
+            finder->SetupSurf(*surf_mesh_arr[i+noff], bbox_fac);
+            finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
+            meshopt.SetupTangentialRelaxationForFacEdg(&pfes, bdr_edge_dofs[i],
+                                                       finder, surf_mesh_arr[i+noff]->GetNodes());
          }
          meshopt.EnableTangentialRelaxation();
       }
@@ -568,8 +712,51 @@ int main (int argc, char *argv[])
          {
             vis_frequency = 10;
          }
+         if (bdr_opt_case == 5)
+         {
+            vis_frequency = 1;
+         }
          meshopt.EnableVisualization(&dc, vis_count, vis_frequency);
       }
+
+      {
+         ParGridFunction ess_identifier1(&pfes);
+         ess_identifier1 = 0.0;
+         for (int i = 0; i < aux_ess_dofs.Size(); i++)
+         {
+            ess_identifier1[aux_ess_dofs[i]] = 1.0;
+         }
+         ParGridFunction ess_identifier2(&spfes);
+         ess_identifier2 = 0.0;
+         for (int i = 0; i < bdr_face_dofs.Size(); i++)
+         {
+            for (int j = 0; j < bdr_face_dofs[i]->Size(); j++)
+            {
+               ess_identifier2[(*bdr_face_dofs[i])[j]] = 1.0;
+            }
+         }
+         ParGridFunction ess_identifier3(&spfes);
+         ess_identifier3 = 0.0;
+         for (int i = 0; i < bdr_edge_dofs.Size(); i++)
+         {
+            for (int j = 0; j < bdr_edge_dofs[i]->Size(); j++)
+            {
+               ess_identifier3[(*bdr_edge_dofs[i])[j]] = 1.0;
+            }
+         }
+
+         if (visit)
+         {
+            VisItDataCollection dc("amsterbdr", pmesh);
+            dc.SetFormat(DataCollection::SERIAL_FORMAT);
+            dc.RegisterField("essn_dof_identifier", &ess_identifier1);
+            dc.RegisterField("face_dof_identifier", &ess_identifier2);
+            dc.RegisterField("edge_dof_identifier", &ess_identifier3);
+            dc.SetCycle(0);
+            dc.Save();
+         }
+      }
+
       meshopt.OptimizeNodes(x);
 
       {

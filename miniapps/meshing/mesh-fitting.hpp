@@ -199,6 +199,77 @@ real_t csg_cubecylsph(const Vector &x)
    return in_return_val;
 }
 
+
+void ModifyBoundaryAttributesForNodeMovement(Mesh *pmesh, GridFunction &x)
+{
+   const int dim = pmesh->Dimension();
+   for (int i = 0; i < pmesh->GetNBE(); i++)
+   {
+      mfem::Array<int> dofs;
+      pmesh->GetNodalFESpace()->GetBdrElementDofs(i, dofs);
+      mfem::Vector bdr_xy_data;
+      mfem::Vector dof_xyz(dim);
+      mfem::Vector dof_xyz_compare;
+      mfem::Array<int> xyz_check(dim);
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            dof_xyz(d) = x(pmesh->GetNodalFESpace()->DofToVDof(dofs[j], d));
+         }
+         if (j == 0)
+         {
+            dof_xyz_compare = dof_xyz;
+            xyz_check = 1;
+         }
+         else
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               if (std::abs(dof_xyz(d)-dof_xyz_compare(d)) < 1.e-10)
+               {
+                  xyz_check[d] += 1;
+               }
+            }
+         }
+      }
+      if (dim == 2)
+      {
+         if (xyz_check[0] == dofs.Size())
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 1);
+         }
+         else if (xyz_check[1] == dofs.Size())
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 2);
+         }
+         else
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
+         }
+      }
+      else if (dim == 3)
+      {
+         if (xyz_check[0] == dofs.Size())
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 1);
+         }
+         else if (xyz_check[1] == dofs.Size())
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 2);
+         }
+         else if (xyz_check[2] == dofs.Size())
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 3);
+         }
+         else
+         {
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
+         }
+      }
+   }
+}
+
 #ifdef MFEM_USE_MPI
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
