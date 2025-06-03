@@ -272,8 +272,7 @@ public:
    using GridFunction::ProjectBdrCoefficient;
 
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                              const Array<int> &attr) override
-   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+                              const Array<int> &attr) override;
 
    void ProjectBdrCoefficient(Coefficient *coeff[],
                               const Array<int> &attr) override
