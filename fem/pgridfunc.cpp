@@ -55,22 +55,16 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       int element_counter = 0;
       const int MyRank = pfes->GetMyRank();
       const int glob_ne = glob_fes->GetNE();
+      DofTransformation ltrans, gtrans;
       for (int i = 0; i < glob_ne; i++)
       {
          if (partitioning[i] == MyRank)
          {
-            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter,
-                                                                          lvdofs);
-            const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
+            pfes->GetElementVDofs(element_counter, lvdofs, ltrans);
+            glob_fes->GetElementVDofs(i, gvdofs, gtrans);
             gf->GetSubVector(gvdofs, lnodes);
-            if (gtrans)
-            {
-               gtrans->InvTransformPrimal(lnodes);
-            }
-            if (ltrans)
-            {
-               ltrans->TransformPrimal(lnodes);
-            }
+            gtrans.InvTransformPrimal(lnodes);
+            ltrans.TransformPrimal(lnodes);
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
@@ -279,11 +273,11 @@ const
    Array<int> dofs;
    Vector DofVal, LocVec;
    const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   DofTransformation doftrans;
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                   nbr_el_no, dofs);
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
       // Choose fe to be of the order whose number of DOFs matches dofs.Size(),
       // in the variable order case.
       const int ndofs = pfes->IsVariableOrder() ? dofs.Size() : 0;
@@ -302,10 +296,7 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(LocVec);
-      }
+      doftrans.InvTransformPrimal(LocVec);
 
       if (fe->GetMapType() == FiniteElement::VALUE)
       {
@@ -321,7 +312,7 @@ const
    }
    else
    {
-      const DofTransformation* const doftrans = fes->GetElementDofs(i, dofs);
+      fes->GetElementDofs(i, dofs, doftrans);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -336,10 +327,7 @@ const
          fe->CalcPhysShape(*Tr, DofVal);
       }
       GetSubVector(dofs, LocVec);
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(LocVec);
-      }
+      doftrans.InvTransformPrimal(LocVec);
    }
 
    return (DofVal * LocVec);
@@ -352,15 +340,11 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                   nbr_el_no,
-                                                   dofs);
+      DofTransformation doftrans;
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(loc_data);
-      }
+      doftrans.InvTransformPrimal(loc_data);
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
       if (FElem->GetRangeType() == FiniteElement::SCALAR)
@@ -428,8 +412,8 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                nbr_el_no, dofs);
+   DofTransformation doftrans;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -442,10 +426,7 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
       fe->CalcPhysShape(T, DofVal);
    }
    face_nbr_data.GetSubVector(dofs, LocVec);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(LocVec);
-   }
+   doftrans.InvTransformPrimal(LocVec);
 
 
    return (DofVal * LocVec);
@@ -476,13 +457,11 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   DofTransformation doftrans;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs, doftrans);
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(loc_data);
-   }
+   doftrans.InvTransformPrimal(loc_data);
 
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
    const int dof = fe->GetDof();
@@ -1335,25 +1314,20 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParFiniteElementSpace *xfes = x.ParFESpace();
    Array<int> xdofs, fdofs;
    Vector el_x, el_f;
+   DofTransformation xtrans, ftrans;
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      const DofTransformation* const xtrans = xfes->GetElementVDofs(i, xdofs);
+      xfes->GetElementVDofs(i, xdofs, xtrans);
       x.GetSubVector(xdofs, el_x);
-      if (xtrans)
-      {
-         xtrans->InvTransformPrimal(el_x);
-      }
+      xtrans.InvTransformPrimal(el_x);
 
       ElementTransformation *Transf = xfes->GetElementTransformation(i);
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      const DofTransformation* const ftrans = flux_fes.GetElementVDofs(i, fdofs);
-      if (ftrans)
-      {
-         ftrans->TransformPrimal(el_f);
-      }
+      flux_fes.GetElementVDofs(i, fdofs, ftrans);
+      ftrans.TransformPrimal(el_f);
       flux.SetSubVector(fdofs, el_f);
    }
 

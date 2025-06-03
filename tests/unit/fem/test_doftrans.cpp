@@ -280,10 +280,12 @@ TEST_CASE("DoF Transformation Functions",
       DenseMatrix At;
       DenseMatrix tAt;
 
-      nAn = A; TransformPrimal(NULL, NULL, nAn);
-      At = A; TransformPrimal(NULL,  &Tq, At);
-      tA = A; TransformPrimal( &Tp, NULL, tA);
-      tAt = A; TransformPrimal( &Tp,  &Tq, tAt);
+      DofTransformation id;
+
+      nAn = A; TransformPrimal(id, id, nAn);
+      At = A; TransformPrimal(id,  Tq, At);
+      tA = A; TransformPrimal( Tp, id, tA);
+      tAt = A; TransformPrimal( Tp,  Tq, tAt);
 
       double fAv = A.InnerProduct(v, f);
 
@@ -312,10 +314,12 @@ TEST_CASE("DoF Transformation Functions",
       DenseMatrix At;
       DenseMatrix tAt;
 
-      nAn = A; TransformDual(NULL, NULL, nAn);
-      At = A; TransformDual(NULL,  &Tq, At);
-      tA = A; TransformDual( &Tp, NULL, tA);
-      tAt = A; TransformDual( &Tp,  &Tq, tAt);
+      DofTransformation id;
+
+      nAn = A; TransformDual(id, id, nAn);
+      At = A; TransformDual(id,  Tq, At);
+      tA = A; TransformDual(Tp, id, tA);
+      tAt = A; TransformDual(Tp,  Tq, tAt);
 
       double uAv = A.InnerProduct(v, u);
 
