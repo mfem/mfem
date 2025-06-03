@@ -10,6 +10,11 @@
 
 Version 4.8.1 (development)
 ===========================
+- Added support for variational resampling of H1 vector fields to ParMoonolith
+  integration.
+
+- Added support for higher order meshes in Mesh::MakeSimplicial and
+  ParMesh::MakeSimplicial.
 
 Starting with this version, MFEM requires a C++17 compiler.
 
