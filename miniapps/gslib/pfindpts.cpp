@@ -166,10 +166,7 @@ int main (int argc, char *argv[])
    {
       randomization = 0;
    }
-
-   Vector xmin, xmax;
-   mesh->GetBoundingBox(xmin, xmax);
-
+  
    if (myid == 0)
    {
       cout << "Mesh curvature of the original mesh: ";
@@ -184,7 +181,7 @@ int main (int argc, char *argv[])
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
-      cout << "--- Generating equidistant point for:\n"
+      cout << "--- Generating points for:\n"
            << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
            << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
       if (dim == 3)
@@ -283,7 +280,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Generate equidistant points in physical coordinates over the whole mesh.
+   // Generate random points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
    int pts_cnt = npt;
@@ -369,13 +366,6 @@ int main (int argc, char *argv[])
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
-
-   Array<unsigned int> code_out1    = finder.GetCode();
-   Array<unsigned int> el_out1    = finder.GetGSLIBElem();
-   Vector ref_rst1    = finder.GetGSLIBReferencePosition();
-   Vector ref_rst0   = finder.GetReferencePosition();
-   Vector dist1    = finder.GetDist();
-   Array<unsigned int> proc_out1    = finder.GetProc();
 
    finder.Interpolate(field_vals, interp_vals);
    if (interp_vals.UseDevice())
