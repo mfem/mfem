@@ -1,7 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "B_field_vec_coeffs.hpp"
+#include "vec_coeffs.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -35,14 +35,14 @@ int main(int argc, char *argv[])
 
       // 1. make the linear form
       LinearForm b(&scalar_fespace);
-      PsiGridFunctionCoefficient psi_coef(&temp_psi, false);
-      b.AddDomainIntegrator(new DomainLFIntegrator(psi_coef));
+      PsiRGridFunctionCoefficient psi_r_coef(&temp_psi, false);
+      b.AddDomainIntegrator(new DomainLFIntegrator(psi_r_coef));
       b.Assemble();
 
       // 2. make the bilinear form
       BilinearForm a(&scalar_fespace);
-      ConstantCoefficient one(1.0);
-      a.AddDomainIntegrator(new MassIntegrator(one));
+      RGridFunctionCoefficient r_coef;
+      a.AddDomainIntegrator(new MassIntegrator(r_coef));
       a.Assemble();
       a.Finalize();
 
