@@ -42,6 +42,12 @@ enum EXT_DATA_IDX
 
 int problem = 0;
 
+enum PRECONDITIONER_TYPE
+{
+   SUPERLU,
+   BLOCK_DIAGONAL_AMG,
+};
+
 void threshold(Vector &v)
 {
    for (int i = 0; i < v.Size(); i++)
@@ -155,12 +161,12 @@ mfem::tuple<matd, real_t> qdata_setup(
       };
 
       const auto delta = 0.2 * cs;
-      const auto dvdx = dvdxi * inv(J);
-      const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
+      const auto dvdx = dvdxi * invJ;
+      const auto h = h0 * pow(detJ, 1.0 / DIMENSION);
       const auto delta_v = h * tr(dvdx);
       const auto psi1 = softstep(delta, -delta_v);
-      const auto q1 = 10.0;
-      const auto q2 = 10.0;
+      const auto q1 = 6.0;
+      const auto q2 = 6.0;
       const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
                                                                  delta_v) + q1 * cs);
       stress += 2.0 * mu * sym(dvdx);
@@ -612,8 +618,9 @@ public:
    class Preconditioner : public Solver
    {
    public:
-      Preconditioner(LagrangianHydroOperator &hydro)
-         : Solver(hydro.Height())
+      Preconditioner(LagrangianHydroOperator &hydro) :
+         Solver(hydro.Height()),
+         hydro(hydro)
       {};
 
       void SetRebuildFlag(bool flag)
@@ -628,13 +635,15 @@ public:
             return;
          }
 
-         out << "Preconditioner: Rebuilding" << std::endl;
+         if (Mpi::Root())
+         {
+            out << "Preconditioner: Rebuilding" << std::endl;
+         }
 
          jacobian = dynamic_cast<const LagrangianHydroJacobianOperator*>(&op);
          MFEM_ASSERT(jacobian != nullptr,
                      "Preconditioner can only be set with LagrangianHydroJacobianOperator");
 
-         auto &hydro = jacobian->hydro;
          auto comm = hydro.H1.GetComm();
          const real_t h = jacobian->h;
 
@@ -643,12 +652,6 @@ public:
          // First row
          // Rx = x - h * v
          // yx = I * wx - h I * wv
-         // where I is identity
-         // PetscParVector dRxdx_diag(comm, hydro.H1.GlobalTrueVSize(), tdof_offsets);
-         // dRxdx_diag = 1.0;
-         // Mat dRxdx_petsc_mat;
-         // PetscCall(MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat));
-         // PetscParMatrix dRxdx_petsc(dRxdx_petsc_mat);
          SparseMatrix dRxdx_diag(hydro.H1.GetTrueVSize());
          for (int i = 0; i < dRxdx_diag.Height(); i++)
          {
@@ -658,32 +661,6 @@ public:
          HypreParMatrix dRxdx_mat(comm, hydro.H1.GlobalTrueVSize(),
                                   tdof_offsets, &dRxdx_diag);
 
-         // dRxdv = -h * I
-         SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
-         for (int i = 0; i < dRxdv_diag.Height(); i++)
-         {
-            dRxdv_diag.Set(i, i, -h);
-         }
-
-         for (int i = 0; i < hydro.ess_tdof.Size(); i++)
-         {
-            dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
-         }
-         dRxdv_diag.Finalize();
-
-         HypreParMatrix dRxdv_mat(comm, hydro.H1.GlobalTrueVSize(),
-                                  tdof_offsets, &dRxdv_diag);
-
-         // Second row
-         // Rv = Mv * v + F * I
-         // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
-
-         // dRvdx = h * dF/dx
-         HypreParMatrix dRvdx_mat;
-         jacobian->dRvdx->Assemble(dRvdx_mat);
-         dRvdx_mat.EliminateRows(hydro.ess_tdof);
-         dRvdx_mat *= h;
-
          // dRvdv = (Mv + h dF/dv)
          HypreParMatrix dRvdv_mat;
          jacobian->dRvdv->Assemble(dRvdv_mat);
@@ -691,77 +668,136 @@ public:
          auto tmp2 = Mv_hdRvdv_mat->EliminateRowsCols(hydro.ess_tdof);
          delete tmp2;
 
-         // dRvde = h * dF/de
-         HypreParMatrix dRvde_mat;
-         jacobian->dRvde->Assemble(dRvde_mat);
-         dRvde_mat.EliminateRows(hydro.ess_tdof);
-         dRvde_mat *= h;
-
-         // Third row
-         // Re = Me * e - F^T
-         // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
-
-         // dRedx = -h * dF^T/dx
-         HypreParMatrix dRedx_mat;
-         jacobian->dRedx->Assemble(dRedx_mat);
-
-         if (problem == 0)
-         {
-            // HypreParMatrix dTaylorSourcedx_mat;
-            // jacobian->dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
-            // dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
-         }
-
-         dRedx_mat *= -h;
-
-         // dRedv = -h * dF^T/dv
-         HypreParMatrix dRedv_mat;
-         jacobian->dRedv->Assemble(dRedv_mat);
-         auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
-         delete tmp1;
-         dRedv_mat *= -h;
-
          // dRede = Me - h * dF^T/de
          HypreParMatrix dRede_mat;
          jacobian->dRede->Assemble(dRede_mat);
          HypreParMatrix *Me_hdRede_mat = Add(1.0, hydro.Me_mat, -h, dRede_mat);
 
-         Array2D<const HypreParMatrix*> blocks(3, 3);
-         blocks(0, 0) = &dRxdx_mat;
-         blocks(0, 1) = &dRxdv_mat;
-         blocks(0, 2) = nullptr;
-         blocks(1, 0) = &dRvdx_mat;
-         blocks(1, 1) = Mv_hdRvdv_mat;
-         blocks(1, 2) = &dRvde_mat;
-         blocks(2, 0) = &dRedx_mat;
-         blocks(2, 1) = &dRedv_mat;
-         blocks(2, 2) = Me_hdRede_mat;
+         if (hydro.preconditioner_type == PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG)
+         {
+            vv_mat.reset(Mv_hdRvdv_mat);
+            amg_v.reset(new HypreBoomerAMG(*vv_mat));
+            amg_v->SetPrintLevel(0);
 
-         superlu_solver.reset(new SuperLUSolver(MPI_COMM_WORLD, 1));
-         block_hypre.reset(HypreParMatrixFromBlocks(blocks, nullptr));
-         superlu_mat.reset(new SuperLURowLocMatrix(*block_hypre));
+            ee_mat.reset(Me_hdRede_mat);
+            amg_e.reset(new HypreBoomerAMG(*ee_mat));
+            amg_e->SetPrintLevel(0);
+         }
 
-         superlu_solver->SetSymmetricPattern(false);
-         // superlu_solver->SetColumnPermutation(superlu::METIS_AT_PLUS_A);
-         // superlu_solver->SetRowPermutation(superlu::LargeDiag_MC64);
-         // superlu_solver->SetIterativeRefine(superlu::SLU_DOUBLE);
-         superlu_solver->SetOperator(*superlu_mat);
-         superlu_solver->SetPrintStatistics(false);
+         else if (hydro.preconditioner_type == PRECONDITIONER_TYPE::SUPERLU)
+         {
+            // dRxdv = -h * I
+            SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
+            for (int i = 0; i < dRxdv_diag.Height(); i++)
+            {
+               dRxdv_diag.Set(i, i, -h);
+            }
+
+            for (int i = 0; i < hydro.ess_tdof.Size(); i++)
+            {
+               dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
+            }
+            dRxdv_diag.Finalize();
+
+            HypreParMatrix dRxdv_mat(comm, hydro.H1.GlobalTrueVSize(),
+                                     tdof_offsets, &dRxdv_diag);
+
+            // Second row
+            // Rv = Mv * v + F * I
+            // yv = (Mv + h * dF/dv) * wv + h * dF/dx * wx + h * dF/de * we
+
+            // dRvdx = h * dF/dx
+            HypreParMatrix dRvdx_mat;
+            jacobian->dRvdx->Assemble(dRvdx_mat);
+            dRvdx_mat.EliminateRows(hydro.ess_tdof);
+            dRvdx_mat *= h;
+
+            // dRvde = h * dF/de
+            HypreParMatrix dRvde_mat;
+            jacobian->dRvde->Assemble(dRvde_mat);
+            dRvde_mat.EliminateRows(hydro.ess_tdof);
+            dRvde_mat *= h;
+
+            // Third row
+            // Re = Me * e - F^T
+            // ye = (Me - h * dF/de) * we - h * dF/dx * wx - h * dF/dv * wv
+
+            // dRedx = -h * dF^T/dx
+            HypreParMatrix dRedx_mat;
+            jacobian->dRedx->Assemble(dRedx_mat);
+
+            if (problem == 0)
+            {
+               // HypreParMatrix dTaylorSourcedx_mat;
+               // jacobian->dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+               // dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
+            }
+
+            dRedx_mat *= -h;
+
+            // dRedv = -h * dF^T/dv
+            HypreParMatrix dRedv_mat;
+            jacobian->dRedv->Assemble(dRedv_mat);
+            auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
+            delete tmp1;
+            dRedv_mat *= -h;
+
+            Array2D<const HypreParMatrix*> blocks(3, 3);
+            blocks = nullptr;
+            blocks(0, 0) = &dRxdx_mat;
+            blocks(0, 1) = &dRxdv_mat;
+            blocks(1, 0) = &dRvdx_mat;
+            blocks(1, 1) = Mv_hdRvdv_mat;
+            blocks(1, 2) = &dRvde_mat;
+            blocks(2, 0) = &dRedx_mat;
+            blocks(2, 1) = &dRedv_mat;
+            blocks(2, 2) = Me_hdRede_mat;
+
+            superlu_solver.reset(new SuperLUSolver(MPI_COMM_WORLD, 1));
+            block_hypre.reset(HypreParMatrixFromBlocks(blocks, nullptr));
+            superlu_mat.reset(new SuperLURowLocMatrix(*block_hypre));
+            superlu_solver->SetSymmetricPattern(false);
+            superlu_solver->SetOperator(*superlu_mat);
+            superlu_solver->SetPrintStatistics(false);
+         }
 
          rebuild = false;
-
-         delete Mv_hdRvdv_mat;
-         delete Me_hdRede_mat;
       }
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         superlu_solver->Mult(x, y);
+         if (hydro.preconditioner_type == PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG)
+         {
+            w = x;
+            Vector wx, wv, we;
+            wx.MakeRef(w, 0, hydro.H1.GetTrueVSize());
+            wv.MakeRef(w, hydro.H1.GetTrueVSize(), hydro.H1.GetTrueVSize());
+            we.MakeRef(w, 2*hydro.H1.GetTrueVSize(), hydro.L2.GetTrueVSize());
+
+            Vector yx, yv, ye;
+            yx.MakeRef(y, 0, hydro.H1.GetTrueVSize());
+            yv.MakeRef(y, hydro.H1.GetTrueVSize(), hydro.H1.GetTrueVSize());
+            ye.MakeRef(y, 2*hydro.H1.GetTrueVSize(), hydro.L2.GetTrueVSize());
+
+            yx = wx;
+            amg_v->Mult(wv, yv);
+            amg_e->Mult(we, ye);
+         }
+         else if (hydro.preconditioner_type == PRECONDITIONER_TYPE::SUPERLU)
+         {
+            superlu_solver->Mult(x, y);
+         }
       }
 
+      mutable Vector w;
+      LagrangianHydroOperator &hydro;
       bool rebuild = true;
       const LagrangianHydroJacobianOperator *jacobian = nullptr;
       std::shared_ptr<HypreParMatrix> block_hypre;
+      std::shared_ptr<HypreParMatrix> vv_mat;
+      std::shared_ptr<HypreBoomerAMG> amg_v;
+      std::shared_ptr<HypreParMatrix> ee_mat;
+      std::shared_ptr<HypreBoomerAMG> amg_e;
       std::shared_ptr<SuperLURowLocMatrix> superlu_mat;
       std::shared_ptr<SuperLUSolver> superlu_solver;
    };
@@ -848,9 +884,9 @@ public:
 
          if (problem == 0)
          {
-            // hydro.taylor_source_mf->SetParameters({&ux_l});
-            // hydro.taylor_source_mf->Mult(e_source_t, e_source_t);
-            // Re -= e_source_t;
+            hydro.taylor_source_mf->SetParameters({&ux_l});
+            hydro.taylor_source_mf->Mult(e_source_t, e_source_t);
+            Re -= e_source_t;
          }
 
          // hydro.Me.TrueAddMult(ke, Re);
@@ -973,9 +1009,12 @@ public:
       std::shared_ptr<DifferentiableOperator> density_mf,
       std::shared_ptr<DifferentiableOperator> taylor_source_mf,
       std::shared_ptr<QuadratureData> qdata,
-      bool fd_gradient,
-      const int nonlinear_maximum_iterations,
-      const real_t nonlinear_relative_tolerance) :
+      const bool &fd_gradient,
+      const int &nonlinear_maximum_iterations,
+      const real_t &nonlinear_relative_tolerance,
+      const int &krylov_maximum_iterations,
+      const int &preconditioner_lag,
+      const PRECONDITIONER_TYPE &preconditioner_type) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
       L2(L2),
@@ -1015,7 +1054,10 @@ public:
       nl2dofs(L2.GetFE(0)->GetDof()),
       fd_gradient(fd_gradient),
       nonlinear_maximum_iterations(nonlinear_maximum_iterations),
-      nonlinear_relative_tolerance(nonlinear_relative_tolerance)
+      nonlinear_relative_tolerance(nonlinear_relative_tolerance),
+      krylov_maximum_iterations(krylov_maximum_iterations),
+      preconditioner_lag(preconditioner_lag),
+      preconditioner_type(preconditioner_type)
    {
       Mv = new MassPAOperator(H1c, ir, rho0_coeff);
       Array<int> empty_tdofs;
@@ -1054,6 +1096,7 @@ public:
       auto gmres = new GMRESSolver(MPI_COMM_WORLD);
       gmres->SetMaxIter(500);
       gmres->SetKDim(500);
+      gmres->SetMaxIter(krylov_maximum_iterations);
       gmres->SetRelTol(1e-12);
       gmres->SetAbsTol(0.0);
       gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
@@ -1067,6 +1110,7 @@ public:
       newton->SetMaxIter(nonlinear_maximum_iterations);
       newton->SetRelTol(nonlinear_relative_tolerance);
       newton->SetAbsTol(0.0);
+      // newton->SetAdaptiveLinRtol();
    }
 
    void Mult(const Vector &S, Vector &dSdt) const override
@@ -1198,14 +1242,15 @@ public:
       Xv.SyncAliasMemory(X);
       Xe.SyncAliasMemory(X);
 
-      // if (current_dt != dt || lag >= 3)
+      residual->SetTimeStep(dt);
+
+      if (current_dt != dt || lag >= preconditioner_lag)
       {
          lag = 0;
          current_dt = dt;
-         residual->SetTimeStep(dt);
          preconditioner->SetRebuildFlag(true);
       }
-      // lag++;
+      lag++;
 
       Vector zero;
       K = X;
@@ -1389,6 +1434,9 @@ public:
    bool fd_gradient;
    const int nonlinear_maximum_iterations;
    const real_t nonlinear_relative_tolerance;
+   const int krylov_maximum_iterations;
+   const int preconditioner_lag;
+   const PRECONDITIONER_TYPE preconditioner_type;
 };
 
 static auto CreateLagrangianHydroOperator(
@@ -1401,9 +1449,12 @@ static auto CreateLagrangianHydroOperator(
    ParGridFunction &material_gf,
    Vector &external_data,
    const IntegrationRule &ir,
-   bool fd_gradient,
-   const int nonlinear_maximum_iterations,
-   const real_t nonlinear_relative_tolerance)
+   const bool &fd_gradient,
+   const int &nonlinear_maximum_iterations,
+   const real_t &nonlinear_relative_tolerance,
+   const int &krylov_maximum_iterations,
+   const int &preconditioner_lag,
+   const PRECONDITIONER_TYPE &preconditioner_type)
 {
    ParMesh &mesh = *H1.GetParMesh();
 
@@ -1804,7 +1855,10 @@ static auto CreateLagrangianHydroOperator(
              qdata,
              fd_gradient,
              nonlinear_maximum_iterations,
-             nonlinear_relative_tolerance);
+             nonlinear_relative_tolerance,
+             krylov_maximum_iterations,
+             preconditioner_lag,
+             preconditioner_type);
 }
 
 int main(int argc, char *argv[])
@@ -1830,6 +1884,11 @@ int main(int argc, char *argv[])
    real_t cfl = 0.5;
    real_t nonlinear_relative_tolerance = 1e-5;
    int nonlinear_maximum_iterations = 10;
+   int krylov_maximum_iterations = 10;
+   int preconditioner_lag = 0;
+   int vis_steps = 1;
+   int preconditioner_type =
+      PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -1856,6 +1915,14 @@ int main(int argc, char *argv[])
                   "Maximum number of nonlinear iterations.");
    args.AddOption(&nonlinear_relative_tolerance, "-nrt", "--nrt",
                   "Nonlinear relative tolerance.");
+   args.AddOption(&krylov_maximum_iterations, "-kmi", "--kmi",
+                  "Maximum number of Krylov iterations.");
+   args.AddOption(&preconditioner_lag, "-pl", "--pl",
+                  "Number of nonlinear solves to wait before updating the preconditioner.");
+   args.AddOption(&preconditioner_type, "-pt", "--pt",
+                  "Preconditioner type: 0 - SuperLU_DIST, 1 - Block Diagonal AMG");
+   args.AddOption(&vis_steps, "-vis-steps", "--vis-steps",
+                  "Number of visualization steps.");
    args.ParseCheck();
 
    Device device(device_config);
@@ -2096,7 +2163,10 @@ int main(int argc, char *argv[])
                                               ir,
                                               fd_gradient,
                                               nonlinear_maximum_iterations,
-                                              nonlinear_relative_tolerance);
+                                              nonlinear_relative_tolerance,
+                                              krylov_maximum_iterations,
+                                              preconditioner_lag,
+                                              (PRECONDITIONER_TYPE)preconditioner_type);
 
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
@@ -2205,7 +2275,7 @@ int main(int argc, char *argv[])
          t = t_old;
          S = S_old;
          last_step = false;
-         if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
+         if (Mpi::Root()) { out << "\nRepeating step " << ti << std::endl; }
          ti--; continue;
       }
       else if (dt_est > 1.25 * dt) { dt *= 1.02; }
@@ -2224,6 +2294,7 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
+         out << "\n";
          out << "step " << std::setw(5) << ti
              << ",\tt = " << std::setw(5) << std::setprecision(4) << t
              << ",\tdt = " << std::setw(5) << std::setprecision(6) << dt;
@@ -2236,11 +2307,14 @@ int main(int argc, char *argv[])
       //    verr_gf(i) = abs(verr_gf(i) - v_gf(i));
       // }
 
-      hydro->ComputeDensity(rho_gf);
+      if (ti % vis_steps == 0 || last_step)
+      {
+         hydro->ComputeDensity(rho_gf);
 
-      paraview_dc.SetCycle(ti);
-      paraview_dc.SetTime(t);
-      paraview_dc.Save();
+         paraview_dc.SetCycle(ti);
+         paraview_dc.SetTime(t);
+         paraview_dc.Save();
+      }
    }
 
    const real_t energy_final = hydro->InternalEnergy(e_gf)
