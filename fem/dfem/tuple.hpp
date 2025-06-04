@@ -16,6 +16,13 @@
 #include "../../config/config.hpp"
 #include <utility>
 
+// Define a portable unreachable macro
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_UNREACHABLE() __builtin_unreachable()
+#elif defined(_MSC_VER)
+#define MFEM_UNREACHABLE() __assume(0)
+#endif
+
 namespace mfem::future
 {
 
@@ -260,10 +267,11 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v7;
    }
-   else // i == 8
+   if constexpr (i == 8)
    {
       return values.v8;
    }
+   MFEM_UNREACHABLE();
 }
 
 /**
@@ -307,7 +315,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    {
       return values.v7;
    }
-   else // i == 8
+   if constexpr (i == 8)
    {
       return values.v8;
    }
@@ -359,7 +367,7 @@ MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
    {
       return values.v7;
    }
-   else // i == 8
+   if constexpr (i == 8)
    {
       return values.v8;
    }
