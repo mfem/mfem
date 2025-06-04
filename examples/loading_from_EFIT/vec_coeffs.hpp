@@ -420,8 +420,6 @@ public:
    }
 };
 
-
-
 /// @brief Input $Grad_Psi$ and return $Grad_Psi^\perp$
 class GradPsiPerpVectorGridFunctionCoefficient : public VectorCoefficient
 {
@@ -1205,5 +1203,69 @@ public:
             return sqrt(r) * J1 * cos(k * z);
          }
       }
+   }
+};
+
+/// @brief Input $scalar_field$ and return $scalar_field r$
+class FieldRGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   // disable default constructor
+   FieldRGridFunctionCoefficient() = delete;
+
+   FieldRGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : Coefficient(), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0);
+      counter++;
+      Vector interp_val(1);
+      finder.InterpolateOneByOne(x, *gf, interp_val, 0);
+      return interp_val(0) * r * (flip_sign ? -1 : 1);
+   }
+};
+
+/// @brief Input $vector_field$ and return $vector_field r$
+class FieldRVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   FieldRVectorGridFunctionCoefficient() = delete;
+
+   FieldRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0);
+      counter++;
+      finder.InterpolateOneByOne(x, *gf, V, 0);
+      V *= r * (flip_sign ? -1 : 1);
    }
 };
