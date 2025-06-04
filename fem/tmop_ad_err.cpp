@@ -1080,6 +1080,70 @@ void ThermalHeatSourceShapeSensitivityIntegrator_new::AssembleRHSElementVect(con
   }
 }
 
+// ThermalComplianceShapeSensitivityIntegrator::ThermalHeatSourceShapeSensitivityIntegrator_new(Coefficient &conductivity,
+//     const ParGridFunction &solGF,
+//     int oa, int ob)
+//   : Q_(&conductivity), solGF_(&solGF), oa_(oa), ob_(ob)
+// {}
+
+// void ThermalComplianceShapeSensitivityIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+//     ElementTransformation &T, Vector &elvect)
+// {
+//   // grab sizes
+//   int dof = el.GetDof();
+//   int dim = el.GetDim();
+
+//   // initialize storage
+//   Vector N(dof);
+//   DenseMatrix dN(dof, dim);
+//   Vector te_adjoint(dof);
+//   DenseMatrix B(dof, dim);
+//   DenseMatrix IxB(dof, dim);
+//   Vector IxBTvec(dof * dim);
+
+//   // output vector
+//   elvect.SetSize(dim * dof);
+//   elvect = 0.0;
+
+//   DenseMatrix I;
+//   IdentityMatrix(dim, I);
+
+//   // set integration rule
+//   const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), oa_ * el.GetOrder() + ob_);
+
+//   for (int i = 0; i < ir->GetNPoints(); i++) {
+//     // set current integration point
+//     const IntegrationPoint &ip = ir->IntPoint(i);
+//     T.SetIntPoint(&ip);
+
+//     // evaluate gaussian integration weight
+//     double w = ip.weight * T.Weight();
+
+//     // evaluate shape function derivative
+//     el.CalcShape(ip, N);
+//     el.CalcDShape(ip, dN);
+
+//     // get inverse jacobian
+//     DenseMatrix Jinv = T.InverseJacobian();
+//     Mult(dN, Jinv, B);
+
+//     double adj_val = t_adjoint_->GetValue( T, ip);
+
+//     Mult(B, I, IxB);
+//     Vectorize(IxB, IxBTvec);
+//     elvect.Add( w * adj_val * Q_->Eval(T, ip), IxBTvec);
+
+//     // term2
+//     Vector loadgrad(dim);
+//     LoadGrad_->Eval(loadgrad, T, ip);
+//     for (int d = 0; d < dim; d++)
+//     {
+//       Vector elvect_temp(elvect.GetData() + d*dof, dof);
+//       elvect_temp.Add( w * adj_val * loadgrad(d), N); //k10-trial
+//     }
+//   }
+// }
+
 GradProjectionShapeSensitivityIntegrator::GradProjectionShapeSensitivityIntegrator( const ParGridFunction &t_primal, const ParGridFunction &t_adjoint, VectorCoefficient & tempCoeff)
   : t_primal_(&t_primal), t_adjoint_(&t_adjoint), tempCoeff_(&tempCoeff)
 {}
@@ -1470,24 +1534,24 @@ double QuantityOfInterest::EvalQoI()
       ErrorCoefficient_ = std::make_shared<Energy_QoI>(&solgf_, QCoef_, QCoefGrad_, dim);
 
       {
-      ParLinearForm thermComplianceForm(temp_fes_);
-      LFErrorIntegrator *lfi = new LFErrorIntegrator;
-      lfi->SetQoI(ErrorCoefficient_);
-      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 12));
+        ParLinearForm thermComplianceForm(temp_fes_);
+        LFErrorIntegrator *lfi = new LFErrorIntegrator;
+        lfi->SetQoI(ErrorCoefficient_);
+        IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+        lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 12));
 
-      lfi->SetGLLVec(gllvec_);
-      lfi->SetNqptsPerEl(nqptsperel);
-      thermComplianceForm.AddDomainIntegrator(lfi);
-      thermComplianceForm.Assemble();
+        lfi->SetGLLVec(gllvec_);
+        lfi->SetNqptsPerEl(nqptsperel);
+        thermComplianceForm.AddDomainIntegrator(lfi);
+        thermComplianceForm.Assemble();
 
-      ParLinearForm loadForm(temp_fes_);
-      ConstantCoefficient wCoef(1e5);
-      ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
-      loadForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
-      loadForm.Assemble();
+        //ParLinearForm loadForm(temp_fes_);
+        //ConstantCoefficient wCoef(1e7);
+        //ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
+        //loadForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
+        //loadForm.Assemble();
 
-      return thermComplianceForm(oneGridFunction) + loadForm(solgf_);
+        return thermComplianceForm(oneGridFunction);// + loadForm(solgf_);
       }
 
   case 5:
@@ -1723,15 +1787,20 @@ if(qoiType_ == QoIType::AVG_ERROR)
 
     ConstantCoefficient wCoef(1e5);
     ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
+    GradientGridFunctionCoefficient tGradSol(&solgf_);
     // evaluate grad wrt temp
     {
       ParLinearForm T_gradForm(temp_fes_);
       LFErrorDerivativeIntegrator *lfi = new LFErrorDerivativeIntegrator;
+      //DomainLFGradIntegrator *lfi = new DomainLFGradIntegrator(tGradSol);
+      //DomainLFGradIntegrator *lfi1 = new DomainLFGradIntegrator(tGradSol);
       lfi->SetQoI(ErrorCoefficient_);
 
       lfi->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), quad_order*4));
+      //lfi1->SetIntRule(&irules->Get(temp_fes_->GetFE(0)->GetGeomType(), quad_order*4));
       T_gradForm.AddDomainIntegrator(lfi);
-      T_gradForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
+      //T_gradForm.AddDomainIntegrator(lfi1);
+      //T_gradForm.AddBoundaryIntegrator(new BoundaryLFIntegrator(truesolWCoef, 12, 12));
       T_gradForm.Assemble();
 
       *dQdu_ = 0.0;
@@ -1742,11 +1811,12 @@ if(qoiType_ == QoIType::AVG_ERROR)
     // evaluate grad wrt coord
     {
       ParLinearForm ud_gradForm(coord_fes_);
-      ThermalHeatSourceShapeSensitivityIntegrator_new *lfi = new ThermalHeatSourceShapeSensitivityIntegrator_new(*QCoef_, solgf_);
-      lfi->SetLoadGrad(QCoefGrad_);
+      //ThermalHeatSourceShapeSensitivityIntegrator_new *lfi = new ThermalHeatSourceShapeSensitivityIntegrator_new(*QCoef_, solgf_);
+      ThermalConductivityShapeSensitivityIntegrator_new *lfi = new ThermalConductivityShapeSensitivityIntegrator_new(kCoef, solgf_,solgf_);
+      //lfi->SetLoadGrad(QCoefGrad_);
 
       MFEM_VERIFY(trueSolutionGrad_, "Set true solution gradient for boundary rhs sensitivity\n" );
-      ud_gradForm.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(*trueSolution_, solgf_, wCoef, trueSolutionGrad_, 12, 12));
+      //ud_gradForm.AddBoundaryIntegrator(new PenaltyShapeSensitivityIntegrator(*trueSolution_, solgf_, wCoef, trueSolutionGrad_, 12, 12));
 
       IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
       lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 24));
@@ -1849,7 +1919,7 @@ void Diffusion_Solver::FSolve()
 
   CGSolver cg(physics_fes_->GetParMesh()->GetComm());
   cg.SetRelTol(1e-12);
-  cg.SetMaxIter(5000);
+  cg.SetMaxIter(50000);
   cg.SetPreconditioner(amg);
   cg.SetOperator(A);
   cg.SetPrintLevel(0);
@@ -1887,6 +1957,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
       vis_dc.SetCycle(pdc_cycle);
       vis_dc.SetTime((pdc_cycle++)*1.0);
       adj_sol = rhs;
+      //vis_dc.RegisterField("adjoint",&solgf);
       vis_dc.RegisterField("adjoint",&adj_sol);
       vis_dc.RegisterField("sensitivities",&tempgf);
       vis_dc.Save();
@@ -1939,7 +2010,7 @@ void Diffusion_Solver::ASolve( Vector & rhs )
 
     CGSolver cg(physics_fes_->GetParMesh()->GetComm());
     cg.SetRelTol(1e-12);
-    cg.SetMaxIter(5000);
+    cg.SetMaxIter(50000);
     cg.SetPreconditioner(amg);
     cg.SetOperator(*tTransOp);
     // cg.SetPrintLevel(2);
@@ -1952,6 +2023,9 @@ void Diffusion_Solver::ASolve( Vector & rhs )
       vis_dc.SetTime((pdc_cycle++)*1.0);
       vis_dc.Save();
     }
+
+    // adj_sol = solgf;
+    // adj_sol *= 2.0;
 
     delete tTransOp;
 

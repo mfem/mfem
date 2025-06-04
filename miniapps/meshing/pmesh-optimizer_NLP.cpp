@@ -98,6 +98,9 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 4e2 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 143
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 4e6 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 144
 
+
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10g  pmesh-optimizer_NLP -met 1 -ch 5e-3 -ni 300 -w1 -1e1 -w2 1e0 -rs 2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 4 -ft 2 -weakbc -filter -frad 0.1
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include "linalg/dual.hpp"
@@ -514,6 +517,10 @@ double loadFunc(const Vector & x)
   {
     return -1e-3;
   }
+  else if (ftype == 11)
+  {
+    return 100000.0;
+  }
   return 0.0;
 };
 
@@ -561,6 +568,11 @@ void trueLoadFuncGrad(const Vector & x,Vector & grad)
 
     // grad[0] = M_PI*M_PI*M_PI*std::cos( M_PI *x[0] );
     // grad[1] = 0.0;
+  }
+  else if (ftype == 11)
+  {
+    grad[0] =0.0;
+    grad[1] =0.0;
   }
 }
 
