@@ -52,6 +52,11 @@ void warpingTransformation(const Vector &p, Vector &v)
           y = p(1),
           z = p(2);
 
+   // --- Non-uniform spacing adjustment ---
+   x = x + x*(1 - x)*0.4;
+   y = y + y*(1 - y)*0.4;
+   z = z + z*(1 - z)*0.4;
+
    v(0) = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   +
           b * x * y - 0.1*sin(d*M_PI*z*x*y);
    v(1) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) +
@@ -705,7 +710,7 @@ Mesh *SetupEdgeMesh3D(Mesh *mesh, GridFunction &attr_count_ser,
    Array<int> facedofs(0);
    int spaceDim = mesh->SpaceDimension();
    MFEM_VERIFY(spaceDim == 3, "Only 2D meshes supported right now.");
-   Array<int> fdofs;
+   Array<int> edofs;
    GridFunction *x = mesh->GetNodes();
    MFEM_VERIFY(x, "Mesh nodal space not set\n");
    const FiniteElementSpace *fes = mesh->GetNodalFESpace();

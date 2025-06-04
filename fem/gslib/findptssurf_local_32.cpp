@@ -264,7 +264,7 @@ static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge(
 
 #undef ELX
       }
-      side_init = mask;
+      // side_init = mask;
    }
    return edge;  // edge struct containing pointers pointing to constraint workspace are returned!
 }

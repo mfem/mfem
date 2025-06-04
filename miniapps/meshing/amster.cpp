@@ -52,6 +52,10 @@
 // make amster -j4 && mpirun -np 10 amster -m hex6.mesh -o 2 -qo 8 -vis -rs 0 -mid 301 -tid 1 -bdropt 5 -visit -ni 200 -bnd -no-bound
 
 
+// amster_q4warp
+// make amster -j4 && mpirun -np 10 amster -m amster_q4warp.mesh -o 4 -qo 8 -vis -rs 0 -mid 80 -tid 2 -bdropt 7 -visit -ni 2000
+
+
 #include "mfem.hpp"
 #include <iostream>
 #include <fstream>
@@ -175,35 +179,39 @@ int main (int argc, char *argv[])
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
    Mesh *smesh = nullptr;
    if (strcmp(surf_mesh_file, "null.mesh") != 0)
    {
       smesh = new Mesh(surf_mesh_file, 1, 1, false);
       for (int lev = 0; lev < rs_levels; lev++) { smesh->UniformRefinement(); }
+      smesh->SetCurvature(mesh_poly_deg, false, -1, 0);
    }
    else
    {
       smesh = mesh;
    }
 
-   if (bdr_opt_case == 5)
+   if (bdr_opt_case == 5 || bdr_opt_case == 6)
    {
-      // if (mesh->GetNodes() == NULL)
-      {
-         mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
-      }
       ModifyBoundaryAttributesForNodeMovement(mesh, *(mesh->GetNodes()));
       mesh->SetAttributes();
 
       // Kershaw transformation
-      common::KershawTransformation kershawT(mesh->Dimension(), 0.3, 0.3, 3);
-      mesh->Transform(kershawT);
+      if (bdr_opt_case == 5)
+      {
+         common::KershawTransformation kershawT(mesh->Dimension(), 0.3, 0.3, 3);
+         mesh->Transform(kershawT);
 
-      VectorFunctionCoefficient fcw(3, warpingTransformation);
-      // mesh->Transform(fcw);
-      // Do a rotation in 3D
-      VectorFunctionCoefficient fcr(3, rotationTransformation);
-      mesh->Transform(fcr);
+         // Do a rotation in 3D
+         VectorFunctionCoefficient fcr(3, rotationTransformation);
+         mesh->Transform(fcr);
+      }
+      else if (bdr_opt_case == 6)
+      {
+         VectorFunctionCoefficient fcw(3, warpingTransformation);
+         mesh->Transform(fcw);
+      }
    }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -217,14 +225,14 @@ int main (int argc, char *argv[])
    // Setup edge-mesh for tangential relaxation
    Array<ParMesh *> surf_mesh_arr;
    Array<int> surf_mesh_attr, surf_mesh_edge_attr;
-   if (bdr_opt_case == 1)
+   if (bdr_opt_case == 1) //blade
    {
       MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(1);
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   else if (bdr_opt_case == 2)
+   else if (bdr_opt_case == 2) // Ale tangled - curvilinear right and top
    {
       MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(2);
@@ -232,7 +240,7 @@ int main (int argc, char *argv[])
       surf_mesh_attr[0] = 3;
       surf_mesh_attr[1] = 4;
    }
-   else if (bdr_opt_case == 3)
+   else if (bdr_opt_case == 3) // Ale tangled - rotated square hole
    {
       MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(4);
@@ -242,14 +250,14 @@ int main (int argc, char *argv[])
       surf_mesh_attr[2] = 5;
       surf_mesh_attr[3] = 6;
    }
-   else if (bdr_opt_case == 4)
+   else if (bdr_opt_case == 4) // Ale tangled - rotated circular hole
    {
       MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(1);
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   else if (bdr_opt_case == 5)
+   else if (bdr_opt_case == 5 || bdr_opt_case == 6) // 3D case - kershaw
    {
       MFEM_VERIFY(dim == 3,"3D case");
       surf_mesh_attr.SetSize(3);
@@ -262,6 +270,16 @@ int main (int argc, char *argv[])
       surf_mesh_edge_attr[2] = setTwoBits(1,3);
 
       surf_mesh_arr.SetSize(surf_mesh_attr.Size()+surf_mesh_edge_attr.Size());
+   }
+   else if (bdr_opt_case == 7) // amster_q4warp.mesh
+   {
+      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
+      surf_mesh_attr.SetSize(4);
+      surf_mesh_arr.SetSize(4);
+      surf_mesh_attr[0] = 1;
+      surf_mesh_attr[1] = 2;
+      surf_mesh_attr[2] = 3;
+      surf_mesh_attr[3] = 4;
    }
    double bbox_fac = 2.0; //2.0;
 
@@ -289,20 +307,11 @@ int main (int argc, char *argv[])
 
    if (bdr_opt_case >= 1)
    {
-      // if (!mesh->GetNodes())
-      {
-         mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
-      }
-      // if (!smesh->GetNodes())
-      {
-         smesh->SetCurvature(mesh_poly_deg, false, -1, 0);
-      }
       if (myid == 0)
       {
          std::cout << smesh->GetNE() << " elements in the mesh." << std::endl;
       }
-      int smesh_deg = smesh->GetNodalFESpace()->GetMaxElementOrder();
-      H1_FECollection fec_temp(smesh_deg, dim);
+      H1_FECollection fec_temp(mesh_poly_deg, dim);
       FiniteElementSpace fes_temp(smesh, &fec_temp);
       GridFunction attr_count_ser(&fes_temp);
       Array<int> attr_marker_ser;
@@ -329,8 +338,7 @@ int main (int argc, char *argv[])
          auto result = getTwoSetBits(surf_mesh_edge_attr[i]);
          int eattr1 = result.first;
          int eattr2 = result.second;
-         Mesh *meshsurf = SetupEdgeMesh3D(smesh, attr_count_ser, attr_marker_ser, eattr1,
-                                          eattr2);
+         Mesh *meshsurf = SetupEdgeMesh3D(smesh, attr_count_ser, attr_marker_ser, eattr1, eattr2);
          surf_mesh_arr[i+surf_mesh_attr.Size()] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
          delete meshsurf;
       }
@@ -713,9 +721,9 @@ int main (int argc, char *argv[])
          {
             vis_frequency = 10;
          }
-         if (bdr_opt_case == 5)
+         if (bdr_opt_case == 5 || bdr_opt_case == 6)
          {
-            vis_frequency = 1;
+            vis_frequency = 100;
          }
          meshopt.EnableVisualization(&dc, vis_count, vis_frequency);
       }

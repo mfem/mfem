@@ -362,9 +362,7 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
 
    MFEM_VERIFY(MD1<=14,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
-   // const int nThreads = MAX_CONST(2*MD1, 4);
-   const int nThreads =
-      32;  // adi: npoints numbers can be quite big, especially for 3d cases
+   const int nThreads = 32;
 
    /* A macro expansion that for
       1) CPU: expands to a standard for loop
@@ -383,7 +381,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
       MFEM_SHARED findptsElementPoint_t el_pts[2];
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED double constraint_workspace[size2];
-      MFEM_SHARED int    constraint_init_t[nThreads];
 
       // pointers to shared memory for convenience
       findptsElementPoint_t *fpt, *tmp;
@@ -474,7 +471,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                      {
                         fpt->x[j] = x_i[j];
                      }
-                     constraint_init_t[j] = 0;
                   }
                   MFEM_SYNC_THREAD;
 
@@ -545,22 +541,17 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            findptsElementGEdge_t edge;
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              const int mask = 2u;
-                              if ((constraint_init_t[j] & mask) == 0)
+                              // pointers to memory where to store the x & y coordinates of DOFS along the edge
+                              for (int d=0; d<sDIM; ++d)
                               {
-                                 // pointers to memory where to store the x & y coordinates of DOFS along the edge
+                                 edge.x[d] = constraint_workspace + d*D1D;
+                              }
+                              if (j<D1D)
+                              {
                                  for (int d=0; d<sDIM; ++d)
                                  {
-                                    edge.x[d] = constraint_workspace + d*D1D;
+                                    edge.x[d][j] = elx[d][j];  // copy nodal coordinates along the constrained edge
                                  }
-                                 if (j<D1D)
-                                 {
-                                    for (int d=0; d<sDIM; ++d)
-                                    {
-                                       edge.x[d][j] = elx[d][j];  // copy nodal coordinates along the constrained edge
-                                    }
-                                 }
-                                 constraint_init_t[j] = mask;
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -584,11 +575,12 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                                  hess[j] = 0.0;
                                  for (int k=0; k<D1D; ++k)
                                  {
-                                    resid[j] -= wt[      k]*edge.x[j][k]; // wt[k] = value of the basis function
-                                    jac[j]   += wt[D1D
-                                                   +k]*edge.x[j][k]; // wt[k+D1D] = derivative of the basis in r
-                                    hess[j]  += wt[2*D1D
-                                                   +k]*edge.x[j][k]; // wt[k+2*D1D] = 2nd derivative of the basis function
+                                    resid[j] -= wt[      k]*edge.x[j][k];
+                                    // wt[k] = value of the basis function
+                                    jac[j]   += wt[D1D+k]*edge.x[j][k];
+                                    // wt[k+D1D] = derivative of the basis in r
+                                    hess[j]  += wt[2*D1D+k]*edge.x[j][k];
+                                    // wt[k+2*D1D] = 2nd derivative of the basis function
                                  }
                               }
                            }
@@ -616,7 +608,6 @@ static void FindPointsSurfLocal2D_Kernel( const int     npt,
                            MFEM_SYNC_THREAD;
                            break;
                         }
-
                         case 1:    // r is constrained to either -1 or 1
                         {
                            MFEM_FOREACH_THREAD(j,x,nThreads)

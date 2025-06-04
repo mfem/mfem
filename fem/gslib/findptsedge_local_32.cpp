@@ -671,22 +671,17 @@ static void FindPointsEdgeLocal32D_Kernel(const int npt,
                            findptsElementGEdge_t edge;
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              const int mask = 2u;
-                              if ((constraint_init_t[j] & mask) == 0)
+                              // pointers to memory where to store the x & y coordinates of DOFS along the edge
+                              for (int d=0; d<sDIM; ++d)
                               {
-                                 // pointers to memory where to store the x & y coordinates of DOFS along the edge
+                                 edge.x[d] = constraint_workspace + d*D1D;
+                              }
+                              if (j<D1D)
+                              {
                                  for (int d=0; d<sDIM; ++d)
                                  {
-                                    edge.x[d] = constraint_workspace + d*D1D;
+                                    edge.x[d][j] = elx[d][j];  // copy nodal coordinates along the constrained edge
                                  }
-                                 if (j<D1D)
-                                 {
-                                    for (int d=0; d<sDIM; ++d)
-                                    {
-                                       edge.x[d][j] = elx[d][j];  // copy nodal coordinates along the constrained edge
-                                    }
-                                 }
-                                 constraint_init_t[j] = mask;
                               }
                            }
                            MFEM_SYNC_THREAD;
