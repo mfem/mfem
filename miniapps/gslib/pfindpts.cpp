@@ -281,8 +281,7 @@ int main (int argc, char *argv[])
    }
 
    // Generate random points in physical coordinates over the whole mesh.
-   // Note that some points might be outside, if the mesh is not a box. Note
-   // also that all tasks search the same points (not mandatory).
+   // Note that some points might be outside if the mesh is not a box.
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
