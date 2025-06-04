@@ -254,7 +254,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
          const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
          DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
          const auto mf_vector_diffusion_qf =
-            [](const tensor<dscalar_t, DIM, DIM> &dudxi,
+            [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
                const tensor<real_t, DIM, DIM> &J,
                const real_t &w)
          {

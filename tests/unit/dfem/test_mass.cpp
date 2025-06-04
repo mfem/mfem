@@ -61,12 +61,10 @@ void DFemMass(const char *filename, int p, const int r)
    static constexpr int U = 0, Coords = 1;
    const auto sol = std::vector{ FieldDescriptor{ U, &fes } };
    DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
-   const auto mf_mass_qf = [](const real_t &dudxi,
-                              const tensor<real_t, DIM, DIM> &J,
-                              const real_t &w)
-   {
-      return tuple{ dudxi * w * det(J) };
-   };
+   const auto mf_mass_qf =
+      [] MFEM_HOST_DEVICE(const real_t &dudxi,
+                          const tensor<real_t, DIM, DIM> &J, const real_t &w)
+   { return tuple{dudxi * w * det(J)}; };
    dop.AddDomainIntegrator(mf_mass_qf,
                            tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
                            tuple{ Value<U>{} },
