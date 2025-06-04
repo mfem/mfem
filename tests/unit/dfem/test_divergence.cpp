@@ -93,9 +93,9 @@ void dFemVectorDivergence(const char *filename, int p)
       DifferentiableOperator dop_mf(solutions, parameters, pmesh);
 
       const auto mf_vector_divergence_qf =
-         [](const tensor<dscalar_t, DIM, DIM> &dudxi,
-            const tensor<mfem::real_t, DIM, DIM> &J,
-            const real_t &w)
+         [] MFEM_HOST_DEVICE(const tensor<dscalar_t, DIM, DIM> &dudxi,
+                             const tensor<mfem::real_t, DIM, DIM> &J,
+                             const real_t &w)
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
