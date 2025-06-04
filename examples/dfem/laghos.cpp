@@ -149,23 +149,43 @@ mfem::tuple<matd, real_t> qdata_setup(const matd &dvdxi,
 
    if (use_viscosity)
    {
-      auto symdvdx = sym(dvdxi * invJ);
-      auto [eigvals, eigvecs] = eig(symdvdx);
-      vecd compr_dir = get_col(eigvecs, 0);
-      auto ph_dir = (J * inv(J0)) * compr_dir;
-      const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-      // Measure of maximal compression.
-      const real_t mu = eigvals(0);
-      visc_coeff = 2.0 * rho * h * h * fabs(mu);
-      visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-                    (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
-      stress += visc_coeff * symdvdx;
+      // auto symdvdx = sym(dvdxi * invJ);
+      // auto [mu, compr_dir] = power_method(symdvdx, 10, 1e-8);
+      // auto ph_dir = (J * inv(J0)) * compr_dir;
+      // const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+      // // Measure of maximal compression.
+      // visc_coeff = 2.0 * rho * h * h * fabs(mu);
+      // visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+      //               (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
+      // stress += visc_coeff * symdvdx;
+
+      auto softstep = [](const real_t &eps, const real_t x)
+      {
+         return 1.0 / (1.0 + exp(-x / eps));
+      };
+
+      auto softabs = [=](const real_t &eps, const real_t x)
+      {
+         return x * (softstep(eps, x) - softstep(eps, -x));
+      };
+
+      const auto delta = 0.2 * cs;
+      const auto dvdx = dvdxi * inv(J);
+      const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
+      const auto delta_v = h * tr(dvdx);
+      const auto psi1 = softstep(delta, -delta_v);
+      const auto q1 = 10.0;
+      const auto q2 = 10.0;
+      const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
+                                                                 delta_v) + q1 * cs);
+      stress += 2.0 * mu * sym(dvdx);
    }
 
    if constexpr (compute_dtest)
    {
       if (detJ < 0.0)
       {
+         // MFEM_ABORT("inverted element detected in qdata_setup");
          // This will force repetition of the step with smaller dt.
          dt_est = 0.0;
       }
@@ -517,7 +537,7 @@ public:
       MFEM_PERF_SCOPE("LagrangianHydroJacobianOperator::Setup");
       PetscCall(PetscLogEventBegin(jacobian_assemble_event, 0, 0, 0, 0));
 
-      out << "assemble\n";
+      // out << "assemble\n";
 
       w.SetSize(this->height);
       z.SetSize(this->height);
@@ -609,11 +629,16 @@ public:
       // dRedx = -h * dF^T/dx
       HypreParMatrix dRedx_mat;
       dRedx->Assemble(dRedx_mat);
-      HypreParMatrix dTaylorSourcedx_mat;
-      dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
       PetscParMatrix dRedx_petsc(&dRedx_mat);
-      PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
-      dRedx_petsc += dTaylorSourcedx_petsc;
+
+      if (problem == 0)
+      {
+         HypreParMatrix dTaylorSourcedx_mat;
+         dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+         PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
+         dRedx_petsc += dTaylorSourcedx_petsc;
+      }
+
       dRedx_petsc *= -h;
 
       // dRedv = -h * dF^T/dv
@@ -1182,7 +1207,6 @@ public:
             e_source.UseFastAssembly(true);
             e_source.Assemble();
             rhse += e_source;
-            delete d;
          }
 
          CGSolver cg(L2.GetParMesh()->GetComm());

@@ -1386,6 +1386,58 @@ T det(const tensor<T, 3, 3>& A)
           A[2][0];
 }
 
+MFEM_HOST_DEVICE
+template <typename T>
+std::tuple<real_t, tensor<T, 2>> power_method(const tensor<T, 2, 2>& A,
+                                              int max_iter = 10,
+                                              T tol = 1e-8)
+{
+   // Initial guess vector
+   tensor<T, 2> x;
+   x(0) = 1.0;
+   x(1) = 0.0;
+
+   // Normalize initial vector
+   x = x / norm(x);
+
+   T lambda_old = 0;
+   T lambda = 0;
+   tensor<T, 2> eigenvector;
+
+   for (int iter = 0; iter < max_iter; iter++)
+   {
+      // Power iteration
+      tensor<T, 2> y = dot(A, x);
+
+      // Calculate Rayleigh quotient for eigenvalue
+      lambda = dot(x, y);
+
+      // Normalize the vector
+      T ynorm = norm(y);
+      if (ynorm > tol)
+      {
+         x = y / ynorm;
+      }
+
+      // Check convergence
+      T diff = fabs(lambda - lambda_old);
+      if (diff < tol)
+      {
+         eigenvector = x;
+         break;
+      }
+
+      lambda_old = lambda;
+   }
+
+   // eigenvector
+   tensor<T, 2> V;
+   V(0) = x(0);
+   V(1) = x(1);
+
+   return std::make_tuple(lambda, V);
+}
+
 template <typename T> MFEM_HOST_DEVICE
 std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
 {
