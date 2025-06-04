@@ -145,7 +145,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   // const char *mesh_file = "../data/periodic-hexagon.mesh";
+   const char *mesh_file = "../data/inline-segment.mesh";
    int ref_levels = 2;
    int order = 3;
    bool pa = false;
@@ -216,6 +217,7 @@ int main(int argc, char *argv[])
    //    periodic meshes in this code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   // cout << "dim is " << dim << endl;
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -355,7 +357,7 @@ int main(int argc, char *argv[])
       {
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
-         sout << "pause\n";
+         // sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
@@ -371,11 +373,28 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   GridFunction avgs(&fes);
+
+   Vector Pint;
+   const IntegrationRule ir = IntRules.Get(mesh.GetElementGeometry(0), order);
+   QuadratureInterpolator qi(fes,ir);
+   qi.PhysValues(u,Pint);
+
+
    bool done = false;
    for (int ti = 0; !done; )
    {
       real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
+      // cout << "NE = " << fes.GetNE() << endl;
+      u.GetElementAverages(avgs);
+      // cout << "avgs vals = " <<  << endl;
+      // avgs.Print();
+      // cout << "fes size = " << 
+      cout << "u size = " << u.Size() << endl;
+      // u.Print();
+      exit(0);
+      // limiter step here 
       ti++;
 
       done = (t >= t_final - 1e-8*dt);

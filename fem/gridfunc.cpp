@@ -1722,6 +1722,7 @@ void GridFunction::GetVectorGradient(
 
 void GridFunction::GetElementAverages(GridFunction &avgs) const
 {
+   // cout << "pass" << endl;
    MassIntegrator Mi;
    DenseMatrix loc_mass;
    DofTransformation * te_doftrans;
@@ -1734,10 +1735,17 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    int_psi = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
+      // cout << "pass 2" << endl;
+      // cout << "check 1st arg " << fes->GetFE(i) << endl;
+      // cout << "check 2nd arg " << avgs.FESpace()->GetFE(i) << endl;
+      // cout << "check 3rd arg " << fes->GetElementTransformation(i) << endl;
       Mi.AssembleElementMatrix2(*fes->GetFE(i), *avgs.FESpace()->GetFE(i),
                                 *fes->GetElementTransformation(i), loc_mass);
+      // cout << "pass 3" << endl;
       tr_doftrans = fes->GetElementDofs(i, tr_dofs);
+      // cout << "pass 4" << endl;
       te_doftrans = avgs.FESpace()->GetElementDofs(i, te_dofs);
+      // cout << "pass 5" << endl;
       GetSubVector(tr_dofs, loc_this);
       if (tr_doftrans)
       {
@@ -1753,7 +1761,10 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
       loc_this = 1.0; // assume the local basis for 'this' sums to 1
       loc_mass.Mult(loc_this, loc_avgs);
       int_psi.AddElementVector(te_dofs, loc_avgs);
+      // cout << "pass 3" << endl;
    }
+   // cout << "pass 4" << endl;
+   // cout << "avgs Size = " << avgs.Size() << endl;
    for (int i = 0; i < avgs.Size(); i++)
    {
       avgs(i) /= int_psi(i);
