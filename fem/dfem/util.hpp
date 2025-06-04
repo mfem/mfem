@@ -973,15 +973,13 @@ get_restriction_transpose(
       };
       return std::tuple{RT, 1};
    }
-   else
+
+   const Operator *R = get_restriction<entity_t>(f, o);
+   auto RT = [=](const Vector &x, Vector &y)
    {
-      const Operator *R = get_restriction<entity_t>(f, o);
-      auto RT = [=](const Vector &x, Vector &y)
-      {
-         R->MultTranspose(x, y);
-      };
-      return std::tuple{RT, R->Height()};
-   }
+      R->MultTranspose(x, y);
+   };
+   return std::tuple{RT, R->Height()};
 }
 
 /// @brief Apply the prolongation operator to a field.
@@ -1085,15 +1083,13 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       };
       return PT;
    }
-   else
+
+   const Operator *P = get_prolongation(f);
+   auto PT = [=](const Vector &r_local, Vector &y)
    {
-      const Operator *P = get_prolongation(f);
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         P->MultTranspose(r_local, y);
-      };
-      return PT;
-   }
+      P->MultTranspose(r_local, y);
+   };
+   return PT;
 }
 
 /// @brief Apply the restriction operator to a field.
@@ -1182,6 +1178,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
    {
       static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Get the GetDofToQuad object for a given entity type.
@@ -1311,6 +1308,7 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       MFEM_ABORT("can't get size on quadrature point for field descriptor");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Create a map from field operator types to FieldDescriptor indices.
@@ -2182,6 +2180,12 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       {
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
+         return DofToQuadMap
+         {
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+            -1
+         }; // Unreachable, but avoids compiler warning
       }
    };
    return std::array<DofToQuadMap, N>
