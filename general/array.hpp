@@ -100,7 +100,7 @@ public:
    /// Construct an Array from a braced initializer list of convertible type
    template <typename CT, typename std::enable_if<
                 std::is_convertible<CT,T>::value,bool>::type = true>
-   inline Array(std::initializer_list<CT> values);
+   explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
    inline Array(Array<T> &&src) : Array() { Swap(src, *this); }
@@ -179,7 +179,7 @@ public:
    inline int Append(const T & el);
 
    /// STL-like push_back. Append element 'el' to array, resize if necessary.
-   void push_back(const T &el) { static_cast<void>(Append(el)); }
+   void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
    inline int Append(const T *els, int nels);
