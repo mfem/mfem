@@ -1784,9 +1784,9 @@ if(qoiType_ == QoIType::AVG_ERROR)
   }
   else if(qoiType_ == QoIType::ENERGY)
   {
-
-    ConstantCoefficient wCoef(1e5);
-    ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
+    //ConstantCoefficient wCoef(1e7);
+    ConstantCoefficient kCoef(1.0);
+    //ProductCoefficient  truesolWCoef(wCoef,*trueSolution_);
     GradientGridFunctionCoefficient tGradSol(&solgf_);
     // evaluate grad wrt temp
     {
