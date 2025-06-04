@@ -665,14 +665,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             gsl_mfem_ref(index * dim + d) = 0.5 * (gsl_ref(index * dim + d) + 1.0);
          }
          IntegrationPoint ip;
-         if (dim == 2)
-         {
-            ip.Set2(gsl_mfem_ref.GetData() + index * dim);
-         }
-         else if (dim == 3)
-         {
-            ip.Set3(gsl_mfem_ref.GetData() + index * dim);
-         }
+         ip.Set(gsl_mfem_ref.GetData() + index * dim, dim);
          const int elem = gsl_elem[index];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
          const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
@@ -942,14 +935,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          gsl_mfem_ref(index*dim + d) = 0.5*(gsl_ref(index*dim + d)+1.0);
       }
       IntegrationPoint ip;
-      if (dim == 2)
-      {
-         ip.Set2(gsl_mfem_ref.GetData() + index*dim);
-      }
-      else if (dim == 3)
-      {
-         ip.Set3(gsl_mfem_ref.GetData() + index*dim);
-      }
+      ip.Set(gsl_mfem_ref.GetData() + index * dim, dim);
       const int elem = gsl_elem[index];
       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
       const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
@@ -1045,7 +1031,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
             continue;
          }
          IntegrationPoint ip;
-         ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+         ip.Set(gsl_mfem_ref.GetData() + index*dim, dim);
          const int elem = gsl_elem[index];
          // const int mesh_elem = split_element_map[elem];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
@@ -1283,7 +1269,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
             opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
          }
          IntegrationPoint ip;
-         ip.Set3(&opt[point].r[0]);
+         ip.Set(&opt[point].r[0], dim);
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(opt[point].el);
          const Geometry::Type gt = fe->GetGeomType();
          if (opt[point].dist2 < 1e-10 &&
@@ -1347,7 +1333,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
          continue;
       }
       IntegrationPoint ip;
-      ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+      ip.Set(gsl_mfem_ref.GetData() + index*dim, dim);
       const int elem = gsl_elem[index];
       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
       const Geometry::Type gt = fe->GetGeomType();
@@ -2379,7 +2365,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    for (int index = 0; index < npt; index++)
    {
       IntegrationPoint ip;
-      ip.Set3(&pt->r[0]);
+      ip.Set(&pt->r[0], dim);
       const int elem = pt->el;
       const int mesh_elem = split_element_map[elem];
       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
@@ -2422,7 +2408,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       }
 
       // check if point is on element boundary
-      ip.Set3(&pt->r[0]);
+      ip.Set(&pt->r[0], dim);
       pt->code = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
       ++pt;
    }
@@ -2454,8 +2440,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 
          IntegrationPoint ip;
          Vector mfem_ref(gsl_mfem_ref.GetData()+index*dim, dim);
-         ip.Set2(mfem_ref.GetData());
-         if (dim == 3) { ip.z = mfem_ref(2); }
+         ip.Set(mfem_ref.GetData(), dim);
 
          const int elem = gsl_elem[index];
          const int mesh_elem = split_element_map[elem];
@@ -2488,8 +2473,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          gf_rst_map_temp->GetVectorValue(local_elem, ip, mfem_ref);
 
          // Check if the point is on element boundary
-         ip.Set2(mfem_ref.GetData());
-         if (dim == 3) { ip.z = mfem_ref(2); }
+         ip.Set(mfem_ref.GetData(), dim);
          gsl_code[index]  = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
       }
    }
@@ -2725,8 +2709,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       {
          if (gsl_code[index] == 2) { continue; }
          IntegrationPoint ip;
-         ip.Set2(gsl_mfem_ref.GetData()+index*dim);
-         if (dim == 3) { ip.z = gsl_mfem_ref(index*dim + 2); }
+         ip.Set(gsl_mfem_ref.GetData()+index*dim, dim);
          Vector localval(ncomp);
          field_in.GetVectorValue(gsl_mfem_elem[index], ip, localval);
          if (field_in.FESpace()->GetOrdering() == Ordering::byNODES)
@@ -2782,7 +2765,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          for (int index = 0; index < npt; index++)
          {
             IntegrationPoint ip;
-            ip.Set3(&pt->r[0]);
+            ip.Set(&pt->r[0], dim);
             pt->ival = field_in.GetValue(pt->el, ip, 1);
             ++pt;
          }
@@ -2808,7 +2791,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          for (int index = 0; index < npt; index++)
          {
             IntegrationPoint ip;
-            ip.Set3(&pt->r[0]);
+            ip.Set(&pt->r[0], dim);
             Vector localval(vec_int_vals.GetData()+index*ncomp, ncomp);
             field_in.GetVectorValue(pt->el, ip, localval);
             ++pt;

@@ -1210,7 +1210,8 @@ void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
    avg_muT = integral_mu / volume;
 }
 
-Mesh *SetupEdgeMesh2D(Mesh *mesh, int attr)
+Mesh *SetupEdgeMesh2D(Mesh *mesh, GridFunction &attr_count_ser,
+                      Array<int> &attr_marker_ser, int attr)
 {
    Array<int> facedofs(0);
    int spaceDim = mesh->SpaceDimension();
@@ -1220,20 +1221,43 @@ Mesh *SetupEdgeMesh2D(Mesh *mesh, int attr)
    MFEM_VERIFY(x, "Mesh nodal space not set\n");
    const FiniteElementSpace *fes = mesh->GetNodalFESpace();
    int mesh_poly_deg = fes->GetMaxElementOrder();
+   int nedges = mesh->GetNEdges();
+
+   FiniteElementSpace *fespace_attr = attr_count_ser.FESpace();
+
+   Array<int> ev, dofs;
+   int attr_marker_dofs[2], attr_count_dofs[2];
    Array<int> edge_to_include;
-   for (int f = 0; f < mesh->GetNBE(); f++)
+   for (int ei = 0; ei < nedges; ei++)
    {
-      int attrib = mesh->GetBdrAttribute(f);
-      if (attrib == attr)
+      mesh->GetEdgeVertices(ei, ev);
+      MFEM_VERIFY(ev.Size(), "Could not get edge vertices.");
+      for (int j = 0; j < 2; j++)
       {
-         edge_to_include.Append(mesh->GetBdrElementFaceIndex(f));
+         int v_id = ev[j];
+         fespace_attr->GetVertexDofs(v_id, dofs);
+         attr_marker_dofs[j] = attr_marker_ser[dofs[0]];
+         attr_count_dofs[j] = attr_count_ser[dofs[0]];
+      }
+      auto hasAtLeastOneBitSet = [](int val, int j)
+      {
+         int mask = (1 << (j-1));
+         return (val & mask) == mask;
+      };
+      bool dof1_mask2 = hasAtLeastOneBitSet(attr_marker_dofs[0], attr);
+      bool dof2_mask2 = hasAtLeastOneBitSet(attr_marker_dofs[1], attr);
+      if ( (dof1_mask2 && dof2_mask2))
+      {
+         edge_to_include.Append(ei);
       }
    }
 
-   int nfaces = edge_to_include.Size();
-   Mesh *intmesh = new Mesh(1, nfaces*2, nfaces, 0, spaceDim);
+   // Setup a mesh with dummy vertices
+   int nel = edge_to_include.Size();
+   Vector vals;
+   Mesh *intmesh = new Mesh(1, nel*2, nel, 0, spaceDim);
    {
-      for (int i = 0; i < nfaces; i++)
+      for (int i = 0; i < nel; i++)
       {
          for (int j = 0; j < 2; j++) // 2 vertices per element
          {
@@ -1241,30 +1265,89 @@ Mesh *SetupEdgeMesh2D(Mesh *mesh, int attr)
             vert = 0.5;
             intmesh->AddVertex(vert.GetData());
          }
-         Array<int> verts(spaceDim);
-         for (int d = 0; d < spaceDim; d++)
+         Array<int> verts(2);
+         for (int d = 0; d < 2; d++)
          {
-            verts[d] = i*spaceDim+d;
+            verts[d] = i*2+d;
          }
          intmesh->AddSegment(verts, 1);
       }
       intmesh->Finalize(true, true);
-      intmesh->FinalizeTopology();
+      intmesh->FinalizeTopology(false);
       intmesh->SetCurvature(mesh_poly_deg, false, -1, 0);
    }
 
    const FiniteElementSpace *intnodespace = intmesh->GetNodalFESpace();
    GridFunction *intnodes = intmesh->GetNodes();
 
-   Vector vals;
-   for (int i = 0; i < nfaces; i++)
+   for (int i = 0; i < nel; i++)
    {
       int ei = edge_to_include[i];
-      fes->GetEdgeVDofs(ei, edofs);
-      x->GetSubVector(edofs, vals);
+      fes->GetEdgeVDofs(ei, dofs);
+      x->GetSubVector(dofs, vals);
+      Array<int> edofs;
       intnodespace->GetElementVDofs(i, edofs);
       intnodes->SetSubVector(edofs, vals);
    }
+
+   return intmesh;
+}
+
+// Mesh *SetupEdgeMesh2D(Mesh *mesh, int attr)
+// {
+//    Array<int> facedofs(0);
+//    int spaceDim = mesh->SpaceDimension();
+//    MFEM_VERIFY(spaceDim == 2, "Only 2D meshes supported right now.");
+//    Array<int> edofs;
+//    GridFunction *x = mesh->GetNodes();
+//    MFEM_VERIFY(x, "Mesh nodal space not set\n");
+//    const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+//    int mesh_poly_deg = fes->GetMaxElementOrder();
+//    Array<int> edge_to_include;
+//    for (int f = 0; f < mesh->GetNBE(); f++)
+//    {
+//       int attrib = mesh->GetBdrAttribute(f);
+//       if (attrib == attr)
+//       {
+//          edge_to_include.Append(mesh->GetBdrElementFaceIndex(f));
+//       }
+//    }
+
+//    int nfaces = edge_to_include.Size();
+//    Mesh *intmesh = new Mesh(1, nfaces*2, nfaces, 0, spaceDim);
+//    {
+//       for (int i = 0; i < nfaces; i++)
+//       {
+//          for (int j = 0; j < 2; j++) // 2 vertices per element
+//          {
+//             Vector vert(spaceDim);
+//             vert = 0.5;
+//             intmesh->AddVertex(vert.GetData());
+//          }
+//          Array<int> verts(spaceDim);
+//          for (int d = 0; d < spaceDim; d++)
+//          {
+//             verts[d] = i*spaceDim+d;
+//          }
+//          intmesh->AddSegment(verts, 1);
+//       }
+//       intmesh->Finalize(true, true);
+//       intmesh->FinalizeTopology();
+//       intmesh->SetCurvature(mesh_poly_deg, false, -1, 0);
+//    }
+
+//    const FiniteElementSpace *intnodespace = intmesh->GetNodalFESpace();
+//    GridFunction *intnodes = intmesh->GetNodes();
+
+//    Vector vals;
+//    for (int i = 0; i < nfaces; i++)
+//    {
+//       int ei = edge_to_include[i];
+//       fes->GetEdgeVDofs(ei, edofs);
+//       x->GetSubVector(edofs, vals);
+//       intnodespace->GetElementVDofs(i, edofs);
+//       intnodes->SetSubVector(edofs, vals);
+//    }
 
    // FaceElementTransformations *face_elem_transf;
    // int count = 0;
@@ -1299,5 +1382,5 @@ Mesh *SetupEdgeMesh2D(Mesh *mesh, int attr)
    // }
    // MFEM_ABORT(" ");
 
-   return intmesh;
-}
+//    return intmesh;
+// }

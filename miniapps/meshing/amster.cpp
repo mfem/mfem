@@ -188,9 +188,9 @@ int main (int argc, char *argv[])
 
    if (bdr_opt_case == 5)
    {
-      if (mesh->GetNodes() == NULL)
+      // if (mesh->GetNodes() == NULL)
       {
-         mesh->SetCurvature(mesh_poly_deg);
+         mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
       }
       ModifyBoundaryAttributesForNodeMovement(mesh, *(mesh->GetNodes()));
       mesh->SetAttributes();
@@ -289,23 +289,30 @@ int main (int argc, char *argv[])
 
    if (bdr_opt_case >= 1)
    {
-      if (!mesh->GetNodes())
+      // if (!mesh->GetNodes())
       {
-         mesh->SetCurvature(mesh_poly_deg, -1, -1, 0);
+         mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
       }
-      if (!smesh->GetNodes())
+      // if (!smesh->GetNodes())
       {
-         smesh->SetCurvature(mesh_poly_deg, -1, -1, 0);
+         smesh->SetCurvature(mesh_poly_deg, false, -1, 0);
       }
       if (myid == 0)
       {
          std::cout << smesh->GetNE() << " elements in the mesh." << std::endl;
       }
+      int smesh_deg = smesh->GetNodalFESpace()->GetMaxElementOrder();
+      H1_FECollection fec_temp(smesh_deg, dim);
+      FiniteElementSpace fes_temp(smesh, &fec_temp);
+      GridFunction attr_count_ser(&fes_temp);
+      Array<int> attr_marker_ser;
+      SetupSerialDofAttributes(attr_count_ser, attr_marker_ser);
       for (int i = 0; i < surf_mesh_attr.Size(); i++)
       {
          if (dim == 2)
          {
-            Mesh *meshsurf = SetupEdgeMesh2D(smesh, surf_mesh_attr[i]);
+            // Mesh *meshsurf = SetupEdgeMesh2D(smesh, surf_mesh_attr[i]);
+            Mesh *meshsurf = SetupEdgeMesh2D(smesh, attr_count_ser, attr_marker_ser, surf_mesh_attr[i]);
             surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
             delete meshsurf;
          }
@@ -317,12 +324,6 @@ int main (int argc, char *argv[])
             delete meshsurf;
          }
       }
-      int smesh_deg = smesh->GetNodalFESpace()->GetMaxElementOrder();
-      H1_FECollection fec_temp(smesh_deg, dim);
-      FiniteElementSpace fes_temp(smesh, &fec_temp);
-      GridFunction attr_count_ser(&fes_temp);
-      Array<int> attr_marker_ser;
-      SetupSerialDofAttributes(attr_count_ser, attr_marker_ser);
       for (int i = 0; i < surf_mesh_edge_attr.Size(); i++)
       {
          auto result = getTwoSetBits(surf_mesh_edge_attr[i]);
