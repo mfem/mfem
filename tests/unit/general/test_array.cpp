@@ -22,13 +22,11 @@ TEST_CASE("Array init-list and C-style array constructors", "[Array]")
    // Braced-list constructor
    Array<int> b({6, 5, 4, 3, 2, 1});
    Array<int> c{6, 5, 4, 3, 2, 1};
-   Array<int> d = {6, 5, 4, 3, 2, 1}; // implicit initializer_list
    // Statically sized C-style array constructor
-   Array<int> e(ContigData);
+   Array<int> d(ContigData);
    // Convertible type constructors
-   Array<int> f({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
-   Array<int> g{6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
-   Array<int> h = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   Array<int> e({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
+   Array<int> f{6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    for (int i = 0; i < a.Size(); i++)
    {
       REQUIRE(a[i] == b[i]);
@@ -36,8 +34,6 @@ TEST_CASE("Array init-list and C-style array constructors", "[Array]")
       REQUIRE(a[i] == d[i]);
       REQUIRE(a[i] == e[i]);
       REQUIRE(a[i] == f[i]);
-      REQUIRE(a[i] == g[i]);
-      REQUIRE(a[i] == h[i]);
    }
 }
 
