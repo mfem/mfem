@@ -264,7 +264,7 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v8;
    }
-   return -1; // Fallback to avoid compiler warning
+   return values.v0; // Fallback to avoid compiler warning
 }
 
 /**
@@ -312,7 +312,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    {
       return values.v8;
    }
-   return -1; // Fallback to avoid compiler warning
+   return values.v0; // Fallback to avoid compiler warning
 }
 
 /**
@@ -365,6 +365,7 @@ MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
    {
       return values.v8;
    }
+   return values.v0; // Fallback to avoid compiler warning
 }
 
 /**
