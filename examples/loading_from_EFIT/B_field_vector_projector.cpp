@@ -31,8 +31,8 @@ int main(int argc, char *argv[])
 
     cout << "Mesh loaded" << endl;
 
-    const char *projected_mesh_file = "mesh/2d_mesh.mesh";
-    Mesh *projected_mesh = new Mesh(projected_mesh_file, 1, 1);
+    const char *new_mesh_file = "mesh/2d_mesh.mesh";
+    Mesh *projected_mesh = new Mesh(new_mesh_file, 1, 1);
 
     FiniteElementSpace fespace(projected_mesh, field.FESpace()->FEColl());
 

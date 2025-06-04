@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   const char *new_mesh_file = "mesh/2d_mesh.mesh";
-   Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
+   const char *out_mesh_file = "mesh/2d_mesh.mesh";
+   Mesh *new_mesh = new Mesh(out_mesh_file, 1, 1);
 
    ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);

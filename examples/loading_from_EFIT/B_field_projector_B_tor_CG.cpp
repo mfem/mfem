@@ -23,8 +23,8 @@ int main(int argc, char *argv[])
 
    // r: 3.0:10.0:256, z: -6.0:6.0:512
    // Use Cartesian coordinates for the extrusion
-   const char *new_mesh_file = "mesh/2d_mesh.mesh";
-   Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
+   const char *out_mesh_file = "mesh/2d_mesh.mesh";
+   Mesh *new_mesh = new Mesh(out_mesh_file, 1, 1);
    // make a H1 space with the mesh
    H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
