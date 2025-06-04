@@ -260,11 +260,10 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v7;
    }
-   if constexpr (i == 8)
+   else // i == 8
    {
       return values.v8;
    }
-   return values.v0; // Fallback to avoid compiler warning
 }
 
 /**
@@ -308,11 +307,10 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    {
       return values.v7;
    }
-   if constexpr (i == 8)
+   else // i == 8
    {
       return values.v8;
    }
-   return values.v0; // Fallback to avoid compiler warning
 }
 
 /**
@@ -361,11 +359,10 @@ MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
    {
       return values.v7;
    }
-   if constexpr (i == 8)
+   else // i == 8
    {
       return values.v8;
    }
-   return values.v0; // Fallback to avoid compiler warning
 }
 
 /**
