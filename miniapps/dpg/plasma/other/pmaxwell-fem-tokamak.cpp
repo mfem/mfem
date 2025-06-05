@@ -11,8 +11,8 @@
 //                E×n = E_0, on ∂Ω
 
 #include "mfem.hpp"
-#include "util/pcomplexweakform.hpp"
-#include "../common/mfem-common.hpp"
+#include "../../util/pcomplexweakform.hpp"
+#include "../../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 

@@ -475,19 +475,20 @@ private:
 };
 
 
-/// Stationary linear iteration: x <- x + B (b - A x)
+/// Stationary linear iteration: x <- x + ω B (b - A x)
 class SLISolver : public IterativeSolver
 {
 protected:
    mutable Vector r, z;
-
+   real_t omega; ///< Relaxation parameter
    void UpdateVectors();
 
 public:
-   SLISolver() { }
+   SLISolver(real_t omega_ = 1.0) : omega(omega_) { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+   SLISolver(MPI_Comm comm_, real_t omega_ = 1.0) : IterativeSolver(comm_),
+      omega(omega_) { }
 #endif
 
    void SetOperator(const Operator &op) override

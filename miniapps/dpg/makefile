@@ -26,8 +26,8 @@ DPG_REAL_SEQ_SRC = util/weakform.cpp util/blockstaticcond.cpp util/utils.cpp
 DPG_REAL_PAR_SRC = $(DPG_REAL_SEQ_SRC) util/pweakform.cpp 
 DPG_REAL_OBJ = $(DPG_REAL_PAR_SRC:.cpp=.o)
 
-DPG_COMPLEX_SEQ_SRC = util/maxwell_utils.cpp util/utils.cpp util/complexweakform.cpp util/complexstaticcond.cpp util/pml.cpp
-DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) util/pcomplexweakform.cpp 
+DPG_COMPLEX_SEQ_SRC = util/maxwell_utils.cpp util/utils.cpp util/complexblockform.cpp util/complexweakform.cpp util/complexstaticcond.cpp util/pml.cpp
+DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) util/pcomplexweakform.cpp util/pcomplexblockform.cpp 
 DPG_COMPLEX_OBJ = $(DPG_COMPLEX_PAR_SRC:.cpp=.o)
 
 DIFFUSION_SRC = diffusion.cpp $(DPG_REAL_SEQ_SRC)
@@ -35,6 +35,9 @@ DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 
 PDIFFUSION_SRC = pdiffusion.cpp $(DPG_REAL_PAR_SRC)
 PDIFFUSION_OBJ = $(PDIFFUSION_SRC:.cpp=.o)
+
+AMGF_SRC = amgf.cpp $(DPG_REAL_PAR_SRC)
+AMGF_OBJ = $(AMGF_SRC:.cpp=.o)
 
 PDIFFUSIONPRIMAL_SRC = pdiffusion-primal.cpp $(DPG_REAL_PAR_SRC)
 PDIFFUSIONPRIMAL_OBJ = $(PDIFFUSIONPRIMAL_SRC:.cpp=.o)
@@ -66,34 +69,16 @@ PMAXWELL_OBJ = $(PMAXWELL_SRC:.cpp=.o)
 PMAXWELL_PRIMAL_SRC = pmaxwell-primal.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_PRIMAL_OBJ = $(PMAXWELL_PRIMAL_SRC:.cpp=.o)
 
-PMAXWELL_TOKAMAK_SRC = pmaxwell-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_TOKAMAK_OBJ = $(PMAXWELL_TOKAMAK_SRC:.cpp=.o)
-
-PMAXWELL_FEM_TOKAMAK_SRC = pmaxwell-fem-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_FEM_TOKAMAK_OBJ = $(PMAXWELL_FEM_TOKAMAK_SRC:.cpp=.o)
-
-PMAXWELL_PRIMAL_TOKAMAK_SRC = pmaxwell-primal-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_PRIMAL_TOKAMAK_OBJ = $(PMAXWELL_PRIMAL_TOKAMAK_SRC:.cpp=.o)
-
-PMAXWELL_UW_TOKAMAK_SRC = pmaxwell-uw-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_UW_TOKAMAK_OBJ = $(PMAXWELL_UW_TOKAMAK_SRC:.cpp=.o)
-
 PMAXWELL_UW_COUPLED_SRC = pmaxwell-coupled.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_UW_COUPLED_OBJ = $(PMAXWELL_UW_COUPLED_SRC:.cpp=.o)
 
-PMAXWELL_UW_LH_SRC = pmaxwell-uw-lh.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_UW_LH_OBJ = $(PMAXWELL_UW_LH_SRC:.cpp=.o)
-
-PMAXWELL_PRIMAL_LH_SRC = pmaxwell-primal-lh.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_PRIMAL_LH_OBJ = $(PMAXWELL_PRIMAL_LH_SRC:.cpp=.o)
-
-PMAXWELL_FEM_LH_SRC = pmaxwell-fem-lh.cpp $(DPG_COMPLEX_PAR_SRC)
-PMAXWELL_FEM_LH_OBJ = $(PMAXWELL_FEM_LH_SRC:.cpp=.o)
+PMAXWELL_FEM_COUPLED_SRC = pmaxwell-coupled-fem.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_FEM_COUPLED_OBJ = $(PMAXWELL_FEM_COUPLED_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
-PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-tokamak pmaxwell-fem-tokamak \
- pmaxwell-primal-tokamak pmaxwell-uw-tokamak pacoustics-primal pmaxwell-primal pdiffusion-primal pvectordiffusion-primal \
- pmaxwell-coupled pmaxwell-uw-lh pmaxwell-fem-lh pmaxwell-primal-lh
+PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell  \
+ pacoustics-primal pmaxwell-primal pdiffusion-primal pvectordiffusion-primal \
+ pmaxwell-coupled pmaxwell-coupled-fem amgf
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -131,6 +116,9 @@ convection-diffusion: $(CONVECTIONDIFFUSION_OBJ)
 pdiffusion: $(PDIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PDIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+amgf: $(AMGF_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(AMGF_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 pdiffusion-primal: $(PDIFFUSIONPRIMAL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PDIFFUSIONPRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
@@ -158,29 +146,14 @@ pmaxwell: $(PMAXWELL_OBJ)
 pmaxwell-primal: $(PMAXWELL_PRIMAL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_PRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
-pmaxwell-tokamak: $(PMAXWELL_TOKAMAK_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
-
-pmaxwell-fem-tokamak: $(PMAXWELL_FEM_TOKAMAK_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_FEM_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)	
-
 pmaxwell-primal-tokamak: $(PMAXWELL_PRIMAL_TOKAMAK_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_PRIMAL_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)	
-
-pmaxwell-uw-tokamak: $(PMAXWELL_UW_TOKAMAK_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_UW_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)		
 
 pmaxwell-coupled: $(PMAXWELL_UW_COUPLED_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_UW_COUPLED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)		
 
-pmaxwell-uw-lh: $(PMAXWELL_UW_LH_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_UW_LH_OBJ) $(COMMON_LIB) $(MFEM_LIBS)		
-
-pmaxwell-fem-lh: $(PMAXWELL_FEM_LH_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_FEM_LH_OBJ) $(COMMON_LIB) $(MFEM_LIBS)		
-
-pmaxwell-primal-lh: $(PMAXWELL_PRIMAL_LH_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_PRIMAL_LH_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+pmaxwell-coupled-fem: $(PMAXWELL_FEM_COUPLED_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_FEM_COUPLED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:

@@ -363,30 +363,33 @@ BlockTriangularSymmetricPreconditioner::BlockTriangularSymmetricPreconditioner(
      owns_blocks(0),
      nBlocks(offsets_.Size() - 1),
      offsets(0),
-     ops(nBlocks, nBlocks)
+     ops(nBlocks, nBlocks),
+     coef(nBlocks, nBlocks)
 {
    ops = static_cast<Operator *>(NULL);
    offsets.MakeRef(offsets_);
 }
 
 void BlockTriangularSymmetricPreconditioner::SetDiagonalBlock(int iblock,
-                                                              Operator *op)
+                                                              Operator *op, real_t c)
 {
    MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
                offsets[iblock+1] - offsets[iblock] == op->Width(),
                "incompatible Operator dimensions");
 
    SetBlock(iblock, iblock, op);
+   coef(iblock, iblock) = c;
 }
 
 void BlockTriangularSymmetricPreconditioner::SetBlock(int iRow, int iCol,
-                                                      Operator *op)
+                                                      Operator *op, real_t c)
 {
    MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == op->NumRows() &&
                offsets[iCol+1] - offsets[iCol] == op->NumCols(),
                "incompatible Operator dimensions");
 
    ops(iRow, iCol) = op;
+   coef(iRow, iCol) = c;
 }
 
 // Operator application
@@ -409,6 +412,7 @@ void BlockTriangularSymmetricPreconditioner::ForwardPass(const Vector & x,
          {
             ops(iRow, jCol)->Mult(yblock.GetBlock(jCol),
                                   tmp);  // tmp = A(iRow,jCol) * yblock(jCol)
+            tmp*= coef(iRow,jCol);  // tmp *= c
             tmp2 -= tmp;  // tmp2 -= A(iRow, jCol) * yblock(jCol)
          }
       }
@@ -417,7 +421,9 @@ void BlockTriangularSymmetricPreconditioner::ForwardPass(const Vector & x,
       if (ops(iRow, iRow))
       {
          ops(iRow, iRow)->Mult(tmp2,
-                               yblock.GetBlock(iRow));  // yblock(iRow) = A(iRow,iRow)^-1 * tmp2
+                               yblock.GetBlock(iRow));
+         yblock.GetBlock(iRow) *= coef(iRow,
+                                       iRow);  // yblock(iRow) = A(iRow,iRow)^-1 * tmp2
       }
       else
       {
@@ -444,6 +450,7 @@ void BlockTriangularSymmetricPreconditioner::BackwardPass(const Vector & x,
          {
             ops(iRow, jCol)->Mult(yblock.GetBlock(jCol),
                                   tmp);  // tmp = A(iRow,jCol) * yblock(jCol)
+            tmp *= coef(iRow,jCol);  // tmp *= c
             tmp2 -= tmp;  // tmp2 -= A(iRow,jCol) * yblock(jCol)
          }
       }
@@ -453,6 +460,8 @@ void BlockTriangularSymmetricPreconditioner::BackwardPass(const Vector & x,
       {
          ops(iRow, iRow)->Mult(tmp2,
                                yblock.GetBlock(iRow));  // Final correction for yblock(iRow)
+         yblock.GetBlock(iRow) *= coef(iRow,
+                                       iRow);  // yblock(iRow) = A(iRow,iRow)^-1 * tmp2
       }
       else
       {

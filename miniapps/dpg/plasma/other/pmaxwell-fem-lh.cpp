@@ -6,10 +6,10 @@
 //                       E×n = E₀ , on ∂Ω
 
 #include "mfem.hpp"
-#include "util/pcomplexweakform.hpp"
-#include "util/utils.hpp"
-#include "util/maxwell_utils.hpp"
-#include "../common/mfem-common.hpp"
+#include "../../util/pcomplexweakform.hpp"
+#include "../../util/utils.hpp"
+#include "../../util/maxwell_utils.hpp"
+#include "../../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 #include <cstring>

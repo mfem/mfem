@@ -953,27 +953,28 @@ public:
 };
 
 
-/// General triple product operator x -> A*B*C*x, with ownership of the factors.
+/// General triple product operator x -> α A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
 {
    const Operator *A;
    const Operator *B;
    const Operator *C;
+   const real_t alpha;
    bool ownA, ownB, ownC;
    mutable Vector t1, t2;
    MemoryClass mem_class;
 
 public:
    TripleProductOperator(const Operator *A, const Operator *B,
-                         const Operator *C, bool ownA, bool ownB, bool ownC);
+                         const Operator *C, bool ownA, bool ownB, bool ownC, real_t alpha_ = 1.0);
 
    MemoryClass GetMemoryClass() const override { return mem_class; }
 
    void Mult(const Vector &x, Vector &y) const override
-   { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
+   { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); y*=alpha; }
 
    void MultTranspose(const Vector &x, Vector &y) const override
-   { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
+   { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); y*=alpha; }
 
    virtual ~TripleProductOperator();
 };

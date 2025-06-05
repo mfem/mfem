@@ -466,10 +466,11 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
 
 TripleProductOperator::TripleProductOperator(
    const Operator *A, const Operator *B, const Operator *C,
-   bool ownA, bool ownB, bool ownC)
+   bool ownA, bool ownB, bool ownC, real_t alpha_)
    : Operator(A->Height(), C->Width())
    , A(A), B(B), C(C)
    , ownA(ownA), ownB(ownB), ownC(ownC)
+   , alpha(alpha_)
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()

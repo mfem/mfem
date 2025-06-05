@@ -3084,7 +3084,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix2(const FiniteElement
    dim = trial_fe.GetDim();
    int spaceDim = Trans.GetSpaceDim();
    bool square = (dim == spaceDim);
-   double w;
    vdim = (vdim <= 0) ? spaceDim : vdim;
 
    if (VQ)
@@ -3126,26 +3125,26 @@ void VectorDiffusionIntegrator::AssembleElementMatrix2(const FiniteElement
 
       if (VQ)
       {
-         // VQ->Eval(vcoeff, Trans, ip);
-         // for (int k = 0; k < vdim; ++k)
-         // {
-         //    Mult_a_AAt(w*vcoeff(k), dshapedxt, pelmat);
-         //    elmat.AddMatrix(pelmat, tr_nd*k, tr_nd*k);
-         // }
-         MFEM_ABORT("VQ not implemented yet");
+         VQ->Eval(vcoeff, Trans, ip);
+         for (int k = 0; k < vdim; ++k)
+         {
+            pelmat = 0.0;
+            AddMult_a_ABt(w*vcoeff(k), te_dshapedxt, dshapedxt, pelmat);
+            elmat.AddMatrix(pelmat, te_nd*k, tr_nd*k);
+         }
       }
       else if (MQ)
       {
-         // MQ->Eval(mcoeff, Trans, ip);
-         // for (int ii = 0; ii < vdim; ++ii)
-         // {
-         //    for (int jj = 0; jj < vdim; ++jj)
-         //    {
-         //       Mult_a_AAt(w*mcoeff(ii,jj), dshapedxt, pelmat);
-         //       elmat.AddMatrix(pelmat, tr_nd*ii, te_nd*jj);
-         //    }
-         // }
-         MFEM_ABORT("MQ not implemented yet");
+         MQ->Eval(mcoeff, Trans, ip);
+         for (int ii = 0; ii < vdim; ++ii)
+         {
+            for (int jj = 0; jj < vdim; ++jj)
+            {
+               pelmat = 0.0;
+               AddMult_a_ABt(w*mcoeff(ii,jj), te_dshapedxt, dshapedxt, pelmat);
+               elmat.AddMatrix(pelmat, te_nd*ii, tr_nd*jj);
+            }
+         }
       }
       else
       {
@@ -3159,6 +3158,8 @@ void VectorDiffusionIntegrator::AssembleElementMatrix2(const FiniteElement
       }
    }
 }
+
+
 
 void VectorDiffusionIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,

@@ -542,7 +542,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          oper->Mult(x, r);  // r = A x
          subtract(b, r, r); // r = b - A x
          prec->Mult(r, z);  // z = B r
-         add(x, 1.0, z, x); // x = x + B (b - A x)
+         add(x, omega, z, x); // x = x + ω B (b - A x)
       }
       converged = true;
       final_iter = i;
@@ -559,7 +559,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          oper->Mult(x, r);  // r = A x
          subtract(b, r, r); // r = b - A x
          prec->Mult(r, z);  // z = B r
-         add(x, 1.0, z, x); // x = x + B (b - A x)
+         add(x, omega, z, x); // x = x + ω B (b - A x)
       }
       converged = true;
       final_iter = i;
@@ -612,13 +612,13 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
-      if (prec) //  x = x + B (b - A x)
+      if (prec) //  x = x + ω B (b - A x)
       {
-         add(x, 1.0, z, x);
+         add(x, omega, z, x);
       }
       else
       {
-         add(x, 1.0, r, x);
+         add(x, omega, r, x);
       }
 
       oper->Mult(x, r);
