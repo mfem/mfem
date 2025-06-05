@@ -1085,7 +1085,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    }
    else if constexpr (is_identity_fop<fop_t>::value)
    {
-      auto PT = [](Vector &r_local, Vector &y)
+      auto PT = [=](Vector &r_local, Vector &y)
       {
          y = r_local;
       };
@@ -1100,7 +1100,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
       };
       return PT;
    }
-   return [](const Vector&, Vector&)
+   return [=](const Vector&, Vector&)
    {
       /* no-op */
    }; // Never reached, but avoids compiler warning.
