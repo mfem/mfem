@@ -18,7 +18,18 @@
 
 // Define a portable unreachable macro
 #if defined(__GNUC__) || defined(__clang__)
+#if defined(__CUDACC_VER_MAJOR__)
+#if __CUDACC_VER_MAJOR__ <= 11 && __CUDACC_VER_MINOR__ < 3
+// nvcc didn't add __builtin_unreachable() until cuda 11.3
+#define MFEM_UNREACHABLE()
+#else
+// nvcc >= 11.3
 #define MFEM_UNREACHABLE() __builtin_unreachable()
+#endif
+#else
+// host-only version
+#define MFEM_UNREACHABLE() __builtin_unreachable()
+#endif
 #elif defined(_MSC_VER)
 #define MFEM_UNREACHABLE() __assume(0)
 #endif
