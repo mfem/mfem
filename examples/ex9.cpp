@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    //    periodic meshes in this code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   // cout << "dim is " << dim << endl;
+   cout << "dim is " << dim << endl;
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -376,9 +376,18 @@ int main(int argc, char *argv[])
    GridFunction avgs(&fes);
 
    Vector Pint;
+   cout << "ndofs = " << fes.GetNDofs() << endl;
+   cout << "ne = " << fes.GetNE() << endl;
    const IntegrationRule ir = IntRules.Get(mesh.GetElementGeometry(0), order);
+   cout << "nqpts = " << ir.GetNPoints() << endl; 
+   Pint.SetSize(fes.GetNE()*ir.GetNPoints());
    QuadratureInterpolator qi(fes,ir);
+   cout << "u size = " << u.Size() << endl;
+   // u.Print();
    qi.PhysValues(u,Pint);
+   cout << "pass" << endl;
+
+   
 
 
    bool done = false;
@@ -391,8 +400,7 @@ int main(int argc, char *argv[])
       // cout << "avgs vals = " <<  << endl;
       // avgs.Print();
       // cout << "fes size = " << 
-      cout << "u size = " << u.Size() << endl;
-      // u.Print();
+      
       exit(0);
       // limiter step here 
       ti++;
