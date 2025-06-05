@@ -784,27 +784,15 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
             MFEM_CU_or_HIP(SPARSE_INDEX_32I),
             MFEM_CU_or_HIP(SPARSE_INDEX_32I),
             MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
-#ifdef MFEM_USE_SINGLE
-            MFEM_CUDA_or_HIP(_R_32F));
-#else
-            MFEM_CUDA_or_HIP(_R_64F));
-#endif
+            MFEM_REAL_T);
 
          // Create handles for input/output vectors
          MFEM_cu_or_hip(sparseCreateDnVec)(&vecX_descr,
                                            x.Size(),
                                            const_cast<real_t *>(d_x),
-#ifdef MFEM_USE_SINGLE
-                                           MFEM_CUDA_or_HIP(_R_32F));
-#else
-                                           MFEM_CUDA_or_HIP(_R_64F));
-#endif
+                                           MFEM_REAL_T);
          MFEM_cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y,
-#ifdef MFEM_USE_SINGLE
-                                           MFEM_CUDA_or_HIP(_R_32F));
-#else
-                                           MFEM_CUDA_or_HIP(_R_64F));
-#endif
+                                           MFEM_REAL_T);
 #else
          cusparseCreateMatDescr(&matA_descr);
          cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
@@ -823,11 +811,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          vecX_descr,
          &beta,
          vecY_descr,
-#ifdef MFEM_USE_SINGLE
-         MFEM_CUDA_or_HIP(_R_32F),
-#else
-         MFEM_CUDA_or_HIP(_R_64F),
-#endif
+         MFEM_REAL_T,
          MFEM_GPUSPARSE_ALG,
          &newBufferSize);
 
@@ -854,11 +838,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          vecX_descr,
          &beta,
          vecY_descr,
-#ifdef MFEM_USE_SINGLE
-         MFEM_CUDA_or_HIP(_R_32F),
-#else
-         MFEM_CUDA_or_HIP(_R_64F),
-#endif
+         MFEM_REAL_T,
          MFEM_GPUSPARSE_ALG,
          dBuffer);
 #else
