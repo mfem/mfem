@@ -40,7 +40,7 @@ namespace mfem::future
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](const Ts&... x) { return std::array{ x... }; };
+   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)>{ x... }; };
    return std::apply(get_array, tuple);
 }
 
