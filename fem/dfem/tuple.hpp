@@ -23,8 +23,12 @@
 // nvcc didn't add __builtin_unreachable() until cuda 11.3
 #define MFEM_UNREACHABLE()
 #else
+// nvcc >= 11.3
 #define MFEM_UNREACHABLE() __builtin_unreachable()
 #endif
+#else
+// host-only version
+#define MFEM_UNREACHABLE() __builtin_unreachable()
 #endif
 #elif defined(_MSC_VER)
 #define MFEM_UNREACHABLE() __assume(0)
