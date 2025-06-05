@@ -982,6 +982,10 @@ get_restriction_transpose(
       };
       return std::tuple{RT, R->Height()};
    }
+   return std::tuple<std::function<void(const Vector&, Vector&)>, int>
+   {
+      [](const Vector&, Vector&) { /* no-op */ }, 0
+   }; // Never reached, but avoids compiler warning.
 }
 
 /// @brief Apply the prolongation operator to a field.
@@ -1064,22 +1068,24 @@ void prolongation(const std::vector<FieldDescriptor> fields,
 /// @tparam fop_t the field operator type.
 template <typename fop_t>
 inline
-auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
-                                MPI_Comm mpi_comm)
+std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
+   const FieldDescriptor &f,
+   const fop_t &fop,
+   MPI_Comm mpi_comm)
 {
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
-         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
       };
       return PT;
    }
    else if constexpr (is_identity_fop<fop_t>::value)
    {
-      auto PT = [](Vector &r_local, Vector &y)
+      auto PT = [=](const Vector &r_local, Vector &y)
       {
          y = r_local;
       };
@@ -1182,6 +1188,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
    {
       static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Get the GetDofToQuad object for a given entity type.
@@ -1311,6 +1318,7 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       MFEM_ABORT("can't get size on quadrature point for field descriptor");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Create a map from field operator types to FieldDescriptor indices.
@@ -2182,6 +2190,12 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       {
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
+         return DofToQuadMap
+         {
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+            -1
+         }; // Unreachable, but avoids compiler warning
       }
    };
    return std::array<DofToQuadMap, N>
