@@ -1077,9 +1077,9 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
-         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
       };
       return PT;
    }
@@ -1100,10 +1100,6 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
       };
       return PT;
    }
-   return [=](const Vector&, Vector&)
-   {
-      /* no-op */
-   }; // Never reached, but avoids compiler warning.
 }
 
 /// @brief Apply the restriction operator to a field.
