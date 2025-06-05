@@ -26,7 +26,7 @@ NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
  navier_shear navier_3dfoc navier_turbchan navier_ale_mms\
- navier_fsi_beam_mms
+ navier_fsi_beam_mms navier_fsi_beam_coupled_mms
 ifeq ($(MFEM_USE_GSLIB),YES)
    PAR_MINIAPPS += navier_cht
 endif
