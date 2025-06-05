@@ -40,7 +40,7 @@ namespace mfem::future
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)>{ x... }; };
+   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)> { x... }; };
    return std::apply(get_array, tuple);
 }
 
@@ -522,13 +522,25 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
 /// This struct is used to store information about a field.
 struct FieldDescriptor
 {
+   using data_variant_t =
+      std::variant<const FiniteElementSpace *,
+      const ParFiniteElementSpace *,
+      const ParameterSpace *>;
+
    /// Field ID
    std::size_t id;
 
    /// Field variant
-   std::variant<const FiniteElementSpace *,
-       const ParFiniteElementSpace *,
-       const ParameterSpace *> data;
+   data_variant_t data;
+
+   /// Default constructor
+   FieldDescriptor() :
+      id(SIZE_MAX), data(data_variant_t{}) {}
+
+   /// Constructor
+   template <typename T>
+   FieldDescriptor(std::size_t field_id, const T* v) :
+      id(field_id), data(v) {}
 };
 
 namespace dfem
@@ -972,21 +984,22 @@ get_restriction_transpose(
       {
          v_l = v_e;
       };
-      return std::tuple{RT, 1};
+      return std::make_tuple(RT, 1);
    }
    else
    {
       const Operator *R = get_restriction<entity_t>(f, o);
-      auto RT = [=](const Vector &x, Vector &y)
+      std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
          R->MultTranspose(x, y);
       };
-      return std::tuple{RT, R->Height()};
+      return std::make_tuple(RT, R->Height());
    }
-   return std::tuple<std::function<void(const Vector&, Vector&)>, int>
+   return std::make_tuple(
+             std::function<void(const Vector&, Vector&)>([](const Vector&, Vector&)
    {
-      [](const Vector&, Vector&) { /* no-op */ }, 0
-   }; // Never reached, but avoids compiler warning.
+      /* no-op */
+   }), 0); // Never reached, but avoids compiler warning.
 }
 
 /// @brief Apply the prolongation operator to a field.
