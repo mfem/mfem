@@ -1085,7 +1085,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    }
    else if constexpr (is_identity_fop<fop_t>::value)
    {
-      auto PT = [=](Vector &r_local, Vector &y)
+      auto PT = [=](const Vector &r_local, Vector &y)
       {
          y = r_local;
       };
