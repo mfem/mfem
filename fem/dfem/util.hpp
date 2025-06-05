@@ -973,13 +973,19 @@ get_restriction_transpose(
       };
       return std::tuple{RT, 1};
    }
-
-   const Operator *R = get_restriction<entity_t>(f, o);
-   auto RT = [=](const Vector &x, Vector &y)
+   else
    {
-      R->MultTranspose(x, y);
-   };
-   return std::tuple{RT, R->Height()};
+      const Operator *R = get_restriction<entity_t>(f, o);
+      auto RT = [=](const Vector &x, Vector &y)
+      {
+         R->MultTranspose(x, y);
+      };
+      return std::tuple{RT, R->Height()};
+   }
+   return std::tuple<std::function<void(const Vector&, Vector&)>, int>
+   {
+      [](const Vector&, Vector&) { /* no-op */ }, 0
+   }; // Never reached, but avoids compiler warning.
 }
 
 /// @brief Apply the prolongation operator to a field.
@@ -1062,8 +1068,10 @@ void prolongation(const std::vector<FieldDescriptor> fields,
 /// @tparam fop_t the field operator type.
 template <typename fop_t>
 inline
-auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
-                                MPI_Comm mpi_comm)
+std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
+   const FieldDescriptor &f,
+   const fop_t &fop,
+   MPI_Comm mpi_comm)
 {
    if constexpr (is_sum_fop<fop_t>::value)
    {
@@ -1083,13 +1091,19 @@ auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
       };
       return PT;
    }
-
-   const Operator *P = get_prolongation(f);
-   auto PT = [=](const Vector &r_local, Vector &y)
+   else
    {
-      P->MultTranspose(r_local, y);
-   };
-   return PT;
+      const Operator *P = get_prolongation(f);
+      auto PT = [=](const Vector &r_local, Vector &y)
+      {
+         P->MultTranspose(r_local, y);
+      };
+      return PT;
+   }
+   return [](const Vector&, Vector&)
+   {
+      /* no-op */
+   }; // Never reached, but avoids compiler warning.
 }
 
 /// @brief Apply the restriction operator to a field.
