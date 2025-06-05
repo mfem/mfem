@@ -287,8 +287,10 @@ public:
       // The constructor of DifferentiableOperator takes two vectors of
       // FieldDescriptors. A FieldDescriptor can be viewed as a a pair of an
       // identifier (the field ID) and it's accompanying space.
-      std::vector<FieldDescriptor> solutions = {{SOLUTION_U, &H1}};
-      std::vector<FieldDescriptor> parameters = {{MESH_NODES, &mesh_nodes_fes}};
+      std::vector<FieldDescriptor> solutions;
+      solutions.push_back(FieldDescriptor(SOLUTION_U, &H1));
+      std::vector<FieldDescriptor> parameters;
+      parameters.push_back(FieldDescriptor(MESH_NODES, &mesh_nodes_fes));
 
       // Create the DifferentiableOperator on the desired mesh.
       res = std::make_shared<DifferentiableOperator>(
