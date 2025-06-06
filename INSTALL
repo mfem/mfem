@@ -1196,7 +1196,7 @@ Specific options for Enzyme
 ===========================
 To work properly, MFEM and Enzyme need to use the same LLVM/Clang configuration.
 For example, on macOS this can be done by using Homebrew: first install Enzyme,
-which in turn install LLVM as a dependency (as of May 2025, this is LLVM 19):
+which in turn installs LLVM as a dependency (as of May 2025, this is LLVM 19):
 
    brew install enzyme
 
