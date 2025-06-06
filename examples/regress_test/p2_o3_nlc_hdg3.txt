@@ -37,33 +37,33 @@ dim(V) = 3280
 dim(W) = 1600
 dim(V+W) = 4880
 ***********************************************************
-Assembly took 0.254908s.
-Preconditioner took 0.372839s.
+Assembly took 0.180486s.
+Preconditioner took 0.230856s.
    Pass :  1   Iteration :   0  ||B r|| = 1.87617
    Pass :  1   Iteration :   1  ||B r|| = 1.87443
-   Pass :  1   Iteration :   2  ||B r|| = 0.182319
-   Pass :  1   Iteration :   3  ||B r|| = 0.171416
-   Pass :  1   Iteration :   4  ||B r|| = 0.0334539
-   Pass :  1   Iteration :   5  ||B r|| = 0.0331722
-   Pass :  1   Iteration :   6  ||B r|| = 0.00819781
-   Pass :  1   Iteration :   7  ||B r|| = 0.00386559
-   Pass :  1   Iteration :   8  ||B r|| = 0.00277883
-   Pass :  1   Iteration :   9  ||B r|| = 0.00137126
-   Pass :  1   Iteration :  10  ||B r|| = 0.00100853
-   Pass :  1   Iteration :  11  ||B r|| = 0.000505314
-   Pass :  1   Iteration :  12  ||B r|| = 0.000239357
-   Pass :  1   Iteration :  13  ||B r|| = 0.000230163
-   Pass :  1   Iteration :  14  ||B r|| = 9.09612e-05
-   Pass :  1   Iteration :  15  ||B r|| = 4.51437e-05
-   Pass :  1   Iteration :  16  ||B r|| = 4.50537e-05
-   Pass :  1   Iteration :  17  ||B r|| = 2.21661e-05
-   Pass :  1   Iteration :  18  ||B r|| = 1.19487e-05
-   Pass :  1   Iteration :  19  ||B r|| = 1.18619e-05
-   Pass :  1   Iteration :  20  ||B r|| = 4.87704e-06
-   Pass :  1   Iteration :  21  ||B r|| = 2.15053e-06
-   Pass :  1   Iteration :  22  ||B r|| = 2.00462e-06
-   Pass :  1   Iteration :  23  ||B r|| = 9.51939e-07
-GMRES+GS converged in 23 iterations with a residual norm of 9.51939e-07.
-solver took 4.48339s.
-|| q_h - q_ex || / || q_ex || = 0.00044048
-|| t_h - t_ex || / || t_ex || = 1.98442e-05
+   Pass :  1   Iteration :   2  ||B r|| = 0.18234
+   Pass :  1   Iteration :   3  ||B r|| = 0.171481
+   Pass :  1   Iteration :   4  ||B r|| = 0.0334939
+   Pass :  1   Iteration :   5  ||B r|| = 0.0332163
+   Pass :  1   Iteration :   6  ||B r|| = 0.00818877
+   Pass :  1   Iteration :   7  ||B r|| = 0.00386167
+   Pass :  1   Iteration :   8  ||B r|| = 0.00278074
+   Pass :  1   Iteration :   9  ||B r|| = 0.00137145
+   Pass :  1   Iteration :  10  ||B r|| = 0.00101062
+   Pass :  1   Iteration :  11  ||B r|| = 0.000506094
+   Pass :  1   Iteration :  12  ||B r|| = 0.000238678
+   Pass :  1   Iteration :  13  ||B r|| = 0.000229464
+   Pass :  1   Iteration :  14  ||B r|| = 9.10592e-05
+   Pass :  1   Iteration :  15  ||B r|| = 4.50432e-05
+   Pass :  1   Iteration :  16  ||B r|| = 4.4943e-05
+   Pass :  1   Iteration :  17  ||B r|| = 2.21569e-05
+   Pass :  1   Iteration :  18  ||B r|| = 1.19208e-05
+   Pass :  1   Iteration :  19  ||B r|| = 1.18368e-05
+   Pass :  1   Iteration :  20  ||B r|| = 4.87269e-06
+   Pass :  1   Iteration :  21  ||B r|| = 2.14408e-06
+   Pass :  1   Iteration :  22  ||B r|| = 1.99757e-06
+   Pass :  1   Iteration :  23  ||B r|| = 9.51239e-07
+GMRES+GS converged in 23 iterations with a residual norm of 9.51239e-07.
+solver took 3.09297s.
+|| q_h - q_ex || / || q_ex || = 6.03707e-07
+|| t_h - t_ex || / || t_ex || = 1.08497e-07

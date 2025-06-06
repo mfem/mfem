@@ -36,38 +36,38 @@ Memory configuration: host-std
 
 MFEM Warning: Upwinded flux is implemented only component-wise.
  ... in function: mfem::ComponentwiseUpwindFlux::ComponentwiseUpwindFlux(const mfem::FluxFunction&)
- ... in file: fem/hyperbolic.cpp:865
+ ... in file: fem/hyperbolic.cpp:904
 
 ***********************************************************
 dim(V) = 3280
 dim(W) = 1600
 dim(V+W) = 4880
 ***********************************************************
-Assembly took 0.415639s.
-Preconditioner took 0.345009s.
+Assembly took 0.18148s.
+Preconditioner took 0.221039s.
    Pass :  1   Iteration :   0  ||B r|| = 1.87609
    Pass :  1   Iteration :   1  ||B r|| = 1.87432
-   Pass :  1   Iteration :   2  ||B r|| = 0.165961
-   Pass :  1   Iteration :   3  ||B r|| = 0.161288
-   Pass :  1   Iteration :   4  ||B r|| = 0.0301306
-   Pass :  1   Iteration :   5  ||B r|| = 0.0294952
-   Pass :  1   Iteration :   6  ||B r|| = 0.00664025
-   Pass :  1   Iteration :   7  ||B r|| = 0.00302184
-   Pass :  1   Iteration :   8  ||B r|| = 0.00220595
-   Pass :  1   Iteration :   9  ||B r|| = 0.00111681
-   Pass :  1   Iteration :  10  ||B r|| = 0.000832032
-   Pass :  1   Iteration :  11  ||B r|| = 0.000380879
-   Pass :  1   Iteration :  12  ||B r|| = 0.000181976
-   Pass :  1   Iteration :  13  ||B r|| = 0.000172937
-   Pass :  1   Iteration :  14  ||B r|| = 7.12449e-05
-   Pass :  1   Iteration :  15  ||B r|| = 3.48165e-05
-   Pass :  1   Iteration :  16  ||B r|| = 3.47488e-05
-   Pass :  1   Iteration :  17  ||B r|| = 1.67192e-05
-   Pass :  1   Iteration :  18  ||B r|| = 8.64751e-06
-   Pass :  1   Iteration :  19  ||B r|| = 8.63199e-06
-   Pass :  1   Iteration :  20  ||B r|| = 3.82489e-06
-   Pass :  1   Iteration :  21  ||B r|| = 1.51359e-06
-GMRES+GS converged in 21 iterations with a residual norm of 1.51359e-06.
-solver took 4.19122s.
-|| q_h - q_ex || / || q_ex || = 0.000359701
-|| t_h - t_ex || / || t_ex || = 1.62112e-05
+   Pass :  1   Iteration :   2  ||B r|| = 0.16601
+   Pass :  1   Iteration :   3  ||B r|| = 0.161362
+   Pass :  1   Iteration :   4  ||B r|| = 0.0301646
+   Pass :  1   Iteration :   5  ||B r|| = 0.0295347
+   Pass :  1   Iteration :   6  ||B r|| = 0.00663266
+   Pass :  1   Iteration :   7  ||B r|| = 0.0030216
+   Pass :  1   Iteration :   8  ||B r|| = 0.00220853
+   Pass :  1   Iteration :   9  ||B r|| = 0.00111606
+   Pass :  1   Iteration :  10  ||B r|| = 0.000831543
+   Pass :  1   Iteration :  11  ||B r|| = 0.000380993
+   Pass :  1   Iteration :  12  ||B r|| = 0.000181673
+   Pass :  1   Iteration :  13  ||B r|| = 0.000172683
+   Pass :  1   Iteration :  14  ||B r|| = 7.12328e-05
+   Pass :  1   Iteration :  15  ||B r|| = 3.4761e-05
+   Pass :  1   Iteration :  16  ||B r|| = 3.46875e-05
+   Pass :  1   Iteration :  17  ||B r|| = 1.67153e-05
+   Pass :  1   Iteration :  18  ||B r|| = 8.63663e-06
+   Pass :  1   Iteration :  19  ||B r|| = 8.62185e-06
+   Pass :  1   Iteration :  20  ||B r|| = 3.82383e-06
+   Pass :  1   Iteration :  21  ||B r|| = 1.51087e-06
+GMRES+GS converged in 21 iterations with a residual norm of 1.51087e-06.
+solver took 3.00141s.
+|| q_h - q_ex || / || q_ex || = 1.32976e-06
+|| t_h - t_ex || / || t_ex || = 3.94381e-07
