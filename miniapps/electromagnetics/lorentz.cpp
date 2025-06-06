@@ -391,35 +391,17 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root() && (visit || visualization))
    {
-      Mesh trajectory(2, 2 * (step + 1), step, 0, 3);
+      Mesh trajectory(1, step, step-1, 0, 3);
 
       for (int i=0; i<=step; i++)
       {
          trajectory.AddVertex(pos_data(0,i), pos_data(1,i), pos_data(2,i));
-
-         real_t dpx = (mom_data(0, i + 1) - mom_data(0, i)) / (m * dt);
-         real_t dpy = (mom_data(1, i + 1) - mom_data(1, i)) / (m * dt);
-         real_t dpz = (mom_data(2, i + 1) - mom_data(2, i)) / (m * dt);
-
-         trajectory.AddVertex(pos_data(0,i) + r_factor * dpx,
-                              pos_data(1,i) + r_factor * dpy,
-                              pos_data(2,i) + r_factor * dpz);
+         if (i > 0) { trajectory.AddSegment(i-1,i); }
       }
 
-      int v[4];
-      for (int i=0; i<step; i++)
-      {
-         v[0] = 2 * i;
-         v[1] = 2 * (i + 1);
-         v[2] = 2 * (i + 1) + 1;
-         v[3] = 2 * i + 1;
+      trajectory.FinalizeMesh();
 
-         trajectory.AddQuad(v);
-      }
-
-      trajectory.FinalizeQuadMesh(1);
-
-      L2_FECollection    fec_l2(0, 2);
+      L2_FECollection    fec_l2(0, 1);
       FiniteElementSpace fes_l2(&trajectory, &fec_l2);
       GridFunction traj_time(&fes_l2);
       for (int i=0; i<step; i++)
