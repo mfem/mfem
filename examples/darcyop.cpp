@@ -874,6 +874,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
 
       {
          auto *amg = new HypreBoomerAMG(*hS);
+         amg->SetAdvectiveOptions();
          amg->SetPrintLevel(0);
          invS = amg;
       }
