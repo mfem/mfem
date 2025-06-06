@@ -1812,13 +1812,6 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 void DarcyHybridization::ParallelEliminateTDofsInRHS(
    const Array<int> &tdofs_flux, const BlockVector &x_t, BlockVector &b_t)
 {
-   if (IsNonlinear())
-   {
-      //save the rhs for initial guess in the iterative local solve
-      darcy_u = x_t.GetBlock(0);
-      darcy_p = x_t.GetBlock(1);
-   }
-
    Vector xu, bu;
 
    if (!ParallelU())
@@ -1851,6 +1844,13 @@ void DarcyHybridization::ParallelEliminateTDofsInRHS(
       fes.GetProlongationMatrix()->Mult(x_t.GetBlock(0), xu);
       bu.SetSize(xu.Size());
       fes.GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
+   }
+
+   if (IsNonlinear())
+   {
+      //save the rhs for initial guess in the iterative local solve
+      darcy_u = xu;
+      darcy_p = x_t.GetBlock(1);
    }
 
    Vector &bp = b_t.GetBlock(1);
