@@ -431,7 +431,8 @@ int main (int argc, char *argv[])
       cout << setprecision(16)
            << "Total number of elements: " << nelemglob
            << "\nTotal number of procs: " << num_procs
-           << "\nSearched total points: " << pts_cnt*num_procs
+           << "\nSearched total points: " <<  (search_on_rank_0 ? pts_cnt :
+pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
            << "\nPoints not found:     " << not_found
