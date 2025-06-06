@@ -89,9 +89,11 @@ private:
    real_t charge_;
    real_t mass_;
 
+   FindPointsGSLIB  E_finder_;
    ParMesh         *E_pmesh_;
    ParGridFunction *E_field_;
 
+   FindPointsGSLIB  B_finder_;
    ParMesh         *B_pmesh_;
    ParGridFunction *B_field_;
 
@@ -104,76 +106,57 @@ private:
    mutable Vector pm_;
    mutable Vector pp_;
 
-   // Returns true if a usable V has been found. If @a pgf is NULL, V = 0 is
-   // returned as a default value.
-   bool GetValue(ParMesh *pmesh, ParGridFunction *pgf, Vector q, Vector &V)
+   // Returns true if point exists in domain.
+   static bool GetValue(const ParGridFunction &pgf, const Vector &q,
+                        FindPointsGSLIB &finder, Vector &V)
    {
-      DenseMatrix point(q.GetData(), 3, 1);
+      // Locate current point in each mesh
+      finder.FindPoints(q);
+      if (finder.GetCode()[0] == 2) { return false; } // If no point is found, return
 
-      int pt_found =
-         (pmesh != NULL) ? pmesh->FindPoints(point, elem_id_, ip_, false) : -1;
-
-      // We have a mesh but the point was not found. The path must be outside
-      // the domain of interest.
-      if (pmesh != NULL && pt_found <= 0) { return false; }
-
-      int pt_root = -1;
-
-      if (pt_found > 0 && elem_id_[0] >= 0 && pgf != NULL)
-      {
-         pt_root = pmesh->GetMyRank();
-
-         pgf->GetVectorValue(elem_id_[0], ip_[0], V);
-      }
-      else
-      {
-         pt_root = 0;
-         V = 0.0;
-      }
-
-      // Determine processor which found the field point
-      int glb_pt_root = -1;
-      MPI_Allreduce(&pt_root, &glb_pt_root, 1,
-                    MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-      // Send the field value to the root processor
-      if (pmesh != NULL && elem_id_[0] >= 0 && glb_pt_root != 0)
-      {
-         MPI_Send(V.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                  0, 1030, MPI_COMM_WORLD);
-      }
-
-      // Receive the field value on the root processor
-      if (Mpi::Root() && pmesh != NULL && glb_pt_root != 0)
-      {
-         MPI_Status status;
-         MPI_Recv(V.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                  glb_pt_root, 1030, MPI_COMM_WORLD, &status);
-      }
+      finder.Interpolate(pgf, V);
       return true;
    }
 
 public:
    BorisAlgorithm(ParGridFunction *E_gf,
                   ParGridFunction *B_gf,
-                  real_t charge, real_t mass)
-      : charge_(charge), mass_(mass),
+                  real_t charge, real_t mass, MPI_Comm comm)
+      : E_finder_(comm), B_finder_(comm), charge_(charge), mass_(mass),
         E_field_(E_gf),
         B_field_(B_gf),
         E_(3), B_(3), pxB_(3), pm_(3), pp_(3)
    {
+      E_ = 0.0;
       E_pmesh_ = (E_field_) ? E_field_->ParFESpace()->GetParMesh() : NULL;
+      if (E_pmesh_)
+      {
+         E_pmesh_->EnsureNodes();
+         E_finder_.Setup(*E_pmesh_);
+      }
+
+      B_ = 0.0;
       B_pmesh_ = (B_field_) ? B_field_->ParFESpace()->GetParMesh() : NULL;
+      if (B_pmesh_)
+      {
+         B_pmesh_->EnsureNodes();
+         B_finder_.Setup(*B_pmesh_);
+      }
+
    }
 
    bool Step(Vector &q, Vector &p, real_t &t, real_t &dt)
    {
-      // Locate current point in each mesh, evaluate the fields, and collect
-      // field values on the root processor.
-      if (!GetValue(E_pmesh_, E_field_, q, E_)) { return false; }
-      if (!GetValue(B_pmesh_, B_field_, q, B_)) { return false; }
+      if (E_field_ && !GetValue(*E_field_, q, E_finder_, E_))
+      {
+         return false;
+      }
+      if (B_field_ && !GetValue(* B_field_, q, B_finder_, B_))
+      {
+         return false;
+      }
 
-      // Compute updated position and momentum using the Boris algorithm
+      // Compute updated position and momentum using the Boris algorithm (only on Rank 0)
       if (Mpi::Root())
       {
          // Compute half of the contribution from q E
@@ -371,7 +354,7 @@ int main(int argc, char *argv[])
       mfem::out << "Initial momentum: "; p_init.Print(mfem::out);
    }
 
-   BorisAlgorithm boris(E_gf, B_gf, q, m);
+   BorisAlgorithm boris(E_gf, B_gf, q, m, MPI_COMM_WORLD);
    Vector pos(x_init);
    Vector mom(p_init);
 
