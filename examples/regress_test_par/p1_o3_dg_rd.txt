@@ -33,12 +33,12 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 8
-Reduction init took 0.000228186s.
+Reduction init took 0.000238215s.
 ***********************************************************
 dim(W) = 512
 ***********************************************************
-Assembly took 0.0603541s.
-Preconditioner took 6.5365e-05s.
+Assembly took 0.0495234s.
+Preconditioner took 3.2153e-05s.
 
 
  Num MPI tasks = 2
@@ -49,23 +49,20 @@ Preconditioner took 6.5365e-05s.
 BoomerAMG SETUP PARAMETERS:
 
  Max levels = 25
- Num levels = 4
+ Num levels = 8
 
- Strength Threshold = 0.250000
+ Strength Threshold = 0.100000
  Interpolation Truncation Factor = 0.000000
  Maximum Row Sum Threshold for Dependency Weakening = 0.900000
 
- Coarsening Type = HMIS 
-
- No. of levels of aggressive coarsening: 1
-
- Interpolation on agg. levels= multipass interpolation
+ Coarsening Type = Falgout-CLJP 
  measures are determined locally
 
 
  No global partition option chosen.
 
- Interpolation = extended+i interpolation
+ Interpolation = one-point interpolation 
+ Restriction = local approximate ideal restriction (AIR-1.5)
 
 Operator Matrix Information:
 
@@ -73,23 +70,31 @@ Operator Matrix Information:
 lev    rows  entries sparse   min  max     avg      min         max
 ======================================================================
   0    1024    44544  0.042    24   64    43.5  -2.575e+00   6.742e+00
-  1      50     1230  0.492    13   38    24.6  -5.029e-01   6.476e+00
-  2      13      165  0.976    12   13    12.7   6.516e-01   8.131e+00
-  3       4       16  1.000     4    4     4.0   4.514e+00   1.045e+01
+  1     573   117749  0.359    67  335   205.5  -8.077e-01   3.021e+00
+  2     304    87500  0.947   219  304   287.8  -4.036e-01   2.713e+00
+  3     162    26244  1.000   162  162   162.0  -2.830e-01   2.739e+00
+  4      79     6241  1.000    79   79    79.0  -1.891e-01   2.428e+00
+  5      39     1521  1.000    39   39    39.0  -1.516e-02   2.725e+00
+  6      12      144  1.000    12   12    12.0   1.675e-01   2.633e+00
+  7       2        4  1.000     2    2     2.0   9.010e-01   1.599e+00
 
 
 Interpolation Matrix Information:
                     entries/row        min        max            row sums
 lev  rows x cols  min  max  avgW     weight      weight       min         max
 ================================================================================
-  0  1024 x 50      0    7   1.6  -2.784e-01   1.184e+00  -4.365e-01   1.448e+00
-  1    50 x 13      1    4   3.5   3.231e-02   6.093e-01   5.442e-01   1.050e+00
-  2    13 x 4       1    4   2.9   4.487e-02   4.148e-01   2.818e-01   1.000e+00
+  0  1024 x 573     0    1   0.8   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  1   573 x 304     0    1   0.9   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  2   304 x 162     0    1   1.0   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  3   162 x 79      0    1   1.0   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  4    79 x 39      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  5    39 x 12      0    1   1.0   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  6    12 x 2       0    1   0.7   1.000e+00   0.000e+00   0.000e+00   1.000e+00
 
 
-     Complexity:    grid = 1.065430
-                operator = 1.031677
-                memory = 1.071300
+     Complexity:    grid = 2.143555
+                operator = 6.374529
+                memory = 6.421067
 
 
 
@@ -102,32 +107,23 @@ BoomerAMG SOLVER PARAMETERS:
 
   Relaxation Parameters:
    Visiting Grid:                     down   up  coarse
-            Number of sweeps:            1    1     1 
-   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+            Number of sweeps:            0    3     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:     10   10     9 
    Point types, partial sweeps (1=C, -1=F):
-                  Pre-CG relaxation (down):   0
-                   Post-CG relaxation (up):   0
+                  Pre-CG relaxation (down):
+                   Post-CG relaxation (up):  -1  -1   1
                              Coarsest grid:   0
 
-   Pass :  1   Iteration :   0  ||B r|| = 14.0565
-   Pass :  1   Iteration :   1  ||B r|| = 2.68137
-   Pass :  1   Iteration :   2  ||B r|| = 1.31339
-   Pass :  1   Iteration :   3  ||B r|| = 0.463794
-   Pass :  1   Iteration :   4  ||B r|| = 0.185116
-   Pass :  1   Iteration :   5  ||B r|| = 0.0662772
-   Pass :  1   Iteration :   6  ||B r|| = 0.0296012
-   Pass :  1   Iteration :   7  ||B r|| = 0.0134193
-   Pass :  1   Iteration :   8  ||B r|| = 0.00615419
-   Pass :  1   Iteration :   9  ||B r|| = 0.00273429
-   Pass :  1   Iteration :  10  ||B r|| = 0.00117098
-   Pass :  1   Iteration :  11  ||B r|| = 0.000632997
-   Pass :  1   Iteration :  12  ||B r|| = 0.000319212
-   Pass :  1   Iteration :  13  ||B r|| = 0.000142004
-   Pass :  1   Iteration :  14  ||B r|| = 6.25742e-05
-   Pass :  1   Iteration :  15  ||B r|| = 2.98521e-05
-   Pass :  1   Iteration :  16  ||B r|| = 1.50198e-05
-   Pass :  1   Iteration :  17  ||B r|| = 5.72539e-06
-GMRES+HypreAMG converged in 17 iterations with a residual norm of 5.72539e-06.
-solver took 0.00732676s.
-|| q_h - q_ex || / || q_ex || = 5.07488e-05
-|| t_h - t_ex || / || t_ex || = 2.61031e-05
+   Pass :  1   Iteration :   0  ||B r|| = 46.6726
+   Pass :  1   Iteration :   1  ||B r|| = 1.02967
+   Pass :  1   Iteration :   2  ||B r|| = 0.180186
+   Pass :  1   Iteration :   3  ||B r|| = 0.0267702
+   Pass :  1   Iteration :   4  ||B r|| = 0.00527325
+   Pass :  1   Iteration :   5  ||B r|| = 0.00143649
+   Pass :  1   Iteration :   6  ||B r|| = 0.000288868
+   Pass :  1   Iteration :   7  ||B r|| = 5.20463e-05
+   Pass :  1   Iteration :   8  ||B r|| = 1.07709e-05
+GMRES+HypreAMG converged in 8 iterations with a residual norm of 1.07709e-05.
+solver took 0.0992528s.
+|| q_h - q_ex || / || q_ex || = 5.07288e-05
+|| t_h - t_ex || / || t_ex || = 2.61561e-05

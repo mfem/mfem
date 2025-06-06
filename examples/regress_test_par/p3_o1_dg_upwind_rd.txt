@@ -15,13 +15,13 @@ Options used:
    --velocity 1
    --stab_diff 0.5
    --no-bc-neumann
-   --no-reduction
-   --hybridization
+   --reduction
+   --no-hybridization
    --no-nonlinear
    --no-nonlinear-convection
    --no-nonlinear-diffusion
    --hdg_scheme 1
-   --nonlinear-solver 0
+   --nonlinear-solver 1
    --no-partial-assembly
    --device cpu
    --no-mfem
@@ -33,15 +33,12 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 22
-Hybridization init took 0.00420976s.
+Reduction init took 0.000103748s.
 ***********************************************************
-dim(V) = 1584
 dim(W) = 792
-dim(M) = 854
-dim(V+W+M) = 3230
 ***********************************************************
-Assembly took 0.020144s.
-Preconditioner took 5.1914e-05s.
+Assembly took 0.0202312s.
+Preconditioner took 3.4469e-05s.
 
 
  Num MPI tasks = 2
@@ -72,32 +69,32 @@ Operator Matrix Information:
              nonzero            entries/row          row sums
 lev    rows  entries sparse   min  max     avg      min         max
 ======================================================================
-  0    1680    21724  0.008     1   14    12.9  -2.474e-02   1.000e-07
-  1     868    12502  0.017     3   24    14.4  -2.657e-02   1.991e-03
-  2     468     8988  0.041     1   40    19.2  -2.771e-02   1.955e-03
-  3     266     6815  0.096     3   75    25.6  -2.517e-02   1.768e-03
-  4     142     3610  0.179     1   84    25.4  -2.411e-02   1.827e-03
-  5      71     1534  0.304     1   55    21.6  -2.292e-02   1.379e-03
-  6      21      209  0.474     2   21    10.0  -2.236e-02   3.594e-04
-  7       7       35  0.714     3    7     5.0  -1.974e-02   4.946e-04
+  0    1600    18560  0.007     4   16    11.6  -2.000e-07   2.500e-02
+  1    1016    13951  0.014     4   26    13.7  -6.853e-04   2.424e-02
+  2     589    10841  0.031     3   37    18.4  -8.253e-04   2.506e-02
+  3     309     8141  0.085     2   60    26.3  -5.430e-04   3.232e-02
+  4     156     4929  0.203     2   92    31.6  -9.673e-04   4.404e-02
+  5      66     1252  0.287     2   56    19.0  -1.121e-03   3.242e-02
+  6      21      200  0.454     1   21     9.5  -1.427e-03   1.989e-02
+  7       5       16  0.640     1    5     3.2   9.772e-03   2.107e-02
 
 
 Interpolation Matrix Information:
                     entries/row        min        max            row sums
 lev  rows x cols  min  max  avgW     weight      weight       min         max
 ================================================================================
-  0  1680 x 868     0    1   0.8   1.000e+00   0.000e+00   0.000e+00   1.000e+00
-  1   868 x 468     0    1   0.8   1.000e+00   0.000e+00   0.000e+00   1.000e+00
-  2   468 x 266     0    1   0.6   1.000e+00   0.000e+00   0.000e+00   1.000e+00
-  3   266 x 142     0    1   0.6   1.000e+00   0.000e+00   0.000e+00   1.000e+00
-  4   142 x 71      0    1   0.5   1.000e+00   0.000e+00   0.000e+00   1.000e+00
-  5    71 x 21      0    1   0.5   1.000e+00   0.000e+00   0.000e+00   1.000e+00
-  6    21 x 7       0    1   0.4   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  0  1600 x 1016    0    1   0.9   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  1  1016 x 589     0    1   0.9   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  2   589 x 309     0    1   0.8   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  3   309 x 156     0    1   0.7   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  4   156 x 66      0    1   0.5   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  5    66 x 21      0    1   0.4   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  6    21 x 5       0    1   0.2   1.000e+00   0.000e+00   0.000e+00   1.000e+00
 
 
-     Complexity:    grid = 2.097024
-                operator = 2.550957
-                memory = 2.694485
+     Complexity:    grid = 2.351250
+                operator = 3.119073
+                memory = 3.305280
 
 
 
@@ -117,11 +114,18 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):  -1  -1   1
                              Coarsest grid:   0
 
-   Pass :  1   Iteration :   0  ||B r|| = 16.8081
-   Pass :  1   Iteration :   1  ||B r|| = 0.0814133
-   Pass :  1   Iteration :   2  ||B r|| = 8.17027e-05
-   Pass :  1   Iteration :   3  ||B r|| = 2.34235e-07
-GMRES+HypreAMG converged in 3 iterations with a residual norm of 2.34235e-07.
-solver took 0.00731628s.
-|| q_h - q_ex || / || q_ex || = 0.329984
-|| t_h - t_ex || / || t_ex || = 0.0520583
+   Pass :  1   Iteration :   0  ||B r|| = 18.0404
+   Pass :  1   Iteration :   1  ||B r|| = 2.28132
+   Pass :  1   Iteration :   2  ||B r|| = 0.923144
+   Pass :  1   Iteration :   3  ||B r|| = 0.248793
+   Pass :  1   Iteration :   4  ||B r|| = 0.0400325
+   Pass :  1   Iteration :   5  ||B r|| = 0.00718245
+   Pass :  1   Iteration :   6  ||B r|| = 0.00203293
+   Pass :  1   Iteration :   7  ||B r|| = 0.000874071
+   Pass :  1   Iteration :   8  ||B r|| = 0.000310292
+   Pass :  1   Iteration :   9  ||B r|| = 6.3404e-05
+   Pass :  1   Iteration :  10  ||B r|| = 1.68048e-05
+GMRES+HypreAMG converged in 10 iterations with a residual norm of 1.68048e-05.
+solver took 0.00749332s.
+|| q_h - q_ex || / || q_ex || = 0.478353
+|| t_h - t_ex || / || t_ex || = 0.0520591

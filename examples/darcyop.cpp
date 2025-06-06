@@ -81,7 +81,9 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
       if (darcy->GetHybridization())
       {
 #ifdef MFEM_USE_MPI
-         lin_prec.reset(new HypreBoomerAMG());
+         auto *amg = new HypreBoomerAMG();
+         amg->SetAdvectiveOptions();
+         lin_prec.reset(amg);
          lin_prec_str = "HypreAMG";
 #else
          lin_prec.reset(new GSSmoother());
@@ -124,7 +126,9 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
    if (darcy->GetHybridization())
    {
 #ifdef MFEM_USE_MPI
-      prec.reset(new HypreBoomerAMG());
+      auto *amg = new HypreBoomerAMG();
+      amg->SetAdvectiveOptions();
+      prec.reset(amg);
       prec_str = "HypreAMG";
 #else
       prec.reset(new GSSmoother());
@@ -134,7 +138,9 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
    else if (darcy->GetReduction())
    {
 #ifdef MFEM_USE_MPI
-      prec.reset(new HypreBoomerAMG());
+      auto *amg = new HypreBoomerAMG();
+      amg->SetAdvectiveOptions();
+      prec.reset(amg);
       prec_str = "HypreAMG";
 #else
 #ifndef MFEM_USE_SUITESPARSE
