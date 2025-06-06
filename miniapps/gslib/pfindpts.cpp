@@ -122,7 +122,7 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
                   "--no-search-on-r0",
-                  "Enable search only on rank 0 (disable to search points on all tasks).");
+                  "Enable search only on rank 0 (disable to search points on all tasks). All points added by other procs are ignored.");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
                   "Do random h refinements to mesh (does not work for pyramids).");
@@ -130,15 +130,15 @@ int main (int argc, char *argv[])
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
-                  "Ordering of fespace that will be used for grid function to be interpolated."
+                  "Ordering of fespace that will be used for grid function to be interpolated. "
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&randomization, "-random", "--random",
-                  "0: generate points randomly in the bounding box of domain,"
+                  "0: generate points randomly in the bounding box of domain, "
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
-                  "# points per proc or element");
+                  "# points / proc initialized on entire mesh (random = 0) or every element (random = 1).");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
@@ -432,7 +432,7 @@ int main (int argc, char *argv[])
            << "Total number of elements: " << nelemglob
            << "\nTotal number of procs: " << num_procs
            << "\nSearched total points: " <<  (search_on_rank_0 ? pts_cnt :
-pts_cnt*num_procs)
+                                               pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
            << "\nPoints not found:     " << not_found
