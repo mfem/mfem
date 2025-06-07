@@ -662,7 +662,11 @@ public:
       }
       else
       {
-         eps = lambda * (lambda + xnorm / v.Norml2());
+         const real_t vnorm_local = v.Norml2();
+         real_t vnorm;
+         MPI_Allreduce(&vnorm_local, &vnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                       MPI_COMM_WORLD);
+         eps = lambda * (lambda + xnorm / vnorm);
       }
 
       // x + eps * v
