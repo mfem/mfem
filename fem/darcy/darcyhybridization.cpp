@@ -438,6 +438,10 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    {
       DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+#ifdef MFEM_USE_MPI
+      // prevent double integration on shared faces
+      if (ftr->Elem2No >= 0 && !save2) { H_f *= 0.5; }
+#endif
    }
    else
    {
