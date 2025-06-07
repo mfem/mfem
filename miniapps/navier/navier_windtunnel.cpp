@@ -185,9 +185,7 @@ int main(int argc, char *argv[])
    attr_walls[0] = 1;  // attr 1 = bottom wall
    attr_walls[2] = 1;  // attr 3 = top wall
 
-   // TODO: 10.0 is arbitrarily chosen, since Kovasznay solution's u_y is 0 at walls too
-   ConstantCoefficient no_penetration_coeff(10.0);
-   flowsolver.AddVelDirichletBC(&no_penetration_coeff, attr_walls, 1);
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(1.0), attr_walls, 1);
 
    real_t t = 0.0;
    real_t dt = ctx.dt;
@@ -228,6 +226,27 @@ int main(int argc, char *argv[])
       // Compare against exact solution of velocity and pressure.
       u_gf = flowsolver.GetCurrentVelocity();
       p_gf = flowsolver.GetCurrentPressure();
+
+      // TEST: No penetration val
+      Array<int> wall_attr(pmesh->bdr_attributes.Max());
+      wall_attr = 0;
+      wall_attr[0] = wall_attr[2] = 1;
+
+      VectorGridFunctionCoefficient uy_coeff(u_gf);
+
+      LinearForm lform(u_gf->ParFESpace());
+      lform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(uy_coeff), wall_attr);
+      lform.Assemble();
+
+      double local_val = lform * (*u_gf);
+      double global_val = 0.0;
+      MPI_Allreduce(&local_val, &global_val, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+      double normL2 = sqrt(global_val);
+
+      if (Mpi::Root())
+      {
+         mfem::out << "Norm of u_y on walls: " << normL2 << std::endl;
+      }
 
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);

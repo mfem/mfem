@@ -38,21 +38,11 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, real_t kin_vis)
    // Check if fully periodic mesh
    if (!(pmesh->bdr_attributes.Size() == 0))
    {
-      vel_ess_attr.SetSize(pmesh->Dimension(), pmesh->bdr_attributes.Max());
+      vel_ess_attr.SetSize(pmesh->bdr_attributes.Max());
       vel_ess_attr = 0;
-
-      vel_ess_attr_combined.SetSize(pmesh->bdr_attributes.Max());
-      vel_ess_attr_combined = 0;
 
       pres_ess_attr.SetSize(pmesh->bdr_attributes.Max());
       pres_ess_attr = 0;
-   }
-
-   // vel_ess_tdof_comp is Array<Array<int>*> shaped dim x N_tdofs
-   vel_ess_tdof_comp.SetSize(pmesh->Dimension());
-   for (int i = 0; i < pmesh->Dimension(); ++i)
-   {
-      vel_ess_tdof_comp[i] = new Array<int>;
    }
 
    int vfes_truevsize = vfes->GetTrueVSize();
@@ -124,32 +114,27 @@ void NavierSolver::Setup(real_t dt)
 
    sw_setup.Start();
 
-   // Get essential true DOFs for each component
-   for (int comp = 0; comp < pmesh->Dimension(); ++comp)
+   // Get essential true DOFs for vector velocity BCs
+   vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
+   
+   // Add essential true DOFs for component-wise velocity BCs
+   Array<int> all_comp_ess_tdof;
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
    {
-      Array<int> comp_ess_attr(pmesh->bdr_attributes.Max());
-      for (int attr = 0; attr < pmesh->bdr_attributes.Max(); ++attr)
-      {
-         comp_ess_attr[attr] = vel_ess_attr(comp, attr);
-      }
-      vfes->GetEssentialTrueDofs(comp_ess_attr, *vel_ess_tdof_comp[comp], comp);
+      Array<int> comp_ess_tdof;
+      vfes->GetEssentialTrueDofs(vel_comp_dbc.attr, comp_ess_tdof, vel_comp_dbc.comp);
+      all_comp_ess_tdof.Append(comp_ess_tdof);
    }
 
-   // Combine all component essential DOFs into vel_ess_tdof
-   Array<int> vel_ess_tdof_marker(vfes->GetTrueVSize());
-   vel_ess_tdof_marker = 0;
-
-   for (int comp = 0; comp < pmesh->Dimension(); ++comp)
+   if (all_comp_ess_tdof.Size() > 0)
    {
-      for (int i = 0; i < vel_ess_tdof_comp[comp]->Size(); ++i)
-      {
-         vel_ess_tdof_marker[(*vel_ess_tdof_comp[comp])[i]] = 1;
-      }
+      all_comp_ess_tdof.Sort();
+      all_comp_ess_tdof.Unique();
+      vel_ess_tdof.Append(all_comp_ess_tdof);
+      vel_ess_tdof.Sort();
+      vel_ess_tdof.Unique();
    }
-
-   // Convert marker to list
-   vfes->MarkerToList(vel_ess_tdof_marker, vel_ess_tdof);
-
+   
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
@@ -255,21 +240,7 @@ void NavierSolver::Setup(real_t dt)
       ftext_bnlfi->SetIntRule(&ir_ni);
    }
 
-   vel_ess_attr_combined.SetSize(pmesh->bdr_attributes.Max());
-   vel_ess_attr_combined = 0;
-   for (int comp = 0; comp < pmesh->Dimension(); ++comp)
-   {
-      for (int attr = 0; attr < pmesh->bdr_attributes.Max(); ++attr)
-      {
-         if (vel_ess_attr(comp, attr))
-         {
-            vel_ess_attr_combined[attr] = 1;
-            break;
-         }
-      }
-   }
-
-   FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr_combined);
+   FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
@@ -622,6 +593,7 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    {
       Coefficient* coeff_array[3] = {nullptr, nullptr, nullptr};
       coeff_array[vel_comp_dbc.comp] = vel_comp_dbc.coeff;
+
       un_next_gf.ProjectBdrCoefficient(coeff_array, vel_comp_dbc.attr);
    }
 
@@ -1052,20 +1024,11 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 
    for (int i = 0; i < attr.Size(); ++i)
    {
+      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
+          "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
-         for (int d = 0; d < pmesh->Dimension(); ++d)
-         {
-            MFEM_ASSERT(vel_ess_attr(d,i) == 0, "Duplicate boundary definition detected.");
-         }
-
-         // Set all components of the velocity to be essential for vector DBC's
-         for (int d = 0; d < pmesh->Dimension(); ++d)
-         {
-            vel_ess_attr(d, i) = 1;
-         }
-
-         vel_ess_attr_combined[i] = 1;
+         vel_ess_attr[i] = 1;
       }
    }
 }
@@ -1082,13 +1045,13 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      mfem::out << "Adding Velocity Dirichlet BC to component " << component
-                << " on attributes ";
+      mfem::out << "Adding Velocity Component " << component 
+                << " Dirichlet BC to attributes ";
       for (int i = 0; i < attr.Size(); ++i)
       {
          if (attr[i] == 1)
          {
-            mfem::out << i+1 << " ";  // Attributes are 1-based
+            mfem::out << i << " ";
          }
       }
       mfem::out << std::endl;
@@ -1097,13 +1060,11 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
    // Update the component-wise essential attribute array
    for (int i = 0; i < attr.Size(); ++i)
    {
-      MFEM_ASSERT((vel_ess_attr(component, i) && attr[i]) == 0,
-                  "Duplicate boundary definition detected for component "
-                  << component << " on attribute " << i+1);
+      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
-         vel_ess_attr(component, i) = 1;
-         vel_ess_attr_combined[i] = 1;
+         vel_ess_attr[i] = 1;
       }
    }
 }
@@ -1270,15 +1231,6 @@ void NavierSolver::PrintInfo()
 
 NavierSolver::~NavierSolver()
 {
-   for (int i = 0; i < vel_ess_tdof_comp.Size(); ++i)
-   {
-      if (vel_ess_tdof_comp[i] != nullptr)
-      {
-         delete vel_ess_tdof_comp[i];
-         vel_ess_tdof_comp[i] = nullptr;
-      }
-   }
-
    delete FText_gfcoeff;
    delete g_bdr_form;
    delete FText_bdr_form;
