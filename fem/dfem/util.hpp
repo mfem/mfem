@@ -590,30 +590,33 @@ void forall(func_t f,
             int num_shmem = 0,
             real_t *shmem = nullptr)
 {
-   if (Device::Allows(Backend::CUDA_MASK) ||
-       Device::Allows(Backend::HIP_MASK))
+#if defined(MFEM_USE_CUDA)
+   if (Device::Allows(Backend::CUDA_MASK))
+#elif defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::HIP_MASK))
+#else
+   if (Device::Allows(Backend::CPU_MASK))
+#endif
    {
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
       forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+#endif
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
       MFEM_GPU_CHECK(hipGetLastError());
-#endif
-      MFEM_DEVICE_SYNC;
-#endif
-   }
-   else if (Device::Allows(Backend::CPU_MASK))
-   {
+#else // CPU backend
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)
       {
          f(i, shmem);
       }
+#endif
+      MFEM_DEVICE_SYNC;
    }
    else
    {
