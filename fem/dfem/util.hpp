@@ -638,7 +638,10 @@ public:
       xpev.SetSize(Width());
 
       op.Mult(x, f);
-      xnorm = x.Norml2();
+
+      const real_t xnorm_local = x.Norml2();
+      MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    MPI_COMM_WORLD);
    }
 
    void Mult(const Vector &v, Vector &y) const override
