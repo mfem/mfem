@@ -1712,11 +1712,15 @@ void DarcyHybridization::Finalize()
       if (!m_nlfi_u && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::PotNL;
+         // backup the data for gradient construction
+         Af_lin_data = Af_data;
          InvertA();
       }
       else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::FluxNL;
+         // backup the data for gradient construction
+         Df_lin_data = Df_data;
          InvertD();
       }
       else
