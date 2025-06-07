@@ -433,7 +433,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
-Operator &NonlinearForm::GetGradient(const Vector &x) const
+Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
 {
    if (ext)
    {
@@ -640,6 +640,8 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
+   if (!finalize) { return *Grad; }
+
    if (!Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
@@ -709,6 +711,12 @@ BlockNonlinearForm::BlockNonlinearForm() :
 
 void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
+   f.Copy(fes);
+   Update();
+}
+
+void BlockNonlinearForm::Update()
+{
    delete BlockGrad;
    BlockGrad = NULL;
    for (int i=0; i<Grads.NumRows(); ++i)
@@ -726,9 +734,8 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 
    height = 0;
    width = 0;
-   f.Copy(fes);
-   block_offsets.SetSize(f.Size() + 1);
-   block_trueOffsets.SetSize(f.Size() + 1);
+   block_offsets.SetSize(fes.Size() + 1);
+   block_trueOffsets.SetSize(fes.Size() + 1);
    block_offsets[0] = 0;
    block_trueOffsets[0] = 0;
 
@@ -1390,6 +1397,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       for (int i = 0; i < mesh->GetNumFaces(); ++i)
       {
          tr = mesh->GetInteriorFaceTransformations(i);
+         if (!tr) { continue; }
 
          for (int s=0; s < fes.Size(); ++s)
          {
