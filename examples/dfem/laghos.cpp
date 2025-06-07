@@ -105,6 +105,27 @@ struct TaylorSourceQFunction
 };
 
 
+static inline MFEM_HOST_DEVICE
+std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig2(
+                                                    tensor<real_t, 2, 2> &A)
+{
+   return eig(A);
+}
+
+static inline MFEM_HOST_DEVICE
+std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> grad_eig2(
+                                                    tensor<real_t, 2, 2> &A,
+                                                    tensor<real_t, 2, 2> &dA)
+{
+   return grad_eig(A, dA);
+}
+
+void* __enzyme_register_grad_eig[] =
+{
+   (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)eig2,
+   (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)grad_eig2,
+};
+
 template <bool compute_dtest = false>
 MFEM_HOST_DEVICE inline
 mfem::tuple<matd, real_t> qdata_setup(
@@ -140,16 +161,6 @@ mfem::tuple<matd, real_t> qdata_setup(
 
    if (use_viscosity)
    {
-      // auto symdvdx = sym(dvdxi * invJ);
-      // auto [mu, compr_dir] = power_method(symdvdx, 10, 1e-8);
-      // auto ph_dir = (J * inv(J0)) * compr_dir;
-      // const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-      // // Measure of maximal compression.
-      // visc_coeff = 2.0 * rho * h * h * fabs(mu);
-      // visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-      //               (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
-      // stress += visc_coeff * symdvdx;
-
       auto softstep = [](const real_t &eps, const real_t x)
       {
          return 1.0 / (1.0 + exp(-x / eps));
@@ -160,16 +171,45 @@ mfem::tuple<matd, real_t> qdata_setup(
          return x * (softstep(eps, x) - softstep(eps, -x));
       };
 
-      const auto delta = 0.2 * cs;
-      const auto dvdx = dvdxi * invJ;
-      const auto h = h0 * pow(detJ, 1.0 / DIMENSION);
-      const auto delta_v = h * tr(dvdx);
-      const auto psi1 = softstep(delta, -delta_v);
-      const auto q1 = 6.0;
-      const auto q2 = 6.0;
-      const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
-                                                                 delta_v) + q1 * cs);
-      stress += 2.0 * mu * sym(dvdx);
+      auto smooth_abs = [](real_t x, real_t epsilon)
+      {
+         return sqrt(x*x + epsilon);
+      };
+
+      auto symdvdx = sym(dvdxi * invJ);
+      // auto [mu, compr_dir] = power_method(symdvdx, 100, eps);
+      auto [eigv, eigV] = eig2(symdvdx);
+      auto mu = eigv(0);
+      auto compr_dir = get_col(eigV, 0);
+      auto ph_dir = (J * inv(J0)) * compr_dir;
+      const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+      // Measure of maximal compression.
+      visc_coeff = 2.0 * rho * h * h * smooth_abs(mu, eps);
+      visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+                    (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
+      stress += visc_coeff * symdvdx;
+
+      // const auto delta = 0.2 * cs;
+      // const auto q1 = 10.0;
+      // const auto q2 = 10.0;
+      // const auto dvdx = dvdxi * invJ;
+      // const auto h = h0 * pow(detJ, 1.0 / DIMENSION);
+      // const auto delta_v = h * tr(dvdx);
+      // const auto psi1 = softstep(delta, -delta_v);
+      // const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
+      //                                                            delta_v) + q1 * cs);
+      // stress += 2.0 * mu * sym(dvdx);
+
+      // if (isnan(mu))
+      // {
+      //    out << "detJ: " << detJ << "\n";
+      //    out << "delta: " << delta << "\n";
+      //    out << "h: " << h << "\n";
+      //    out << "delta_v: " << delta_v << "\n";
+      //    out << "psi: " << psi1 << "\n";
+      //    out << "mu: " << mu << "\n";
+      //    MFEM_ABORT("NAN");
+      // }
    }
 
    if constexpr (compute_dtest)
@@ -387,6 +427,69 @@ public:
    {
       return mfem::tuple{rho0 * det(J0) * w};
    }
+};
+
+class LineSearchNewtonSolver : public NewtonSolver
+{
+public:
+   LineSearchNewtonSolver(MPI_Comm comm = MPI_COMM_WORLD)
+      : NewtonSolver(comm),
+        beta(0.5),    // Backtracking reduction factor
+        alpha(1e-2),  // Sufficient decrease constant (Armijo condition)
+        max_line_iter(10) {}
+
+   void SetBacktrackingFactor(real_t b) { beta = b; }
+   void SetArmijoConstant(real_t a) { alpha = a; }
+   void SetMaxLineSearchIter(int n) { max_line_iter = n; }
+
+protected:
+   // Override the scaling factor computation to implement line search
+   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override
+   {
+      const bool have_b = (b.Size() == Height());
+      real_t lambda = 1.0;  // Initial step length
+      x_new.SetSize(x.Size());
+      r_new.SetSize(x.Size());
+
+      const real_t initial_norm = Norm(r);  // Current residual norm
+
+      grad->Mult(c, r_new);
+      const real_t grad_norm = Norm(r_new);     // Gradient norm
+
+      for (int i = 0; i < max_line_iter; i++)
+      {
+         // Try step: x_new = x - lambda * c
+         add(x, -lambda, c, x_new);
+
+         // Evaluate residual at new point
+         oper->Mult(x_new, r_new);
+         if (have_b)
+         {
+            subtract(r_new, b, r_new);
+         }
+
+         const real_t new_norm = Norm(r_new);
+
+         if (new_norm <= initial_norm - alpha * lambda * grad_norm)
+         {
+            // Found acceptable step
+            return lambda;
+         }
+
+         // Backtrack
+         lambda *= beta;
+      }
+
+      out << "\n\nlineserach didn't converge\n\n";
+      // If we get here, use a small step as fallback
+      return 0.0;
+   }
+
+private:
+   real_t beta;        // Backtracking factor (how much to reduce step)
+   real_t alpha;       // Sufficient decrease parameter
+   int max_line_iter;  // Maximum line search iterations
+   mutable Vector x_new, r_new;
 };
 
 struct QuadratureData
@@ -1103,7 +1206,7 @@ public:
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
-      newton.reset(new NewtonSolver(MPI_COMM_WORLD));
+      newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD));
       newton->SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
       newton->SetOperator(*residual);
       newton->SetSolver(*krylov);
@@ -1255,6 +1358,8 @@ public:
       Vector zero;
       K = X;
       newton->Mult(zero, K);
+
+      newton_converged = newton->GetConverged();
 
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
       Kv.MakeRef(K, H1.GetTrueVSize(), H1.GetTrueVSize());
@@ -1437,6 +1542,7 @@ public:
    const int krylov_maximum_iterations;
    const int preconditioner_lag;
    const PRECONDITIONER_TYPE preconditioner_type;
+   bool newton_converged = true;
 };
 
 static auto CreateLagrangianHydroOperator(
@@ -2253,17 +2359,36 @@ int main(int argc, char *argv[])
 
       // Adaptive time step control.
       const real_t dt_est = hydro->GetTimeStepEstimate(S);
+      if (Mpi::Root())
+      {
+         out << "dt_est: " << dt_est << std::endl;
+      }
       if (ode_solver_type > 10)
       {
-         if (dt_est > 1e2)
+         if (dt_est < dt || !hydro->newton_converged)
          {
             dt *= 0.85;
             t = t_old;
             S = S_old;
             last_step = false;
-            if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
+            if (Mpi::Root())
+            {
+               out << "Repeating step " << ti << " with dt: " << dt << "." << std::endl;
+               out << "Reason: ";
+               if (!hydro->newton_converged)
+               {
+                  out << "Newton did not converge in " << nonlinear_maximum_iterations <<
+                      " iterations.";
+               }
+               else
+               {
+                  out << "Estimated time step lower than taken time step.";
+               }
+               out << std::endl;
+            }
             ti--; continue;
          }
+         else if (dt_est > 1.25 * dt) { dt *= 1.15; }
       }
       else if (dt_est < dt)
       {

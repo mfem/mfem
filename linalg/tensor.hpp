@@ -1362,6 +1362,43 @@ tensor<T, n, m> transpose(const tensor<T, m, n>& A)
 }
 
 /**
+ * @brief Returns the diagonal elements of a square matrix as a vector
+ * @param[in] A The matrix to extract the diagonal from
+ * @return A vector containing the diagonal elements
+ */
+template <typename T, int n> MFEM_HOST_DEVICE
+tensor<T, n> diag(const tensor<T, n, n>& A)
+{
+   tensor<T, n> d{};
+   for (int i = 0; i < n; i++)
+   {
+      d[i] = A[i][i];
+   }
+   return d;
+}
+
+/**
+ * @brief Element-wise multiplication of two tensors with the same shape (Hadamard product)
+ * @tparam S the underlying type of the tensor (lefthand) argument
+ * @tparam T the underlying type of the tensor (righthand) argument
+ * @tparam n integers describing the tensor shape
+ * @param[in] A The lefthand operand
+ * @param[in] B The righthand operand
+ * @return A new tensor where each element is the product of corresponding elements in A and B
+ */
+template <typename S, typename T, int... n> MFEM_HOST_DEVICE
+auto broadcast_mult(const tensor<S, n...>& A, const tensor<T, n...>& B) ->
+tensor<decltype(S {} * T{}), n...>
+{
+   tensor<decltype(S{} * T{}), n...> C{};
+   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   {
+      C[i] = broadcast_mult(A[i], B[i]);
+   }
+   return C;
+}
+
+/**
  * @brief Returns the determinant of a matrix
  * @param[in] A The matrix to obtain the determinant of
  */
@@ -1500,6 +1537,41 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
    }
 
    return {e, v};
+}
+
+template <typename T, int n>
+MFEM_HOST_DEVICE
+typename std::enable_if<(n <= 2),
+         std::tuple<tensor<T, n>, tensor<T, n, n>>>::type
+         grad_eig(tensor<T, n, n> &A, tensor<T, n, n> &dA)
+{
+   printf("custom derivative called\n");
+
+   auto [e, U] = eig(A);
+
+   // initialize to zero
+   tensor<T, n, n> F{};
+
+   // set off diagonal entries
+   for (size_t i = 0; i < n; i++)
+   {
+      for (size_t j = 0; j < n; j++)
+      {
+         F(i, j) = (i == j) ? 0.0 : 1.0 / (e[j] - e[i]);
+      }
+   }
+
+   auto UAU = inv(U) * dA * U;
+
+   for (size_t i = 0; i < n; i++)
+   {
+      for (size_t j = 0; j < n; j++)
+      {
+         F(i, j) *= UAU(i, j);
+      }
+   }
+
+   return {diag(UAU), U * F};
 }
 
 template <typename T> MFEM_HOST_DEVICE
