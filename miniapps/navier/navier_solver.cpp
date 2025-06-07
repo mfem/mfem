@@ -116,7 +116,7 @@ void NavierSolver::Setup(real_t dt)
 
    // Get essential true DOFs for vector velocity BCs
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
-   
+
    // Add essential true DOFs for component-wise velocity BCs
    Array<int> all_comp_ess_tdof;
    for (auto &vel_comp_dbc : vel_comp_dbcs)
@@ -134,7 +134,7 @@ void NavierSolver::Setup(real_t dt)
       vel_ess_tdof.Sort();
       vel_ess_tdof.Unique();
    }
-   
+
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
@@ -1025,7 +1025,7 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
-          "Duplicate boundary definition detected.");
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
          vel_ess_attr[i] = 1;
@@ -1045,7 +1045,7 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      mfem::out << "Adding Velocity Component " << component 
+      mfem::out << "Adding Velocity Component " << component
                 << " Dirichlet BC to attributes ";
       for (int i = 0; i < attr.Size(); ++i)
       {
