@@ -43,7 +43,7 @@ all: $(MINIAPPS)
 %.o: %.cpp
 
 $(MINIAPPS):%: %.o $(DG_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(DG_OBJ) -o $@ $< $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(DG_OBJ) $< -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
