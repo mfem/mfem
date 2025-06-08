@@ -428,7 +428,7 @@ protected:
 
    ParGridFunction pn_gf, resp_gf;
 
-   // Stores essential attributes per component (dim x max_bdr_attr)
+   // All velocity essential attributes
    Array<int> vel_ess_attr;
    // All pressure essential attributes
    Array<int> pres_ess_attr;

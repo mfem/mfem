@@ -1057,7 +1057,7 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
       mfem::out << std::endl;
    }
 
-   // Update the component-wise essential attribute array
+   // Update the essential attribute array
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
@@ -1089,7 +1089,7 @@ void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((pres_ess_attr[i] && attr[i]) == 0,
-                  "Duplicate boundary definition deteceted.");
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
          pres_ess_attr[i] = 1;
