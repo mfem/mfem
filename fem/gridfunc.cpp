@@ -4633,4 +4633,135 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    return sol2d;
 }
 
+void GridFunction::GetElementBoundsAtControlPoints(const int elem,
+                                                   const PLBound &plb,
+                                                   Vector &lower, Vector &upper,
+                                                   const int vdim)
+{
+   const FiniteElement *fe = fes->GetFE(elem);
+   int fes_dim  = fes->GetVDim();
+   int rdim  = fe->GetDim();
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement *>(fe);
+   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+   const Array<int> &dof_map = tbe->GetDofMap();
+
+   Vector loc_data;
+   Array<int> dof_idx;
+   fes->GetElementDofs(elem, dof_idx);
+   int ndofs = dof_idx.Size();
+
+   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   lower.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
+   upper.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
+
+   for (int d = 0; d < fes_dim; d++)
+   {
+      if (vdim > 0 && d != vdim-1) { continue; }
+      const int d_off = vdim > 0 ? 0 : d;
+      Array<int> dof_idx_c = dof_idx;
+      Vector lowerT(lower, d_off*n_c_pts, n_c_pts);
+      Vector upperT(upper, d_off*n_c_pts, n_c_pts);
+      fes->DofsToVDofs(vdim > 0 ? vdim-1 : d, dof_idx_c);
+      GetSubVector(dof_idx_c, loc_data);
+      Vector nodal_data;
+      if (dof_map.Size() == 0)
+      {
+         nodal_data.SetDataAndSize(loc_data.GetData(), ndofs);
+      }
+      else
+      {
+         nodal_data.SetSize(ndofs);
+         for (int j = 0; j < ndofs; j++)
+         {
+            nodal_data(j) = loc_data(dof_map[j]);
+         }
+      }
+      plb.GetNDBounds(rdim, nodal_data, lowerT, upperT);
+   }
 }
+
+void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
+                                    Vector &lower, Vector &upper,
+                                    const int vdim)
+{
+   Vector lowerC, upperC;
+   GetElementBoundsAtControlPoints(elem, plb, lowerC, upperC, vdim);
+   const FiniteElement *fe = fes->GetFE(elem);
+   int rdim  = fe->GetDim();
+   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int fes_dim  = fes->GetVDim();
+   lower.SetSize((vdim > 0 ? 1 :fes_dim));
+   upper.SetSize((vdim > 0 ? 1 :fes_dim));
+   for (int d = 0; d < fes_dim; d++)
+   {
+      if (vdim > 0 && d != vdim-1) { continue; }
+      const int d_off = vdim > 0 ? 0 : d;
+      Vector lowerT(lowerC, d_off*n_c_pts, n_c_pts);
+      Vector upperT(upperC, d_off*n_c_pts, n_c_pts);
+      lower(d_off) = lowerT.Min();
+      upper(d_off) = upperT.Max();
+   }
+}
+
+void GridFunction::GetElementBounds(const PLBound &plb,
+                                    Vector &lower, Vector &upper,
+                                    const int vdim)
+{
+   int nel  = fes->GetNE();
+   int fes_dim  = fes->GetVDim();
+   lower.SetSize(nel*(vdim > 0 ? 1 :fes_dim));
+   upper.SetSize(nel*(vdim > 0 ? 1 :fes_dim));
+   for (int e = 0; e < nel; e++)
+   {
+      Vector lt, ut;
+      GetElementBounds(e, plb, lt, ut, vdim);
+      for (int d = 0; d < fes_dim ; d++)
+      {
+         if (vdim > 0 && d != vdim-1) { continue; }
+         const int d_off = vdim > 0 ? 0 : d;
+         lower(e + d_off*nel) = lt(d_off);
+         upper(e + d_off*nel) = ut(d_off);
+      }
+   }
+}
+
+PLBound GridFunction::GetElementBounds(Vector &lower,
+                                       Vector &upper,
+                                       const int ref_factor,
+                                       const int vdim)
+{
+   int max_order = fes->GetMaxElementOrder();
+   PLBound plb(fes, ref_factor*(max_order+1));
+   GetElementBounds(plb, lower, upper, vdim);
+   return plb;
+}
+
+PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
+                                const int ref_factor, const int vdim)
+{
+   int max_order = fes->GetMaxElementOrder();
+   PLBound plb(fes, ref_factor*(max_order+1));
+   Vector lel, uel;
+   GetElementBounds(plb, lel, uel, vdim);
+
+   int nel  = fes->GetNE();
+   int fes_dim  = fes->GetVDim();
+   lower.SetSize(vdim > 0 ? 1 : fes_dim);
+   upper.SetSize(vdim > 0 ? 1 : fes_dim);
+   for (int d = 0; d < fes_dim; d++)
+   {
+      if (vdim > 0 && d != vdim-1) { continue; }
+      const int d_off = vdim > 0 ? 0 : d;
+      Vector lelt(lel, d_off*nel, nel);
+      Vector uelt(uel, d_off*nel, nel);
+      lower(d_off) = lelt.Min();
+      upper(d_off) = uelt.Max();
+   }
+   return plb;
+}
+
+}
+
+
