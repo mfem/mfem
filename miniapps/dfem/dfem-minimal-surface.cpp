@@ -23,8 +23,9 @@
 //
 // Device sample runs:
 //               mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d cuda
-//               mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d hip
-//               mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d hip
+//               mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d cuda
+//             * mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d hip
+//             * mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d hip
 //
 // Description:  This example code demonstrates the use of MFEM to solve the minimal
 //               surface problem in 2D:
