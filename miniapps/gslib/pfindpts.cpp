@@ -139,7 +139,7 @@ int main (int argc, char *argv[])
                   "0: generate points randomly in the bounding box of domain, "
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
-                  "# points / proc initialized on entire mesh (random = 0) or every element (random = 1).");
+                  "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
