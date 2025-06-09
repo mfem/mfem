@@ -891,6 +891,8 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 
    const int skip_zeros = 1;
    const int NE = fes.GetNE();
+   DenseMatrix S;
+   Array<int> S_ipiv;
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    const int dim = fes.GetMesh()->Dimension();
    DenseMatrix AiBt, AiCt, BAiCt, CAiBt, H_l;
@@ -926,12 +928,28 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       AiBt.Transpose(B);
       if (!bsym) { AiBt.Neg(); }
       LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
-      mfem::AddMult(B, AiBt, D);
 
-      // Decompose Schur complement
-      LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
+      LUFactors LU_S;
+      if (mode == ComputeHMode::Linear)
+      {
+         mfem::AddMult(B, AiBt, D);
 
-      LU_S.Factor(d_dofs_size);
+         // Decompose Schur complement
+         LU_S.data = D.GetData();
+         LU_S.ipiv = &Df_ipiv[Df_f_offsets[el]];
+         LU_S.Factor(d_dofs_size);
+      }
+      else
+      {
+         S = D;
+         mfem::AddMult(B, AiBt, S);
+
+         // Decompose Schur complement
+         LU_S.data = S.GetData();
+         S_ipiv.SetSize(d_dofs_size);
+         LU_S.ipiv = S_ipiv.GetData();
+         LU_S.Factor(d_dofs_size);
+      }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       switch (dim)
@@ -2152,8 +2170,16 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    }
    else
    {
-      A = 0.;
-      D = 0.;
+      // if only linear data are present, A is already factored
+      if (lop_type != LocalOpType::PotNL)
+      {
+         A = 0.;
+      }
+      // if only linear data are present, D is already factored
+      if (lop_type != LocalOpType::FluxNL)
+      {
+         D = 0.;
+      }
    }
 
    if (m_nlfi_u)
@@ -2162,7 +2188,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
       A += grad_A;
    }
-   else if (!A_empty)
+   else if (!A_empty && lop_type != LocalOpType::PotNL)
    {
       DenseMatrix A_lin(const_cast<real_t*>(&Af_lin_data[Af_offsets[el]]),
                         a_dofs_size, a_dofs_size);
@@ -2175,7 +2201,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, grad_D);
       D += grad_D;
    }
-   else if (!D_empty)
+   else if (!D_empty && lop_type != LocalOpType::FluxNL)
    {
       DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       D += D_lin;
@@ -2243,27 +2269,34 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       }
    }
 
-   if (m_nlfi_u || m_nlfi)
+   if (lop_type != LocalOpType::PotNL)
    {
       // Decompose A
       LU_A.Factor(a_dofs_size);
    }
 
 #ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-   // Construct Schur complement
-   const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
-                       d_dofs_size, a_dofs_size);
-   DenseMatrix AiBt(a_dofs_size, d_dofs_size);
+   if (lop_type != LocalOpType::FluxNL)
+   {
+      // Construct Schur complement
+      const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                          d_dofs_size, a_dofs_size);
+      DenseMatrix AiBt(a_dofs_size, d_dofs_size);
 
-   AiBt.Transpose(B);
-   if (!bsym) { AiBt.Neg(); }
-   LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
-   mfem::AddMult(B, AiBt, D);
+      AiBt.Transpose(B);
+      if (!bsym) { AiBt.Neg(); }
+      LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+      mfem::AddMult(B, AiBt, D);
 
-   // Decompose Schur complement
-   LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
+      // Decompose Schur complement
+      LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
 
-   LU_S.Factor(d_dofs_size);
+      LU_S.Factor(d_dofs_size);
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
 #endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 }
 
