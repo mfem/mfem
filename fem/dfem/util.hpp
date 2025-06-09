@@ -2207,8 +2207,11 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             -1
          };
       }
-      static_assert(dfem::always_false<decltype(fop)>,
-                    "field operator type is not implemented");
+      else
+      {
+         static_assert(dfem::always_false<decltype(fop)>,
+                       "field operator type is not implemented");
+      }
       return DofToQuadMap
       {
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
