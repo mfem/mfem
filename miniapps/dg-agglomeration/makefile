@@ -24,12 +24,7 @@ DG_HEADERS = partition.hpp mg_agglom.hpp
 DG_SRC = partition.cpp mg_agglom.cpp
 DG_OBJ = $(DG_SRC:.cpp=.o)
 
-SEQ_MINIAPPS =
-PAR_MINIAPPS = dg_agglom
-
-ifneq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(PAR_MINIAPPS)
-endif
+MINIAPPS = dg_agglom
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
