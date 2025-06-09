@@ -52,13 +52,16 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 2;
+   int order = 3;
    bool static_cond = false;
    bool pa = false;
    bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   real_t freq=0.0;
+   real_t adamp=0.02;
+   real_t bdamp=0.00;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -74,6 +77,12 @@ int main(int argc, char *argv[])
                   "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&freq, "-fr", "--fr",
+                  "Excitation frequency.");
+   args.AddOption(&adamp, "-a", "--alpha",
+                  "alpha*M+beta*K");
+   args.AddOption(&bdamp, "-b", "--beta",
+                  "alpha*M+beta*K");
 #ifdef MFEM_USE_CEED
    args.AddOption(&algebraic_ceed, "-a", "--algebraic",
                   "-no-a", "--no-algebraic",
@@ -160,7 +169,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParBilinearForm> wf;
 
    ConstantCoefficient rho(1.0);
-   ConstantCoefficient damp(0.02);
+   ConstantCoefficient damp(adamp);
    ConstantCoefficient E(1.0);
    ConstantCoefficient nu(0.2);
 
@@ -193,9 +202,15 @@ int main(int argc, char *argv[])
    kf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
    mf->AddDomainIntegrator(new VectorMassIntegrator(rho));
    cf->AddDomainIntegrator(new VectorMassIntegrator(damp));
+
+   ConstantCoefficient bE(bdamp);
+   ConstantCoefficient bnu(0.2);
+
+   IsoElasticyLambdaCoeff blambda(&bE,&bnu);
+   IsoElasticySchearCoeff bmu(&bE,&bnu);
+   cf->AddDomainIntegrator(new ElasticityIntegrator(blambda,bmu));
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
-   real_t freq=6.0;
    ProductCoefficient pc(-freq*freq,rho);
    //ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));
@@ -321,9 +336,13 @@ int main(int argc, char *argv[])
 
 
    std::cout<<"Allocate MSP1"<<std::endl;
-   //MSP1Prec* prec=new MSP1Prec(pmesh.GetComm());
+   /*
+   MSP1Prec* prec=new MSP1Prec(pmesh.GetComm());
+   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0);
+   */
+
    MSP3Prec* prec=new MSP3Prec(pmesh.GetComm());
-   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0,1200);
+   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0,10000.0);
    //prec->SetOperators(&lorkm,&lorcm,1.0,1.0);
    prec->SetAbsTol(1e-12);
    prec->SetRelTol(1e-6);
@@ -335,6 +354,7 @@ int main(int argc, char *argv[])
        real_t rr=mfem::InnerProduct(pmesh.GetComm(), x,x);
        if(pmesh.GetMyRank()==0){
            std::cout<<"Residual="<<sqrt(rr)<<std::endl;
+           std::cout<<"fr="<<freq<<" fr^2="<<freq*freq<<std::endl;
        }
    }
 
@@ -357,7 +377,7 @@ int main(int argc, char *argv[])
    ls->SetRelTol(1e-12);
    ls->SetMaxIter(1000);
    ls->SetPrintLevel(1);
-   ls->SetKDim(400);
+   ls->SetKDim(1000);
 
    ls->SetOperator(bop);
    ls->SetPreconditioner(*prec);
@@ -379,6 +399,7 @@ int main(int argc, char *argv[])
        real_t rr=mfem::InnerProduct(pmesh.GetComm(), xm,xm);
        if(pmesh.GetMyRank()==0){
            std::cout<<"|xm-x|="<<sqrt(rr)<<std::endl;
+           std::cout<<"fr="<<freq<<"       fr^2="<<freq*freq<<std::endl;
        }
    }
 
@@ -408,6 +429,7 @@ int main(int argc, char *argv[])
    real_t rr=mfem::InnerProduct(pmesh.GetComm(), r,r);
    if(pmesh.GetMyRank()==0){
        std::cout<<"Residual="<<sqrt(rr)<<std::endl;
+       std::cout<<"fr="<<freq<<"       fr^2="<<freq*freq<<std::endl;
    }
 
    delete vfes;

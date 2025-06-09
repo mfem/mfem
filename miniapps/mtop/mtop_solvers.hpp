@@ -427,9 +427,12 @@ public:
 
         if((wm!=nullptr)&&(tm!=nullptr)){
 
+             sumop.reset(Add(a,*wm,b,*tm));
+             /*
              sumop.reset(new HypreParMatrix(*wm));
              (*sumop)*=a;
              sumop->Add(b,*tm);
+             */
              amgp.reset(new HypreBoomerAMG());
              amgp->SetOperator(*sumop);
              ls.reset(new mfem::CGSolver(comm));

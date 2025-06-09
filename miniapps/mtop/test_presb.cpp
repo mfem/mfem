@@ -374,15 +374,20 @@ int main(int argc, char *argv[])
        ls.SetPrintLevel(-1);
        ls.SetAbsTol(1e-12);
        ls.SetRelTol(1e-12);
-       ls.SetMaxIter(20);
+       ls.SetMaxIter(1000);
+
+       MUMPSSolver mumps(pmesh.GetComm());
+       mumps.SetPrintLevel(1);
+       mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+       mumps.SetOperator(*kmat);
 
        //ProductOperator pOp(&ls,mmat.get(),false,false);
-       LocProductOperator pOp(&ls,mmat.get());
+       LocProductOperator pOp(&mumps,mmat.get());
 
        RandomizedSubspaceIteration ss(pmesh.GetComm());
        ss.SetConstrDOFs(ess_dofs);
        ss.SetNumModes(10);
-       ss.SetNumIter(30);
+       ss.SetNumIter(10);
        ss.SetOperator(pOp);
        ss.Solve();
 
@@ -394,9 +399,9 @@ int main(int argc, char *argv[])
 
            if(myrank==0){ std::cout<<std::endl;
                           std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    kmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -404,9 +409,9 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -426,9 +431,9 @@ int main(int argc, char *argv[])
        }
 
        AdaptiveRandomizedGenEig ae(pmesh.GetComm());
-       ae.SetOperators(*mmat,*kmat,ls);
-       ae.SetNumModes(10);
-       ae.SetNumIter(10);
+       ae.SetOperators(*mmat,*kmat,mumps);
+       ae.SetNumModes(50);
+       ae.SetNumIter(4);
        ae.SolveNA();
 
        {
@@ -439,9 +444,9 @@ int main(int argc, char *argv[])
 
            if(myrank==0){ std::cout<<std::endl;
                           std::cout<<"Num modes="<<ss.GetNumModes()<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    kmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -449,9 +454,9 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
-               for(int j=0;j<ss.GetNumModes();j++){
+               for(int j=0;j<10;j++){
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[j], rr);
                    if(myrank==0){std::cout<<gp<<" ";}
                }
@@ -466,9 +471,31 @@ int main(int argc, char *argv[])
                    kmat->Mult(vecs[i],rr);
                    real_t kp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
-                   if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
+                   //if(myrank==0){std::cout<<"i="<<i<<" "<<kp/gp<<std::endl;}
+                   if(myrank==0){std::cout<<kp/gp<<std::endl;}
            }
        }
+
+       {
+
+           mfem::ParGridFunction disp; disp.SetSpace(vfes);
+           const std::vector<Vector>& vecs=ae.GetModes();
+           ParaViewDataCollection paraview_dc("eigt", &pmesh);
+           paraview_dc.SetPrefixPath("ParaView");
+           paraview_dc.SetLevelsOfDetail(order);
+           paraview_dc.SetDataFormat(VTKFormat::BINARY);
+           paraview_dc.SetHighOrderOutput(true);
+           paraview_dc.RegisterField("disp",&disp);
+
+           for(int i=0;i<ae.GetNumModes();i++){
+               disp.SetFromTrueDofs(vecs[i]);
+               paraview_dc.SetCycle(i);
+               paraview_dc.SetTime(double(i));
+               paraview_dc.Save();
+           }
+       }
+
+
 
 
 /*
