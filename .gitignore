@@ -208,7 +208,7 @@ miniapps/electromagnetics/joule
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
 miniapps/electromagnetics/Maxwell-Parallel*
-miniapps/electromagnetics/Joule_0*
+miniapps/electromagnetics/Joule_[0-9]*
 
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
