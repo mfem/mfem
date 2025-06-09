@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ss.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    kmat->Mult(vecs[i],rr);
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
@@ -464,7 +464,7 @@ int main(int argc, char *argv[])
            }
 
            if(myrank==0){ std::cout<<std::endl;}
-           for(int i=0;i<ae.GetNumModes();i++){
+           for(int i=0;i<10;i++){
                    mmat->Mult(vecs[i],rr);
                    real_t gp=InnerProduct (pmesh.GetComm(), vecs[i], rr);
 
