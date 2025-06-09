@@ -89,7 +89,7 @@ public:
 // with an even number of control points. These may be streamlined in the
 // future.
 void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
-              Array<Vector*> &xy);
+              Vector &x, Vector &y);
 
 // Function that returns a uniform knot vector based on the @a order and the
 // number of control points @a ncp.
@@ -222,12 +222,8 @@ int main(int argc, char *argv[])
    unique_ptr<KnotVector> kv_o1 = UniformKnotVector(1, 2);
    unique_ptr<KnotVector> kv_o2 = UniformKnotVector(2, 3);
 
+
    // Variables required for curve interpolation
-   Vector xi_args, u_args;
-   Array<int> i_args;
-   Array<Vector*> xyf(2);
-   xyf[0] = new Vector();
-   xyf[1] = new Vector();
 
    // 3. Create required (variables for) curves: foil_section and flair
    const NACA4 foil_section(foil_thickness, foil_length);
@@ -302,21 +298,32 @@ int main(int argc, char *argv[])
       patch1.KnotInsert(0, *kv1);
 
       int ncp = kv1->GetNCP();
-      xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
-
-      // Project foil
-      kv1->FindMaxima(i_args,xi_args, u_args);
+      // We locate the control points at the location of the maxima of the
+      // shapefunctions defined by the knot vectors -- the Botella points.
+      Vector u(ncp),x(ncp),y(ncp),interp(ncp);
       for (int i = 0; i < ncp; i++)
       {
-         (*xyf[0])[i] = foil_length*(1.0 - tail_fraction*u_args[i]);
-         (*xyf[1])[i] = -foil_section.y((*xyf[0])[i]);
+         u[i] = kv1->GetBotella(i);
       }
 
-      kv1->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
-         patch1(i,0,0) = (*xyf[0])[i];
-         patch1(i,0,1) = (*xyf[1])[i];
+         x[i] = foil_length*(1.0 - tail_fraction*u[i]);
+      }
+      kv1->GetInterpolant(x,u,interp);
+      for (int i = 0; i < ncp; i++)
+      {
+         patch1(i,0,0) = interp[i];
+      }
+
+      for (int i = 0; i < ncp; i++)
+      {
+         y[i] = -foil_section.y(x[i]);
+      }
+      kv1->GetInterpolant(y,u,interp);
+      for (int i = 0; i < ncp; i++)
+      {
+         patch1(i,0,1) = interp[i];
       }
 
       patch1.DegreeElevate(1, order-1);
@@ -369,17 +376,24 @@ int main(int argc, char *argv[])
 
       // Project foil
       int ncp = kv2->GetNCP();
-      xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
+      Vector x(ncp), y(ncp);
 
-      GetTipXY(foil_section, *kv2, tip_fraction, xyf);
+      GetTipXY(foil_section, *kv2, tip_fraction,x,y);
 
-      kv2->FindInterpolant(xyf);
+      Vector u(ncp),interp(ncp);
       for (int i = 0; i < ncp; i++)
       {
-         // Also deal with non-uniform weights here: convert to homogeneous
-         // coordinates
-         patch2(i,0,0) = (*xyf[0])[i]*patch2(i,0,2);
-         patch2(i,0,1) = (*xyf[1])[i]*patch2(i,0,2);
+         u[i] = kv2->GetBotella(i);
+      }
+      kv2->GetInterpolant(x,u,interp);
+      for (int i = 0; i < ncp; i++)
+      {
+         patch2(i,0,0) = interp[i]*patch2(i,0,2);
+      }
+      kv2->GetInterpolant(y,u,interp);
+      for (int i = 0; i < ncp; i++)
+      {
+         patch2(i,0,1) = interp[i]*patch2(i,0,2);
       }
 
       // Project circle
@@ -414,21 +428,31 @@ int main(int argc, char *argv[])
       patch3.KnotInsert(0, *kv3);
 
       int ncp = kv3->GetNCP();
-      xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
 
-      // Project foil
-      kv3->FindMaxima(i_args,xi_args, u_args);
+      Vector u(ncp),x(ncp),y(ncp),interp(ncp);
       for (int i = 0; i < ncp; i++)
       {
-         (*xyf[0])[i] = foil_length*(tip_fraction + tail_fraction*u_args[i]);
-         (*xyf[1])[i] = foil_section.y((*xyf[0])[i]);
+         u[i] = kv3->GetBotella(i);
       }
 
-      kv3->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
-         patch3(i,0,0) = (*xyf[0])[i];
-         patch3(i,0,1) = (*xyf[1])[i];
+         x[i]  = foil_length*(tip_fraction + tail_fraction*u[i]);
+      }
+      kv3->GetInterpolant(x,u,interp);
+      for (int i = 0; i < ncp; i++)
+      {
+         patch3(i,0,0) = interp[i];
+      }
+
+      for (int i = 0; i < ncp; i++)
+      {
+         y[i] = foil_section.y(x[i]);
+      }
+      kv3->GetInterpolant(y,u,interp);
+      for (int i = 0; i < ncp; i++)
+      {
+         patch3(i,0,1) = interp[i];
       }
 
       patch3.DegreeElevate(1, order-1);
@@ -558,8 +582,6 @@ int main(int argc, char *argv[])
 
    // Close
    output.close();
-   delete xyf[0];
-   delete xyf[1];
 
    cout << endl << "Boundary identifiers:" << endl;
    cout << "   1   Bottom" << endl;
@@ -658,16 +680,22 @@ real_t NACA4::xl(real_t l) const
 }
 
 void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
-              Array<Vector*> &xy)
+              Vector &x,Vector &y)
 {
    int ncp = kv.GetNCP();
    // Length of half the curve: the boundary covers both sides of the tip
    const real_t l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knot vector
-   Array<int> i_args;
-   Vector xi_args, u_args;
-   kv.FindMaxima(i_args,xi_args, u_args);
+   Array<int> i_args(ncp);
+   Vector xi_args(ncp), u_args(ncp);
+   //  kv.FindMaxima(i_args,xi_args, u_args);
+   for (int i = 0; i < ncp; i++)
+   {
+      u_args[i] = kv.GetBotella(i);
+      i_args[i] = kv.GetSpan(u_args[i]) - kv.GetOrder();
+      xi_args[i] = kv.GetRefPoint(u_args[i],i_args[i]+kv.GetOrder());
+   }
 
    // We have two cases: one with an odd number of control points and one
    // with an even number of control points.
@@ -685,17 +713,16 @@ void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
       }
 
       // Find corresponding xy vector
-      xy[0]->SetSize(2*n+1); xy[1]->SetSize(2*n+1);
-      xy[0]->Elem(n) = 0; xy[1]->Elem(n) = 0; // Foil section tip
+      x[n] = 0; y[n] = 0; // Foil section tip
       for (int i = 0; i < n; i++)
       {
          // Lower half
-         xy[0]->Elem(i) = xcp[n-i];
-         xy[1]->Elem(i) = -foil_section.y(xcp[n-i]);
+         x[i] = xcp[n-i];
+         y[i] = -foil_section.y(xcp[n-i]);
 
          // Upper half
-         xy[0]->Elem(n+1+i) = xcp[i+1];
-         xy[1]->Elem(n+1+i) = foil_section.y(xcp[i+1]);
+         x[n+1+i] = xcp[i+1];
+         y[n+1+i] = foil_section.y(xcp[i+1]);
       }
    }
    else
@@ -709,18 +736,16 @@ void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, real_t tf,
          real_t lcp = u * l;
          xcp[i] = foil_section.xl(lcp);
       }
-
       // Find corresponding xy vector
-      xy[0]->SetSize(2*n); xy[1]->SetSize(2*n);
       for (int i = 0; i < n; i++)
       {
          // Lower half
-         xy[0]->Elem(i) = xcp[n-1-i];
-         xy[1]->Elem(i) = -foil_section.y(xcp[n-1-i]);
+         x[i] = xcp[n-1-i];
+         y[i] = -foil_section.y(xcp[n-1-i]);
 
          // Upper half
-         xy[0]->Elem(n+i) = xcp[i];
-         xy[1]->Elem(n+i) = foil_section.y(xcp[i]);
+         x[n+i] = xcp[i];
+         y[n+i] = foil_section.y(xcp[i]);
       }
    }
 }

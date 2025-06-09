@@ -127,14 +127,6 @@ int main(int argc, char *argv[])
    patch(1,1,0) = 0.5*l;
    patch(1,1,1) = 0.5*l;
 
-   // 2. Interpolation process
-   Array<Vector*> xy(2);
-   xy[0] = new Vector();
-   xy[1] = new Vector();
-   Vector xi_args, u_args;
-   Array<int> i_args;
-   xy[0]->SetSize(ncp); xy[1]->SetSize(ncp);
-
    // Refine direction which has fitting
    if (!ifbspline)
    {
@@ -151,23 +143,31 @@ int main(int argc, char *argv[])
    patch.KnotInsert(0, *kv);
 
    // We locate the control points at the location of the maxima of the
-   // knot vectors. This works very well for patches with unit weights.
-   kv->FindMaxima(i_args,xi_args, u_args);
-
+   // shapefunctions defined by the knot vectors -- the Botella points.
+   Vector u(ncp),x(ncp),interp(ncp);
    for (int i = 0; i < ncp; i++)
    {
-      (*xy[0])[i]  = u_args[i]*l;
-      (*xy[1])[i]  = a * sin((*xy[0])[i]/l*2*M_PI)-0.5*l;
-      (*xy[0])[i] -= 0.5*l;
+      u[i] = kv->GetBotella(i);
    }
 
-   kv->FindInterpolant(xy);
-
-   // Apply interpolation to patch
    for (int i = 0; i < ncp; i++)
    {
-      patch(i,0,0) = (*xy[0])[i];
-      patch(i,0,1) = (*xy[1])[i];
+      x[i]  = (u[i] - 0.5)*l;
+   }
+   kv->GetInterpolant(x,u,interp);
+   for (int i = 0; i < ncp; i++)
+   {
+      patch(i,0,0) = interp[i];
+   }
+
+   for (int i = 0; i < ncp; i++)
+   {
+      x[i] = a * sin(u[i]*2*M_PI)-0.5*l;
+   }
+   kv->GetInterpolant(x,u,interp);
+   for (int i = 0; i < ncp; i++)
+   {
+      patch(i,0,1) = interp[i];
    }
 
    if (!ifbspline)
@@ -243,8 +243,6 @@ int main(int argc, char *argv[])
    delete mesh;
    delete kv_o1;
    delete kv;
-   delete xy[0];
-   delete xy[1];
 
    return 0;
 }
