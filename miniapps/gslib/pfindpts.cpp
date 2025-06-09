@@ -122,7 +122,8 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
                   "--no-search-on-r0",
-                  "Enable search only on rank 0 (disable to search points on all tasks). All points added by other procs are ignored.");
+                  "Enable search only on rank 0 (disable to search points on all tasks). "
+                  "All points added by other procs are ignored.");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
                   "Do random h refinements to mesh (does not work for pyramids).");
