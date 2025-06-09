@@ -1112,15 +1112,12 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
       };
       return PT;
    }
-   else
+   const Operator *P = get_prolongation(f);
+   auto PT = [=](const Vector &r_local, Vector &y)
    {
-      const Operator *P = get_prolongation(f);
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         P->MultTranspose(r_local, y);
-      };
-      return PT;
-   }
+      P->MultTranspose(r_local, y);
+   };
+   return PT;
 }
 
 /// @brief Apply the restriction operator to a field.
@@ -2211,13 +2208,13 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       {
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
-         return DofToQuadMap
-         {
-            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
-            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
-            -1
-         }; // Unreachable, but avoids compiler warning
       }
+      return DofToQuadMap
+      {
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+         -1
+      }; // Unreachable, but avoids compiler warning
    };
    return std::array<DofToQuadMap, N>
    {
