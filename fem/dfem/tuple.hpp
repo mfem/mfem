@@ -330,6 +330,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    {
       return values.v8;
    }
+   MFEM_UNREACHABLE();
 }
 
 /**
