@@ -436,16 +436,17 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
    ParBilinearForm *Mq =(!nonlinear_flux && !bnldiff)?
                         (darcy->GetParFluxMassForm()):(NULL);
-   NonlinearForm *Mqnl = (nonlinear_flux && !bnldiff)?
-                         (darcy->GetFluxMassNonlinearForm()):(NULL);
+   ParNonlinearForm *Mqnl = (nonlinear_flux && !bnldiff)?
+                            (darcy->GetParFluxMassNonlinearForm()):(NULL);
    //BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    ParMixedBilinearForm *B = darcy->GetParFluxDivForm();
    ParBilinearForm *Mt = (!nonlinear_pot && ((dg /*&& (!Mnl || hybridization)*/ &&
                                               td > 0.) || bconv || btime))?
                          (darcy->GetParPotentialMassForm()):(NULL);
-   NonlinearForm *Mtnl = (nonlinear_pot && ((dg /*&& (!Mnl || hybridization)*/ &&
-                                             td > 0.) || bconv || bnlconv || btime))?
-                         (darcy->GetPotentialMassNonlinearForm()):(NULL);
+   ParNonlinearForm *Mtnl = (nonlinear_pot &&
+                             ((dg /*&& (!Mnl || hybridization)*/ &&
+                               td > 0.) || bconv || bnlconv || btime))?
+                            (darcy->GetParPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
    NumericalFlux *FluxSolver = NULL;
    //MixedFluxFunction *HeatFluxFun = NULL;
