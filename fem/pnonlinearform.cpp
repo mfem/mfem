@@ -350,7 +350,70 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fnfi.Size() > 0)
    {
-      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+      // Terms over shared interior faces in parallel.
+      ParMesh *pmesh = ParFESpace(0)->GetParMesh();
+      FaceElementTransformations *tr;
+
+      Array<Array<int> *>vdofs(fes.Size());
+      Array<Array<int> *>vdofs2(fes.Size());
+      Array<Vector *> el_x(fes.Size());
+      Array<const Vector *> el_x_const(fes.Size());
+      Array<Vector *> el_y(fes.Size());
+      Array<const FiniteElement *> fe(fes.Size());
+      Array<const FiniteElement *> fe2(fes.Size());
+      Array<ParGridFunction *> pgfs(fes.Size());
+      for (int s=0; s<fes.Size(); ++s)
+      {
+         el_x_const[s] = el_x[s] = new Vector();
+         el_y[s] = new Vector();
+         vdofs[s] = new Array<int>;
+         vdofs2[s] = new Array<int>;
+         pgfs[s] = new ParGridFunction(const_cast<ParFiniteElementSpace*>(ParFESpace(s)),
+                                       xs.GetBlock(s));
+         pgfs[s]->ExchangeFaceNbrData();
+      }
+
+      const int n_shared_faces = pmesh->GetNSharedFaces();
+      for (int i = 0; i < n_shared_faces; i++)
+      {
+         tr = pmesh->GetSharedFaceTransformations(i, true);
+         int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
+
+         for (int s=0; s<fes.Size(); ++s)
+         {
+            const ParFiniteElementSpace *pfes = ParFESpace(s);
+            fe[s] = pfes->GetFE(tr->Elem1No);
+            fe2[s] = pfes->GetFaceNbrFE(Elem2NbrNo);
+
+            pfes->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+            pfes->GetFaceNbrElementVDofs(tr->Elem2No, *(vdofs2[s]));
+
+            el_x[s]->SetSize(vdofs[s]->Size() + vdofs2[s]->Size());
+            xs.GetBlock(s).GetSubVector(*(vdofs[s]), el_x[s]->GetData());
+            pgfs[s]->FaceNbrData().GetSubVector(*(vdofs2[s]),
+                                                el_x[s]->GetData() + vdofs[s]->Size());
+         }
+
+         for (int k = 0; k < fnfi.Size(); ++k)
+         {
+            fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
+
+            for (int s=0; s<fes.Size(); ++s)
+            {
+               if (el_y[s]->Size() == 0) { continue; }
+               ys.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
+            }
+         }
+      }
+
+      for (int s=0; s<fes.Size(); ++s)
+      {
+         delete pgfs[s];
+         delete vdofs2[s];
+         delete vdofs[s];
+         delete el_y[s];
+         delete el_x[s];
+      }
    }
 
    for (int s=0; s<fes.Size(); ++s)
