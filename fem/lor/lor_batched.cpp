@@ -58,7 +58,7 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    // Batched LOR requires all elements to be similar
    const auto *mesh = fes->GetMesh();
    if (fes->IsVariableOrder() || mesh->Nonconforming() ||
-       mesh->GetNumGeometries(mesh->Dimension())) { return false; }
+       mesh->GetNumGeometries(mesh->Dimension()) > 1) { return false; }
 
    if (dynamic_cast<const H1_FECollection*>(fec))
    {
