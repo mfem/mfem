@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
    bool reduction = false;
    bool hybridization = false;
    bool nonlinear = false;
+   bool nonlinear_flux = false;
+   bool nonlinear_pot = false;
    bool nonlinear_conv = false;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
@@ -174,6 +176,10 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
+   args.AddOption(&nonlinear_flux, "-nlu", "--nonlinear-flux", "-no-nlu",
+                  "--no-nonlinear-flux", "Enable non-linear regime of flux.");
+   args.AddOption(&nonlinear_pot, "-nlp", "--nonlinear-pot", "-no-nlp",
+                  "--no-nonlinear-pot", "Enable non-linear regime of potential.");
    args.AddOption(&nonlinear_conv, "-nlc", "--nonlinear-convection", "-no-nlc",
                   "--no-nonlinear-convection", "Enable non-linear convection regime.");
    args.AddOption(&nonlinear_diff, "-nld", "--nonlinear-diffusion", "-no-nld",
@@ -238,6 +244,11 @@ int main(int argc, char *argv[])
       default:
          cerr << "Unknown problem" << endl;
          return 1;
+   }
+
+   if (nonlinear)
+   {
+      nonlinear_flux = nonlinear_pot = true;
    }
 
    if (bnldiff && reduction)
@@ -403,15 +414,17 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   BilinearForm *Mq =(!nonlinear && !bnldiff)?(darcy->GetFluxMassForm()):(NULL);
-   NonlinearForm *Mqnl = (nonlinear && !bnldiff)?
+   BilinearForm *Mq =(!nonlinear_flux && !bnldiff)?
+                     (darcy->GetFluxMassForm()):(NULL);
+   NonlinearForm *Mqnl = (nonlinear_flux && !bnldiff)?
                          (darcy->GetFluxMassNonlinearForm()):(NULL);
    BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (!nonlinear && ((dg && (!Mnl || hybridization) && td > 0.) ||
-                                      bconv || btime))?(darcy->GetPotentialMassForm()):(NULL);
-   NonlinearForm *Mtnl = (nonlinear && ((dg && (!Mnl || hybridization) &&
-                                         td > 0.) || bconv || bnlconv || btime))?
+   BilinearForm *Mt = (!nonlinear_pot && ((dg && (!Mnl || hybridization) &&
+                                           td > 0.) || bconv || btime))?
+                      (darcy->GetPotentialMassForm()):(NULL);
+   NonlinearForm *Mtnl = (nonlinear_pot && ((dg && (!Mnl || hybridization) &&
+                                             td > 0.) || bconv || bnlconv || btime))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
    NumericalFlux *FluxSolver = NULL;

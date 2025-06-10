@@ -62,6 +62,8 @@ for i, filename in enumerate(filenames):
 	hb = get_ref_option(filename, '--hybridization')
 	upwind = get_ref_option(filename, '--upwinded')
 	nonlin = get_ref_option(filename, '--nonlinear')
+	nonlin_flux = get_ref_option(filename, '--nonlinear-flux')
+	nonlin_pot = get_ref_option(filename, '--nonlinear-pot')
 	nonlin_conv = get_ref_option(filename, '--nonlinear-convection')
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
 
@@ -114,6 +116,10 @@ for i, filename in enumerate(filenames):
 		command_line += ' -up'
 	if nonlin:
 		command_line += ' -nl'
+	if nonlin_flux:
+		command_line += ' -nlu'
+	if nonlin_pot:
+		command_line += ' -nlp'
 	if nonlin_conv:
 		command_line += ' -nlc'
 	if nonlin_diff:
