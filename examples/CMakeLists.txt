@@ -84,6 +84,7 @@ if (MFEM_USE_MPI)
     dfem_navier_stokes_edac.cpp
     dfem_patch_test
     dfem_plasticity.cpp
+    dfem_elasticity_vjp.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
@@ -165,6 +166,7 @@ target_link_libraries(dfem_heat ClangEnzymeFlags)
 target_link_libraries(dfem_cfd ClangEnzymeFlags)
 target_link_libraries(dfem_patch_test ClangEnzymeFlags)
 target_link_libraries(dfem_plasticity ClangEnzymeFlags)
+target_link_libraries(dfem_elasticity_vjp ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)
