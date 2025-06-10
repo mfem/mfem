@@ -109,6 +109,8 @@ public:
 
    virtual bool apply_M(const hiop::size_type& n, const double* x, double* y);
 
+   virtual hiop::hiopInterfaceBase::WeightedSpaceType get_weighted_space_type();
+
    /** Gradient of the objective function (local chunk). */
    virtual bool eval_grad_f(const hiop::size_type &n, const double *x, bool new_x,
                             double *gradf);

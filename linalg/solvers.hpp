@@ -28,6 +28,10 @@
 #include <klu.h>
 #endif
 
+#ifdef MFEM_USE_HIOP
+#include "hiopInterface.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -874,9 +878,17 @@ public:
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    { MFEM_ABORT("The objective gradient is not implemented."); }
    virtual void CalcObjectiveM(  std::vector<mfem::Vector> & diagMass, std::vector<HypreParMatrix *> & M_) const
-   { MFEM_ABORT("The objective Hessian is not implemented."); }
+   { MFEM_ABORT("The objective mass matrix is not implemented."); }
    virtual void CalcConstraint(const int constNumber, const Vector &x, Vector &constVal) const
    { MFEM_ABORT("The constraint  is not implemented."); }
+
+#ifdef MFEM_USE_HIOP
+   virtual hiop::hiopInterfaceBase::WeightedSpaceType getWeightedSpaceType() const
+   { 
+      MFEM_ABORT("getWeightedSpaceType is not implemented.");
+      return hiop::hiopInterfaceBase::WeightedSpaceType::Euclidean; 
+   }
+#endif
 
    virtual void CalcConstraintGrad(const int constNumber, const Vector &x, Vector &grad) const
    { MFEM_ABORT("The constraint gradient is not implemented."); }

@@ -155,6 +155,13 @@ bool HiopOptimizationProblem::apply_M(const hiop::size_type& n,
    return true;
 }
 
+hiopInterfaceBase::WeightedSpaceType HiopOptimizationProblem::get_weighted_space_type()
+{
+   hiopInterfaceBase::WeightedSpaceType weightedSpace = problem.getWeightedSpaceType();
+   //the default impl. instructs HiOp to use Euclidean/l^2 variables (H=I) internally
+   return weightedSpace;
+}
+
 bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
                                         const size_type &num_cons,
                                         const index_type *idx_cons,
