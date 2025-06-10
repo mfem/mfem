@@ -1028,4 +1028,145 @@ private:
 
 };
 
+
+
+class EVECPrec:public IterativeSolver
+{
+public:
+    EVECPrec(MPI_Comm comm_):
+        IterativeSolver(comm_)
+    {
+        comm=comm_;
+        MPI_Comm_rank(comm,&myrank);
+        a=1.0;
+        b=1.0;
+        c=1.0;
+        num_modes=0;
+        modes=nullptr;
+    }
+
+
+
+    virtual
+        ~EVECPrec(){}
+
+
+    /// (a*W1-b*W2+i*c*T)(x+i*y)=(e+i*g)
+    void SetOperators(Operator* W1_, Operator* W2_, Operator* T_, const std::vector<Vector>& modes_, int num_modes_=0,
+                      real_t a_=1.0, real_t b_=1.0, real_t c_=1.0){
+
+        a=a_;
+        b=b_;
+        c=c_;
+        modes=&modes_;
+        num_modes=num_modes_;
+        if(0==num_modes){
+            num_modes=modes->size();
+        }
+
+        rop.SetSize(2*num_modes); rop=0.0;
+        svecb.SetSize(2*num_modes);
+        svecx.SetSize(2*num_modes);
+
+        this->width=2*(W1_->Width());
+        this->height=2*(W1_->Width());
+
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = W1_->Width();
+        block_true_offsets[2] = W1_->Width();
+        block_true_offsets.PartialSum();
+
+
+
+
+        tmp.SetSize(modes_[0].Size());
+        real_t gp;
+
+        //add W1
+        for(int i=0;i<num_modes;i++){
+            W1_->Mult(modes_[i],tmp);
+            for(int j=0;j<num_modes;j++){
+                gp=InnerProduct(comm,tmp,modes_[j]);
+                rop(j,i)=rop(j,i)+gp*a;
+            }
+        }
+
+        //add W2
+        for(int i=0;i<num_modes;i++){
+            W2_->Mult(modes_[i],tmp);
+            gp=InnerProduct(comm,tmp,modes_[i]);
+            for(int j=0;j<num_modes;j++){
+                gp=InnerProduct(comm,tmp,modes_[j]);
+                rop(j,i)=rop(j,i)-b*gp;
+                rop(num_modes+j,num_modes+i)=rop(j,i);
+            }
+        }
+
+        //add T
+        for(int i=0;i<num_modes;i++){
+            T_->Mult(modes_[i],tmp);
+            gp=InnerProduct(comm,tmp,modes_[i]);
+            for(int j=0;j<num_modes;j++){
+                gp=InnerProduct(comm,tmp,modes_[j]);
+                rop(j,num_modes+i)=rop(j,num_modes+i)-c*gp;
+                rop(num_modes+i,j)=-rop(j,num_modes+i);
+            }
+        }
+
+        inv.Factor(rop);
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
+
+        xb.Update(const_cast<Vector&>(x), block_true_offsets);
+        yb.Update(y, block_true_offsets);
+
+        svecb=0.0;
+
+        //compute rhs
+        real_t gp;
+        for(int i=0;i<num_modes;i++)
+        {
+            gp=InnerProduct(comm,(*modes)[i],xb.GetBlock(0));
+            svecb[i]=gp;
+            gp=InnerProduct(comm,(*modes)[i],xb.GetBlock(1));
+            svecb[num_modes+i]=gp;
+        }
+
+        inv.Mult(svecb,svecx);
+
+        yb.GetBlock(0).Set(svecx[0],(*modes)[0]);
+        yb.GetBlock(1).Set(svecx[num_modes],(*modes)[0]);
+        for(int i=1;i<num_modes;i++){
+            yb.GetBlock(0).Add(svecx[i],(*modes)[i]);
+            yb.GetBlock(1).Add(svecx[num_modes+i],(*modes)[i]);
+        }
+    }
+
+
+
+private:
+    MPI_Comm comm;
+    int myrank;
+    real_t a,b,c;
+    int num_modes;
+
+    DenseMatrix rop;
+    DenseMatrixInverse inv;
+
+    mutable Vector tmp;
+    mutable Vector svecb;
+    mutable Vector svecx;
+
+    mfem::Array<int> block_true_offsets;
+
+    mutable BlockVector xb;
+    mutable BlockVector yb;
+
+    const std::vector<Vector>* modes;
+};
+
 #endif // MTOP_SOLVERS_HPP

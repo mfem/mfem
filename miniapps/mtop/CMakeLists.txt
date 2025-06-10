@@ -65,4 +65,9 @@ add_mfem_miniapp(test_msp1
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(test_evec
+     MAIN test_evec.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 endif ()
