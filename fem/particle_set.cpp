@@ -126,6 +126,16 @@ void ParticleSet::AddParticles(const Vector &in_coords,
          }
       }
    }
+
+   for (int f = 0; f < GetNF(); f++)
+   {
+      const Vector *v_field = in_fields[f];
+      Vector old_f = real_fields[f];
+      real_fields[f].SetSize(num_old + num_new);
+      real_fields[f].SetVector(old_f, 0);
+      real_fields[f].SetVector(*v_field, num_old);
+   }
+
    SyncVCoords();
 }
 
