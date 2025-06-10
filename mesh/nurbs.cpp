@@ -233,10 +233,17 @@ real_t KnotVector::GetBotella(int i) const
    return u;
 }
 
+real_t KnotVector::GetDemko(int i) const
+{
+   if (demko.Size() != GetNCP())
+   {
+      ComputeDemko();
+   }
+   return demko[i];
+}
+
 void KnotVector::ComputeDemko() const
 {
-   if (demko.Size() == GetNCP()) { return; }
-
    const int itermax1 = 10;
    const int itermax2 = 10;
 

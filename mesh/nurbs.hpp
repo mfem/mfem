@@ -178,7 +178,7 @@ public:
         - Find extrema of this polynom and update Demko points
         - Repeat untill converged
         - Use the Greville point as starting point */
-   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
+   real_t GetDemko(int i) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
