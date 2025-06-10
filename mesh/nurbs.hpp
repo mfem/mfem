@@ -71,7 +71,11 @@ public:
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
 
-   /** @brief Create a KnotVector with order @a order and knots @a knot. */
+   /** @brief Create a KnotVector with order @a order and knots @a knot.
+       If @a k has repeated knots, this constructor will copy the knots
+       exactly as they are provided. Otherwise, end knots will be repeated
+       (order + 1) times (C^{-1}) while internal knots will retain a
+       multiplicity of 1. */
    KnotVector(int order, const Vector &k);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
@@ -174,7 +178,7 @@ public:
         - Find extrema of this polynom and update Demko points
         - Repeat untill converged
         - Use the Greville point as starting point */
-   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
+   real_t GetDemko(int i) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.

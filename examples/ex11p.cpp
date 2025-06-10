@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = FECollection::NewH1(order, dim, pmesh->IsNURBS());
+      fec = new H1_FECollection(order, dim);
    }
    else if (pmesh->GetNodes())
    {

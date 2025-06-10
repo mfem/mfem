@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = FECollection::NewH1(order, dim, pmesh->IsNURBS());
+      fec = new H1_FECollection(order, dim);
       fespace = new ParFiniteElementSpace(pmesh, fec, dim, Ordering::byVDIM);
    }
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
