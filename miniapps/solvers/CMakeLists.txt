@@ -76,5 +76,7 @@ add_mfem_miniapp(lor_solvers
   LIBRARIES mfem)
 
 if (MFEM_ENABLE_TESTING)
-  add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
+  add_test(NAME lor_solvers_nd_ser COMMAND lor_solvers -fe n -no-vis)
+  add_test(NAME lor_solvers_l2_ser COMMAND lor_solvers -fe l -no-vis)
+  add_test(NAME lor_solvers_h1_amr_ser COMMAND lor_solvers -fe h -m ../../data/amr-quad.mesh -no-vis)
 endif()
