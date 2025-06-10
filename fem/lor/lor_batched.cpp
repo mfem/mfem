@@ -48,11 +48,17 @@ bool HasIntegrators(BilinearForm &a)
 
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
-   const FiniteElementCollection *fec = a.FESpace()->FEColl();
+   const FiniteElementSpace *fes = a.FESpace();
+   const FiniteElementCollection *fec = fes->FEColl();
    // TODO: check for maximum supported orders
 
    // Batched LOR requires all tensor elements
    if (!UsesTensorBasis(*a.FESpace())) { return false; }
+
+   // Batched LOR requires all elements to be similar
+   const auto *mesh = fes->GetMesh();
+   if (fes->IsVariableOrder() || mesh->Nonconforming() ||
+       mesh->GetNumGeometries(mesh->Dimension())) { return false; }
 
    if (dynamic_cast<const H1_FECollection*>(fec))
    {
