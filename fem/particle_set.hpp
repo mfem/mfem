@@ -29,35 +29,44 @@ protected:
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
-   
-   std::vector<Vector> coords; /// Particle coordinate vectors in each spatial dimension
-   std::vector<Vector> real_fields; /// Additional scalar fields per particle, as specified in constructor
 
-   void SetVCoords() {}; // { v_coords.SetDataAndSize(coords.data(), coords.size()); };
+   std::vector<Vector>
+   coords; /// Particle coordinate vectors in each spatial dimension
+   std::vector<Vector>
+   real_fields; /// Additional scalar fields per particle, as specified in constructor
+
+   BlockVector
+   v_coords; /// Vector of all particle coordinates ordered by \ref ordering, referencing \ref coords
+
+   void SyncVCoords();
 
 public:
-   ParticleSet(int dim, int num_fields=0, Ordering::Type ordering_=Ordering::Type::byNODES) 
-   : ordering(ordering_), coords(dim), real_fields(num_fields) {};
+   ParticleSet(int dim, int num_fields=0,
+               Ordering::Type ordering_=Ordering::Type::byNODES);
 
 #ifdef MFEM_USE_MPI
-   ParticleSet(MPI_Comm comm_, int dim, int num_fields=0, Ordering::Type ordering_=Ordering::Type::byNODES) 
-   : ParticleSet(dim, num_fields, ordering_) { comm = comm_; };
+   ParticleSet(MPI_Comm comm_, int dim, int num_fields=0,
+               Ordering::Type ordering_=Ordering::Type::byNODES)
+      : ParticleSet(dim, num_fields, ordering_) { comm = comm_; };
 #endif // MFEM_USE_MPI
 
-   /// Get the ordering of how particle coordinates are stored.
+   /// Get the ordering of particle coordinates returned by \ref GetAllParticles()
    Ordering::Type GetOrdering() const { return ordering; };
 
    /// Get the number of particles currently held by this ParticleSet.
-   int GetNumParticles() const  { return coords.size(); };
+   int GetNP() const  { return coords[0].Size(); };
+
+   /// Get the number of fields per particle for this ParticleSet.
+   int GetNF() const { return real_fields.size(); };
 
    /** Initialize particles randomly within bounding box defined by input \p m . All scalar fields are set to 0.
        @param[in] m               Mesh defining bounding box to initialize particles on.
-       @param[in] numParticles    Number of particles to add to ParticleSet.
+       @param[in] num_particles    Number of particles to add to ParticleSet.
        @param[in] seed            (Optional) Seed.*/
-   void RandomInitialize(Mesh &m, int numParticles, int seed=0);
+   void RandomInitialize(Mesh &m, int num_particles, int seed=0);
 
-   /// Add particle(s) specified by \p in_coords following \ref ordering, with field data given by \p in_fields . Number of fields must match that specified in object construction. */
-   void AddParticles(const Vector &in_coords, const Vector* in_fields[]={});
+   /// Add particle(s) specified by \p in_coords following \ref ordering, with field data given by \p in_fields . Number of fields must match that specified in object construction.
+   void AddParticles(const Vector &in_coords, const Vector* in_fields[]= {});
 
    /// Remove particle(s) specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list);
@@ -65,15 +74,15 @@ public:
    /// Get particle \p i 's coordinates.
    void GetParticle(int i, Vector &pos) const;
 
-   /// Get all particle coordinates.
-   const Vector& GetAllParticles() const;
+   /// Get reference to the internal particle coordinates Vector.
+   const Vector& GetAllParticles() const { return v_coords; };
 
    /// Get particle \p i , field \p f value.
    const real_t GetParticleField(int i, int f) const { return real_fields[f][i]; };
 
-   /// Get all field \p f values for all particles.
+   /// Get reference to the internal field \p f Vector for all particles.
    const Vector& GetAllParticlesField(int f) const { return real_fields[f]; };
-   
+
    /// Set particle \p i , field \p f value to \p val.
    void SetParticleField(int i, int f, real_t val) { real_fields[f][i] = val; };
 
