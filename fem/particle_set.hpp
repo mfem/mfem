@@ -59,14 +59,15 @@ public:
    /// Get the number of fields per particle for this ParticleSet.
    int GetNF() const { return real_fields.size(); };
 
-   /** Initialize particles randomly within bounding box defined by input \p m . All scalar fields are set to 0.
+   /** Initialize particles randomly within bounding box defined by input \p m . All new scalar fields are set to 0.
        @param[in] m               Mesh defining bounding box to initialize particles on.
-       @param[in] num_particles    Number of particles to add to ParticleSet.
+       @param[in] num_particles   Number of particles to add to ParticleSet.
+       @param[in] reset           (Optional) Delete all existing particles if true, add to existing particles if false.
        @param[in] seed            (Optional) Seed.*/
-   void RandomInitialize(Mesh &m, int num_particles, int seed=0);
+   void RandomInitialize(Mesh &m, int num_particles, bool reset=false, int seed=0);
 
    /// Add particle(s) specified by \p in_coords following \ref ordering, with field data given by \p in_fields . Number of fields must match that specified in object construction.
-   void AddParticles(const Vector &in_coords, const Vector* in_fields[]= {});
+   void AddParticles(const Vector &in_coords, const Vector *in_fields[]= {});
 
    /// Remove particle(s) specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list);

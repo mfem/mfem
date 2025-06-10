@@ -61,7 +61,7 @@ void ParticleSet::SyncVCoords()
    }
 }
 
-void ParticleSet::RandomInitialize(Mesh &m, int num_particles, int seed)
+void ParticleSet::RandomInitialize(Mesh &m, int num_particles, bool reset, int seed)
 {
    int dim = coords.size();
 
@@ -73,35 +73,42 @@ void ParticleSet::RandomInitialize(Mesh &m, int num_particles, int seed)
    Vector r_coords(dim*num_particles);
    r_coords.Randomize(seed);
 
-   // Copy to coords
-   for (int i = 0; i < dim; i++)
+   // Scale based on min/max dimensions
+   int comp;
+   for (int i = 0; i < dim*num_particles; i++)
    {
-      Vector comp(r_coords, i*num_particles, num_particles);
-      coords[i] = comp;
+      if (ordering == Ordering::byNODES)
+         comp = i / num_particles;
+      else
+         comp = i % dim;
+
+      r_coords[i] = pos_min[comp] + r_coords[i] * (pos_max[comp] - pos_min[comp]);
    }
 
-   // Scale based on min/max dimensions
-   for (int i = 0; i < num_particles; i++)
+   // Reset if requested by removing all coordinates + fields
+   if (reset)
    {
-      for (int d = 0; d < dim; d++)
-      {
-         coords[d][i] = pos_min[d] + coords[d][i] * (pos_max[d] - pos_min[d]);
-      }
+      for (int d = 0; d < dim; d++) coords[d].SetSize(0);
+      for (int f = 0; f < GetNF(); f++) real_fields[f].SetSize(0);
    }
+
+   // Add particles + fields
+   std::vector<Vector> fields(GetNF());
+   std::vector<const Vector*> ptr_fields;
+   for (int i = 0; i < GetNF(); i++)
+   {
+      fields[i].SetSize(num_particles);
+      fields[i] = 0.0;
+      ptr_fields.push_back(&fields[i]);
+   }
+   AddParticles(r_coords, ptr_fields.data());
 
    SyncVCoords();
-
-   // Reset fields
-   for (int i = 0; i < real_fields.size(); i++)
-   {
-      real_fields[i].SetSize(num_particles);
-      real_fields[i] = 0.0;
-   }
 
 }
 
 void ParticleSet::AddParticles(const Vector &in_coords,
-                               const Vector* in_fields[])
+                               const Vector *in_fields[])
 {
    int dim = coords.size();
    int num_old = GetNP()/dim;
