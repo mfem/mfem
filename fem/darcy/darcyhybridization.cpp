@@ -914,7 +914,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 
       // Decompose A
       LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
-      if (mode == ComputeHMode::Linear)
+      if (mode == ComputeHMode::Linear || lop_type != LocalOpType::PotNL)
       {
          LU_A.Factor(a_dofs_size);
       }
@@ -930,7 +930,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
 
       LUFactors LU_S;
-      if (mode == ComputeHMode::Linear)
+      if (mode == ComputeHMode::Linear || lop_type != LocalOpType::FluxNL)
       {
          mfem::AddMult(B, AiBt, D);
 
@@ -941,7 +941,9 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       }
       else
       {
-         S = D;
+         const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
+                                 d_dofs_size, d_dofs_size);
+         S = D_lin;
          mfem::AddMult(B, AiBt, S);
 
          // Decompose Schur complement
@@ -2269,13 +2271,13 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       }
    }
 
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    if (lop_type != LocalOpType::PotNL)
    {
       // Decompose A
       LU_A.Factor(a_dofs_size);
    }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    if (lop_type != LocalOpType::FluxNL)
    {
       // Construct Schur complement
