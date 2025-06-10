@@ -799,16 +799,11 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    }
    else
    {
-      const BlockOperator *bgrad = (nonlinear)?(dynamic_cast<const BlockOperator*>
-                                                (op)):(NULL);
+      const BlockOperator *bop = NULL;
 
       // get diagonal
       const HypreParMatrix *Mqm;
-      if (bgrad)
-      {
-         Mqm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(0,0));
-      }
-      else if (Mq)
+      if (Mq)
       {
          Mqm = const_cast<ParBilinearForm*>(Mq)->ParallelAssembleInternal();
       }
@@ -831,11 +826,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       Md.HostReadWrite();
 
       const HypreParMatrix *Bm;
-      if (bgrad)
-      {
-         Bm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(1,0));
-      }
-      else if (B)
+      if (B)
       {
          Bm = const_cast<ParMixedBilinearForm*>(B)->ParallelAssembleInternal();
       }
@@ -850,11 +841,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       delete MinvBt;
 
       const HypreParMatrix *Mtm = NULL;
-      if (bgrad && !bgrad->IsZeroBlock(1,1))
-      {
-         Mtm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(1,1));
-      }
-      else if (Mt)
+      if (Mt)
       {
          Mtm = const_cast<ParBilinearForm*>(Mt)->ParallelAssembleInternal();
       }
