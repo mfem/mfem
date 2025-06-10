@@ -557,7 +557,7 @@ struct Element;
 struct BoundaryElement;
 struct Face;
 struct BoundaryFace;
-};
+}
 
 /// @brief ThreadBlocks struct
 ///
@@ -1370,8 +1370,6 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      int i;
-
       if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
       {
          // TODO-bug: stealing dimension from the first field
@@ -1380,16 +1378,20 @@ create_descriptors_to_fields_map(
          fop.size_on_qp = 1;
          map = -1;
       }
-      else if ((i = find_id(fields, fop.GetFieldId())) != -1)
-      {
-         fop.dim = GetDimension<entity_t>(fields[i]);
-         fop.vdim = GetVDim(fields[i]);
-         fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
-         map = i;
-      }
       else
       {
-         MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
+         int i = find_id(fields, fop.GetFieldId());
+         if (i != -1)
+         {
+            fop.dim = GetDimension<entity_t>(fields[i]);
+            fop.vdim = GetVDim(fields[i]);
+            fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
+            map = i;
+         }
+         else
+         {
+            MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
+         }
       }
    };
 
@@ -2156,7 +2158,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 {
    auto f = [&](auto fop, std::size_t idx)
    {
-      auto g = [&](int idx)
+      [[maybe_unused]] auto g = [&](int idx)
       {
          auto dtq = dtqs[field_map[idx]];
 
