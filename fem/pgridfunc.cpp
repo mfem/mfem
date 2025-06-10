@@ -574,9 +574,12 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
       GridFunction::ProjectCoefficient(coeff);
 
       // Accumulate for all vdofs.
-      GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
-      gcomm.Bcast<real_t>(data);
+      if (pfes->GetNURBSext())
+      {
+         GroupCommunicator &gcomm = pfes->GroupComm();
+         gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+         gcomm.Bcast<real_t>(data);
+      }
    }
    else
    {
