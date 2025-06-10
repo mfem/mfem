@@ -58,6 +58,16 @@ MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
    return pB;
 }
 
+ParBlockNonlinearForm *ParDarcyForm::GetParBlockNonlinearForm()
+{
+   if (!pMnl)
+   {
+      Array<ParFiniteElementSpace*> fes({&pfes_u, &pfes_p});
+      Mnl.reset(pMnl = new ParBlockNonlinearForm(fes));
+   }
+   return pMnl;
+}
+
 void ParDarcyForm::Assemble(int skip_zeros)
 {
    if (pB || pM_p || pMnl_p)
@@ -202,10 +212,10 @@ void ParDarcyForm::Finalize(int skip_zeros)
       {
          M_u->Finalize(skip_zeros);
       }
-      /*else if (Mnl)
+      else if (Mnl)
       {
-         opM.Reset(Mnl, false);
-      }*/
+         opM.Reset(Mnl.get(), false);
+      }
 
       if (M_p)
       {
@@ -326,12 +336,12 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          pMnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
          block_op->SetDiagonalBlock(0, Mnl_u.get());
       }
-      /*else if (Mnl)
+      else if (Mnl)
       {
          Operator *oper_M;
-         Mnl->FormSystemOperator(ess_flux_tdof_list, oper_M);
+         pMnl->FormSystemOperator(ess_flux_tdof_list, oper_M);
          opM.Reset(oper_M);
-      }*/
+      }
 
       if (pM_p)
       {
@@ -363,14 +373,15 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    else if (reduction)
    {
       reduction->Finalize();
-      //if (!Mnl_u && !Mnl_p && !Mnl)
+      if (!Mnl_u && !Mnl_p && !Mnl)
       {
          reduction->GetParallelMatrix(A);
       }
-      /*else
+      else
       {
-         A.Reset(reduction, false);
-      }*/
+         MFEM_ABORT("Not implemented");
+         //A.Reset(reduction, false);
+      }
    }
    else
    {
@@ -473,10 +484,10 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
    {
       opM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
    }
-   /*else if (Mnl && opM.Ptr())
+   else if (Mnl && opM.Ptr())
    {
       opM.As<ConstrainedOperator>()->EliminateRHS(x, b);
-   }*/
+   }
 }
 
 void ParDarcyForm::Mult(const Vector &x, Vector &y) const
@@ -504,6 +515,20 @@ void ParDarcyForm::Mult(const Vector &x, Vector &y) const
 void ParDarcyForm::ParOperator::Mult(const Vector &x, Vector &y) const
 {
    darcy.block_op->Mult(x, y);
+   if (darcy.opM.Ptr())
+   {
+      if (darcy.bsym)
+      {
+         BlockVector ynl(darcy.toffsets);
+         darcy.opM->Mult(x, ynl);
+         ynl.GetBlock(1).Neg();
+         y += ynl;
+      }
+      else
+      {
+         darcy.opM->AddMult(x, y);
+      }
+   }
 }
 
 Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const

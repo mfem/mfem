@@ -438,22 +438,22 @@ int main(int argc, char *argv[])
                         (darcy->GetParFluxMassForm()):(NULL);
    ParNonlinearForm *Mqnl = (nonlinear_flux && !bnldiff)?
                             (darcy->GetParFluxMassNonlinearForm()):(NULL);
-   //BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
+   ParBlockNonlinearForm *Mnl = (bnldiff)?
+                                (darcy->GetParBlockNonlinearForm()):(NULL);
    ParMixedBilinearForm *B = darcy->GetParFluxDivForm();
-   ParBilinearForm *Mt = (!nonlinear_pot && ((dg /*&& (!Mnl || hybridization)*/ &&
+   ParBilinearForm *Mt = (!nonlinear_pot && ((dg && (!Mnl || hybridization) &&
                                               td > 0.) || bconv || btime))?
                          (darcy->GetParPotentialMassForm()):(NULL);
-   ParNonlinearForm *Mtnl = (nonlinear_pot &&
-                             ((dg /*&& (!Mnl || hybridization)*/ &&
-                               td > 0.) || bconv || bnlconv || btime))?
+   ParNonlinearForm *Mtnl = (nonlinear_pot && ((dg && (!Mnl || hybridization) &&
+                                                td > 0.) || bconv || bnlconv || btime))?
                             (darcy->GetParPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
    NumericalFlux *FluxSolver = NULL;
-   //MixedFluxFunction *HeatFluxFun = NULL;
+   MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
 
-   //if (!Mnl)
+   if (!Mnl)
    {
       //linear diffusion
       if (dg)
@@ -479,7 +479,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-   /*else
+   else
    {
       //nonlinear diffusion
       HeatFluxFun = GetHeatFluxFun(problem, k, dim);
@@ -505,10 +505,10 @@ int main(int argc, char *argv[])
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
       }
-   }*/
+   }
 
    //diffusion stabilization
-   if (dg /*&& (!Mnl || hybridization)*/)
+   if (dg && (!Mnl || hybridization))
    {
       if (bnldiff)
       {

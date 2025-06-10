@@ -33,7 +33,7 @@ protected:
    ParBilinearForm *pM_u{}, *pM_p{};
    ParNonlinearForm *pMnl_u{}, *pMnl_p{};
    ParMixedBilinearForm *pB{};
-   //BlockNonlinearForm *Mnl{};
+   ParBlockNonlinearForm *pMnl{};
 
    void AllocBlockOp();
 
@@ -97,8 +97,8 @@ public:
 
    const ParMixedBilinearForm *GetParFluxDivForm() const { return pB; }
 
-   //BlockNonlinearForm *GetBlockNonlinearForm();
-   //const BlockNonlinearForm *GetBlockNonlinearForm() const;
+   ParBlockNonlinearForm *GetParBlockNonlinearForm();
+   const ParBlockNonlinearForm *GetParBlockNonlinearForm() const { return pMnl; }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);

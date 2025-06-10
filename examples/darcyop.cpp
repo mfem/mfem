@@ -769,7 +769,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
 
    const ParBilinearForm *Mq = pdarcy->GetParFluxMassForm();
    const ParNonlinearForm *Mqnl = pdarcy->GetParFluxMassNonlinearForm();
-   //const BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
+   const ParBlockNonlinearForm *Mnl = pdarcy->GetParBlockNonlinearForm();
    const ParMixedBilinearForm *B = pdarcy->GetParFluxDivForm();
    const ParBilinearForm *Mt = pdarcy->GetParPotentialMassForm();
    const ParNonlinearForm *Mtnl = pdarcy->GetParPotentialMassNonlinearForm();
@@ -811,10 +811,11 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       {
          Mqm = static_cast<const HypreParMatrix*>(&Mqnl->GetGradient(x.GetBlock(0)));
       }
-      /*else if (Mnl)
+      else if (Mnl)
       {
-         bgrad = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
-      }*/
+         bop = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
+         Mqm = static_cast<const HypreParMatrix*>(&bop->GetBlock(0,0));
+      }
       else
       {
          MFEM_ABORT("No flux diagonal!");
@@ -849,20 +850,19 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       {
          Mtm = static_cast<HypreParMatrix*>(&Mtnl->GetGradient(x.GetBlock(1)));
       }
-      /*else if (Mnl)
-      {
-         const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bgrad->GetBlock(1,1));
-         if (Mtm.NumNonZeroElems() > 0)
-         {
-            SparseMatrix *Snew = Add(Mtm, *S);
-            delete S;
-            S = Snew;
-         }
-      }*/
 
       if (Mtm)
       {
          hS.reset(ParAdd(Mtm, hS.get()));
+      }
+
+      if (Mnl)
+      {
+         Mtm = static_cast<const HypreParMatrix*>(&bop->GetBlock(1,1));
+         if (Mtm && Mtm->NNZ() > 0)
+         {
+            hS.reset(ParAdd(Mtm, hS.get()));
+         }
       }
 
       {
