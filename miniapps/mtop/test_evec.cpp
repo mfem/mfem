@@ -212,7 +212,6 @@ int main(int argc, char *argv[])
    //Helmholtz operator
    wf->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
    ProductCoefficient pc(-freq*freq,rho);
-   //ConstantCoefficient pc(-freq*freq*1.0);
    wf->AddDomainIntegrator(new VectorMassIntegrator(pc));
 
 
@@ -324,36 +323,36 @@ int main(int argc, char *argv[])
    bop.SetBlock(1,1,wmat.get(),1.0);
 
 
-   SumOperator W(mmat.get(),1.0,mmat.get(),0.0,false,false);
+   //get the first n eigenmodes
+   MUMPSSolver* mumps=new MUMPSSolver(pmesh.GetComm());
+   mumps->SetPrintLevel(1);
+   mumps->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+   mumps->SetOperator(*kmat);
 
-   ParLORDiscretization lork(*kf,ess_dofs);
-   HypreParMatrix& lorkm=lork.GetAssembledMatrix();
+   int num_evec=20;
+   AdaptiveRandomizedGenEig ae(pmesh.GetComm());
+   ae.SetOperators(*mmat,*kmat,*mumps);
+   ae.SetNumModes(num_evec+10);
+   ae.SetNumIter(4);
+   ae.SolveNA();
 
-   ParFiniteElementSpace& lorfes=lork.GetParFESpace();
+   delete mumps;
 
-   ParLORDiscretization lorc(*cf,ess_dofs);
-   HypreParMatrix& lorcm=lorc.GetAssembledMatrix();
+   std::cout<<"Allocate EVECP"<<std::endl;
 
-
-   std::cout<<"Allocate MSP1"<<std::endl;
-   /*
-   MSP1Prec* prec=new MSP1Prec(pmesh.GetComm());
-   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0);
-   */
-
-   MSP3Prec* prec=new MSP3Prec(pmesh.GetComm());
-   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0,10000.0);
-   //prec->SetOperators(&lorkm,&lorcm,1.0,1.0);
-   prec->SetAbsTol(1e-12);
-   prec->SetRelTol(1e-6);
-   prec->SetMaxIter(1);
+   EVECPrec* prec=new EVECPrec(pmesh.GetComm());
+   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(), ae.GetModes(), num_evec, 1.0, freq*freq, 1.0);
 
 
    prec->Mult(f,x);
    {
-       real_t rr=mfem::InnerProduct(pmesh.GetComm(), x,x);
+       Vector res(f.Size()); res=0.0;
+       bop.Mult(x,res);
+       res.Add(-1,f);
+       real_t rr=mfem::InnerProduct(pmesh.GetComm(), res,res);
+       real_t fr=mfem::InnerProduct(pmesh.GetComm(), f,f);
        if(pmesh.GetMyRank()==0){
-           std::cout<<"Residual="<<sqrt(rr)<<std::endl;
+           std::cout<<"Residual="<<sqrt(rr)<<" |f|="<<sqrt(fr)<<std::endl;
            std::cout<<"fr="<<freq<<" fr^2="<<freq*freq<<std::endl;
        }
    }
@@ -361,13 +360,16 @@ int main(int argc, char *argv[])
 
    Vector xstat(f.GetBlock(0));xstat=0.0;
 
+
+
    /*
    delete prec;
    delete vfes;
    delete vfec;
    Mpi::Finalize();
    return 0;
-    */
+   */
+
 
    //set the linear solver
    FGMRESSolver* ls=new FGMRESSolver(pmesh.GetComm());

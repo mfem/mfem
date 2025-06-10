@@ -1115,6 +1115,8 @@ public:
             }
         }
 
+        if(myrank==0){rop.Print(std::cout,2*num_modes);}
+
         inv.Factor(rop);
     }
 
