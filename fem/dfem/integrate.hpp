@@ -23,8 +23,9 @@ void map_quadrature_data_to_fields_impl(
    const output_t &output,
    const DofToQuadMap &dtq)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
+
    // assuming the quadrature point residual has to "play nice with
    // the test function"
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
