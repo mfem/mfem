@@ -125,25 +125,30 @@ if (MFEM_ENABLE_TESTING)
 
   add_test(NAME nurbs_ex1_weak_patch_format_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0)
+    -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh
+    -o 2 --weak-bc -r 0)
 
   add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
+    -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh
+    -o 2 --weak-bc -r 1)
 
   add_test(NAME nurbs_printfunc
     COMMAND $<TARGET_FILE:nurbs_printfunc>)
 
   if (MFEM_USE_LAPACK)
     add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_ser
-      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8 -patcha)
+      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8
+      -patcha)
   endif()
 
   add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_pa_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8 -patcha -pa)
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8
+    -patcha -pa)
 
   add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_fint_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8 -patcha -fint)
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 2 -iro 8
+    -patcha -fint)
 
   add_test(NAME nurbs_curveint_unit_weight_ser
     COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
@@ -154,35 +159,43 @@ if (MFEM_ENABLE_TESTING)
     -nw -n 9)
 
   add_test(NAME nurbs_naca_cmesh_ser
-    COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -no-vis -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3)
+    COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -no-vis -no-visit -ntail 80 -nbnd 80
+    -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3)
 
   add_test(NAME nurbs_ex1_two_squares_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1
+    -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
 
   add_test(NAME nurbs_ex1_two_squares_rot_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh
+    -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
 
   add_test(NAME nurbs_ex1_two_squares_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh
+    -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
 
   add_test(NAME nurbs_ex1_two_cubes_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1
+    -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
 
   add_test(NAME nurbs_ex1_two_cubes_rot_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1
+    -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
 
   add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh
+    -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
 
   add_test(NAME nurbs_ex1_periodic_2d
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -o 2 -r 2 --master "3" --slave "4")
+    -m ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -o 2 -r 2 --master "3"
+    --slave "4")
 
   add_test(NAME nurbs_ex1_periodic_3d
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
@@ -275,12 +288,14 @@ if (MFEM_USE_MPI)
     add_test(NAME nurbs_ex1_weak_patch_format_np=4
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis
-        -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0)
+        -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2
+        --weak-bc -r 0)
 
     add_test(NAME nurbs_ex1_weak_patch_format_r1_np=4
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis
-        -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
+        -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2
+        --weak-bc -r 1)
 
     add_test(NAME nurbs_ex11p_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
