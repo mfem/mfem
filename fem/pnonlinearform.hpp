@@ -83,6 +83,8 @@ protected:
    mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
 
+   void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
+
 public:
    /// Computes the energy of the system
    real_t GetEnergy(const Vector &x) const override;

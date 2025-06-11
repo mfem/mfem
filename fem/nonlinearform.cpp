@@ -1222,7 +1222,8 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
+void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx,
+                                                bool finalize) const
 {
    const int skip_zeros = 0;
    Array<Array<int> *> vdofs(fes.Size());
@@ -1482,7 +1483,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   if (!Grads(0,0)->Finalized())
+   if (finalize && !Grads(0,0)->Finalized())
    {
       for (int i=0; i<fes.Size(); ++i)
       {
