@@ -86,7 +86,7 @@ SparseMatrix *CreateNodalProlongation(
                                       4*E[n-2].size());
 
    Mesh &mesh = *fes.GetMesh();
-   FiniteElementSpace nodal_fes(&mesh, fes.FEColl());
+   FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), 2);
    GridFunction nodes(&nodal_fes);
    mesh.GetNodes(nodes);
    int nnodes = nodes.Size()/mesh.Dimension();
@@ -117,7 +117,8 @@ SparseMatrix *CreateNodalProlongation(
 SparseMatrix *CreateInclusionProlongation(
    int l, const std::vector<std::vector<int>> &E)
 {
-   SparseMatrix *P = new SparseMatrix(4*E[l].size(), 4*E[l-1].size());
+   int nc = (l != 0) ? 4*E[l-1].size() : 4;
+   SparseMatrix *P = new SparseMatrix(4*E[l].size(), nc);
    for (int e = 0; e < E[l].size(); ++e)
    {
       int c = E[l][e];
@@ -186,6 +187,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    for (int l=0; l < num_levels; ++l)
    {
       smoothers[l] = new BlockILU(*operators[l], 4);
+
    }
 }
 
