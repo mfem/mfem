@@ -30,9 +30,13 @@ struct Particle
    real_t scalar_fields[SFields];
 };
 
-template<int Dim, int VFields=0, int SFields=0>
-class ParticleSet
+template<typename T>
+class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T> requires that T is a Particle."); };
+
+template<int Dim, int VFields, int SFields>
+class ParticleSet<Particle<Dim,VFields,SFields>>
 {
+
 public:
 
 protected:
@@ -99,7 +103,7 @@ public:
 // Struct-of-Arrays implementation:
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::SyncVCoords()
+void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords()
 {
    if (GetNP()*Dim != v_coords.Size()) // Re-allocate if size of v_coords is inconsistent with number of particles
    {
@@ -113,7 +117,7 @@ void ParticleSet<Dim, VFields, SFields>::SyncVCoords()
 }
 
 template<int Dim, int VFields, int SFields>
-ParticleSet<Dim, VFields, SFields>::ParticleSet(int reserve)
+ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet(int reserve)
 {
    // Reserve memory:
    for (int d = 0; d < Dim; d++)
@@ -127,10 +131,10 @@ ParticleSet<Dim, VFields, SFields>::ParticleSet(int reserve)
 }
 
 template<int Dim, int VFields, int SFields>
-int ParticleSet<Dim, VFields, SFields>::GetNP() const { return coords[0].size(); }
+int ParticleSet<Particle<Dim, VFields, SFields>>::GetNP() const { return coords[0].size(); }
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::AddParticle(const Particle<Dim, VFields, SFields> &p)
+void ParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle<Dim, VFields, SFields> &p)
 {
    // !! Add data to multiple arrays !!
    for (int d = 0; d < Dim; d++)
@@ -145,7 +149,7 @@ void ParticleSet<Dim, VFields, SFields>::AddParticle(const Particle<Dim, VFields
 }
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::RemoveParticles(const Array<int> &list)
+void ParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Array<int> &list)
 {
    int num_old = GetNP();
 
@@ -190,7 +194,7 @@ void ParticleSet<Dim, VFields, SFields>::RemoveParticles(const Array<int> &list)
 
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::GetParticle(int i, Particle<Dim, VFields, SFields> &p) const
+void ParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i, Particle<Dim, VFields, SFields> &p) const
 {
    // !! Get data from multiple arrays !!
    for (int d = 0; d < Dim; d++)
@@ -204,7 +208,7 @@ void ParticleSet<Dim, VFields, SFields>::GetParticle(int i, Particle<Dim, VField
 }
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::UpdateParticlePositions(const Vector &new_coords)
+void ParticleSet<Particle<Dim, VFields, SFields>>::UpdateParticlePositions(const Vector &new_coords)
 {
    // Copy data over
    // !! (inner loop well-suited for OpenMP ? cache hits on CPU? (if it matters)) !!
@@ -221,7 +225,7 @@ void ParticleSet<Dim, VFields, SFields>::UpdateParticlePositions(const Vector &n
 // Array-of-Structs implementation:
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::SyncVCoords()
+void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords()
 {
    if (GetNP()*Dim != v_coords.Size()) // Re-allocate if size of v_coords is inconsistent with number of particles
    {
@@ -240,24 +244,24 @@ void ParticleSet<Dim, VFields, SFields>::SyncVCoords()
 }
 
 template<int Dim, int VFields, int SFields>
-ParticleSet<Dim, VFields, SFields>::ParticleSet(int reserve)
+ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet(int reserve)
 {
    // Reserve memory:
    particles.reserve(reserve);
 }
 
 template<int Dim, int VFields, int SFields>
-int ParticleSet<Dim, VFields, SFields>::GetNP() const { return particles.size(); }
+int ParticleSet<Particle<Dim, VFields, SFields>>::GetNP() const { return particles.size(); }
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::AddParticle(const Particle<Dim, VFields, SFields> &p)
+void ParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle<Dim, VFields, SFields> &p)
 {
    // !! Add data to single array !!
    particles.push_back(p);
 }
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::RemoveParticles(const Array<int> &list)
+void ParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Array<int> &list)
 {
    int num_old = GetNP();
 
@@ -288,7 +292,7 @@ void ParticleSet<Dim, VFields, SFields>::RemoveParticles(const Array<int> &list)
 
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::GetParticle(int i, Particle<Dim, VFields, SFields> &p) const
+void ParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i, Particle<Dim, VFields, SFields> &p) const
 {
    // !! Get data from single array !!
    Particle<Dim, VFields, SFields> p_copy = particles[i];
@@ -296,7 +300,7 @@ void ParticleSet<Dim, VFields, SFields>::GetParticle(int i, Particle<Dim, VField
 }
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Dim, VFields, SFields>::UpdateParticlePositions(const Vector &new_coords)
+void ParticleSet<Particle<Dim, VFields, SFields>>::UpdateParticlePositions(const Vector &new_coords)
 {
 
    for (int d = 0; d < Dim; d++)
