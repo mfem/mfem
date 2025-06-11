@@ -195,4 +195,4 @@ clean-exec:
 	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_*
 	@rm -f naca-cmesh.mesh sol_?.gf k?_*.dat
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
-	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh
+	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
