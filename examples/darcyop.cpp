@@ -799,11 +799,17 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    }
    else
    {
-      const BlockOperator *bop = NULL;
+      const BlockOperator *bop = (nonlinear)?(dynamic_cast<const BlockOperator*>
+                                              (op)):(NULL);
+      const BlockOperator *bgrad = NULL;
 
       // get diagonal
       const HypreParMatrix *Mqm;
-      if (Mq)
+      if (bop)
+      {
+         Mqm = static_cast<const HypreParMatrix*>(&bop->GetBlock(0,0));
+      }
+      else if (Mq)
       {
          Mqm = const_cast<ParBilinearForm*>(Mq)->ParallelAssembleInternal();
       }
@@ -813,8 +819,8 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       }
       else if (Mnl)
       {
-         bop = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
-         Mqm = static_cast<const HypreParMatrix*>(&bop->GetBlock(0,0));
+         bgrad = &Mnl->GetGradient(x);
+         Mqm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(0,0));
       }
       else
       {
@@ -827,7 +833,11 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       Md.HostReadWrite();
 
       const HypreParMatrix *Bm;
-      if (B)
+      if (bop)
+      {
+         Bm = static_cast<const HypreParMatrix*>(&bop->GetBlock(1,0));
+      }
+      else if (B)
       {
          Bm = const_cast<ParMixedBilinearForm*>(B)->ParallelAssembleInternal();
       }
@@ -842,7 +852,11 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       delete MinvBt;
 
       const HypreParMatrix *Mtm = NULL;
-      if (Mt)
+      if (bop && !bop->IsZeroBlock(1,1))
+      {
+         Mtm = static_cast<const HypreParMatrix*>(&bop->GetBlock(1,1));
+      }
+      else if (Mt)
       {
          Mtm = const_cast<ParBilinearForm*>(Mt)->ParallelAssembleInternal();
       }
@@ -858,7 +872,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
 
       if (Mnl)
       {
-         Mtm = static_cast<const HypreParMatrix*>(&bop->GetBlock(1,1));
+         Mtm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(1,1));
          if (Mtm && Mtm->NNZ() > 0)
          {
             hS.reset(ParAdd(Mtm, hS.get()));
