@@ -64,8 +64,10 @@ protected:
    void PropagateFactorsForKV(int rf_default);
 
    /// Refine with refinement factors loaded for some knotvectors specified in
-   /// the given file, with default refinement factor @a rf elsewhere.
-   void RefineWithKVFactors(int rf, const std::string &kvf_filename) override;
+   /// the given file, with default refinement factor @a rf elsewhere. The flag
+   /// @a coarsened indicates whether each patch is a single element.
+   void RefineWithKVFactors(int rf, const std::string &kvf_filename,
+                            bool coarsened) override;
 
 private:
    /// Global mesh offsets, meshOffsets == meshVertexOffsets
@@ -288,7 +290,7 @@ private:
    void GetSlaveFaceToPatchTable(Array2D<int> &sface2patch);
 
    /// Helper function for @a UniformRefinement().
-   void Refine(const Array<int> *rf=nullptr);
+   void Refine(bool coarsened, const Array<int> *rf = nullptr);
 
    /// Get the two endpoints of the auxiliary edge with index @a auxEdge.
    void GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const;
