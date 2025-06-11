@@ -90,7 +90,9 @@ int main(int argc, char *argv[])
                                    false,
                                    eqdsk.GetRExtent(),
                                    eqdsk.GetZExtent());
-      ShiftMesh(eqdsk.GetRMin(), eqdsk.GetZMid() - eqdsk.GetZExtent()/2.0, mesh);
+
+      real_t zmin = eqdsk.GetZMid() - eqdsk.GetZExtent()/2.0;
+      ShiftMesh(eqdsk.GetRMin(), zmin, mesh);
    }
    else
    {
