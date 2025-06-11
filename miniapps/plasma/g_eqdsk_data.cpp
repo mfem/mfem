@@ -739,16 +739,23 @@ void G_EQDSK_Data::initInterpPsi(const std::vector<real_t> &v,
 real_t G_EQDSK_Data::interpPsi(real_t psi, const vector<real_t> &v,
                                const vector<real_t> &t)
 {
-   real_t psic = std::max(SIMAG_, std::min(psi, SIBRY_));
+   real_t psimin = std::min(SIMAG_, SIBRY_);
+   real_t psimax = std::max(SIMAG_, SIBRY_);
 
+   // Psi constrained to be between psimin and psimax
+   real_t psic = std::max(psimin, std::min(psi, psimax));
+
+   // Psi scaled to the range 0 -> 1
    real_t psis = (psic - SIMAG_) / (SIBRY_ - SIMAG_);
 
-   int i = std::max(0, std::min((int)floor(real_t(NW_-1) * psis), NW_-2));
+   // Located the bin containing psis counting from 0
+   int i0 = std::max(0, std::min((int)floor(real_t(NW_-1) * psis), NW_-2));
+   int i1 = i0 + 1;
 
    // Compute ends of local patch
-   real_t psi0 = SIMAG_ + (SIBRY_ - SIMAG_) * i / (NW_ - 1);
+   real_t psi0 = SIMAG_ + (SIBRY_ - SIMAG_) * i0 / (NW_ - 1);
    real_t psi1 = psi0 + (SIBRY_ - SIMAG_) / (NW_ - 1);
-
+   
    // Prepare position dependent factors
    real_t wra = (psi1 - psic) / dpsi_;
    real_t wrb = (psic - psi0) / dpsi_;
@@ -758,14 +765,14 @@ real_t G_EQDSK_Data::interpPsi(real_t psi, const vector<real_t> &v,
    real_t wrb2 = wrb * wrb;
 
    // Extract variable values at ends of local patch
-   const real_t &p0 = v[i];
-   const real_t &p1 = v[i+1];
+   const real_t &p0 = v[i0];
+   const real_t &p1 = v[i1];
 
    real_t var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
 
    // Extract dvar/dx at ends of local patch
-   const real_t &px0 = t[i];
-   const real_t &px1 = t[i+1];
+   const real_t &px0 = t[i0];
+   const real_t &px1 = t[i1];
 
    real_t varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
 
