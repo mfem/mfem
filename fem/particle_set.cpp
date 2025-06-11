@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-ParticleSet::ParticleSet(int dim, int num_fields, Ordering::Type ordering_)
+SoAParticleSet::SoAParticleSet(int dim, int num_fields, Ordering::Type ordering_)
    : ordering(ordering_),
      coords(dim),
      real_fields(num_fields)
@@ -36,7 +36,7 @@ ParticleSet::ParticleSet(int dim, int num_fields, Ordering::Type ordering_)
    // byVDIM (XYZ XYZ XYZ) depends on GetNP() -- need to reset every SyncVCoords()
 }
 
-void ParticleSet::SyncVCoords()
+void SoAParticleSet::SyncVCoords()
 {
    if (ordering == Ordering::byNODES)
    {
@@ -61,7 +61,7 @@ void ParticleSet::SyncVCoords()
    }
 }
 
-void ParticleSet::RandomInitialize(Mesh &m, int num_particles, bool reset, int seed)
+void SoAParticleSet::RandomInitialize(Mesh &m, int num_particles, bool reset, int seed)
 {
    int dim = coords.size();
 
@@ -107,7 +107,7 @@ void ParticleSet::RandomInitialize(Mesh &m, int num_particles, bool reset, int s
 
 }
 
-void ParticleSet::AddParticles(const Vector &in_coords,
+void SoAParticleSet::AddParticles(const Vector &in_coords,
                                const Vector *in_fields[])
 {
    int dim = coords.size();
@@ -146,7 +146,7 @@ void ParticleSet::AddParticles(const Vector &in_coords,
    SyncVCoords();
 }
 
-void ParticleSet::RemoveParticles(const Array<int> &list)
+void SoAParticleSet::RemoveParticles(const Array<int> &list)
 {
    int dim = coords.size();
    int num_old = GetNP();
@@ -188,7 +188,7 @@ void ParticleSet::RemoveParticles(const Array<int> &list)
    }
 }
 
-void ParticleSet::UpdateParticlePositions(const Vector &new_coords)
+void SoAParticleSet::UpdateParticlePositions(const Vector &new_coords)
 {
    int dim = coords.size();
 

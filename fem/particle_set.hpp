@@ -22,7 +22,10 @@
 namespace mfem
 {
 
-class ParticleSet
+
+
+// Struct-of-Arrays ParticleSet
+class SoAParticleSet
 {
 protected:
    const Ordering::Type ordering;
@@ -41,13 +44,13 @@ protected:
    void SyncVCoords();
 
 public:
-   ParticleSet(int dim, int num_fields=0,
+   SoAParticleSet(int dim, int num_fields=0,
                Ordering::Type ordering_=Ordering::Type::byNODES);
 
 #ifdef MFEM_USE_MPI
-   ParticleSet(MPI_Comm comm_, int dim, int num_fields=0,
+   SoAParticleSet(MPI_Comm comm_, int dim, int num_fields=0,
                Ordering::Type ordering_=Ordering::Type::byNODES)
-      : ParticleSet(dim, num_fields, ordering_) { comm = comm_; };
+      : SoAParticleSet(dim, num_fields, ordering_) { comm = comm_; };
 #endif // MFEM_USE_MPI
 
    /// Get the ordering of particle coordinates returned by \ref GetAllParticles()
