@@ -587,9 +587,32 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
       if (!darcy.Mnl) { return *block_grad; }
    }
 
-   //opG.Reset(new Gradient(*this, x));
-   MFEM_ABORT("Not implemented");
-   return *block_grad;//*opG.Ptr();
+   opG.Reset(new ParGradient(*this, x));
+   return *opG.Ptr();
+}
+
+void ParDarcyForm::ParGradient::Mult(const Vector &x, Vector &y) const
+{
+   if (p.block_grad)
+   {
+      p.block_grad->Mult(x, y);
+   }
+   else
+   {
+      p.darcy.block_op->Mult(x, y);
+   }
+
+   if (p.darcy.bsym)
+   {
+      BlockVector ynl(p.darcy.toffsets);
+      G.Mult(x, ynl);
+      ynl.GetBlock(1).Neg();
+      y += ynl;
+   }
+   else
+   {
+      G.AddMult(x, y);
+   }
 }
 
 ParDarcyForm::~ParDarcyForm()

@@ -44,11 +44,15 @@ protected:
    using DarcyForm::ConstructBT;
    const Operator* ConstructBT(const HypreParMatrix *opB) const;
 
+   class ParGradient;
    friend class ParOperator;
    class ParOperator : public Operator
    {
+   protected:
       const ParDarcyForm &darcy;
       mutable BlockOperator *block_grad{};
+      mutable OperatorHandle opG;
+      friend class ParGradient;
 
    public:
       ParOperator(const ParDarcyForm &darcy)
@@ -57,6 +61,19 @@ protected:
 
       void Mult(const Vector &x, Vector &y) const override;
       Operator& GetGradient(const Vector &x) const override;
+   };
+
+   friend class ParGradient;
+   class ParGradient : public Operator
+   {
+      const ParOperator &p;
+      const Operator &G;
+
+   public:
+      ParGradient(const ParOperator &p, const Vector &x)
+         : Operator(p.Width()), p(p), G(p.darcy.Mnl->GetGradient(x)) { }
+
+      void Mult(const Vector &x, Vector &y) const override;
    };
 
 public:
