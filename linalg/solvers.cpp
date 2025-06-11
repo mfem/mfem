@@ -3193,6 +3193,25 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
    }
 }
 
+void BlockILU::MultTranspose(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(height > 0, "BlockILU(0) preconditioner is not constructed");
+   int nblockrows = Height()/block_size;
+   y.SetSize(Height());
+
+   DenseMatrix B;
+   Vector yi, yj, xi, xj;
+   Vector tmp(block_size);
+
+   // Forward substitute to solve (U^T)y = b
+
+   // [...]
+
+   // Backward substitution to solve (L^T)x = y
+
+   // [...]
+}
+
 
 void ResidualBCMonitor::MonitorResidual(
    int it, real_t norm, const Vector &r, bool final)

@@ -1057,6 +1057,10 @@ public:
    /// Solve the system `LUx = b`, where `L` and `U` are the block ILU factors.
    void Mult(const Vector &b, Vector &x) const;
 
+   /// @brief Solve the system `(LU)^T x = b`, where `L` and `U` are the block
+   /// ILU factors.
+   void MultTranspose(const Vector &b, Vector &x) const;
+
    /** Get the I array for the block CSR representation of the factorization.
     *  Similar to SparseMatrix::GetI(). Mostly used for testing.
     */
