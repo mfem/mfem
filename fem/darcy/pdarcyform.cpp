@@ -544,7 +544,7 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
          block_grad = new BlockOperator(darcy.toffsets);
       }
 
-      if (darcy.pM_u)
+      if (darcy.opM_u.Ptr())
       {
          block_grad->SetDiagonalBlock(0, darcy.opM_u.Ptr());
       }
