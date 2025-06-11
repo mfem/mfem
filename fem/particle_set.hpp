@@ -37,8 +37,6 @@ template<int Dim, int VFields, int SFields>
 class ParticleSet<Particle<Dim,VFields,SFields>>
 {
 
-public:
-
 protected:
 
 #ifdef MFEM_USE_MPI
@@ -54,6 +52,8 @@ protected:
    std::array<std::array<std::vector<real_t>, Dim>, VFields> vector_fields; /// Particle vector fields
    std::array<std::vector<real_t>, SFields> scalar_fields; /// Particle scalar fields
 
+   void SyncBlockVector(const std::array<std::vector<real_t>, Dim> &actual, BlockVector &bv);
+
 #else 
 
    std::vector<Particle<Dim, VFields, SFields>> particles;
@@ -61,8 +61,10 @@ protected:
 #endif // MFEM_PARTICLES_SOA
 
    BlockVector v_coords; /// Vector reference to or copy of all particle coordinates ordered byNODES, for easy input to FindPointsGSLib
+   std::array<BlockVector, VFields> v_vector_fields; /// Vector reference to or copy of all vector fields ordered byNODES, for user usage
 
    void SyncVCoords();
+   void SyncVVectorField(int v);
 
 public:
    /// Optionally reserve memory for \p reserve particles.  
@@ -86,7 +88,10 @@ public:
    void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const;
 
    /// Get const reference to the internal particle coordinates Vector.
-   const Vector& GetParticleCoords() const { SyncVCoords(); return v_coords; };
+   const Vector& GetParticleCoords() { SyncVCoords(); return v_coords; }; // TODO: make this const ...
+
+   /// Get const reference to the internal vector field \p v Vector
+   const Vector& GetVectorField(int v) { SyncVVectorField(v); return v_vector_fields[v]; }; // TODO: make this const ...
 
    /// Update particle positions using given new coordinates \p new_coords , with ordering byNODES.
    void UpdateParticlePositions(const Vector &new_coords);
@@ -103,18 +108,25 @@ public:
 // Struct-of-Arrays implementation:
 
 template<int Dim, int VFields, int SFields>
-void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords()
+void ParticleSet<Particle<Dim, VFields, SFields>>::SyncBlockVector(const std::array<std::vector<real_t>, Dim> &actual, BlockVector &bv)
 {
-   if (GetNP()*Dim != v_coords.Size()) // Re-allocate if size of v_coords is inconsistent with number of particles
+   if (GetNP()*Dim != bv.Size()) // Need to sync if size of bv is inconsistent with number of particles
    {
       mfem::Array<int> bOffsets(Dim);
       for (int d = 0; d < Dim; d++)
          bOffsets[d] = d*GetNP();
-      v_coords = BlockVector(bOffsets);
+      bv = BlockVector(bOffsets);
       for (int d = 0; d < Dim; d++)
-         v_coords.GetBlock(d).SetDataAndSize(coords[d].data(), coords[d].size()); // !! Just set ptr to data !!
+         bv.GetBlock(d).SetDataAndSize(actual[d].data(), actual[d].size()); // !! Just set ptr to data !!
    }
 }
+
+template<int Dim, int VFields, int SFields>
+void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords() { SyncBlockVector(coords, v_coords); }
+
+
+template<int Dim, int VFields, int SFields>
+void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVVectorField(int v) { SyncBlockVector(vector_fields[v], v_vector_fields[v]); }
 
 template<int Dim, int VFields, int SFields>
 ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet(int reserve)
@@ -239,6 +251,25 @@ void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords()
       {
          for (int i = 0; i < GetNP(); i++)
             v_coords[i + d*GetNP()] = particles[i].coords[d];
+      }
+   }
+}
+
+template<int Dim, int VFields, int SFields>
+void ParticleSet<Particle<Dim, VFields, SFields>>::SyncVVectorField(int v)
+{
+   if (GetNP()*Dim != v_vector_fields[v].Size()) // Re-allocate if size of v_coords is inconsistent with number of particles
+   {
+      mfem::Array<int> bOffsets(Dim);
+      for (int d = 0; d < Dim; d++)
+         bOffsets[d] = d*GetNP();
+      v_vector_fields[v] = BlockVector(bOffsets);
+
+      // !! Loop over all particles + copy data over (storing GetNP() references isn't worth it) !!
+      for (int d = 0; d < Dim; d++)
+      {
+         for (int i = 0; i < GetNP(); i++)
+            v_vector_fields[v][i + d*GetNP()] = particles[i].v_vector_fields[v][d];
       }
    }
 }
