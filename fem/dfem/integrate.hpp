@@ -104,8 +104,8 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
    {
@@ -241,8 +241,8 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
    {
