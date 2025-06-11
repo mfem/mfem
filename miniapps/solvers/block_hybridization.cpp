@@ -62,23 +62,24 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       DenseMatrix product_matrix(saved_mixed_matrices[element_index].Height(),
                                  saved_hdiv_matrices[element_index].Width());
       mfem::Mult(saved_mixed_matrices[element_index],
-                 saved_hdiv_matrices[element_index], product_matrix);
+                 saved_hdiv_matrices[element_index], product_matrix); // BA^{-1}
 
       saved_l2_matrices[element_index].SetSize(product_matrix.Height(),
                                                saved_mixed_matrices[element_index].Height());
       MultABt(product_matrix, saved_mixed_matrices[element_index],
-              saved_l2_matrices[element_index]);
-      saved_l2_matrices[element_index].Invert();
-      saved_l2_matrices[element_index].Neg();
+              saved_l2_matrices[element_index]); // BA^{-1}B^t = -S
+      saved_l2_matrices[element_index].Invert(); // (BA^{-1}B^t)^{-1} = -S^{-1}
+      saved_l2_matrices[element_index].Neg(); // -(BA^{-1}B^t)^{-1} = S^{-1}
 
       mfem::Mult(saved_l2_matrices[element_index], product_matrix,
                  saved_mixed_matrices[element_index]); // overwrite saved_mixed_matrices[element_index]
+                                                       // with S^{-1}BA^{-1}
       DenseMatrix temp_matrix(product_matrix.Width(),
                               saved_mixed_matrices[element_index].Width());
-      MultAtB(product_matrix, saved_mixed_matrices[element_index], temp_matrix);
+      MultAtB(product_matrix, saved_mixed_matrices[element_index], temp_matrix); // A^{-T}B^TS^{-1}BA^{-1}
       saved_hdiv_matrices[element_index] += temp_matrix;
 
-      saved_mixed_matrices[element_index].Neg();
+      saved_mixed_matrices[element_index].Neg(); // -S^{-1}BA^{-1}
 
       element = hdiv_space->GetFE(element_index);
       // Array<int> face_indices_array(*element_to_facet_table.GetRow(element_index));
