@@ -386,7 +386,7 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
             fe2[s] = pfes->GetFaceNbrFE(Elem2NbrNo);
 
             pfes->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
-            pfes->GetFaceNbrElementVDofs(tr->Elem2No, *(vdofs2[s]));
+            pfes->GetFaceNbrElementVDofs(Elem2NbrNo, *(vdofs2[s]));
 
             el_x[s]->SetSize(vdofs[s]->Size() + vdofs2[s]->Size());
             xs.GetBlock(s).GetSubVector(*(vdofs[s]), el_x[s]->GetData());
