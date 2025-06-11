@@ -3368,7 +3368,7 @@ void NCNURBSExtension::UniformRefinement(const Array<int> &rf)
       ref_factors = rf;
    }
 
-   Refine(&rf);
+   Refine(false, &rf);
 }
 
 void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
