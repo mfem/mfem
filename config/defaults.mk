@@ -156,6 +156,7 @@ MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
 MFEM_USE_GSLIB         = NO
+MFEM_PARTICLES_SOA     = YES
 MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO

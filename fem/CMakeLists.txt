@@ -123,7 +123,6 @@ set(SRCS
   quadinterpolator_face.cpp
   restriction.cpp
   normal_deriv_restriction.cpp
-  particle_set.cpp
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
