@@ -350,7 +350,10 @@ public:
        @param[in] multiplicity Optional multiplicity for new knots inserted. */
    void UniformRefinement(int rf = 2, int multiplicity = 1);
    void UniformRefinement(const Array<int> &rf, int multiplicity = 1);
-   void UniformRefinement(const std::vector<Array<int>> &rf, int multiplicity = 1);
+
+   /// Flag @a coarsened indicates whether the patch is a single element.
+   void UniformRefinement(const std::vector<Array<int>> &rf,
+                          bool coarsened = false, int multiplicity = 1);
 
    /** @brief Coarsen with optional coarsening factor @a cf which divides the
        number of elements in each dimension. Nonuniform spacing functions may be
@@ -422,7 +425,7 @@ public:
    /// Rotate the NURBSPatch in 2D or 3D..
    /** A rotation of a 2D NURBS-patch requires an angle only. Rotating
        a 3D NURBS-patch requires a normal as well.*/
-   void Rotate(real_t angle, real_t normal[]= NULL);
+   void Rotate(real_t angle, real_t normal[] = NULL);
 
    /// Rotate the NURBSPatch, 2D case.
    void Rotate2D(real_t angle);
@@ -938,8 +941,10 @@ public:
    virtual void UniformRefinement(const Array<int> &rf);
 
    /// Refine with refinement factors loaded for some knotvectors specified in
-   /// the given file, with default refinement factor @a rf elsewhere.
-   virtual void RefineWithKVFactors(int rf, const std::string &kvf_filename);
+   /// the given file, with default refinement factor @a rf elsewhere. The flag
+   /// @a coarsened indicates whether each patch is a single element.
+   virtual void RefineWithKVFactors(int rf, const std::string &kvf_filename,
+                                    bool coarsened);
 
    /// Coarsen with optional coarsening factor @a cf.
    void Coarsen(int cf = 2, real_t tol = 1.0e-12);

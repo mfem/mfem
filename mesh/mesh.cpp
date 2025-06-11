@@ -6071,7 +6071,7 @@ void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
    if (cf1 || NURBSext->Nonconforming())
      {
        if (usingKVF || NURBSext->Nonconforming())
-	 NURBSext->RefineWithKVFactors(rf[0], kvf);
+	 NURBSext->RefineWithKVFactors(rf[0], kvf, !cf1);
        else
 	 NURBSext->UniformRefinement(rf);
      }

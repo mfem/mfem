@@ -1054,12 +1054,23 @@ void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
 }
 
 void NURBSPatch::UniformRefinement(const std::vector<Array<int>> &rf,
-                                   int multiplicity)
+                                   bool coarsened, int multiplicity)
 {
    Vector new_knots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      kv[dir]->Refinement(new_knots, rf[dir].Sum());
+      if (coarsened)
+      {
+         const int f = rf[dir].Sum();
+         if (f == 1) { continue; }
+         kv[dir]->Refinement(new_knots, f);
+      }
+      else
+      {
+         MFEM_VERIFY(rf[dir].IsConstant(), "");
+         if (rf[dir][0] == 1) { continue; }
+         kv[dir]->Refinement(new_knots, rf[dir][0]);
+      }
 
       for (int i=0; i<multiplicity; ++i)
       {
@@ -5302,7 +5313,8 @@ void NURBSExtension::GetMasterFaceDofs(bool dof, int mf,
 }
 
 void NURBSExtension::RefineWithKVFactors(int rf,
-                                         const std::string &kvf_filename)
+                                         const std::string &kvf_filename,
+                                         bool coarsened)
 {
    MFEM_ABORT("RefineWithKVFactors is supported only in NCNURBSExtension");
 }

@@ -2916,7 +2916,8 @@ void UpdateFactors(Array<int> &f)
 }
 
 void NCNURBSExtension::RefineWithKVFactors(int rf,
-                                           const std::string &kvf_filename)
+                                           const std::string &kvf_filename,
+                                           bool coarsened)
 {
    if (ref_factors.Size() > 0)
    {
@@ -2932,7 +2933,7 @@ void NCNURBSExtension::RefineWithKVFactors(int rf,
    LoadFactorsForKV(kvf_filename);
    PropagateFactorsForKV(rf);
 
-   Refine();
+   Refine(coarsened);
 }
 
 void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
@@ -3370,7 +3371,7 @@ void NCNURBSExtension::UniformRefinement(const Array<int> &rf)
    Refine(&rf);
 }
 
-void NCNURBSExtension::Refine(const Array<int> *rf)
+void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
 {
    const int maxOrder = mOrders.Max();
    const int dim = Dimension();
@@ -3414,7 +3415,7 @@ void NCNURBSExtension::Refine(const Array<int> *rf)
          }
 
          patches[p]->UpdateSpacingPartitions(pkv);
-         patches[p]->UniformRefinement(prf, maxOrder);
+         patches[p]->UniformRefinement(prf, coarsened, maxOrder);
       }
       else
       {
