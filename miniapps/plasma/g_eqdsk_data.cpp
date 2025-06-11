@@ -110,6 +110,17 @@ void G_EQDSK_Data::PrintInfo(ostream & out) const
 
 void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
 {
+   real_t  fmin =  std::numeric_limits<real_t>::max();
+   real_t  fmax = -std::numeric_limits<real_t>::max();
+   real_t  pmin =  std::numeric_limits<real_t>::max();
+   real_t  pmax = -std::numeric_limits<real_t>::max();
+   real_t ffmin =  std::numeric_limits<real_t>::max();
+   real_t ffmax = -std::numeric_limits<real_t>::max();
+   real_t ppmin =  std::numeric_limits<real_t>::max();
+   real_t ppmax = -std::numeric_limits<real_t>::max();
+   real_t  qmin =  std::numeric_limits<real_t>::max();
+   real_t  qmax = -std::numeric_limits<real_t>::max();
+
    ostringstream oss_dat, oss_inp;
    oss_inp << file << ".inp";
    oss_dat << file << ".dat";
@@ -118,13 +129,23 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
 
    for (int i=0; i<NW_; i++)
    {
-      ofs_dat << RLEFT_ + RDIM_ * i / (NW_ - 1)
+     ofs_dat << real_t(i) / (NW_ - 1)
               << '\t' << FPOL_[i]
               << '\t' << PRES_[i]
               << '\t' << FFPRIM_[i]
               << '\t' << PPRIME_[i]
               << '\t' << QPSI_[i]
               << '\n';
+      fmin = min(FPOL_[i], fmin);
+      fmax = max(FPOL_[i], fmax);
+      pmin = min(PRES_[i], pmin);
+      pmax = max(PRES_[i], pmax);
+      ffmin = min(FFPRIM_[i], ffmin);
+      ffmax = max(FFPRIM_[i], ffmax);
+      ppmin = min(PPRIME_[i], ppmin);
+      ppmax = max(PPRIME_[i], ppmax);
+      qmin = min(QPSI_[i], qmin);
+      qmax = max(QPSI_[i], qmax);
    }
 
    ofs_dat << "\n\n";
@@ -135,7 +156,6 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
          ofs_dat << RLEFT_ + RDIM_ * i / (NW_ - 1)
                  << '\t' << ZMID_ - 0.5 * ZDIM_ + ZDIM_ * j / (NH_ - 1)
                  << '\t' << PSIRZ_[NH_ * i + j]
-                 //      << '\t' << PSIRZ_[NH_ * i + j]
                  << '\n';
       }
       ofs_dat << '\n';
@@ -152,22 +172,30 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
    }
    ofs_dat.close();
 
+   ofs_inp << "set xrange [0:1];\n";
+   ofs_inp << "set yrange [" << fmin << ":" << fmax << "];\n";
    ofs_inp << "plot '" << oss_dat.str()
            << "' index 0 using 1:2 w l t 'FPOL';\n";
-   ofs_inp << "set size noratio 1,1;\n";
    ofs_inp << "pause -1;\n";
+   ofs_inp << "set yrange [" << pmin << ":" << pmax << "];\n";
    ofs_inp << "plot '" << oss_dat.str()
            << "' index 0 using 1:3 w l t 'PRES';\n";
    ofs_inp << "pause -1;\n";
+   ofs_inp << "set yrange [" << ffmin << ":" << ffmax << "];\n";
    ofs_inp << "plot '" << oss_dat.str()
            << "' index 0 using 1:4 w l t 'FFPRIME';\n";
    ofs_inp << "pause -1;\n";
+   ofs_inp << "set yrange [" << ppmin << ":" << ppmax << "];\n";
    ofs_inp << "plot '" << oss_dat.str()
            << "' index 0 using 1:5 w l t 'PPRIME';\n";
    ofs_inp << "pause -1;\n";
+   ofs_inp << "set yrange [" << qmin << ":" << qmax << "];\n";
    ofs_inp << "plot '" << oss_dat.str()
            << "' index 0 using 1:6 w l t 'QPSI';\n";
    ofs_inp << "pause -1;\n";
+
+   ofs_inp << "unset xrange\n";
+   ofs_inp << "unset yrange\n";
    ofs_inp << "set view map;\n";
    ofs_inp << "unset surface;\n";
    ofs_inp << "set contour base;\n";
