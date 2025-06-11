@@ -313,7 +313,7 @@ protected:
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
    /// Specialized version of GetGradient() for BlockVector
-   void ComputeGradientBlocked(const BlockVector &bx) const;
+   void ComputeGradientBlocked(const BlockVector &bx, bool finalize = true) const;
 
 public:
    /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().

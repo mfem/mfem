@@ -470,6 +470,106 @@ void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
    }
 }
 
+void ParBlockNonlinearForm::GradientSharedFaces(const BlockVector &xs,
+                                                int skip_zeros) const
+{
+   // Terms over shared interior faces in parallel.
+   ParMesh *pmesh = ParFESpace(0)->GetParMesh();
+   FaceElementTransformations *tr;
+
+   Array<Array<int> *>vdofs(fes.Size());
+   Array<Array<int> *>vdofs2(fes.Size());
+   Array<Array<int> *>vdofs_all(fes.Size());
+   Array<Vector *> el_x(fes.Size());
+   Array<const Vector *> el_x_const(fes.Size());
+   Array2D<DenseMatrix *> elmats(fes.Size(), fes.Size());
+   Array<const FiniteElement *> fe(fes.Size());
+   Array<const FiniteElement *> fe2(fes.Size());
+   Array<ParGridFunction *> pgfs(fes.Size());
+
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      el_x_const[s1] = el_x[s1] = new Vector();
+      vdofs[s1] = new Array<int>;
+      vdofs2[s1] = new Array<int>;
+      vdofs_all[s1] = new Array<int>;
+      pgfs[s1] = new ParGridFunction(
+         const_cast<ParFiniteElementSpace*>(ParFESpace(s1)),
+         const_cast<Vector&>(xs.GetBlock(s1)));
+      pgfs[s1]->ExchangeFaceNbrData();
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         elmats(s1,s2) = new DenseMatrix();
+      }
+   }
+
+   const int n_shared_faces = pmesh->GetNSharedFaces();
+   for (int i = 0; i < n_shared_faces; i++)
+   {
+      tr = pmesh->GetSharedFaceTransformations(i, true);
+      int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
+
+      for (int s=0; s<fes.Size(); ++s)
+      {
+         const ParFiniteElementSpace *pfes = ParFESpace(s);
+         fe[s] = pfes->GetFE(tr->Elem1No);
+         fe2[s] = pfes->GetFaceNbrFE(Elem2NbrNo);
+
+         pfes->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+         pfes->GetFaceNbrElementVDofs(Elem2NbrNo, *(vdofs2[s]));
+
+         el_x[s]->SetSize(vdofs[s]->Size() + vdofs2[s]->Size());
+         xs.GetBlock(s).GetSubVector(*(vdofs[s]), el_x[s]->GetData());
+         pgfs[s]->FaceNbrData().GetSubVector(*(vdofs2[s]),
+                                             el_x[s]->GetData() + vdofs[s]->Size());
+
+         vdofs[s]->Copy(*vdofs_all[s]);
+
+         const int lvsize = pfes->GetVSize();
+         for (int j = 0; j < vdofs2[s]->Size(); j++)
+         {
+            if ((*vdofs2[s])[j] >= 0)
+            {
+               (*vdofs2[s])[j] += lvsize;
+            }
+            else
+            {
+               (*vdofs2[s])[j] -= lvsize;
+            }
+         }
+         vdofs_all[s]->Append(*(vdofs2[s]));
+      }
+
+      for (int k = 0; k < fnfi.Size(); ++k)
+      {
+         fnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
+
+         for (int s1=0; s1<fes.Size(); ++s1)
+         {
+            for (int s2=0; s2<fes.Size(); ++s2)
+            {
+               if (elmats(s1,s2)->Height() == 0) { continue; }
+               Grads(s1,s2)->AddSubMatrix(*vdofs[s1], *vdofs_all[s2],
+                                          *elmats(s1,s2), skip_zeros);
+            }
+         }
+      }
+   }
+
+   for (int s1=0; s1<fes.Size(); ++s1)
+   {
+      delete pgfs[s1];
+      delete vdofs_all[s1];
+      delete vdofs2[s1];
+      delete vdofs[s1];
+      delete el_x[s1];
+      for (int s2=0; s2<fes.Size(); ++s2)
+      {
+         delete elmats(s1,s2);
+      }
+   }
+}
+
 BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 {
    if (pBlockGrad == NULL)
@@ -489,49 +589,155 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
-   GetLocalGradient(x); // gradients are stored in 'Grads'
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
+   xs.Update(block_offsets);
+
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), xs.GetBlock(s));
+   }
 
    if (fnfi.Size() > 0)
    {
-      MFEM_ABORT("TODO: assemble contributions from shared face terms");
-   }
+      const int skip_zeros = 0;
 
-   for (int s1=0; s1<fes.Size(); ++s1)
-   {
-      for (int s2=0; s2<fes.Size(); ++s2)
+      for (int s=0; s<fes.Size(); ++s)
       {
-         OperatorHandle dA(phBlockGrad(s1,s2)->Type()),
-                        Ph(phBlockGrad(s1,s2)->Type()),
-                        Rh(phBlockGrad(s1,s2)->Type());
+         const_cast<ParFiniteElementSpace*>(pfes[s])->ExchangeFaceNbrData();
+      }
 
-         if (s1 == s2)
+      for (int s1=0; s1<fes.Size(); ++s1)
+      {
+         for (int s2=0; s2<fes.Size(); ++s2)
          {
-            dA.MakeSquareBlockDiag(pfes[s1]->GetComm(), pfes[s1]->GlobalVSize(),
-                                   pfes[s1]->GetDofOffsets(), Grads(s1,s1));
-            Ph.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
-            phBlockGrad(s1,s1)->MakePtAP(dA, Ph);
-
-            OperatorHandle Ae;
-            Ae.EliminateRowsCols(*phBlockGrad(s1,s1), *ess_tdofs[s1]);
+            if (Grads(s1,s2) == NULL)
+            {
+               int nbr_size = pfes[s2]->GetFaceNbrVSize();
+               Grads(s1,s2) = new SparseMatrix(pfes[s1]->GetVSize(),
+                                               pfes[s2]->GetVSize() + nbr_size);
+            }
          }
-         else
+      }
+
+      // (re)assemble Grad without b.c. into 'Grads'
+      BlockNonlinearForm::ComputeGradientBlocked(xs, false);
+
+      GradientSharedFaces(xs, skip_zeros);
+
+      // finalize the gradients
+      for (int s1=0; s1<fes.Size(); ++s1)
+         for (int s2=0; s2<fes.Size(); ++s2)
          {
-            dA.MakeRectangularBlockDiag(pfes[s1]->GetComm(),
-                                        pfes[s1]->GlobalVSize(),
-                                        pfes[s2]->GlobalVSize(),
-                                        pfes[s1]->GetDofOffsets(),
-                                        pfes[s2]->GetDofOffsets(),
-                                        Grads(s1,s2));
-            Rh.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
-            Ph.ConvertFrom(pfes[s2]->Dof_TrueDof_Matrix());
-
-            phBlockGrad(s1,s2)->MakeRAP(Rh, dA, Ph);
-
-            phBlockGrad(s1,s2)->EliminateRows(*ess_tdofs[s1]);
-            phBlockGrad(s1,s2)->EliminateCols(*ess_tdofs[s2]);
+            Grads(s1,s2)->Finalize(skip_zeros);
          }
 
-         pBlockGrad->SetBlock(s1, s2, phBlockGrad(s1,s2)->Ptr());
+      for (int s1=0; s1<fes.Size(); ++s1)
+      {
+         for (int s2=0; s2<fes.Size(); ++s2)
+         {
+            OperatorHandle hdA;
+            OperatorHandle dA(phBlockGrad(s1,s2)->Type()),
+                           Ph(phBlockGrad(s1,s2)->Type()),
+                           Rh(phBlockGrad(s1,s2)->Type());
+
+            // handle the case when 'a' contains off-diagonal
+            int lvsize = pfes[s2]->GetVSize();
+            const HYPRE_BigInt *face_nbr_glob_ldof =
+               const_cast<ParFiniteElementSpace*>(pfes[s2])->GetFaceNbrGlobalDofMap();
+            HYPRE_BigInt ldof_offset = pfes[s2]->GetMyDofOffset();
+
+            Array<HYPRE_BigInt> glob_J(Grads(s1,s2)->NumNonZeroElems());
+            int *J = Grads(s1,s2)->GetJ();
+            for (int i = 0; i < glob_J.Size(); i++)
+            {
+               if (J[i] < lvsize)
+               {
+                  glob_J[i] = J[i] + ldof_offset;
+               }
+               else
+               {
+                  glob_J[i] = face_nbr_glob_ldof[J[i] - lvsize];
+               }
+            }
+
+            // TODO - construct dA directly in the A format
+            hdA.Reset(
+               new HypreParMatrix(pfes[s2]->GetComm(), pfes[s1]->GetVSize(),
+                                  pfes[s1]->GlobalVSize(), pfes[s2]->GlobalVSize(),
+                                  Grads(s1,s2)->GetI(), glob_J, Grads(s1,s2)->GetData(),
+                                  pfes[s1]->GetDofOffsets(), pfes[s2]->GetDofOffsets()));
+            // - hdA owns the new HypreParMatrix
+            // - the above constructor copies all input arrays
+            glob_J.DeleteAll();
+            dA.ConvertFrom(hdA);
+
+            if (s1 == s2)
+            {
+               Ph.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
+               phBlockGrad(s1,s1)->MakePtAP(dA, Ph);
+
+               OperatorHandle Ae;
+               Ae.EliminateRowsCols(*phBlockGrad(s1,s1), *ess_tdofs[s1]);
+            }
+            else
+            {
+               Rh.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
+               Ph.ConvertFrom(pfes[s2]->Dof_TrueDof_Matrix());
+
+               phBlockGrad(s1,s2)->MakeRAP(Rh, dA, Ph);
+
+               phBlockGrad(s1,s2)->EliminateRows(*ess_tdofs[s1]);
+               phBlockGrad(s1,s2)->EliminateCols(*ess_tdofs[s2]);
+            }
+
+            pBlockGrad->SetBlock(s1, s2, phBlockGrad(s1,s2)->Ptr());
+         }
+      }
+   }
+   else
+   {
+      // (re)assemble Grad without b.c. into 'Grads'
+      BlockNonlinearForm::ComputeGradientBlocked(xs);
+
+      for (int s1=0; s1<fes.Size(); ++s1)
+      {
+         for (int s2=0; s2<fes.Size(); ++s2)
+         {
+            OperatorHandle dA(phBlockGrad(s1,s2)->Type()),
+                           Ph(phBlockGrad(s1,s2)->Type()),
+                           Rh(phBlockGrad(s1,s2)->Type());
+
+            if (s1 == s2)
+            {
+               dA.MakeSquareBlockDiag(pfes[s1]->GetComm(), pfes[s1]->GlobalVSize(),
+                                      pfes[s1]->GetDofOffsets(), Grads(s1,s1));
+               Ph.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
+               phBlockGrad(s1,s1)->MakePtAP(dA, Ph);
+
+               OperatorHandle Ae;
+               Ae.EliminateRowsCols(*phBlockGrad(s1,s1), *ess_tdofs[s1]);
+            }
+            else
+            {
+               dA.MakeRectangularBlockDiag(pfes[s1]->GetComm(),
+                                           pfes[s1]->GlobalVSize(),
+                                           pfes[s2]->GlobalVSize(),
+                                           pfes[s1]->GetDofOffsets(),
+                                           pfes[s2]->GetDofOffsets(),
+                                           Grads(s1,s2));
+               Rh.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
+               Ph.ConvertFrom(pfes[s2]->Dof_TrueDof_Matrix());
+
+               phBlockGrad(s1,s2)->MakeRAP(Rh, dA, Ph);
+
+               phBlockGrad(s1,s2)->EliminateRows(*ess_tdofs[s1]);
+               phBlockGrad(s1,s2)->EliminateCols(*ess_tdofs[s2]);
+            }
+
+            pBlockGrad->SetBlock(s1, s2, phBlockGrad(s1,s2)->Ptr());
+         }
       }
    }
 
