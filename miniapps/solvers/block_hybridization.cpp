@@ -48,6 +48,52 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       element_to_facet_table = mesh->ElementToFaceTable();
    }
 
+   // indirectly mark the interior faces using the be_to_face table
+   Array<int> interior_face_marker(mesh->GetNumFaces());
+   interior_face_marker = 1;
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      interior_face_marker[mesh->GetBdrElementFaceIndex(i)] = 0;
+   }
+   interior_face_marker.Print(out, interior_face_marker.Size());
+
+
+   int *I = element_to_facet_table.GetI();
+   int *J = element_to_facet_table.GetJ();
+
+   // create element-to-interior-face table
+   // at some point really make this into a table
+   // instead of just arrays
+   int *nI = new int[num_elements+1];
+   nI[0] = 0;
+
+   // we already know the number of local interior faces summed over all elements
+   // this should still work for mixed meshes
+   int nnz(I[num_elements]-mesh->GetNBE());
+   int *nJ = new int[nnz];
+
+   int counter(0);
+   for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
+   {
+      for (int j = I[elem_idx]; j < I[elem_idx+1]; ++j)
+      {
+         const int face_idx(J[j]);
+         if (interior_face_marker[face_idx]) // we check every face index usually twice
+                                        // can this be made more efficient?
+         {
+            nJ[counter++] = face_idx;
+         }
+      }
+      nI[elem_idx+1] = counter;
+   }
+
+   Array<int> aI(nI, num_elements+1);
+   Array<int> aJ(nJ, nnz);
+
+   aI.Print(out, aI.Size());
+   aJ.Print(out, aJ.Size());
+
+
    for (int element_index = 0; element_index < num_elements; ++element_index)
    {
       mVarf->ComputeElementMatrix(element_index, saved_hdiv_matrices[element_index]);
@@ -122,6 +168,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       delete []face_dofs;
       delete []face_matrices;
    }
+   delete []nI;
+   delete []nJ;
+
    reduced_matrix.Finalize(1, true);
    // if (Mpi::Root())
    //    reduced_matrix.Print();
