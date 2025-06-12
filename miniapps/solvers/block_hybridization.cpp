@@ -165,6 +165,36 @@ BlockHybridizationSolver::BlockHybridizationSolver(
 
       element = hdiv_space->GetFE(elem_idx);
       const FiniteElement *face(nullptr);
+
+      // exploit that dense matrices are in column-major format
+      // we do not copy each face matrix into the boundary matrix
+      const int num_multiplier_dofs = interior_faceI[elem_idx+1] - interior_faceI[elem_idx];
+      Array<int> multiplier_dofs;
+      multiplier_dofs.MakeRef(interior_faceJ+interior_faceI[elem_idx], num_multiplier_dofs);
+      DenseMatrix bdr_matrix(saved_hdiv_matrices[elem_idx].Height(), num_multiplier_dofs);
+      int data_offset = 0;
+      const int num_faces = nI[elem_idx+1] - nI[elem_idx];
+      const int height = bdr_matrix.Height();
+      const int width = bdr_matrix.Width() / num_faces; // number of dofs per face
+
+      for (int k = nI[elem_idx]; k < nI[elem_idx+1]; ++k)
+      {
+         const int face_idx = nJ[k];
+         trans = mesh->GetFaceElementTransformations(face_idx);
+         face = multiplier_space->GetFaceElement(face_idx);
+         DenseMatrix face_matrix(bdr_matrix.Data()+data_offset, height, width);
+         integ.AssembleTraceFaceMatrix(elem_idx, *face, *element, *trans,
+                                       face_matrix);
+         data_offset += height*width;
+      }
+
+      temp_matrix.SetSize(height, bdr_matrix.Width());
+      mfem::Mult(saved_hdiv_matrices[elem_idx], bdr_matrix, temp_matrix);
+      product_matrix.SetSize(bdr_matrix.Width());
+      MultAtB(bdr_matrix, temp_matrix, product_matrix);
+      reduced_matrix.AddSubMatrix(multiplier_dofs, multiplier_dofs, product_matrix);
+
+   /*
       Array<int> face_indices_array;
       element_to_facet_table.GetRow(elem_idx, face_indices_array);
       DenseMatrix *face_matrices = new DenseMatrix[face_indices_array.Size()];
@@ -202,6 +232,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       }
       delete []face_dofs;
       delete []face_matrices;
+   */
    }
    delete []interior_faceI;
    delete []interior_faceJ;
