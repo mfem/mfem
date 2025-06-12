@@ -129,7 +129,7 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
 
    for (int i=0; i<NW_; i++)
    {
-     ofs_dat << real_t(i) / (NW_ - 1)
+      ofs_dat << real_t(i) / (NW_ - 1)
               << '\t' << FPOL_[i]
               << '\t' << PRES_[i]
               << '\t' << FFPRIM_[i]
@@ -755,7 +755,7 @@ real_t G_EQDSK_Data::interpPsi(real_t psi, const vector<real_t> &v,
    // Compute ends of local patch
    real_t psi0 = SIMAG_ + (SIBRY_ - SIMAG_) * i0 / (NW_ - 1);
    real_t psi1 = psi0 + (SIBRY_ - SIMAG_) / (NW_ - 1);
-   
+
    // Prepare position dependent factors
    real_t wra = (psi1 - psic) / dpsi_;
    real_t wrb = (psic - psi0) / dpsi_;
