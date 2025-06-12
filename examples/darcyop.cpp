@@ -799,9 +799,19 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    }
    else
    {
-      const BlockOperator *bop = (nonlinear)?(dynamic_cast<const BlockOperator*>
-                                              (op)):(NULL);
+      const BlockOperator *bop = NULL;
       const BlockOperator *bgrad = NULL;
+
+      if (nonlinear)
+      {
+         bop = dynamic_cast<const BlockOperator*>(op);
+         if (!bop)
+         {
+            auto *grad = dynamic_cast<const ParDarcyForm::ParGradient*>(op);
+            MFEM_ASSERT(grad, "Unknown gradient operator!");
+            bop = &grad->BlockMatrices();
+         }
+      }
 
       // get diagonal
       const HypreParMatrix *Mqm;
@@ -870,7 +880,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
          hS.reset(ParAdd(Mtm, hS.get()));
       }
 
-      if (Mnl)
+      if (!bop && Mnl)
       {
          Mtm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(1,1));
          if (Mtm && Mtm->NNZ() > 0)

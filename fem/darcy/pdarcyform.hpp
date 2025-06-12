@@ -44,20 +44,20 @@ protected:
    using DarcyForm::ConstructBT;
    const Operator* ConstructBT(const HypreParMatrix *opB) const;
 
+public:
    class ParGradient;
    friend class ParOperator;
    class ParOperator : public Operator
    {
    protected:
       const ParDarcyForm &darcy;
-      mutable BlockOperator *block_grad{};
+      mutable std::unique_ptr<BlockOperator> block_grad;
       mutable OperatorHandle opG;
       friend class ParGradient;
 
    public:
       ParOperator(const ParDarcyForm &darcy)
          : Operator(darcy.toffsets.Last()), darcy(darcy) { }
-      ~ParOperator() { delete block_grad; }
 
       void Mult(const Vector &x, Vector &y) const override;
       Operator& GetGradient(const Vector &x) const override;
@@ -68,15 +68,17 @@ protected:
    {
       const ParOperator &p;
       const Operator &G;
+      mutable std::unique_ptr<BlockOperator> block_grad;
+      mutable std::array<std::array<std::unique_ptr<HypreParMatrix>,2>,2> hmats;
 
    public:
       ParGradient(const ParOperator &p, const Vector &x)
          : Operator(p.Width()), p(p), G(p.darcy.Mnl->GetGradient(x)) { }
 
       void Mult(const Vector &x, Vector &y) const override;
+      const BlockOperator& BlockMatrices() const;
    };
 
-public:
    ParDarcyForm(ParFiniteElementSpace *fes_u, ParFiniteElementSpace *fes_p,
                 bool bsymmetrize = true);
 

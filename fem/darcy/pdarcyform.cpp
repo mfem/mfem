@@ -541,7 +541,7 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
    {
       if (!block_grad)
       {
-         block_grad = new BlockOperator(darcy.toffsets);
+         block_grad.reset(new BlockOperator(darcy.toffsets));
       }
 
       if (darcy.opM_u.Ptr())
@@ -593,6 +593,12 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
 
 void ParDarcyForm::ParGradient::Mult(const Vector &x, Vector &y) const
 {
+   if (block_grad)
+   {
+      block_grad->Mult(x, y);
+      return;
+   }
+
    if (p.block_grad)
    {
       p.block_grad->Mult(x, y);
@@ -613,6 +619,56 @@ void ParDarcyForm::ParGradient::Mult(const Vector &x, Vector &y) const
    {
       G.AddMult(x, y);
    }
+}
+
+const BlockOperator& ParDarcyForm::ParGradient::BlockMatrices() const
+{
+   if (block_grad) { return *block_grad.get(); }
+
+   block_grad.reset(new BlockOperator(p.darcy.toffsets));
+
+   const BlockOperator *bop = (p.block_grad)?(p.block_grad.get()):
+                              (p.darcy.block_op.get());
+   const BlockOperator *bgrad = static_cast<const BlockOperator*>(&G);
+
+   for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
+      {
+         //off-diagonals of bgrad are expected to be zero
+         if (i == j && !bop->IsZeroBlock(i,j) && !bgrad->IsZeroBlock(i,j))
+         {
+            const HypreParMatrix *hop = dynamic_cast<const HypreParMatrix*>(
+                                           &(bop->GetBlock(i,j)));
+            const HypreParMatrix *hgrad = dynamic_cast<const HypreParMatrix*>(
+                                             &(bgrad->GetBlock(i,j)));
+
+            MFEM_ASSERT(hop && hgrad, "Not a HypreParMatrix!");
+
+            hmats[i][j].reset(ParAdd(hop, hgrad));
+            block_grad->SetBlock(i, j, hmats[i][j].get(), bop->GetBlockCoef(i,j));
+         }
+         else
+         {
+            const Operator *op;
+            real_t c;
+            if (!bop->IsZeroBlock(i,j))
+            {
+               op = &(bop->GetBlock(i,j));
+               c = bop->GetBlockCoef(i,j);
+            }
+            else
+            {
+               op = &(bgrad->GetBlock(i,j));
+               c = (i != 0 && p.darcy.bsym)?(-1):(+1.);
+            }
+            // transpose operator is passed as is
+            MFEM_ASSERT((i == 0 && j == 1) ||
+                        dynamic_cast<const HypreParMatrix*>(op), "Not a HypreParMatrix!");
+            block_grad->SetBlock(i, j, const_cast<Operator*>(op), c);
+         }
+      }
+
+   return *block_grad;
 }
 
 ParDarcyForm::~ParDarcyForm()
