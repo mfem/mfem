@@ -233,7 +233,8 @@ public:
 
    /// @brief Compute the action of the operator on a given vector.
    ///
-   /// @param solutions_t The solution vector in which to compute the action. This has to be a T-dof vector.
+   /// @param solutions_t The solution vector in which to compute the action.
+   /// This has to be a T-dof vector.
    /// @param result_t Result vector of the action of the operator on
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
@@ -254,6 +255,11 @@ public:
    /// function.
    /// @param outputs Tuple of FieldOperators for the outputs of the quadrature
    /// function.
+   /// @param integration_rule IntegrationRule to use with this integrator.
+   /// @param domain_attributes Domain attributes marker array indicating over
+   /// which attributes this integrator will integrate over.
+   /// @param derivative_ids Derivatives to be made available for this
+   /// integrator.
    template <
       typename qfunc_t,
       typename input_t,
@@ -297,10 +303,10 @@ public:
    /// derivative action to be performed.
    ///
    /// @param derivative_id The ID of the derivative to be computed.
-   /// @param solutions_l The solution vectors to be used for the derivative
+   /// @param sol_l The solution vectors to be used for the derivative
    /// computation. This should be a vector of pointers to the solution
    /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
-   /// @param parameters_l The parameter vectors to be used for the derivative
+   /// @param par_l The parameter vectors to be used for the derivative
    /// computation. This should be a vector of pointers to the parameter
    /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
    /// @return A shared pointer to the DerivativeOperator.
