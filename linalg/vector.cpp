@@ -11,19 +11,18 @@
 
 // Implementation of data type vector
 
-#include "kernels.hpp"
-#include "vector.hpp"
 #include "../general/forall.hpp"
+#include "../general/reducers.hpp"
+#include "../general/hash.hpp"
+#include "vector.hpp"
 
 #ifdef MFEM_USE_OPENMP
 #include <omp.h>
 #endif
 
 #include <iostream>
-#include <iomanip>
 #include <cmath>
 #include <ctime>
-#include <limits>
 
 namespace mfem
 {
@@ -1070,161 +1069,179 @@ real_t Vector::operator*(const Vector &v) const
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
    if (size == 0) { return 0.0; }
 
-   const bool use_dev = UseDevice() || v.UseDevice();
-
-   auto m_data = Read(use_dev);
-   auto v_data = v.Read(use_dev);
-
-   if (use_dev)
-   {
-      // special path for OCCA and OpenMP
+   // If OCCA is enabled, it handles all selected backends
 #ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         return occa::linalg::dot<real_t, real_t, real_t>(
-                   OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
-      }
+   if (DeviceCanUseOcca())
+   {
+      return occa::linalg::dot<real_t, real_t, real_t>(
+                OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
+   }
 #endif
 
-#ifdef MFEM_USE_OPENMP
-      if (Device::Allows(Backend::OMP_MASK))
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const auto m_data = Read(use_dev), v_data = v.Read(use_dev);
+
+   const auto compute_dot = [&]()
+   {
+      real_t res = 0;
+      reduce(size, res, [=] MFEM_HOST_DEVICE (int i, real_t &r)
       {
+         r += m_data[i] * v_data[i];
+      },
+      SumReducer<real_t> {}, use_dev, vector_workspace());
+      return res;
+   };
+
+   // Device backends have top priority
+   if (Device::Allows(Backend::DEVICE_MASK)) { return compute_dot(); }
+
+   // Special path for OpenMP
+#ifdef MFEM_USE_OPENMP
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      // By default, use a deterministic way of computing the dot product
 #define MFEM_USE_OPENMP_DETERMINISTIC_DOT
 #ifdef MFEM_USE_OPENMP_DETERMINISTIC_DOT
-         // By default, use a deterministic way of computing the dot product
-         static Vector th_dot;
-         #pragma omp parallel
+      static Vector th_dot;
+      #pragma omp parallel
+      {
+         const int nt = omp_get_num_threads();
+         #pragma omp master
+         th_dot.SetSize(nt);
+         const int tid = omp_get_thread_num();
+         const int stride = (size + nt - 1) / nt;
+         const int start = tid * stride;
+         const int stop = std::min(start + stride, size);
+         real_t my_dot = 0.0;
+         for (int i = start; i < stop; i++)
          {
-            const int nt = omp_get_num_threads();
-            #pragma omp master
-            th_dot.SetSize(nt);
-            const int tid = omp_get_thread_num();
-            const int stride = (size + nt - 1) / nt;
-            const int start = tid * stride;
-            const int stop = std::min(start + stride, size);
-            real_t my_dot = 0.0;
-            for (int i = start; i < stop; i++)
-            {
-               my_dot += m_data[i] * v_data[i];
-            }
-            #pragma omp barrier
-            th_dot(tid) = my_dot;
+            my_dot += m_data[i] * v_data[i];
          }
-         return th_dot.Sum();
-#else
-         // The standard way of computing the dot product is non-deterministic
-         real_t prod = 0.0;
-         #pragma omp parallel for reduction(+ : prod)
-         for (int i = 0; i < size; i++)
-         {
-            prod += m_data[i] * v_data[i];
-         }
-         return prod;
-#endif // MFEM_USE_OPENMP_DETERMINISTIC_DOT
+         #pragma omp barrier
+         th_dot(tid) = my_dot;
       }
-#endif // MFEM_USE_OPENMP
+      return th_dot.Sum();
+#else
+      // The standard way of computing the dot product is non-deterministic
+      real_t prod = 0.0;
+      #pragma omp parallel for reduction(+ : prod)
+      for (int i = 0; i < size; i++)
+      {
+         prod += m_data[i] * v_data[i];
+      }
+      return prod;
+#endif // MFEM_USE_OPENMP_DETERMINISTIC_DOT
    }
+#endif // MFEM_USE_OPENMP
 
-   // normal path for everything else (cuda, hip, debug, cpu)
-   real_t res = 0;
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i] * v_data[i]; },
-   SumReducer<real_t> {}, use_dev, vector_workspace());
-   return res;
+   // All other CPU backends
+   return compute_dot();
 }
 
 real_t Vector::Min() const
 {
    if (size == 0) { return infinity(); }
 
-   const bool use_dev = UseDevice();
-   auto m_data = Read(use_dev);
-
-   if (use_dev)
-   {
-      // special case for OCCA and OpenMP
-
 #ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         return occa::linalg::min<real_t,real_t>(OccaMemoryRead(data, size));
-      }
-#endif
-
-#ifdef MFEM_USE_OPENMP
-      if (Device::Allows(Backend::OMP_MASK))
-      {
-         real_t minimum = m_data[0];
-         #pragma omp parallel for reduction(min:minimum)
-         for (int i = 0; i < size; i++)
-         {
-            minimum = std::min(minimum, m_data[i]);
-         }
-         return minimum;
-      }
-#endif
+   if (DeviceCanUseOcca())
+   {
+      return occa::linalg::min<real_t,real_t>(OccaMemoryRead(data, size));
    }
+#endif
 
-   // normal path for everything else (cuda, hip, debug, cpu)
-   real_t res = infinity();
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
-   MinReducer<real_t> {}, use_dev, vector_workspace());
-   return res;
+   const auto use_dev = UseDevice();
+   const auto m_data = Read(use_dev);
+
+   const auto compute_min = [&]()
+   {
+      real_t res = infinity();
+      reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      {
+         r = fmin(r, m_data[i]);
+      },
+      MinReducer<real_t> {}, use_dev, vector_workspace());
+      return res;
+   };
+
+   // Device backends have top priority
+   if (Device::Allows(Backend::DEVICE_MASK)) { return compute_min(); }
+
+   // Special path for OpenMP
+#ifdef MFEM_USE_OPENMP
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      real_t minimum = m_data[0];
+      #pragma omp parallel for reduction(min:minimum)
+      for (int i = 0; i < size; i++)
+      {
+         minimum = std::min(minimum, m_data[i]);
+      }
+      return minimum;
+   }
+#endif
+
+   // All other CPU backends
+   return compute_min();
 }
 
 real_t Vector::Max() const
 {
    if (size == 0) { return -infinity(); }
 
-   const bool use_dev = UseDevice();
-   auto m_data = Read(use_dev);
-
-   if (use_dev)
-   {
-      // special cases where OCCA or OenMP are used
 #ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         return occa::linalg::max<real_t, real_t>(OccaMemoryRead(data, size));
-      }
-#endif
-
-#ifdef MFEM_USE_OPENMP
-      if (Device::Allows(Backend::OMP_MASK))
-      {
-         real_t maximum = m_data[0];
-         #pragma omp parallel for reduction(max : maximum)
-         for (int i = 0; i < size; i++)
-         {
-            maximum = fmax(maximum, m_data[i]);
-         }
-         return maximum;
-      }
-#endif
+   if (DeviceCanUseOcca())
+   {
+      return occa::linalg::max<real_t, real_t>(OccaMemoryRead(data, size));
    }
+#endif
 
-   // normal path for everything else (cuda, hip, debug, cpu)
-   real_t res = -infinity();
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
-   MaxReducer<real_t> {}, use_dev, vector_workspace());
-   return res;
+   const auto use_dev = UseDevice();
+   const auto m_data = Read(use_dev);
+
+   const auto compute_max = [&]()
+   {
+      real_t res = -infinity();
+      reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      {
+         r = fmax(r, m_data[i]);
+      },
+      MaxReducer<real_t> {}, use_dev, vector_workspace());
+      return res;
+   };
+
+   // Device backends have top priority
+   if (Device::Allows(Backend::DEVICE_MASK)) { return compute_max(); }
+
+   // Special path for OpenMP
+#ifdef MFEM_USE_OPENMP
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      real_t maximum = m_data[0];
+      #pragma omp parallel for reduction(max : maximum)
+      for (int i = 0; i < size; i++)
+      {
+         maximum = fmax(maximum, m_data[i]);
+      }
+      return maximum;
+   }
+#endif
+
+   // All other CPU backends
+   return compute_max();
 }
 
 real_t Vector::Sum() const
 {
    if (size == 0) { return 0.0; }
 
-   auto m_data = Read(UseDevice());
+   const auto m_data = Read(UseDevice());
    real_t res = 0;
-   reduce(
-   size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
+   reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+   {
+      r += m_data[i];
+   },
    SumReducer<real_t> {}, UseDevice(), vector_workspace());
    return res;
 }
 
-}
+} // namespace mfem
