@@ -1562,8 +1562,8 @@ int main(int argc, char *argv[])
 
    BFieldProfile::CoordSystem b_coord_sys =
       cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
-   BFieldProfile BCoef(bpt, bpp, false, b_coord_sys, eqdsk);
-   BFieldProfile BUnitCoef(bpt, bpp, true, b_coord_sys, eqdsk);
+   BFieldProfile BCoef(bpt, bpp, dim3, false, b_coord_sys, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, dim3, true, b_coord_sys, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 
@@ -2993,12 +2993,12 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    else
    {
       // SPARC antennas:
-      //double zmin2 = -0.3709;
-      //double zmax2 = -0.0523;
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
 
       // WEST antennas:
-      double zmin2 = -0.3;
-      double zmax2 = -0.03;
+      //double zmin2 = -0.3;
+      //double zmax2 = -0.03;
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)

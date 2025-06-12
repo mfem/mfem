@@ -881,7 +881,8 @@ public:
               B_P_KOHNO        = 3,
               B_EQDSK_TOPDOWN  = 4,
               B_EQDSK_POLOIDAL = 5,
-              B_WHAM           = 6
+              B_TOR            = 6,
+              B_WHAM           = 7
              };
 
 private:
@@ -889,18 +890,19 @@ private:
    Vector p_;
    bool cyl_; // Assume cylindrical symmetyry
    bool unit_;
+   bool dim_; // 2D or 3D
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[7] = {3, 7, 6, 8, 4, 1, 2};
+   const int np_[8] = {3, 7, 6, 8, 4, 1, 1, 2};
 
    // mutable Vector x3_; // Not currently used
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
 
 public:
-   BFieldProfile(Type type, const Vector & params, bool unit,
-                 CoordSystem coord_sys = CARTESIAN_3D,
+   BFieldProfile(Type type, const Vector & params, bool dim,
+                 bool unit, CoordSystem coord_sys = CARTESIAN_3D,
                  G_EQDSK_Data *eqdsk = NULL);
 
    void Eval(Vector &V, ElementTransformation &T,

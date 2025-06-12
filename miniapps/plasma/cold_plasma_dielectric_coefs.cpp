@@ -352,7 +352,7 @@ complex<double> S_cold_plasma(double omega,
       {
          double kperp = 72.12776;
          double cold_S = 0.5*Rval+0.5*Lval;
-         if (fabs(cold_S) < 1.0)
+         if (fabs(cold_S) < 10.0)
          {
             LH_nu = (nui*exp(-pow(cold_S,2.0)))/omega;
          }
@@ -2396,19 +2396,19 @@ double PlasmaProfile::EvalByType(Type type,
          */
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
-         double pval = ne1 + ne2;
+         //double pval = ne1 + ne2;
 
-         /*
-         double pmax = 2.15e20;
-         double pmin = 2.1e19;
-         double nuee = 2.3;
-         double nuei = 0.6;
+         
+         double pmax = 4.2e20;
+         double pmin = 8.4e19;
+         double nuee = 1.0;
+         double nuei = 1.5;
          double pval = pmin;
          if (val < 1.0 && bool_limits == 1)
          {
             pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
          }
-         */
+         
          
          return pval;
       }
@@ -2594,7 +2594,7 @@ double PlasmaProfile::EvalByType(Type type,
 
          int bool_limits = 0;
 
-         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+         if (z >= -1.1 && z <= 1.035) {bool_limits = 1;}
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
          
@@ -2604,9 +2604,9 @@ double PlasmaProfile::EvalByType(Type type,
          double nuee = params[3];
          double LCFS_den = params[4];
          double pval = LCFS_den;
-         double psi_Olim = 1.0979;
-         double sl1 = 0.015;
-         double sl2 = 0.006;
+         double psi_Olim = 1.0206410642555706;
+         double sl1 = 0.03;
+         double sl2 = 0.01;
 
 
          if (val < 1.0 && bool_limits == 1)
@@ -2616,21 +2616,24 @@ double PlasmaProfile::EvalByType(Type type,
          }
          else
          {
-
-            if (val > 1.0 && sqrt(val) <= psi_Olim)
+            if ( r > 1.85)
             {
-               pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
-               if (pval < 1e18){pval = 1e12;}
-            }
-            else 
-            {
-               pval = 1e12;
-               if (bool_limits == 1)
+               if (val > 1.0 && sqrt(val) <= psi_Olim)
                {
-                  pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
+                  pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
                   if (pval < 2e18){pval = 1e12;}
                }
+               else 
+               {
+                  pval = 1e12;
+               }
             }
+            else
+            {
+               pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
+               if (pval < 1e17){pval = 1e12;}             
+            }
+
          }
          return pval;
       }
@@ -2659,10 +2662,10 @@ double PlasmaProfile::EvalByType(Type type,
    }
 }
 
-BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
-                             CoordSystem sys, G_EQDSK_Data *eqdsk)
+BFieldProfile::BFieldProfile(Type type, const Vector & params, bool dim,
+                           bool unit, CoordSystem sys, G_EQDSK_Data *eqdsk)
    : VectorCoefficient(3), type_(type), p_(params),
-     cyl_(sys == POLOIDAL), unit_(unit),
+     cyl_(sys == POLOIDAL), dim_(dim), unit_(unit),
      eqdsk_(eqdsk), /*x3_(3),*/ xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
@@ -2699,18 +2702,33 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
       case CONSTANT:
          if (!cyl_)
          {
+            //double r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            //double phi = atan2(xyz_[2],xyz_[0]);
             if (unit_)
             {
                double bmag = sqrt( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2));
+               /*
                V[0] = p_[0] / bmag;
                V[1] = p_[1] / bmag;
                V[2] = p_[2] / bmag;
+               */
+
+               V[0] = ((-1.0*p_[1]*xyz_[1]))/bmag;
+               V[1] = 0.0;
+               V[2] = ((p_[1]*xyz_[0]))/bmag;
             }
             else
             {
+               //cout << "V0 2 = " << xyz_[1] << endl; 
+               //cout << "V2 2 = " << xyz_[0] << endl; 
+               /*
                V[0] = p_[0];
                V[1] = p_[1];
                V[2] = p_[2];
+               */
+               V[0] = ((-1.0*p_[1]*xyz_[1]));
+               V[1] = 0.0;
+               V[2] = ((p_[1]*xyz_[0]));
             }
          }
          else
@@ -2945,6 +2963,30 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[0] = b_pol[0] / fluxfactor;
             V[1] = b_pol[1] / fluxfactor;
             V[2] = b_tor;
+
+            if (dim_)
+            {  
+               Vector new_rz(2);
+               new_rz[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+               new_rz[1] = xyz_[2];   
+
+               double cosphi = xyz_[0] / new_rz[0];
+               double sinphi = xyz_[1] / new_rz[0];
+
+               eqdsk_->InterpBPolRZ(new_rz, b_pol);
+               b_tor = eqdsk_->InterpBTorRZ(new_rz);
+               if (coros != 0) {fluxfactor = 2.0*M_PI;}
+    
+               /*
+               V[0] = (b_pol[0] / fluxfactor); //* cosphi - b_tor * sinphi;
+               V[1] = b_tor;
+               V[2] = (b_pol[1] / fluxfactor); //* sinphi + b_tor * cosphi;    
+               */  
+               
+               V[0] = (b_pol[0] / fluxfactor) * cosphi - b_tor * sinphi;
+               V[1] = (b_pol[0] / fluxfactor) * sinphi + b_tor * cosphi;
+               V[2] = (b_pol[1] / fluxfactor);
+            }
          }
          else
          {
@@ -2954,15 +2996,35 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             eqdsk_->InterpBPolRZ(rz_, b_pol);
             b_tor = eqdsk_->InterpBTorRZ(rz_);
             if (coros != 0) {fluxfactor = 2.0*M_PI;}
-            // b_tor = 1.0;
+
             V[0] = (b_pol[0] / fluxfactor) * cosphi - b_tor * sinphi;
             V[1] = (b_pol[0] / fluxfactor) * sinphi + b_tor * cosphi;
-            // V[0] = -sinphi;
-            // V[1] = cosphi;
-            // V[0] = rz_[0];
-            // V[1] = rz_[0];
             V[2] = (b_pol[1] / fluxfactor);
          }
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
+         }
+      }
+      break;
+      case B_TOR:
+      {
+         // For stix2d:
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2];         
+         }
+
+         V[0] = (-1.0*p_[0]*xyz_[1])/pow(r,2.0);
+         V[1] = (p_[0]*xyz_[0])/pow(r,2.0); 
+         V[2] = 0.0;
 
          if (unit_)
          {

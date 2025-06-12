@@ -1583,8 +1583,8 @@ int main(int argc, char *argv[])
 
    BFieldProfile::CoordSystem b_coord_sys =
       cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
-   BFieldProfile BCoef(bpt, bpp, false, b_coord_sys, eqdsk);
-   BFieldProfile BUnitCoef(bpt, bpp, true, b_coord_sys, eqdsk);
+   BFieldProfile BCoef(bpt, bpp, dim3, false, b_coord_sys, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, dim3, true, b_coord_sys, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 
@@ -3501,32 +3501,14 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
    double z = (j_cyl_) ? x[2] : x[1];
 
-   // SPARC antennas:
-   /*
-   double dlant = 0.328835;
-
    double zmin1 = 0.0466;
    double zmax1 = 0.3655;
 
-   double a = 2.44;
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
    double b = 0.415;
    double c = 0.15;
-   double d = 0.0195;
-   */
-
-   // WEST antennas:
-   double dlant = 0.276946; 
-
-   double zmin1 = 0.03;
-   double zmax1 = 0.3;
-
-   double a = 3.0245;
-   double b = 0.615;
-   double c = 0.12;
-   double d = 0.021;
-
-   double xmin = a-b*pow(z,2.0)-c*pow(z,4.0)+d;
-   double xmax = a-b*pow(z,2.0)-c*pow(z,4.0)+d + 0.02;
 
    double tilt = atan2(curve_params_(6),curve_params_(5));
 
@@ -3559,8 +3541,9 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
 
          if (vol_profile_ == 1)
          {
+            double dlant = 0.328835;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0
-                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1;
+                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
 
@@ -3568,13 +3551,8 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    }
    else
    {
-      // SPARC antennas:
-      //double zmin2 = -0.3709;
-      //double zmax2 = -0.0523;
-
-      // WEST antennas:
-      double zmin2 = -0.3;
-      double zmax2 = -0.03;
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -3603,8 +3581,9 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
 
          if (vol_profile_ == 1)
          {
+            double dlant = 0.328835;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0
-                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1;
+                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
@@ -3634,8 +3613,9 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
+            double dlant = 0.328835;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0
-                                   - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax2;
+                                   - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
@@ -3652,32 +3632,14 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
    double z = (j_cyl_) ? x[2] : x[1];
 
-   // SPARC antennas:
-   /*
-   double dlant = 0.328835;
-
    double zmin1 = 0.0466;
    double zmax1 = 0.3655;
 
-   double a = 2.44;
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
    double b = 0.415;
    double c = 0.15;
-   double d = 0.0195;
-   */
-
-   // WEST antennas:
-   double dlant = 0.276946; 
-
-   double zmin1 = 0.03;
-   double zmax1 = 0.3;
-
-   double a = 3.0245;
-   double b = 0.615;
-   double c = 0.12;
-   double d = 0.021;
-
-   double xmin = a-b*pow(z,2.0)-c*pow(z,4.0)+d;
-   double xmax = a-b*pow(z,2.0)-c*pow(z,4.0)+d + 0.02;
 
    double tilt = atan2(curve_params_(6),curve_params_(5));
 
@@ -3720,8 +3682,9 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
 
          if (vol_profile_ == 1)
          {
+            double dlant = 0.328835;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0
-                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1;
+                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
 
@@ -3729,13 +3692,8 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    }
    else
    {
-      // SPARC antennas:
-      //double zmin2 = -0.3709;
-      //double zmax2 = -0.0523;
-
-      // WEST antennas:
-      double zmin2 = -0.3;
-      double zmax2 = -0.03;
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -3764,8 +3722,9 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
 
          if (vol_profile_ == 1)
          {
+            double dlant = 0.328835;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0
-                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1;
+                             - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
@@ -3795,8 +3754,9 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
+            double dlant = 0.328835;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0
-                                   - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax2;
+                                   - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
