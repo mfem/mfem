@@ -367,8 +367,6 @@ void print_mpi_sync(const std::string& msg)
 /// @brief Pretty print an mfem::Vector with MPI rank
 ///
 /// @param v vector to print
-/// @param myrank MPI rank
-/// @param comm MPI communicator
 inline
 void pretty_print_mpi(const mfem::Vector& v)
 {
@@ -621,7 +619,7 @@ void forall(func_t f,
    }
 }
 
-/// @TODO: To be removed.
+/// @todo To be removed.
 class FDJacobian : public Operator
 {
 public:
@@ -1217,7 +1215,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
 /// @param f the field descriptor.
 /// @param ir the integration rule.
 /// @param mode the mode of the DofToQuad object.
-/// @param entity_t the entity type (see Entity).
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 inline
 const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
@@ -1251,13 +1249,13 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
    }, f.data);
 }
 
-/// @brief Check the compatibility of a field operator type with a FieldDescriptor.
+/// @brief Check the compatibility of a field operator type with a
+/// FieldDescriptor.
 ///
 /// This function checks if the field operator type is compatible with the
 /// FieldDescriptor type.
 ///
 /// @param f the field descriptor.
-/// @param field_operator_t the field operator type.
 /// @tparam field_operator_t the field operator type.
 template <typename field_operator_t>
 void CheckCompatibility(const FieldDescriptor &f)
@@ -2071,10 +2069,10 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
    }
 }
 
-/// @brief Copy data from array of DeviceTensor x to array of DeviceTensor y
+/// @brief Copy data from array of DeviceTensor u to array of DeviceTensor v
 ///
-/// @param x source DeviceTensor array
-/// @param y destination DeviceTensor array
+/// @param u source DeviceTensor array
+/// @param v destination DeviceTensor array
 /// @tparam n DeviceTensor rank
 /// @tparam m number of DeviceTensors
 template <int n, std::size_t m>
@@ -2091,6 +2089,7 @@ void copy(std::array<DeviceTensor<n>, m> &u,
 /// @brief Wraps plain data in DeviceTensors for fields
 ///
 /// @param fields array of field data
+/// @param field_sizes for each field, number of values stored for each entity
 /// @param num_entities number of entities (elements, faces, etc) in mesh
 /// @tparam num_fields number of fields
 /// @return array of field data wrapped in DeviceTensors
@@ -2110,7 +2109,8 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
    return f;
 }
 
-/// @brief Accumulates the sizes of field operators on quadrature points for dependent inputs
+/// @brief Accumulates the sizes of field operators on quadrature points for
+/// dependent inputs
 ///
 /// @tparam input_t Type of input field operators tuple
 /// @tparam num_fields Number of fields
@@ -2125,18 +2125,19 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
 /// @return Sum of sizes on quadrature points for all dependent inputs
 ///
 /// @details
-/// This function accumulates the sizes needed on quadrature points for all dependent input
-/// field operators. For each dependent input, it calculates the size required on quadrature
-/// points using GetSizeOnQP() and adds it to the total. Non-dependent inputs contribute
-/// zero to the total size.
+/// This function accumulates the sizes needed on quadrature points for all
+/// dependent input field operators. For each dependent input, it calculates the
+/// size required on quadrature points using GetSizeOnQP() and adds it to the
+/// total. Non-dependent inputs contribute zero to the total size.
 template <typename input_t, std::size_t num_fields, std::size_t... i>
 int accumulate_sizes_on_qp(
    const input_t &inputs,
    std::array<bool, sizeof...(i)> &kinput_is_dependent,
    const std::array<int, sizeof...(i)> &input_to_field,
    const std::array<FieldDescriptor, num_fields> &fields,
-   std::index_sequence<i...>)
+   std::index_sequence<i...> seq)
 {
+   MFEM_CONTRACT_VAR(seq); // 'seq' is needed for doxygen
    return (... + [](auto &input, auto is_dependent, auto field)
    {
       if (!is_dependent)
