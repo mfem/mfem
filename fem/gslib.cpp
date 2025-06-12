@@ -2865,10 +2865,10 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
 
    if ( //Device::IsEnabled() &&
       field_in.UseDevice()
-      && mesh->GetNumGeometries(dim)==1
-      && mesh->GetNE()>0
-      && ( mesh->GetElementType(0) == Element::SEGMENT
-           || mesh->GetElementType(0) == Element::QUADRILATERAL ) )
+      && (mesh->GetNE()==0 ||
+          (mesh->GetNumGeometries(dim)==1
+           && ( mesh->GetElementType(0) == Element::SEGMENT
+           || mesh->GetElementType(0) == Element::QUADRILATERAL))))
    {
       MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,

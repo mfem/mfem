@@ -552,6 +552,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    compute_metric_quantile_flag = false;
 
    Vector d_out_tang, d_loc_tang;
+   bool debugvis = false;
    // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
@@ -571,7 +572,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 #ifdef MFEM_USE_MPI
       else { fes->GetProlongationMatrix()->Mult(d_out, d_loc); }
 #endif
-      // Visualize(d_loc, fes);
+      if (debugvis) { Visualize(d_loc, fes); }
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(d_loc, *fes);
@@ -625,7 +626,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
             }
             scale *= 0.5; continue;
          }
-         // Visualize(d_loc_tang, fes);
+         if (debugvis) { Visualize(d_loc_tang, fes); }
 
          d_out_tang.SetSize(d_out.Size());
          if (serial)

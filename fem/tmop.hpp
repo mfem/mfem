@@ -239,7 +239,7 @@ public:
       if (btype != BarrierType::None)
       {
          const int m_id = tmop_metric.Id();
-         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66 || m_id == 360,
+         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66 || m_id == 360 || m_id == 322,
                      "Incorrect input barrier metric.");
       }
    }
@@ -982,6 +982,10 @@ class TMOP_Metric_322 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J - adjJ^-t|^2.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
@@ -993,6 +997,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 322; }
 };
@@ -1187,6 +1197,10 @@ class TMOP_Metric_360 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J|^3 / 3^(3/2) - det(J).
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
@@ -1198,6 +1212,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 360; }
 };

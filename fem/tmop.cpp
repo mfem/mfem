@@ -111,6 +111,23 @@ void adjoint_2D(const std::vector<type> &in, std::vector<type> &outm)
 }
 
 template <typename type>
+void adjoint_3D(const std::vector<type> &in, std::vector<type> &outm)
+{
+   outm.resize(in.size());
+   outm[0] =  in[4]*in[8] - in[5]*in[7];  // + (0,0)
+   outm[1] =  in[5]*in[6] - in[3]*in[8];  // - (1,0)
+   outm[2] =  in[3]*in[7] - in[4]*in[6];  // + (2,0)
+
+   outm[3] =  in[2]*in[7] - in[1]*in[8];  // - (0,1)
+   outm[4] =  in[0]*in[8] - in[2]*in[6];  // + (1,1)
+   outm[5] =  in[1]*in[6] - in[0]*in[7];  // - (2,1)
+
+   outm[6] =  in[1]*in[5] - in[2]*in[4];  // + (0,2)
+   outm[7] =  in[2]*in[3] - in[0]*in[5];  // - (1,2)
+   outm[8] =  in[0]*in[4] - in[1]*in[3];  // + (2,2)
+}
+
+template <typename type>
 void transpose_2D(const std::vector<type> &in, std::vector<type> &outm)
 {
    outm.resize(in.size());
@@ -118,6 +135,23 @@ void transpose_2D(const std::vector<type> &in, std::vector<type> &outm)
    outm[1] = in[2];
    outm[2] = in[1];
    outm[3] = in[3];
+}
+
+template <typename type>
+void transpose_3D(const std::vector<type> &in, std::vector<type> &outm)
+{
+   outm.resize(in.size());
+   outm[0] = in[0];  // (0,0)
+   outm[1] = in[3];  // (1,0)
+   outm[2] = in[6];  // (2,0)
+
+   outm[3] = in[1];  // (0,1)
+   outm[4] = in[4];  // (1,1)
+   outm[5] = in[7];  // (2,1)
+
+   outm[6] = in[2];  // (0,2)
+   outm[7] = in[5];  // (1,2)
+   outm[8] = in[8];  // (2,2)
 }
 
 template <typename scalartype, typename type>
@@ -136,6 +170,24 @@ void add_3D(const scalartype &scalar, const std::vector<type> &u,
    mat[6] = u[6] + scalar * M->Elem(0,2);
    mat[7] = u[7] + scalar * M->Elem(1,2);
    mat[8] = u[8] + scalar * M->Elem(2,2);
+}
+
+template <typename scalartype, typename type>
+void add_3D(const scalartype &scalar, const std::vector<type> &u,
+            const std::vector<type> &v, std::vector<type> &mat)
+{
+   mat.resize(u.size());
+   mat[0] = u[0] + scalar * v[0];
+   mat[1] = u[1] + scalar * v[1];
+   mat[2] = u[2] + scalar * v[2];
+
+   mat[3] = u[3] + scalar * v[3];
+   mat[4] = u[4] + scalar * v[4];
+   mat[5] = u[5] + scalar * v[5];
+
+   mat[6] = u[6] + scalar * v[6];
+   mat[7] = u[7] + scalar * v[7];
+   mat[8] = u[8] + scalar * v[8];
 }
 
 /* Metric definitions */
@@ -191,6 +243,30 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    add_2D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
+};
+
+// W = 1 / (6 det(J)) |J - adj(J)^t|^2
+template <typename type>
+type mu322_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   std::vector<type> AdjT, AdjTt, WRK;
+   auto det = det_3D(T);
+   adjoint_3D(T, AdjT);
+   transpose_3D(AdjT, AdjTt);
+   add_2D(-1.0, T, AdjTt, WRK);
+   auto fnorm =  fnorm2_3D(WRK);
+   return (1.0 / (6.0 * det)) * fnorm;
+};
+
+// W = |J|^3 / 3^(3/2) - det(J).
+template <typename type>
+type mu360_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   std::vector<type> AdjT, AdjTt, WRK;
+   auto det = det_3D(T);
+   auto fnorm =  fnorm2_3D(WRK);
+   fnorm = pow(fnorm, 1.5); // |J|^3
+   return (fnorm/pow(3.0,1.5))-det;
 };
 
 template <typename type>
@@ -772,7 +848,8 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
       return EvalW_AD1(T,W);
    };
    if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
-       tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
+       tmop_metric.Id() == 55 || tmop_metric.Id() == 66 ||
+       tmop_metric.Id() == 322 || tmop_metric.Id() == 360)
    {
       ADGrad(mu_ad_fn, P, Jpt);
       return;
@@ -795,7 +872,8 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
       return EvalW_AD2(T,W);
    };
    if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
-       tmop_metric.Id() == 55 || tmop_metric.Id() == 66)
+       tmop_metric.Id() == 55 || tmop_metric.Id() == 66 ||
+       tmop_metric.Id() == 322 || tmop_metric.Id() == 360)
    {
       ADHessian(mu_ad_fn, H, Jpt);
       this->DefaultAssembleH(H,DS,weight,A);
@@ -1999,6 +2077,25 @@ void TMOP_Metric_322::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                      ie.Get_dI3b(), A.GetData());
 }
 
+template <typename type>
+type TMOP_Metric_322::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu322_ad(T, W);
+}
+
+AD1Type TMOP_Metric_322::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_322::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
+}
+
 real_t TMOP_Metric_323::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    // mu_323 = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
@@ -2141,6 +2238,25 @@ void TMOP_Metric_360::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                      ie.Get_dI1(), A.GetData());
    ie.Assemble_ddI1(weight / 2.0 * sqrt(ie.Get_I1()/3.0), A.GetData());
    ie.Assemble_ddI3b(-weight, A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_360::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu360_ad(T, W);
+}
+
+AD1Type TMOP_Metric_360::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_360::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
 }
 
 real_t TMOP_AMetric_011::EvalWMatrixForm(const DenseMatrix &Jpt) const

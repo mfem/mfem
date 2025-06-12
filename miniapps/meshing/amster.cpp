@@ -50,7 +50,7 @@
 
 // 3D
 // make amster -j4 && mpirun -np 10 amster -m hex6.mesh -o 2 -qo 8 -vis -rs 0 -mid 301 -tid 1 -bdropt 5 -visit -ni 200 -bnd -no-bound
-
+// make amster -j4 && mpirun -np 10 amster -m kershaw_laghos_morphed_2.mesh -o 2 -qo 8 -vis -rs 0 -mid 301 -tid 1 -bdropt 8 -visit -ni 500 -bnd -no-bound
 
 // amster_q4warp
 // make amster -j4 && mpirun -np 10 amster -m amster_q4warp.mesh -o 4 -qo 8 -vis -rs 0 -mid 80 -tid 2 -bdropt 7 -visit -ni 2000
@@ -113,7 +113,8 @@ int main (int argc, char *argv[])
    bool move_bnd         = false;
    bool final_pass       = true;
    bool bound            = true;
-   int solver_type        = 1;
+   int solver_type       = 1;
+   bool transform        = true;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -168,6 +169,9 @@ int main (int argc, char *argv[])
                   "Enable bounds.");
    args.AddOption(&solver_type, "-st", "--solver-type",
                   "0 - Newton, 1 - LBFGS:\n\t");
+   args.AddOption(&transform, "-transform", "--transform", "-no-transform",
+                  "--no-transform",
+                  "Enable transforms.");
    args.Parse();
    if (!args.Good())
    {
@@ -192,7 +196,7 @@ int main (int argc, char *argv[])
       smesh = mesh;
    }
 
-   if (bdr_opt_case == 5 || bdr_opt_case == 6)
+   if ((bdr_opt_case == 5 || bdr_opt_case == 6 ) && transform)
    {
       ModifyBoundaryAttributesForNodeMovement(mesh, *(mesh->GetNodes()));
       mesh->SetAttributes();
@@ -257,7 +261,7 @@ int main (int argc, char *argv[])
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   else if (bdr_opt_case == 5 || bdr_opt_case == 6) // 3D case - kershaw
+   else if (bdr_opt_case == 5 || bdr_opt_case == 6 || bdr_opt_case == 8) // 3D case - kershaw
    {
       MFEM_VERIFY(dim == 3,"3D case");
       surf_mesh_attr.SetSize(3);
@@ -485,10 +489,14 @@ int main (int argc, char *argv[])
          vis_tmop_metric_p(mesh_poly_deg, *umetric, *utarget_c, *pmesh,
                            title.c_str(), 300, 0, 300);
       }
+      if (myid == 0)
+      {
+         cout << "Minimum det J bound is " << min_det_bound0 << endl;
+      }
 
       // Untangle the mesh
       Untangle(x, min_detA_u0, quad_order, u_metric_id, u_target_id,
-               plb, &detgf, solver_iter, move_bnd);
+               &plbt, &detgf, solver_iter, move_bnd);
 
       {
          ostringstream mesh_name;
@@ -773,7 +781,7 @@ int main (int argc, char *argv[])
          mesh_name << "amster_final_out.mesh";
          ofstream mesh_ofs(mesh_name.str().c_str());
          mesh_ofs.precision(8);
-         pmesh->PrintAsOne(mesh_ofs);
+         pmesh->PrintAsSerial(mesh_ofs);
       }
 
       if (visit)
@@ -825,6 +833,10 @@ int main (int argc, char *argv[])
 
    delete target_c;
    delete metric;
+   delete utarget_c;
+   delete umetric;
+   delete wctarget_c;
+   delete wcmetric;
    delete pmesh;
 
    return 0;
