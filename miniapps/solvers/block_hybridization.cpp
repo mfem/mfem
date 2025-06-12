@@ -93,8 +93,27 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    aI.Print(out, aI.Size());
    aJ.Print(out, aJ.Size());
 
+   const Table &face_to_dof_table(multiplier_space->GetFaceToDofTable());
+   const int *faceI = face_to_dof_table.GetI();
+   const int *faceJ = face_to_dof_table.GetJ();
 
    for (int element_index = 0; element_index < num_elements; ++element_index)
+   int *interior_faceI = new int[faceI[mesh->GetNumFaces()]];
+   interior_faceI[0] = 0;
+   int total_dofs(0);
+   for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
+   {
+      for (int k = nI[elem_idx]; k < nI[elem_idx+1]; ++k)
+      {
+         const int face_idx = nJ[k];
+         total_dofs += faceI[face_idx+1] - faceI[face_idx];
+      }
+      interior_faceI[elem_idx+1] = total_dofs;
+   }
+
+   int *interior_faceJ = new int[interior_faceI[num_elements]];
+   counter = 0;
+   for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
    {
       mVarf->ComputeElementMatrix(element_index, saved_hdiv_matrices[element_index]);
       saved_hdiv_matrices[element_index].Threshold(eps *
@@ -119,6 +138,22 @@ BlockHybridizationSolver::BlockHybridizationSolver(
 
       mfem::Mult(saved_l2_matrices[element_index], product_matrix,
                  saved_mixed_matrices[element_index]); // overwrite saved_mixed_matrices[element_index]
+      for (int k = nI[elem_idx]; k < nI[elem_idx+1]; ++k)
+      {
+         const int face_idx = nJ[k];
+         for (int dof_idx = faceI[face_idx]; dof_idx < faceI[face_idx+1]; ++dof_idx)
+         {
+            interior_faceJ[counter++] = faceJ[dof_idx];
+         }
+      }
+   }
+
+   Array<int> arrI(interior_faceI, num_elements+1);
+   Array<int> arrJ(interior_faceJ, interior_faceI[num_elements]);
+
+   arrI.Print(out, arrI.Size());
+   arrJ.Print(out, arrJ.Size());
+
                                                        // with S^{-1}BA^{-1}
       DenseMatrix temp_matrix(product_matrix.Width(),
                               saved_mixed_matrices[element_index].Width());
@@ -168,6 +203,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       delete []face_dofs;
       delete []face_matrices;
    }
+   delete []interior_faceI;
+   delete []interior_faceJ;
    delete []nI;
    delete []nJ;
 
