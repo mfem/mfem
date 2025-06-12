@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "annotation.hpp"
+#include "array.hpp"
 #include "error.hpp"
 #include "backends.hpp"
 #include "device.hpp"
@@ -23,8 +24,6 @@
 #include <_hypre_utilities.h>
 #endif
 
-#include "array.hpp"
-#include "reducers.hpp"
 
 namespace mfem
 {

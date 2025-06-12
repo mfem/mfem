@@ -12,11 +12,9 @@
 #ifndef MFEM_REDUCERS_HPP
 #define MFEM_REDUCERS_HPP
 
-#include "forall.hpp"
+#include "../config/config.hpp"
 
-#include <climits>
 #include <cmath>
-#include <cstdint>
 #include <limits>
 #include <type_traits>
 
@@ -441,4 +439,4 @@ template <class I> struct ArgMinMaxReducer<double, I>
 
 } // namespace mfem
 
-#endif
+#endif // MFEM_REDUCERS_HPP
