@@ -191,17 +191,27 @@ protected:
 
     /// @brief A type trait to check if the erased class has the functions Step, Mult, and Solve with the needed signatures.
     template<class T>
-    using HasStep = decltype(std::declval<T&>().Step(std::declval<Vector&>(),std::declval<real_t&>(),std::declval<real_t&>()));
+    using CheckStep = decltype(std::declval<T&>().Step(std::declval<Vector&>(),std::declval<real_t&>(),std::declval<real_t&>()));
 
     template<class T>
-    using HasMult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),std::declval<Vector&>()));
+    using CheckMult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),std::declval<Vector&>()));
 
     template<class T>
-    using HasSolve = decltype(std::declval<T&>().Solve(std::declval<const Vector&>(),std::declval<Vector&>()));
+    using CheckSolve = decltype(std::declval<T&>().Solve(std::declval<const Vector&>(),std::declval<Vector&>()));
+    
 
+    // Define a template class 'check' to test for the existence of member functions
+    template <typename C, template<typename> typename Func, typename R>
+    class CheckForMemberFunction {
+        template<typename T> static constexpr auto check(T*) -> typename std::is_same< Func<T>, R >::type;
+        template<typename> static constexpr std::false_type check(...);
+        typedef decltype(check<C>(0)) type;
+
+    public:
+        static constexpr bool value  = type::value;
+    };    
 
     App *app; ///< Pointer to the application
-
 
 public:
     
@@ -224,7 +234,7 @@ public:
 
     void Solve(const Vector &x, Vector &y) const override
     {
-        if constexpr ( std::experimental::is_detected_exact_v<void, HasSolve, App> )
+        if constexpr (CheckForMemberFunction<App,CheckSolve,void>::value)
         {
             app->Solve(x,y);
         }
@@ -236,7 +246,7 @@ public:
 
     void Mult(const Vector &x, Vector &y) const override
     {
-        if constexpr ( std::experimental::is_detected_exact_v<void, HasMult, App> )
+        if constexpr (CheckForMemberFunction<App,CheckMult,void>::value)
         {
             app->Mult(x,y);
         }
@@ -253,8 +263,7 @@ public:
 
     void Step(Vector &x, real_t &t, real_t &dt) override
     {
-        // if constexpr (std::is_same<HasStep<App>,void>::value)
-        if constexpr ( std::experimental::is_detected_exact_v<void, HasStep, App> )
+        if constexpr (CheckForMemberFunction<App,CheckStep,void>::value)
         {
             app->Step(x,t,dt);
         }
