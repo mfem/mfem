@@ -1721,15 +1721,14 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                }
             }
          }
-      }
-      offset += sizes[i][0];
 
-      const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
-      const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
-      auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
-                            ndof_g);
-      if (dtq[i].which_input != -1)
-      {
+         offset += sizes[i][0];
+
+         const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
+         const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
+         auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
+                               ndof_g);
+
          MFEM_FOREACH_THREAD(q, x, nqp_g)
          {
             MFEM_FOREACH_THREAD(d, y, ndof_g)
@@ -1740,12 +1739,18 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                }
             }
          }
-      }
-      offset += sizes[i][1];
 
-      f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
-                          DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
-                          dtq[i].which_input};
+         offset += sizes[i][1];
+
+         f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
+                             DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
+                             dtq[i].which_input};
+      }
+      else
+      {
+         // When which_input is -1, just copy the original DofToQuadMap with empty data.
+         f[i] = dtq[i];
+      }
    }
    return f;
 }
