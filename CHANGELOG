@@ -13,6 +13,15 @@ Version 4.8.1 (development)
 - Added support for variational resampling of H1 vector fields to ParMoonolith
   integration.
 
+- API addition: in class `Operator`, added virtual functions: `AbsMult`, and
+  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
+
+- Added miniapps to demonstrate an implementation of the absolute-value
+  L(1)-Jacobi preconditioners in partially assembled operators. This includes
+  Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
+  operators as smoothers.
+  These miniapps can be found in `miniapps/diag-smoothers`.
+
 - The function Vector::SetSubVector(const Array<int> &, const real_t) now
   executes on device if either the vector or the array have the device flag
   set. This is most often used for setting constant essential boundary

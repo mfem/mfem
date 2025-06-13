@@ -121,6 +121,12 @@ void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AddAbsMultPA(const Vector &, Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator:AddAbsMultPA:(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultNURBSPA(...)\n"
@@ -130,6 +136,13 @@ void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultTransposePA(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddAbsMultTransposePA(const Vector &,
+                                                   Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator::AddAbsMultTransposePA(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -418,11 +431,27 @@ void SumIntegrator::AddMultPA(const Vector& x, Vector& y) const
    }
 }
 
+void SumIntegrator::AddAbsMultPA(const Vector& x, Vector& y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddAbsMultPA(x, y);
+   }
+}
+
 void SumIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    for (int i = 0; i < integrators.Size(); i++)
    {
       integrators[i]->AddMultTransposePA(x, y);
+   }
+}
+
+void SumIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddAbsMultTransposePA(x, y);
    }
 }
 
