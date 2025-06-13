@@ -89,8 +89,6 @@ using ChargedParticle = Particle<3,1,2>;
 class BorisAlgorithm
 {
 private:
-   real_t charge_;
-   real_t mass_;
 
    FindPointsGSLIB  E_finder_;
    ParMesh         *E_pmesh_;
@@ -100,34 +98,18 @@ private:
    ParMesh         *B_pmesh_;
    ParGridFunction *B_field_;
 
-   mutable Array<int>              elem_id_;
-   mutable Array<IntegrationPoint> ip_;
-
    mutable Vector E_;
    mutable Vector B_;
    mutable Vector pxB_;
    mutable Vector pm_;
    mutable Vector pp_;
 
-   // Returns true if point exists in domain.
-   static bool GetValue(const ParGridFunction &pgf, const Vector &q,
-                        FindPointsGSLIB &finder, Vector &V)
-   {
-      // Locate current point in each mesh
-      finder.FindPoints(q);
-      if (finder.GetCode()[0] == 2) { return false; } // If no point is found, return
-
-      finder.Interpolate(pgf, V);
-      return true;
-   }
-
 public:
    BorisAlgorithm(ParGridFunction *E_gf,
                   ParGridFunction *B_gf,
-                  real_t charge, real_t mass, MPI_Comm comm)
-      : E_finder_(comm), B_finder_(comm), charge_(charge), mass_(mass),
-        E_field_(E_gf),
-        B_field_(B_gf),
+                  MPI_Comm comm)
+      : E_finder_(comm), B_finder_(comm),
+        E_field_(E_gf), B_field_(B_gf),
         E_(3), B_(3), pxB_(3), pm_(3), pp_(3)
    {
       E_ = 0.0;
@@ -148,13 +130,27 @@ public:
 
    }
 
-   bool Step(Vector &q, Vector &p, real_t &t, real_t &dt)
+   bool Step(ParticleSet<ChargedParticle> &particles, real_t &t, real_t &dt)
    {
-      if (E_field_ && !GetValue(*E_field_, q, E_finder_, E_))
+      E_.SetSize(particles.GetNP()*3);
+      B_.SetSize(particles.GetNP()*3);
+
+      if (E_field_)
       {
-         return false;
+         E_finder_.FindPoints(particles.GetParticleCoords(), particles.GetOrdering());
+         E_finder_.Interpolate(E_field_, E_); // Interpolate the E field onto the particles
+         // Ordering of E_ output is the same as E_field_...
+
+         // Fix the ordering if needed (So that it matches the particles)
+         // (Note that Ordering::byNODES is easily fastest)
+         if (E_field_->ParFESpace()->GetOrdering() != particles.)
       }
-      if (B_field_ && !GetValue(* B_field_, q, B_finder_, B_))
+      else
+      {
+         // Otherwise set to 0
+         E_ = 0.0;
+      }
+      if (B_field_)
       {
          return false;
       }
@@ -251,7 +247,6 @@ int main(int argc, char *argv[])
    real_t dt = 1e-2;
    real_t t_init = 0.0;
    real_t t_final = 1.0;
-   int ordering = Ordering::byNODES;
    Vector x_init;
    Vector p_init;
    int visport = 19916;
@@ -349,11 +344,11 @@ int main(int argc, char *argv[])
 
    // Create the ParticleSet
    std::unique_ptr<ParticleSet<ChargedParticle>> particles;
-   
    if (aos)
       particles.reset(new AoSParticleSet<ChargedParticle>(MPI_COMM_WORLD));
    else
       particles.reset(new SoAParticleSet<ChargedParticle>(MPI_COMM_WORLD));
+
 
    int provided_x = x_init.Size()/3;
    int provided_p = p_init.Size()/3;
@@ -427,8 +422,7 @@ int main(int argc, char *argv[])
       particles->AddParticle(p);
    }
 
-   // Print particle locations + momentums
-   // TODO: This is messy
+   // Print particle locations + momentA
    for (int i = 0; i < particles->GetNP(); i++)
    {
       ChargedParticle p;
@@ -437,7 +431,11 @@ int main(int argc, char *argv[])
                                     <<   "p=(" << p.vector_fields[0][0] << "," << p.vector_fields[0][1] << "," << p.vector_fields[0][2] << ")" << endl;
    }
 
-   BorisAlgorithm boris(E_gf, B_gf, q, m, MPI_COMM_WORLD);
+
+
+   
+   /*
+   BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
    Vector pos(x_init);
    Vector mom(p_init);
 
@@ -447,7 +445,7 @@ int main(int argc, char *argv[])
    int nsteps = 1 + (int)ceil((t_final - t_init) / dt);
    DenseMatrix pos_data(3, nsteps);
    DenseMatrix mom_data(3, nsteps + 1);
-   mom_data.SetCol(0, p_init);
+   mom_data.SetCol(0, particles.GetVectorField(0));
 
    if (Mpi::Root())
    {
@@ -519,7 +517,7 @@ int main(int argc, char *argv[])
    {
       mfem::out << "Number of steps taken: " << step << endl;
    }
-
+   */
    // Clean up
    delete E_dc;
    delete B_dc;
