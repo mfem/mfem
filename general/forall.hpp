@@ -23,9 +23,6 @@
 #include <_hypre_utilities.h>
 #endif
 
-#include "array.hpp"
-#include "reducers.hpp"
-
 namespace mfem
 {
 
