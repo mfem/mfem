@@ -155,7 +155,7 @@ TEST_CASE("Quadrature Function Coefficients",
    }
 }
 
-TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
+TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][GPU]")
 {
    auto fname = GENERATE(
                    "../../data/star.mesh",

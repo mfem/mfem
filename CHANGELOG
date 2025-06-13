@@ -13,6 +13,10 @@ Version 4.8.1 (development)
 - Added support for variational resampling of H1 vector fields to ParMoonolith
   integration.
 
+Miscellaneous
+-------------
+- Added the "gpu", "raja-gpu", and "ceed-gpu" backend shortcuts which automatically
+  select between CUDA or HIP.
 - The function Vector::SetSubVector(const Array<int> &, const real_t) now
   executes on device if either the vector or the array have the device flag
   set. This is most often used for setting constant essential boundary
