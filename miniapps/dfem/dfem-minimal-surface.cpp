@@ -27,21 +27,24 @@
 //             * mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d hip
 //             * mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d hip
 //
-// Description:  This example code demonstrates the use of MFEM to solve the minimal
-//               surface problem in 2D:
+// Description:  This example code demonstrates the use of MFEM to solve the
+//               minimal surface problem in 2D:
 //
 //               $ \min \left( -\nabla \cdot (1 / \sqrt(1 + |\nabla u|^2) \nabla u) \right) $
 //
-//               with Dirichlet boundary conditions. The nonlinear problem is solved
-//               using Newton's method, where the necessary derivatives are computed
-//               in one of three ways (controlled by -der command line parameter):
+//               with Dirichlet boundary conditions. The nonlinear problem is
+//               solved using Newton's method, where the necessary derivatives
+//               are computed in one of three ways (controlled by -der command
+//               line parameter):
 //
-//               -der 0 = Automatic differentiation using Enzyme or dual type (default)
+//               -der 0 = Automatic differentiation using Enzyme or dual type
+//                        (default)
 //               -der 1 = Hand-coded derivatives
 //               -der 2 = Finite differences
 //
 //               The example demonstrates the use of MFEM's nonlinear solvers,
-//               automatic differentiation capabilities, and GLVis/ParaView visualization.
+//               automatic differentiation capabilities, and GLVis/ParaView
+//               visualization.
 
 #include "mfem.hpp"
 
@@ -55,10 +58,11 @@ using namespace mfem::future;
 using mfem::future::tensor;
 
 // Derivative type enum
-// This enum is used to specify the type of derivative computation. Possibilities are
-// AUTODIFF, which uses automatic differentiation (Enzyme or dual type)
-// HANDCODED, which uses a manually implemented derivative and
-// FD (finite difference).
+// This enum is used to specify the type of derivative computation.
+// Possibilities are:
+// - AUTODIFF, which uses automatic differentiation (Enzyme or dual type),
+// - HANDCODED, which uses a manually implemented derivative, and
+// - FD, finite difference.
 enum DerivativeType
 {
    AUTODIFF,
@@ -105,7 +109,8 @@ public:
       // Due to the description of how this pointwise operation is used in
       // DifferentiableOperator, we know it is applied to the gradient of the
       // test function in reference coordinates e.g.
-      // $ \int coeff(\nabla_x u) (\nabla_x u) J^{-T} \det(J) w \nabla_{\xi} v d\xi$
+      // $ \int coeff(\nabla_x u) (\nabla_x u) J^{-T} \det(J) w
+      //        (\nabla_{\xi} v) d\xi $
       MFEM_HOST_DEVICE inline
       auto operator()(
          const tensor<dscalar_t, dim> &dudxi,
@@ -163,7 +168,8 @@ private:
          // One can retrieve the derivative of a DifferentiableOperator wrt a
          // field variable if the derivative has been requested during the
          // DifferentiableOperator::AddDomainIntegrator call.
-         dres_du = minsurface->res->GetDerivative(SOLUTION_U, {&minsurface->u}, {mesh_nodes});
+         dres_du = minsurface->res->GetDerivative(
+                      SOLUTION_U, {&minsurface->u}, {mesh_nodes});
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -213,7 +219,10 @@ private:
                             (minsurface->H1.GetParMesh()->GetNodes());
          auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
 
-         std::vector<FieldDescriptor> solutions = {{DIRECTION_U, &minsurface->H1}};
+         std::vector<FieldDescriptor> solutions =
+         {
+            {DIRECTION_U, &minsurface->H1}
+         };
          std::vector<FieldDescriptor> parameters =
          {
             {SOLUTION_U, &minsurface->H1},
@@ -279,7 +288,8 @@ public:
       Array<int> all_domain_attr(H1.GetMesh()->attributes.Max());
       all_domain_attr = 1;
 
-      auto &mesh_nodes = *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes());
+      auto &mesh_nodes =
+         *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes());
       auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
 
       // The following section is the heart of this example. It shows how to
@@ -342,8 +352,8 @@ public:
       // formed integrator should be formed. This is necessary to specify at
       // compile time in order to instantiate the correct functions.
       auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
-      res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators, ir,
-                               all_domain_attr, derivatives);
+      res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators,
+                               ir, all_domain_attr, derivatives);
 
       // Before we are able to use DifferentiableOperator::Mult, we need to call
       // DifferentiableOperator::SetParameters to set the parameters of the
@@ -374,7 +384,8 @@ public:
 
          case HANDCODED:
          {
-            man_dres_du = std::make_shared<MinimalSurfaceHandcodedJacobian>(this, x);
+            man_dres_du = std::make_shared<MinimalSurfaceHandcodedJacobian>(
+                             this, x);
             return *man_dres_du;
          }
 
@@ -438,11 +449,13 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&refinements, "-r", "--refinements", "");
    args.AddOption(&derivative_type, "-der", "--derivative-type",
-                  "Derivative computation type: 0=AutomaticDifferentiation, 1=HandCoded, 2=FiniteDifference");
+                  "Derivative computation type: 0=AutomaticDifferentiation,"
+                  " 1=HandCoded, 2=FiniteDifference");
 
    args.ParseCheck();
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as CUDA
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
@@ -489,7 +502,8 @@ int main(int argc, char *argv[])
    minsurface = std::make_unique<MinimalSurface<real_t>>(H1, *ir,
                                                          derivative_type);
 #else
-   // When Enzyme is not available, use the dual type for automatic differentiation
+   // When Enzyme is not available, use the dual type for automatic
+   // differentiation
    using mfem::future::dual;
    using dual_t = dual<real_t, real_t>;
    minsurface = std::make_unique<MinimalSurface<dual_t>>(H1, *ir,
