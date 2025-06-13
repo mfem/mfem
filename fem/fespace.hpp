@@ -40,6 +40,7 @@ public:
                     as: XYZ,XYZ,XYZ,... */
    };
 
+   /// Map ldof \p dof to vdof component \p vd for \p ndof total ldofs
    template <Type Ord>
    static inline int Map(int ndofs, int vdim, int dof, int vd);
 
