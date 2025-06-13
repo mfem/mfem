@@ -79,6 +79,9 @@ using namespace mfem::electromagnetics;
 
 typedef DataCollection::FieldMapType fields_t;
 
+// 3D particle, 1 vector field of momentum, 2 scalar fields of charge and mass
+using ChargedParticle = Particle<3,1,2>;
+
 /// This class implements the Boris algorithm as described in the
 /// article `Why is Boris algorithm so good?` by H. Qin et al in
 /// Physics of Plasmas, Volume 20 Issue 8, August 2013,
@@ -240,12 +243,15 @@ int main(int argc, char *argv[])
    int B_pad_digits_cycle = 6;
    int B_pad_digits_rank = 6;
 
+   bool aos = true;
+   int dim_part = 3;
+   int num_part = 1;
    real_t q = 1.0;
    real_t m = 1.0;
    real_t dt = 1e-2;
    real_t t_init = 0.0;
    real_t t_final = 1.0;
-   real_t r_factor = -1.0;
+   int ordering = Ordering::byNODES;
    Vector x_init;
    Vector p_init;
    int visport = 19916;
@@ -273,23 +279,26 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&B_pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
+   args.AddOption(&aos, "-aos", "--array-of-structs", "-soa", "--struct-of-arrays", 
+                  "Store particles in an Array-of-Structs (AoS) or Struct-of-Arrays (SoA).");
+   args.AddOption(&dim_part, "-d", "--dim-part",
+                  "Particle domain dimension.");
+   args.AddOption(&num_part, "-n", "--num-part",
+                  "Number of particles.");
+   args.AddOption(&x_init, "-x0", "--initial-positions",
+                  "Initial positions (if # positions < # particles, remaining positions set randomly within either E field mesh, B field mesh, or unit cube).");
+   args.AddOption(&p_init, "-p0", "--initial-momenta",
+                  "Initial momenta (if # momenta < # particles, last momentum is used for remaining particles)");
    args.AddOption(&q, "-q", "--charge",
-                  "Particle charge.");
+                  "Particles' charge.");
    args.AddOption(&m, "-m", "--mass",
-                  "Particle mass.");
+                  "Particles' mass.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time Step.");
    args.AddOption(&t_init, "-ti", "--initial-time",
                   "Initial Time.");
    args.AddOption(&t_final, "-tf", "--final-time",
                   "Final Time.");
-   args.AddOption(&x_init, "-x0", "--initial-position",
-                  "Initial position.");
-   args.AddOption(&p_init, "-p0", "--initial-momentum",
-                  "Initial momentum.");
-   args.AddOption(&r_factor, "-rf", "--ribbon-factor",
-                  "Scale factor for ribbon width (rf * (p1-p0) / (m * dt) "
-                  "where p0 and p1 are computed momenta).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -305,10 +314,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (r_factor <= 0.0)
-   {
-      r_factor = dt;
-   }
+
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
@@ -340,18 +346,95 @@ int main(int argc, char *argv[])
       }
    }
 
-   if (x_init.Size() < 3)
+
+   // Create the ParticleSet
+   std::unique_ptr<ParticleSet<ChargedParticle>> particles;
+   
+   if (aos)
+      particles.reset(new AoSParticleSet<ChargedParticle>(MPI_COMM_WORLD));
+   else
+      particles.reset(new SoAParticleSet<ChargedParticle>(MPI_COMM_WORLD));
+
+   int provided_x = x_init.Size()/3;
+   int provided_p = p_init.Size()/3;
+
+   // Add all particles to set
+   for (int i = 0; i < num_part; i++)
    {
-      SetInitialPosition(E_dc, B_dc, x_init);
+      ChargedParticle p;
+
+      // If a position was provided:
+      if (i < provided_x)
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            p.coords[d] = x_init[d + i*3];
+         }
+      }
+      else // else set it randomly within E field mesh, B field mesh, or unit cube (in that order)
+      {
+         Mesh *mesh = nullptr;
+         if (E_gf)
+         {
+            mesh = E_gf->ParFESpace()->GetParMesh();
+         }
+         else if (B_gf)
+         {
+            mesh = B_gf->ParFESpace()->GetParMesh();
+         }
+
+         Vector pos_min, pos_max;
+
+         if (mesh)
+         {
+            mesh->GetBoundingBox(pos_min, pos_max);
+         }
+         else
+         {
+            pos_min = Vector({0.0,0.0,0.0});
+            pos_max = Vector({1.0,1.0,1.0});
+         }
+         Vector r_pos(4); // 1st-number of each r_pos is too similar regardless of seed
+         r_pos.Randomize(i);
+
+         for (int d = 0; d < 3; d++)
+         {
+            p.coords[d] = pos_min[d] + r_pos[d+1]*(pos_max[d] - pos_min[d]);
+         }
+      }
+
+      // If a momentum was provided:
+      if (i < provided_p)
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            p.vector_fields[0][d] = p_init[d + i*3];
+         }
+      }
+      else // else use last one that was provided, or 0 if none.
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            p.vector_fields[0][d] = p_init.Size() > 0 ? p_init[provided_p*3-3+d] : 0;
+         }
+      }
+
+      // Set charge + mass
+      p.scalar_fields[0] = q;
+      p.scalar_fields[1] = m;
+
+      // Add particle
+      particles->AddParticle(p);
    }
-   if (p_init.Size() < 3)
+
+   // Print particle locations + momentums
+   // TODO: This is messy
+   for (int i = 0; i < particles->GetNP(); i++)
    {
-      p_init.SetSize(3); p_init = 0.0;
-   }
-   if (Mpi::Root())
-   {
-      mfem::out << "Initial position: "; x_init.Print(mfem::out);
-      mfem::out << "Initial momentum: "; p_init.Print(mfem::out);
+      ChargedParticle p;
+      particles->GetParticle(i, p);
+      mfem::out << "Particle " << i << ": x=(" << p.coords[0] << "," << p.coords[1] << "," << p.coords[2] << ") ; "
+                                    <<   "p=(" << p.vector_fields[0][0] << "," << p.vector_fields[0][1] << "," << p.vector_fields[0][2] << ")" << endl;
    }
 
    BorisAlgorithm boris(E_gf, B_gf, q, m, MPI_COMM_WORLD);
