@@ -87,6 +87,9 @@ public:
    void Redistribute(const Array<int> &rank_list);
 #endif // MFEM_USE_MPI
 
+
+   virtual ~ParticleSet() = default;
+
 };
 
 // -----------------------------------------------------------------------------------------------------
@@ -366,7 +369,7 @@ void AoSParticleSet<Particle<Dim, VFields, SFields>>::SyncVVectorField(int v)
       {
          for (int i = 0; i < GetNP(); i++)
          {
-            this->v_vector_fields[v][i + d*GetNP()] = particles[i].v_vector_fields[v][d];
+            this->v_vector_fields[v][i + d*GetNP()] = particles[i].vector_fields[v][d];
          }
       }
    }
