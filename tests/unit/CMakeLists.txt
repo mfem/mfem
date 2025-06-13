@@ -108,6 +108,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lor_batched.cpp
   fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
+  fem/test_ordering.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
