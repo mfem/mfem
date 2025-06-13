@@ -200,7 +200,7 @@ public:
       {
          Vector g(DIMENSION);
          g = 0.0;
-         //g(1) = 2.0 * density;
+         g(1) = -2.0/3.0 * 1e-3;
 
          ParLinearForm body_force_lf(&displacement_fes);
          body_force_coef = new VectorConstantCoefficient(g);
@@ -314,21 +314,29 @@ int main(int argc, char* argv[])
    Array<int> displacement_ess_tdof;
    Array<int> bc_tdof;
 
-   bdr_attr_is_ess = 0;
-   bdr_attr_is_ess[0] = 1;
-   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 1);
-   for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
+//    { // uniaxial tensrion
+//         bdr_attr_is_ess = 0;
+//         bdr_attr_is_ess[0] = 1;
+//         displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 1);
+//         for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
 
+//         bdr_attr_is_ess = 0;
+//         bdr_attr_is_ess[3] = 1;
+//         displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
+//         for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
+
+//         bdr_attr_is_ess = 0;
+//         bdr_attr_is_ess[1] = 1;
+//         displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
+//         for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
+//    }
+
+   // fixed left end
    bdr_attr_is_ess = 0;
    bdr_attr_is_ess[3] = 1;
-   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
+   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof);
    for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-
-   bdr_attr_is_ess = 0;
-   bdr_attr_is_ess[1] = 1;
-   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
-   for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-
+ 
    ParGridFunction u(&displacement_fes);
    u = 0.0;
 
@@ -377,8 +385,8 @@ int main(int argc, char* argv[])
    Vector zero, x(displacement_fes.GetTrueVSize());
 
    //real_t ubc = applied_displacement(time);
-   real_t ubc = 0.01;
-   u.SetSubVector(bc_tdof, ubc);
+//    real_t ubc = 0.01;
+//    u.SetSubVector(bc_tdof, ubc);
    u.GetTrueDofs(x);
    nonlinear_solver->Mult(zero, x);
    u.SetFromTrueDofs(x);
