@@ -206,7 +206,7 @@ Vector &Vector::operator=(const Vector &v)
    UseDevice(v.UseDevice());
 #else
    SetSize(v.Size());
-   bool vuse = v.UseDevice();
+   const bool vuse = v.UseDevice();
    const bool use_dev = UseDevice() || vuse;
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
@@ -248,8 +248,8 @@ Vector &Vector::operator*=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= x[i]; });
    return *this;
 }
@@ -270,8 +270,8 @@ Vector &Vector::operator/=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] /= x[i]; });
    return *this;
 }
@@ -291,8 +291,8 @@ Vector &Vector::operator-=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= x[i]; });
    return *this;
 }
@@ -312,8 +312,8 @@ Vector &Vector::operator+=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += x[i]; });
    return *this;
 }
@@ -326,8 +326,8 @@ Vector &Vector::Add(const real_t a, const Vector &Va)
    {
       const int N = size;
       const bool use_dev = UseDevice() || Va.UseDevice();
+      const auto x = Va.Read(use_dev);
       auto y = ReadWrite(use_dev);
-      auto x = Va.Read(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += a * x[i]; });
    }
    return *this;
@@ -339,7 +339,7 @@ Vector &Vector::Set(const real_t a, const Vector &Va)
 
    const bool use_dev = UseDevice() || Va.UseDevice();
    const int N = size;
-   auto x = Va.Read(use_dev);
+   const auto x = Va.Read(use_dev);
    auto y = Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = a * x[i]; });
    return *this;
@@ -351,9 +351,9 @@ void Vector::SetVector(const Vector &v, int offset)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int vs = v.Size();
-   const real_t *vp = v.Read(use_dev);
+   const auto vp = v.Read(use_dev);
    // Use read+write access for *this - we only modify some of its entries
-   real_t *p = ReadWrite(use_dev) + offset;
+   auto p = ReadWrite(use_dev) + offset;
    mfem::forall_switch(use_dev, vs, [=] MFEM_HOST_DEVICE (int i) { p[i] = vp[i]; });
 }
 
@@ -363,8 +363,8 @@ void Vector::AddSubVector(const Vector &v, int offset)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int vs = v.Size();
-   const real_t *vp = v.Read(use_dev);
-   real_t *p = ReadWrite(use_dev) + offset;
+   const auto vp = v.Read(use_dev);
+   auto p = ReadWrite(use_dev) + offset;
    mfem::forall_switch(use_dev, vs, [=] MFEM_HOST_DEVICE (int i) { p[i] += vp[i]; });
 }
 
@@ -393,8 +393,8 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
    const int N = v.size;
    // Note: get read access first, in case v is the same as v1/v2.
-   auto x1 = v1.Read(use_dev);
-   auto x2 = v2.Read(use_dev);
+   const auto x1 = v1.Read(use_dev);
+   const auto x2 = v2.Read(use_dev);
    auto y = v.Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = x1[i] + x2[i]; });
 #else
@@ -425,8 +425,8 @@ void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
       const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
       const int N = v.size;
       // Note: get read access first, in case v is the same as v1/v2.
-      auto d_x = v1.Read(use_dev);
-      auto d_y = v2.Read(use_dev);
+      const auto d_x = v1.Read(use_dev);
+      const auto d_y = v2.Read(use_dev);
       auto d_z = v.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
@@ -464,8 +464,8 @@ void add(const real_t a, const Vector &x, const Vector &y, Vector &z)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.Read(use_dev);
-      auto yd = y.Read(use_dev);
+      const auto xd = x.Read(use_dev);
+      const auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
@@ -519,8 +519,8 @@ void add(const real_t a, const Vector &x,
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.Read(use_dev);
-      auto yd = y.Read(use_dev);
+      const auto xd = x.Read(use_dev);
+      const auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
@@ -549,8 +549,8 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
    const int N = x.size;
    // Note: get read access first, in case z is the same as x/y.
-   auto xd = x.Read(use_dev);
-   auto yd = y.Read(use_dev);
+   const auto xd = x.Read(use_dev);
+   const auto yd = y.Read(use_dev);
    auto zd = z.Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -588,8 +588,8 @@ void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.Read(use_dev);
-      auto yd = y.Read(use_dev);
+      const auto xd = x.Read(use_dev);
+      const auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
@@ -630,8 +630,8 @@ void Vector::median(const Vector &lo, const Vector &hi)
    const bool use_dev = UseDevice() || lo.UseDevice() || hi.UseDevice();
    const int N = size;
    // Note: get read access first, in case *this is the same as lo/hi.
-   auto l = lo.Read(use_dev);
-   auto h = hi.Read(use_dev);
+   const auto l = lo.Read(use_dev);
+   const auto h = hi.Read(use_dev);
    auto m = Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -651,9 +651,9 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
    const int n = dofs.Size();
    elemvect.SetSize(n);
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   const auto d_X = Read(use_dev);
+   const auto d_dofs = dofs.Read(use_dev);
    auto d_y = elemvect.Write(use_dev);
-   auto d_X = Read(use_dev);
-   auto d_dofs = dofs.Read(use_dev);
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof_i = d_dofs[i];
@@ -663,7 +663,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 
 void Vector::GetSubVector(const Array<int> &dofs, real_t *elem_data) const
 {
-   data.Read(MemoryClass::HOST, size);
+   HostRead();
    const int n = dofs.Size();
    for (int i = 0; i < n; i++)
    {
@@ -678,7 +678,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const real_t value)
    const int n = dofs.Size();
    // Use read+write access for *this - we only modify some of its entries
    auto d_X = ReadWrite(use_dev);
-   auto d_dofs = dofs.Read(use_dev);
+   const auto d_dofs = dofs.Read(use_dev);
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_dofs[i];
@@ -720,8 +720,8 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
    const int n = dofs.Size();
    // Use read+write access for X - we only modify some of its entries
    auto d_X = ReadWrite(use_dev);
-   auto d_y = elemvect.Read(use_dev);
-   auto d_dofs = dofs.Read(use_dev);
+   const auto d_y = elemvect.Read(use_dev);
+   const auto d_dofs = dofs.Read(use_dev);
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof_i = d_dofs[i];
@@ -739,7 +739,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 void Vector::SetSubVector(const Array<int> &dofs, real_t *elem_data)
 {
    // Use read+write access because we overwrite only part of the data.
-   data.ReadWrite(MemoryClass::HOST, size);
+   HostReadWrite();
    const int n = dofs.Size();
    for (int i = 0; i < n; i++)
    {
@@ -763,9 +763,9 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
-   auto d_y = elemvect.Read(use_dev);
+   const auto d_y = elemvect.Read(use_dev);
+   const auto d_dofs = dofs.Read(use_dev);
    auto d_X = ReadWrite(use_dev);
-   auto d_dofs = dofs.Read(use_dev);
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_dofs[i];
@@ -782,7 +782,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::AddElementVector(const Array<int> &dofs, real_t *elem_data)
 {
-   data.ReadWrite(MemoryClass::HOST, size);
+   HostReadWrite();
    const int n = dofs.Size();
    for (int i = 0; i < n; i++)
    {
@@ -807,9 +807,9 @@ void Vector::AddElementVector(const Array<int> &dofs, const real_t a,
 
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
+   const auto d_x = elemvect.Read(use_dev);
+   const auto d_dofs = dofs.Read(use_dev);
    auto d_y = ReadWrite(use_dev);
-   auto d_x = elemvect.Read(use_dev);
-   auto d_dofs = dofs.Read(use_dev);
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_dofs[i];
@@ -834,7 +834,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const real_t val)
                     Device::GetHostMemoryType());
    auto d_data = ReadWrite(use_dev);
    auto d_dofs_vals = dofs_vals.Write(use_dev);
-   auto d_dofs = dofs.Read(use_dev);
+   const auto d_dofs = dofs.Read(use_dev);
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { d_dofs_vals[i] = d_data[d_dofs[i]]; });
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { d_data[i] = val; });
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { d_data[d_dofs[i]] = d_dofs_vals[i]; });
@@ -843,7 +843,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const real_t val)
 void Vector::Print(std::ostream &os, int width) const
 {
    if (!size) { return; }
-   data.Read(MemoryClass::HOST, size);
+   HostRead();
    for (int i = 0; 1; )
    {
       os << ZeroSubnormal(data[i]);
@@ -869,7 +869,7 @@ void Vector::Print(adios2stream &os,
                    const std::string& variable_name) const
 {
    if (!size) { return; }
-   data.Read(MemoryClass::HOST, size);
+   HostRead();
    os.engine.Put(variable_name, &data[0] );
 }
 #endif
@@ -927,10 +927,7 @@ void Vector::PrintHash(std::ostream &os) const
 
 void Vector::Randomize(int seed)
 {
-   if (seed == 0)
-   {
-      seed = (int)time(0);
-   }
+   if (seed == 0) { seed = (int)time(0); }
 
    srand((unsigned)seed);
 
@@ -946,20 +943,15 @@ real_t Vector::Norml2() const
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
-   if (size == 0)
-   {
-      return 0.0;
-   }
+   if (size == 0) { return 0.0; }
 
-   auto m_data = Read(UseDevice());
+   const auto m_data = Read(UseDevice());
    using value_type = DevicePair<real_t, real_t>;
    value_type res;
    res.first = 0;
    res.second = 0;
    // first compute sum (|m_data|/scale)^2
-   reduce(
-      size, res,
-      [=] MFEM_HOST_DEVICE(int i, value_type &r)
+   reduce(size, res, [=] MFEM_HOST_DEVICE(int i, value_type &r)
    {
       real_t n = fabs(m_data[i]);
       if (n > 0)
@@ -986,11 +978,12 @@ real_t Vector::Normlinf() const
 {
    if (size == 0) { return 0; }
 
-   auto m_data = Read(UseDevice());
    real_t res = 0;
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, fabs(m_data[i])); },
+   const auto m_data = Read(UseDevice());
+   reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+   {
+      r = fmax(r, fabs(m_data[i]));
+   },
    MaxReducer<real_t> {}, UseDevice(), vector_workspace());
    return res;
 }
@@ -999,11 +992,12 @@ real_t Vector::Norml1() const
 {
    if (size == 0) { return 0.0; }
 
-   auto m_data = Read(UseDevice());
    real_t res = 0;
-   reduce(
-      size, res,
-   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
+   const auto m_data = Read(UseDevice());
+   reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+   {
+      r += fabs(m_data[i]);
+   },
    SumReducer<real_t> {}, UseDevice(), vector_workspace());
    return res;
 }
@@ -1012,33 +1006,24 @@ real_t Vector::Normlp(real_t p) const
 {
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
 
-   if (p == 1.0)
-   {
-      return Norml1();
-   }
-   if (p == 2.0)
-   {
-      return Norml2();
-   }
+   if (p == 1.0) { return Norml1(); }
+
+   if (p == 2.0) { return Norml2(); }
+
    if (p < infinity())
    {
       // Scale entries of Vector on the fly, using algorithms from
       // std::hypot() and LAPACK's drm2. This scaling ensures that the
       // argument of each call to std::pow is <= 1 to avoid overflow.
-      if (size == 0)
-      {
-         return 0.0;
-      }
+      if (size == 0) { return 0.0; }
 
-      auto m_data = Read(UseDevice());
       using value_type = DevicePair<real_t, real_t>;
       value_type res;
       res.first = 0;
       res.second = 0;
+      const auto m_data = Read(UseDevice());
       // first compute sum (|m_data|/scale)^p
-      reduce(
-         size, res,
-         [=] MFEM_HOST_DEVICE(int i, value_type &r)
+      reduce(size, res, [=] MFEM_HOST_DEVICE(int i, value_type &r)
       {
          real_t n = fabs(m_data[i]);
          if (n > 0)
@@ -1067,19 +1052,20 @@ real_t Vector::Normlp(real_t p) const
 real_t Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+
    if (size == 0) { return 0.0; }
+
+   const bool use_dev = UseDevice() || v.UseDevice();
+   const auto m_data = Read(use_dev), v_data = v.Read(use_dev);
 
    // If OCCA is enabled, it handles all selected backends
 #ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
+   if (use_dev && DeviceCanUseOcca())
    {
       return occa::linalg::dot<real_t, real_t, real_t>(
                 OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
    }
 #endif
-
-   const bool use_dev = UseDevice() || v.UseDevice();
-   const auto m_data = Read(use_dev), v_data = v.Read(use_dev);
 
    const auto compute_dot = [&]()
    {
@@ -1097,7 +1083,7 @@ real_t Vector::operator*(const Vector &v) const
 
    // Special path for OpenMP
 #ifdef MFEM_USE_OPENMP
-   if (Device::Allows(Backend::OMP_MASK))
+   if (use_dev && Device::Allows(Backend::OMP_MASK))
    {
       // By default, use a deterministic way of computing the dot product
 #define MFEM_USE_OPENMP_DETERMINISTIC_DOT
@@ -1142,15 +1128,15 @@ real_t Vector::Min() const
 {
    if (size == 0) { return infinity(); }
 
+   const auto use_dev = UseDevice();
+   const auto m_data = Read(use_dev);
+
 #ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
+   if (use_dev && DeviceCanUseOcca())
    {
       return occa::linalg::min<real_t,real_t>(OccaMemoryRead(data, size));
    }
 #endif
-
-   const auto use_dev = UseDevice();
-   const auto m_data = Read(use_dev);
 
    const auto compute_min = [&]()
    {
@@ -1168,7 +1154,7 @@ real_t Vector::Min() const
 
    // Special path for OpenMP
 #ifdef MFEM_USE_OPENMP
-   if (Device::Allows(Backend::OMP_MASK))
+   if (use_dev && Device::Allows(Backend::OMP_MASK))
    {
       real_t minimum = m_data[0];
       #pragma omp parallel for reduction(min:minimum)
@@ -1188,15 +1174,15 @@ real_t Vector::Max() const
 {
    if (size == 0) { return -infinity(); }
 
+   const auto use_dev = UseDevice();
+   const auto m_data = Read(use_dev);
+
 #ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
+   if (use_dev && DeviceCanUseOcca())
    {
       return occa::linalg::max<real_t, real_t>(OccaMemoryRead(data, size));
    }
 #endif
-
-   const auto use_dev = UseDevice();
-   const auto m_data = Read(use_dev);
 
    const auto compute_max = [&]()
    {
@@ -1214,7 +1200,7 @@ real_t Vector::Max() const
 
    // Special path for OpenMP
 #ifdef MFEM_USE_OPENMP
-   if (Device::Allows(Backend::OMP_MASK))
+   if (use_dev && Device::Allows(Backend::OMP_MASK))
    {
       real_t maximum = m_data[0];
       #pragma omp parallel for reduction(max : maximum)
@@ -1234,8 +1220,8 @@ real_t Vector::Sum() const
 {
    if (size == 0) { return 0.0; }
 
-   const auto m_data = Read(UseDevice());
    real_t res = 0;
+   const auto m_data = Read(UseDevice());
    reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
    {
       r += m_data[i];
