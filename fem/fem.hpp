@@ -51,6 +51,8 @@
 #include "hyperbolic.hpp"
 #include "particle_set.hpp"
 
+#include "dfem/doperator.hpp"
+
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
 #include "pgridfunc.hpp"
