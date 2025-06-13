@@ -45,6 +45,9 @@ public:
 
    template <Type Ord>
    static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
+
+   /// Reorder Vector \p v from its current ordering \p in_ord to \p out_ord
+   static void Reorder(Vector &v, int vdim, Type in_ord, Type out_ord);
 };
 
 /// @brief Type describing possible layouts for Q-vectors.
