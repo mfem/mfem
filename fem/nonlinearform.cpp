@@ -433,7 +433,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
-Operator &NonlinearForm::GetGradient(const Vector &x) const
+Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
 {
    if (ext)
    {
@@ -639,6 +639,8 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          }
       }
    }
+
+   if (!finalize) { return *Grad; }
 
    if (!Grad->Finalized())
    {
@@ -1220,7 +1222,8 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
+void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx,
+                                                bool finalize) const
 {
    const int skip_zeros = 0;
    Array<Array<int> *> vdofs(fes.Size());
@@ -1480,7 +1483,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   if (!Grads(0,0)->Finalized())
+   if (finalize && !Grads(0,0)->Finalized())
    {
       for (int i=0; i<fes.Size(); ++i)
       {
