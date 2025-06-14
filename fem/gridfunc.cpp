@@ -2374,7 +2374,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
             fes->GetElementVDofs(i, vdofs, doftrans);
             vals.SetSize(vdofs.Size());
             fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
-            doftrans.TransformPrimal(vals);
+            if (doftrans.GetDofTransformation()) { doftrans.TransformPrimal(vals); }
             SetSubVector(vdofs, vals);
          }
       }
@@ -2391,7 +2391,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
             fes->GetFE(i)->Project(coeff,
                                    *fes->GetElementTransformation(i),
                                    vals);
-            doftrans.TransformPrimal(vals);
+            if (doftrans.GetDofTransformation()) { doftrans.TransformPrimal(vals); }
 
             // Remove undefined dofs
             // The knot location (either Botella, Demko or Greville point)
