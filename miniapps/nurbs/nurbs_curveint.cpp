@@ -15,8 +15,8 @@
 //
 // Compile with: make nurbs_curveint
 //
-// Sample runs:  ./nurbs_curveint -uw -n 9
-//               ./nurbs_curveint -nw -n 9
+// Sample runs:  nurbs_curveint -uw -n 9
+//               nurbs_curveint -nw -n 9
 //
 // Description:  This example code demonstrates the use of MFEM to interpolate a
 //               curve in a NURBS patch. We first define a square shaped NURBS
