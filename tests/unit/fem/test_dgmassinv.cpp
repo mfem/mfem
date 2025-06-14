@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("DG Mass Inverse", "[CUDA]")
+TEST_CASE("DG Mass Inverse", "[GPU]")
 {
    auto mesh_filename = GENERATE(
                            "../../data/inline-segment.mesh",

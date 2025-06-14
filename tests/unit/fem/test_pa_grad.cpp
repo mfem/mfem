@@ -113,7 +113,7 @@ real_t compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    return error;
 }
 
-TEST_CASE("PAGradient", "[CUDA]")
+TEST_CASE("PAGradient", "[GPU]")
 {
    auto transpose = GENERATE(true, false);
    auto order = GENERATE(1, 2, 3, 4);

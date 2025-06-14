@@ -40,6 +40,10 @@ API changes:
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
 
+Miscellaneous
+-------------
+- Added the "gpu", "raja-gpu", and "ceed-gpu" backend shortcuts which automatically
+  select between CUDA or HIP.
 
 Version 4.8, released on Apr 9, 2025
 ====================================
