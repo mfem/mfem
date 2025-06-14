@@ -566,6 +566,8 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
 
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
+   MFEM_VERIFY(VectorDim() == 1,
+               "Cannot project scalar coefficient onto vector ParGridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
@@ -588,6 +590,7 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    // local maximal element attribute for each dof
    Array<int> ldof_attr;
 
@@ -632,6 +635,9 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 
 void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project scalar coefficient onto a vector ParGridFunction");
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
 
@@ -656,6 +662,8 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
 
    // Number of zones that contain a given dof.
    Array<int> zones_per_vdof;
@@ -729,9 +737,19 @@ void ParGridFunction::ProjectBdrCoefficient(
 #endif
 }
 
+void ParGridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                            const Array<int> &attr)
+{
+   MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
+               "vcoeff vdim != BdrVectorDim()");
+   ProjectBdrCoefficient(NULL, &vcoeff, attr);
+}
+
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                                    const Array<int> &bdr_attr)
 {
+   MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
+               "vcoeff vdim != BdrVectorDim()+1");
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
 
