@@ -2361,46 +2361,37 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
-   DofTransformation * doftrans = NULL;
+   DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector vals;
 
    if (delta_c == NULL)
    {
       if (fes->GetNURBSext() == NULL)
       {
-         Array<int> vdofs;
-         Vector vals;
-
          for (int i = 0; i < fes->GetNE(); i++)
          {
-            doftrans = fes->GetElementVDofs(i, vdofs);
+            fes->GetElementVDofs(i, vdofs, doftrans);
             vals.SetSize(vdofs.Size());
             fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
-            if (doftrans)
-            {
-               doftrans->TransformPrimal(vals);
-            }
+            doftrans.TransformPrimal(vals);
             SetSubVector(vdofs, vals);
          }
       }
       else
       {
-         Array<int> vdofs;
-         Vector vals;
          constexpr real_t signal = std::numeric_limits<real_t>::min();
 
          for (int i = 0; i < fes->GetNE(); i++)
          {
-            doftrans = fes->GetElementVDofs(i, vdofs);
+            fes->GetElementVDofs(i, vdofs, doftrans);
             vals.SetSize(vdofs.Size());
             vals = signal;
 
             fes->GetFE(i)->Project(coeff,
                                    *fes->GetElementTransformation(i),
                                    vals);
-            if (doftrans)
-            {
-               doftrans->TransformPrimal(vals);
-            }
+            doftrans.TransformPrimal(vals);
 
             // Remove undefined dofs
             // The knot location (either Botella, Demko or Greville point)
