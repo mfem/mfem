@@ -79,7 +79,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       {
          const int face_idx(J[j]);
          if (interior_face_marker[face_idx]) // we check every face index usually twice
-                                        // can this be made more efficient?
+                                             // can this be made more efficient?
          {
             nJ[counter++] = face_idx;
          }
@@ -124,22 +124,22 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       }
    }
 
+   /*
    Array<int> arrI(interior_faceI, num_elements+1);
    Array<int> arrJ(interior_faceJ, interior_faceI[num_elements]);
 
    arrI.Print(out, arrI.Size());
    arrJ.Print(out, arrJ.Size());
+   */
 
    for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
    {
       mVarf->ComputeElementMatrix(elem_idx, saved_hdiv_matrices[elem_idx]);
-      saved_hdiv_matrices[elem_idx].Threshold(eps *
-                                                   saved_hdiv_matrices[elem_idx].MaxMaxNorm());
+      saved_hdiv_matrices[elem_idx].Threshold(eps * saved_hdiv_matrices[elem_idx].MaxMaxNorm());
       saved_hdiv_matrices[elem_idx].Invert(); // overwrite saved_hdiv_matrices[elem_idx]
 
       bVarf->ComputeElementMatrix(elem_idx, saved_mixed_matrices[elem_idx]);
-      saved_mixed_matrices[elem_idx].Threshold(eps *
-                                                    saved_mixed_matrices[elem_idx].MaxMaxNorm());
+      saved_mixed_matrices[elem_idx].Threshold(eps * saved_mixed_matrices[elem_idx].MaxMaxNorm());
 
       DenseMatrix product_matrix(saved_mixed_matrices[elem_idx].Height(),
                                  saved_hdiv_matrices[elem_idx].Width());
