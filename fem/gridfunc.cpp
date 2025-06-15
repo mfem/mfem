@@ -2312,14 +2312,13 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector vals;
 
    if (delta_c == NULL)
    {
       if (fes->GetNURBSext() == NULL)
       {
-         Array<int> vdofs;
-         Vector vals;
-
          for (int i = 0; i < fes->GetNE(); i++)
          {
             fes->GetElementVDofs(i, vdofs, doftrans);
@@ -2331,23 +2330,18 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
       }
       else
       {
-         Array<int> vdofs;
-         Vector vals;
          constexpr real_t signal = std::numeric_limits<real_t>::min();
 
          for (int i = 0; i < fes->GetNE(); i++)
          {
-            doftrans = fes->GetElementVDofs(i, vdofs);
+            fes->GetElementVDofs(i, vdofs, doftrans);
             vals.SetSize(vdofs.Size());
             vals = signal;
 
             fes->GetFE(i)->Project(coeff,
                                    *fes->GetElementTransformation(i),
                                    vals);
-            if (doftrans)
-            {
-               doftrans->TransformPrimal(vals);
-            }
+            if (doftrans.GetDofTransformation()) { doftrans.TransformPrimal(vals); }
 
             // Remove undefined dofs
             // The knot location (either Botella, Demko or Greville point)
@@ -2436,14 +2430,13 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
+   Array<int> vdofs;
+   Vector vals;
    DofTransformation doftrans;
+
    if (fes->GetNURBSext() == NULL)
    {
-      int i;
-      Array<int> vdofs;
-      Vector vals;
-
-      for (i = 0; i < fes->GetNE(); i++)
+      for (int i = 0; i < fes->GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs, doftrans);
          vals.SetSize(vdofs.Size());
@@ -2457,13 +2450,13 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
       constexpr real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         doftrans = fes->GetElementVDofs(i, vdofs);
+         fes->GetElementVDofs(i, vdofs, doftrans);
          vals.SetSize(vdofs.Size());
          vals = signal;
          fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-         if (doftrans)
+         if (doftrans.GetDofTransformation())
          {
-            doftrans->TransformPrimal(vals);
+            doftrans.TransformPrimal(vals);
          }
          // Remove undefined dofs
          // The knot location (either Botella, Demko or Greville point)
