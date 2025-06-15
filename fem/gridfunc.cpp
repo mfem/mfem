@@ -2482,18 +2482,18 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
    Array<int> vdofs;
    Vector vals;
-   DofTransformation * doftrans = NULL;
+   DofTransformation doftrans;
 
    if (fes->GetNURBSext() == NULL)
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         doftrans = fes->GetElementVDofs(i, vdofs);
+         fes->GetElementVDofs(i, vdofs, doftrans);
          vals.SetSize(vdofs.Size());
          fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-         if (doftrans)
+         if (doftrans.GetDofTransformation())
          {
-            doftrans->TransformPrimal(vals);
+            doftrans.TransformPrimal(vals);
          }
          SetSubVector(vdofs, vals);
       }
@@ -2503,13 +2503,13 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
       constexpr real_t signal = std::numeric_limits<real_t>::min();
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         doftrans = fes->GetElementVDofs(i, vdofs);
+         fes->GetElementVDofs(i, vdofs, doftrans);
          vals.SetSize(vdofs.Size());
          vals = signal;
          fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-         if (doftrans)
+         if (doftrans.GetDofTransformation())
          {
-            doftrans->TransformPrimal(vals);
+            doftrans.TransformPrimal(vals);
          }
          // Remove undefined dofs
          // The knot location (either Botella, Demko or Greville point)
