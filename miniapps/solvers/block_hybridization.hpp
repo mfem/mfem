@@ -29,7 +29,7 @@ public:
                             ParMixedBilinearForm *bVarf,
                             IterSolveParameters param);
    ~BlockHybridizationSolver();
-   void Mult(const Vector &x, Vector&y) const override { }
+   void Mult(const Vector &x, Vector&y) const override;
    void SetOperator(const Operator &op) override { }
    int GetNumIterations() const override { return solver_.GetNumIterations(); }
 };

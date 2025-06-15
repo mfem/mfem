@@ -303,5 +303,30 @@ BlockHybridizationSolver::~BlockHybridizationSolver()
    delete multiplier_space;
 }
 
+void BlockHybridizationSolver::Mult(const Vector &y, Vector &x) const
+{
+   /*
+       cout << "Entering Mult: " << endl;
+      // const SparseMatrix *R(hdiv_space->Dof_TrueDof_Matrix());
+      const SparseMatrix *R(hdiv_space->GetRestrictionMatrix());
+      const int myid = Mpi::WorldRank();
+      const int height = R->Height();
+      for (int row = 0; row < height; ++row)
+      {
+         const int ncols = R->RowSize(row);
+         const int *cols = R->GetRowColumns(row);
+         const real_t *vals = R->GetRowEntries(row);
+         for (int l = 0; l < ncols; ++l)
+         {
+            cout << myid << " (" << row << "," << cols[l] << "," << vals[l] << ")";
+            if (ncols-1 == l)
+               cout << "\n";
+            else
+               cout << ", ";
+         }
+      }
+   */
+}
+
 } // namespace blocksolvers
 } // namespace mfem
