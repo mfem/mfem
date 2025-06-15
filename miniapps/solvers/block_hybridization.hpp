@@ -16,9 +16,9 @@ class BlockHybridizationSolver : public DarcySolver
 
    CGSolver solver_;
 
-   DenseMatrix *saved_hdiv_matrices;
-   DenseMatrix *saved_mixed_matrices;
-   DenseMatrix *saved_l2_matrices;
+   real_t *hdiv_data;
+   real_t *l2_data;
+   real_t *mixed_data;
    Array<int> *interior_indices;
 
    HypreParMatrix *pH;
