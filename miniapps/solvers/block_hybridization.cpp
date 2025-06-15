@@ -61,6 +61,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(
 
    interior_indices = new Array<int>[num_elements];
 
+   // change the table name or use switch case?
    Table element_to_facet_table;
    if (2 == dim)
    {
