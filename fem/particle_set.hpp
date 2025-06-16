@@ -34,11 +34,11 @@ struct Particle
 
 // -----------------------------------------------------------------------------------------------------
 // Define Base ParticleSet
-template<typename T, Ordering::Type VFieldOrdering>
-class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T,...> requires that T is a Particle."); };
+template<typename T>
+class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T> requires that T is a Particle."); };
 
-template<int Dim, int VFields, int SFields, Ordering::Type VFieldOrdering>
-class ParticleSet<Particle<Dim,VFields,SFields>, VFieldOrdering>
+template<int Dim, int VFields, int SFields>
+class ParticleSet<Particle<Dim,VFields,SFields>>
 {
 
 protected:
@@ -47,19 +47,15 @@ protected:
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
-   BlockVector v_coords; /// Vector reference to all particle coordinates ordered \ref VFieldOrdering, for easy input to FindPointsGSLib
-   std::array<BlockVector, VFields> v_vector_fields; /// Vector reference to all vector fields ordered \ref VFieldOrdering, for user usage
 
-   virtual void SyncVCoords() = 0;
-   virtual void SyncVVectorField(int v) = 0;
+   void UpdateFromVVector(const Vector &new_field, std::function<real_t&(int,int)> getRef, Ordering::Type ordering);
+
 public:
    ParticleSet() = default;
 
 #ifdef MFEM_USE_MPI
    explicit ParticleSet(MPI_Comm comm_) : comm(comm_) {};
 #endif // MFEM_USE_MPI
-
-   static constexpr Ordering::Type GetOrdering() const { return VFieldOrdering; };
 
    virtual void Reserve(int res) = 0;
 
@@ -72,17 +68,40 @@ public:
    /// Remove particle(s) specified by \p list of particle indices.
    virtual void RemoveParticles(const Array<int> &list) = 0;
 
-   /// Get particle \p i data
+   /// Get copy of particle \p i data
    virtual void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const = 0;
 
-   /// Get const reference to the internal particle coordinates Vector.
-   const Vector& GetParticleCoords() { SyncVCoords(); return v_coords; }; // TODO: make this const ...
+   /// Get reference to particle \p i 's position component \p comp
+   virtual real_t& GetCoord(int i, int comp) = 0;
 
-   /// Get const reference to the internal vector field \p v Vector
-   const Vector& GetVectorField(int v) { SyncVVectorField(v); return v_vector_fields[v]; }; // TODO: make this const ...
+   /// Get reference to particle \p i 's \p v vector component \p comp
+   virtual real_t& GetVector(int v, int i, int comp) = 0;
 
-   /// Update particle positions using given new coordinates \p new_coords , with ordering \ref VFieldOrdering.
-   virtual void UpdateParticlePositions(const Vector &new_coords) = 0;
+   /// Get reference to particle \p i 's \p S scalar
+   virtual real_t& GetScalar(int s, int i) = 0;
+
+   /// Update all particle coordinates
+   void UpdateCoords(const Vector &new_coords, Ordering::Type ordering)
+   {
+      UpdateFromVVector(new_coords,
+         [&](int i, int comp) -> real_t& { return GetCoord(i, comp); },
+         ordering);
+   };
+
+   /// Update all particles' \p v vector field
+   void UpdateVF(int v, const Vector &new_vf, Ordering::Type ordering)
+   {
+      UpdateFromVVector(new_vf, 
+         [&](int i, int comp) -> real_t& { return GetVector(v, i, comp); }, 
+         ordering);
+   };
+
+   /// Update all particles' \p s scalar field
+   void UpdateSF(int s, const Vector &new_sf)
+   {
+      for (int i = 0; i < GetNP(); i++)
+         GetScalar(s,i) = new_sf[i];
+   }
 
 #ifdef MFEM_USE_MPI
    /// Redistribute particles onto ranks specified in \p rank_list .
@@ -94,33 +113,57 @@ public:
 
 };
 
+template<int Dim, int VFields, int SFields>
+void ParticleSet<Particle<Dim,VFields,SFields>>::UpdateFromVVector(const Vector &new_field, std::function<real_t&(int,int)> getRef, Ordering::Type ordering)
+{
+   // Copy data over
+   if (ordering == Ordering::byNODES)
+   {
+      for (int d = 0; d < Dim; d++)
+      {
+         for (int i = 0; i < GetNP(); i++)
+         {
+            getRef(i,d) = new_field[i+d*GetNP()];
+         }
+      }
+   }
+   else // byVDIM
+   {
+      for (int i = 0; i < GetNP(); i++)
+      {
+         for (int d = 0; d < Dim; d++)
+         {
+            getRef(i,d) = new_field[d+i*Dim];
+         }
+      }
+   }
+}
+
+
+
+
 // -----------------------------------------------------------------------------------------------------
 /// Define Struct-of-Arrays ParticleSet
 
 template<typename T>
-class SoAParticleSet : public ParticleSet<T, Ordering::byNODES> {};
+class SoAParticleSet : public ParticleSet<T> {};
 
 template<int Dim, int VFields, int SFields>
 class SoAParticleSet<Particle<Dim, VFields, SFields>> : public
-                                                      ParticleSet<Particle<Dim,VFields,SFields>, Ordering::byVDIM>
+                                                      ParticleSet<Particle<Dim,VFields,SFields>>
 {
 protected:
 
    std::array<std::vector<real_t>, Dim> coords; /// Particle coordinate vectors in each spatial dimension
    std::array<std::array<std::vector<real_t>, Dim>, VFields> vector_fields; /// Particle vector fields
    std::array<std::vector<real_t>, SFields> scalar_fields; /// Particle scalar fields
-
-
-   void SyncBlockVector(const std::array<std::vector<real_t>, Dim> &actual, BlockVector &bv);
-   void SyncVCoords() override;
-   void SyncVVectorField(int v) override;
-
+   
 public:
    using ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet;
    
    void Reserve(int res) override;
 
-   int GetNP() const override;
+   int GetNP() const override { coords[0].size(); }
 
    void AddParticle(const Particle<Dim, VFields, SFields> &p) override;
 
@@ -128,7 +171,28 @@ public:
 
    void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const override;
 
-   void UpdateParticlePositions(const Vector &new_coords) override;
+   real_t& GetCoord(int i, int comp) override { return coords[comp][i]; }
+
+   real_t& GetVector(int v, int i, int comp) override { return vector_fields[v][comp][i]; }
+
+   real_t& GetScalar(int s, int i) override { return scalar_fields[s][i]; }
+
+
+
+   // Bonus functions we can leverage with SoA:
+
+   const real_t* GetParticleCoords(int comp) const { return coords[comp].data(); }
+
+   const real_t* GetVectorField(int v, int comp) const { return vector_fields[v][comp].data(); }
+
+   const real_t* GetScalarField(int s) const { return scalar_fields[s].data(); }
+
+   real_t* GetParticleCoords(int comp) { return coords[comp].data(); }
+
+   real_t* GetVectorField(int v, int comp) { return vector_fields[v][comp].data(); }
+
+   real_t* GetScalarField(int s) { return scalar_fields[s].data(); }
+
 };
 
 // -----------------------------------------------------------------------------------------------------
@@ -139,57 +203,42 @@ class AoSParticleSet : public ParticleSet<T> {};
 
 template<int Dim, int VFields, int SFields>
 class AoSParticleSet<Particle<Dim,VFields,SFields>> : public
-                                                    ParticleSet<Particle<Dim, VFields, SFields>, Ordering::byVDIM>
+                                                    ParticleSet<Particle<Dim, VFields, SFields>>
 {
 protected:
 
    std::vector<Particle<Dim, VFields, SFields>> particles;
 
-   void SyncVCoords() override;
-   void SyncVVectorField(int v) override;
-
 public:
    using ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet;
 
-   void Reserve(int res) override;
+   void Reserve(int res) override { particles.reserve(res); }
 
-   int GetNP() const override;
+   int GetNP() const override { return particles.size(); }
 
-   void AddParticle(const Particle<Dim, VFields, SFields> &p) override;
+   void AddParticle(const Particle<Dim, VFields, SFields> &p) override { particles.push_back(p); }
 
    void RemoveParticles(const Array<int> &list) override;
 
    void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const override;
 
-   void UpdateParticlePositions(const Vector &new_coords) override;
+   real_t& GetCoord(int i, int comp) override { return particles[i].coords[comp]; }
+
+   real_t& GetVector(int v, int i, int comp) override { return particles[i].vector_fields[v][comp]; }
+
+   real_t& GetScalar(int s, int i) override { return particles[i].scalar_fields[s]; }
+
+
+
+   // Bonus functions we can leverage with AoS:
+
+   const Particle<Dim, VFields, SFields>* GetParticles() const { return particles.data(); };
+
+   Particle<Dim, VFields, SFields>* GetParticles() { return particles.data(); };
 };
 
 // -----------------------------------------------------------------------------------------------------
 // Struct-of-Arrays implementation:
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::SyncBlockVector(const std::array<std::vector<real_t>, Dim> &actual, BlockVector &bv)
-{
-   if (GetNP()*Dim != bv.Size()) // Need to sync if size of bv is inconsistent with number of particles
-   {
-      mfem::Array<int> bOffsets(Dim);
-      for (int d = 0; d < Dim; d++)
-      {
-         bOffsets[d] = d*GetNP();
-      }
-      bv = BlockVector(bOffsets);
-      for (int d = 0; d < Dim; d++)
-      {
-         bv.GetBlock(d).SetDataAndSize(const_cast<real_t*>(actual[d].data()), actual[d].size());   // !! Just set ptr to data !!
-      }
-      // ^^ const cast because block vectors in class should NOT change actual
-   }
-}
-
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords() { SyncBlockVector(coords, this->v_coords); }
-
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::SyncVVectorField(int v) { SyncBlockVector(vector_fields[v], this->v_vector_fields[v]); }
 
 template<int Dim, int VFields, int SFields>
 void SoAParticleSet<Particle<Dim, VFields, SFields>>::Reserve(int res)
@@ -209,9 +258,6 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::Reserve(int res)
    }
 
 }
-
-template<int Dim, int VFields, int SFields>
-int SoAParticleSet<Particle<Dim, VFields, SFields>>::GetNP() const { return coords[0].size(); }
 
 template<int Dim, int VFields, int SFields>
 void SoAParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle<Dim, VFields, SFields> &p)
@@ -304,80 +350,9 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i,
    }
 }
 
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::UpdateParticlePositions(
-                                                     const Vector &new_coords)
-{
-   // Copy data over
-   // !! (inner loop well-suited for OpenMP ? cache hits on CPU? (if it matters)) !!
-   for (int d = 0; d < Dim; d++)
-   {
-      for (int i = 0; i < GetNP(); i++)
-      {
-         coords[d][i] = new_coords[i+d*GetNP()];
-      }
-   }
-}
-
 
 // -----------------------------------------------------------------------------------------------------
 // Array-of-Structs implementation:
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::SyncVCoords()
-{
-   if (GetNP()*Dim != this->v_coords.Size()) // Re-allocate if size of v_coords is inconsistent with number of particles
-   {
-      mfem::Array<int> bOffsets(GetNP());
-      for (int i = 0; i < GetNP(); i++)
-      {
-         bOffsets[i] = i*Dim;
-      }
-      this->v_coords = BlockVector(bOffsets);
-
-      // !! Loop over all particles + store references to each particles' coords !!
-      for (int i = 0; i < GetNP(); i++)
-      {
-         this->v_coords.GetBlock(i).SetDataAndSize(particles[i].coords, Dim);
-      }
-   }
-}
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::SyncVVectorField(int v)
-{
-   if (GetNP()*Dim != this->v_vector_fields[v].Size()) // Re-allocate if size of v_vector_fields is inconsistent with number of particles
-   {
-      mfem::Array<int> bOffsets(GetNP());
-      for (int i = 0; i < GetNP(); i++)
-      {
-         bOffsets[i] = i*Dim;
-      }
-      this->v_vector_fields = BlockVector(bOffsets);
-
-      // !! Loop over all particles + store references to each particles' coords !!
-      for (int i = 0; i < GetNP(); i++)
-      {
-         this->v_vector_fields.GetBlock(i).SetDataAndSize(particles[i].coords, Dim);
-      }
-   }
-}
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::Reserve(int res)
-{  
-   particles.reserve(res);
-}
-
-template<int Dim, int VFields, int SFields>
-int AoSParticleSet<Particle<Dim, VFields, SFields>>::GetNP() const { return particles.size(); }
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle<Dim, VFields, SFields> &p)
-{
-   // !! Add data to single array !!
-   particles.push_back(p);
-}
 
 template<int Dim, int VFields, int SFields>
 void AoSParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Array<int> &list)
@@ -416,18 +391,6 @@ void AoSParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i, Particl
    // !! Get data from single array !!
    Particle<Dim, VFields, SFields> p_copy = particles[i];
    p = std::move(p_copy);
-}
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::UpdateParticlePositions(const Vector &new_coords)
-{
-   for (int i = 0; i < GetNP(); i++)
-   {
-      for (int d = 0; d < Dim; d++)
-      {
-         particles[i].coords[d] = new_coords[d+i*GetNP()];
-      }
-   }
 }
 
 } // namespace mfem
