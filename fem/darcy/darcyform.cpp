@@ -30,6 +30,8 @@ void DarcyForm::UpdateOffsetsAndSize()
    offsets.PartialSum();
 
    width = height = offsets.Last();
+
+   if (block_b) { block_b->Update(offsets); }
 }
 
 BilinearForm* DarcyForm::GetFluxMassForm()
@@ -70,6 +72,28 @@ BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm()
       Mnl.reset(new BlockNonlinearForm(fes));
    }
    return Mnl.get();
+}
+
+LinearForm *DarcyForm::GetFluxRHS()
+{
+   if (!b_u)
+   {
+      if (!block_b) { block_b.reset(new BlockVector(offsets)); }
+      b_u.reset(new LinearForm());
+      b_u->MakeRef(fes_u, block_b->GetBlock(0), 0);
+   }
+   return b_u.get();
+}
+
+LinearForm *DarcyForm::GetPotentialRHS()
+{
+   if (!b_p)
+   {
+      if (!block_b) { block_b.reset(new BlockVector(offsets)); }
+      b_p.reset(new LinearForm());
+      b_p->MakeRef(fes_p, block_b->GetBlock(1), 0);
+   }
+   return b_p.get();
 }
 
 void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
@@ -468,6 +492,18 @@ void DarcyForm::Assemble(int skip_zeros)
    {
       Mnl_p->Setup();
    }
+
+   if (b_u)
+   {
+      b_u->Assemble();
+      b_u->SyncAliasMemory(*block_b);
+   }
+
+   if (b_p)
+   {
+      b_p->Assemble();
+      b_p->SyncAliasMemory(*block_b);
+   }
 }
 
 void DarcyForm::Finalize(int skip_zeros)
@@ -636,6 +672,15 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
    }
 }
 
+void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                                 BlockVector &x, OperatorHandle &A,
+                                 Vector &X, Vector &B, int copy_interior)
+{
+   if (!block_b) { block_b.reset(new BlockVector(offsets)); *block_b = 0.; }
+
+   FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X, B, copy_interior);
+}
+
 void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
                                  OperatorHandle &A)
 {
@@ -740,6 +785,13 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
          M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
       }
    }
+}
+
+void DarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
+{
+   MFEM_ASSERT(block_b, "RHS does not exist");
+
+   RecoverFEMSolution(X, *block_b, x);
 }
 
 void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
@@ -899,6 +951,8 @@ void DarcyForm::Update()
    if (Mnl_p) { Mnl_p->Update(); }
    if (B) { B->Update(); }
    if (Mnl) { Mnl->Update(); }
+   if (b_u) { b_u->Update(fes_u, block_b->GetBlock(0), 0); }
+   if (b_p) { b_p->Update(fes_p, block_b->GetBlock(1), 0); }
 
    opBt.Clear();
 

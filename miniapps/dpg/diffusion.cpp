@@ -256,7 +256,6 @@ int main(int argc, char *argv[])
    DarcyForm * a_darcy{};
    BilinearForm *a_sigma{}, *a_u{};
    MixedBilinearForm *a_div{};
-   BlockVector rhs;
    LinearForm *b_sigma{}, *b_u{};
 
    if (disc == discret_type::DPG)
@@ -337,10 +336,7 @@ int main(int argc, char *argv[])
       }
 
       //RHS
-      rhs.Update(a_darcy->GetOffsets());
-
-      b_sigma = new LinearForm();
-      b_sigma->Update(sigma_fes, rhs.GetBlock(0), 0);
+      b_sigma = a_darcy->GetFluxRHS();
 
       if (prob == prob_type::manufactured)
       {
@@ -361,8 +357,8 @@ int main(int argc, char *argv[])
          }
       }
 
-      b_u = new LinearForm();
-      b_u->Update(u_fes, rhs.GetBlock(1), 0);
+      b_u = a_darcy->GetPotentialRHS();
+
       if (prob == prob_type::manufactured)
       {
          b_u->AddDomainIntegrator(new DomainLFIntegrator(negf));
@@ -425,16 +421,6 @@ int main(int argc, char *argv[])
                                          ess_tdof_list);
          }
 
-         rhs.Update(a_darcy->GetOffsets());
-
-         b_sigma->Update(sigma_fes, rhs.GetBlock(0), 0);
-         b_sigma->Assemble();
-         b_sigma->SyncAliasMemory(rhs);
-
-         b_u->Update(u_fes, rhs.GetBlock(1), 0);
-         b_u->Assemble();
-         b_u->SyncAliasMemory(rhs);
-
          a_darcy->Assemble();
       }
 
@@ -470,9 +456,9 @@ int main(int argc, char *argv[])
          a_dpg->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
       }
       else
-         a_darcy->FormLinearSystem(ess_tdof_list, x, rhs,
-                                   Ah, X, B);
-
+      {
+         a_darcy->FormLinearSystem(ess_tdof_list, x, Ah, X, B);
+      }
 
       // Construct preconditioners
 
@@ -556,7 +542,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         a_darcy->RecoverFEMSolution(X, rhs, x);
+         a_darcy->RecoverFEMSolution(X, x);
       }
 
       GridFunction u_gf, sigma_gf;
@@ -615,8 +601,6 @@ int main(int argc, char *argv[])
       else { a_darcy->Update(); }
    }
 
-   delete b_sigma;
-   delete b_u;
    delete a_dpg;
    delete a_darcy;
    delete tau_fec;

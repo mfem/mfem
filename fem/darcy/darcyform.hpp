@@ -34,12 +34,14 @@ protected:
    std::unique_ptr<NonlinearForm> Mnl_u, Mnl_p;
    std::unique_ptr<MixedBilinearForm> B;
    std::unique_ptr<BlockNonlinearForm> Mnl;
+   std::unique_ptr<LinearForm> b_u, b_p;
 
    mutable OperatorHandle opM_u, opM_p, opB, opBt, opM, opG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
 
+   std::unique_ptr<BlockVector> block_b;
    std::unique_ptr<BlockOperator> block_op;
    mutable std::unique_ptr<BlockOperator> block_grad;
 
@@ -93,6 +95,12 @@ public:
 
    BlockNonlinearForm *GetBlockNonlinearForm();
    const BlockNonlinearForm *GetBlockNonlinearForm() const { return Mnl.get(); }
+
+   LinearForm *GetFluxRHS();
+   const LinearForm *GetFluxRHS() const { return b_u.get(); }
+
+   LinearForm *GetPotentialRHS();
+   const LinearForm *GetPotentialRHS() const { return b_p.get(); }
 
    /// Set the desired assembly level.
    /** Valid choices are:
@@ -169,6 +177,10 @@ public:
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
 
+   virtual void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                                 BlockVector &x, OperatorHandle &A, Vector &X, Vector &B,
+                                 int copy_interior = 0);
+
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** Version of the method FormLinearSystem() where the system matrix is
@@ -184,6 +196,18 @@ public:
    {
       OperatorHandle Ah;
       FormLinearSystem(ess_flux_tdof_list, x, b, Ah, X, B, copy_interior);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   template <typename OpType>
+   void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                         Vector &x, OpType &A, Vector &X, Vector &B,
+                         int copy_interior = 0)
+   {
+      OperatorHandle Ah;
+      FormLinearSystem(ess_flux_tdof_list, x, Ah, X, B, copy_interior);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
@@ -219,6 +243,8 @@ public:
 
    virtual void RecoverFEMSolution(const Vector &X, const BlockVector &b,
                                    BlockVector &x);
+
+   virtual void RecoverFEMSolution(const Vector &X, BlockVector &x);
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
