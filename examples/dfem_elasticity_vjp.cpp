@@ -27,30 +27,8 @@ struct StressQFunction
    Material material;
 };
 
-
 template <int dim = DIMENSION>
-struct StVenantKirchhoff
-{
-   MFEM_HOST_DEVICE inline
-   auto operator()(
-      const tensor<real_t, dim, dim> &dudX) const
-   {
-      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
-      const real_t mu = 0.5 * E / (1 + nu);
-      const real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
-
-      // St. Venant-Kirchhoff model
-      auto eps = 0.5 * (dudX + transpose(dudX) + dot(transpose(dudX), dudX));
-      auto S = lambda * tr(eps) * I + 2.0 * mu * eps;
-      auto F = dudX + I;
-      return F * S;
-   }
-
-   double E, nu;
-};
-
-template <int dim = DIMENSION>
-struct ParameterizedStVenantKirchhoff
+struct ParameterizedNeoHookean
 {
    MFEM_HOST_DEVICE inline
    auto operator()(
@@ -60,15 +38,44 @@ struct ParameterizedStVenantKirchhoff
       const real_t mu = 0.5 * E / (1.0 + nu);
       const real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
 
-      // St. Venant-Kirchhoff model
-      auto eps = 0.5 * (dudX + transpose(dudX) + dot(transpose(dudX), dudX));
-      auto S = lambda * tr(eps) * I + 2.0 * mu * eps;
       auto F = dudX + I;
-      return F * S;
+      auto J = det(F);
+      auto logJ = log(J);
+      return mu*F + (lambda*logJ - mu)*inv(transpose(F));
    }
 
    double nu;
 };
+
+/**
+ * Strain energy density
+ */
+template <int dim = DIMENSION>
+struct ParameterizedNeoHookeanEnergy
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+    const tensor<real_t, dim, dim> &dudxi,
+    const tensor<real_t, dim, dim> &J,
+    const double &w,
+    const double &E) const
+   {
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      const real_t mu = 0.5 * E / (1.0 + nu);
+      const real_t lambda = 2.0 * mu * nu / (1.0 - 2.0 * nu);
+
+      auto invJ = inv(J);
+      auto dudX = dot(dudxi, invJ);
+      auto tr_C_minus_I = 2 * tr(dudX) + inner(dudX, dudX);
+      auto logdetF = log(det(dudX + I));
+      auto psi = 0.5*mu*tr_C_minus_I - mu*logdetF + 0.5*lambda*logdetF*logdetF;
+      auto dV = det(J) * w;
+      return mfem::tuple{psi*dV};
+   }
+
+   double nu;
+};
+
 
 class ElasticityOperator : public Operator
 {
@@ -185,7 +192,7 @@ public:
          mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, Weight{}, Value<ElasticModulus>{}};
          mfem::tuple outputs{Gradient<Displacement>{}};
 
-         using Material = ParameterizedStVenantKirchhoff<DIMENSION>;
+         using Material = ParameterizedNeoHookean<DIMENSION>;
          auto material = Material{.nu = 0.25};
          auto qfunction = StressQFunction<Material, DIMENSION> {.material = material};
          auto derivatives = std::integer_sequence<size_t, Displacement> {};
@@ -245,6 +252,71 @@ public:
    mutable std::shared_ptr<ElasticityJacobianOperator> jacobian_operator;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
 
+   ParFiniteElementSpace &modulus_fes;
+   ParGridFunction *modulus;
+};
+
+class StrainEnergyQoi : public Operator
+{
+   static constexpr int Displacement = 0;
+   static constexpr int Coordinates = 1;
+   static constexpr int ElasticModulus = 2;
+
+public:
+   StrainEnergyQoi(ParFiniteElementSpace &displacement_fes,
+                   const IntegrationRule &displacement_ir,
+                   ParGridFunction& elastic_modulus) :
+      Operator(displacement_fes.GetTrueVSize()),
+      displacement_fes(displacement_fes),
+      displacement_ir(displacement_ir),
+      modulus_fes(*elastic_modulus.ParFESpace()),
+      modulus(&elastic_modulus)
+   {
+      auto mesh = displacement_fes.GetParMesh();
+      mesh_nodes = static_cast<ParGridFunction*>(mesh->GetNodes());
+      ParFiniteElementSpace& mesh_fes = *mesh_nodes->ParFESpace();
+      //ParametricSpace scalar_space(displacement_fes.GetMesh()->Dimension(), 0, 0, 0, 1);
+
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Displacement, &displacement_fes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Coordinates, &mesh_fes},
+            FieldDescriptor{ElasticModulus, &modulus_fes}
+         };
+
+         energy_functional =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+         energy_functional->DisableTensorProductStructure();
+
+         mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, Weight{}, Value<ElasticModulus>{}};
+         // How do I indicate a real number output?
+         mfem::tuple outputs{One<ElasticModulus>{}};
+
+         auto qfunction = ParameterizedNeoHookeanEnergy<DIMENSION>{.nu = 0.25};
+         auto derivatives = std::integer_sequence<size_t, Displacement> {};
+         Array<int> solid_domain_attr(mesh->attributes.Max());
+         solid_domain_attr[0] = 1;
+         energy_functional->AddDomainIntegrator(
+            qfunction, inputs, outputs, displacement_ir, solid_domain_attr, derivatives);
+         
+         energy_functional->SetParameters({mesh_nodes, &elastic_modulus});
+      }
+   }
+
+   void Mult(const Vector &displacement, Vector &strain_energy) const override
+   {
+      energy_functional->Mult(displacement, strain_energy);
+   }
+
+   std::shared_ptr<DifferentiableOperator> energy_functional;
+   ParGridFunction *mesh_nodes;
+   ParFiniteElementSpace &displacement_fes;
+   IntegrationRule displacement_ir;
    ParFiniteElementSpace &modulus_fes;
    ParGridFunction *modulus;
 };
@@ -314,23 +386,6 @@ int main(int argc, char* argv[])
    Array<int> displacement_ess_tdof;
    Array<int> bc_tdof;
 
-//    { // uniaxial tensrion
-//         bdr_attr_is_ess = 0;
-//         bdr_attr_is_ess[0] = 1;
-//         displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 1);
-//         for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-
-//         bdr_attr_is_ess = 0;
-//         bdr_attr_is_ess[3] = 1;
-//         displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
-//         for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-
-//         bdr_attr_is_ess = 0;
-//         bdr_attr_is_ess[1] = 1;
-//         displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, bc_tdof, 0);
-//         for (auto td : bc_tdof) { displacement_ess_tdof.Append(td); };
-//    }
-
    // fixed left end
    bdr_attr_is_ess = 0;
    bdr_attr_is_ess[3] = 1;
@@ -356,26 +411,8 @@ int main(int argc, char* argv[])
    solver.SetPrintLevel(2);
    solver.SetPreconditioner(prec);
 
-   // NewtonSolver newton(MPI_COMM_WORLD);
-   // newton.SetOperator(elasticity);
-   // newton.SetSolver(solver);
-   // newton.SetRelTol(1e-12);
-   // newton.SetMaxIter(50);
-   // newton.SetPrintLevel(1);
-
    std::shared_ptr<NewtonSolver> nonlinear_solver;
-   if (nonlinear_solver_type == 0)
-   {
-      nonlinear_solver = std::make_shared<NewtonSolver>(MPI_COMM_WORLD);
-   }
-   // else if (nonlinear_solver_type == 1)
-   // {
-   //    nonlinear_solver = std::make_shared<KINSolver>(MPI_COMM_WORLD, KIN_LINESEARCH);
-   // }
-   else
-   {
-      MFEM_ABORT("invalid nonlinear solver type");
-   }
+   nonlinear_solver = std::make_shared<NewtonSolver>(MPI_COMM_WORLD);
    nonlinear_solver->SetOperator(elasticity);
    nonlinear_solver->SetRelTol(1e-9);
    nonlinear_solver->SetMaxIter(50);
@@ -390,11 +427,20 @@ int main(int argc, char* argv[])
    u.GetTrueDofs(x);
    nonlinear_solver->Mult(zero, x);
    u.SetFromTrueDofs(x);
+   out << "Solve complete\n" << std::endl;
 
    ParaViewDataCollection dc("dfem_elasticity_vjp", &mesh_beam);
    dc.SetHighOrderOutput(true);
    dc.RegisterField("displacement", &u);
    dc.Save();
+
+   // Compute quantity of interest
+   out << "Computing QoI from solution" << std::endl;
+   StrainEnergyQoi qoi(displacement_fes, displacement_ir, E);
+   Vector energy;
+   qoi.Mult(u, energy);
+
+   out << "Energy = " << energy(0) << std::endl;
 
    return 0;
 }
