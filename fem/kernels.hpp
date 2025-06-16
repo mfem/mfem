@@ -34,31 +34,31 @@ namespace internal
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 template <int MQ1 = 0>
-using regs2d_t =  mfem::internal::tensor<real_t, 0, 0>;
+using regs2d_t =  mfem::future::tensor<real_t, 0, 0>;
 
 template <int VDIM, int DIM, int MQ1 = 0>
-using vd_regs2d_t =  mfem::internal::tensor<real_t, VDIM, DIM, 0, 0>;
+using vd_regs2d_t =  mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
 
 template <int MQ1>
-using regs3d_t =  mfem::internal::tensor<real_t, MQ1, 0, 0>;
+using regs3d_t =  mfem::future::tensor<real_t, MQ1, 0, 0>;
 
 template <int VDIM, int DIM, int MQ1>
-using vd_regs3d_t =  mfem::internal::tensor<real_t, VDIM, DIM, MQ1, 0, 0>;
+using vd_regs3d_t =  mfem::future::tensor<real_t, VDIM, DIM, MQ1, 0, 0>;
 
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
 #else
 template <int MQ1>
-using regs2d_t =  mfem::internal::tensor<real_t, MQ1, MQ1>;
+using regs2d_t =  mfem::future::tensor<real_t, MQ1, MQ1>;
 
 template <int VDIM, int DIM, int MQ1>
-using vd_regs2d_t =  mfem::internal::tensor<real_t, VDIM, DIM, MQ1, MQ1>;
+using vd_regs2d_t =  mfem::future::tensor<real_t, VDIM, DIM, MQ1, MQ1>;
 
 template <int MQ1>
-using regs3d_t =  mfem::internal::tensor<real_t, MQ1, MQ1, MQ1>;
+using regs3d_t =  mfem::future::tensor<real_t, MQ1, MQ1, MQ1>;
 
 template <int VDIM, int DIM, int MQ1>
-using vd_regs3d_t =  mfem::internal::tensor<real_t, VDIM, DIM, MQ1, MQ1, MQ1>;
+using vd_regs3d_t =  mfem::future::tensor<real_t, VDIM, DIM, MQ1, MQ1, MQ1>;
 
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>

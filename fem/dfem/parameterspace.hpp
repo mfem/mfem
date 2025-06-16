@@ -104,7 +104,7 @@ public:
 
       // Calculate sizes
       const int num_qp = used_in_tensor_product ?
-                         std::pow(dtq.nqpt, mesh.Dimension()) :
+                         (int)std::pow(dtq.nqpt, mesh.Dimension()) :
                          ir.GetNPoints();
 
       tsize = vdim * num_qp * mesh.GetNE();
