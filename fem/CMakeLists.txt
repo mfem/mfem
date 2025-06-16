@@ -82,6 +82,8 @@ set(SRCS
   fe/fe_ser.cpp
   fe_coll.cpp
   fespace.cpp
+  derefmat_op.cpp
+  pderefmat_op.cpp
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
