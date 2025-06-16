@@ -3202,14 +3202,45 @@ void BlockILU::MultTranspose(const Vector &b, Vector &x) const
    DenseMatrix B;
    Vector yi, yj, xi, xj;
    Vector tmp(block_size);
-
+   y = 0.0;
    // Forward substitute to solve (U^T)y = b
-
-   // [...]
-
+   for (int i=0; i<nblockrows; ++i)
+   {
+      yi.SetDataAndSize(&y[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         yi[ib] = b[ib + P[i]*block_size];
+      }
+      for (int k=ID[i]+1; k<IB[i+1]; ++k)
+      {
+         int j = JB[k];
+         const DenseMatrix &L_ij = AB(k);
+         yj.SetDataAndSize(&y[j*block_size], block_size);
+         // y_i = y_i - L_ij*y_j
+         L_ij.AddMult_a(-1.0, yj, yi);
+      }
+   }
    // Backward substitution to solve (L^T)x = y
-
-   // [...]
+   //std::cout << "back sub!" << std::endl;
+   for (int i=nblockrows-1; i >= 0; --i)
+   {
+      xi.SetDataAndSize(&x[P[i]*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         xi[ib] = y[ib + i*block_size];
+      }
+      for (int k=IB[i]; k<ID[i]; ++k)
+      {
+         int j = JB[k];
+         const DenseMatrix &U_ij = AB(k);
+         xj.SetDataAndSize(&x[P[j]*block_size], block_size);
+         // x_i = x_i - U_ij*x_j
+         U_ij.AddMult_a(-1.0, xj, xi);
+      }
+      LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
+      // x_i = D_ii^{-1} x_i
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
+   }
 }
 
 
