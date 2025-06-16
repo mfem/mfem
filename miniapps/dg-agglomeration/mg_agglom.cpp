@@ -99,16 +99,16 @@ SparseMatrix *CreateNodalProlongation(
       double y2 = nodes(nnodes + r*4+2); double y3 = nodes(nnodes+r*4+3);
       //column 1 of block
       P->Set(4*r, 4*c, 1); P->Set(4*r+1, 4*c, 1);
-      P->Set(4*r+1, 4*c, 1); P->Set(4*r+1, 4*c, 1);
+      P->Set(4*r+2, 4*c, 1); P->Set(4*r+3, 4*c, 1);
       //column 2 of block
       P->Set(4*r, 4*c+1, x0); P->Set(4*r+1, 4*c+1, x1);
-      P->Set(4*r+1, 4*c+1, x2); P->Set(4*r+1, 4*c+1, x3);
+      P->Set(4*r+2, 4*c+1, x2); P->Set(4*r+3, 4*c+1, x3);
       //column 3 of block
       P->Set(4*r, 4*c+2, y0); P->Set(4*r+1, 4*c+2, y1);
-      P->Set(4*r+1, 4*c+2, y2); P->Set(4*r+1, 4*c+2, y3);
+      P->Set(4*r+2, 4*c+2, y2); P->Set(4*r+3, 4*c+2, y3);
       //column 3 of block
       P->Set(4*r, 4*c+3, x0*y0); P->Set(4*r+1, 4*c+3, x1*y1);
-      P->Set(4*r+1, 4*c+3, x2*y2); P->Set(4*r+1, 4*c+3, x3*y3);
+      P->Set(4*r+2, 4*c+3, x2*y2); P->Set(4*r+3, 4*c+3, x3*y3);
    }
    P->Finalize();
    return P;
