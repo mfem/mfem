@@ -79,6 +79,14 @@ enum prob_type
    general
 };
 
+enum class discret_type
+{
+   DPG,
+   RTDG,
+   BRTDG,
+   LDG,
+};
+
 prob_type prob;
 
 real_t exact_u(const Vector & X);
@@ -98,8 +106,11 @@ int main(int argc, char *argv[])
    int ref = 0;
    bool visualization = true;
    int iprob = 1;
+   int idisc = (int) discret_type::DPG;
+   real_t td = 0.5;
    int visport = 19916;
    bool static_cond = false;
+   bool hybridization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -112,8 +123,14 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: manufactured, 1: general");
+   args.AddOption(&idisc, "-disc", "--discretization", "Discretization"
+                  " 0: DPG, 1: RTDG, 2: BRTDG, 3: LDG");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&td, "-td", "--stab_diff",
+                  "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -128,6 +145,8 @@ int main(int argc, char *argv[])
 
    if (iprob > 1) { iprob = 1; }
    prob = (prob_type)iprob;
+
+   discret_type disc = (discret_type) idisc;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -146,34 +165,70 @@ int main(int argc, char *argv[])
       tau_space = 0,
       v_space   = 1
    };
+
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
 
    // Vector L2 space for σ
-   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
-   FiniteElementSpace *sigma_fes = new FiniteElementSpace(&mesh,sigma_fec, dim);
+   FiniteElementCollection *sigma_fec{};
+   FiniteElementSpace *sigma_fes{};
 
-   // H^1/2 space for û
-   FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
-   FiniteElementSpace *hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
+   switch (disc)
+   {
+      case discret_type::DPG:
+         sigma_fec = new L2_FECollection(order-1, dim);
+         sigma_fes = new FiniteElementSpace(&mesh, sigma_fec, dim);
+         break;
+      case discret_type::RTDG:
+         sigma_fec = new RT_FECollection(order-1, dim);
+         sigma_fes = new FiniteElementSpace(&mesh, sigma_fec);
+         break;
+      case discret_type::BRTDG:
+         sigma_fec = new BrokenRT_FECollection(order-1, dim);
+         sigma_fes = new FiniteElementSpace(&mesh, sigma_fec);
+         break;
+      case discret_type::LDG:
+         sigma_fec = new L2_FECollection(order-1, dim, BasisType::GaussLobatto);
+         sigma_fes = new FiniteElementSpace(&mesh,sigma_fec, dim);
+         break;
+      default:
+         MFEM_ABORT("Unknown discretization!");
+   }
 
-   // H^-1/2 space for σ̂
-   FiniteElementCollection * hatsigma_fec = new RT_Trace_FECollection(order-1,dim);
-   FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
+   FiniteElementCollection *hatu_fec{}, *hatsigma_fec{};
+   FiniteElementSpace *hatu_fes{}, *hatsigma_fes{};
+   FiniteElementCollection *tau_fec{}, *v_fec{};
 
-   // test space fe collections
-   int test_order = order+delta_order;
-   FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
-   FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
+   if (disc == discret_type::DPG)
+   {
+      // H^1/2 space for û
+      hatu_fec = new H1_Trace_FECollection(order,dim);
+      hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
+
+      // H^-1/2 space for σ̂
+      hatsigma_fec = new RT_Trace_FECollection(order-1,dim);
+      hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
+
+      // test space fe collections
+      int test_order = order+delta_order;
+      tau_fec = new RT_FECollection(test_order-1, dim);
+      v_fec = new H1_FECollection(test_order, dim);
+   }
+   else if (hybridization)
+   {
+      // trace space for û
+      hatu_fec = new DG_Interface_FECollection(order-1, dim);
+      hatu_fes = new FiniteElementSpace(&mesh, hatu_fec);
+   }
 
    Array<FiniteElementSpace * > trial_fes;
    Array<FiniteElementCollection * > test_fec;
 
    trial_fes.Append(u_fes);
    trial_fes.Append(sigma_fes);
-   trial_fes.Append(hatu_fes);
-   trial_fes.Append(hatsigma_fes);
+   if (hatu_fes) { trial_fes.Append(hatu_fes); }
+   if (hatsigma_fes) { trial_fes.Append(hatsigma_fes); }
    test_fec.Append(tau_fec);
    test_fec.Append(v_fec);
 
@@ -181,57 +236,140 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
    FunctionCoefficient f(f_exact); // rhs for the manufactured solution problem
+   SumCoefficient negf(0., f, 1., -1.);
 
    // Required coefficients for the exact solution case
    FunctionCoefficient uex(exact_u);
    VectorFunctionCoefficient sigmaex(dim,exact_sigma);
    FunctionCoefficient hatuex(exact_hatu);
+   SumCoefficient g(0., hatuex, 1., -1.); //boundary flux rhs
 
-   // Define the DPG weak formulation
-   DPGWeakForm * a = new DPGWeakForm(trial_fes,test_fec);
-
-   //  -(u,∇⋅τ)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),
-                         TrialSpace::u_space,TestSpace::tau_space);
-
-   // -(σ,τ)
-   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(
-                                                    negone)), TrialSpace::sigma_space, TestSpace::tau_space);
-
-   // (σ,∇ v)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
-                         TrialSpace::sigma_space,TestSpace::v_space);
-
-   //  <û,τ⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,
-                         TrialSpace::hatu_space,TestSpace::tau_space);
-
-   // -<σ̂,v> (sign is included in σ̂)
-   a->AddTrialIntegrator(new TraceIntegrator,
-                         TrialSpace::hatsigma_space, TestSpace::v_space);
-
-   // test integrators (space-induced norm for H(div) × H1)
-   // (∇⋅τ,∇⋅δτ)
-   a->AddTestIntegrator(new DivDivIntegrator(one),
-                        TestSpace::tau_space, TestSpace::tau_space);
-   // (τ,δτ)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),
-                        TestSpace::tau_space, TestSpace::tau_space);
-   // (∇v,∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),
-                        TestSpace::v_space, TestSpace::v_space);
-   // (v,δv)
-   a->AddTestIntegrator(new MassIntegrator(one),
-                        TestSpace::v_space, TestSpace::v_space);
-
-   // RHS
-   if (prob == prob_type::manufactured)
+   // Essential boundaries
+   Array<int> ess_bdr;
+   if (mesh.bdr_attributes.Size())
    {
-      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),TestSpace::v_space);
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+   }
+
+   // (Bi)linear forms
+   DPGWeakForm * a_dpg{};
+   DarcyForm * a_darcy{};
+   BilinearForm *a_sigma{}, *a_u{};
+   MixedBilinearForm *a_div{};
+   BlockVector rhs;
+   LinearForm *b_sigma{}, *b_u{};
+
+   if (disc == discret_type::DPG)
+   {
+      // Define the DPG weak formulation
+      a_dpg = new DPGWeakForm(trial_fes, test_fec);
+
+      //  -(u,∇⋅τ)
+      a_dpg->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),
+                                TrialSpace::u_space,TestSpace::tau_space);
+
+      // -(σ,τ)
+      a_dpg->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(
+                                                           negone)), TrialSpace::sigma_space, TestSpace::tau_space);
+
+      // (σ,∇ v)
+      a_dpg->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
+                                TrialSpace::sigma_space,TestSpace::v_space);
+
+      //  <û,τ⋅n>
+      a_dpg->AddTrialIntegrator(new NormalTraceIntegrator,
+                                TrialSpace::hatu_space,TestSpace::tau_space);
+
+      // -<σ̂,v> (sign is included in σ̂)
+      a_dpg->AddTrialIntegrator(new TraceIntegrator,
+                                TrialSpace::hatsigma_space, TestSpace::v_space);
+
+      // test integrators (space-induced norm for H(div) × H1)
+      // (∇⋅τ,∇⋅δτ)
+      a_dpg->AddTestIntegrator(new DivDivIntegrator(one),
+                               TestSpace::tau_space, TestSpace::tau_space);
+      // (τ,δτ)
+      a_dpg->AddTestIntegrator(new VectorFEMassIntegrator(one),
+                               TestSpace::tau_space, TestSpace::tau_space);
+      // (∇v,∇δv)
+      a_dpg->AddTestIntegrator(new DiffusionIntegrator(one),
+                               TestSpace::v_space, TestSpace::v_space);
+      // (v,δv)
+      a_dpg->AddTestIntegrator(new MassIntegrator(one),
+                               TestSpace::v_space, TestSpace::v_space);
+
+      // RHS
+      if (prob == prob_type::manufactured)
+      {
+         a_dpg->AddDomainLFIntegrator(new DomainLFIntegrator(f),TestSpace::v_space);
+      }
+      else
+      {
+         a_dpg->AddDomainLFIntegrator(new DomainLFIntegrator(one),TestSpace::v_space);
+      }
    }
    else
    {
-      a->AddDomainLFIntegrator(new DomainLFIntegrator(one),TestSpace::v_space);
+      // Define the RT/LDG formulation
+      a_darcy = new DarcyForm(sigma_fes, u_fes);
+
+      a_sigma = a_darcy->GetFluxMassForm();
+      a_div = a_darcy->GetFluxDivForm();
+      if (disc == discret_type::LDG)
+      {
+         a_u = a_darcy->GetPotentialMassForm();
+
+         a_sigma->AddDomainIntegrator(new VectorMassIntegrator(one));
+         a_div->AddDomainIntegrator(new VectorDivergenceIntegrator());
+         a_div->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                             new DGNormalTraceIntegrator(-1.)));
+         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, td));
+      }
+      else
+      {
+         a_sigma->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         a_div->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+         if (disc == discret_type::BRTDG)
+         {
+            a_div->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                                new DGNormalTraceIntegrator(-1.)));
+         }
+      }
+
+      //RHS
+      rhs.Update(a_darcy->GetOffsets());
+
+      b_sigma = new LinearForm();
+      b_sigma->Update(sigma_fes, rhs.GetBlock(0), 0);
+
+      if (prob == prob_type::manufactured)
+      {
+         if (disc == discret_type::LDG)
+         {
+            b_sigma->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(g), ess_bdr);
+         }
+         else if (disc == discret_type::BRTDG)
+         {
+            b_sigma->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(g), ess_bdr);
+         }
+         else
+         {
+            b_sigma->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(g),
+                                           ess_bdr);
+         }
+      }
+
+      b_u = new LinearForm();
+      b_u->Update(u_fes, rhs.GetBlock(1), 0);
+      if (prob == prob_type::manufactured)
+      {
+         b_u->AddDomainIntegrator(new DomainLFIntegrator(negf));
+      }
+      else
+      {
+         b_u->AddDomainIntegrator(new DomainLFIntegrator(negone));
+      }
    }
 
    // GridFunction for Dirichlet bdr data
@@ -253,38 +391,71 @@ int main(int argc, char *argv[])
    }
 
    real_t err0 = 0.;
-   int dof0=0.;
-   if (static_cond) { a->EnableStaticCondensation(); }
+   int dof0 = 0;
+
+   //set hybridization / assembly level
+   if (a_dpg && static_cond) { a_dpg->EnableStaticCondensation(); }
+
    for (int it = 0; it<=ref; it++)
    {
-      a->Assemble();
-
       Array<int> ess_tdof_list;
-      Array<int> ess_bdr;
-      if (mesh.bdr_attributes.Size())
+
+      if (a_dpg)
       {
-         ess_bdr.SetSize(mesh.bdr_attributes.Max());
-         ess_bdr = 1;
-         hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         a_dpg->Assemble();
+
+         if (ess_bdr.Size())
+         {
+            hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         }
+
+         // shift the ess_tdofs
+         for (int i = 0; i < ess_tdof_list.Size(); i++)
+         {
+            ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
+         }
+      }
+      else
+      {
+         if (hybridization)
+         {
+            a_darcy->EnableHybridization(hatu_fes,
+                                         new NormalTraceJumpIntegrator(),
+                                         ess_tdof_list);
+         }
+
+         rhs.Update(a_darcy->GetOffsets());
+
+         b_sigma->Update(sigma_fes, rhs.GetBlock(0), 0);
+         b_sigma->Assemble();
+         b_sigma->SyncAliasMemory(rhs);
+
+         b_u->Update(u_fes, rhs.GetBlock(1), 0);
+         b_u->Assemble();
+         b_u->SyncAliasMemory(rhs);
+
+         a_darcy->Assemble();
       }
 
-      // shift the ess_tdofs
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      Array<int> offsets;
+      if (a_dpg)
       {
-         ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
+         offsets.SetSize(5);
+         offsets[0] = 0;
+         offsets[1] = u_fes->GetVSize();
+         offsets[2] = sigma_fes->GetVSize();
+         offsets[3] = hatu_fes->GetVSize();
+         offsets[4] = hatsigma_fes->GetVSize();
+         offsets.PartialSum();
       }
-
-      Array<int> offsets(5);
-      offsets[0] = 0;
-      offsets[1] = u_fes->GetVSize();
-      offsets[2] = sigma_fes->GetVSize();
-      offsets[3] = hatu_fes->GetVSize();
-      offsets[4] = hatsigma_fes->GetVSize();
-      offsets.PartialSum();
+      else if (a_darcy)
+      {
+         offsets.MakeRef(a_darcy->GetOffsets());
+      }
 
       BlockVector x(offsets);
       x = 0.0;
-      if (prob == prob_type::manufactured)
+      if (a_dpg && prob == prob_type::manufactured)
       {
          hatu_gf.MakeRef(hatu_fes,x.GetBlock(2),0);
          hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr);
@@ -292,30 +463,112 @@ int main(int argc, char *argv[])
 
       OperatorPtr Ah;
       Vector X,B;
-      a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
-      BlockMatrix * A = Ah.As<BlockMatrix>();
-
-      BlockDiagonalPreconditioner M(A->RowOffsets());
-      M.owns_blocks = 1;
-      for (int i=0; i<A->NumRowBlocks(); i++)
+      if (a_dpg)
       {
-         M.SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
+         a_dpg->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
+      }
+      else
+         a_darcy->FormLinearSystem(ess_tdof_list, x, rhs,
+                                   Ah, X, B);
+
+
+      // Construct preconditioners
+
+      std::unique_ptr<Solver> prec;
+      std::unique_ptr<SparseMatrix> MinvBt, S;
+      Vector Md;
+
+      if (a_dpg)
+      {
+         BlockMatrix * A = Ah.As<BlockMatrix>();
+
+         auto *M = new BlockDiagonalPreconditioner(A->RowOffsets());
+         M->owns_blocks = 1;
+         for (int i=0; i<A->NumRowBlocks(); i++)
+         {
+            M->SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
+         }
+         prec.reset(M);
+      }
+      else
+      {
+         if (hybridization)
+         {
+            prec.reset(new GSSmoother(*Ah.As<SparseMatrix>()));
+         }
+         else
+         {
+            auto *darcy_prec = new BlockDiagonalPreconditioner(offsets);
+            darcy_prec->owns_blocks = 1;
+
+            SparseMatrix &M(a_sigma->SpMat());
+            M.GetDiag(Md);
+            Md.HostReadWrite();
+
+            SparseMatrix &B(a_div->SpMat());
+            MinvBt.reset(Transpose(B));
+
+            for (int i = 0; i < Md.Size(); i++)
+            {
+               MinvBt->ScaleRow(i, 1./Md(i));
+            }
+
+            S.reset(Mult(B, *MinvBt));
+            if (a_u)
+            {
+               SparseMatrix &Mtm(a_u->SpMat());
+               SparseMatrix *Snew = Add(Mtm, *S);
+               S.reset(Snew);
+            }
+
+            darcy_prec->SetDiagonalBlock(0, new DSmoother(M));
+            darcy_prec->SetDiagonalBlock(1, new GSSmoother(*S));
+
+            prec.reset(darcy_prec);
+         }
       }
 
-      CGSolver cg;
-      cg.SetRelTol(1e-10);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(prob== prob_type::general ? 3 : 0);
-      cg.SetPreconditioner(M);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
+      // Construct solver
 
-      a->RecoverFEMSolution(X,x);
+      unique_ptr<IterativeSolver> solver;
+      if (a_dpg)
+      {
+         solver.reset(new CGSolver());
+      }
+      else
+      {
+         solver.reset(new GMRESSolver());
+      }
+
+      solver->SetRelTol(1e-10);
+      solver->SetMaxIter(2000);
+      solver->SetPrintLevel(prob== prob_type::general ? 3 : 0);
+      solver->SetPreconditioner(*prec);
+      solver->SetOperator(*Ah);
+
+      solver->Mult(B, X);
+
+      if (a_dpg)
+      {
+         a_dpg->RecoverFEMSolution(X,x);
+      }
+      else
+      {
+         a_darcy->RecoverFEMSolution(X, rhs, x);
+      }
 
       GridFunction u_gf, sigma_gf;
-      u_gf.MakeRef(u_fes,x.GetBlock(0),0);
-      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
+      if (a_dpg)
+      {
+         u_gf.MakeRef(u_fes,x.GetBlock(0),0);
+         sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
+      }
+      else
+      {
+         sigma_gf.MakeRef(sigma_fes,x.GetBlock(0),0);
+         u_gf.MakeRef(u_fes,x.GetBlock(1),0);
+      }
 
       if (prob == prob_type::manufactured)
       {
@@ -335,14 +588,14 @@ int main(int argc, char *argv[])
                    << std::setw(10) << std::scientific <<  err0 << " | "
                    << std::setprecision(2)
                    << std::setw(6) << std::fixed << rate_err << " | "
-                   << std::setw(6) << std::fixed << cg.GetNumIterations() << " | "
+                   << std::setw(6) << std::fixed << solver->GetNumIterations() << " | "
                    << std::endl;
          std::cout.copyfmt(oldState);
       }
 
       if (visualization)
       {
-         const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
+         const char * keys = (it == 0 && dim == 2) ? "jlRcm\n" : nullptr;
          char vishost[] = "localhost";
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
@@ -357,10 +610,14 @@ int main(int argc, char *argv[])
       {
          trial_fes[i]->Update(false);
       }
-      a->Update();
+      if (a_dpg) { a_dpg->Update(); }
+      else { a_darcy->Update(); }
    }
 
-   delete a;
+   delete b_sigma;
+   delete b_u;
+   delete a_dpg;
+   delete a_darcy;
    delete tau_fec;
    delete v_fec;
    delete hatsigma_fes;
