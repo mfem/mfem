@@ -87,8 +87,9 @@ if (HYPRE_FOUND AND HYPRE_USING_CUDA)
   mfem_culib_set_libraries(CUSPARSE cusparse)
   mfem_culib_set_libraries(CURAND curand)
   mfem_culib_set_libraries(CUBLAS cublas)
+  mfem_culib_set_libraries(CUSOLVER cusolver)
   list(APPEND HYPRE_LIBRARIES ${CUSPARSE_LIBRARIES} ${CURAND_LIBRARIES}
-       ${CUBLAS_LIBRARIES})
+       ${CUBLAS_LIBRARIES} ${CUSOLVER_LIBRARIES})
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
