@@ -15,8 +15,8 @@
 #include "kernel_helpers.hpp"
 #include "linalg/vector.hpp"
 
-using mfem::internal::tensor;
-using mfem::internal::make_tensor;
+using mfem::future::tensor;
+using mfem::future::make_tensor;
 
 namespace mfem
 {
