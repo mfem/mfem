@@ -381,4 +381,4 @@ TEST_CASE("ParaView VTKHDF restart mode", "[ParaView]")
    REQUIRE(remove("ParaView.vtkhdf") == 0);
 }
 
-#endif
+#endif // MFEM_USE_HDF5

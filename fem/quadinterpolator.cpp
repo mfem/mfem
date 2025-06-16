@@ -326,7 +326,7 @@ static void Eval2D(const int NE,
                   const double E = j(0,0)*j(0,0) + j(1,0)*j(1,0) + j(2,0)*j(2,0);
                   const double F = j(0,0)*j(0,1) + j(1,0)*j(1,1) + j(2,0)*j(2,1);
                   const double G = j(0,1)*j(0,1) + j(1,1)*j(1,1) + j(2,1)*j(2,1);
-                  det(q,e) = sqrt(E*G - F*F);
+                  det(q,e) = std::sqrt(E*G - F*F);
                }
             }
          }
