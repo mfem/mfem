@@ -266,7 +266,12 @@ BlockHybridizationSolver::BlockHybridizationSolver(const
    ParMesh &pmesh(*trial_space.GetParMesh());
    const int ne = pmesh.GetNE();
 
+   StopWatch chrono;
+
+   chrono.Start();
    Init(ne);
+   chrono.Stop();
+   cout << "init time: " << chrono.RealTime() << endl;
 
    Array<int> ess_dof_marker;
    for (int attr : ess_bdr_attr)
@@ -279,13 +284,20 @@ BlockHybridizationSolver::BlockHybridizationSolver(const
       }
    }
 
+   chrono.Restart();
    const int order = trial_space.FEColl()->GetOrder()-1;
    DG_Interface_FECollection fec(order, pmesh.Dimension());
    c_fes = new ParFiniteElementSpace(&pmesh, &fec);
    ParFiniteElementSpace &c_space(*c_fes);
 
    ConstructCt(c_space);
+   chrono.Stop();
+   cout << "ct time: " << chrono.RealTime() << endl;
+
+   chrono.Restart();
    ConstructH(a, b, ess_dof_marker, c_space);
+   chrono.Stop();
+   cout << "h time: " << chrono.RealTime() << endl;
 
    M = new HypreBoomerAMG(*pH);
    M->SetPrintLevel(0);

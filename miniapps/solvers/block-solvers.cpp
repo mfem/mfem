@@ -175,13 +175,13 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
 
    Mform_ = make_shared<ParBilinearForm>(u_fes);
    Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(*mass_coeff_));
-   Mform_->ComputeElementMatrices();
+   // Mform_->ComputeElementMatrices();
    Mform_->Assemble();
    Mform_->Finalize();
 
    Bform_ = make_shared<ParMixedBilinearForm>(u_fes, p_fes);
    Bform_->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
-   Bform_->ComputeElementMatrices();
+   // Bform_->ComputeElementMatrices();
    Bform_->Assemble();
    Bform_->SpMat() *= -1.0;
    Bform_->Finalize();
@@ -387,6 +387,12 @@ int main(int argc, char *argv[])
 
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
+
+   ResetTimer();
+   BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param, ess_bdr);
+   bh.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
+   setup_time[&bh] = chrono.RealTime();
+   /*
    ResetTimer();
    BDPMinresSolver bdp(*M, *B, param);
    bdp.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
@@ -402,11 +408,6 @@ int main(int argc, char *argv[])
    DivFreeSolver dfs_cm(*M, *B, DFS_data);
    dfs_cm.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&dfs_cm] = chrono.RealTime();
-
-   ResetTimer();
-   BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param, ess_bdr);
-   bh.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
-   setup_time[&bh] = chrono.RealTime();
 
 #ifdef MFEM_USE_LAPACK
    ResetTimer();
@@ -424,16 +425,19 @@ int main(int argc, char *argv[])
 #else
    MFEM_WARNING("BramblePasciakSolver class unavailable: Compiled without LAPACK");
 #endif
+   */
 
    std::map<const DarcySolver*, std::string> solver_to_name;
+   solver_to_name[&bh] = "Block hybridization";
+   /*
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
-   solver_to_name[&bh] = "Block hybridization";
 #ifdef MFEM_USE_LAPACK
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 #endif
+   */
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
