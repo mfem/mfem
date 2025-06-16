@@ -242,7 +242,6 @@ int main(int argc, char *argv[])
    FunctionCoefficient uex(exact_u);
    VectorFunctionCoefficient sigmaex(dim,exact_sigma);
    FunctionCoefficient hatuex(exact_hatu);
-   SumCoefficient g(0., hatuex, 1., -1.); //boundary flux rhs
 
    // Essential boundaries
    Array<int> ess_bdr;
@@ -312,7 +311,7 @@ int main(int argc, char *argv[])
    else
    {
       // Define the RT/LDG formulation
-      a_darcy = new DarcyForm(sigma_fes, u_fes);
+      a_darcy = new DarcyForm(sigma_fes, u_fes, false);
 
       a_sigma = a_darcy->GetFluxMassForm();
       a_div = a_darcy->GetFluxDivForm();
@@ -347,15 +346,17 @@ int main(int argc, char *argv[])
       {
          if (disc == discret_type::LDG)
          {
-            b_sigma->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(g), ess_bdr);
+            b_sigma->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(hatuex),
+                                          ess_bdr);
          }
          else if (disc == discret_type::BRTDG)
          {
-            b_sigma->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(g), ess_bdr);
+            b_sigma->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(hatuex),
+                                          ess_bdr);
          }
          else
          {
-            b_sigma->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(g),
+            b_sigma->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(hatuex),
                                            ess_bdr);
          }
       }
