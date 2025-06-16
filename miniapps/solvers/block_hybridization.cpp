@@ -33,6 +33,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    NormalTraceIntegrator integ;
    const FiniteElement *element(nullptr);
 
+   StopWatch chrono;
+   chrono.Start();
+
    Table element_to_hdiv_dof = hdiv_space->GetElementToDofTable();
    int *hdiv_offsets = element_to_hdiv_dof.GetI();
 
@@ -79,8 +82,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    {
       interior_face_marker[mesh->GetBdrElementFaceIndex(i)] = 0;
    }
-   interior_face_marker.Print(out, interior_face_marker.Size());
-
 
    int *I = element_to_facet_table.GetI();
    int *J = element_to_facet_table.GetJ();
@@ -110,12 +111,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       }
       nI[elem_idx+1] = counter;
    }
-
-   Array<int> aI(nI, num_elements+1);
-   Array<int> aJ(nJ, nnz);
-
-   aI.Print(out, aI.Size());
-   aJ.Print(out, aJ.Size());
 
    const Table &face_to_dof_table(multiplier_space->GetFaceToDofTable());
    const int *faceI = face_to_dof_table.GetI();
@@ -147,17 +142,14 @@ BlockHybridizationSolver::BlockHybridizationSolver(
          }
       }
    }
+   chrono.Stop();
+   cout << "init time: " << chrono.RealTime() << endl;
 
-   /*
-   Array<int> arrI(interior_faceI, num_elements+1);
-   Array<int> arrJ(interior_faceJ, interior_faceI[num_elements]);
-
-   arrI.Print(out, arrI.Size());
-   arrJ.Print(out, arrJ.Size());
-   */
-
+   Array<real_t> times(2);
+   times = 0.0;
    for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
    {
+      chrono.Restart();
       const int m = hdiv_offsets[elem_idx+1] - hdiv_offsets[elem_idx];
       DenseMatrix hdiv_matrix(hdiv_data+hdiv_sizes[elem_idx], m, m);
       mVarf->ComputeElementMatrix(elem_idx, hdiv_matrix);
@@ -182,7 +174,10 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       MultAtB(product_matrix, mixed_matrix, temp_matrix); // A^{-T}B^TS^{-1}BA^{-1}
       hdiv_matrix += temp_matrix;
       mixed_matrix.Neg(); // -S^{-1}BA^{-1}
+      chrono.Stop();
+      times[1] += chrono.RealTime();
 
+      chrono.Restart();
       element = hdiv_space->GetFE(elem_idx);
       const FiniteElement *face(nullptr);
 
@@ -208,7 +203,10 @@ BlockHybridizationSolver::BlockHybridizationSolver(
                                        face_matrix);
          data_offset += height*width;
       }
+      chrono.Stop();
+      times[0] += chrono.RealTime();
 
+      chrono.Restart();
       temp_matrix.SetSize(height, bdr_matrix.Width());
       mfem::Mult(hdiv_matrix, bdr_matrix, temp_matrix);
       product_matrix.SetSize(bdr_matrix.Width());
@@ -262,9 +260,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    delete []nJ;
 
    reduced_matrix.Finalize(1, true);
-   // if (Mpi::Root())
-   //    reduced_matrix.Print();
-
    HypreParMatrix *P(multiplier_space->Dof_TrueDof_Matrix());
    HypreParMatrix *dH = new HypreParMatrix(multiplier_space->GetComm(),
                                            multiplier_space->GlobalVSize(),
@@ -274,6 +269,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    pH = ParMult(Pt, dHP, true);
 
    delete dH;
+   chrono.Stop();
+   times[1] += chrono.RealTime();
    /*
       OperatorPtr pP(Operator::Hypre_ParCSR);
       pP.ConvertFrom(multiplier_space->Dof_TrueDof_Matrix());
@@ -290,6 +287,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    SetOptions(solver_, param);
    solver_.SetPreconditioner(*preconditioner);
    solver_.SetOperator(*pH);
+   cout << "ct time: " << times[0] << endl;
+   cout << "h time: " << times[1] << endl;
 }
 
 BlockHybridizationSolver::~BlockHybridizationSolver()

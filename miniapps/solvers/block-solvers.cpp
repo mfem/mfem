@@ -160,7 +160,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                                      dfs_spaces_.GetL2FES());
 
    mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff_));
-   mVarf_->ComputeElementMatrices();
+   // mVarf_->ComputeElementMatrices();
    mVarf_->Assemble();
    mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
 
@@ -366,6 +366,7 @@ int main(int argc, char *argv[])
    BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param);
    setup_time[&bh] = chrono.RealTime();
 
+   /*
    chrono.Restart();
    BDPMinresSolver bdp(M, B, param);
    setup_time[&bdp] = chrono.RealTime();
@@ -387,14 +388,17 @@ int main(int argc, char *argv[])
    bps_param.use_bpcg = false;
    BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_pcg] = chrono.RealTime();
+   */
 
    std::map<const DarcySolver*, std::string> solver_to_name;
-   solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&bh] = "Block hybridization";
+   /*
+   solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
+   */
 
    // Solve the problem using all solvers
    for (const auto &solver_pair : solver_to_name)
