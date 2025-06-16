@@ -59,7 +59,9 @@ public:
                         Kform(&fes),
                         bform(&fes),
                         ess_tdofs_(ess_tdofs),
-                        M_solver(fes.GetComm())
+                        z(height),
+                        M_solver(fes.GetComm()),
+                        linear_solver(fes.GetComm())
    {
 
       d = new ConstantCoefficient(-kappa);
@@ -82,13 +84,17 @@ public:
          Kform.AddDomainIntegrator(new ConvectionIntegrator(*q, -alpha));
          Kform.AddDomainIntegrator(new DiffusionIntegrator(*d));
          Kform.Assemble(0);
-
-         Array<int> empty;
-         Kform.FormSystemMatrix(empty, K);
-         Mform.FormSystemMatrix(ess_tdofs_, M);
+         Kform.Finalize();
 
          bform.Assemble();
          b = bform.ParallelAssemble();
+
+         Array<int> empty;
+         
+         temperature_gf.GetTrueDofs(u_bc);
+         Mform.FormSystemMatrix(ess_tdofs_, Mmat);
+         Kform.FormSystemMatrix(empty, Kmat);
+         // Kform.FormLinearSystem(empty, temperature_gf, bform, Kmat, z, u_bc);
       }
 
       M_solver.iterative_mode = false;
@@ -98,22 +104,49 @@ public:
       M_solver.SetPrintLevel(0);
       M_prec.SetType(HypreSmoother::Jacobi);
       M_solver.SetPreconditioner(M_prec);
-      M_solver.SetOperator(*M);
+      M_solver.SetOperator(Mmat);
 
-      t1.SetSize(height);
-      t2.SetSize(height);
+
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-8);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(T_prec);
+
+
    }
 
    void Mult(const Vector &u, Vector &du_dt) const override
-   {
-      
-      // Vector u_bc(u.GetData(), u.Size());
+   {      
       u_bc = u;
       temperature_gf.GetTrueDofs(u_bc);
 
-      K->Mult(u_bc, t1);
-      t1.Add(1.0, *b);
-      M_solver.Mult(t1, du_dt);
+      Kmat.Mult(u_bc, z);
+      M_solver.Mult(z, du_dt);
+      du_dt.SetSubVector(ess_tdofs_, 0.0);
+   }
+
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &du_dt)
+   {
+   
+      if (T)
+      {
+         delete T;
+         T = NULL;
+      }
+      if (!T)
+      {
+         T = Add(1.0, Mmat, -dt, Kmat);
+         current_dt = dt;
+         linear_solver.SetOperator(*T);
+      }
+      
+      u_bc = u;
+      temperature_gf.GetTrueDofs(u_bc);
+
+      Kmat.Mult(u_bc, z);
+      linear_solver.Mult(z, du_dt);
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
 
@@ -132,9 +165,12 @@ public:
 
    /// Mass opeperator
    OperatorHandle M;
+   HypreParMatrix Mmat;
 
    /// Stiffness opeperator. Might include diffusion, convection or both.
    OperatorHandle K;
+   HypreParMatrix Kmat;
+
 
    /// RHS form
    ParLinearForm bform;
@@ -160,13 +196,19 @@ public:
 
    /// Mass matrix solver
    CGSolver M_solver;
+   CGSolver linear_solver;
+   HypreParMatrix *T = nullptr; // T = M + dt K
+
 
    /// Mass matrix preconditioner
    HypreSmoother M_prec;
+   HypreSmoother T_prec;  // Preconditioner for the implicit solver
+
 
    /// Auxiliary vectors
    mutable Vector t1, t2;
    mutable Vector u_bc;
+   mutable Vector z; // auxiliary vector
 };
 
 int main(int argc, char *argv[])
@@ -281,14 +323,6 @@ int main(int argc, char *argv[])
 
 
 
-   RK3SSPSolver cylinder_ode_solver;
-   cylinder_ode_solver.Init(cd_cylinder);
-
-
-   RK3SSPSolver block_ode_solver;
-   block_ode_solver.Init(diff_block);
-
-
    
 
    // Create the transfer map needed in the time integration loop
@@ -315,11 +349,24 @@ int main(int argc, char *argv[])
    // cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
 
 
-   Application* app1 = physics.AddApplication(&block_ode_solver);
-   Application* app2 = physics.AddApplication(&cylinder_ode_solver);
+
+   // int ode_solver_type = 3; // RK3SSPSolver
+   // int ode_solver_type = 23;  // SDIRK33Solver
+   // int ode_solver_type = 21;  // BackwardEulerSolver
+   int ode_solver_type = 34;  // SDIRK34Solver
+   std::unique_ptr<ODESolver> cylinder_ode_solver = ODESolver::Select(ode_solver_type);
+   std::unique_ptr<ODESolver> block_ode_solver = ODESolver::Select(ode_solver_type);
+
+   cylinder_ode_solver->Init(cd_cylinder);
+   block_ode_solver->Init(diff_block);
+
+
+   Application* app1 = physics.AddApplication(block_ode_solver.get());
+   Application* app2 = physics.AddApplication(cylinder_ode_solver.get());
 
    app1->AddLinkedFields(&lf_solid_to_fluid);
-   // app1->linked_fields = diff_block.linked_fields;
+   // app2->AddLinkedFields(&lf_fluid_to_solid);
+
 
    physics.SetOffsets(offsets);
    physics.Finalize();
@@ -327,12 +374,12 @@ int main(int argc, char *argv[])
 
  
 
-   RK3SSPSolver coupled_ode_solver;
-   coupled_ode_solver.Init(physics);
+   std::unique_ptr<ODESolver> coupled_ode_solver = ODESolver::Select(ode_solver_type);   
+   coupled_ode_solver->Init(physics);
 
 
-   ParaViewDataCollection solid_pv("solid2", &block_submesh);
-   ParaViewDataCollection fluid_pv("fluid2", &cylinder_submesh);
+   ParaViewDataCollection solid_pv("solid-"+std::to_string(ode_solver_type), &block_submesh);
+   ParaViewDataCollection fluid_pv("fluid-"+std::to_string(ode_solver_type), &cylinder_submesh);
 
    solid_pv.SetLevelsOfDetail(order);
    solid_pv.SetDataFormat(VTKFormat::BINARY);
@@ -366,6 +413,7 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
+      // block_ode_solver->Step(temperature.GetBlock(0), t, dt);
       // coupled_ode_solver.Step(temperature,t,dt);
       physics.Step(temperature, t, dt);
       t += dt;
