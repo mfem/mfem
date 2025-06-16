@@ -18,6 +18,11 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
                      bool bsymmetrize)
    : fes_u(fes_u_), fes_p(fes_p_), bsym(bsymmetrize)
 {
+   this->UpdateOffsetsAndSize();
+}
+
+void DarcyForm::UpdateOffsetsAndSize()
+{
    offsets.SetSize(3);
    offsets[0] = 0;
    offsets[1] = fes_u->GetVSize();
@@ -886,6 +891,8 @@ void DarcyForm::Gradient::Mult(const Vector &x, Vector &y) const
 
 void DarcyForm::Update()
 {
+   UpdateOffsetsAndSize();
+
    if (M_u) { M_u->Update(); }
    if (M_p) { M_p->Update(); }
    if (Mnl_u) { Mnl_u->Update(); }

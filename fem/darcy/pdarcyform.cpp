@@ -21,6 +21,12 @@ ParDarcyForm::ParDarcyForm(ParFiniteElementSpace *fes_u,
                            ParFiniteElementSpace *fes_p, bool bsymmetrize)
    : DarcyForm(fes_u, fes_p, bsymmetrize), pfes_u(*fes_u), pfes_p(*fes_p)
 {
+}
+
+void ParDarcyForm::UpdateOffsetsAndSize()
+{
+   DarcyForm::UpdateOffsetsAndSize();
+
    toffsets.SetSize(3);
    toffsets[0] = 0;
    toffsets[1] = pfes_u.GetTrueVSize();

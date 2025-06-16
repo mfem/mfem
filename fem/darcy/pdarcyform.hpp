@@ -35,6 +35,7 @@ protected:
    ParMixedBilinearForm *pB{};
    ParBlockNonlinearForm *pMnl{};
 
+   void UpdateOffsetsAndSize() override;
    void AllocBlockOp();
 
    void AssembleDivLDGSharedFaces(int skip_zeros);
