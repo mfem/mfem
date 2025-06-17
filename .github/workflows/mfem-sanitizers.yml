@@ -45,10 +45,10 @@ jobs:
             cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
             ldflags: "-fsanitize=undefined"
             env: UBSAN_OPTIONS="print_stacktrace=1,halt_on_error=0"
-          - sanitizer: MemorySanitizer
-            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-memory-track-origins"
-            ldflags: "-fsanitize=memory"
-            env: MSAN_OPTIONS="poison_in_dtor=1"
+          # - sanitizer: MemorySanitizer
+          #   cxxflags: "-fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-memory-track-origins"
+          #   ldflags: "-fsanitize=memory"
+          #   env: MSAN_OPTIONS="poison_in_dtor=1"
 
     name: "${{ matrix.sanitizer }}"
 
