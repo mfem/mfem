@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
+        sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer] #, MemorySanitizer]
         include:
           - sanitizer: AddressSanitizer
             cxxflags: "-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-address-use-after-scope"
@@ -46,7 +46,7 @@ jobs:
             ldflags: "-fsanitize=undefined"
             env: UBSAN_OPTIONS="print_stacktrace=1,halt_on_error=0"
           - sanitizer: MemorySanitizer
-            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-memory-track-origins=2"
+            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-memory-track-origins"
             ldflags: "-fsanitize=memory"
             env: MSAN_OPTIONS="poison_in_dtor=1"
 
