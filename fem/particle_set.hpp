@@ -22,20 +22,30 @@
 namespace mfem
 {
 
+template<typename T>
+class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T> requires that T is a Particle."); };
+
+
 // -----------------------------------------------------------------------------------------------------
 // Define Particle struct
 template<int Dim, int VFields=0, int SFields=0>
 struct Particle
 {
+public:
    real_t coords[Dim];
    real_t vector_fields[VFields][Dim];
    real_t scalar_fields[SFields];
+   
+private:
+   real_t rst[Dim];
+   uint code, proc, el;
+
+   template<typename T> friend class ParticleSet;
+
 };
 
 // -----------------------------------------------------------------------------------------------------
 // Define Base ParticleSet
-template<typename T>
-class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T> requires that T is a Particle."); };
 
 template<int Dim, int VFields, int SFields>
 class ParticleSet<Particle<Dim,VFields,SFields>>
@@ -77,10 +87,10 @@ public:
    /// Get reference to particle \p i 's \p v vector component \p comp
    virtual real_t& GetVector(int v, int i, int comp) = 0;
 
-   /// Get reference to particle \p i 's \p S scalar
+   /// Get reference to particle \p i 's \p s scalar
    virtual real_t& GetScalar(int s, int i) = 0;
 
-   /// Update all particle coordinates
+   /// Update all particles' \p s scalar field
    void UpdateCoords(const Vector &new_coords, Ordering::Type ordering)
    {
       UpdateFromVVector(new_coords,
@@ -154,8 +164,8 @@ class SoAParticleSet<Particle<Dim, VFields, SFields>> : public
 {
 protected:
 
-   std::array<std::vector<real_t>, Dim> coords; /// Particle coordinate vectors in each spatial dimension
-   std::array<std::array<std::vector<real_t>, Dim>, VFields> vector_fields; /// Particle vector fields
+   std::vector<real_t> coords; /// Particle coordinate vector flattened, ordered byNODES
+   std::array<std::vector<real_t>, VFields> vector_fields; /// Particle vector fields flattened, ordered byNODES
    std::array<std::vector<real_t>, SFields> scalar_fields; /// Particle scalar fields
    
 public:
@@ -163,7 +173,7 @@ public:
    
    void Reserve(int res) override;
 
-   int GetNP() const override { coords[0].size(); }
+   int GetNP() const override { coords.size()/Dim; }
 
    void AddParticle(const Particle<Dim, VFields, SFields> &p) override;
 
@@ -181,17 +191,23 @@ public:
 
    // Bonus functions we can leverage with SoA:
 
-   const real_t* GetParticleCoords(int comp) const { return coords[comp].data(); }
+   const real_t* GetParticleCoords() const
+   { return coords.data(); }
 
-   const real_t* GetVectorField(int v, int comp) const { return vector_fields[v][comp].data(); }
+   const real_t* GetVectorField(int v) const
+   { return vector_fields[v].data(); }
 
-   const real_t* GetScalarField(int s) const { return scalar_fields[s].data(); }
+   const real_t* GetScalarField(int s) const
+   { return scalar_fields[s].data(); }
 
-   real_t* GetParticleCoords(int comp) { return coords[comp].data(); }
+   real_t* GetParticleCoords()
+   { return coords.data(); }
 
-   real_t* GetVectorField(int v, int comp) { return vector_fields[v][comp].data(); }
+   real_t* GetVectorField(int v)
+   { return vector_fields[v].data(); }
 
-   real_t* GetScalarField(int s) { return scalar_fields[s].data(); }
+   real_t* GetScalarField(int s)
+   { return scalar_fields[s].data(); }
 
 };
 
@@ -232,9 +248,11 @@ public:
 
    // Bonus functions we can leverage with AoS:
 
-   const Particle<Dim, VFields, SFields>* GetParticles() const { return particles.data(); };
+   const Particle<Dim, VFields, SFields>* GetParticles() const
+   { return particles.data(); };
 
-   Particle<Dim, VFields, SFields>* GetParticles() { return particles.data(); };
+   Particle<Dim, VFields, SFields>* GetParticles()
+   { return particles.data(); };
 };
 
 // -----------------------------------------------------------------------------------------------------
@@ -265,10 +283,10 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle
    // !! Add data to multiple arrays !!
    for (int d = 0; d < Dim; d++)
    {
-      coords[d].push_back(p.coords[d]);
+      coords.insert(coords.begin() + d*GetNP(), p.coords[d]);
       for (int v = 0; v < VFields; v++)
       {
-         vector_fields[v][d].push_back(p.vector_fields[v][d]);
+         vector_fields[v].insert(vector_fields[v].begin() + d*GetNP(), p.vector_fields[v][d]);
       }
    }
    for (int s = 0; s < SFields; s++)
@@ -288,9 +306,9 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Arra
    sorted_list.Sort();
 
    int rm_count = 0;
-   for (int i = sorted_list[rm_count]; i < num_old; i++)
+   for (int i = sorted_list[rm_count]; i < num_old*Dim; i++)
    {
-      if (rm_count < sorted_list.Size() && i == sorted_list[rm_count])
+      if (rm_count < sorted_list.Size() && i % GetNP() == sorted_list[rm_count])
       {
          rm_count++;
       }
@@ -298,17 +316,18 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Arra
       {
          // Shift elements rm_count
          // !! Multiple arrays shifting !!
-         for (int d = 0; d < Dim; d++)
+         coords[i-rm_count] = coords[i];
+         for (int v = 0; v < VFields; v++)
          {
-            coords[d][i-rm_count] = coords[d][i];
-            for (int v = 0; v < VFields; v++)
-            {
-               vector_fields[v][d][i-rm_count] = vector_fields[v][d][i];
-            }
+            vector_fields[v][i-rm_count] = vector_fields[v][i];
          }
-         for (int s = 0; s < SFields; s++)
+
+         if (i < GetNP())
          {
-            scalar_fields[s][i-rm_count] = scalar_fields[s][i];
+            for (int s = 0; s < SFields; s++)
+            {
+               scalar_fields[s][i-rm_count] = scalar_fields[s][i];
+            }
          }
       }
    }
@@ -316,13 +335,11 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Arra
    // Resize / remove tails
    // !! Multiple arrays resizing !!
    int num_new = num_old - list.Size();
-   for (int d = 0; d < Dim; d++)
+
+   coords.resize(num_new*Dim);
+   for (int v = 0; v < VFields; v++)
    {
-      coords[d].resize(num_new);
-      for (int v = 0; v < VFields; v++)
-      {
-         vector_fields[v][d].resize(num_new);
-      }
+      vector_fields[v].resize(num_new*Dim);
    }
    for (int s = 0; s < SFields; s++)
    {
@@ -338,10 +355,10 @@ void SoAParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i,
    // !! Get data from multiple arrays !!
    for (int d = 0; d < Dim; d++)
    {
-      p.coords[d] = coords[d][i];
+      p.coords[d] = coords[i+d*GetNP()];
       for (int v = 0; v < VFields; v++)
       {
-         p.vector_fields[v][d] = vector_fields[v][d][i];
+         p.vector_fields[v][d] = vector_fields[v][i+d*GetNP()];
       }
    }
    for (int s = 0; s < SFields; s++)
