@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        sanitizer: [address, undefined, memory]
+        sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         include:
           - sanitizer: AddressSanitizer
             cxxflags: "-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-address-use-after-scope"
@@ -50,12 +50,14 @@ jobs:
             ldflags: "-fsanitize=memory"
             env: MSAN_OPTIONS="poison_in_dtor=1"
 
+    name: "${{ matrix.sanitizer }}"
+
     steps:
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
           path: mfem
-          
+
       - name: Install llvm-symbolizer
         run: |
           sudo apt-get update
@@ -63,6 +65,10 @@ jobs:
 
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
+        env:
+          CXX: "clang++-18"
+          CXXFLAGS: "-g -O2 -std=c++17 ${{ matrix.sanitizer.cxxflags }}"
+          LDFLAGS: "${{ matrix.sanitizer.ldflags }}"
         with:
           os: ${{ runner.os }}
           target: opt
@@ -72,10 +78,6 @@ jobs:
           mfem-dir: mfem
           build-system: make
           library-only: false
-          config-options: |
-            CXX="clang++-18"
-            CXXFLAGS="-g -O2 -std=c++17 ${{ matrix.cxxflags }}"
-            LDFLAGS="${{ matrix.ldflags }}"
 
       - name: MFEM Info
         working-directory: mfem
@@ -83,6 +85,5 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: |
-          ${{ matrix.env }}
-          make test
+        env: ${{ matrix.sanitizer.env }}
+        run: make test
