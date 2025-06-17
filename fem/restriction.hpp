@@ -64,11 +64,11 @@ public:
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
-   /// Deprecated, using AbsMult instead.
+   /// @deprecated Use AbsMult() instead.
    MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
    { AbsMult(x, y); }
 
-   /// Deprecated, using AbsMultTranspose instead.
+   /// @deprecated Use AbsMultTranspose() instead.
    MFEM_DEPRECATED void MultTransposeUnsigned(const Vector &x, Vector &y) const
    { AbsMultTranspose(x, y); }
 
@@ -199,7 +199,7 @@ public:
       AddMultTranspose(x, y, a);
    }
 
-   /// Deprecated. Use AddAbsMultTranspose instead.
+   /// @deprecated Use AddAbsMultTranspose() instead.
    MFEM_DEPRECATED void AddMultTransposeUnsigned(const Vector &x, Vector &y,
                                                  const real_t a = 1.0) const
    {
@@ -348,7 +348,7 @@ public:
    void AbsMult(const Vector &x, Vector &y) const override
    { MultInternal(x, y, true); }
 
-   /// Deprecated. Use AbsMult instead.
+   /// @deprecated Use AbsMult() instead.
    MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
    { AbsMult(x, y); }
 
@@ -375,7 +375,7 @@ public:
    void AddAbsMultTranspose(const Vector &x, Vector &y,
                             const real_t a = 1.0) const override;
 
-   /// Deprecated. Use AddAbsMultTranspose instead.
+   /// @deprecated Use AddAbsMultTranspose() instead.
    MFEM_DEPRECATED void AddMultTransposeUnsigned(const Vector &x, Vector &y) const
    {
       AddAbsMultTranspose(x, y);
