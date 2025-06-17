@@ -85,5 +85,6 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        env: ${{ matrix.env }}
-        run: make test
+        run: |
+          ${{ matrix.env }}
+          make test
