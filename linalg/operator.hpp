@@ -1071,9 +1071,6 @@ public:
 
    void AbsMult(const Vector &x, Vector &y) const override;
 
-   void AddAbsMult(const Vector &x, Vector &y,
-                   const real_t a = 1.0) const;
-
    void MultTranspose(const Vector &x, Vector &y) const override;
 
    void AbsMultTranspose(const Vector &x, Vector &y) const override;

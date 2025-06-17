@@ -172,19 +172,10 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    }
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
-
-   Array<real_t> absB(maps->B);
-   Array<real_t> absG(maps->G);
-   Array<real_t> absBt(maps->Bt);
-   Array<real_t> absGt(maps->Gt);
-
-   absB.Abs();
-   absG.Abs();
-   absBt.Abs();
-   absGt.Abs();
+   auto abs_maps = maps->Abs();
 
    ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                       absB, absG, absBt, absGt,
+                       abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
                        abs_pa_data, x, y, dofs1D, quad1D);
 }
 

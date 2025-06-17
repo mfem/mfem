@@ -738,13 +738,6 @@ void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
    y.Add(a, w);
 }
 
-void ConstrainedOperator::AddAbsMult(const Vector &x, Vector &y,
-                                     const real_t a) const
-{
-   AbsMult(x, w);
-   y.Add(a, w);
-}
-
 RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
