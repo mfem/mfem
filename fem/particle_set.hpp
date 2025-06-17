@@ -173,7 +173,7 @@ public:
    
    void Reserve(int res) override;
 
-   int GetNP() const override { coords.size()/Dim; }
+   int GetNP() const override { return coords.size()/Dim; }
 
    void AddParticle(const Particle<Dim, VFields, SFields> &p) override;
 
@@ -181,9 +181,9 @@ public:
 
    void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const override;
 
-   real_t& GetCoord(int i, int comp) override { return coords[comp][i]; }
+   real_t& GetCoord(int i, int comp) override { return coords[i+comp*GetNP()]; }
 
-   real_t& GetVector(int v, int i, int comp) override { return vector_fields[v][comp][i]; }
+   real_t& GetVector(int v, int i, int comp) override { return vector_fields[v][i+comp*GetNP()]; }
 
    real_t& GetScalar(int s, int i) override { return scalar_fields[s][i]; }
 
@@ -262,13 +262,10 @@ template<int Dim, int VFields, int SFields>
 void SoAParticleSet<Particle<Dim, VFields, SFields>>::Reserve(int res)
 {
    // Reserve memory:
-   for (int d = 0; d < Dim; d++)
+   coords.reserve(res*Dim);
+   for (int v = 0; v < VFields; v++)
    {
-      coords[d].reserve(res);
-      for (int v = 0; v < VFields; v++)
-      {
-         vector_fields[v][d].reserve(res);
-      }
+      vector_fields[v].reserve(res*Dim);
    }
    for (int s = 0; s < SFields; s++)
    {
@@ -281,12 +278,13 @@ template<int Dim, int VFields, int SFields>
 void SoAParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle<Dim, VFields, SFields> &p)
 {
    // !! Add data to multiple arrays !!
+   // Seg fault because GetNP is updating.
    for (int d = 0; d < Dim; d++)
    {
-      coords.insert(coords.begin() + d*GetNP(), p.coords[d]);
+      coords.insert(coords.begin() + (d+1)*(coords.size()/Dim) + d, p.coords[d]);
       for (int v = 0; v < VFields; v++)
       {
-         vector_fields[v].insert(vector_fields[v].begin() + d*GetNP(), p.vector_fields[v][d]);
+         vector_fields[v].insert(vector_fields[v].begin() + (d+1)*(vector_fields[v].size()/Dim) + d, p.vector_fields[v][d]);
       }
    }
    for (int s = 0; s < SFields; s++)
