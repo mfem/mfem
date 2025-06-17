@@ -33,22 +33,26 @@ jobs:
       matrix:
         sanitizer:
           - name: AddressSanitizer
-            flags: "-fsanitize=address
+            cxxflags: "-fsanitize=address
                     -fno-omit-frame-pointer
+                    -fno-optimize-sibling-calls
                     -fsanitize-address-use-after-scope"
+            ldflags: "-fsanitize=address"
             env: ASAN_OPTIONS="detect_leaks=1,
                                strict_init_order=1,
                                strict_string_checks=1,
                                check_initialization_order=1,
                                detect_stack_use_after_return=1"
           - name: UndefinedBehaviorSanitizer
-            flags: "-fsanitize=undefined -fno-omit-frame-pointer"
+            cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
+            ldflags: "-fsanitize=undefined"
             env: UBSAN_OPTIONS="print_stacktrace=1,halt_on_error=0"
           - name: MemorySanitizer
-            flags: "-fsanitize=memory
+            cxxflags: "-fsanitize=memory
                     -fno-omit-frame-pointer
                     -fno-optimize-sibling-calls
                     -fsanitize-memory-track-origins=2"
+            ldflags: "-fsanitize=memory"
             env: MSAN_OPTIONS="poison_in_dtor=1"
 
     steps:
@@ -70,8 +74,8 @@ jobs:
           library-only: false
           config-options: |
             CXX="clang++-18"
-            CXXFLAGS="-g -O1 -std=c++17 ${{ matrix.sanitizer.flags }}"
-            ${{ matrix.sanitizer.name == 'MemorySanitizer' && 'LDFLAGS="-fsanitize=memory"' || '' }}
+            CXXFLAGS="-g -O2 -std=c++17 ${{ matrix.sanitizer.cxxflags }}"
+            LDFLAGS="${{ matrix.sanitizer.ldflags }}"
 
       - name: MFEM Info
         working-directory: mfem
