@@ -27,8 +27,8 @@
 // Compile with: make gridfunction-bounds
 //
 // Sample runs:
-// mpirun -np 4 gridfunction-bounds
-// mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
+//  mpirun -np 4 gridfunction-bounds
+//  mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
 
 #include "mfem.hpp"
 #include <memory>

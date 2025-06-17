@@ -28,10 +28,10 @@
 // Compile with: make mesh-bounding-boxes
 //
 // Sample runs:
-// mpirun -np 4 mesh-bounding-boxes -m ../../data/klein-bottle.mesh
-// mpirun -np 4 mesh-bounding-boxes -m ../gslib/triple-pt-1.mesh
-// mpirun -np 4 mesh-bounding-boxes -m ../../data/star-surf.mesh
-// mpirun -np 4 mesh-bounding-boxes -m ../../data/fichera-q2.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../../data/klein-bottle.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../gslib/triple-pt-1.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../../data/star-surf.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../../data/fichera-q2.mesh
 
 #include "mfem.hpp"
 #include <iostream>
