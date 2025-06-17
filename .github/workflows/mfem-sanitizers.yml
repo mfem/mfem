@@ -67,8 +67,8 @@ jobs:
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           CXX: "clang++-18"
-          CXXFLAGS: "-g -O2 -std=c++17 ${{ matrix.sanitizer.cxxflags }}"
-          LDFLAGS: "${{ matrix.sanitizer.ldflags }}"
+          CXXFLAGS: "-g -O2 -std=c++17 ${{ matrix.cxxflags }}"
+          LDFLAGS: "${{ matrix.ldflags }}"
         with:
           os: ${{ runner.os }}
           target: opt
@@ -85,5 +85,5 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        env: ${{ matrix.sanitizer.env }}
+        env: ${{ matrix.env }}
         run: make test
