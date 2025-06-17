@@ -184,11 +184,15 @@ int main(int argc, char *argv[])
    cout << "assembled A blocK" << endl; 
 
    vphi_newton.Assemble(); 
+   // vphi_newton.EliminateTrialDofs(ess_tdof_list, x.GetBlock(1), rhs.GetBlock(1)); 
+
+   // NOTE: eliminate H(div) essential BC for B^T block test functions <--> trial functions for B block 
+   vphi_newton.EliminateTestDofs(ess_tdof_list); 
    vphi_newton.Finalize(true); 
 
    cout << "assembled vphi" << endl; 
+
    auto vphi_newtonT = *Transpose(vphi_newton.SpMat()); 
-   cout << "transpose" << endl; 
    A.SetBlock(0, 1, &vphi_newtonT); 
    A.SetBlock(1, 0, &vphi_newton.SpMat()); 
    
@@ -259,8 +263,15 @@ int main(int argc, char *argv[])
             std::cout << "\tIteration " << newt_it++ << ": ";
             x_old_newt = x;
 
-            // psi_newton.Assemble(false); 
-            // psi_newton.Finalize(false); 
+            psi_newton.Assemble(false); 
+            // NOTE: eliminate H(div) essential BC for D^T block test functions <--> trial functions for D block 
+            psi_newton.EliminateTestDofs(ess_tdof_list);
+            psi_newton.Finalize(false); 
+
+            auto psi_newtonT = *Transpose(vphi_newton.SpMat()); 
+
+            A.SetBlock(0, 2, &psi_newton.SpMat()); 
+            A.SetBlock(2, 0, &psi_newtonT); 
 
             // TODO: add multiplication of new stepsize for A & BT blocks 
 
