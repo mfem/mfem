@@ -10,23 +10,46 @@
 
 Version 4.8.1 (development)
 ===========================
-- Added support for variational resampling of H1 vector fields to ParMoonolith
-  integration.
 
-- API addition: in class `Operator`, added virtual functions: `AbsMult`, and
-  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
+Starting with this version, MFEM requires a C++17 compiler.
 
+Discretization improvements
+---------------------------
+- Introduced dFEM: a new MFEM capability for Automatic Differentiation (AD) of
+  nonlinear finite element operators, based on Enzyme or dual numbers AD at
+  quadrature points. These features are part of the new mfem::future namespace
+  and some of the API can change in the future. See the new dFEM minimal surface
+  miniapp in the miniapps/dfem/ directory for illustration of dFEM's use.
+
+- Using Enzyme for AD in MFEM is tested with clang v19 and requires clang/LLVM
+  built with plugin support. See INSTALL for more details.
+
+- In the ParMoonolith integration, added support for variational resampling of
+  H1 vector fields.
+
+GPU computing
+-------------
+- The function Vector::SetSubVector(const Array<int> &, const real_t) now
+  executes on device if either the vector or the array have the device flag
+  set. This is most often used for setting constant essential boundary
+  conditions. A new function Vector::SetSubVectorHost has been added in cases
+  where host execution is always needed (e.g. when the DOFs array is small).
+
+New and updated examples and miniapps
+-------------------------------------
 - Added miniapps to demonstrate an implementation of the absolute-value
   L(1)-Jacobi preconditioners in partially assembled operators. This includes
   Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
   operators as smoothers.
   These miniapps can be found in `miniapps/diag-smoothers`.
 
-- The function Vector::SetSubVector(const Array<int> &, const real_t) now
-  executes on device if either the vector or the array have the device flag
-  set. This is most often used for setting constant essential boundary
-  conditions. A new function Vector::SetSubVectorHost has been added in cases
-  where host execution is always needed (e.g. when the DOFs array is small).
+API changes:
+-----------
+- mfem::internal::tensor and mfem::internal::dual have been moved to
+  mfem::future::tensor and mfem::future::dual.
+- API addition: in class `Operator`, added virtual functions: `AbsMult`, and
+  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
+
 
 Version 4.8, released on Apr 9, 2025
 ====================================
