@@ -77,9 +77,7 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       auto GetChebyshevNodes = [](int n) -> Vector
       {
          Vector cheb(n);
-         cheb(0) = -1.0;
-         cheb(n - 1) = 1.0;
-         for (int i = 1; i < n-1; ++i)
+         for (int i = 0; i < n; ++i)
          {
             cheb(i) = -cos(M_PI * (static_cast<real_t>(i) / (n - 1)));
          }
