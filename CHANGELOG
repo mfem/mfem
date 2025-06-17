@@ -40,6 +40,10 @@ API changes:
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
 
+Miscellaneous
+-------------
+- Added undefined behavior and uninitialized memory use detectors GitHub action 
+  for a serial build/test on Ubuntu, based on Clang/LLVM.
 
 Version 4.8, released on Apr 9, 2025
 ====================================
