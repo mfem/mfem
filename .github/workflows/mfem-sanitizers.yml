@@ -124,7 +124,7 @@ jobs:
         working-directory: llvm-build
         run: >
           VERBOSE=1
-          cmake -GNinja ../llvm-project/runtimes/libcxx
+          cmake -GNinja ../llvm-project/runtimes/
           -DCMAKE_C_COMPILER=${{ env.CC }}
           -DCMAKE_CXX_COMPILER=${{ env.CXX }}
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
