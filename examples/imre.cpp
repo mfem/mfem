@@ -28,8 +28,8 @@ protected:
    real_t alpha;
 
 public:
-   DZCoefficient(int height, GridFunction &psi_)
-      : MatrixCoefficient(height),  psi(&psi_){ }
+   DZCoefficient(GridFunction &psi_)
+      : MatrixCoefficient(2),  psi(&psi_){ }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
    VectorSumCoefficient psi_newton_res(psi_old_cf, psi_cf, 1., -1.);
 
    ZCoefficient Z(psi);
-   DZCoefficient DZ(sdim, psi);
+   DZCoefficient DZ(psi);
 
    // Other coefficients
    ConstantCoefficient one_cf(1.), neg_one_cf(-1.);
@@ -159,20 +159,16 @@ int main(int argc, char *argv[])
    BilinearForm p_newton(&rtfes), vphi_newtonC(&h1fes), DZform(&l2fes_vec);
    MixedBilinearForm vphi_newton(&h1fes, &rtfes), psi_newton(&l2fes_vec, &rtfes);
 
-   // TODO: add mult by alpha 
    p_newton.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
 
-   // cout << "mixedscalarcurl" << endl; 
-   // vphi_newton.AddDomainIntegrator(new MixedScalarCurlIntegrator()); 
    RotationCoefficient R;
    vphi_newton.AddDomainIntegrator(new MixedVectorGradientIntegrator(R)); 
 
-   // cout << "diffusion" << endl; 
    vphi_newtonC.AddDomainIntegrator(new DiffusionIntegrator(neg_one_cf)); 
 
    psi_newton.AddDomainIntegrator(new VectorMassIntegrator()); 
 
-   DZform.AddDomainIntegrator(new VectorFEMassIntegrator(negDZ)); 
+   DZform.AddDomainIntegrator(new VectorMassIntegrator(negDZ)); 
 
    // apply 0 essential boundary condition to H(div) space 
    p_newton.SetDiagonalPolicy(mfem::Operator::DIAG_ONE); 
@@ -193,8 +189,8 @@ int main(int argc, char *argv[])
    cout << "assembled vphi" << endl; 
 
    auto vphi_newtonT = *Transpose(vphi_newton.SpMat()); 
-   A.SetBlock(0, 1, &vphi_newtonT); 
-   A.SetBlock(1, 0, &vphi_newton.SpMat()); 
+   A.SetBlock(1, 0, &vphi_newtonT); 
+   A.SetBlock(0, 1, &vphi_newton.SpMat()); 
    
    vphi_newtonC.Assemble(); 
    cout << "C block" << endl; 
@@ -252,7 +248,9 @@ int main(int argc, char *argv[])
    while (prox_residual > tol && prox_it < max_it) { 
       prox_it++; 
       x_old = x; 
+      cout << "prox res lf assemble" << endl; 
       prox_res_lf.Assemble(); 
+
       prox_res_lf.Add(-alpha, image);       
 
       newt_residual = newt_tol + 1; 
@@ -264,8 +262,11 @@ int main(int argc, char *argv[])
             x_old_newt = x;
 
             psi_newton.Assemble(false); 
+
+            cout << "psinewt assemble" << endl; 
             // NOTE: eliminate H(div) essential BC for D^T block test functions <--> trial functions for D block 
             psi_newton.EliminateTestDofs(ess_tdof_list);
+            cout << "psi newton elim test" << endl; 
             psi_newton.Finalize(false); 
 
             auto psi_newtonT = *Transpose(vphi_newton.SpMat()); 
@@ -339,9 +340,9 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
 
-   Vector psi_vals(height);
+   Vector psi_vals(2);
    psi->GetVectorValue(T, ip, psi_vals);
 
    K = 0.;  
-   for (int i = 0; i < height; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i)), 2)) / 2.; }
+   for (int i = 0; i < 2; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i)), 2)) / 2.; }
 }
