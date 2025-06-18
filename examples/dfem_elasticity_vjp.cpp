@@ -439,8 +439,21 @@ int main(int argc, char* argv[])
    StrainEnergyQoi qoi(displacement_fes, displacement_ir, E);
    Vector energy;
    qoi.Mult(u, energy);
-
    out << "Energy = " << energy(0) << std::endl;
+
+   // TODO:
+   // 1. G = -∂(qoi)/∂u (ie adjoint load)
+   // 2. solve K^T lambda = G
+   //    in this case, K = K^T, so we can ignore the transpose action for now
+   // 3. d(qoi)/dE = ∂(qoi)/∂E + lambda * ∂r/∂E
+   // 4. Check d(qoi)/dE * dE with finite differences for some random dE vector
+   //
+   //    To compute lambda * ∂r/∂E, set up another differentiable integrator J (u, E) -> reals
+   //    J(u, E; v) = v * r
+   //    lambda * ∂r/∂E = ∂J(u, E; lambda)/∂E
+
+   // We need help from Julain to get scalar-valued differentiable operators
+   // Also need to be able to assemble the adjoint load vector
 
    return 0;
 }
