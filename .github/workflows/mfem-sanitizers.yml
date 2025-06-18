@@ -88,7 +88,7 @@ jobs:
           metis-dir: unused-metis-dir
           mfem-dir: mfem
           build-system: make
-          library-only: true # false
+          library-only: false
           config-options: CXX=${{ env.CXX }}
 
       - name: MFEM Info
@@ -97,4 +97,4 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: make check # test
+        run: make test
