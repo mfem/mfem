@@ -284,28 +284,5 @@ int main(int argc, char *argv[])
       delete fec;
    }
 
-#if defined(__has_feature)
-
-   // UndefinedBehaviorSanitizer (UBSan) is a fast undefined behavior detector.
-#if __has_feature(undefined_behavior_sanitizer)
-   int k = 0x7fffffff;
-   mfem::out << "undefined_behavior_sanitizer" << (k += argc) << std::endl;
-#endif // undefined_behavior_sanitizer
-
-   // #if __has_feature(address_sanitizer)
-   //    int *array = new int[1024];
-   //    delete [] array;
-   //    mfem::out << "address_sanitizer" << (array[argc]) << std::endl;
-   // #endif // address_sanitizer
-
-   // MemorySanitizer is a detector of uninitialized memory use.
-#if __has_feature(memory_sanitizer)
-   // int* array = new int[1024];
-   // array[5] = 0;
-   // mfem::out << "memory_sanitizer" << (array[argc]) << std::endl;
-#endif // memory_sanitizer
-
-#endif // __has_feature
-
    return 0;
 }

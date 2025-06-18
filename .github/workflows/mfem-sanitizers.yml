@@ -41,6 +41,8 @@ jobs:
   Sanitizers:
     runs-on: ubuntu-latest
     strategy:
+      # Avoid canceling all in-progress and queued jobs in the matrix if any one fails
+      fail-fast: false
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         include:
@@ -90,17 +92,62 @@ jobs:
           ${{ env.CXX }} -v
           echo "> LLVM_SANITIZER: ${{ env.LLVM_SANITIZER }}"
 
+      # - name: Build libc++
+      #   if: matrix.sanitizer != 'AddressSanitizer'
+      #   run: |
+      #     "${GITHUB_WORKSPACE}/mfem/.github/workflows/mfem-sanitizers.sh"
+      #     echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
+      #     echo "EXTRA_LD_FLAGS=-L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
+
+        ### LLVM libcxx Build Steps
+      - name: LLVM Clone
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: >
+          git clone --filter=blob:none --depth=1 
+                    --branch llvmorg-${{ env.LLVM_VERSION }}
+                    --no-checkout https://github.com/llvm/llvm-project.git llvm-project
+
+      - name: LLVM Checkout
+        if: matrix.sanitizer != 'AddressSanitizer'
+        working-directory: llvm-project
+        run: |
+          git sparse-checkout set --cone
+          git checkout llvmorg-${{ env.LLVM_VERSION }}
+          git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
+
+      - name: LLVM Build
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: mkdir llvm-build
+
+      - name: LLVM CMake
+        if: matrix.sanitizer != 'AddressSanitizer'
+        working-directory: llvm-build
+        run: >
+          VERBOSE=1
+          cmake -GNinja
+                -DCMAKE_C_COMPILER=${{ env.CC }}
+                -DCMAKE_CXX_COMPILER=${{ env.CXX }}
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo
+                -DCMAKE_INSTALL_PREFIX=/usr
+                -DLLVM_USE_SANITIZER=${{ env.LLVM_SANITIZER }}
+                -DLLVM_BUILD_32_BITS=OFF
+                -DLIBCXXABI_USE_LLVM_UNWINDER=OFF
+                -DLLVM_INCLUDE_TESTS=OFF
+                -DLIBCXX_INCLUDE_TESTS=OFF
+                -DLIBCXX_INCLUDE_BENCHMARKS=OFF
+                -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
+                ../llvm-project/runtimes/libcxx
+
+      - name: LLVM Ninja
+        if: matrix.sanitizer != 'AddressSanitizer'
+        working-directory: llvm-build
+        run: cmake --build . -- cxx cxxabi
+
+        ### MFEM Build and Test Steps
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
           path: mfem
-
-      - name: Build libc++
-        if: matrix.sanitizer != 'AddressSanitizer'
-        run: |
-          "${GITHUB_WORKSPACE}/mfem/.github/workflows/mfem-sanitizers.sh"
-          echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
-          echo "EXTRA_LD_FLAGS=-L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
