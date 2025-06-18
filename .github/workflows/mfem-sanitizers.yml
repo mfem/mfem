@@ -75,23 +75,35 @@ jobs:
           echo "> ${{ env.CXX }} -v"
           ${{ env.CXX }} -v
 
-      - name: github.workspace
-        if: matrix.sanitizer != 'AddressSanitizer'
-        run: |
-          echo "github.workspace: ${{ github.workspace }}"
-          "${{ github.workspace }}/.github/build-stdlib.sh"
+      # - name: github.workspace # /home/runner/work/mfem/mfem
+      #   if: matrix.sanitizer != 'AddressSanitizer'
+      #   run: |
+      #     echo "github.workspace: ${{ github.workspace }}"
+      #     "${{ github.workspace }}/.github/build-stdlib.sh"
 
-      - name: GITHUB_WORKSPACE
-        if: matrix.sanitizer != 'AddressSanitizer'
+    steps:
+      - name: Dump workspaces
         run: |
-          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
-          "${GITHUB_WORKSPACE}/.github/build-stdlib.sh"
+          echo 'github.workspace === ${{ github.workspace }}'
+          echo "GITHUB_WORKSPACE === $GITHUB_WORKSPACE"
+          echo 'runner.workspace === ${{ runner.workspace }}'
+          echo "RUNNER_WORKSPACE === $RUNNER_WORKSPACE"
+          ls -la ${{ github.workspace }}
+          ls -la $GITHUB_WORKSPACE
+          ls -la ${{ runner.workspace }}
+          ls -la $RUNNER_WORKSPACE
 
       - name: GITHUB_WORKSPACE ..
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
           echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
           "${GITHUB_WORKSPACE}/../.github/build-stdlib.sh"
+
+      - name: GITHUB_WORKSPACE
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          "${GITHUB_WORKSPACE}/.github/build-stdlib.sh"
 
         # MemorySanitizer requires that all program code is instrumented. 
         # This also includes any libraries that the program depends on, even libc.
