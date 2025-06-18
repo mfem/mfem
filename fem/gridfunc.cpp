@@ -1864,7 +1864,6 @@ void GridFunction::RestrictConforming()
 
 void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 {
-   int i, j;
    Array<int> vertices;
    Array<real_t> values;
    Array<int> overlap(fes->GetNV());
@@ -1872,17 +1871,17 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
    nval = 0.0;
    overlap = 0;
    nval.HostReadWrite();
-   for (i = 0; i < fes->GetNE(); i++)
+   for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVertices(i, vertices);
       GetNodalValues(i, values, vdim);
-      for (j = 0; j < vertices.Size(); j++)
+      for (int j = 0; j < vertices.Size(); j++)
       {
          nval(vertices[j]) += values[j];
          overlap[vertices[j]]++;
       }
    }
-   for (i = 0; i < overlap.Size(); i++)
+   for (int i = 0; i < overlap.Size(); i++)
    {
       nval(i) /= overlap[i];
    }
