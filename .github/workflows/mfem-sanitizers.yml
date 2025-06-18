@@ -42,18 +42,23 @@ jobs:
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         include:
-            ###########################
+            # AddressSanitizer
+            # https://clang.llvm.org/docs/AddressSanitizer.html
           - sanitizer: AddressSanitizer
             cxxflags: "-fsanitize=address -fno-omit-frame-pointer 
                        -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
             llvm_sanitizer: "Address"
-            #####################################
+
+            # UndefinedBehaviorSanitizer
+            # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
           - sanitizer: UndefinedBehaviorSanitizer
             cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
             ldflags: "-fsanitize=undefined"
             llvm_sanitizer: "Undefined"
-            ##########################
+            
+            # MemorySanitizer
+            # https://clang.llvm.org/docs/MemorySanitizer.html
           - sanitizer: MemorySanitizer
             cxxflags: "-fsanitize=memory -fno-omit-frame-pointer 
                        -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
@@ -95,8 +100,8 @@ jobs:
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
           "${GITHUB_WORKSPACE}/mfem/.github/build-stdlib.sh"
-          echo "EXTRA_CXX_FLAGS=-I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
-          echo "EXTRA_LD_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
+          echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
+          echo "EXTRA_LD_FLAGS=-L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
