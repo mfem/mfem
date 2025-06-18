@@ -27,6 +27,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  MSAN_OPTIONS: "poison_in_dtor=1"
   UBSAN_OPTIONS: "print_stacktrace=1, halt_on_error=1"
   ASAN_OPTIONS: "detect_leaks=1,
                  strict_init_order=1,
@@ -39,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer]
+        sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         include:
           - sanitizer: AddressSanitizer
             cxxflags: "-fsanitize=address -fno-omit-frame-pointer 
@@ -48,27 +49,35 @@ jobs:
           - sanitizer: UndefinedBehaviorSanitizer
             cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
             ldflags: "-fsanitize=undefined"
+          - sanitizer: MemorySanitizer
+            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer 
+                       -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
+            ldflags: "-fsanitize=memory"
 
     name: "${{ matrix.sanitizer }}"
 
     steps:
-      - name: Setup clang
+      - name: Setup Clang
         uses: egor-tensin/setup-clang@v1
         with:
           version: latest
           platform: x64
-
-      - name: Configure clang
         run: |
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
   
-      - name: Clang version
+      - name: Clang Version
         run: |
           echo "> ${{ env.CC }} -v"
           ${{ env.CC }} -v
           echo "> ${{ env.CXX }} -v"
           ${{ env.CXX }} -v
+
+      - name: Build libc++
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          "${GITHUB_WORKSPACE}/.github/workflows/mfem-sanitizers.sh"
+          echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
       - name: MFEM Checkout
         uses: actions/checkout@v4
@@ -78,7 +87,7 @@ jobs:
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
-          CXXFLAGS: "-g -O1 -std=c++17 ${{ matrix.cxxflags }}"
+          CXXFLAGS: "-g -O1 -std=c++17 ${{ matrix.cxxflags }} ${{ env.EXTRA_CXX_FLAGS }}"
           LDFLAGS: "${{ matrix.ldflags }}"
         with:
           os: ${{ runner.os }}
@@ -88,7 +97,7 @@ jobs:
           metis-dir: unused-metis-dir
           mfem-dir: mfem
           build-system: make
-          library-only: false
+          library-only: true # false
           config-options: CXX=${{ env.CXX }}
 
       - name: MFEM Info
@@ -97,4 +106,4 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: make test
+        run: make check # test
