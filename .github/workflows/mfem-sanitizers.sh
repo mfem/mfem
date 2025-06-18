@@ -2,11 +2,17 @@
 
 set -e
 
+# Ensure LLVM_VERSION is set
+if [ -z "${LLVM_VERSION}" ]; then
+  echo "Error: LLVM_VERSION environment variable is not set"
+  exit 1
+fi
+
 # Checkout LLVM sources
-git clone --filter=blob:none --depth=1 --branch llvmorg-19.1.6 --no-checkout https://github.com/llvm/llvm-project.git llvm-project
+git clone --filter=blob:none --depth=1 --branch llvmorg-${LLVM_VERSION} --no-checkout https://github.com/llvm/llvm-project.git llvm-project
 cd llvm-project
 git sparse-checkout set --cone
-git checkout llvmorg-19.1.6
+git checkout llvmorg-${LLVM_VERSION}
 git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
 cd ..
 

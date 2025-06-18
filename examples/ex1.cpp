@@ -284,5 +284,26 @@ int main(int argc, char *argv[])
       delete fec;
    }
 
+#if defined(__has_feature)
+
+#if __has_feature(undefined_behavior_sanitizer)
+   int k = 0x7fffffff;
+   mfem::out << "undefined_behavior_sanitizer" << (k += argc) << std::endl;
+#endif // undefined_behavior_sanitizer
+
+#if __has_feature(address_sanitizer)
+   int *array = new int[1024];
+   delete [] array;
+   mfem::out << "address_sanitizer" << (array[argc]) << std::endl;
+#endif // address_sanitizer
+
+#if __has_feature(memory_sanitizer)
+   int* a = new int[1024];
+   a[5] = 0;
+   mfem::out << "memory_sanitizer" << (a[argc]) << std::endl;
+#endif // memory_sanitizer
+
+#endif // __has_feature
+
    return 0;
 }
