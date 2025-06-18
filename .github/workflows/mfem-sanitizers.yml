@@ -46,25 +46,25 @@ jobs:
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         include:
-            # AddressSanitizer
-            # https://clang.llvm.org/docs/AddressSanitizer.html
+          # AddressSanitizer
+          # https://clang.llvm.org/docs/AddressSanitizer.html
           - sanitizer: AddressSanitizer
-            cxxflags: "-fsanitize=address -fno-omit-frame-pointer 
+            cxxflags: "-fsanitize=address -fno-omit-frame-pointer
                        -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
             llvm_sanitizer: "Address"
 
-            # UndefinedBehaviorSanitizer
-            # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
+          # UndefinedBehaviorSanitizer
+          # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
           - sanitizer: UndefinedBehaviorSanitizer
             cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
             ldflags: "-fsanitize=undefined"
             llvm_sanitizer: "Undefined"
-            
-            # MemorySanitizer
-            # https://clang.llvm.org/docs/MemorySanitizer.html
+
+          # MemorySanitizer
+          # https://clang.llvm.org/docs/MemorySanitizer.html
           - sanitizer: MemorySanitizer
-            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer 
+            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer
                        -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
             ldflags: "-fsanitize=memory"
             llvm_sanitizer: "MemoryWithOrigins"
@@ -83,7 +83,7 @@ jobs:
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
           echo "LLVM_SANITIZER=${{ matrix.llvm_sanitizer }}" >> $GITHUB_ENV
-  
+
       - name: Dump Environment
         run: |
           echo "> ${{ env.CC }} -v"
@@ -99,10 +99,13 @@ jobs:
       #     echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
       #     echo "EXTRA_LD_FLAGS=-L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
-        ### LLVM libcxx Build Steps
+      ### LLVM libcxx Build Steps
       - name: LLVM Clone
         if: matrix.sanitizer != 'AddressSanitizer'
-        run: git clone --filter=blob:none --depth=1 --branch llvmorg-${{ env.LLVM_VERSION }} --no-checkout https://github.com/llvm/llvm-project.git llvm-project
+        run: >
+          git clone --filter=blob:none --depth=1
+          --branch llvmorg-${{ env.LLVM_VERSION }}
+          --no-checkout https://github.com/llvm/llvm-project.git llvm-project
 
       - name: LLVM Checkout
         if: matrix.sanitizer != 'AddressSanitizer'
@@ -112,35 +115,34 @@ jobs:
           git checkout llvmorg-${{ env.LLVM_VERSION }}
           git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
 
-      - name: LLVM Build
+      - name: LLVM CMake Mkdir
         if: matrix.sanitizer != 'AddressSanitizer'
         run: mkdir llvm-build
 
-      - name: LLVM CMake
+      - name: LLVM CMake Configure
         if: matrix.sanitizer != 'AddressSanitizer'
         working-directory: llvm-build
         run: >
           VERBOSE=1
-          cmake -GNinja
-                -DCMAKE_C_COMPILER=${{ env.CC }}
-                -DCMAKE_CXX_COMPILER=${{ env.CXX }}
-                -DCMAKE_BUILD_TYPE=RelWithDebInfo
-                -DCMAKE_INSTALL_PREFIX=/usr
-                -DLLVM_USE_SANITIZER=${{ env.LLVM_SANITIZER }}
-                -DLLVM_BUILD_32_BITS=OFF
-                -DLIBCXXABI_USE_LLVM_UNWINDER=OFF
-                -DLLVM_INCLUDE_TESTS=OFF
-                -DLIBCXX_INCLUDE_TESTS=OFF
-                -DLIBCXX_INCLUDE_BENCHMARKS=OFF
-                -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
-                ../llvm-project/runtimes/libcxx
+          cmake -GNinja ../llvm-project/runtimes/libcxx
+          -DCMAKE_C_COMPILER=${{ env.CC }}
+          -DCMAKE_CXX_COMPILER=${{ env.CXX }}
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_INSTALL_PREFIX=/usr
+          -DLLVM_USE_SANITIZER=${{ env.LLVM_SANITIZER }}
+          -DLLVM_BUILD_32_BITS=OFF
+          -DLIBCXXABI_USE_LLVM_UNWINDER=OFF
+          -DLLVM_INCLUDE_TESTS=OFF
+          -DLIBCXX_INCLUDE_TESTS=OFF
+          -DLIBCXX_INCLUDE_BENCHMARKS=OFF
+          -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
 
-      - name: LLVM Ninja
+      - name: LLVM CMake Ninja
         if: matrix.sanitizer != 'AddressSanitizer'
         working-directory: llvm-build
         run: cmake --build . -- cxx cxxabi
 
-        ### MFEM Build and Test Steps
+      ### MFEM Build and Test Steps
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
@@ -159,7 +161,7 @@ jobs:
           metis-dir: unused-metis-dir
           mfem-dir: mfem
           build-system: make
-          library-only: true # false
+          library-only: true  # false
           config-options: CXX=${{ env.CXX }}
 
       - name: MFEM Info
@@ -168,4 +170,4 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: make check # test
+        run: make check  # test
