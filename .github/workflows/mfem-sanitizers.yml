@@ -74,6 +74,4 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: |
-          make ex1
-          make check
+        run: make check
