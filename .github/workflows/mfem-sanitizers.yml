@@ -63,7 +63,6 @@ jobs:
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
-          CXX: "clang++-18"
           CXXFLAGS: "-g -O1 -std=c++17 ${{ matrix.cxxflags }}"
           LDFLAGS: "${{ matrix.ldflags }}"
         with:
@@ -75,6 +74,7 @@ jobs:
           mfem-dir: mfem
           build-system: make
           library-only: false
+          config-options: CXX="clang++-18"
 
       - name: MFEM Info
         working-directory: mfem
