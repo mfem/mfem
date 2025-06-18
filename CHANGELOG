@@ -27,6 +27,11 @@ Discretization improvements
 - In the ParMoonolith integration, added support for variational resampling of
   H1 vector fields.
 
+Meshing improvements
+--------------------
+- Added support for higher order meshes in Mesh::MakeSimplicial and
+  ParMesh::MakeSimplicial.
+
 GPU computing
 -------------
 - The function Vector::SetSubVector(const Array<int> &, const real_t) now
