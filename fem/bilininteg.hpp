@@ -3864,9 +3864,10 @@ class NormalTraceJumpIntegrator : public BilinearFormIntegrator
 private:
    Vector face_shape, normal, shape1_n, shape2_n;
    DenseMatrix shape1, shape2;
+   real_t sign;
 
 public:
-   NormalTraceJumpIntegrator() { }
+   NormalTraceJumpIntegrator(real_t sign_ = 1.) : sign(sign_) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
                            const FiniteElement &test_fe1,

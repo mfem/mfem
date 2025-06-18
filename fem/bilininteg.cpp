@@ -5464,7 +5464,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Jacobian(), normal);
          // Side 1 finite element shape function
          test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
-         face_shape *= ip.weight;
+         face_shape *= ip.weight * sign;
          for (int d = 0; d < dim; d++)
             for (i = 0; i < ndof1; i++)
                for (j = 0; j < face_ndof; j++)
@@ -5526,7 +5526,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
             CalcOrtho(Trans.Loc2.Transf.Jacobian(), normal);
             shape2.Mult(normal, shape2_n);
          }
-         face_shape *= ip.weight;
+         face_shape *= ip.weight * sign;
          for (i = 0; i < ndof1; i++)
             for (j = 0; j < face_ndof; j++)
             {
