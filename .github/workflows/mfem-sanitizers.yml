@@ -27,8 +27,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  LLVM_VERSION: 18.1.3
   MSAN_OPTIONS: "poison_in_dtor=1"
-  UBSAN_OPTIONS: "print_stacktrace=1, halt_on_error=1"
+  UBSAN_OPTIONS: "halt_on_error=1,
+                  print_stacktrace=1"
   ASAN_OPTIONS: "detect_leaks=1,
                  strict_init_order=1,
                  strict_string_checks=1,
@@ -80,7 +82,7 @@ jobs:
           echo "CXX=c++" >> $GITHUB_ENV
           echo "LLVM_SANITIZER=${{ matrix.llvm_sanitizer }}" >> $GITHUB_ENV
   
-      - name: Clang Version
+      - name: Dump Environment
         run: |
           echo "> ${{ env.CC }} -v"
           ${{ env.CC }} -v
@@ -93,13 +95,10 @@ jobs:
         with:
           path: mfem
 
-        # MemorySanitizer requires that all program code is instrumented. 
-        # This also includes any libraries that the program depends on, even libc.
-        # Failing to achieve this may result in false reports.
       - name: Build libc++
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
-          "${GITHUB_WORKSPACE}/mfem/.github/mfem-sanitizers.sh"
+          "${GITHUB_WORKSPACE}/mfem/.github/workflows/mfem-sanitizers.sh"
           echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
           echo "EXTRA_LD_FLAGS=-L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
