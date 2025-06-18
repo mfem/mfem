@@ -48,7 +48,7 @@ TEST_CASE("Reduce Sum", "[Reduction],[CUDA]")
 TEST_CASE("Reduce Mult", "[Reduction],[CUDA]")
 {
    Array<long long> workspace;
-   Array<long long> a(100);
+   Array<long long> a(64);
    a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
    {
@@ -78,7 +78,7 @@ TEST_CASE("Reduce Mult", "[Reduction],[CUDA]")
             a.Size(), res,
          [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= dptr[i]; },
          MultReducer<long long> {}, use_dev, workspace);
-         long long expected = 5527454985320660992;
+         long long expected = 21936950640377856;
          CAPTURE(use_dev);
          REQUIRE(res == expected);
       }
