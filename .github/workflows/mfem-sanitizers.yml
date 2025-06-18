@@ -65,7 +65,7 @@ jobs:
           metis-dir: unused-metis-dir
           mfem-dir: mfem
           build-system: make
-          library-only: false
+          library-only: true #false
           config-options: CXX="clang++-18"
 
       - name: MFEM Info
@@ -74,4 +74,6 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: make ex1
+        run: |
+          make ex1
+          make check
