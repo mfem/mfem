@@ -379,7 +379,9 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
    static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
-   if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
+   // Don't protect if MFEM_MMU_SILENT is defined. Just emulate device memory movement.
+   static const bool mmu_silent = GetEnv("MFEM_MMU_SILENT");
+   if (mmu_silent || !::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (NONE) error"); }
 }
 
@@ -388,7 +390,9 @@ inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
    static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
-   if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
+   // Don't protect if MFEM_MMU_SILENT is defined. Just emulate device memory movement.
+   static const bool mmu_silent = GetEnv("MFEM_MMU_SILENT");
+   if (mmu_silent || !::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }
 #else
