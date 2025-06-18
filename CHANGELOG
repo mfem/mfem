@@ -47,7 +47,7 @@ API changes:
 
 Miscellaneous
 -------------
-- Added undefined behavior and uninitialized memory use detectors GitHub action 
+- Added undefined behavior and uninitialized memory use detectors GitHub actions 
   for a serial build/test on Ubuntu, based on Clang/LLVM.
 
 Version 4.8, released on Apr 9, 2025
