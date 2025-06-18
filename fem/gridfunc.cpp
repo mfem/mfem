@@ -2341,7 +2341,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
             fes->GetFE(i)->Project(coeff,
                                    *fes->GetElementTransformation(i),
                                    vals);
-            if (doftrans.GetDofTransformation()) { doftrans.TransformPrimal(vals); }
+            doftrans.TransformPrimal(vals);
 
             // Remove undefined dofs
             // The knot location (either Botella, Demko or Greville point)
@@ -2454,10 +2454,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          vals.SetSize(vdofs.Size());
          vals = signal;
          fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-         if (doftrans.GetDofTransformation())
-         {
-            doftrans.TransformPrimal(vals);
-         }
+         doftrans.TransformPrimal(vals);
          // Remove undefined dofs
          // The knot location (either Botella, Demko or Greville point)
          // where the NURBS dof are evaluated might fall outside of the
