@@ -27,7 +27,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  LLVM_VERSION: 18.1.3
+  LLVM_VER: 18.1.3
+  LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
+  LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
   MSAN_OPTIONS: "poison_in_dtor=1"
   UBSAN_OPTIONS: "halt_on_error=1,
                   print_stacktrace=1"
@@ -82,7 +84,8 @@ jobs:
         run: |
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
-          echo "LLVM_SANITIZER=${{ matrix.llvm_sanitizer }}" >> $GITHUB_ENV
+          echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{ env.LLVM_INC }} -Isystem${{ env.LLVM_INC }}" >> $GITHUB_ENV
+          echo "LLVM_LDFLAGS=-L${{ env.LLVM_LIB }} -lc++abi -Wl,-rpath,${{ env.LLVM_LIB }}" >> $GITHUB_ENV
 
       - name: Dump Environment
         run: |
@@ -90,21 +93,15 @@ jobs:
           ${{ env.CC }} -v
           echo "> ${{ env.CXX }} -v"
           ${{ env.CXX }} -v
-          echo "> LLVM_SANITIZER: ${{ env.LLVM_SANITIZER }}"
-
-      # - name: Build libc++
-      #   if: matrix.sanitizer != 'AddressSanitizer'
-      #   run: |
-      #     "${GITHUB_WORKSPACE}/mfem/.github/workflows/mfem-sanitizers.sh"
-      #     echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
-      #     echo "EXTRA_LD_FLAGS=-L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
+          echo "> LLVM_CXXFLAGS: ${{ env.LLVM_CXXFLAGS }}"
+          echo "> LLVM_LDFLAGS: ${{ env.LLVM_LDFLAGS }}"
 
       ### LLVM libcxx Build Steps
       - name: LLVM Clone
         if: matrix.sanitizer != 'AddressSanitizer'
         run: >
           git clone --filter=blob:none --depth=1
-          --branch llvmorg-${{ env.LLVM_VERSION }}
+          --branch llvmorg-${{ env.LLVM_VER }}
           --no-checkout https://github.com/llvm/llvm-project.git llvm-project
 
       - name: LLVM Checkout
@@ -112,7 +109,7 @@ jobs:
         working-directory: llvm-project
         run: |
           git sparse-checkout set --cone
-          git checkout llvmorg-${{ env.LLVM_VERSION }}
+          git checkout llvmorg-${{ env.LLVM_VER }}
           git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
 
       - name: LLVM CMake Mkdir
@@ -129,7 +126,7 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ env.CXX }}
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DCMAKE_INSTALL_PREFIX=/usr
-          -DLLVM_USE_SANITIZER=${{ env.LLVM_SANITIZER }}
+          -DLLVM_USE_SANITIZER=${{ matrix.llvm_sanitizer }}
           -DLLVM_BUILD_32_BITS=OFF
           -DLIBCXXABI_USE_LLVM_UNWINDER=OFF
           -DLLVM_INCLUDE_TESTS=OFF
@@ -151,8 +148,8 @@ jobs:
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
-          CXXFLAGS: "-g -O1 -std=c++17 ${{ matrix.cxxflags }} ${{ env.EXTRA_CXX_FLAGS }}"
-          LDFLAGS: "${{ matrix.ldflags }} ${{ env.EXTRA_LD_FLAGS }}"
+          CXXFLAGS: "-g -O1 -std=c++17 ${{ matrix.cxxflags }} ${{ env.LLVM_CXXFLAGS }}"
+          LDFLAGS: "${{ matrix.ldflags }} ${{ env.LLVM_LDFLAGS }}"
         with:
           os: ${{ runner.os }}
           target: opt
