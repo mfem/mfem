@@ -75,14 +75,33 @@ jobs:
           echo "> ${{ env.CXX }} -v"
           ${{ env.CXX }} -v
 
+      - name: github.workspace
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          echo "github.workspace: ${{ github.workspace }}"
+          "${{ github.workspace }}/.github/build-stdlib.sh"
+
+      - name: GITHUB_WORKSPACE
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          "${GITHUB_WORKSPACE}/.github/build-stdlib.sh"
+
+      - name: GITHUB_WORKSPACE ..
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          "${GITHUB_WORKSPACE}/../.github/build-stdlib.sh"
+
         # MemorySanitizer requires that all program code is instrumented. 
         # This also includes any libraries that the program depends on, even libc.
         # Failing to achieve this may result in false reports.
       - name: Build libc++
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
-          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE} "
-          "${GITHUB_WORKSPACE}/.github/build-stdlib.sh"
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          echo "github.workspace: ${{ github.workspace }}"
+          "${{ github.workspace }}/.github/build-stdlib.sh"
           echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
       - name: MFEM Checkout
