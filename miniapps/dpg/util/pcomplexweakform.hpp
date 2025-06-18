@@ -55,14 +55,14 @@ public:
 
    /// Creates bilinear form associated with FE spaces @a trial_pfes_.
    ParComplexDPGWeakForm(Array<ParFiniteElementSpace* > & trial_pfes_,
-                         Array<FiniteElementCollection* > & fecol_)
+                         Array<const FiniteElementCollection* > & fecol_)
       : ComplexDPGWeakForm()
    {
       SetParSpaces(trial_pfes_,fecol_);
    }
 
    void SetParSpaces(Array<ParFiniteElementSpace* > & trial_pfes_,
-                     Array<FiniteElementCollection* > & fecol_)
+                     Array<const FiniteElementCollection* > & fecol_)
    {
       trial_pfes = trial_pfes_;
       ess_tdofs.SetSize(trial_pfes.Size());
