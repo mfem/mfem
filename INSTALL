@@ -122,9 +122,14 @@ Parallel build:
 (For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
-   (this build requires CMake 3.8 or newer)
+   (this build requires CMake 3.17 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
-   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES -DCUDA_ARCH=sm_70
+   make -j 4
+
+HIP build:
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_HIP=YES -DHIP_ARCH=gfx942 -DCMAKE_CXX_COMPILER=amdclang++ -DCMAKE_HIP_COMPILER=amdclang++
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -220,9 +225,10 @@ An optional installation of the library and the headers can be performed with
 
    make install [PREFIX=<dir>]
 
-The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in
-$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
+The library will be installed in ${PREFIX}/lib, the headers in
+${PREFIX}/include, and the configuration and testing makefiles (config.mk and
+test.mk) in ${PREFIX}/share/mfem. The PREFIX option can also be set during
+configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -257,7 +263,7 @@ See the configuration file config/defaults.mk for the default settings.
 Compilers:
    CXX      - C++ compiler, serial build
    MPICXX   - MPI C++ compiler, parallel build
-   CUDA_CXX - The CUDA compiler, 'nvcc'
+   CUDA_CXX - The CUDA compiler, 'nvcc' or 'clang++'
 
 Compiler options:
    OPTIM_FLAGS - Options for optimized build
@@ -271,8 +277,9 @@ Build options:
 
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
-             installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
+             installed in ${PREFIX}/lib, the headers in ${PREFIX}/include, and
+             the configuration and testing makefiles (config.mk and test.mk) in
+             ${PREFIX}/share/mfem.
    INSTALL - Specify the install program, default = /usr/bin/install
    INSTALL_DEF_PERM - Specify the default install permissions. This affects
                       headers and configuration makefiles, default = 644
@@ -415,6 +422,10 @@ MFEM_USE_GNUTLS = YES/NO
    script 'glvis-keygen.sh' can be used to generate both types of keys.
    When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
    also used, see below.
+
+MFEM_USE_HDF5 = YES/NO
+   The HDF5 library is used for input and output of HDF5 files, for example
+   Cubit mesh files or VTKHDF files for ParaView.
 
 MFEM_USE_NETCDF = YES/NO
    NetCDF is the library that is used by the SNL Cubit mesh generator to create
@@ -597,11 +608,12 @@ MFEM_USE_TRIBOL = YES/NO
 
 MFEM_USE_ENZYME = YES/NO
    Enables automatic differentiation support through the LLVM plugin Enzyme.
-   This requires the compiler to be set to clang (>=14.0.0). We also advise to
-   use the link time optimization (LTO) plugin, to enable functions that you
-   define over multiple files (compilation units) and want to be differentiated
-   automatically, to work. This requires to also use LLVM/LLD for linking.
-   Recommended options are in config/defaults.mk.
+   This requires the compiler to be set to clang (>=14.0.0). We also advise the
+   use of the link time optimization (LTO) plugin, so functions defined over
+   multiple files (compilation units) can be differentiated automatically. This
+   requires to also use LLVM/LLD for linking. The recommended options are in
+   config/defaults.mk. For more detailed instructions, see the section "Specific
+   options for Enzyme" below.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -702,12 +714,12 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
-  C++ compiler that supports the C++-14 standard. For additional requirements
+  C++ compiler that supports the C++-17 standard. For additional requirements
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
            Debug).
-  Versions: Ginkgo >= 1.4.0.
+  Versions: Ginkgo >= 1.9.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -725,6 +737,9 @@ The specific libraries and their options are:
   URL: http://gnutls.org
   Options: GNUTLS_OPT, GNUTLS_LIB.
   Versions: GnuTLS >= 2.12.0, older versions may work too.
+
+- HDF5 (optional), used when MFEM_USE_HDF5 = YES, required for reading and
+  writing files in VTKHDF format.
 
 - NetCDF (optional), used when MFEM_USE_NETCDF = YES, required for reading Cubit
   mesh files. Also requires installation of HDF5 and ZLIB, as explained at the
@@ -791,14 +806,14 @@ The specific libraries and their options are:
   Versions: 1.9.3
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.9, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.9 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.9.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.7.
+  Versions: GSLIB >= 1.0.9.
 
 - ALGOIM (optional), used when MFEM_USE_ALGOIM=YES. The library provides only
   headers so it just needs to be downloaded at the same level as MFEM. Download
@@ -821,7 +836,7 @@ The specific libraries and their options are:
 
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
-  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
+  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB, CUDA_DIR (when CUDA_CXX=clang++).
   Versions: CUDA >= 10.1.168.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.
@@ -897,7 +912,7 @@ The specific libraries and their options are:
 - Enzyme, used when MFEM_USE_ENZYME = YES. Requires LLVM/Clang >= 14.0.0.
   URL: https://github.com/EnzymeAD/Enzyme
   Options: ENZYME_DIR, ENZYME_OPT, ENZYME_LIB.
-  Versions: Enzyme >= v0.0.33.
+  Versions: Enzyme >= v0.0.176.
 
 
 Building with CMake
@@ -980,15 +995,27 @@ or
    cmake --build . --config Release --target install  [Xcode]
    cmake --build . --config Release --target INSTALL  [Visual Studio]
 
-The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
-and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
+By default, the library will be installed in ${CMAKE_INSTALL_PREFIX}/lib, the
+headers in ${CMAKE_INSTALL_PREFIX}/include, the configuration CMake files in
+${CMAKE_INSTALL_PREFIX}/lib/cmake/mfem, and the configuration and testing GNU
+make files in ${CMAKE_INSTALL_PREFIX}/share/mfem. For fine-tuning the
+installation directories the following variables can be used:
+INSTALL_INCLUDE_DIR, INSTALL_LIB_DIR, INSTALL_BIN_DIR (e.g. for dll files on
+Windows), INSTALL_SHARE_DIR, and INSTALL_CMAKE_DIR; alternatively, with lower
+precedence, the CMake GNUInstallDirs variables can also be used:
+CMAKE_INSTALL_INCLUDEDIR, CMAKE_INSTALL_LIBDIR, CMAKE_INSTALL_BINDIR and
+CMAKE_INSTALL_DATAROOTDIR. Note that the default for INSTALL_LIB_DIR and
+CMAKE_INSTALL_LIBDIR is lib. This is in contrast to the default behavior for
+GNUInstallDirs, which defines a platform-dependent default value for
+CMAKE_INSTALL_LIBDIR (lib or lib64 or lib/<multiarch-tuple> on Debian). To
+restore this behavior, the user can set MFEM_USE_GNUINSTALLDIRS=YES.
 
 
 Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
-Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+Note: the option MFEM_USE_CUDA requires CMake version 3.17 or newer!
 
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
@@ -1019,6 +1046,7 @@ MFEM_USE_STRUMPACK
 MFEM_USE_GINKGO
 MFEM_USE_AMGX
 MFEM_USE_GNUTLS
+MFEM_USE_HDF5
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_ZLIB
@@ -1147,6 +1175,89 @@ larger problems, there are two options:
 1. Building hypre with '--enable-bigint' defines the local and global indices to
    be 64-bit. This is convenient, but requires more memory than necessary.
 
-2. Building hypre with '--enable-mixedint' defines the local indiced to be
+2. Building hypre with '--enable-mixedint' defines the local indices to be
    32-bit, while using a 64-bit storage for global indices. This option is
    currently tested only in ex1p, and may not work in more general settings.
+
+Specific options for HIP
+========================
+MFEM expects the `ROCM_PATH` environment variable to be set to the path of the
+ROCM install, as well as having `$ROCM_PATH/bin` in `PATH`.
+
+Specific options for RAJA+HIP+MPI
+=================================
+RAJA uses CMake's built-in HIP support (added in CMake 3.21), while MFEM uses
+the older HIP C++ library build/linkage. To ensure proper build and linkage
+check that `CMAKE_CXX_COMPILER` and `CMAKE_HIP_COMPILER` are set to the same
+compiler. This is especially important when using an MPI compiler (for example
+crayCC) where some linker flags may get dropped if these two are not identical.
+
+Specific options for Enzyme
+===========================
+To work properly, MFEM and Enzyme need to use the same LLVM/Clang configuration.
+For example, on macOS this can be done by using Homebrew: first install Enzyme,
+which in turn installs LLVM as a dependency (as of May 2025, this is LLVM 19):
+
+   brew install enzyme
+
+In order to ensure the correct compiler choice for the MFEM makefile build, set
+
+   CXX = $(shell brew --prefix llvm@19)/bin/clang++
+
+in the user.mk file (adapted from config/defaults.mk, see the section "Building
+with GNU make" above). With MPI, it is convenient to set
+
+   MPICXX = OMPI_CXX=$(CXX) mpicxx
+
+for OpenMPI and
+
+   MPICXX = MPICH_CXX=$(CXX) mpicxx
+
+for MPICH.
+
+Additionally, the Enzyme directory needs to be set in user.mk as follows:
+
+   ENZYME_DIR = $(shell brew --prefix enzyme)
+
+Specifically, a full build on a Mac can be tested by adding the following
+user.mk file in the config/ directory
+
+   MFEM_USE_ENZYME = YES
+   ENZYME_DIR = $(shell brew --prefix enzyme)
+   LLVM_DIR = $(shell brew --prefix llvm@19)
+   CXX = $(LLVM_DIR)/bin/clang++
+   MFEM_USE_MPI = YES
+   MPICXX = OMPI_CXX=$(CXX) mpicxx
+
+and running
+
+   make config
+   make -j
+   cd miniapps/dfem
+   make
+   ./dfem-minimal-surface
+
+On Linux systems, for example Ubuntu 24.04, use the package manager to install
+the Enzyme dependencies
+
+   sudo apt install libclang-dev libzstd-dev llvm-dev clang
+
+and then clone and build Enzyme
+
+   cd $HOME
+   git clone https://github.com/EnzymeAD/Enzyme.git
+   cd Enzyme/enzyme && mkdir build && cd build
+   CC=clang CXX=clang++ cmake .. -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake -DCMAKE_INSTALL_PREFIX=$HOME/Enzyme/enzyme/build
+   make -j
+   make install
+
+From here, one can proceed in the same way using the following user.mk settings
+
+   MFEM_USE_ENZYME = YES
+   ENZYME_DIR = $(HOME)/Enzyme/enzyme/build
+   CXX = clang++
+   MFEM_USE_MPI = YES
+   MPICXX = OMPI_CXX=$(CXX) mpicxx
+
+On other Linux systems the LLVM packages may have different names, for example
+on RHEL9, one needs to "sudo yum install llvm-devel libzstd clang-devel".

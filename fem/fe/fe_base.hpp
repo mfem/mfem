@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,8 +15,12 @@
 #include "../intrules.hpp"
 #include "../geom.hpp"
 #include "../doftrans.hpp"
+#include "../../general/hash.hpp"
 
 #include <map>
+#include <memory>
+#include <unordered_map>
+#include <utility>
 
 namespace mfem
 {
@@ -223,9 +227,10 @@ class FunctionSpace
 public:
    enum
    {
-      Pk, ///< Polynomials of order k
-      Qk, ///< Tensor products of polynomials of order k
-      rQk ///< Refined tensor products of polynomials of order k
+      Pk,  ///< Polynomials of order k
+      Qk,  ///< Tensor products of polynomials of order k
+      rQk, ///< Refined tensor products of polynomials of order k
+      Uk   ///< Rational polynomials of order k
    };
 };
 
@@ -276,7 +281,7 @@ public:
       UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
                                   from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
-                          $ u(x) = \hat u(\hat x) $ */
+                          $ u(x) = \hat u(\hat x) $ @anchor map_type_value */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
                           $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
@@ -794,6 +799,12 @@ public:
        TensorBasisElement::GetDofMap, but it is also available for non-tensor
        elements. */
    const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
+
+   /// Given a lexicographically ordered Vector @a dofs, containing @a ncomp
+   /// components of the size of the scalar FiniteElement, reorder its entries
+   /// into native (H1) ordering.
+   /// The function assumes that GetLexicographicOrdering() is not empty.
+   void ReorderLexToNative(int ncomp, Vector &dofs) const;
 };
 
 /** @brief Intermediate class for finite elements whose basis functions return
@@ -1038,8 +1049,14 @@ public:
    };
 
 private:
-   typedef std::map<int, Array<real_t*>*> PointsMap;
-   typedef std::map<int, Array<Basis*>*> BasisMap;
+   /// key: (btype, p), value: underlying storage Array
+   typedef std::unordered_map<std::pair<int, int>,
+           std::unique_ptr<Basis>, PairHasher>
+           BasisMap;
+   /// key: (btype, p), value: underlying storage Array
+   typedef std::unordered_map<std::pair<int, int>,
+           std::unique_ptr<Array<real_t>>, PairHasher>
+           PointsMap;
 
    MemoryType h_mt;
    PointsMap points_container;
@@ -1073,17 +1090,40 @@ public:
        @return A pointer to an array containing the `p+1` coordinates of the
                points. Returns NULL if the BasisType has no associated set of
                points. */
-   const real_t *GetPoints(const int p, const int btype);
+   const Array<real_t>* GetPointsArray(const int p, const int btype);
+
+   /** @brief Get the coordinates of the points of the given BasisType,
+       @a btype.
+
+       @param[in] p      The polynomial degree; the number of points is `p+1`.
+       @param[in] btype  The BasisType.
+       @param[in] on_device  true if the requested pointer should be accessible
+       from the device.
+
+       @return A pointer to an array containing the `p+1` coordinates of the
+               points. Returns NULL if the BasisType has no associated set of
+               points. */
+   const real_t *GetPoints(const int p, const int btype,
+                           bool on_device = false)
+   {
+      return GetPointsArray(p, btype)->Read(on_device);
+   }
 
    /// Get coordinates of an open (GaussLegendre) set of points if degree @a p
    const real_t *OpenPoints(const int p,
-                            const int btype = BasisType::GaussLegendre)
-   { return GetPoints(p, btype); }
+                            const int btype = BasisType::GaussLegendre,
+                            bool on_device = false)
+   {
+      return GetPoints(p, btype, on_device);
+   }
 
    /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
    const real_t *ClosedPoints(const int p,
-                              const int btype = BasisType::GaussLobatto)
-   { return GetPoints(p, btype); }
+                              const int btype = BasisType::GaussLobatto,
+                              bool on_device = false)
+   {
+      return GetPoints(p, btype, on_device);
+   }
 
    /** @brief Get a Poly_1D::Basis object of the given degree and BasisType,
        @a btype.
@@ -1158,6 +1198,16 @@ public:
        in the already allocated @a d array.*/
    static void CalcDBinomTerms(const int p, const real_t x, const real_t y,
                                real_t *d);
+   /** @brief Compute the derivatives (w.r.t. x) of the terms in the expansion
+       of the binomial (x + y)^p.  Store the results in the already allocated
+       @a d array.*/
+   static void CalcDxBinomTerms(const int p, const real_t x, const real_t y,
+                                real_t *d);
+   /** @brief Compute the derivatives (w.r.t. y) of the terms in the expansion
+       of the binomial (x + y)^p.  Store the results in the already allocated
+       @a d array.*/
+   static void CalcDyBinomTerms(const int p, const real_t x, const real_t y,
+                                real_t *d);
 
    /** @brief Compute the values of the Bernstein basis functions of order
        @a p at coordinate @a x and store the results in the already allocated
@@ -1186,7 +1236,7 @@ public:
    static void CalcLegendre(const int p, const real_t x, real_t *u);
    static void CalcLegendre(const int p, const real_t x, real_t *u, real_t *d);
 
-   ~Poly_1D();
+   ~Poly_1D() = default;
 };
 
 extern MFEM_EXPORT Poly_1D poly1d;

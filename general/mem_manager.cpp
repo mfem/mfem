@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -267,6 +267,9 @@ public:
 static uintptr_t pagesize = 0;
 static uintptr_t pagemask = 0;
 
+static struct sigaction old_segv_action;
+static struct sigaction old_bus_action;
+
 /// Returns the restricted base address of the DEBUG segment
 inline const void *MmuAddrR(const void *ptr)
 {
@@ -313,7 +316,7 @@ inline uintptr_t MmuLengthP(const void *ptr, const size_t bytes)
 }
 
 /// The protected access error, used for the host
-static void MmuError(int, siginfo_t *si, void*)
+static void MmuError(int sig, siginfo_t *si, void* context)
 {
    constexpr size_t buf_size = 64;
    fflush(0);
@@ -321,6 +324,22 @@ static void MmuError(int, siginfo_t *si, void*)
    const void *ptr = si->si_addr;
    snprintf(str, buf_size, "Error while accessing address %p!", ptr);
    mfem::out << std::endl << "An illegal memory access was made!";
+   mfem::out << std::endl << "Caught signal " << sig << ", code " << si->si_code <<
+             " at " << ptr << std::endl;
+   // chain to previous handler
+   struct sigaction *old_action = (sig == SIGSEGV) ? &old_segv_action :
+                                  &old_bus_action;
+   if (old_action->sa_flags & SA_SIGINFO && old_action->sa_sigaction)
+   {
+      // old action uses three argument handler.
+      old_action->sa_sigaction(sig, si, context);
+   }
+   else if (old_action->sa_handler == SIG_DFL)
+   {
+      // reinstall and raise the default handler.
+      sigaction(sig, old_action, NULL);
+      raise(sig);
+   }
    MFEM_ABORT(str);
 }
 
@@ -332,8 +351,8 @@ static void MmuInit()
    sa.sa_flags = SA_SIGINFO;
    sigemptyset(&sa.sa_mask);
    sa.sa_sigaction = MmuError;
-   if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
-   if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+   if (sigaction(SIGBUS, &sa, &old_bus_action) == -1) { mfem_error("SIGBUS"); }
+   if (sigaction(SIGSEGV, &sa, &old_segv_action) == -1) { mfem_error("SIGSEGV"); }
    pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
    MFEM_ASSERT(pagesize > 0, "pagesize must not be less than 1");
    pagemask = pagesize - 1;
@@ -359,7 +378,7 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 /// MMU protection, through ::mprotect with no read/write accesses
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
-   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
+   static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (NONE) error"); }
 }
@@ -368,7 +387,7 @@ inline void MmuProtect(const void *ptr, const size_t bytes)
 inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
-   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
+   static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }

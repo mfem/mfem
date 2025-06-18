@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,6 +23,7 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
 namespace internal
 {
 
@@ -1260,7 +1261,9 @@ DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
    else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
+
 
 #endif

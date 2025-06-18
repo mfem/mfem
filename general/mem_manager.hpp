@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -237,6 +237,9 @@ public:
    /** The allocation uses the current host memory type returned by
        MemoryManager::GetHostMemoryType(). */
    explicit Memory(int size) { New(size); }
+
+   /// Creates a new empty Memory object with host MemoryType @a mt.
+   explicit Memory(MemoryType mt) { Reset(mt); }
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -123,10 +123,8 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DA
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-$(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
- $(CONFIG_MK)
-	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
-	   $(MFEM_LIBS) -o $(@)
+$(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 $(LIBTESTS_O): $(OBJECT_FILES)
 	$(LD) -r $(OBJECT_FILES) -o $(@)

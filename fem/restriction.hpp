@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,11 +39,6 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). */
 class ElementRestriction : public ElementRestrictionOperator
 {
-private:
-   /** This number defines the maximum number of elements any dof can belong to
-       for the FillSparseMatrix method. */
-   static const int MaxNbNbr = 16;
-
 protected:
    const FiniteElementSpace &fes;
    const int ne;
@@ -259,6 +254,12 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
    */
    virtual void NormalDerivativeAddMultTranspose(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
+
+   /// @brief Low-level access to the underlying gather map.
+   virtual const Array<int> &GatherMap() const
    {
       MFEM_ABORT("Not implemented for this restriction operator.");
    }
@@ -1064,6 +1065,62 @@ public:
                         x.
    */
    void DoubleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
+};
+
+/// Operator that extracts face degrees of freedom for L2 interface spaces.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
+class L2InterfaceFaceRestriction : public FaceRestriction
+{
+protected:
+   const FiniteElementSpace &fes; ///< The finite element space
+   const ElementDofOrdering ordering; ///< Requested ordering
+   const FaceType type; ///< Face type (interior or boundary)
+   const int nfaces; ///< Number of faces of the requested type
+   const int vdim; ///< vdim of the space
+   const bool byvdim; ///< DOF ordering (by nodes or by vdim)
+   const int face_dofs; ///< Number of dofs on each face
+   const int nfdofs; ///< Total number of dofs on the faces (E-vector size)
+   const int ndofs; ///< Number of dofs in the space (L-vector size)
+   Array<int> gather_map; ///< Gather map
+
+public:
+   /** @brief Constructs an L2InterfaceFaceRestriction.
+
+       @param[in] fes_       The FiniteElementSpace on which this operates
+       @param[in] ordering_  Request a specific face dof ordering
+       @param[in] type_      Request internal or boundary faces dofs */
+   L2InterfaceFaceRestriction(const FiniteElementSpace& fes_,
+                              const ElementDofOrdering ordering_,
+                              const FaceType type_);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with size (face_dofs,
+                     vdim, nf), where nf is the number of interior or boundary
+                     faces requested by @a type in the constructor. The
+                     face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   using FaceRestriction::AddMultTranspose;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in]     x The face E-Vector degrees of freedom with size
+                        (face_dofs, vdim, nf), where nf is the number of
+                        interior or boundary faces requested by @a type in the
+                        constructor. The face_dofs should be ordered according
+                        to the given ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]     a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
+
+   const Array<int> &GatherMap() const override;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic

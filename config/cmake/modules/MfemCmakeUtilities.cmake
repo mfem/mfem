@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -123,21 +123,18 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
 
   # If CUDA is enabled, tag source files to be compiled with nvcc.
   if (MFEM_USE_CUDA)
-    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES LANGUAGE CUDA)
-    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST}
+      PROPERTIES LANGUAGE CUDA)
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
       list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
-    else()
-      set(LIST_)
-      foreach(item IN LISTS EXTRA_OPTIONS_LIST)
-        list(APPEND LIST_ "-Xcompiler=${item}")
-      endforeach()
-      set(EXTRA_OPTIONS_LIST ${LIST_})
     endif()
   endif()
 
   # Actually add the executable
   mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  install(TARGETS ${MFEM_EXE_NAME}
+          RUNTIME DESTINATION miniapps)
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
@@ -152,6 +149,21 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
   if (EXTRA_DEFINES_LIST)
     target_compile_definitions(${MFEM_EXE_NAME} PRIVATE ${EXTRA_DEFINES_LIST})
+  endif()
+endmacro()
+
+# Macro for setting variables like '<culib>_LIBRARIES' where <culib> is a CUDA
+# library like cublas. This macro assumes that the CUDAToolkit module was loaded
+# successfully. Example usage:
+#   mfem_culib_set_libraries(CUBLAS cublas)
+macro(mfem_culib_set_libraries _CULIB _culib)
+  # The following command does not work with older CMake versions, e.g. 3.20:
+  #   get_target_property(${_CULIB}_LIBRARIES CUDA::${_culib} LOCATION)
+  # Therefore, we use the respective internal variable:
+  set(${_CULIB}_LIBRARIES ${CUDA_${_culib}_LIBRARY})
+  if (NOT ${_CULIB}_LIBRARIES)
+    message(FATAL_ERROR
+      "Error setting ${_CULIB}_LIBRARIES: ${${_CULIB}_LIBRARIES}")
   endif()
 endmacro()
 
@@ -826,6 +838,20 @@ endfunction(mfem_get_target_options)
 
 
 #
+# If ${Path} is not an absolute path, assign ${Prefix}/${Path} to the variable
+# ${OutVar}. If ${Path} is an absolute path, assign ${Path} to the variable
+# ${OutVar}.
+#
+function(mfem_path_to_fullpath Path Prefix OutVar)
+  if(IS_ABSOLUTE "${Path}")
+    set(${OutVar} "${Path}" PARENT_SCOPE)
+  else()
+    set(${OutVar} "${Prefix}/${Path}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+
+#
 #   Function that creates 'config.mk' from 'config.mk.in' for the both the
 #   build- and the install-locations and define install rules for 'config.mk'
 #   and 'test.mk'.
@@ -853,7 +879,8 @@ function(mfem_export_mk_files)
       MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER MFEM_USE_UMPIRE MFEM_USE_SIMD
       MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO
       MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
-      MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
+      MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME
+      MFEM_USE_HDF5)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -991,9 +1018,12 @@ function(mfem_export_mk_files)
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
-  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  mfem_path_to_fullpath(
+    "${INSTALL_INCLUDE_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_INC_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_LIB_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_SHARE_DIR}/mfem/test.mk" "${CMAKE_INSTALL_PREFIX}" MFEM_TEST_MK)
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
@@ -1003,8 +1033,30 @@ function(mfem_export_mk_files)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/
+    RENAME config.mk)
 
+endfunction()
+
+
+#
+# Function similar to the macro _GNUInstallDirs_cache_path from the module
+# GNUInstallDirs. Used to process variables like INSTALL_LIB_DIR if they are
+# set on the cmake command line without specifying type: -DINSTALL_LIB_DIR=lib.
+# Without this special treatment, relative paths are expanded to full paths
+# and we want to avoid that.
+#
+function(mfem_cache_path PathVar DefaultPath HelpStr)
+  if(NOT DEFINED ${PathVar})
+    set(${PathVar} "${DefaultPath}" CACHE PATH "${HelpStr}")
+  endif()
+  get_property(cache_type CACHE ${PathVar} PROPERTY TYPE)
+  if(cache_type STREQUAL "UNINITIALIZED")
+    file(TO_CMAKE_PATH "${${PathVar}}" cmakepath)
+    set_property(CACHE ${PathVar} PROPERTY TYPE PATH)
+    set_property(CACHE ${PathVar} PROPERTY VALUE "${cmakepath}")
+    set_property(CACHE ${PathVar} PROPERTY HELPSTRING "${HelpStr}")
+  endif()
 endfunction()

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,10 +68,11 @@ class Hypre
 public:
    /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
    /// After calling Hypre::Init(), hypre will be finalized automatically at
-   /// program exit.
+   /// program exit. May be re-initialized after finalize.
    ///
-   /// Calling HYPRE_Finalize() manually is not compatible with this class.
-   static void Init() { Instance(); }
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
+   static void Init();
 
    /// @brief Configure HYPRE's compute and memory policy.
    ///
@@ -84,9 +85,9 @@ public:
    /// This function is no-op if HYPRE is built without GPU support or the HYPRE
    /// version is less than 2.31.0.
    ///
-   /// This function is NOT called by Init(). Instead it is called by
+   /// In addition to being called by Init(), this function is also called by
    /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
-   /// configuration is complete.
+   /// configuration is complete, configuring HYPRE for device.
    static void InitDevice();
 
    /// @brief Finalize hypre (called automatically at program exit if
@@ -94,6 +95,9 @@ public:
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
    /// called manually to more precisely control when hypre is finalized.
+   ///
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
    static void Finalize();
 
    /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
@@ -104,14 +108,20 @@ public:
    static bool configure_runtime_policy_from_mfem;
 
 private:
-   /// Calls HYPRE_Init() when the singleton is constructed.
-   Hypre();
+   /// Default constructor. Singleton object; private.
+   Hypre() = default;
+
+   /// Copy constructor. Deleted.
+   Hypre(Hypre&) = delete;
+
+   /// Move constructor. Deleted.
+   Hypre(Hypre&&) = delete;
 
    /// The singleton destructor (called at program exit) finalizes hypre.
    ~Hypre() { Finalize(); }
 
    /// Set the default hypre global options (mostly GPU-relevant).
-   void SetDefaultOptions();
+   static void SetDefaultOptions();
 
    /// Create and return the Hypre singleton object.
    static Hypre &Instance()
@@ -120,7 +130,10 @@ private:
       return hypre;
    }
 
-   bool finalized = false; ///< Has Hypre::Finalize() been called already?
+   enum class State { UNINITIALIZED, INITIALIZED };
+
+   /// Tracks whether Hypre was initialized or finalized by this class.
+   static State state;
 };
 
 

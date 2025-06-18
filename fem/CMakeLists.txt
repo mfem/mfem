@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -35,6 +35,7 @@ set(SRCS
   integ/bilininteg_mass_ea.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
+  integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
   integ/bilininteg_vecdiffusion_pa.cpp
@@ -46,6 +47,7 @@ set(SRCS
   integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_elasticity_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
+  integ/bilininteg_hdiv_ea.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
   integ/bilininteg_mass_kernels.cpp
@@ -62,7 +64,9 @@ set(SRCS
   datacollection.cpp
   dgmassinv.cpp
   doftrans.cpp
+  dfem/doperator.cpp
   eltrans.cpp
+  batchitrans.cpp
   estimators.cpp
   fe.cpp
   fe/face_map_utils.cpp
@@ -73,6 +77,7 @@ set(SRCS
   fe/fe_nd.cpp
   fe/fe_nurbs.cpp
   fe/fe_pos.cpp
+  fe/fe_pyramid.cpp
   fe/fe_rt.cpp
   fe/fe_ser.cpp
   fe_coll.cpp
@@ -80,6 +85,7 @@ set(SRCS
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
+  hybridization_ext.cpp
   intrules.cpp
   intrules_cut.cpp
   ceed/interface/basis.cpp
@@ -110,6 +116,7 @@ set(SRCS
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
   qinterp/eval_by_vdim.cpp
+  qinterp/eval_hdiv.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
   qspace.cpp
@@ -148,8 +155,13 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findpts_local_2.cpp
+  gslib/findpts_local_3.cpp
+  gslib/interpolate_local_2.cpp
+  gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
+  integrator.cpp
   )
 
 set(HDRS
@@ -169,6 +181,14 @@ set(HDRS
   dgmassinv.hpp
   dgmassinv_kernels.hpp
   doftrans.hpp
+  dfem/doperator.hpp
+  dfem/fieldoperator.hpp
+  dfem/integrate.hpp
+  dfem/parameterspace.hpp
+  dfem/qfunction_apply.hpp
+  dfem/qfunction_transform.hpp
+  dfem/tuple.hpp
+  dfem/util.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
@@ -180,6 +200,7 @@ set(HDRS
   fe/fe_nd.hpp
   fe/fe_nurbs.hpp
   fe/fe_pos.hpp
+  fe/fe_pyramid.hpp
   fe/fe_rt.hpp
   fe/fe_ser.hpp
   fe_coll.hpp
@@ -188,6 +209,7 @@ set(HDRS
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
+  hybridization_ext.hpp
   intrules.hpp
   intrules_cut.hpp
   kernel_dispatch.hpp
@@ -225,6 +247,7 @@ set(HDRS
   nonlininteg.hpp
   qfunction.hpp
   qinterp/eval.hpp
+  qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
   qspace.hpp
   quadinterpolator.hpp
@@ -248,6 +271,7 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  integrator.hpp
   )
 
 if (MFEM_USE_SIDRE)
