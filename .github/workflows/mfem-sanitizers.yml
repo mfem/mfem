@@ -27,17 +27,16 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  LLVM_VER: 18.1.3
-  LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
-  LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
   MSAN_OPTIONS: "poison_in_dtor=1"
-  UBSAN_OPTIONS: "halt_on_error=1,
-                  print_stacktrace=1"
+  UBSAN_OPTIONS: "halt_on_error=1, print_stacktrace=1"
   ASAN_OPTIONS: "detect_leaks=1,
                  strict_init_order=1,
                  strict_string_checks=1,
                  check_initialization_order=1,
                  detect_stack_use_after_return=1"
+  LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
+  LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
+  LLVM_VER: 18.1.3
 
 jobs:
   Sanitizers:
@@ -91,7 +90,7 @@ jobs:
           echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
           echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
 
-      - name: Dump Environment
+      - name: Echo Environment
         run: |
           echo "> ${{env.CC}} -v"
           ${{env.CC}} -v
@@ -162,7 +161,7 @@ jobs:
           metis-dir: unused-metis-dir
           mfem-dir: mfem
           build-system: make
-          library-only: true  # false
+          library-only: false
           config-options: CXX=${{env.CXX}}
 
       - name: MFEM Info
@@ -171,4 +170,4 @@ jobs:
 
       - name: MFEM Sanitize
         working-directory: mfem
-        run: make check  # test
+        run: make test
