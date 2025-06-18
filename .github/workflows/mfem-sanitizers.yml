@@ -76,7 +76,7 @@ jobs:
       - name: Build libc++
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
-          "${GITHUB_WORKSPACE}/.github/workflows/mfem-sanitizers.sh"
+          "${GITHUB_WORKSPACE}/.github/mfem-sanitizers.sh"
           echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
       - name: MFEM Checkout
