@@ -39,11 +39,7 @@ jobs:
                        -fno-optimize-sibling-calls
                        -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
-            env: ASAN_OPTIONS="detect_leaks=1,
-                               strict_init_order=1,
-                               strict_string_checks=1,
-                               check_initialization_order=1,
-                               detect_stack_use_after_return=1"
+            env: ASAN_OPTIONS="detect_leaks=1,strict_init_order=1,strict_string_checks=1,check_initialization_order=1,detect_stack_use_after_return=1"
           - sanitizer: UndefinedBehaviorSanitizer
             cxxflags: "-fsanitize=undefined
                        -fno-omit-frame-pointer"
