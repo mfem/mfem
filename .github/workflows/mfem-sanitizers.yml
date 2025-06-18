@@ -42,17 +42,23 @@ jobs:
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         include:
+            ###########################
           - sanitizer: AddressSanitizer
             cxxflags: "-fsanitize=address -fno-omit-frame-pointer 
                        -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
+            llvm_sanitizer: "Address"
+            #####################################
           - sanitizer: UndefinedBehaviorSanitizer
             cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
             ldflags: "-fsanitize=undefined"
+            llvm_sanitizer: "Undefined"
+            ##########################
           - sanitizer: MemorySanitizer
             cxxflags: "-fsanitize=memory -fno-omit-frame-pointer 
                        -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
             ldflags: "-fsanitize=memory"
+            llvm_sanitizer: "MemoryWithOrigins"
 
     name: "${{ matrix.sanitizer }}"
 
@@ -63,10 +69,11 @@ jobs:
           version: latest
           platform: x64
 
-      - name: Set CC and CXX
+      - name: Setup Environment
         run: |
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
+          echo "LLVM_SANITIZER=${{ matrix.llvm_sanitizer }}" >> $GITHUB_ENV
   
       - name: Clang Version
         run: |
@@ -74,6 +81,7 @@ jobs:
           ${{ env.CC }} -v
           echo "> ${{ env.CXX }} -v"
           ${{ env.CXX }} -v
+          echo "> LLVM_SANITIZER: ${{ env.LLVM_SANITIZER }}"
 
       - name: MFEM Checkout
         uses: actions/checkout@v4
@@ -87,13 +95,14 @@ jobs:
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
           "${GITHUB_WORKSPACE}/mfem/.github/build-stdlib.sh"
-          echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
+          echo "EXTRA_CXX_FLAGS=-I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1" >> $GITHUB_ENV
+          echo "EXTRA_LD_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           CXXFLAGS: "-g -O1 -std=c++17 ${{ matrix.cxxflags }} ${{ env.EXTRA_CXX_FLAGS }}"
-          LDFLAGS: "${{ matrix.ldflags }}"
+          LDFLAGS: "${{ matrix.ldflags }} ${{ env.EXTRA_LD_FLAGS }}"
         with:
           os: ${{ runner.os }}
           target: opt
