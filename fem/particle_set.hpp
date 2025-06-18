@@ -22,43 +22,44 @@
 namespace mfem
 {
 
-template<typename T>
-class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T> requires that T is a Particle."); };
-
-
 // -----------------------------------------------------------------------------------------------------
 // Define Particle struct
-template<int Dim, int VFields=0, int SFields=0>
+template<int SpaceDim, int NumScalars, int... VectorVDims>
 struct Particle
 {
 public:
-   real_t coords[Dim];
-   real_t vector_fields[VFields][Dim];
-   real_t scalar_fields[SFields];
-   
-private:
-   real_t rst[Dim];
-   uint code, proc, el;
-
-   template<typename T> friend class ParticleSet;
-
-};
+   real_t coords[SpaceDim];
+   real_t scalars[NumScalars];
+   real_t vectors_flat[(VectorVDims + ...)]; // flattened vector data
+}
 
 // -----------------------------------------------------------------------------------------------------
-// Define Base ParticleSet
+// Define Base ParticleSet to restrict first type T
+template<typename T, Ordering::Type VOrdering=Ordering::byNODES>
+class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T,VOrdering> requires that T is a Particle."); };
 
-template<int Dim, int VFields, int SFields>
-class ParticleSet<Particle<Dim,VFields,SFields>>
+
+// Define ParticleSet
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+class ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>
 {
+public:
+
+   static constexpr Ordering::Type GetOrdering() const { return VOrdering; }
 
 protected:
+   static constexpr int TotalComps = SpaceDim + NumScalars + (VectorVDims + ...); // includes comps of coordinates + vectors
+   static constexpr int TotalFields = 1 + NumScalars + sizeof...(VectorVDims);
+   static constexpr std::array<int, sizeof...(VectorVDims)> VDims = { VectorVDims... };
+
+   std::vector<real_t> data; // Stores ALL particle data
+   std::array<Vector, TotalFields> fields; // User-facing Vectors, referencing data
+
+   void SyncVectors();
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
-
-
-   void UpdateFromVVector(const Vector &new_field, std::function<real_t&(int,int)> getRef, Ordering::Type ordering);
 
 public:
    ParticleSet() = default;
@@ -67,346 +68,169 @@ public:
    explicit ParticleSet(MPI_Comm comm_) : comm(comm_) {};
 #endif // MFEM_USE_MPI
 
-   virtual void Reserve(int res) = 0;
+   /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
+   void Reserve(int res) { data.reserve(res*TotalComps); }
 
    /// Get the number of particles currently held by this ParticleSet.
-   virtual int GetNP() const = 0;
+   int GetNP() const { return data.size()/TotalComps; }
 
    /// Add particle
-   virtual void AddParticle(const Particle<Dim, VFields, SFields> &p) = 0;
+   void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p);
 
-   /// Remove particle(s) specified by \p list of particle indices.
-   virtual void RemoveParticles(const Array<int> &list) = 0;
+   /// Remove particle data specified by \p list of particle indices.
+   void RemoveParticles(const Array<int> &list);
 
    /// Get copy of particle \p i data
-   virtual void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const = 0;
+   void GetParticle(int i, Particle<SpaceDim, NumScalars, VectorVDims...> &p) const;
 
-   /// Get reference to particle \p i 's position component \p comp
-   virtual real_t& GetCoord(int i, int comp) = 0;
+   Vector& GetCoords() { return fields[0]; }
 
-   /// Get reference to particle \p i 's \p v vector component \p comp
-   virtual real_t& GetVector(int v, int i, int comp) = 0;
+   template<int S>
+   Vector& GetScalars() { return fields[1+S]; };
 
-   /// Get reference to particle \p i 's \p s scalar
-   virtual real_t& GetScalar(int s, int i) = 0;
-
-   /// Update all particles' \p s scalar field
-   void UpdateCoords(const Vector &new_coords, Ordering::Type ordering)
-   {
-      UpdateFromVVector(new_coords,
-         [&](int i, int comp) -> real_t& { return GetCoord(i, comp); },
-         ordering);
-   };
-
-   /// Update all particles' \p v vector field
-   void UpdateVF(int v, const Vector &new_vf, Ordering::Type ordering)
-   {
-      UpdateFromVVector(new_vf, 
-         [&](int i, int comp) -> real_t& { return GetVector(v, i, comp); }, 
-         ordering);
-   };
-
-   /// Update all particles' \p s scalar field
-   void UpdateSF(int s, const Vector &new_sf)
-   {
-      for (int i = 0; i < GetNP(); i++)
-         GetScalar(s,i) = new_sf[i];
-   }
+   template<int V>
+   Vector& GetVectors() { return fields[1+NumScalars+V]; };
 
 #ifdef MFEM_USE_MPI
    /// Redistribute particles onto ranks specified in \p rank_list .
    void Redistribute(const Array<int> &rank_list);
 #endif // MFEM_USE_MPI
 
-
-   virtual ~ParticleSet() = default;
-
 };
 
-template<int Dim, int VFields, int SFields>
-void ParticleSet<Particle<Dim,VFields,SFields>>::UpdateFromVVector(const Vector &new_field, std::function<real_t&(int,int)> getRef, Ordering::Type ordering)
+
+// -----------------------------------------------------------------------------------------------------
+// Fxn implementations:
+
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::SyncVectors()
 {
-   // Copy data over
-   if (ordering == Ordering::byNODES)
+   // Reset Vector references to data
+   int offset = 0;
+   int size;
+   for (int f = 0; f < TotalFields; f++)
    {
-      for (int d = 0; d < Dim; d++)
+      if (f == 0)
       {
-         for (int i = 0; i < GetNP(); i++)
+         size = GetNP()*SpaceDim;
+      }
+      else if (f < 1 + NumScalars)
+      {
+         size = GetNP();
+      }
+      else
+      {
+         size = GetNP()*VDims[f - 1 - NumScalars];
+      }
+
+      vfields[f] = Vector(data.data() + offset, size);
+      offset += vfields[f].Size();
+   }
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p)
+{
+   int old_np = GetNP();
+
+   if constexpr (VOrdering == Ordering::byNODES)
+   {
+      real_t *dat;
+      for (int c = 0; c < TotalComps; c++)
+      {
+         if (c < SpaceDim) // If processing coord components
          {
-            getRef(i,d) = new_field[i+d*GetNP()];
+            dat = &p.coords[c];
          }
+         else if (c < SpaceDim + NumScalars) // Else if processing scalars
+         {
+            dat = &p.scalars[c - SpaceDim];
+         }
+         else // Else processing vector components
+         {
+            dat = &p.vectors_flat[c - SpaceDim - NumScalars];
+         }
+         data.insert(data.begin() + old_np*(c+1) + c, *dat);
+      }
+
+   }
+   else // byVDIM
+   {
+      // TODO
+   }
+
+   SyncVectors();
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::RemoveParticles(const Array<int> &list)
+{
+   int old_np = GetNP();
+
+   // Sort the indices
+   Array<int> sorted_list(list);
+   sorted_list.Sort();
+
+   if constexpr (VOrdering == Ordering::byNODES)
+   {
+      int rm_count = 0;
+      for (int i = sorted_list[rm_count]; i < data.size(); i++)
+      {
+         if (rm_count < sorted_list.Size() && i % GetNP() == sorted_list[rm_count])
+         {
+            rm_count++;
+         }
+         else
+         {
+            data[i-rm_count] = data[i]; // Shift elements rm_count
+         }
+      }
+
+   }
+   else // byVDIM
+   {
+      // TODO
+   }
+
+   // Resize / remove tail
+   int num_new = old_np - list.Size();
+   data.resize(num_new*TotalComps);
+
+   SyncVectors();
+}
+
+
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::GetParticle(int i, Particle<SpaceDim, NumScalars, VectorVDims...> &p) const
+{
+
+   if constexpr(VOrdering == Ordering::byNODES)
+   {
+      real_t *dat;
+      for (int c = 0; c < TotalComps; c++)
+      {
+         if (c < SpaceDim) // If setting coord components
+         {
+            dat = &p.coords[c];
+         }
+         else if (c < SpaceDim + NumScalars) // Else if setting scalars
+         {
+            dat = &p.scalars[c - SpaceDim];
+         }
+         else // Else setting vector components
+         {
+            dat = &p.vectors_flat[c - SpaceDim - NumScalars];
+         }
+
+         *dat = data[i + c*GetNP()];
       }
    }
    else // byVDIM
    {
-      for (int i = 0; i < GetNP(); i++)
-      {
-         for (int d = 0; d < Dim; d++)
-         {
-            getRef(i,d) = new_field[d+i*Dim];
-         }
-      }
+      // TODO
    }
 }
 
-
-
-
-// -----------------------------------------------------------------------------------------------------
-/// Define Struct-of-Arrays ParticleSet
-
-template<typename T>
-class SoAParticleSet : public ParticleSet<T> {};
-
-template<int Dim, int VFields, int SFields>
-class SoAParticleSet<Particle<Dim, VFields, SFields>> : public
-                                                      ParticleSet<Particle<Dim,VFields,SFields>>
-{
-protected:
-
-   std::vector<real_t> coords; /// Particle coordinate vector flattened, ordered byNODES
-   std::array<std::vector<real_t>, VFields> vector_fields; /// Particle vector fields flattened, ordered byNODES
-   std::array<std::vector<real_t>, SFields> scalar_fields; /// Particle scalar fields
-   
-public:
-   using ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet;
-   
-   void Reserve(int res) override;
-
-   int GetNP() const override { return coords.size()/Dim; }
-
-   void AddParticle(const Particle<Dim, VFields, SFields> &p) override;
-
-   void RemoveParticles(const Array<int> &list) override;
-
-   void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const override;
-
-   real_t& GetCoord(int i, int comp) override { return coords[i+comp*GetNP()]; }
-
-   real_t& GetVector(int v, int i, int comp) override { return vector_fields[v][i+comp*GetNP()]; }
-
-   real_t& GetScalar(int s, int i) override { return scalar_fields[s][i]; }
-
-
-
-   // Bonus functions we can leverage with SoA:
-
-   const real_t* GetParticleCoords() const
-   { return coords.data(); }
-
-   const real_t* GetVectorField(int v) const
-   { return vector_fields[v].data(); }
-
-   const real_t* GetScalarField(int s) const
-   { return scalar_fields[s].data(); }
-
-   real_t* GetParticleCoords()
-   { return coords.data(); }
-
-   real_t* GetVectorField(int v)
-   { return vector_fields[v].data(); }
-
-   real_t* GetScalarField(int s)
-   { return scalar_fields[s].data(); }
-
-};
-
-// -----------------------------------------------------------------------------------------------------
-/// Define Array-of-Structs ParticleSet
-
-template<typename T>
-class AoSParticleSet : public ParticleSet<T> {};
-
-template<int Dim, int VFields, int SFields>
-class AoSParticleSet<Particle<Dim,VFields,SFields>> : public
-                                                    ParticleSet<Particle<Dim, VFields, SFields>>
-{
-protected:
-
-   std::vector<Particle<Dim, VFields, SFields>> particles;
-
-public:
-   using ParticleSet<Particle<Dim, VFields, SFields>>::ParticleSet;
-
-   void Reserve(int res) override { particles.reserve(res); }
-
-   int GetNP() const override { return particles.size(); }
-
-   void AddParticle(const Particle<Dim, VFields, SFields> &p) override { particles.push_back(p); }
-
-   void RemoveParticles(const Array<int> &list) override;
-
-   void GetParticle(int i, Particle<Dim, VFields, SFields> &p) const override;
-
-   real_t& GetCoord(int i, int comp) override { return particles[i].coords[comp]; }
-
-   real_t& GetVector(int v, int i, int comp) override { return particles[i].vector_fields[v][comp]; }
-
-   real_t& GetScalar(int s, int i) override { return particles[i].scalar_fields[s]; }
-
-
-
-   // Bonus functions we can leverage with AoS:
-
-   const Particle<Dim, VFields, SFields>* GetParticles() const
-   { return particles.data(); };
-
-   Particle<Dim, VFields, SFields>* GetParticles()
-   { return particles.data(); };
-};
-
-// -----------------------------------------------------------------------------------------------------
-// Struct-of-Arrays implementation:
-
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::Reserve(int res)
-{
-   // Reserve memory:
-   coords.reserve(res*Dim);
-   for (int v = 0; v < VFields; v++)
-   {
-      vector_fields[v].reserve(res*Dim);
-   }
-   for (int s = 0; s < SFields; s++)
-   {
-      scalar_fields[s].reserve(res);
-   }
-
-}
-
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::AddParticle(const Particle<Dim, VFields, SFields> &p)
-{
-   // !! Add data to multiple arrays !!
-   // Seg fault because GetNP is updating.
-   for (int d = 0; d < Dim; d++)
-   {
-      coords.insert(coords.begin() + (d+1)*(coords.size()/Dim) + d, p.coords[d]);
-      for (int v = 0; v < VFields; v++)
-      {
-         vector_fields[v].insert(vector_fields[v].begin() + (d+1)*(vector_fields[v].size()/Dim) + d, p.vector_fields[v][d]);
-      }
-   }
-   for (int s = 0; s < SFields; s++)
-   {
-      scalar_fields[s].push_back(p.scalar_fields[s]);
-   }
-
-}
-
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Array<int> &list)
-{
-   int num_old = GetNP();
-
-   // Sort the indices
-   Array<int> sorted_list(list);
-   sorted_list.Sort();
-
-   int rm_count = 0;
-   for (int i = sorted_list[rm_count]; i < num_old*Dim; i++)
-   {
-      if (rm_count < sorted_list.Size() && i % GetNP() == sorted_list[rm_count])
-      {
-         rm_count++;
-      }
-      else
-      {
-         // Shift elements rm_count
-         // !! Multiple arrays shifting !!
-         coords[i-rm_count] = coords[i];
-         for (int v = 0; v < VFields; v++)
-         {
-            vector_fields[v][i-rm_count] = vector_fields[v][i];
-         }
-
-         if (i < GetNP())
-         {
-            for (int s = 0; s < SFields; s++)
-            {
-               scalar_fields[s][i-rm_count] = scalar_fields[s][i];
-            }
-         }
-      }
-   }
-
-   // Resize / remove tails
-   // !! Multiple arrays resizing !!
-   int num_new = num_old - list.Size();
-
-   coords.resize(num_new*Dim);
-   for (int v = 0; v < VFields; v++)
-   {
-      vector_fields[v].resize(num_new*Dim);
-   }
-   for (int s = 0; s < SFields; s++)
-   {
-      scalar_fields[s].resize(num_new);
-   }
-}
-
-
-template<int Dim, int VFields, int SFields>
-void SoAParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i,
-                                                                  Particle<Dim, VFields, SFields> &p) const
-{
-   // !! Get data from multiple arrays !!
-   for (int d = 0; d < Dim; d++)
-   {
-      p.coords[d] = coords[i+d*GetNP()];
-      for (int v = 0; v < VFields; v++)
-      {
-         p.vector_fields[v][d] = vector_fields[v][i+d*GetNP()];
-      }
-   }
-   for (int s = 0; s < SFields; s++)
-   {
-      p.scalar_fields[s] = scalar_fields[s][i];
-   }
-}
-
-
-// -----------------------------------------------------------------------------------------------------
-// Array-of-Structs implementation:
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::RemoveParticles(const Array<int> &list)
-{
-   int num_old = GetNP();
-
-   // Sort the indices
-   Array<int> sorted_list(list);
-   sorted_list.Sort();
-
-   int rm_count = 0;
-   for (int i = sorted_list[rm_count]; i < num_old; i++)
-   {
-      if (rm_count < sorted_list.Size() && i == sorted_list[rm_count])
-      {
-         rm_count++;
-      }
-      else
-      {
-         // Shift elements rm_count
-         // !! Single array shifting !!
-         particles[i-rm_count] = particles[i];
-      }
-   }
-
-   // Resize / remove tail
-   // !! Single array resizing !!
-   int num_new = num_old - list.Size();
-   particles.resize(num_new);
-}
-
-
-template<int Dim, int VFields, int SFields>
-void AoSParticleSet<Particle<Dim, VFields, SFields>>::GetParticle(int i, Particle<Dim, VFields, SFields> &p) const
-{
-   // !! Get data from single array !!
-   Particle<Dim, VFields, SFields> p_copy = particles[i];
-   p = std::move(p_copy);
-}
 
 } // namespace mfem
 
