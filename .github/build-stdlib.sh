@@ -16,7 +16,7 @@ cmake -GNinja                                   \
       -DCMAKE_CXX_COMPILER=${CXX}               \
       -DCMAKE_BUILD_TYPE=RelWithDebInfo         \
       -DCMAKE_INSTALL_PREFIX=/usr               \
-      -DLLVM_USE_SANITIZER=${LIBCXX_SANITIZER}  \
+      -DLLVM_USE_SANITIZER=${LLVM_SANITIZER}    \
       -DLLVM_BUILD_32_BITS=OFF                  \
       -DLIBCXXABI_USE_LLVM_UNWINDER=OFF         \
       -DLLVM_INCLUDE_TESTS=OFF                  \
