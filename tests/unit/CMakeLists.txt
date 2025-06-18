@@ -161,6 +161,8 @@ add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 add_dependencies(unit_tests copy_data)
 # ParSubMesh tests need meshes in ../../miniapps/multidomain
 add_dependencies(unit_tests copy_miniapps_multidomain_data)
+# NURBS tests need meshes in ../../miniapps/nurbs
+add_dependencies(unit_tests copy_miniapps_nurbs_data)
 
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
