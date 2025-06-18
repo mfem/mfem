@@ -102,10 +102,7 @@ jobs:
         ### LLVM libcxx Build Steps
       - name: LLVM Clone
         if: matrix.sanitizer != 'AddressSanitizer'
-        run: >
-          git clone --filter=blob:none --depth=1 
-                    --branch llvmorg-${{ env.LLVM_VERSION }}
-                    --no-checkout https://github.com/llvm/llvm-project.git llvm-project
+        run: git clone --filter=blob:none --depth=1 --branch llvmorg-${{ env.LLVM_VERSION }} --no-checkout https://github.com/llvm/llvm-project.git llvm-project
 
       - name: LLVM Checkout
         if: matrix.sanitizer != 'AddressSanitizer'
