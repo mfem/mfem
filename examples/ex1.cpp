@@ -300,9 +300,9 @@ int main(int argc, char *argv[])
 
    // MemorySanitizer is a detector of uninitialized memory use.
 #if __has_feature(memory_sanitizer)
-   int* array = new int[1024];
-   array[5] = 0;
-   mfem::out << "memory_sanitizer" << (array[argc]) << std::endl;
+   // int* array = new int[1024];
+   // array[5] = 0;
+   // mfem::out << "memory_sanitizer" << (array[argc]) << std::endl;
 #endif // memory_sanitizer
 
 #endif // __has_feature
