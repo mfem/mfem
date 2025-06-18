@@ -75,13 +75,11 @@ jobs:
           echo "> ${{ env.CXX }} -v"
           ${{ env.CXX }} -v
 
-      # - name: github.workspace # /home/runner/work/mfem/mfem
-      #   if: matrix.sanitizer != 'AddressSanitizer'
-      #   run: |
-      #     echo "github.workspace: ${{ github.workspace }}"
-      #     "${{ github.workspace }}/.github/build-stdlib.sh"
+      - name: MFEM Checkout
+        uses: actions/checkout@v4
+        with:
+          path: mfem
 
-    steps:
       - name: Dump workspaces
         run: |
           echo 'github.workspace === ${{ github.workspace }}'
@@ -115,11 +113,6 @@ jobs:
           echo "github.workspace: ${{ github.workspace }}"
           "${{ github.workspace }}/.github/build-stdlib.sh"
           echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
-
-      - name: MFEM Checkout
-        uses: actions/checkout@v4
-        with:
-          path: mfem
 
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
