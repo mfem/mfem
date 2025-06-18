@@ -284,7 +284,7 @@ int main(int argc, char *argv[])
       delete fec;
    }
 
-   auto alpha = new real_t[1024];
+   volatile auto alpha = new real_t[1024];
    MFEM_CONTRACT_VAR(alpha);
    return 0;
 }
