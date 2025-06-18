@@ -37,6 +37,7 @@ jobs:
             cxxflags: "-fsanitize=address
                        -fno-omit-frame-pointer
                        -fno-optimize-sibling-calls
+                       -fno-var-tracking-assignments
                        -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
             env: ASAN_OPTIONS="detect_leaks=1,
@@ -58,11 +59,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: mfem
-
-      - name: Install llvm-symbolizer
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm
 
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
