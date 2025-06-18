@@ -69,7 +69,6 @@
 #include <fstream>
 #include <iostream>
 
-using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
@@ -138,10 +137,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(std::cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(std::cout);
 
    if (iprob > 1) { iprob = 1; }
    prob = (prob_type)iprob;
@@ -382,9 +381,9 @@ int main(int argc, char *argv[])
                 << "    Dofs    |"
                 << "  L2 Error  |"
                 << "  Rate  |"
-                << " PCG it |" << endl;
+                << " PCG it |" << std::endl;
       std::cout << std::string(50,'-')
-                << endl;
+                << std::endl;
    }
 
    real_t err0 = 0.;
@@ -435,7 +434,7 @@ int main(int argc, char *argv[])
          offsets[4] = hatsigma_fes->GetVSize();
          offsets.PartialSum();
       }
-      else if (a_darcy)
+      else
       {
          offsets.MakeRef(a_darcy->GetOffsets());
       }
@@ -518,7 +517,7 @@ int main(int argc, char *argv[])
 
       // Construct solver
 
-      unique_ptr<IterativeSolver> solver;
+      std::unique_ptr<IterativeSolver> solver;
       if (a_dpg)
       {
          solver.reset(new CGSolver());
