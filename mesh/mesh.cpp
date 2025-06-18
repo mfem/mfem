@@ -14518,11 +14518,12 @@ MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
    for (int loc_elem_id = 0; loc_elem_id < num_elems; loc_elem_id++)
    {
       const int glob_elem_id = elem_list[loc_elem_id];
-      auto glob_dt = global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs);
+      DofTransformation glob_dt, local_dt;
+      global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs, glob_dt);
       global_gf.GetSubVector(gvdofs, loc_vals);
-      if (glob_dt) { glob_dt->InvTransformPrimal(loc_vals); }
-      auto local_dt = local_fespace.GetElementVDofs(loc_elem_id, lvdofs);
-      if (local_dt) { local_dt->TransformPrimal(loc_vals); }
+      glob_dt.InvTransformPrimal(loc_vals);
+      local_fespace.GetElementVDofs(loc_elem_id, lvdofs, local_dt);
+      local_dt.TransformPrimal(loc_vals);
       local_gf->SetSubVector(lvdofs, loc_vals);
    }
    return local_gf;
