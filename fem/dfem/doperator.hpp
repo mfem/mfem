@@ -512,7 +512,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
 
-   if constexpr (is_sum_fop<decltype(output_fop)>::value)
+   if constexpr (is_sum_fop<std::remove_cv_t<decltype(output_fop)>>::value)
    {
       residual_l.SetSize(1);
       height = 1;
@@ -546,8 +546,19 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
-   const int num_test_dof =
-      num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
+
+   int num_test_dof = 0;
+   if (num_entities)
+   {
+      if constexpr (is_sum_fop<std::decay_t<decltype(output_fop)>>::value)
+      {
+         num_test_dof = 1;
+      }
+      else
+      {
+         num_test_dof = output_e_size / output_fop.vdim / num_entities;
+      }
+   }
 
    auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
 

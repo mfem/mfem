@@ -892,6 +892,37 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Get the number of elements from a field descriptor.
+///
+/// @param f the field descriptor.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns the number of elements from the field descriptor.
+template <typename entity_t>
+int GetNumElements(const FieldDescriptor &f)
+{
+   return std::visit([](auto && arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            return arg->GetMesh()->GetNE();
+         }
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         // TODO: Implement GetNumElements for ParameterSpace
+         return 0;
+      }
+      else
+      {
+         static_assert(dfem::always_false<T>, "can't use GetDimension on type");
+      }
+      return 0; // Unreachable, but avoids compiler warning
+   }, f.data);
+}
 
 /// @brief Get the prolongation operator for a field descriptor.
 ///
@@ -989,7 +1020,9 @@ get_restriction_transpose(
       {
          v_l = v_e;
       };
-      return std::make_tuple(RT, 1);
+      // The size is always 1 * number of elements for sum operators, e.g.
+      // each element is reduced to a single value on the E-vector level.
+      return std::make_tuple(RT, GetNumElements<entity_t>(f));
    }
    else
    {
