@@ -115,11 +115,11 @@ jobs:
           git checkout llvmorg-${{env.LLVM_VER}}
           git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
 
-      - name: LLVM CMake Mkdir
+      - name: LLVM Mkdir
         if: matrix.sanitizer != 'AddressSanitizer'
         run: mkdir llvm-build
 
-      - name: LLVM CMake Configure
+      - name: LLVM Configure
         if: matrix.sanitizer != 'AddressSanitizer'
         working-directory: llvm-build
         run: >
@@ -137,7 +137,7 @@ jobs:
           -DLIBCXX_INCLUDE_BENCHMARKS=OFF
           -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
 
-      - name: LLVM CMake Ninja
+      - name: LLVM CMake
         if: matrix.sanitizer != 'AddressSanitizer'
         working-directory: llvm-build
         run: cmake --build . -- cxx cxxabi

@@ -80,7 +80,7 @@ public:
        polynomial degree). Periodicity is not supported.
    */
    KnotVector(int order, const Vector& intervals,
-              const Array<int>& continuity );
+              const Array<int>& continuity);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -112,7 +112,7 @@ public:
 
    /** @brief Return whether the knot index Order plus @a i is the beginning of
        an element. */
-   bool IsElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
+   bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
    /** @brief Return the number of control points minus the order. This is not
        the number of knot spans, but it gives the number of knots to be checked
@@ -121,7 +121,7 @@ public:
 
    /** @brief Return the parameter for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
-   real_t GetKnotLocation(real_t xi, int ni) const
+   real_t getKnotLocation(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
    /// Return the index of the knot span containing parameter @a u.
