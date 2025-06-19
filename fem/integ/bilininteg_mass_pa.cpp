@@ -210,12 +210,10 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();
-      Array<real_t> absB(maps->B);
-      Array<real_t> absBt(maps->Bt);
-      absB.Abs();
-      absBt.Abs();
+      auto abs_maps = maps->Abs();
 
-      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, absB, absBt, abs_pa_data,
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, abs_maps.B, abs_maps.Bt,
+                          abs_pa_data,
                           x, y, dofs1D, quad1D);
    }
 }
