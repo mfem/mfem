@@ -204,15 +204,15 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      gftrial.ProjectCoefficient(p_coef);
+      gftrial.ProjectCoefficientGlobalL2(p_coef);
    }
    else if (prob == 1)
    {
-      gftrial.ProjectCoefficient(v_coef);
+      gftrial.ProjectCoefficientGlobalL2(v_coef);
    }
    else
    {
-      gftrial.ProjectCoefficient(gradp_coef);
+      gftrial.ProjectCoefficientGlobalL2(gradp_coef);
    }
 
    gftrial.SetTrueVector();
@@ -300,15 +300,15 @@ int main(int argc, char *argv[])
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
-      exact_proj.ProjectCoefficient(gradp_coef);
+      exact_proj.ProjectCoefficientGlobalL2(gradp_coef);
    }
    else if (prob == 1)
    {
-      exact_proj.ProjectCoefficient(curlv_coef);
+      exact_proj.ProjectCoefficientGlobalL2(curlv_coef);
    }
    else
    {
-      exact_proj.ProjectCoefficient(divgradp_coef);
+      exact_proj.ProjectCoefficientGlobalL2(divgradp_coef);
    }
 
    exact_proj.SetTrueVector();
