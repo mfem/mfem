@@ -684,7 +684,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       // Create the action of the derivatives
       for_constexpr([&, &or_transpose =
-                        this->output_restriction_transpose](auto derivative_id)
+                        this->output_restriction_transpose](const std::size_t derivative_id)
       {
          const size_t d_field_idx = FindIdx(derivative_id, fields);
          const auto direction = fields[d_field_idx];
