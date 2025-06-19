@@ -367,8 +367,15 @@ private:
    mutable Vector residual_e;
 
    std::function<void(Vector &, Vector &)> prolongation_transpose;
+
+   // TODO: This can probably be removed, as it is only used in
+   // the callbacks so they can copy it during the capture.
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
+
    restriction_callback_t restriction_callback;
+
+   std::map<size_t, std::function<void(const Vector &, Vector &)>>
+                                                                daction_prolongation_transpose;
 
    std::map<size_t, size_t> assembled_vector_sizes;
 
@@ -677,7 +684,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       // Create the action of the derivatives
       for_constexpr([&, &or_transpose =
-                        this->output_restriction_transpose](const std::size_t derivative_id)
+                        this->output_restriction_transpose](auto derivative_id)
       {
          const size_t d_field_idx = FindIdx(derivative_id, fields);
          const auto direction = fields[d_field_idx];
