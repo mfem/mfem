@@ -64,6 +64,7 @@ void dfem_functional(const char *filename, int p, const int r)
    static constexpr int U = 0, Coords = 1;
    const auto sol = std::vector{ FieldDescriptor{ U, &fes } };
    DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+#ifdef MFEM_USE_ENZYME
    const auto functional_qf =
       [] MFEM_HOST_DEVICE(const real_t &u,
                           const tensor<real_t, DIM, DIM> &J,
@@ -71,6 +72,15 @@ void dfem_functional(const char *filename, int p, const int r)
    {
       return tuple{u * w * det(J)};
    };
+#else
+   const auto functional_qf =
+      [] MFEM_HOST_DEVICE(const real_t &u,
+                          const tensor<dual<real_t, real_t>, DIM, DIM> &J,
+                          const real_t &w)
+   {
+      return tuple{u * w * det(J)};
+   };
+#endif
 
    auto derivatives = std::integer_sequence<size_t, U> {};
    dop.AddDomainIntegrator(functional_qf,
