@@ -48,8 +48,8 @@ API changes
 Miscellaneous
 -------------
 
-- Added [Undefined Behavior Sanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
-  and [MemorySanitizer](https://clang.llvm.org/docs/MemorySanitizer.html)
+- Added Undefined Behavior Sanitizer (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
+  and Memory Sanitizer (https://clang.llvm.org/docs/MemorySanitizer.html)
   GitHub actions for serial tests on Ubuntu.
 
 Version 4.8, released on Apr 9, 2025
