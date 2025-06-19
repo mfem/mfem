@@ -54,11 +54,6 @@ public:
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
 
-   void AbsMult(const Vector &x, Vector &y) const override
-   {
-      MFEM_ABORT("AbsMult not implemented for this assembly level!")
-   }
-
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
