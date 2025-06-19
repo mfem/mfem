@@ -444,11 +444,11 @@ int main(int argc, char* argv[])
    // TODO:
    // 1. G = -∂(qoi)/∂u (ie adjoint load)
    // 2. solve K^T lambda = G
-   //    In this case, K = K^T, so we can ignore the transpose action for now.
-   //    We could get it (or its action) from the same trick we do in step 4.
+   //    In this case, K = K^T, so we can ignore the transpose matrix (or its action) action for now.
+   //    We could get it from the same trick we do in step 3.
    // 3. d(qoi)/dE = ∂(qoi)/∂E + lambda * ∂r/∂E
    //    To compute lambda * ∂r/∂E, set up another differentiable integrator J (u, E; v) -> reals
-   //    J(u, E; v) = v * r  (r is the residual)
+   //    J(u, E; v) = v * r  (r is the residual. J will have its own q-function that looks like the virtual work)
    //    then lambda * ∂r/∂E = ∂J(u, E; lambda)/∂E
    // 4. Check d(qoi)/dE * dE with finite differences for some random dE vector
 
