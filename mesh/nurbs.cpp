@@ -38,7 +38,7 @@ KnotVector::KnotVector(istream &input)
 
    knot.Load(input, NumOfControlPoints + Order + 1);
    GetElements();
-   Coarse = false;
+   coarse = false;
 }
 
 KnotVector::KnotVector(int order, int NCP)
@@ -47,7 +47,7 @@ KnotVector::KnotVector(int order, int NCP)
    NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
    NumOfElements = 0;
-   Coarse = false;
+   coarse = false;
 
    knot = -1.;
 }
@@ -93,7 +93,7 @@ KnotVector::KnotVector(int order, const Vector& intervals,
          ++NumOfElements;
       }
    }
-   Coarse = false;
+   coarse = false;
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
@@ -102,8 +102,8 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    NumOfControlPoints = kv.NumOfControlPoints;
    NumOfElements = kv.NumOfElements;
    knot = kv.knot;
-   Coarse = kv.Coarse;
-   if (kv.GetSpacing()) { GetSpacing() = kv.GetSpacing()->Clone(); }
+   coarse = kv.coarse;
+   if (kv.spacing) { spacing = kv.spacing->Clone(); }
 
    return *this;
 }
@@ -160,15 +160,15 @@ void KnotVector::UniformRefinement(Vector &newknots, int rf) const
 
 int KnotVector::GetCoarseningFactor() const
 {
-   if (Spacing)
+   if (spacing)
    {
-      if (Spacing->Nested())
+      if (spacing->Nested())
       {
          return 1;
       }
       else
       {
-         return Spacing->Size();   // Coarsen only if non-nested
+         return spacing->Size();   // Coarsen only if non-nested
       }
    }
    else
@@ -218,12 +218,12 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
 {
    MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
 
-   if (Spacing)
+   if (spacing)
    {
-      Spacing->ScaleParameters(1.0 / ((real_t) rf));
-      Spacing->SetSize(rf * NumOfElements);
+      spacing->ScaleParameters(1.0 / ((real_t) rf));
+      spacing->SetSize(rf * NumOfElements);
       Vector s;
-      Spacing->EvalAll(s);
+      spacing->EvalAll(s);
 
       newknots.SetSize((rf - 1) * NumOfElements);
 
@@ -1011,19 +1011,19 @@ void NURBSPatch::Coarsen(Array<int> const& cf, real_t tol)
 {
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      if (!kv[dir]->GetCoarse())
+      if (!kv[dir]->coarse)
       {
          const int ne_fine = kv[dir]->GetNE();
          KnotRemove(dir, kv[dir]->GetFineKnots(cf[dir]), tol);
-         kv[dir]->GetCoarse() = true;
+         kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
          const int ne_coarse = kv[dir]->GetNE();
          MFEM_VERIFY(ne_fine == cf[dir] * ne_coarse, "");
-         if (kv[dir]->GetSpacing())
+         if (kv[dir]->spacing)
          {
-            kv[dir]->GetSpacing()->SetSize(ne_coarse);
-            kv[dir]->GetSpacing()->ScaleParameters((real_t) cf[dir]);
+            kv[dir]->spacing->SetSize(ne_coarse);
+            kv[dir]->spacing->ScaleParameters((real_t) cf[dir]);
          }
       }
    }
@@ -1124,7 +1124,7 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
    NURBSPatch &newp  = *newpatch;
    KnotVector &newkv = *newp.GetKV(dir);
 
-   newkv.GetSpacing() = oldkv.GetSpacing();
+   newkv.spacing = oldkv.spacing;
 
    int size = oldp.SetLoopDirection(dir);
    if (size != newp.SetLoopDirection(dir))
@@ -1394,8 +1394,8 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
    KnotVector &newkv = *newp.GetKV(dir);
    MFEM_VERIFY(newkv.Size() == oldkv.Size() - ntimes, "");
 
-   newkv.GetSpacing() = oldkv.GetSpacing();
-   newkv.GetCoarse() = oldkv.GetCoarse();
+   newkv.spacing = oldkv.spacing;
+   newkv.coarse = oldkv.coarse;
 
    for (int k = 0; k < id - ntimes + 1; k++)
    {
@@ -1444,7 +1444,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
    NURBSPatch &newp  = *newpatch;
    KnotVector &newkv = *newp.GetKV(dir);
 
-   if (oldkv.GetSpacing()) { newkv.GetSpacing() = oldkv.GetSpacing(); }
+   if (oldkv.spacing) { newkv.spacing = oldkv.spacing; }
 
    int size = oldp.SetLoopDirection(dir);
    if (size != newp.SetLoopDirection(dir))
@@ -1971,7 +1971,7 @@ void NURBSPatch::SetKnotVectorsCoarse(bool c)
 {
    for (int i=0; i<kv.Size(); ++i)
    {
-      kv[i]->GetCoarse() = c;
+      kv[i]->coarse = c;
    }
 }
 
@@ -2084,7 +2084,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
             }
 
             const SpacingType s = (SpacingType) spacingType;
-            knotVectors[ki]->GetSpacing() = GetSpacingFunction(s, ipar, dpar);
+            knotVectors[ki]->spacing = GetSpacingFunction(s, ipar, dpar);
          }
       }
    }
@@ -2484,7 +2484,7 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
    {
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
-         if (knotVectors[i]->GetSpacing()) { kvSpacing.Append(i); }
+         if (knotVectors[i]->spacing) { kvSpacing.Append(i); }
       }
    }
 
@@ -2504,7 +2504,7 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
          for (auto kv : kvSpacing)
          {
             os << kv << " ";
-            knotVectors[kv]->GetSpacing()->Print(os);
+            knotVectors[kv]->spacing->Print(os);
          }
       }
 
