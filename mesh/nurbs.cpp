@@ -88,11 +88,12 @@ KnotVector::KnotVector(int order, const Vector& intervals,
    NumOfElements = 0;
    for (int i = 0; i < GetNKS(); ++i)
    {
-      if (IsElement(i))
+      if (isElement(i))
       {
          ++NumOfElements;
       }
    }
+   Coarse = false;
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
@@ -319,7 +320,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
    for (int e = 0; e < GetNE(); e++, cnt++)
    {
       // Avoid printing shapes between repeated knots
-      if (!IsElement(cnt)) { e--; continue; }
+      if (!isElement(cnt)) { e--; continue; }
 
       for (int j = 0; j <samples; j++)
       {
@@ -347,7 +348,7 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
    real_t left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
@@ -372,7 +373,7 @@ void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
    real_t ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -430,7 +431,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
    real_t temp, saved, d;
    real_t a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
@@ -542,7 +543,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
       for (int d = 0; d < Order+1; d++)
       {
          int i = j - d;
-         if (IsElement(i))
+         if (isElement(i))
          {
             arg1 = 1e-16;
             CalcShape(shape, i, arg1);
@@ -579,7 +580,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
                maxima[j] = max;
                ks[j] = i;
                xi[j] = arg;
-               u[j]  = GetKnotLocation(arg, i+Order);
+               u[j]  = getKnotLocation(arg, i+Order);
             }
          }
       }
@@ -2699,9 +2700,9 @@ void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
 
    for (int i = 0; i < nks0; i++)
    {
-      if (kv0[0]->IsElement(i))
+      if (kv0[0]->isElement(i))
       {
-         if (!kv1[0]->IsElement(i)) { mfem_error("isElement does not match"); }
+         if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match"); }
          for (int ii = 0; ii <= kv0[0]->GetOrder(); ii++)
          {
             int ii0 = (okv0[0] >= 0) ? (i+ii) : (nx-i-ii);
@@ -2758,14 +2759,14 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
 
    for (int j = 0; j < nks1; j++)
    {
-      if (kv0[1]->IsElement(j))
+      if (kv0[1]->isElement(j))
       {
-         if (!kv1[1]->IsElement(j)) { mfem_error("isElement does not match #1"); }
+         if (!kv1[1]->isElement(j)) { mfem_error("isElement does not match #1"); }
          for (int i = 0; i < nks0; i++)
          {
-            if (kv0[0]->IsElement(i))
+            if (kv0[0]->isElement(i))
             {
-               if (!kv1[0]->IsElement(i)) { mfem_error("isElement does not match #0"); }
+               if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match #0"); }
                for (int jj = 0; jj <= kv0[1]->GetOrder(); jj++)
                {
                   int jj0 = (okv0[1] >= 0) ? (j+jj) : (ny-j-jj);
@@ -3795,7 +3796,7 @@ void NURBSExtension::Generate1DElementDofTable()
       const int ord0 = kv[0]->GetOrder();
       for (int i = 0; i < kv[0]->GetNKS(); i++)
       {
-         if (kv[0]->IsElement(i))
+         if (kv[0]->isElement(i))
          {
             if (activeElem[eg])
             {
@@ -3839,11 +3840,11 @@ void NURBSExtension::Generate2DElementDofTable()
       const int ord1 = kv[1]->GetOrder();
       for (int j = 0; j < kv[1]->GetNKS(); j++)
       {
-         if (kv[1]->IsElement(j))
+         if (kv[1]->isElement(j))
          {
             for (int i = 0; i < kv[0]->GetNKS(); i++)
             {
-               if (kv[0]->IsElement(i))
+               if (kv[0]->isElement(i))
                {
                   if (activeElem[eg])
                   {
@@ -3894,15 +3895,15 @@ void NURBSExtension::Generate3DElementDofTable()
       const int ord2 = kv[2]->GetOrder();
       for (int k = 0; k < kv[2]->GetNKS(); k++)
       {
-         if (kv[2]->IsElement(k))
+         if (kv[2]->isElement(k))
          {
             for (int j = 0; j < kv[1]->GetNKS(); j++)
             {
-               if (kv[1]->IsElement(j))
+               if (kv[1]->isElement(j))
                {
                   for (int i = 0; i < kv[0]->GetNKS(); i++)
                   {
-                     if (kv[0]->IsElement(i))
+                     if (kv[0]->isElement(i))
                      {
                         if (activeElem[eg])
                         {
@@ -4088,7 +4089,7 @@ void NURBSExtension::Generate2DBdrElementDofTable()
 
       for (int i = 0; i < nks0; i++)
       {
-         if (kv[0]->IsElement(i))
+         if (kv[0]->isElement(i))
          {
             if (activeBdrElem[gbe])
             {
@@ -4158,11 +4159,11 @@ void NURBSExtension::Generate3DBdrElementDofTable()
 
       for (int j = 0; j < nks1; j++)
       {
-         if (kv[1]->IsElement(j))
+         if (kv[1]->isElement(j))
          {
             for (int i = 0; i < nks0; i++)
             {
-               if (kv[0]->IsElement(i))
+               if (kv[0]->isElement(i))
                {
                   if (activeBdrElem[gbe])
                   {
@@ -5185,7 +5186,7 @@ Table *ParNURBSExtension::Get1DGlobalElementDofTable()
 
       for (int i = 0; i < kv[0]->GetNKS(); i++)
       {
-         if (kv[0]->IsElement(i))
+         if (kv[0]->isElement(i))
          {
             Connection conn(el,0);
             for (int ii = 0; ii <= ord0; ii++)
@@ -5217,11 +5218,11 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
       const int ord1 = kv[1]->GetOrder();
       for (int j = 0; j < kv[1]->GetNKS(); j++)
       {
-         if (kv[1]->IsElement(j))
+         if (kv[1]->isElement(j))
          {
             for (int i = 0; i < kv[0]->GetNKS(); i++)
             {
-               if (kv[0]->IsElement(i))
+               if (kv[0]->isElement(i))
                {
                   Connection conn(el,0);
                   for (int jj = 0; jj <= ord1; jj++)
@@ -5259,15 +5260,15 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
       const int ord2 = kv[2]->GetOrder();
       for (int k = 0; k < kv[2]->GetNKS(); k++)
       {
-         if (kv[2]->IsElement(k))
+         if (kv[2]->isElement(k))
          {
             for (int j = 0; j < kv[1]->GetNKS(); j++)
             {
-               if (kv[1]->IsElement(j))
+               if (kv[1]->isElement(j))
                {
                   for (int i = 0; i < kv[0]->GetNKS(); i++)
                   {
-                     if (kv[0]->IsElement(i))
+                     if (kv[0]->isElement(i))
                      {
                         Connection conn(el,0);
                         for (int kk = 0; kk <= ord2; kk++)
