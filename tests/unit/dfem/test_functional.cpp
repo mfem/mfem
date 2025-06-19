@@ -72,10 +72,11 @@ void dfem_functional(const char *filename, int p, const int r)
       return tuple{u * w * det(J)};
    };
 
+   auto derivatives = std::integer_sequence<size_t, U> {};
    dop.AddDomainIntegrator(functional_qf,
                            tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
                            tuple{ Sum<U>{} },
-                           *ir, all_domain_attr);
+                           *ir, all_domain_attr, derivatives);
    dop.SetParameters({ nodes });
 
    fes.GetRestrictionMatrix()->Mult(x, X);
@@ -84,6 +85,8 @@ void dfem_functional(const char *filename, int p, const int r)
 
    REQUIRE(MFEM_Approx(0.0) == (sum_g - sum(0)));
 
+   auto dRdu = dop.GetDerivative(U, {&x}, {nodes});
+   // dRdu->Mult(X, Y);
    MPI_Barrier(MPI_COMM_WORLD);
 }
 
