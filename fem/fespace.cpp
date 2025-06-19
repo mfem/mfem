@@ -4278,9 +4278,6 @@ void FiniteElementSpace::Update(bool want_transform)
 void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
                                           bool want_transfer)
 {
-   MFEM_VERIFY(PRefinementSupported(),
-               "p-refinement is not supported in this space");
-
    if (want_transfer)
    {
       fesPrev.reset(new FiniteElementSpace(mesh, fec, vdim, ordering));
