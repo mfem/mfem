@@ -682,6 +682,10 @@ void DifferentiableOperator::AddDomainIntegrator(
    // will fail.
    if constexpr (derivative_ids_t::size() != 0)
    {
+      // Extract the inputs where the FieldID matches with derivative_ids
+      constexpr auto dependent_input_fops = filter_fields_by_ids(inputs,
+                                                                 derivative_ids);
+
       // Create the action of the derivatives
       for_constexpr([&, &or_transpose =
                         this->output_restriction_transpose](const std::size_t derivative_id)

@@ -515,6 +515,34 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
 
+/// @brief Filter fields in a tuple by a list of field IDs represented by an index sequence
+/// @param t The tuple of fields to filter
+/// @param ids An index sequence representing the field IDs to include
+/// @returns A tuple containing only the fields with field IDs matching any value in the index sequence
+/// @details This function filters a tuple of field types based on whether each field's ID
+///          matches any of the IDs in the provided index sequence. It works at compile time
+///          to generate a new tuple containing only the field types that match.
+template <typename... Ts, std::size_t... Is>
+constexpr auto filter_fields_by_ids(const tuple<Ts...>& t,
+                                    std::index_sequence<Is...>)
+{
+   // Helper to check if a field ID is in the index sequence
+   // Uses fold expression to check against each ID in the sequence
+   constexpr auto contains_id = [](int id, auto... ids)
+   {
+      return ((id == ids) || ...);
+   };
+
+   // For each type in the input tuple:
+   // - If its field ID matches any ID in the index sequence, include it in the result
+   // - Otherwise, include an empty tuple (effectively filtering it out)
+   // Then concatenate all these conditional tuples into the final result
+   return std::tuple_cat(
+             std::conditional_t<contains_id(Ts::GetFieldId(), Is...),
+             std::tuple<Ts>,
+             std::tuple<>> {}...);
+}
+
 /// @brief FieldDescriptor struct
 ///
 /// This struct is used to store information about a field.
