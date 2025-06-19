@@ -2030,6 +2030,7 @@ int sedov(int myid, int argc, char *argv[])
    rho.ProjectGridFunction(l2_rho);
    DeltaCoefficient e_coeff(blast_position[0], blast_position[1],
                             blast_position[2], blast_energy);
+   e_coeff.SetWeight(new ConstantCoefficient(1.0));
    l2_e.ProjectCoefficient(e_coeff);
    e_gf.ProjectGridFunction(l2_e);
    e_gf.SyncAliasMemory(S);
@@ -2038,13 +2039,13 @@ int sedov(int myid, int argc, char *argv[])
    ParGridFunction mat_gf(&mat_fes);
    FunctionCoefficient mat_coeff(gamma);
    mat_gf.ProjectCoefficient(mat_coeff);
-   GridFunctionCoefficient *mat_gf_coeff = new GridFunctionCoefficient(&mat_gf);
+   GridFunctionCoefficient mat_gf_coeff(&mat_gf);
    const int source = 0; bool visc = true;
 
    mfem::hydrodynamics::LagrangianHydroOperator oper(rho_coeff, S.Size(),
                                                      H1FESpace, L2FESpace,
                                                      ess_tdofs, rho, source,
-                                                     cfl, mat_gf_coeff,
+                                                     cfl, &mat_gf_coeff,
                                                      visc, cg_tol, cg_max_iter,
                                                      ftz_tol, order_q,
                                                      gamma(S),
@@ -2148,7 +2149,6 @@ int sedov(int myid, int argc, char *argv[])
    //oper.PrintTimingData(myid, steps, fom);
    delete ode_solver;
    delete pmesh;
-   delete mat_gf_coeff;
    return 0;
 }
 } // namespace mfem
