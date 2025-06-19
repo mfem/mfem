@@ -52,13 +52,6 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
-   /** Flag to indicate whether the KnotVector has been coarsened, which means
-       it is ready for non-nested refinement. */
-   bool Coarse;
-
-   /// Function to define the distribution of knots for any number of knot spans.
-   std::shared_ptr<SpacingFunction> Spacing;
-
 public:
    /// Create an empty KnotVector.
    KnotVector() = default;
@@ -95,14 +88,6 @@ public:
 
    /// Return the order.
    int GetOrder() const { return Order; }
-
-   /// Return the flag indicating whether the KnotVector has been coarsened.
-   bool GetCoarse() const { return Coarse; }
-   bool& GetCoarse() { return Coarse; }
-
-   /// Return the function to define the distribution of knots.
-   auto GetSpacing() const { return Spacing; }
-   auto& GetSpacing() { return Spacing; }
 
    /// Return the number of knots, including multiplicities.
    int Size() const { return knot.Size(); }
@@ -210,6 +195,13 @@ public:
 
    /// Const access function to knot @a i.
    const real_t &operator[](int i) const { return knot(i); }
+
+   /** Flag to indicate whether the KnotVector has been coarsened, which means
+       it is ready for non-nested refinement. */
+   bool coarse;
+
+   /// Function to define the distribution of knots for any number of knot spans.
+   std::shared_ptr<SpacingFunction> spacing;
 };
 
 
