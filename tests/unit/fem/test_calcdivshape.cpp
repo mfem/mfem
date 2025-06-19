@@ -215,7 +215,7 @@ void TestFDCalcDivShape(FiniteElement* fe, ElementTransformation * T, int order)
       IntegrationPoint pt = ir->IntPoint(i);
       fe->CalcDivShape(pt, dshape);
 
-      CAPTURE(pt.x, pt.y, pt.z);
+      CAPTURE(pt.x, pt.y, pt.z, dim == 3 ? pt.z : 0_r);
 
       fdshape = 0.0;
       for (int d=0; d<dim; d++)
