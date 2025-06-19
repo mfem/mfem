@@ -81,16 +81,16 @@ public:
    KnotVector &operator=(const KnotVector &kv);
 
    /// Return the number of elements, defined by distinct knots.
-   int GetNE() const { return NumOfElements; }
+   int GetNE()    const { return NumOfElements; }
 
    /// Return the number of control points.
-   int GetNCP() const { return NumOfControlPoints; }
+   int GetNCP()   const { return NumOfControlPoints; }
 
    /// Return the order.
    int GetOrder() const { return Order; }
 
    /// Return the number of knots, including multiplicities.
-   int Size() const { return knot.Size(); }
+   int Size()     const { return knot.Size(); }
 
    /// Count the number of elements.
    void GetElements();
@@ -196,12 +196,12 @@ public:
    /// Const access function to knot @a i.
    const real_t &operator[](int i) const { return knot(i); }
 
+   /// Function to define the distribution of knots for any number of knot spans.
+   std::shared_ptr<SpacingFunction> spacing;
+
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
    bool coarse;
-
-   /// Function to define the distribution of knots for any number of knot spans.
-   std::shared_ptr<SpacingFunction> spacing;
 };
 
 
