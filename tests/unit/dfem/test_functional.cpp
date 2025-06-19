@@ -74,8 +74,8 @@ void dfem_functional(const char *filename, int p, const int r)
    };
 #else
    const auto functional_qf =
-      [] MFEM_HOST_DEVICE(const real_t &u,
-                          const tensor<dual<real_t, real_t>, DIM, DIM> &J,
+      [] MFEM_HOST_DEVICE(const dual<real_t, real_t> &u,
+                          const tensor<real_t, DIM, DIM> &J,
                           const real_t &w)
    {
       return tuple{u * w * det(J)};
