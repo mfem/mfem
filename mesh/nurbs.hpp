@@ -22,7 +22,6 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
-#include <set>
 
 namespace mfem
 {
@@ -53,9 +52,16 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
+   /** Flag to indicate whether the KnotVector has been coarsened, which means
+       it is ready for non-nested refinement. */
+   bool Coarse;
+
+   /// Function to define the distribution of knots for any number of knot spans.
+   std::shared_ptr<SpacingFunction> Spacing;
+
 public:
    /// Create an empty KnotVector.
-   KnotVector() { }
+   KnotVector() = default;
 
    /** @brief Create a KnotVector by reading data from stream @a input. Two
        integers are read, for order and number of control points. */
@@ -82,23 +88,31 @@ public:
    KnotVector &operator=(const KnotVector &kv);
 
    /// Return the number of elements, defined by distinct knots.
-   int GetNE()    const { return NumOfElements; }
+   int GetNE() const { return NumOfElements; }
 
    /// Return the number of control points.
-   int GetNCP()   const { return NumOfControlPoints; }
+   int GetNCP() const { return NumOfControlPoints; }
 
    /// Return the order.
    int GetOrder() const { return Order; }
 
+   /// Return the flag indicating whether the KnotVector has been coarsened.
+   bool GetCoarse() const { return Coarse; }
+   bool& GetCoarse() { return Coarse; }
+
+   /// Return the function to define the distribution of knots.
+   auto GetSpacing() const { return Spacing; }
+   auto& GetSpacing() { return Spacing; }
+
    /// Return the number of knots, including multiplicities.
-   int Size()     const { return knot.Size(); }
+   int Size() const { return knot.Size(); }
 
    /// Count the number of elements.
    void GetElements();
 
    /** @brief Return whether the knot index Order plus @a i is the beginning of
        an element. */
-   bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
+   bool IsElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
    /** @brief Return the number of control points minus the order. This is not
        the number of knot spans, but it gives the number of knots to be checked
@@ -107,7 +121,7 @@ public:
 
    /** @brief Return the parameter for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
-   real_t getKnotLocation(real_t xi, int ni) const
+   real_t GetKnotLocation(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
    /// Return the index of the knot span containing parameter @a u.
@@ -196,13 +210,6 @@ public:
 
    /// Const access function to knot @a i.
    const real_t &operator[](int i) const { return knot(i); }
-
-   /// Function to define the distribution of knots for any number of knot spans.
-   std::shared_ptr<SpacingFunction> spacing;
-
-   /** Flag to indicate whether the KnotVector has been coarsened, which means
-       it is ready for non-nested refinement. */
-   bool coarse;
 };
 
 
