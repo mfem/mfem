@@ -1133,7 +1133,6 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    {
       MFEM_VERIFY(!useAbs, "AbsMult not implemented with Face integrators!")
       // Apply the Interior Face Restriction
-      // TODO: AbsMult if needed
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
       {
@@ -1242,7 +1241,6 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
             });
          }
          // Apply the Interior Face Restriction transposed
-         // TODO: AbsMultTranspose if needed
          int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
       }
    }
