@@ -109,7 +109,6 @@ jobs:
           
       # Create ASan suppression file
       - name: Create ASan suppression file
-        working-directory: ${GITHUB_WORKSPACE}
         run: |
           cat > ${GITHUB_WORKSPACE}/asan.supp << EOF 
           leak:ompi_mpi_finalize
