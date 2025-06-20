@@ -36,15 +36,15 @@ void ManufacturedSolution(const Vector &x, Vector &u);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI and HYPRE.
+   // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   // 2. Parse command-line options.
    const char* mesh_file = "../data/ref-cube.mesh";
    int order = 2;
+   // 1. Parse command-line options.
    real_t alpha = 1.0;
    real_t lambda = 1.0;
    real_t mu = 1.0;
@@ -287,15 +287,15 @@ int main(int argc, char *argv[])
          mfem::out << "L2 true difference: " << l2_error << std::endl;
       }
 
-      // 19. Send the above data by socket to a GLVis server. Use the "n" and "b"
-      //     keys in GLVis to visualize the displacements.
+      // Step 7: Send the above data by socket to a GLVis server. Use the "n"
+      // and "b" keys in GLVis to visualize the displacements.
       if (visualization)
       {
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock << "solution\n" << pmesh << u_current << std::flush;
       }
 
-      // Check for convergence.
+      // Step 8: Check for convergence.
       if (!logger)
       {
          if (iter_error < itol)
