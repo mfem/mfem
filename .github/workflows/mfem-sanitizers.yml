@@ -127,8 +127,8 @@ jobs:
       - name: Setup LLVM Environment
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
-          echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}} ${{env.MPI_INC}}" >> $GITHUB_ENV
-          echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}} ${{env.MPI_LIB}}" >> $GITHUB_ENV
+          echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
+          echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
 
       - name: Echo Environment
         run: |
@@ -237,8 +237,8 @@ jobs:
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           MPICXX: c++
-          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}}"
-          LDFLAGS: "${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}"
+          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}"
+          LDFLAGS: "${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}"
         with:
           os: ${{runner.os}}
           target: opt
