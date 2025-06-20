@@ -321,7 +321,7 @@ int main(int argc, char *argv[])
          a_div->AddDomainIntegrator(new VectorDivergenceIntegrator());
          a_div->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                              new DGNormalTraceIntegrator(-1.)));
-         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, td));
+         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, -td));
       }
       else
       {
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
          if (hybridization)
          {
             a_darcy->EnableHybridization(hatu_fes,
-                                         new NormalTraceJumpIntegrator(),
+                                         new NormalTraceJumpIntegrator(-1.),
                                          ess_tdof_list);
          }
 
