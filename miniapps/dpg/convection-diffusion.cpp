@@ -496,6 +496,7 @@ int main(int argc, char *argv[])
              << " Systm dofs |"
              << "  L2 Error  |"
              << "  Rate  |"
+             << "  Iters |"
              << " Totl time |"
              << " Mult time |";
    if (theta > 0.)
@@ -503,12 +504,12 @@ int main(int argc, char *argv[])
       std::cout << "  Residual  |"
                 << "  Rate  |"
                 << std::endl;
-      std::cout << std::string(102,'-') << std::endl;
+      std::cout << std::string(111,'-') << std::endl;
    }
    else
    {
       std::cout << std::endl;
-      std::cout << std::string(79,'-') << std::endl;
+      std::cout << std::string(88,'-') << std::endl;
    }
 
    //set hybridization / assembly level
@@ -741,6 +742,7 @@ int main(int argc, char *argv[])
                 << std::setw(10) << std::scientific <<  err0 << " | "
                 << std::setprecision(2)
                 << std::setw(6) << std::fixed << rate_err << " | "
+                << std::setw(6) << std::fixed << solver->GetNumIterations() << " | "
                 << std::setw(9) << std::scientific << chrono_total.RealTime() << " | "
                 << std::setw(9) << std::scientific << chrono_mult.RealTime() << " | ";
       if (theta > 0.)
