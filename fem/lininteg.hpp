@@ -673,7 +673,7 @@ public:
       int myid;
       MPI_Comm_rank(comm, &myid);
 
-      int seed = (seed_ > 0) ? seed_ + myid : static_cast<int>(time(0)) + myid;
+      int seed = (seed_ > 0) ? seed_ + myid : time(nullptr) + myid;
       SetSeed(seed);
    }
 #else
