@@ -228,26 +228,26 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 10. Determine the list of true (i.e. parallel conforming) essential
-   //     boundary dofs.
-   Array<int> ess_bdr_contact(pmesh.bdr_attributes.Max());
-   Array<int> ess_bdr_sym_x(pmesh.bdr_attributes.Max());
-   Array<int> ess_bdr_sym_y(pmesh.bdr_attributes.Max());
-   ess_bdr_contact = 0; ess_bdr_contact[0] = 1;
-   ess_bdr_sym_x = 0; ess_bdr_sym_x[2] = 1; ess_bdr_sym_x[4] = 1;
-   ess_bdr_sym_y = 0; ess_bdr_sym_y[1] = 1; ess_bdr_sym_y[3] = 1;
+   // 6. Determine the list of true (i.e. parallel conforming) essential
+   //    boundary dofs.
+   Array<int> ess_bdr_x(pmesh.bdr_attributes.Max());
+   Array<int> ess_bdr_y(pmesh.bdr_attributes.Max());
+   Array<int> ess_bdr_z(pmesh.bdr_attributes.Max());
+   ess_bdr_x = 0; ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
+   ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[3] = 1;
+   ess_bdr_z = 0; ess_bdr_z[0] = 1;
 
-   Array<int> ess_tdof_list_contact, ess_tdof_list_sym_x, ess_tdof_list_sym_y;
-   fespace->GetEssentialTrueDofs(ess_bdr_sym_x, ess_tdof_list_sym_x, 0);
-   fespace->GetEssentialTrueDofs(ess_bdr_sym_y, ess_tdof_list_sym_y, 1);
-   fespace->GetEssentialTrueDofs(ess_bdr_contact, ess_tdof_list_contact, 2);
+   Array<int> ess_tdof_list_x, ess_tdof_list_y, ess_tdof_list_z;
+   fespace->GetEssentialTrueDofs(ess_bdr_x, ess_tdof_list_x, 0);
+   fespace->GetEssentialTrueDofs(ess_bdr_y, ess_tdof_list_y, 1);
+   fespace->GetEssentialTrueDofs(ess_bdr_z, ess_tdof_list_z, 2);
 
-   Array<int> ess_tdof_list_all;
-   ess_tdof_list_all.Append(ess_tdof_list_contact);
-   ess_tdof_list_all.Append(ess_tdof_list_sym_x);
-   ess_tdof_list_all.Append(ess_tdof_list_sym_y);
+   Array<int> ess_tdof_list;
+   ess_tdof_list.Append(ess_tdof_list_x);
+   ess_tdof_list.Append(ess_tdof_list_y);
+   ess_tdof_list.Append(ess_tdof_list_z);
 
-   // 11. Define coefficients for later.
+   // 7. Define coefficients for later.
    VectorFunctionCoefficient u_exact_coeff(dim, ManufacturedSolution);
    VectorFunctionCoefficient f_coeff(dim, ForceFunction);
    Vector n_tilde(dim);
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 
       // Step 2: Create the boundary condition coefficient using previous solution.
       TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda, mu, alpha);
-      u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr_contact);
+      u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr_z);
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary
       // conditions, applying AMR constraints, and other transformations.
