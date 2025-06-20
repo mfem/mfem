@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
    //    u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
-   GridFunctionCoefficient u_previous_coeff(&u_previous);
+   VectorGridFunctionCoefficient u_previous_coeff(&u_previous);
 
    VectorFunctionCoefficient init_u(dim, InitDisplacement);
    u_previous.ProjectCoefficient(init_u);
