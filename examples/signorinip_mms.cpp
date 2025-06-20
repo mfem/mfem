@@ -304,9 +304,9 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
+   real_t iter_error;
+   real_t l2_error;
 
-   real_t iter_error = 0;
-   real_t l2_error = 0;
    if (myid == 0)
    {
       mfem::out << "\nk" << setw(14) << "iter_error" << setw(14) << "l2_error"

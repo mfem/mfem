@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
       amg->SetElasticityOptions(fespace);
       amg->SetPrintLevel(0);
       HyprePCG *pcg = new HyprePCG(A);
-      pcg->SetTol(1e-8);
+      pcg->SetTol(1e-12);
       pcg->SetMaxIter(500);
       pcg->SetPrintLevel(0);
       pcg->SetPreconditioner(*amg);
