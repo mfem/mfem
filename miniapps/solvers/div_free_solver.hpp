@@ -140,7 +140,7 @@ public:
                          const SparseMatrix& agg_hdivdof,
                          const SparseMatrix& agg_l2dof,
                          const HypreParMatrix& P_l2,
-                         const HypreParMatrix& Q_l2);
+                         const ProductOperator& Q_l2);
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
    void SetOperator(const Operator &op) override { }
