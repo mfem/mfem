@@ -160,7 +160,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
       Vector x(M_i.Height()), Mx(M_i.Height()), diff(M_i.Height());
       real_t eval_prev = 0.0;
       int iter = 0;
-      x.Randomize(696383552+779345*i);
+      x.Randomize(static_cast<int>(696383552LL+779345LL*i));
 #if defined(MFEM_USE_DOUBLE)
       const real_t rel_tol = 1e-12;
 #elif defined(MFEM_USE_SINGLE)
