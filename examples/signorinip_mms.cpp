@@ -264,6 +264,10 @@ int main(int argc, char *argv[])
    //    right-hand side of the FEM linear system.
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
+   if (myid == 0)
+   {
+      cout << "r.h.s. ... " << flush;
+   }
    b->Assemble();
 
    // 9. Define the solution vector u as a parallel finite element grid
@@ -283,6 +287,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda,mu));
+   if (myid == 0)
+   {
+      cout << "matrix ... " << flush;
+   }
    a->Assemble();
 
    // 11. Set up GLVis visualization.
