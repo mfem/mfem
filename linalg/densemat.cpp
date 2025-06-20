@@ -4408,4 +4408,32 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
    BatchedLinAlg::LUSolve(Mlu, P, X);
 }
 
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   int info;
+   ipiv.SetSize(N);
+   MFEM_LAPACK_PREFIX(gbsv_)(&N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                             ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
+}
+
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   char trans = transpose ? 'T' : 'N';
+   int info;
+   MFEM_LAPACK_PREFIX(gbtrs_)(&trans, &N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                              ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
+}
+#endif
+
 } // namespace mfem
