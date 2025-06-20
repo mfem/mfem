@@ -295,7 +295,10 @@ int main(int argc, char *argv[])
       new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c));
    a->AddBdrFaceIntegrator(
       new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c), ess_bdr);
-   cout << "matrix ... " << flush;
+   if (myid == 0)
+   {
+      cout << "matrix ... " << flush;
+   }
    a->Assemble();
 
    // 11. Set up GLVis visualization.
