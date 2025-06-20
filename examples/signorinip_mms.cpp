@@ -31,13 +31,8 @@ using namespace mfem;
 void ManufacturedSolution(const Vector &x, Vector &u);
 
 /**
- * Checks if a file exists, removes it if it does, and creates it if it doesn't.
- * Returns an open std::ofstream object ready for writing.
  *
- * @param filename The name of the file to check/remove/create
- * @return std::ofstream An open file stream for writing
  */
-std::ofstream getFileStream(const std::string &filename);
 
 int main(int argc, char *argv[])
 {
@@ -235,11 +230,6 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   // Create CSV file for logging error data
-   std::string filename = "plots/signorini/" + std::to_string(order) + "_" +
-                          std::to_string(ref_levels) + "_error.csv";
-   std::ofstream file = getFileStream(filename);
-   file << "iter_error,l2_error,alpha,ref_levels,order\n";
 
    real_t iter_error = 0;
    real_t l2_error = 0;
@@ -296,9 +286,6 @@ int main(int argc, char *argv[])
          mfem::out << "L2 iter difference: " << iter_error << std::endl;
          mfem::out << "L2 true difference: " << l2_error << std::endl;
       }
-
-      file << iter_error << "," << l2_error << "," << alpha
-           << "," << ref_levels << "," << order << "\n";
 
       // 19. Send the above data by socket to a GLVis server. Use the "n" and "b"
       //     keys in GLVis to visualize the displacements.
@@ -361,21 +348,8 @@ void ManufacturedSolution(const Vector &x, Vector &u)
    u(d-1) += -0.5;
 }
 
-std::ofstream getFileStream(const std::string &filename)
 {
-   // Check if file exists by attempting to open it
-   std::ifstream file_check(filename.c_str());
 
-   if (file_check.good())
-   {
-      // File exists
-      file_check.close();  // Close the file before removing
 
-      // Remove the file using standard C function
-      remove(filename.c_str());
-   }
 
-   // Create and return the file stream (whether the file existed before or not)
-   std::ofstream file_stream(filename.c_str());
-   return file_stream;
 }
