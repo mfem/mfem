@@ -13,8 +13,8 @@
 //               boundary condition is defined through a unit vector field
 //               ñ. We aim to (iteravely) solve
 //
-//               (σ(u), ε(v)) = (f, v)                       for all v ∈ V
-//               uᵏ ⋅ ñ = ϕ₁ − (ϕ₁ − uᵏ⁻¹) ⋅ ñ exp(αₖ σ(uᵏ⁻¹) n) ⋅ ñ) on Γₜ
+//               (σ(uᵏ), ε(v)) = (f, v)                      for all v ∈ V
+//               uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)) on Γₜ
 //
 //               where σ is the stress tensor, ε is the strain tensor,
 //               f is the body force, v is the test function, uᵏ is the

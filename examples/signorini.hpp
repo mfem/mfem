@@ -187,10 +187,10 @@ public:
       const real_t phi_1 = GapFunction(x);
 
       // Set the boundary condition
-      // uᵏ · ñ = φ₁ - (φ₁ - uᵏ⁻¹ · ñ) exp((αₖ σ(uᵏ⁻¹) n) · ñ)
+      // uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ))
       u.SetSize(dim);
       u = u_prev_val;
-      u(dim-1) = phi_1 - (phi_1 - u_prev_val * n_tilde) * exp(alpha * pressure);
+      u(dim-1) = phi_1 + (u_prev_val * n_tilde - phi_1) * exp(alpha * pressure);
       u(dim-1) /= n_tilde(dim-1);
    }
 };
