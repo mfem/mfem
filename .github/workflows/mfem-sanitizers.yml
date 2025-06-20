@@ -35,7 +35,7 @@ env:
                  strict_string_checks=1,
                  check_initialization_order=1,
                  detect_stack_use_after_return=1"
-  LSAN_OPTIONS: "suppressions=${GITHUB_WORKSPACE}/asan.supp"
+  LSAN_OPTIONS: "suppressions=/home/runner/work/asan.supp"
   # LLVM libcxx build options
   LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
   LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
@@ -110,7 +110,7 @@ jobs:
       # Create ASan suppression file
       - name: Create ASan suppression file
         run: |
-          cat > ${GITHUB_WORKSPACE}/asan.supp << EOF 
+          cat << EOF > /home/runner/work/asan.supp 
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
           leak:PMPI_Init
