@@ -4423,12 +4423,12 @@ void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
 }
 
 void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
-                           Array<int> &ipiv)
+                           bool transpose, Array<int> &ipiv)
 {
    int LDAB = (2*KL) + KU + 1;
    int N = AB.NumCols();
    int NRHS = B.NumCols();
-   char trans = 'N';
+   char trans = transpose ? 'T' : 'N';
    int info;
    MFEM_LAPACK_PREFIX(gbtrs_)(&trans, &N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
                               ipiv.GetData(), B.GetData(), &N, &info);
