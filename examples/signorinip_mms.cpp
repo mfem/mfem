@@ -21,18 +21,94 @@
 //               parameter, and n is the normal vector to the boundary.
 
 #include "mfem.hpp"
-#include "signorini.hpp"
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
 
-// Manufactured solution u
 void ManufacturedSolution(const Vector &x, Vector &u);
+void InitDisplacement(const Vector &x, Vector &u);
+real_t GapFunction(const Vector &x);
+void ForceFunction(const Vector &x, Vector &f);
+void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
+                   const real_t mu, DenseMatrix &sigma);
 
 /**
+ * @brief Implements the contact express boundary condition for the Signorini
+ *        problem. The vector n_tilde representing ñ is assumed to be equal to
+ *        (0,...,0,-1).
  *
+ * @param dim Spatial dimension
+ * @param u_prev Previous displacement vector
+ * @param n_tilde Vector field
+ * @param lambda First Lamé parameter
+ * @param mu Second Lamé parameter
+ * @param alpha Step-size parameter
  */
+class TractionBoundary : public VectorCoefficient
+{
+private:
+   GridFunction *u_prev;
+   Vector n_tilde;
+   real_t lambda, mu, alpha;
+
+public:
+   TractionBoundary(int _dim, GridFunction *_u_prev, Vector _n_tilde,
+                    real_t _lambda, real_t _mu, real_t _alpha)
+      : VectorCoefficient(_dim), u_prev(_u_prev), n_tilde(_n_tilde), lambda(_lambda),
+        mu(_mu), alpha(_alpha) {}
+
+   virtual void Eval(Vector &u, ElementTransformation &T,
+                     const IntegrationPoint &ip) override
+   {
+      ParGridFunction *par_u_prev = dynamic_cast<ParGridFunction*>(u_prev);
+      const int dim = T.GetSpaceDim();
+
+      // Get current point coordinates
+      Vector x(dim);
+      T.Transform(ip, x);
+
+      // Get value and Jacobian of previous solution
+      Vector u_prev_val(dim);
+      DenseMatrix grad_u_prev(dim,dim);
+      if (par_u_prev)
+      {
+         par_u_prev->GetVectorValue(T, ip, u_prev_val);
+         par_u_prev->GetVectorGradient(T, grad_u_prev);
+      }
+      else
+      {
+         u_prev->GetVectorValue(T, ip, u_prev_val);
+         u_prev->GetVectorGradient(T, grad_u_prev);
+      }
+      // Evaluate the stress tensor σ(uᵏ⁻¹)
+      DenseMatrix sigma(dim,dim);
+      ComputeStress(grad_u_prev, lambda, mu, sigma);
+
+      // Compute normal vector n
+      Vector n(dim);
+      CalcOrtho(T.Jacobian(), n);
+      n /= n.Norml2();
+
+      // Compute pressure σ(uᵏ⁻¹)n · ñ
+      Vector sigma_n(dim);
+      sigma.Mult(n, sigma_n);
+      const real_t pressure = sigma_n * n_tilde;
+
+      // Evaluate the gap function φ₁
+      const real_t phi_1 = GapFunction(x);
+
+      // Set the boundary condition
+      // uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ))
+      u.SetSize(dim);
+      u = u_prev_val;
+      u(dim-1) = phi_1 + (u_prev_val * n_tilde - phi_1) * exp(alpha * pressure);
+      u(dim-1) /= n_tilde(dim-1);
+   }
+};
+
+real_t lambda = 1.0;
+real_t mu = 1.0;
 
 int main(int argc, char *argv[])
 {
@@ -46,8 +122,6 @@ int main(int argc, char *argv[])
    const char* mesh_file = "../data/ref-cube.mesh";
    int order = 1;
    real_t alpha = 1.0;
-   real_t lambda = 1.0;
-   real_t mu = 1.0;
    int ref_levels = 0;
    int max_iterations = 7;
    real_t itol = 1e-6;
@@ -336,19 +410,86 @@ int main(int argc, char *argv[])
 
 void ManufacturedSolution(const Vector &x, Vector &u)
 {
-   const int d = x.Size();
-   real_t fz = -2;
-   real_t z = x(d-1);
-   real_t lambda = 1.0;
-   real_t mu = 1.0;
+   const int dim = x.Size();
+   const real_t z = x(dim-1);
+
+   Vector f(dim);
+   ForceFunction(x, f);
+   real_t fz = f(dim-1);
 
    u = 0.0;
-   u(d-1) = -fz / (2 * (lambda + 2*mu)) * (z - 2.0) * z;
-   u(d-1) += -0.5;
+   u(dim-1) = -fz / (2 * (lambda + 2*mu)) * (z - 2.0) * z;
+   u(dim-1) += -0.5;
 }
 
+/**
+ * @brief Initializes the displacement vector u with an initial guess of
+ *        u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
+ */
+void InitDisplacement(const Vector &x, Vector &u)
 {
+   const real_t displacement = -0.1;
+   const int dim = x.Size();
 
-
-
+   u = 0.0;
+   u(dim-1) = displacement*x(dim-1);
 }
+
+/**
+ * @brief Computes the gap function φ₁ based on the input vector x; represents
+ *        the distance between a point x and a plane.
+ *
+ * @param x Input vector
+ * @return real_t Computed gap function value, φ₁(x)
+ */
+real_t GapFunction(const Vector &x)
+{
+   const int dim = x.Size();
+   const real_t d = -0.5;
+
+   return x(dim-1) - d;
+}
+
+/**
+ * @brief Computes the force function based on the input vector x.
+ *
+ * @param x Input vector
+ * @param f Output vector representing the downward force
+ */
+void ForceFunction(const Vector &x, Vector &f)
+{
+   const int dim = x.Size();
+   const real_t force = -2.0;
+
+   f = 0.0;
+   f(dim-1) = force;
+}
+
+/**
+ * @brief Computes the stress tensor σ(u) based on the gradient of the
+ *        displacement field u and the Lamé parameters.
+ *
+ * @param grad_u Gradient of the displacement field
+ * @param lambda First Lamé parameter
+ * @param mu     Second Lamé parameter
+ * @param sigma  Computed stress tensor
+ */
+void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
+                   const real_t mu, DenseMatrix &sigma)
+{
+   const int dim = grad_u.Size();
+
+   // Compute div(u): trace of Jacobian ∇u
+   const real_t div_u = grad_u.Trace();
+
+   // Compute strain: ε(u) = (∇u + ∇uᵀ)/2
+   DenseMatrix epsilon = grad_u;
+   epsilon.Symmetrize();
+
+   // Compute stress: σ(u) = λ div(u) I + 2μ ε(u)
+   DenseMatrix I;
+   I.Diag(1.0, dim);
+   sigma = 0.0;
+   Add(lambda * div_u, I, 2 * mu, epsilon, sigma);
+}
+
