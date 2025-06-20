@@ -107,8 +107,8 @@ public:
    }
 };
 
-real_t lambda = 1.0;
-real_t mu = 1.0;
+real_t lambda_g = 1.0;
+real_t mu_g = 1.0;
 
 int main(int argc, char *argv[])
 {
@@ -136,9 +136,9 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&alpha, "-a", "--alpha",
                   "Alpha parameter for boundary condition.");
-   args.AddOption(&lambda, "-lambda", "--lambda",
+   args.AddOption(&lambda_g, "-lambda", "--lambda",
                   "Lamé's first parameter.");
-   args.AddOption(&mu, "-mu", "--mu",
+   args.AddOption(&mu_g, "-mu", "--mu",
                   "Lamé's second parameter.");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (mu <= 0.0 || lambda + 2.0/3.0 * mu <= 0.0)
+   if (mu_g <= 0.0 || lambda_g + 2.0/3.0 * mu_g <= 0.0)
    {
       std::cerr << "Invalid Lamé parameters." << std::endl;
       return 3;
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
    //     lambda and mu.
    ConstantCoefficient one(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda,mu));
+   a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
    if (myid == 0)
    {
       cout << "matrix ... " << flush;
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
       b->Assemble();
 
       // Step 2: Create the boundary condition coefficient using previous solution.
-      TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda, mu, alpha);
+      TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda_g, mu_g, alpha);
       u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr_z);
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary
@@ -427,7 +427,7 @@ void ManufacturedSolution(const Vector &x, Vector &u)
    real_t fz = f(dim-1);
 
    u = 0.0;
-   u(dim-1) = -fz / (2 * (lambda + 2*mu)) * (z - 2.0) * z;
+   u(dim-1) = -fz / (2 * (lambda_g + 2*mu_g)) * (z - 2.0) * z;
    u(dim-1) += -0.5;
 }
 
