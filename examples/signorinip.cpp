@@ -229,6 +229,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient init_u(dim, InitDisplacement);
    u_previous.ProjectCoefficient(init_u);
+   u_current = u_previous;
 
    // 11. Set up the bilinear form a(⋅,⋅) on the finite element space
    //     corresponding to the linear elasticity integrator with coefficients
