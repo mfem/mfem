@@ -48,9 +48,7 @@ real_t GapFunction(const Vector &x)
    }
    else
    {
-      float d;
-      // d = -1.5; // Ball
-      d = -0.5; // Tetrahedron/Cube
+      const real_t d = -0.5;
 
       return x(dim-1) - d;
    }

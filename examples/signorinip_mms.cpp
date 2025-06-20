@@ -1,10 +1,8 @@
-//                                MFEM Signorini
+//                             MFEM Signorini MMS
 //
-// Compile with: make signorinip_man
+// Compile with: make signorinip_mms
 //
-// Sample runs:  mpirun -np 4 signorinip_man
-//               mpirun -np 4 signorinip_man -m ../data/true-tetrahedron.mesh
-//               mpirun -np 4 signorinip_man -m ../data/ball-nurbs.mesh -a 2 -o 3
+// Sample runs:  mpirun -np 4 signorinip_mms
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a solid with a Dirichlet
@@ -108,36 +106,30 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 2. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   // 4. Select the order of the finite element discretization space. For NURBS
-   //    meshes, we increase the order by degree elevation.
-   if (mesh.NURBSext)
-   {
-      mesh.DegreeElevate(order, order);
-   }
-
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this program we do 'ref_levels' of uniform refinement.
+   // 3. Postprocess the mesh.
+   // 3A. Refine the serial mesh on all processors to increase the resolution. In
+   //     this program we do 'ref_levels' of uniform refinement.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
 
-   // 6. Interpolate the geometry after refinement to control geometry error.
+   // 3B. Interpolate the geometry after refinement to control geometry error.
    int curvature_order = max(order, 2);
    mesh.SetCurvature(curvature_order);
 
-   // 8. Define a parallel mesh by a partitioning of the serial mesh. Once the
+   // 4. Define a parallel mesh by a partitioning of the serial mesh. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // 9. Define a finite element space on the mesh. Here we use vector finite
+   // 5. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -199,15 +191,15 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   // 12. Set up the parallel linear form b(⋅) which corresponds to the
-   //     right-hand side of the FEM linear system.
    ParLinearForm b(fespace);
    b.AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
    b.Assemble();
+   // 8. Set up the parallel linear form b(⋅) which corresponds to the
+   //    right-hand side of the FEM linear system.
 
-   // 13. Define the solution vector u as a parallel finite element grid
-   //     function corresponding to fespace. Initialize u with initial guess of
-   //     u(x) = (0,...,0,-0.1*x_d), which satisfies the boundary conditions.
+   // 9. Define the solution vector u as a parallel finite element grid
+   //    function corresponding to fespace. Initialize u with initial guess of
+   //    u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
    GridFunctionCoefficient u_previous_coeff(&u_previous);
@@ -215,7 +207,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient init_u(dim, InitDisplacement);
    u_previous.ProjectCoefficient(init_u);
 
-   // 14. Set up the bilinear form a(⋅,⋅) on the finite element space
+   // 10. Set up the bilinear form a(⋅,⋅) on the finite element space
    //     corresponding to the linear elasticity integrator with coefficients
    //     lambda and mu.
    ConstantCoefficient one(1.0);
@@ -223,14 +215,14 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda,mu));
    a->Assemble();
 
-   // 15. Set up GLVis visualization.
+   // 11. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
-   // 16. Initialize ParaView output.
    ParaViewDataCollection paraview_dc("signorini", &pmesh);
+   // 12. Initialize ParaView output.
    if (paraview_output)
    {
       paraview_dc.SetPrefixPath("ParaView");
@@ -266,18 +258,18 @@ int main(int argc, char *argv[])
       // Reassemble the linear form b(⋅).
       b.Assemble();
 
-      // Create the boundary condition coefficient using previous solution.
+      // Step 2: Create the boundary condition coefficient using previous solution.
       TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda, mu, alpha);
       u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr_contact);
 
-      // Form the linear system A X = B. This includes eliminating boundary
+      // Step 3: Form the linear system A X = B. This includes eliminating boundary
       // conditions, applying AMR constraints, and other transformations.
       HypreParMatrix A;
       Vector B, X;
       a->FormLinearSystem(ess_tdof_list_all, u_current, b, A, X, B);
 
-      // 18. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
-      //     preconditioner from hypre.
+      // Step 4: Define and apply a parallel PCG solver for A X = B with the BoomerAMG
+      // preconditioner from hypre.
       HypreBoomerAMG *amg = new HypreBoomerAMG(A);
       amg->SetElasticityOptions(fespace);
       amg->SetPrintLevel(0);
@@ -292,10 +284,10 @@ int main(int argc, char *argv[])
       delete amg;
       delete pcg;
 
-      // Recover the solution.
       a->RecoverFEMSolution(X, b, u_current);
+      // Step 5: Recover the solution.
 
-      // Compute difference between current and previous solutions
+      // Step 6: Compute difference between current and previous solutions.
       iter_error = u_current.ComputeL2Error(u_previous_coeff);
       l2_error = u_current.ComputeL2Error(u_exact_coeff);
 
@@ -333,11 +325,11 @@ int main(int argc, char *argv[])
          }
       }
 
-      // Update previous solution for next iteration.
+      // Step 9: Update previous solution for next iteration.
       u_previous = u_current;
    }
 
-   // 20. Save the final solution in ParaView format.
+   // 14. Save the final solution in ParaView format.
    if (paraview_output)
    {
       paraview_dc.SetCycle(1);
@@ -345,7 +337,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   // 21. Free the used memory.
+   // 15. Free used memory.
    delete a;
    if (fec)
    {
