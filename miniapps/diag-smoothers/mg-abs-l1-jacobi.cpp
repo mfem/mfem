@@ -30,10 +30,10 @@
 //
 // Sample runs:
 //    mpirun -np 4 mg-abs-l1-jacobi
-//    mpirun -np 4 mg-abs-l1-jacobi -s 1 -i 2
+//    mpirun -np 4 mg-abs-l1-jacobi -s 1 -i 1
 //    mpirun -np 4 mg-abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
 //    mpirun -np 4 mg-abs-l1-jacobi -rs 2 -rp 1
-//    mpirun -np 4 mg-abs-l1-jacobi -t 1e5 -ni 100 -vis
+//    mpirun -np 4 mg-abs-l1-jacobi -t 1e-5 -ni 100
 //    mpirun -np 4 mg-abs-l1-jacobi -m ../../data/beam-quad.mesh -a 3 -Ky 0.5 -Kz 0.5
 //    mpirun -np 4 mg-abs-l1-jacobi --device cuda
 
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
    // Other options
    string device_config = "cpu";
    bool use_monitor = false;
-   bool visualization = false;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
