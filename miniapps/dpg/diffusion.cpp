@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
    else
    {
       // Define the RT/LDG formulation
-      a_darcy = new DarcyForm(sigma_fes, u_fes, false);
+      a_darcy = new DarcyForm(sigma_fes, u_fes);
 
       a_sigma = a_darcy->GetFluxMassForm();
       a_div = a_darcy->GetFluxDivForm();
@@ -318,19 +318,19 @@ int main(int argc, char *argv[])
          a_u = a_darcy->GetPotentialMassForm();
 
          a_sigma->AddDomainIntegrator(new VectorMassIntegrator(one));
-         a_div->AddDomainIntegrator(new VectorDivergenceIntegrator());
+         a_div->AddDomainIntegrator(new VectorDivergenceIntegrator(negone));
          a_div->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                             new DGNormalTraceIntegrator(-1.)));
-         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, -td));
+                                             new DGNormalTraceIntegrator(+1.)));
+         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, td));
       }
       else
       {
          a_sigma->AddDomainIntegrator(new VectorFEMassIntegrator(one));
-         a_div->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+         a_div->AddDomainIntegrator(new VectorFEDivergenceIntegrator(negone));
          if (disc == discret_type::BRTDG)
          {
             a_div->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                                new DGNormalTraceIntegrator(-1.)));
+                                                new DGNormalTraceIntegrator(+1.)));
          }
       }
 
@@ -341,17 +341,17 @@ int main(int argc, char *argv[])
       {
          if (disc == discret_type::LDG)
          {
-            b_sigma->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(hatuex),
+            b_sigma->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(uex),
                                           ess_bdr);
          }
          else if (disc == discret_type::BRTDG)
          {
-            b_sigma->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(hatuex),
+            b_sigma->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(uex),
                                           ess_bdr);
          }
          else
          {
-            b_sigma->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(hatuex),
+            b_sigma->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(uex),
                                            ess_bdr);
          }
       }
