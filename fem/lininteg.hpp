@@ -625,6 +625,50 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+/* Boundary linear form integrator for imposing non-zero Dirichlet boundary
+ * conditions, in a Nitsche elasticity formulation. Specifically, the linear
+ * form is given by
+ *
+ * b(v) := −∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ w g dS + ∫_Γ h⁻¹ (v ⋅ w) g dS
+ *
+ * where g is the given Dirichlet data, n is the unit normal, and w is a vector
+ * field. The parameters λ and μ should match the parameters with the same names
+ * used in the bilinear form integrator, NitscheElasticityIntegrator.
+ */
+class NitscheElasticityDirichletLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   Coefficient &g;
+   VectorCoefficient &w;
+   Coefficient *lambda, *mu;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   real_t g_val;
+   Vector w_val;
+#endif
+
+public:
+   NitscheElasticityDirichletLFIntegrator(Coefficient &g_,
+                                          VectorCoefficient &w_,
+                                          Coefficient &lambda_, Coefficient &mu_)
+      : g(g_), w(w_), lambda(&lambda_), mu(&mu_) {}
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
 /** Class for spatial white Gaussian noise integration.
 

@@ -4273,6 +4273,211 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
    }
 }
 
+// static method
+void NitscheElasticityIntegrator::AssembleBlock(
+   const int dim, const int row_ndofs, const int col_ndofs,
+   const int row_offset, const int col_offset,
+   const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
+   const Vector &row_shape, const Vector &col_shape,
+   const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
+   const Vector &w_val, DenseMatrix &elmat, DenseMatrix &jmat)
+{
+   for (int jm = 0, j = col_offset; jm < dim; ++jm)
+   {
+      for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
+      {
+         const real_t t2 = col_dshape_dnM(jdof);
+         for (int im = 0, i = row_offset; im < dim; ++im)
+         {
+            const real_t t1 = col_dshape(jdof, jm) * col_nL(im);
+            const real_t t3 = col_dshape(jdof, im) * col_nM(jm);
+            const real_t tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
+            for (int idof = 0; idof < row_ndofs; ++idof, ++i)
+            {
+               elmat(i, j) += row_shape(idof) * tt * w_val(jm) * w_val(im);
+            }
+         }
+      }
+   }
+
+   if (jmatcoef == 0.0) { return; }
+
+   for (int d = 0; d < dim; ++d)
+   {
+      const int jo = col_offset + d*col_ndofs;
+      const int io = row_offset + d*row_ndofs;
+      for (int jdof = 0, j = jo; jdof < col_ndofs; ++jdof, ++j)
+      {
+         const real_t sj = jmatcoef * col_shape(jdof) * w_val(d);
+         for (int i = fmax(io,j), idof = i - io; idof < row_ndofs; ++idof, ++i)
+         {
+            jmat(i, j) += row_shape(idof) * sj * w_val(d);
+         }
+      }
+   }
+}
+
+void NitscheElasticityIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+#ifdef MFEM_THREAD_SAFE
+   // For descriptions of these variables, see the class declaration.
+   Vector shape1, shape2;
+   DenseMatrix dshape1, dshape2;
+   DenseMatrix adjJ;
+   DenseMatrix dshape1_ps, dshape2_ps;
+   Vector nor;
+   Vector nL1, nL2;
+   Vector nM1, nM2;
+   Vector dshape1_dnM, dshape2_dnM;
+   Vector w_val;
+   DenseMatrix jmat;
+#endif
+
+   const int dim = el1.GetDim();
+   const int ndofs1 = el1.GetDof();
+   const int ndofs2 = (Trans.Elem2No >= 0) ? el2.GetDof() : 0;
+   const int nvdofs = dim*(ndofs1 + ndofs2);
+
+   // Initially 'elmat' corresponds to the term:
+   //    < { sigma(u) n . w }, v . w > =
+   //    < { (lambda div(u) I + mu (grad(u) + grad(u)^T)) n . w }, v . w >
+   // But eventually, it's going to be replaced by:
+   //    elmat := -elmat - elmat^T + jmat
+   elmat.SetSize(nvdofs);
+   elmat = 0.;
+
+   jmat.SetSize(nvdofs);
+   jmat = 0.;
+
+   adjJ.SetSize(dim);
+   shape1.SetSize(ndofs1);
+   dshape1.SetSize(ndofs1, dim);
+   dshape1_ps.SetSize(ndofs1, dim);
+   nor.SetSize(dim);
+   nL1.SetSize(dim);
+   nM1.SetSize(dim);
+   dshape1_dnM.SetSize(ndofs1);
+   w_val.SetSize(dim);
+
+   if (ndofs2)
+   {
+      shape2.SetSize(ndofs2);
+      dshape2.SetSize(ndofs2, dim);
+      dshape2_ps.SetSize(ndofs2, dim);
+      nL2.SetSize(dim);
+      nM2.SetSize(dim);
+      dshape2_dnM.SetSize(ndofs2);
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      const int order = 2 * fmax(el1.GetOrder(), ndofs2 ? el2.GetOrder() : 0);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int pind = 0; pind < ir->GetNPoints(); ++pind)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(pind);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      el1.CalcShape(eip1, shape1);
+      el1.CalcDShape(eip1, dshape1);
+
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+      Mult(dshape1, adjJ, dshape1_ps);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      // Evaluate the vector coefficient w at the integration point
+      w.Eval(w_val, Trans, ip);
+
+      real_t W;
+      if (ndofs2)
+      {
+         el2.CalcShape(eip2, shape2);
+         el2.CalcDShape(eip2, dshape2);
+         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+         Mult(dshape2, adjJ, dshape2_ps);
+
+         W = ip.weight/2;
+         const real_t W2 = W / Trans.Elem2->Weight();
+         const real_t WL2 = W2 * lambda->Eval(*Trans.Elem2, eip2);
+         const real_t WM2 = W2 * mu->Eval(*Trans.Elem2, eip2);
+         nL2.Set(WL2, nor);
+         nM2.Set(WM2, nor);
+         dshape2_ps.Mult(nM2, dshape2_dnM);
+      }
+      else
+      {
+         W = ip.weight;
+      }
+
+      {
+         const real_t W1 = W / Trans.Elem1->Weight();
+         const real_t WL1 = W1 * lambda->Eval(*Trans.Elem1, eip1);
+         const real_t WM1 = W1 * mu->Eval(*Trans.Elem1, eip1);
+         nL1.Set(WL1, nor);
+         nM1.Set(WM1, nor);
+         dshape1_ps.Mult(nM1, dshape1_dnM);
+      }
+
+      const real_t jmatcoef = nor*nor;
+
+      // (1,1) block
+      AssembleBlock(
+         dim, ndofs1, ndofs1, 0, 0, jmatcoef, nL1, nM1,
+         shape1, shape1, dshape1_dnM, dshape1_ps, w_val, elmat, jmat);
+
+      if (ndofs2 == 0) { continue; }
+
+      // In both elmat and jmat, shape2 appears only with a minus sign.
+      shape2.Neg();
+
+      // (1,2) block
+      AssembleBlock(
+         dim, ndofs1, ndofs2, 0, dim*ndofs1, jmatcoef, nL2, nM2,
+         shape1, shape2, dshape2_dnM, dshape2_ps, w_val, elmat, jmat);
+      // (2,1) block
+      AssembleBlock(
+         dim, ndofs2, ndofs1, dim*ndofs1, 0, jmatcoef, nL1, nM1,
+         shape2, shape1, dshape1_dnM, dshape1_ps, w_val, elmat, jmat);
+      // (2,2) block
+      AssembleBlock(
+         dim, ndofs2, ndofs2, dim*ndofs1, dim*ndofs1, jmatcoef, nL2, nM2,
+         shape2, shape2, dshape2_dnM, dshape2_ps, w_val, elmat, jmat);
+   }
+
+   // elmat := -elmat - elmat^t + jmat
+   for (int i = 0; i < nvdofs; ++i)
+   {
+      for (int j = 0; j < i; ++j)
+      {
+         real_t aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+         elmat(i,j) = -aij - aji + mij;
+         elmat(j,i) = -aji - aij + mij;
+      }
+      elmat(i,i) = -2.0 * elmat(i,i) + jmat(i,i);
+   }
+}
+
 void NormalTraceJumpIntegrator::AssembleFaceMatrix(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
