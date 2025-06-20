@@ -5,20 +5,20 @@
 // Sample runs:  mpirun -np 4 signorinip_mms
 //
 // Description:  This program solves the Signorini problem using MFEM.
-//               The problem is defined on a solid with a Dirichlet
+//               The problem is defined on a cube with a Dirichlet
 //               boundary condition on the bottom face and a traction
 //               boundary (Γₜ) condition on the top face. The traction
 //               boundary condition is defined through a unit vector field
-//               ñ. We aim to (iteravely) solve
+//               ñ. We aim to (iteratively) find uᵏ ∈ V such that
 //
 //               (σ(uᵏ), ε(v)) = (f, v)                      for all v ∈ V
 //               uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)) on Γₜ
 //
 //               where σ is the stress tensor, ε is the strain tensor,
-//               f is the body force, v is the test function, uᵏ is the
-//               displacement at iteration k,
-//               ϕ₁ is the prescribed displacement, αₖ is a step-size
-//               parameter, and n is the normal vector to the boundary.
+//               f is the body force, uᵏ is the displacement at iteration k, ϕ₁
+//               is a prescribed gap function, αₖ is a positive sequence of
+//               step-size parameters, and n is the normal vector to the
+//               boundary.
 
 #include "mfem.hpp"
 #include <iostream>
