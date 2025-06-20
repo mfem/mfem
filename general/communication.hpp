@@ -76,7 +76,7 @@ public:
    /// Return true if MPI has been initialized.
    static bool IsInitialized()
    {
-      int mpi_is_initialized;
+      int mpi_is_initialized = false;
       int mpi_err = MPI_Initialized(&mpi_is_initialized);
       return (mpi_err == MPI_SUCCESS) && mpi_is_initialized;
    }

@@ -106,11 +106,11 @@ jobs:
           mpicxx --showme:libs
           echo "> mpicxx --showme:version"
           mpicxx --showme:version
-          
+
       # Create ASan suppression file
       - name: Create ASan suppression file
         run: |
-          cat << EOF > /home/runner/work/asan.supp 
+          cat << EOF > /home/runner/work/asan.supp
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
           leak:PMPI_Init
@@ -250,7 +250,7 @@ jobs:
         env:
           MPICXX: c++
           CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}} ${{env.LLVM_LDFLAGS}} -Wno-unused-command-line-argument"
-          LDFLAGS: "${{matrix.ldflags}}" # LLVM_LDFLAGS & MPI_LIB, but get_hypre_version needs -lc++ path
+          LDFLAGS: "${{matrix.ldflags}}"  # LLVM_LDFLAGS & MPI_LIB, but get_hypre_version needs -lc++ path and ldflags
         with:
           os: ${{runner.os}}
           target: opt

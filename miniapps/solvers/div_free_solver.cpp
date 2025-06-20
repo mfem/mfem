@@ -245,7 +245,7 @@ SaddleSchwarzSmoother::SaddleSchwarzSmoother(const HypreParMatrix& M,
                                              const SparseMatrix& agg_hdivdof,
                                              const SparseMatrix& agg_l2dof,
                                              const HypreParMatrix& P_l2,
-                                             const HypreParMatrix& Q_l2)
+                                             const ProductOperator& Q_l2)
    : Solver(M.NumRows() + B.NumRows()), agg_hdivdof_(agg_hdivdof),
      agg_l2dof_(agg_l2dof), solvers_loc_(agg_l2dof.NumRows())
 {
@@ -355,7 +355,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       HypreParMatrix& P_l2_l = *data.P_l2[l-1].As<HypreParMatrix>();
       SparseMatrix& agg_hdivdof_l = *data.agg_hdivdof[l-1].As<SparseMatrix>();
       SparseMatrix& agg_l2dof_l = *data.agg_l2dof[l-1].As<SparseMatrix>();
-      HypreParMatrix& Q_l2_l = *data.Q_l2[l-1].As<HypreParMatrix>();
+      ProductOperator& Q_l2_l = *data.Q_l2[l-1].As<ProductOperator>();
       HypreParMatrix* C_l = data.C[l].As<HypreParMatrix>();
 
       auto S0 = new SaddleSchwarzSmoother(M_f, B_f, agg_hdivdof_l,
