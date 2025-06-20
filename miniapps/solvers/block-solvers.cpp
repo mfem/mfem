@@ -59,14 +59,6 @@
 #include <iostream>
 #include <functional>
 
-#if defined(__has_include) && __has_include("/Users/camierjs/home/mfem/stash/debug/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include "/Users/camierjs/home/mfem/stash/debug/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 using namespace std;
 using namespace mfem;
 using namespace blocksolvers;
@@ -375,8 +367,8 @@ int main(int argc, char *argv[])
    setup_time[&bdp] = chrono.RealTime();
 
    chrono.Restart();
-   // DivFreeSolver dfs_dm(M, B, DFS_data);
-   // setup_time[&dfs_dm] = chrono.RealTime();
+   DivFreeSolver dfs_dm(M, B, DFS_data);
+   setup_time[&dfs_dm] = chrono.RealTime();
 
    chrono.Restart();
    const_cast<bool&>(DFS_data.param.coupled_solve) = true;
@@ -394,8 +386,8 @@ int main(int argc, char *argv[])
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-   // solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
-   // solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
+   solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
+   solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 

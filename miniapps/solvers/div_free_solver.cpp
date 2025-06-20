@@ -13,16 +13,16 @@
 
 using namespace std;
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
+
+static HypreParMatrix* TwoStepsRAP(const HypreParMatrix *Rt,
+                                   const HypreParMatrix *A,
+                                   const HypreParMatrix *P)
 {
-HypreParMatrix* TwoStepsRAP(const HypreParMatrix& Rt, const HypreParMatrix& A,
-                            const HypreParMatrix& P)
-{
-   OperatorPtr R(Rt.Transpose());
-   OperatorPtr RA(ParMult(R.As<HypreParMatrix>(), &A));
-   return ParMult(RA.As<HypreParMatrix>(), &P, true);
+   OperatorPtr R(Rt->Transpose());
+   OperatorPtr RA(ParMult(R.As<HypreParMatrix>(), A));
+   return ParMult(RA.As<HypreParMatrix>(), P, true);
 }
 
 void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
@@ -201,9 +201,7 @@ void DFSSpaces::DataFinalize()
    SparseMatrix P_l2;
    for (int l = (int)data_.P_l2.size()-1; l >= 0; --l)
    {
-      HypreParMatrix *P_l2_hypre = data_.P_l2[l]->As<HypreParMatrix>();
-      P_l2_hypre->GetDiag(P_l2);
-      // data_.P_l2[l].get()->GetDiag(P_l2);
+      data_.P_l2[l]->As<HypreParMatrix>()->GetDiag(P_l2);
       OperatorPtr PT_l2(Transpose(P_l2));
       auto PTW = Mult(*PT_l2.As<SparseMatrix>(), *W.As<SparseMatrix>());
       auto cW = Mult(*PTW, P_l2);
@@ -342,12 +340,11 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
    ops_.back()->SetBlock(0, 0, const_cast<HypreParMatrix*>(&M));
    ops_.back()->SetBlock(1, 0, const_cast<HypreParMatrix*>(&B));
    ops_.back()->SetBlock(0, 1, BT_.Ptr());
-   // ops_.back()->owns_blocks = 0;
 
    for (int l = data.P_l2.size(); l >= 0; --l)
    {
-      auto& M_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
-      auto& B_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
+      auto &M_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
+      auto &B_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
 
       if (l == 0)
       {
@@ -383,7 +380,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
       {
          auto S1 = new BlockDiagonalPreconditioner(ops_offsets_[l]);
          S1->SetDiagonalBlock(0, new AuxSpaceSmoother(M_f, C_l));
-         S1->owns_blocks = 0;
+         S1->owns_blocks = 1;
          smoothers_[l] =
             std::make_unique<ProductSolver>(ops_[l].get(), S0, S1, false, true, true);
       }
@@ -392,8 +389,8 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
          smoothers_[l].reset(S0);
       }
 
-      HypreParMatrix* M_c = TwoStepsRAP(*P_hdiv_l, M_f, *P_hdiv_l);
-      HypreParMatrix* B_c = TwoStepsRAP(*P_l2_l, B_f, *P_hdiv_l);
+      HypreParMatrix* M_c = TwoStepsRAP(P_hdiv_l, &M_f, P_hdiv_l);
+      HypreParMatrix* B_c = TwoStepsRAP(P_l2_l, &B_f, P_hdiv_l);
 
       ops_offsets_[l-1].SetSize(3, 0);
       ops_offsets_[l-1][1] = M_c->NumRows();
@@ -403,7 +400,6 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
          std::make_unique<BlockOperator>(ops_offsets_[l], ops_offsets_[l-1]);
       blk_Ps_[l-1]->SetBlock(0, 0, P_hdiv_l);
       blk_Ps_[l-1]->SetBlock(1, 1, P_l2_l);
-      // blk_Ps_[l-1]->owns_blocks = 0;
 
       ops_[l-1] =
          std::make_unique<BlockOperator>(ops_offsets_[l-1]);
@@ -413,63 +409,49 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
       ops_[l-1]->owns_blocks = 1;
    }
 
-
    if (data_.P_l2.size() == 0) { return; }
 
-   if (param_.coupled_solve) // 🔥🔥🔥🔥
+   Array<bool> own_ops(ops_.size());
+   Array<bool> own_smoothers(smoothers_.size());
+   Array<bool> own_blk_Ps(blk_Ps_.size());
+   own_ops = false, own_smoothers = false, own_blk_Ps = false;
+
+   Array<Solver*> smoothers(smoothers_.size());
+
+   if (param_.coupled_solve)
    {
       solver_.Reset(new GMRESSolver(B.GetComm()));
       solver_.As<GMRESSolver>()->SetOperator(*(ops_.back()));
-
-      Array<BlockOperator*> ops(ops_.size());
-      Array<BlockOperator*> blk_Ps(blk_Ps_.size());
-      Array<Solver*> smoothers(smoothers_.size());
-
+      Array<BlockOperator*> ops(ops_.size()), blk_Ps(blk_Ps_.size());
       for (size_t i = 0; i < ops_.size(); ++i) { ops[i] = ops_[i].get(); }
       for (size_t i = 0; i < blk_Ps_.size(); ++i) { blk_Ps[i] = blk_Ps_[i].get(); }
       for (size_t i = 0; i < smoothers_.size(); ++i) { smoothers[i] = smoothers_[i].get(); }
-      Array<bool> own_ops(ops_.size()),
-            own_Ps(blk_Ps_.size()),
-            own_smoothers(smoothers_.size());
-      own_ops = false, own_smoothers = false, own_Ps = false;
       prec_.Reset(new Multigrid(ops, smoothers, blk_Ps,
-                                own_ops, own_smoothers, own_Ps));
+                                own_ops, own_smoothers, own_blk_Ps));
    }
    else
    {
-      // ✅✅✅
-      assert(false);
       Array<HypreParMatrix*> ops(data_.P_hcurl.size()+1);
-      Array<Solver*> smoothers(ops.Size());
       Array<HypreParMatrix*> Ps(data_.P_hcurl.size());
-      // own_Ps = false;
-
-      HypreParMatrix& C_finest = *data.C.back().As<HypreParMatrix>();
-      ops.Last() = TwoStepsRAP(C_finest, M, C_finest);
+      auto C_finest = data.C.back().As<HypreParMatrix>();
+      ops.Last() = TwoStepsRAP(C_finest, &M, C_finest);
       ops.Last()->EliminateZeroRows();
       ops.Last()->DropSmallEntries(1e-14);
-
       solver_.Reset(new CGSolver(B.GetComm()));
       solver_.As<CGSolver>()->SetOperator(*ops.Last());
       smoothers.Last() = new HypreSmoother(*ops.Last());
       static_cast<HypreSmoother*>(smoothers.Last())->SetOperatorSymmetry(true);
-
       for (int l = Ps.Size()-1; l >= 0; --l)
       {
          Ps[l] = data_.P_hcurl[l]->As<HypreParMatrix>();
-         ops[l] = TwoStepsRAP(*Ps[l], *ops[l+1], *Ps[l]);
+         ops[l] = TwoStepsRAP(Ps[l], ops[l+1], Ps[l]);
          ops[l]->DropSmallEntries(1e-14);
          smoothers[l] = new HypreSmoother(*ops[l]);
          static_cast<HypreSmoother*>(smoothers[l])->SetOperatorSymmetry(true);
       }
-
-      Array<bool> own_ops(ops_.size());
-      Array<bool> own_smoothers(smoothers_.size());
-      Array<bool> own_Ps(blk_Ps_.size());
-      own_ops = true;
-      own_smoothers = true;
-      own_Ps = false;
-      prec_.Reset(new Multigrid(ops, smoothers, Ps, own_ops, own_smoothers, own_Ps));
+      own_ops = true, own_smoothers = true;
+      prec_.Reset(new Multigrid(ops, smoothers, Ps,
+                                own_ops, own_smoothers, own_blk_Ps));
    }
 
    solver_.As<IterativeSolver>()->SetPreconditioner(*prec_.As<Solver>());
@@ -478,9 +460,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
 
 void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 {
-   std::vector<Vector> rhss(smoothers_.size());
-   std::vector<Vector> sols(smoothers_.size());
-
+   std::vector<Vector> rhss(smoothers_.size()), sols(smoothers_.size());
    rhss.back().SetDataAndSize(const_cast<real_t*>(rhs.HostRead()), rhs.Size());
    sols.back().SetDataAndSize(sol.HostWrite(), sol.Size());
 
@@ -599,5 +579,5 @@ int DivFreeSolver::GetNumIterations() const
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
-} // namespace blocksolvers
-} // namespace mfem
+
+} // namespace mfem::blocksolvers
