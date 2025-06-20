@@ -94,6 +94,14 @@ jobs:
         run: |
           sudo apt-get install openmpi-bin libopenmpi-dev
           export OMPI_MCA_rmaps_base_oversubscribe=1
+
+      - name: Showme MPI
+        if: matrix.mpi == 'par'
+        run: |
+          echo "MPI_INC=$(mpicxx --showme:compile)" >> $GITHUB_ENV
+          echo "MPI_LIB=$(mpicxx --showme:link)" >> $GITHUB_ENV
+          echo "[MPI_INC] ${{env.MPI_INC}}"
+          echo "[MPI_LIB] ${{env.MPI_LIB}}"
           echo "> mpicxx --version"
           mpicxx --version
           echo "> mpicxx --showme:compile"
@@ -134,18 +142,6 @@ jobs:
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
 
-      - name: Showme MPI (Parallel)
-        if: matrix.mpi == 'par'
-        run: |
-          echo "MPI_INC=$(mpicxx --showme:compile)" >> $GITHUB_ENV
-          echo "MPI_LIB=$(mpicxx --showme:link)" >> $GITHUB_ENV
-
-      - name: Setup LLVM Environment
-        if: matrix.sanitizer != 'AddressSanitizer'
-        run: |
-          echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
-          echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
-
       - name: Echo Environment
         run: |
           echo "[CC] ${{env.CC}} -v"
@@ -158,6 +154,7 @@ jobs:
           echo "[LLVM_LDFLAGS] ${{env.LLVM_LDFLAGS}}"
 
       ### LLVM libcxx Build Steps
+      ### https://github.com/llvm/llvm-project/tree/main/libcxx
       - name: LLVM Cache
         if: matrix.sanitizer != 'AddressSanitizer'
         id: llvm-cache
@@ -208,8 +205,13 @@ jobs:
         working-directory: llvm-build
         run: cmake --build . -- cxx cxxabi
 
-      ### Cache restore Hypre, Metis
-      ### https://github.com/actions/cache
+      - name: Setup LLVM Environment
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
+          echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
+
+        ### HYPRE Build Steps
       - name: HYPRE Cache
         id: hypre-cache
         if: matrix.mpi == 'par'
@@ -228,6 +230,7 @@ jobs:
           precision: fp64
           build-system: make
 
+        ### METIS Build Steps
       - name: METIS Cache
         id: metis-cache
         if: matrix.mpi == 'par'

@@ -57,6 +57,15 @@
 #include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
+#include <functional>
+
+#if defined(__has_include) && __has_include("/Users/camierjs/home/mfem/stash/debug/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
+#include "/Users/camierjs/home/mfem/stash/debug/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
 
 using namespace std;
 using namespace mfem;
@@ -82,14 +91,21 @@ real_t natural_bc(const Vector & x);
        D: subset of the boundary where natural boundary condition is imposed. */
 class DarcyProblem
 {
-   OperatorPtr M_;
-   OperatorPtr B_;
-   Vector rhs_;
-   Vector ess_data_;
-   ParGridFunction u_;
-   ParGridFunction p_;
+   OperatorPtr M_, B_;
+   Vector rhs_, ess_data_;
+   ParGridFunction u_, p_;
    ParMesh mesh_;
    DFSSpaces dfs_spaces_;
+   std::function<bool (int)> refine_fn = [&](int num_refs)
+   {
+      for (int l = 0; l < num_refs; l++)
+      {
+         mesh_.UniformRefinement();
+         dfs_spaces_.CollectDFSData();
+      }
+      return true;
+   };
+   const bool dfs_refine_;
    ParBilinearForm mVarf_;
    ParMixedBilinearForm bVarf_;
    VectorFunctionCoefficient ucoeff_;
@@ -116,18 +132,13 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                            DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh),
      dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
+     dfs_refine_(refine_fn(num_refs)),
      mVarf_(dfs_spaces_.GetHdivFES()),
      bVarf_(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES()),
      ucoeff_(mesh.Dimension(), u_exact),
      pcoeff_(p_exact),
      mass_coeff()
 {
-   for (int l = 0; l < num_refs; l++)
-   {
-      mesh_.UniformRefinement();
-      dfs_spaces_.CollectDFSData();
-   }
-
    Vector coef_vector(mesh.GetNE());
    coef_vector = 1.0;
    if (std::strcmp(coef_file, ""))
@@ -364,8 +375,8 @@ int main(int argc, char *argv[])
    setup_time[&bdp] = chrono.RealTime();
 
    chrono.Restart();
-   DivFreeSolver dfs_dm(M, B, DFS_data);
-   setup_time[&dfs_dm] = chrono.RealTime();
+   // DivFreeSolver dfs_dm(M, B, DFS_data);
+   // setup_time[&dfs_dm] = chrono.RealTime();
 
    chrono.Restart();
    const_cast<bool&>(DFS_data.param.coupled_solve) = true;
@@ -383,8 +394,8 @@ int main(int argc, char *argv[])
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-   solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
-   solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
+   // solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
+   // solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 
