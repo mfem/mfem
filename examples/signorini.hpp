@@ -13,7 +13,8 @@ enum Domain
 enum Domain mesh = CUBE;
 
 /**
- * @brief Initializes the displacement vector u based on the input vector x.
+ * @brief Initializes the displacement vector u with an initial guess of
+ *        u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
  */
 void InitDisplacement(const Vector &x, Vector &u)
 {
@@ -87,11 +88,11 @@ void ForceFunction(const Vector &x, Vector &f)
 
 /**
  * @brief Computes the stress tensor σ(u) based on the gradient of the
- *        displacement field u and the Lame parameters.
+ *        displacement field u and the Lamé parameters.
  *
  * @param grad_u Gradient of the displacement field
- * @param lambda First Lame parameter
- * @param mu     Second Lame parameter
+ * @param lambda First Lamé parameter
+ * @param mu     Second Lamé parameter
  * @param sigma  Computed stress tensor
  */
 void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
@@ -114,13 +115,15 @@ void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
 }
 
 /**
- * @brief Implements the boundary condition for the Signorini problem.
+ * @brief Implements the contact express boundary condition for the Signorini
+ *        problem. The vector n_tilde representing ñ is assumed to be equal to
+ *        (0,...,0,-1).
  *
  * @param dim Spatial dimension
  * @param u_prev Previous displacement vector
  * @param n_tilde Vector field
- * @param lambda First Lame parameter
- * @param mu Second Lame parameter
+ * @param lambda First Lamé parameter
+ * @param mu Second Lamé parameter
  * @param alpha Step-size parameter
  */
 class TractionBoundary : public VectorCoefficient
