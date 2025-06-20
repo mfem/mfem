@@ -116,7 +116,7 @@ public:
     1. P. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix
        F.3), Springer, 2008.
 
-    2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
+    2. J. Bramble and J. Pasciak. A Preconditioning Technique for Indefinite
        Systems Resulting From Mixed Approximations of Elliptic Problems,
        Mathematics of Computation, 50:1-17, 1988. */
 class BramblePasciakSolver : public DarcySolver
