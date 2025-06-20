@@ -55,6 +55,10 @@ jobs:
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         mpi: [seq, par]
+        exclude:
+          # Avoid running MemorySanitizer with MPI
+          - sanitizer: MemorySanitizer
+            mpi: par
         include:
           # AddressSanitizer
           # https://clang.llvm.org/docs/AddressSanitizer.html
