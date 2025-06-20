@@ -34,7 +34,8 @@ env:
                  strict_init_order=1,
                  strict_string_checks=1,
                  check_initialization_order=1,
-                 detect_stack_use_after_return=1"
+                 detect_stack_use_after_return=1,
+                 suppressions=${GITHUB_WORKSPACE}/asan.supp"
   # LLVM libcxx build options
   LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
   LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
@@ -105,6 +106,16 @@ jobs:
           mpicxx --showme:libs
           echo "> mpicxx --showme:version"
           mpicxx --showme:version
+          
+      # Create ASan suppression file
+      - name: Create ASan suppression file
+        run: |
+          cat << EOF > asan.supp
+          leak:ompi_mpi_finalize
+          leak:ompi_mpi_init
+          leak:PMPI_Init
+          leak:libevent_core-2.1.so
+          EOF
 
       - name: Setup Clang
         uses: egor-tensin/setup-clang@v1
