@@ -57,7 +57,6 @@
 #include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
-#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -90,11 +89,11 @@ class DarcyProblem
    ParGridFunction u_;
    ParGridFunction p_;
    ParMesh mesh_;
-   ParBilinearForm *mVarf_;
-   ParMixedBilinearForm *bVarf_;
+   DFSSpaces dfs_spaces_;
+   ParBilinearForm mVarf_;
+   ParMixedBilinearForm bVarf_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
-   DFSSpaces dfs_spaces_;
    PWConstCoefficient mass_coeff;
    const IntegrationRule *irs_[Geometry::NumGeom];
 public:
@@ -108,15 +107,19 @@ public:
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, std::string tag, int visport = 19916);
-   ParBilinearForm* GetMform() const { return mVarf_; }
-   ParMixedBilinearForm* GetBform() const { return bVarf_; }
+   ParBilinearForm& GetMform() { return mVarf_; }
+   ParMixedBilinearForm& GetBform() { return bVarf_; }
 };
 
 DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                            const char *coef_file, Array<int> &ess_bdr,
                            DFSParameters dfs_param)
-   : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
-     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
+   : mesh_(MPI_COMM_WORLD, mesh),
+     dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
+     mVarf_(dfs_spaces_.GetHdivFES()),
+     bVarf_(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES()),
+     ucoeff_(mesh.Dimension(), u_exact),
+     pcoeff_(p_exact),
      mass_coeff()
 {
    for (int l = 0; l < num_refs; l++)
@@ -153,24 +156,20 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   mVarf_ = new ParBilinearForm(dfs_spaces_.GetHdivFES());
-   bVarf_ = new ParMixedBilinearForm(dfs_spaces_.GetHdivFES(),
-                                     dfs_spaces_.GetL2FES());
+   mVarf_.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   mVarf_.ComputeElementMatrices();
+   mVarf_.Assemble();
+   mVarf_.EliminateEssentialBC(ess_bdr, u_, fform);
 
-   mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   mVarf_->ComputeElementMatrices();
-   mVarf_->Assemble();
-   mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
+   mVarf_.Finalize();
+   M_.Reset(mVarf_.ParallelAssemble());
 
-   mVarf_->Finalize();
-   M_.Reset(mVarf_->ParallelAssemble());
-
-   bVarf_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf_->Assemble();
-   bVarf_->SpMat() *= -1.0;
-   bVarf_->EliminateTrialEssentialBC(ess_bdr, u_, gform);
-   bVarf_->Finalize();
-   B_.Reset(bVarf_->ParallelAssemble());
+   bVarf_.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   bVarf_.Assemble();
+   bVarf_.SpMat() *= -1.0;
+   bVarf_.EliminateTrialEssentialBC(ess_bdr, u_, gform);
+   bVarf_.Finalize();
+   B_.Reset(bVarf_.ParallelAssemble());
 
    rhs_.SetSize(M_->NumRows() + B_->NumRows());
    Vector rhs_block0(rhs_.GetData(), M_->NumRows());

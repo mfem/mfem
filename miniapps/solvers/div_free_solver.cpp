@@ -441,7 +441,6 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
 
 DivFreeSolver::~DivFreeSolver()
 {
-   if (param_.coupled_solve) { return; }
    for (int i = 0; i < ops_.Size(); ++i)
    {
       delete ops_[i];
