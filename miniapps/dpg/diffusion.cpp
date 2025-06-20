@@ -381,8 +381,11 @@ int main(int argc, char *argv[])
                 << "    Dofs    |"
                 << "  L2 Error  |"
                 << "  Rate  |"
-                << " PCG it |" << std::endl;
-      std::cout << std::string(50,'-')
+                << " PCG it |"
+                << " Totl time |"
+                << " Mult time |"
+                << std::endl;
+      std::cout << std::string(74,'-')
                 << std::endl;
    }
 
@@ -392,8 +395,13 @@ int main(int argc, char *argv[])
    //set hybridization / assembly level
    if (a_dpg && static_cond) { a_dpg->EnableStaticCondensation(); }
 
+   StopWatch chrono_total, chrono_mult;
+
    for (int it = 0; it<=ref; it++)
    {
+      chrono_total.Clear();
+      chrono_total.Start();
+
       Array<int> ess_tdof_list;
 
       if (a_dpg)
@@ -533,7 +541,12 @@ int main(int argc, char *argv[])
       solver->SetPreconditioner(*prec);
       solver->SetOperator(*Ah);
 
+      chrono_mult.Clear();
+      chrono_mult.Start();
+
       solver->Mult(B, X);
+
+      chrono_mult.Stop();
 
       if (a_dpg)
       {
@@ -556,6 +569,8 @@ int main(int argc, char *argv[])
          u_gf.MakeRef(u_fes,x.GetBlock(1),0);
       }
 
+      chrono_total.Stop();
+
       if (prob == prob_type::manufactured)
       {
          int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
@@ -575,6 +590,8 @@ int main(int argc, char *argv[])
                    << std::setprecision(2)
                    << std::setw(6) << std::fixed << rate_err << " | "
                    << std::setw(6) << std::fixed << solver->GetNumIterations() << " | "
+                   << std::setw(9) << std::scientific << chrono_total.RealTime() << " | "
+                   << std::setw(9) << std::scientific << chrono_mult.RealTime() << " | "
                    << std::endl;
          std::cout.copyfmt(oldState);
       }

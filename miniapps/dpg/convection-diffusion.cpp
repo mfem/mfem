@@ -494,23 +494,31 @@ int main(int argc, char *argv[])
    std::cout << "\n  Ref |"
              << "    Dofs    |"
              << "  L2 Error  |"
-             << "  Rate  |";
+             << "  Rate  |"
+             << " Totl time |"
+             << " Mult time |";
    if (theta > 0.)
    {
       std::cout << "  Residual  |"
-                << "  Rate  |" << std::endl;
+                << "  Rate  |"
+                << std::endl;
+      std::cout << std::string(88,'-') << std::endl;
    }
    else
    {
       std::cout << std::endl;
+      std::cout << std::string(65,'-') << std::endl;
    }
-   std::cout << std::string(64,'-') << std::endl;
 
    //set hybridization / assembly level
    if (a_dpg && static_cond) { a_dpg->EnableStaticCondensation(); }
 
+   StopWatch chrono_total, chrono_mult;
+
    for (int it = 0; it<=ref; it++)
    {
+      chrono_total.Clear();
+      chrono_total.Start();
 
       Array<int> ess_tdof_list;
 
@@ -690,7 +698,13 @@ int main(int argc, char *argv[])
       solver->SetPrintLevel(0);
       solver->SetPreconditioner(*prec);
       solver->SetOperator(*Ah);
+
+      chrono_mult.Clear();
+      chrono_mult.Start();
+
       solver->Mult(B, X);
+
+      chrono_mult.Stop();
 
       if (a_dpg)
       {
@@ -700,6 +714,8 @@ int main(int argc, char *argv[])
       {
          a_darcy->RecoverFEMSolution(X, x);
       }
+
+      chrono_total.Stop();
 
       real_t u_err = u_gf.ComputeL2Error(uex);
       real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
@@ -721,7 +737,9 @@ int main(int argc, char *argv[])
                 << std::setprecision(3)
                 << std::setw(10) << std::scientific <<  err0 << " | "
                 << std::setprecision(2)
-                << std::setw(6) << std::fixed << rate_err << " | ";
+                << std::setw(6) << std::fixed << rate_err << " | "
+                << std::setw(9) << std::scientific << chrono_total.RealTime() << " | "
+                << std::setw(9) << std::scientific << chrono_mult.RealTime() << " | ";
       if (theta > 0.)
       {
          residuals.MakeRef(a_dpg->ComputeResidual(x), 0);
