@@ -13,6 +13,7 @@
 #define MFEM_DIVFREE_SOLVER_HPP
 
 #include "darcy_solver.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -35,14 +36,18 @@ struct DFSParameters : IterSolveParameters
 /// Data for the divergence free solver
 struct DFSData
 {
-   std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
-   std::vector<OperatorPtr> agg_l2dof;    // agglomerates to L2 dofs table
-   std::vector<OperatorPtr> P_hdiv;   // Interpolation matrix for H(div) space
-   std::vector<OperatorPtr> P_l2;     // Interpolation matrix for L2 space
-   std::vector<OperatorPtr> P_hcurl;  // Interpolation for kernel space of div
-   std::vector<OperatorPtr> Q_l2;     // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
-   Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
-   std::vector<OperatorPtr> C;        // discrete curl: ND -> RT, map to Null(B)
+   using UniqueOperatorPtr = std::unique_ptr<OperatorPtr>;
+   using UniqueHypreParMatrix = std::unique_ptr<HypreParMatrix>;
+
+   std::vector<OperatorPtr> agg_hdivdof; // agglomerates to H(div) dofs table
+   std::vector<OperatorPtr> agg_l2dof; // agglomerates to L2 dofs table
+   std::vector<UniqueOperatorPtr> P_hdiv; // Interpolation matrix for H(div) space
+   std::vector<UniqueOperatorPtr> P_l2; // Interpolation matrix for L2 space
+   std::vector<UniqueOperatorPtr> P_hcurl; // Interpolation for kernel space of div
+   std::vector<OperatorPtr> Q_l2; // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
+   Array<int> coarsest_ess_hdivdofs; // coarsest level essential H(div) dofs
+   std::vector<OperatorPtr> C; // discrete curl: ND -> RT, map to Null(B)
+   std::vector<UniqueHypreParMatrix> Ae;
    DFSParameters param;
 };
 
@@ -178,9 +183,9 @@ class DivFreeSolver : public DarcySolver
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
    std::vector<Array<int>> ops_offsets_;
-   Array<BlockOperator*> ops_;
-   Array<BlockOperator*> blk_Ps_;
-   Array<Solver*> smoothers_;
+   std::vector<std::unique_ptr<BlockOperator>> ops_;
+   std::vector<std::unique_ptr<BlockOperator>> blk_Ps_;
+   std::vector<std::unique_ptr<Solver>> smoothers_;
    OperatorPtr prec_;
    OperatorPtr solver_;
 
@@ -190,7 +195,6 @@ class DivFreeSolver : public DarcySolver
 public:
    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
                  const DFSData& data);
-   ~DivFreeSolver();
    void Mult(const Vector &x, Vector &y) const override;
    void SetOperator(const Operator &op) override { }
    int GetNumIterations() const override;

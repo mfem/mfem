@@ -13,8 +13,6 @@
 #define MFEM_DARCY_SOLVER_HPP
 
 #include "mfem.hpp"
-#include <memory>
-#include <vector>
 
 namespace mfem
 {
