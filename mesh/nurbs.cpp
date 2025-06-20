@@ -656,7 +656,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
 
    if (reuse_inverse)
    {
-      BandedFactorizedSolve(KL, KU, fact_AB, B, fact_ipiv);
+      BandedFactorizedSolve(KL, KU, fact_AB, B, false, fact_ipiv);
    }
    else
    {

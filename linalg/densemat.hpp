@@ -1327,7 +1327,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
                  Array<int> &ipiv);
 void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
-                           Array<int> &ipiv);
+                           bool transpose, Array<int> &ipiv);
 #endif
 
 // Inline methods
