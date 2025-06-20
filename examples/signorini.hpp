@@ -3,6 +3,15 @@
 using namespace std;
 using namespace mfem;
 
+enum Domain
+{
+   CUBE = 0,
+   TETRAHEDRON,
+   BALL
+};
+
+enum Domain mesh = CUBE;
+
 /**
  * @brief Initializes the displacement vector u based on the input vector x.
  */
@@ -55,9 +64,20 @@ real_t GapFunction(const Vector &x)
 void ForceFunction(const Vector &x, Vector &f)
 {
    real_t force;
-   // force = -0.25;   // Ball
-   // force = -5;      // Tetrahedron
-   force = -2;      // Cube
+   switch (mesh)
+   {
+      case CUBE:
+         force = -2.0;
+         break;
+      case TETRAHEDRON:
+         force = -5.0;
+         break;
+      case BALL:
+         force = -0.25;
+         break;
+      default:
+         MFEM_ABORT("Unsupported mesh type: " << mesh);
+   }
 
    const int dim = x.Size();
    f = 0.0;
